@@ -69,9 +69,11 @@ Future<void> main() async {
   Future<Map<String, dynamic>> accepted(
       TestHost h, String token, Map<String, dynamic> cmd) async {
     final response = await request(h, token, cmd);
-    check(response.status == 200 && response.body?['status'] == 'ACCEPTED',
+    check(
+        response.status == 200 &&
+            response.body?['receipt']?['status'] == 'ACCEPTED',
         'Command accepted through restricted persistent Host');
-    return response.body!;
+    return response.body!['receipt'] as Map<String, dynamic>;
   }
 
   bool same(Object? a, Object? b) => canonicalJson(a) == canonicalJson(b);
@@ -158,11 +160,15 @@ Future<void> main() async {
     await Future.wait([kill(a), kill(c)]);
     await Future.wait([ar, cr]);
     final survivor = await br;
-    check(survivor.status == 200 && survivor.body?['status'] == 'ACCEPTED',
+    check(
+        survivor.status == 200 &&
+            survivor.body?['receipt']?['status'] == 'ACCEPTED',
         'Waiting duplicate survives concurrent Host SIGKILLs');
     await kill(b);
     final recovered = await host();
-    check(same(await accepted(recovered, token, alpha), survivor.body),
+    check(
+        same(
+            await accepted(recovered, token, alpha), survivor.body?['receipt']),
         'Duplicate winner receipt survives restart');
     check(same(await accepted(recovered, token, beta), betaReceipt),
         'Concurrently committed command receipt survives restart');
