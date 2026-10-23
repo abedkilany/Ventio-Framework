@@ -69,7 +69,8 @@ Future<void> main() async {
   Future<TestHost> start({String? database, String? file}) async {
     final process = await Process.start('sudo', isolatedArgs([binary]),
         environment:
-            environment(database ?? runtimeUrl, file ?? authority.path));
+            environment(database ?? runtimeUrl, file ?? authority.path),
+        workingDirectory: env['VENTIO_AUDIT_HOST_WORKDIR']);
     final host = await TestHost.attach(process);
     active.add(host);
     return host;
@@ -91,12 +92,13 @@ Future<void> main() async {
             sameUid ? binary : 'sudo', sameUid ? [] : isolatedArgs([binary]),
             environment: environment(
                 database ?? runtimeUrl, file ?? authority.path,
-                owner: owner))
+                owner: owner),
+            workingDirectory: env['VENTIO_AUDIT_HOST_WORKDIR'])
         .timeout(const Duration(seconds: 20));
     check(
         result.exitCode == 2 &&
             !(result.stdout as String).contains('listening'),
-        label);
+        '$label (exit=${result.exitCode}; diagnostic=${result.stderr})');
   }
 
   Future<HttpOutcome> accepted(
@@ -110,6 +112,12 @@ Future<void> main() async {
   }
 
   try {
+    final runtimeIdentity =
+        await Process.run('sudo', isolatedArgs(['id', '-u']));
+    check(
+        runtimeIdentity.exitCode == 0 &&
+            (runtimeIdentity.stdout as String).trim() == '65534',
+        'Audit subprocess really runs under the separate nobody OS identity');
     // Linux read-only witness boundary: administration retains the only write
     // capability. Database and filesystem identities are independently separated.
     await authority.resetForReenrollment(

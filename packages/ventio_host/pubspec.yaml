@@ -3,7 +3,7 @@ description: Durable, Host-authoritative command processor for vetted operationa
 version: 0.1.0
 publish_to: none
 environment:
-  sdk: '>=3.4.0 <4.0.0'
+  sdk: '>=3.9.0 <4.0.0'
 dependencies:
   ventio_core:
     path: ../ventio_core
@@ -11,3 +11,4 @@ dependencies:
     path: ../ventio_postgres
   postgres: ^3.5.20
   crypto: ^3.0.6
+
