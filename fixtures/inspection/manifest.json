@@ -1,0 +1,33 @@
+{
+  "manifestVersion": 0,
+  "moduleId": "com.ventio.inspection",
+  "version": "0.1.0",
+  "minPlatformApi": "0.1.0",
+  "displayName": "Equipment Inspections",
+  "dependencies": [],
+  "docTypes": [
+    "EquipmentInspection"
+  ],
+  "commands": [
+    {
+      "type": "inspection.create",
+      "version": 1,
+      "capabilityId": "records.inspection.create@1",
+      "permission": "inspection.create"
+    }
+  ],
+  "requiredCapabilities": [
+    "records.inspection.create@1"
+  ],
+  "offline": {
+    "enabled": false,
+    "allowedCommands": []
+  },
+  "migrations": [
+    "001_inspection_schema"
+  ],
+  "displayNameKey": "inspection.module.name",
+  "description": "Track equipment condition inspections.",
+  "descriptionKey": "inspection.module.description",
+  "englishCatalog": "localization/en.inspection.json"
+}

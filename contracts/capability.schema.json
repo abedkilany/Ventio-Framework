@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ventio.local/v0/capability.schema.json",
+  "title": "Trusted Capability Declaration v0 (draft)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "provider", "executor", "executionKind", "requiredPermissions", "transactionMode", "offlineMode", "effects", "inputSchemaRef", "outputSchemaRef", "deterministic"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+@[1-9][0-9]*$"},
+    "provider": {"type": "string", "minLength": 3},
+    "executor": {"enum": ["host", "local_preview", "both"]},
+    "executionKind": {"enum": ["trusted_builtin", "trusted_deployed_module", "bounded_rules"]},
+    "requiredPermissions": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "transactionMode": {"enum": ["required", "read_only", "none"]},
+    "offlineMode": {"enum": ["not_allowed", "provisional", "local_only"]},
+    "effects": {"type": "array", "uniqueItems": true, "items": {"enum": ["records", "inventory", "ledger", "outbox", "audit"]}},
+    "inputSchemaRef": {"type": "string", "minLength": 3},
+    "outputSchemaRef": {"type": "string", "minLength": 3},
+    "deterministic": {"type": "boolean"}
+  }
+}

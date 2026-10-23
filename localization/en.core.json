@@ -1,0 +1,11 @@
+{
+  "core.action.save": "Save",
+  "core.action.cancel": "Cancel",
+  "core.state.pending": "Pending confirmation",
+  "core.state.confirmed": "Confirmed",
+  "core.state.needs_resolution": "Needs resolution",
+  "core.error.validation_required_field": "Required field is missing: {field}.",
+  "core.error.command_id_reused": "This command ID has already been used with different content.",
+  "core.error.upgrade_required": "An update is required before this action can be completed.",
+  "core.error.insufficient_stock": "Insufficient stock to complete the operation."
+}

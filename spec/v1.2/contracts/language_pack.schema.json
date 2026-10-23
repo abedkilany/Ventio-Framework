@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ventio.local/v0/language-pack.schema.json",
+  "title": "Optional Language Pack v0.1 (draft)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "targetModuleId",
+    "targetModuleVersion",
+    "locale",
+    "messages"
+  ],
+  "properties": {
+    "formatVersion": {
+      "const": 0
+    },
+    "targetModuleId": {
+      "type": "string",
+      "minLength": 3
+    },
+    "targetModuleVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "locale": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+    },
+    "messages": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2,}$",
+        "maxLength": 200
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 8000
+      }
+    },
+    "textDirection": {
+      "enum": [
+        "ltr",
+        "rtl"
+      ]
+    }
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ventio.local/v0/module-manifest.schema.json",
+  "title": "Ventio Module Manifest v0.1 (draft, localization ready)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "moduleId",
+    "version",
+    "minPlatformApi",
+    "displayName",
+    "docTypes",
+    "commands",
+    "requiredCapabilities",
+    "offline",
+    "displayNameKey",
+    "englishCatalog"
+  ],
+  "properties": {
+    "manifestVersion": {
+      "const": 0
+    },
+    "moduleId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+      "maxLength": 140
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "minPlatformApi": {
+      "$ref": "#/$defs/semver"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "dependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    },
+    "docTypes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+      }
+    },
+    "commands": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    },
+    "requiredCapabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]+@[1-9][0-9]*$"
+      }
+    },
+    "offline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "allowedCommands"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowedCommands": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "migrations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]{3}_[a-z0-9_]+$"
+      }
+    },
+    "displayNameKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2,}$",
+      "maxLength": 200
+    },
+    "englishCatalog": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[a-zA-Z0-9_./-]+\\.json$",
+      "maxLength": 240
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "descriptionKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2,}$",
+      "maxLength": 200
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "version",
+        "capabilityId",
+        "permission"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.]+$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "capabilityId": {
+          "type": "string",
+          "minLength": 4
+        },
+        "permission": {
+          "type": "string",
+          "minLength": 3
+        }
+      }
+    }
+  },
+  "dependentRequired": {
+    "description": [
+      "descriptionKey"
+    ],
+    "descriptionKey": [
+      "description"
+    ]
+  }
+}

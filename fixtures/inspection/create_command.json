@@ -1,0 +1,25 @@
+{
+  "protocolVersion": 0,
+  "commandId": "1e1440d9-72aa-4b84-8c53-bb5856c675a6",
+  "type": "inspection.create",
+  "typeVersion": 1,
+  "tenantId": "example-tenant",
+  "companyId": "example-company",
+  "branchId": "example-branch",
+  "aggregateId": "local-inspection-001",
+  "expectedRevision": null,
+  "dependsOn": [],
+  "payload": {
+    "assetTag": "EQ-100",
+    "inspectionDate": "2026-10-23",
+    "passed": true,
+    "priority": "normal"
+  },
+  "clientContext": {
+    "deviceId": "example-device",
+    "actorId": "example-user",
+    "moduleVersion": "0.1.0",
+    "docTypeVersion": 1,
+    "clientTimestamp": "2026-10-23T10:00:00Z"
+  }
+}

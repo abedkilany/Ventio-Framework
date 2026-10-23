@@ -1,0 +1,25 @@
+{
+  "protocolVersion": 0,
+  "commandId": "1e1440d9-72aa-4b84-8c53-bb5856c675a5",
+  "type": "maintenance.create",
+  "typeVersion": 1,
+  "tenantId": "example-tenant",
+  "companyId": "example-company",
+  "branchId": "example-branch",
+  "aggregateId": "local-maintenance-001",
+  "expectedRevision": null,
+  "dependsOn": [],
+  "payload": {
+    "customerName": "Sample Customer",
+    "deviceModel": "Sample Laptop",
+    "problemDescription": "Battery does not charge",
+    "status": "new"
+  },
+  "clientContext": {
+    "deviceId": "example-device",
+    "actorId": "example-user",
+    "moduleVersion": "0.1.0",
+    "docTypeVersion": 1,
+    "clientTimestamp": "2026-10-23T10:00:00Z"
+  }
+}

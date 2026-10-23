@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ventio.local/v0/command-receipt.schema.json",
+  "title": "Command Receipt v0.1 (draft, localization ready)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "commandId",
+    "status",
+    "serverTimestamp",
+    "retryable"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "const": 0
+    },
+    "commandId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "enum": [
+        "ACCEPTED",
+        "REJECTED",
+        "CONFLICT",
+        "RETRY_LATER"
+      ]
+    },
+    "serverTimestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "hostRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scopeCursor": {
+      "type": "string"
+    },
+    "officialNumber": {
+      "type": "string"
+    },
+    "output": {
+      "type": "object"
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_]+$"
+    },
+    "publicMessage": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "currentRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "messageParams": {
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": {
+        "pattern": "^[a-z][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "integer",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "messageKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2,}$",
+      "maxLength": 200
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ACCEPTED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "hostRevision",
+          "scopeCursor"
+        ],
+        "properties": {
+          "retryable": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "REJECTED",
+              "CONFLICT"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "reasonCode"
+        ],
+        "properties": {
+          "retryable": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "RETRY_LATER"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "reasonCode"
+        ],
+        "properties": {
+          "retryable": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

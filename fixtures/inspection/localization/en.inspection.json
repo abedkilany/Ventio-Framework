@@ -1,0 +1,13 @@
+{
+  "inspection.module.name": "Equipment Inspections",
+  "inspection.module.description": "Track equipment condition inspections.",
+  "inspection.record.name": "Equipment Inspection",
+  "inspection.record.description": "Document an equipment inspection.",
+  "inspection.record.asset_tag": "Asset Tag",
+  "inspection.record.inspection_date": "Inspection Date",
+  "inspection.record.passed": "Passed",
+  "inspection.record.priority": "Priority",
+  "inspection.record.priority.low": "Low",
+  "inspection.record.priority.normal": "Normal",
+  "inspection.record.priority.high": "High"
+}

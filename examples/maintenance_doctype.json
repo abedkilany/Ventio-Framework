@@ -1,0 +1,85 @@
+{
+  "name": "MaintenanceRequest",
+  "moduleId": "com.ventio.maintenance",
+  "schemaVersion": 1,
+  "kind": "operational",
+  "fields": [
+    {
+      "name": "customerName",
+      "type": "text",
+      "required": true,
+      "maxLength": 160,
+      "label": "Customer Name",
+      "labelKey": "maintenance.request.customer_name"
+    },
+    {
+      "name": "deviceModel",
+      "type": "text",
+      "required": true,
+      "maxLength": 140,
+      "label": "Device Model",
+      "labelKey": "maintenance.request.device_model"
+    },
+    {
+      "name": "problemDescription",
+      "type": "text",
+      "required": true,
+      "maxLength": 1000,
+      "label": "Problem Description",
+      "labelKey": "maintenance.request.problem_description"
+    },
+    {
+      "name": "status",
+      "type": "enum",
+      "required": true,
+      "enumValues": [
+        "new",
+        "diagnosing",
+        "ready",
+        "delivered"
+      ],
+      "label": "Status",
+      "labelKey": "maintenance.request.status",
+      "enumLabels": {
+        "new": {
+          "label": "New",
+          "labelKey": "maintenance.request.status.new"
+        },
+        "diagnosing": {
+          "label": "Diagnosing",
+          "labelKey": "maintenance.request.status.diagnosing"
+        },
+        "ready": {
+          "label": "Ready",
+          "labelKey": "maintenance.request.status.ready"
+        },
+        "delivered": {
+          "label": "Delivered",
+          "labelKey": "maintenance.request.status.delivered"
+        }
+      }
+    }
+  ],
+  "permissions": {
+    "read": "maintenance.read",
+    "create": "maintenance.create",
+    "update": "maintenance.update"
+  },
+  "ui": {
+    "listColumns": [
+      "customerName",
+      "deviceModel",
+      "status"
+    ],
+    "formFields": [
+      "customerName",
+      "deviceModel",
+      "problemDescription",
+      "status"
+    ]
+  },
+  "label": "Maintenance Request",
+  "labelKey": "maintenance.request.name",
+  "description": "A request to repair or service a device.",
+  "descriptionKey": "maintenance.request.description"
+}

@@ -1,0 +1,35 @@
+{
+  "manifestVersion": 0,
+  "moduleId": "com.ventio.maintenance",
+  "version": "0.1.0",
+  "minPlatformApi": "0.1.0",
+  "displayName": "Maintenance Requests",
+  "dependencies": [],
+  "docTypes": [
+    "MaintenanceRequest"
+  ],
+  "commands": [
+    {
+      "type": "maintenance.create",
+      "version": 1,
+      "capabilityId": "records.operational.create@1",
+      "permission": "maintenance.create"
+    }
+  ],
+  "requiredCapabilities": [
+    "records.operational.create@1"
+  ],
+  "offline": {
+    "enabled": true,
+    "allowedCommands": [
+      "maintenance.create"
+    ]
+  },
+  "migrations": [
+    "001_initial_schema"
+  ],
+  "displayNameKey": "maintenance.module.name",
+  "description": "Track device repair and maintenance requests.",
+  "descriptionKey": "maintenance.module.description",
+  "englishCatalog": "localization/en.maintenance.json"
+}

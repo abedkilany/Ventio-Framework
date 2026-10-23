@@ -1,0 +1,14 @@
+{
+  "maintenance.module.name": "Maintenance Requests",
+  "maintenance.module.description": "Track device repair and maintenance requests.",
+  "maintenance.request.name": "Maintenance Request",
+  "maintenance.request.description": "A request to repair or service a device.",
+  "maintenance.request.customer_name": "Customer Name",
+  "maintenance.request.device_model": "Device Model",
+  "maintenance.request.problem_description": "Problem Description",
+  "maintenance.request.status": "Status",
+  "maintenance.request.status.new": "New",
+  "maintenance.request.status.diagnosing": "Diagnosing",
+  "maintenance.request.status.ready": "Ready",
+  "maintenance.request.status.delivered": "Delivered"
+}

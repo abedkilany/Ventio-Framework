@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 0,
+  "commandId": "1e1440d9-72aa-4b84-8c53-bb5856c675a5",
+  "status": "REJECTED",
+  "serverTimestamp": "2026-10-23T10:00:01Z",
+  "retryable": false,
+  "reasonCode": "VALIDATION_REQUIRED_FIELD",
+  "messageKey": "core.error.validation_required_field",
+  "messageParams": {
+    "field": "Device Model"
+  },
+  "publicMessage": "Required field is missing: Device Model."
+}

@@ -1,0 +1,35 @@
+name: Ventio Core Foundation
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dart-core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/ventio_core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed lib bin test
+      - run: dart analyze .
+      - run: dart run test/all_tests.dart
+      - run: dart run bin/maintenance_demo.dart
+      - run: dart run bin/two_module_demo.dart
+
+  architecture-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'jsonschema>=4.18,<5'
+      - run: python scripts/verify_package.py
+      - run: python spec/v1.2/scripts/validate_contracts.py
+      - run: python -m unittest discover -s spec/v1.2/tests -v

@@ -1,0 +1,13 @@
+{
+  "id": "records.operational.create@1",
+  "provider": "com.ventio.platform.records",
+  "executor": "host",
+  "executionKind": "trusted_builtin",
+  "requiredPermissions": ["maintenance.create"],
+  "transactionMode": "required",
+  "offlineMode": "provisional",
+  "effects": ["records", "audit", "outbox"],
+  "inputSchemaRef": "OperationalRecordCreateV1",
+  "outputSchemaRef": "OperationalRecordCreatedV1",
+  "deterministic": true
+}

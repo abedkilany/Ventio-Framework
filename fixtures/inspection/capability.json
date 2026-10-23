@@ -1,0 +1,19 @@
+{
+  "id": "records.inspection.create@1",
+  "provider": "com.ventio.platform.inspection",
+  "executor": "host",
+  "executionKind": "trusted_builtin",
+  "requiredPermissions": [
+    "inspection.create"
+  ],
+  "transactionMode": "required",
+  "offlineMode": "not_allowed",
+  "effects": [
+    "records",
+    "audit",
+    "outbox"
+  ],
+  "inputSchemaRef": "OperationalRecordCreateV1",
+  "outputSchemaRef": "OperationalRecordCreatedV1",
+  "deterministic": true
+}

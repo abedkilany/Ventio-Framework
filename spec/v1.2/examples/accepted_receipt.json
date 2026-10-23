@@ -1,0 +1,12 @@
+{
+  "protocolVersion": 0,
+  "commandId": "1e1440d9-72aa-4b84-8c53-bb5856c675a5",
+  "status": "ACCEPTED",
+  "serverTimestamp": "2026-10-23T10:00:01Z",
+  "retryable": false,
+  "hostRevision": 1,
+  "scopeCursor": "opaque-branch-cursor-token",
+  "output": {
+    "serverRecordId": "maint-000001"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "core.error.scope_denied": "Access to this organization, branch, user, or device is denied.",
+  "core.error.permission_denied": "You do not have permission to perform this action.",
+  "core.error.unknown_command": "This operation is not supported.",
+  "core.error.dependency_pending": "This operation is waiting for an earlier operation to be confirmed.",
+  "core.error.expected_revision_must_be_null": "This new record cannot specify an existing revision.",
+  "core.error.invalid_payload": "One or more submitted fields are invalid.",
+  "core.error.record_already_exists": "This record already exists. Review the latest record before continuing."
+}

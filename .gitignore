@@ -1,0 +1,11 @@
+﻿**/.dart_tool/
+**/build/
+**/.pub/
+**/.packages
+packages/ventio_core/pubspec.lock
+.idea/
+.vscode/
+*.log
+*.zip
+.env
+.env.*

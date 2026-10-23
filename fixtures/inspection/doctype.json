@@ -1,0 +1,78 @@
+{
+  "name": "EquipmentInspection",
+  "moduleId": "com.ventio.inspection",
+  "schemaVersion": 1,
+  "kind": "operational",
+  "fields": [
+    {
+      "name": "assetTag",
+      "type": "text",
+      "required": true,
+      "maxLength": 80,
+      "label": "Asset Tag",
+      "labelKey": "inspection.record.asset_tag"
+    },
+    {
+      "name": "inspectionDate",
+      "type": "date",
+      "required": true,
+      "label": "Inspection Date",
+      "labelKey": "inspection.record.inspection_date"
+    },
+    {
+      "name": "passed",
+      "type": "boolean",
+      "required": true,
+      "label": "Passed",
+      "labelKey": "inspection.record.passed"
+    },
+    {
+      "name": "priority",
+      "type": "enum",
+      "required": true,
+      "enumValues": [
+        "low",
+        "normal",
+        "high"
+      ],
+      "label": "Priority",
+      "labelKey": "inspection.record.priority",
+      "enumLabels": {
+        "low": {
+          "label": "Low",
+          "labelKey": "inspection.record.priority.low"
+        },
+        "normal": {
+          "label": "Normal",
+          "labelKey": "inspection.record.priority.normal"
+        },
+        "high": {
+          "label": "High",
+          "labelKey": "inspection.record.priority.high"
+        }
+      }
+    }
+  ],
+  "permissions": {
+    "read": "inspection.read",
+    "create": "inspection.create",
+    "update": "inspection.update"
+  },
+  "ui": {
+    "listColumns": [
+      "assetTag",
+      "inspectionDate",
+      "priority"
+    ],
+    "formFields": [
+      "assetTag",
+      "inspectionDate",
+      "passed",
+      "priority"
+    ]
+  },
+  "label": "Equipment Inspection",
+  "labelKey": "inspection.record.name",
+  "description": "Document an equipment inspection.",
+  "descriptionKey": "inspection.record.description"
+}

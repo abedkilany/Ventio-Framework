@@ -1,0 +1,226 @@
+import 'contracts.dart';
+
+class FieldDefinition {
+  final String name;
+  final String type;
+  final bool required;
+  final String label;
+  final String labelKey;
+  final int? maxLength;
+  final List<String> enumValues;
+  final String? referenceTo;
+
+  const FieldDefinition(
+      {required this.name,
+      required this.type,
+      required this.required,
+      required this.label,
+      required this.labelKey,
+      required this.maxLength,
+      required this.enumValues,
+      required this.referenceTo});
+
+  factory FieldDefinition.fromJson(Map<String, dynamic> json) {
+    final type = requireString(json, 'type');
+    if (![
+      'text',
+      'integer',
+      'decimal',
+      'boolean',
+      'date',
+      'datetime',
+      'reference',
+      'enum'
+    ].contains(type)) {
+      throw ContractError('INVALID_FIELD', 'Unsupported field type: $type');
+    }
+    final maxLength = json['maxLength'];
+    if (maxLength != null &&
+        (maxLength is! int || maxLength < 1 || maxLength > 65535)) {
+      throw const ContractError('INVALID_FIELD', 'Invalid maxLength');
+    }
+    final options = json['enumValues'] == null
+        ? <String>[]
+        : strings(requireList(json, 'enumValues'), 'enumValues');
+    final referenceTo = optionalString(json, 'referenceTo');
+    if (type == 'enum') {
+      if (options.isEmpty)
+        throw const ContractError('INVALID_FIELD', 'Enum needs options');
+      final labels = requireMap(json['enumLabels'], 'enumLabels');
+      if (labels.keys.toSet().difference(options.toSet()).isNotEmpty ||
+          options.toSet().difference(labels.keys.toSet()).isNotEmpty) {
+        throw const ContractError(
+            'INVALID_FIELD', 'Enum labels must match options');
+      }
+      for (final label in labels.values) {
+        final item = requireMap(label, 'enumLabels[]');
+        requireString(item, 'label');
+        requireString(item, 'labelKey');
+      }
+    }
+    if (type == 'reference' && (referenceTo == null || referenceTo.isEmpty)) {
+      throw const ContractError(
+          'INVALID_FIELD', 'Reference requires referenceTo');
+    }
+    final labelKey = requireString(json, 'labelKey');
+    if (!_messageKey.hasMatch(labelKey)) {
+      throw const ContractError(
+          'INVALID_FIELD', 'Field labelKey must be a namespaced message key');
+    }
+    return FieldDefinition(
+        name: requireString(json, 'name'),
+        type: type,
+        required: requireBool(json, 'required'),
+        label: requireString(json, 'label'),
+        labelKey: labelKey,
+        maxLength: maxLength as int?,
+        enumValues: List.unmodifiable(options),
+        referenceTo: referenceTo);
+  }
+
+  String? validate(Object? value) {
+    if (value == null) return required ? 'REQUIRED' : null;
+    switch (type) {
+      case 'text':
+      case 'reference':
+        if (value is! String || (required && value.trim().isEmpty))
+          return 'INVALID_TEXT';
+        if (maxLength != null && value.runes.length > maxLength!)
+          return 'TOO_LONG';
+        return null;
+      case 'enum':
+        return value is String && enumValues.contains(value)
+            ? null
+            : 'INVALID_ENUM';
+      case 'integer':
+        return value is int ? null : 'INVALID_INTEGER';
+      case 'decimal':
+        // Monetary values need a decimal-precision contract before this type can
+        // be used for financial postings. Never use binary doubles for ledgers.
+        return value is num && value.isFinite ? null : 'INVALID_DECIMAL';
+      case 'boolean':
+        return value is bool ? null : 'INVALID_BOOLEAN';
+      case 'date':
+        if (value is! String || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value))
+          return 'INVALID_DATE';
+        final date = DateTime.tryParse(value);
+        return date != null && date.toIso8601String().startsWith(value)
+            ? null
+            : 'INVALID_DATE';
+      case 'datetime':
+        if (value is! String || !RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(value))
+          return 'INVALID_DATETIME';
+        return DateTime.tryParse(value) != null ? null : 'INVALID_DATETIME';
+    }
+    return 'UNSUPPORTED_FIELD_TYPE';
+  }
+}
+
+final RegExp _messageKey = RegExp(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$');
+
+class DocTypeDefinition {
+  final String name;
+  final String moduleId;
+  final int schemaVersion;
+  final String kind;
+  final String label;
+  final String labelKey;
+  final Map<String, String> permissions;
+  final List<FieldDefinition> fields;
+
+  const DocTypeDefinition(
+      {required this.name,
+      required this.moduleId,
+      required this.schemaVersion,
+      required this.kind,
+      required this.label,
+      required this.labelKey,
+      required this.permissions,
+      required this.fields});
+
+  factory DocTypeDefinition.fromJson(Map<String, dynamic> json) {
+    final fields = requireList(json, 'fields')
+        .map((field) => FieldDefinition.fromJson(requireMap(field, 'fields[]')))
+        .toList();
+    if (fields.isEmpty ||
+        fields.map((field) => field.name).toSet().length != fields.length) {
+      throw const ContractError(
+          'INVALID_DOCTYPE', 'Fields must be unique and nonempty');
+    }
+    final permissionsRaw = requireMap(json['permissions'], 'permissions');
+    final permissions = <String, String>{
+      for (final verb in ['read', 'create', 'update'])
+        verb: requireString(permissionsRaw, verb),
+    };
+    final kind = requireString(json, 'kind');
+    if (!['operational', 'sensitive'].contains(kind)) {
+      throw const ContractError('INVALID_DOCTYPE', 'Unknown DocType kind');
+    }
+    final labelKey = requireString(json, 'labelKey');
+    if (!_messageKey.hasMatch(labelKey)) {
+      throw const ContractError('INVALID_DOCTYPE', 'Invalid labelKey');
+    }
+    final uiRaw = json['ui'];
+    if (uiRaw != null) {
+      final ui = requireMap(uiRaw, 'ui');
+      final fieldNames = fields.map((f) => f.name).toSet();
+      for (final key in ['listColumns', 'formFields']) {
+        final columns = strings(requireList(ui, key), 'ui.$key');
+        if (columns.any((item) => !fieldNames.contains(item))) {
+          throw ContractError(
+              'INVALID_DOCTYPE', 'ui.$key references unknown field');
+        }
+      }
+    }
+    return DocTypeDefinition(
+        name: requireString(json, 'name'),
+        moduleId: requireString(json, 'moduleId'),
+        schemaVersion: requireInt(json, 'schemaVersion', min: 1),
+        kind: kind,
+        label: requireString(json, 'label'),
+        labelKey: labelKey,
+        permissions: Map.unmodifiable(permissions),
+        fields: List.unmodifiable(fields));
+  }
+
+  List<String> validatePayload(Map<String, dynamic> payload) {
+    final issues = <String>[];
+    final defined = {for (final field in fields) field.name: field};
+    for (final key in payload.keys) {
+      if (!defined.containsKey(key)) issues.add('$key:UNKNOWN_FIELD');
+    }
+    for (final field in fields) {
+      final issue = field.validate(payload[field.name]);
+      if (issue != null) issues.add('${field.name}:$issue');
+    }
+    return issues;
+  }
+}
+
+class DocTypeRegistry {
+  final Map<String, DocTypeDefinition> _types = {};
+
+  void validateRegistrations(List<DocTypeDefinition> definitions) {
+    final seen = <String>{};
+    for (final docType in definitions) {
+      if (!seen.add(docType.name) || _types.containsKey(docType.name)) {
+        throw ContractError('DUPLICATE_DOCTYPE', docType.name);
+      }
+    }
+  }
+
+  void register(DocTypeDefinition docType) {
+    validateRegistrations([docType]);
+    _types[docType.name] = docType;
+  }
+
+  void registerAll(List<DocTypeDefinition> definitions) {
+    validateRegistrations(definitions);
+    for (final docType in definitions) {
+      _types[docType.name] = docType;
+    }
+  }
+
+  DocTypeDefinition? get(String name) => _types[name];
+  List<DocTypeDefinition> get all => List.unmodifiable(_types.values);
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ventio.local/v0/command-envelope.schema.json",
+  "title": "Command Envelope v0 (draft)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "commandId", "type", "typeVersion", "tenantId", "companyId", "branchId", "aggregateId", "payload", "clientContext"],
+  "properties": {
+    "protocolVersion": {"const": 0},
+    "commandId": {"type": "string", "format": "uuid"},
+    "type": {"type": "string", "pattern": "^[a-z][a-z0-9_.]+$"},
+    "typeVersion": {"type": "integer", "minimum": 1},
+    "tenantId": {"type": "string", "minLength": 1},
+    "companyId": {"type": "string", "minLength": 1},
+    "branchId": {"type": "string", "minLength": 1},
+    "aggregateId": {"type": "string", "minLength": 1},
+    "expectedRevision": {"type": ["integer", "null"], "minimum": 0},
+    "dependsOn": {"type": "array", "uniqueItems": true, "items": {"type": "string", "format": "uuid"}},
+    "payload": {"type": "object"},
+    "clientContext": {"type": "object", "additionalProperties": false, "required": ["deviceId", "actorId", "moduleVersion", "docTypeVersion"], "properties": {
+      "deviceId": {"type": "string", "minLength": 1},
+      "actorId": {"type": "string", "minLength": 1},
+      "moduleVersion": {"type": "string", "minLength": 5},
+      "docTypeVersion": {"type": "integer", "minimum": 1},
+      "clientTimestamp": {"type": "string", "format": "date-time"}
+    }}
+  }
+}
