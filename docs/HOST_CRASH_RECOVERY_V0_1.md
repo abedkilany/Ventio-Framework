@@ -64,7 +64,10 @@ a deterministic manifest containing all application/security/migration table
 rows, sequence state, object owners and ACLs, FORCE RLS flags and policy
 expressions, security function bodies/owners/search paths/ACLs, capability-role
 attributes/memberships and database/schema ACLs. Local object OIDs, statistics,
-physical storage and password hashes are deliberately excluded. The manifest is
+physical storage and password hashes are deliberately excluded. Table/sequence
+ACLs are compared as sorted grantee/grantor/privilege/grant-option tuples, with
+null ACLs expanded to PostgreSQL defaults. Equivalent ACL array order/default
+representations must not hide or falsely report a privilege change. The manifest is
 compared on a fresh cluster **before** password provisioning or admin changes.
 PostgreSQL 16 gives the cluster bootstrap grantor (OID 10) special membership
 semantics. The fresh cluster is initialized with the same bootstrap role name
