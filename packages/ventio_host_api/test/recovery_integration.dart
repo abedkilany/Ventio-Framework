@@ -251,6 +251,12 @@ Future<void> main() async {
     await Future.wait([beforeResponse, afterResponse]);
     control = await pg.Connection.openFromUrl(url);
     administration = await pg.Connection.openFromUrl(adminUrl);
+    for (final entry in acknowledged.values) {
+      check(same(await savedReceipt(control, entry.$1), entry.$2),
+          'Server crash retains previously HTTP-acknowledged receipt');
+      await counts(entry.$1, 1,
+          'Server crash retains every previously acknowledged complete effect');
+    }
     await counts(
         before, 0, 'PostgreSQL server crash discards uncommitted command');
     await counts(after, 1,

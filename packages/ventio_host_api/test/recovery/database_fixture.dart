@@ -49,13 +49,15 @@ class DatabaseFixture {
   Future<void> pipe(List<String> arguments, File input) async {
     final process = await Process.start('docker', arguments);
     final output = process.stdout.drain<void>();
-    final errors = process.stderr.drain<void>();
+    final errors = process.stderr.transform(utf8.decoder).join();
     await process.stdin.addStream(input.openRead());
     await process.stdin.close();
     if (await process.exitCode.timeout(const Duration(seconds: 45)) != 0) {
-      throw StateError('Restore operation failed');
+      final diagnostic = (await errors).split('\n').first;
+      throw StateError('Restore operation failed: $diagnostic');
     }
-    await Future.wait([output, errors]);
+    await output;
+    await errors;
   }
 
   Future<void> capture(List<String> arguments, File output) async {
