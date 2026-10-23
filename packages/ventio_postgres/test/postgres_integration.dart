@@ -130,6 +130,82 @@ Future<void> main() async {
     } finally {
       await restarted.close();
     }
+    final nestedSource = <String, dynamic>{
+      'nested': {
+        'items': [1, 2]
+      }
+    };
+    final nested = PersistedRecord(
+        scope: scope,
+        docType: 'Inspection',
+        recordId: 'nested',
+        revision: 1,
+        data: nestedSource);
+    nestedSource['nested']['items'].add(3);
+    nested.data['nested']['items'].add(4);
+    expect((nested.data['nested']['items'] as List).length == 2,
+        'Repository records do not expose nested internal data');
+    final temporary =
+        await Directory.systemTemp.createTemp('ventio-migration-audit-');
+    try {
+      for (final source in await migrations
+          .list()
+          .where((e) => e is File && e.path.endsWith('.sql'))
+          .cast<File>()
+          .toList()) {
+        await source.copy('${temporary.path}/${source.uri.pathSegments.last}');
+      }
+      Future<bool> rejected() async {
+        try {
+          await PostgresMigrationRunner(conn, temporary).apply();
+          return false;
+        } catch (_) {
+          return true;
+        }
+      }
+
+      final first = File('${temporary.path}/001_records.sql');
+      final original = await first.readAsString();
+      await first.delete();
+      expect(
+          await rejected(), 'Missing previously applied migration is rejected');
+      await first.writeAsString('$original\n-- altered checksum');
+      expect(await rejected(),
+          'Modified historical migration is rejected before new DDL');
+      await first.writeAsString(original);
+      final collision = File('${temporary.path}/001_duplicate.sql');
+      await collision.writeAsString('SELECT 1');
+      expect(
+          await rejected(), 'Duplicate migration numeric version is rejected');
+      await collision.delete();
+      await File('${temporary.path}/013_audit_probe.sql')
+          .writeAsString('CREATE TABLE ventio_migration_probe(id int)');
+      await File('${temporary.path}/014_audit_failure.sql')
+          .writeAsString('NOT VALID POSTGRESQL');
+      expect(
+          await rejected(), 'Later invalid migration rejects whole new batch');
+      expect(
+          (await conn.execute(
+                      "SELECT to_regclass('public.ventio_migration_probe') IS NULL"))
+                  .single[0] ==
+              true,
+          'Earlier new table is rolled back after later migration failure');
+      expect(
+          (await conn.execute(
+                      "SELECT count(*) FROM ventio_schema_migrations WHERE name IN ('013_audit_probe.sql','014_audit_failure.sql')"))
+                  .single[0] ==
+              0,
+          'Failed new batch leaves no migration ledger entries');
+      await conn.execute(
+          "INSERT INTO ventio_schema_migrations(name,sha256) VALUES('999_unknown.sql','fixture')");
+      expect(await rejected(), 'Database newer than the checkout is rejected');
+      await conn.execute(
+          "DELETE FROM ventio_schema_migrations WHERE name='999_unknown.sql'");
+      expect((await runner.apply()).isEmpty,
+          'Baseline migrations remain intact after negative cases');
+    } finally {
+      await temporary.delete(recursive: true);
+    }
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     // Test scope only; run against a disposable dedicated test database.
@@ -139,4 +215,3 @@ Future<void> main() async {
     await conn.close();
   }
 }
-

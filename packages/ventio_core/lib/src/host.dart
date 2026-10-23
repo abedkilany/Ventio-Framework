@@ -16,6 +16,40 @@ class TrustedCommandBinding {
       this.commandType, this.commandVersion, this.docTypeName);
 }
 
+/// Shared binding contract for the in-memory proof and durable SQL engine.
+/// Each engine retains its own execution/transaction implementation.
+DocTypeDefinition validateTrustedCreateBinding(ModuleRegistry modules,
+    DocTypeRegistry docTypes, TrustedCommandBinding binding) {
+  final module =
+      modules.moduleForCommand(binding.commandType, binding.commandVersion);
+  final docType = docTypes.get(binding.docTypeName);
+  final declaration = module == null
+      ? null
+      : modules.getCommand(
+          module.moduleId, binding.commandType, binding.commandVersion);
+  final capability = declaration == null
+      ? null
+      : modules.getCapability(declaration.capabilityId);
+  if (module == null ||
+      docType == null ||
+      declaration == null ||
+      capability == null ||
+      !module.docTypes.contains(docType.name) ||
+      docType.moduleId != module.moduleId ||
+      docType.kind != 'operational' ||
+      capability.executor != 'host' ||
+      capability.executionKind != 'trusted_builtin' ||
+      capability.transactionMode != 'required' ||
+      !capability.effects.toSet().containsAll({'records', 'audit', 'outbox'}) ||
+      !capability.requiredPermissions.contains(declaration.permission) ||
+      docType.permissions['create'] != declaration.permission ||
+      docType.fields.any((field) => field.type == 'decimal')) {
+    throw const ContractError('INVALID_BINDING',
+        'Trusted binding requires an installed operational DocType and transactional create capability');
+  }
+  return docType;
+}
+
 class StoredRecord {
   final String id;
   final String tenantId;
@@ -83,36 +117,7 @@ class InMemoryHost {
   static String _bindingKey(String type, int version) => '$type@$version';
 
   void registerTrustedCreateBinding(TrustedCommandBinding binding) {
-    final module =
-        modules.moduleForCommand(binding.commandType, binding.commandVersion);
-    final docType = docTypes.get(binding.docTypeName);
-    if (module == null ||
-        docType == null ||
-        !module.docTypes.contains(docType.name) ||
-        docType.moduleId != module.moduleId ||
-        docType.kind != 'operational') {
-      throw const ContractError('INVALID_BINDING',
-          'Trusted binding must target an installed operational DocType');
-    }
-    final command = modules.getCommand(
-        module.moduleId, binding.commandType, binding.commandVersion)!;
-    final capability = modules.getCapability(command.capabilityId);
-    if (docType.fields.any((field) => field.type == 'decimal')) {
-      throw const ContractError('INVALID_BINDING',
-          'Generic record creation cannot handle precision-sensitive decimal fields');
-    }
-    if (capability == null ||
-        capability.executor != 'host' ||
-        capability.executionKind != 'trusted_builtin' ||
-        capability.transactionMode != 'required' ||
-        !capability.effects.contains('records') ||
-        !capability.effects.contains('audit') ||
-        !capability.effects.contains('outbox') ||
-        !capability.requiredPermissions.contains(command.permission) ||
-        docType.permissions['create'] != command.permission) {
-      throw const ContractError('INVALID_BINDING',
-          'Capability, permission, or effects do not satisfy the binding');
-    }
+    validateTrustedCreateBinding(modules, docTypes, binding);
     final key = _bindingKey(binding.commandType, binding.commandVersion);
     if (_bindings.containsKey(key))
       throw ContractError('DUPLICATE_BINDING', key);

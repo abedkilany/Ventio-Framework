@@ -603,6 +603,50 @@ void main() {
     check(p.modules.installedIds.length == 1,
         'Failed command validation mutated registry');
   });
+  test('Nested command values cannot diverge from their fingerprint', () {
+    final source = commandJson();
+    source['payload']['nested'] = {
+      'items': [
+        1,
+        {'value': 'original'}
+      ]
+    };
+    final envelope = CommandEnvelope.fromJson(source);
+    final fingerprint = canonicalJson(envelope.original);
+    source['payload']['nested']['items'][1]['value'] = 'caller-change';
+    check(canonicalJson(envelope.original) == fingerprint,
+        'Source mutated envelope');
+    checkThrows(
+        () => envelope.payload['nested']['items'][1]['value'] = 'changed',
+        'Nested payload allowed a write');
+    checkThrows(() => envelope.original['clientContext']['actorId'] = 'forged',
+        'Nested wire context allowed a write');
+    checkThrows(() => envelope.original['payload']['nested']['items'].add(2),
+        'Nested wire array allowed a write');
+    check(
+        canonicalJson(envelope.original) == fingerprint, 'Fingerprint changed');
+  });
+  test('A caller cannot corrupt a journaled receipt through its output', () {
+    final prototype = fresh();
+    final receipt = prototype.host.execute(command(), actor());
+    check(receipt.accepted, 'Command was not accepted');
+    final expected = canonicalJson(receipt.toJson());
+    checkThrows(() => receipt.output!['serverRecordId'] = 'forged',
+        'Receipt output was writable');
+    final wire = receipt.toJson();
+    checkThrows(() => (wire['output'] as Map)['serverRecordId'] = 'forged',
+        'Serialized receipt leaked writable journal data');
+    check(
+        canonicalJson(prototype.host.execute(command(), actor()).toJson()) ==
+            expected,
+        'Retry receipt was corrupted');
+  });
+  test('Nonfinite JSON values cannot enter an envelope', () {
+    final raw = commandJson();
+    raw['payload']['overflow'] = double.infinity;
+    checkThrows(
+        () => CommandEnvelope.fromJson(raw), 'Nonfinite value accepted');
+  });
   print('RESULT: $passed passed, $failed failed');
   if (failed > 0) throw StateError('$failed tests failed');
 }

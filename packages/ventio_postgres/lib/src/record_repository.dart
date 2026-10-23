@@ -24,7 +24,9 @@ class PersistedRecord {
   final String docType;
   final String recordId;
   final int revision;
-  final Map<String, dynamic> data;
+  final Map<String, dynamic> _data;
+  Map<String, dynamic> get data =>
+      jsonDecode(jsonEncode(_data)) as Map<String, dynamic>;
 
   PersistedRecord(
       {required this.scope,
@@ -32,7 +34,7 @@ class PersistedRecord {
       required this.recordId,
       required this.revision,
       required Map<String, dynamic> data})
-      : data = Map.unmodifiable(
+      : _data = Map.unmodifiable(
             jsonDecode(jsonEncode(data)) as Map<String, dynamic>) {
     if (docType.trim().isEmpty || recordId.trim().isEmpty || revision < 1) {
       throw ArgumentError('Invalid persisted record identity or revision');

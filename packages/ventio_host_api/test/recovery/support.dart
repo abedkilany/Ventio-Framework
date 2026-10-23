@@ -23,6 +23,12 @@ class TestHost {
     // Capture neither credentials nor database diagnostics in shared test logs.
     process.stderr.drain<void>();
   }
+  static Future<TestHost> attach(Process process) async {
+    final host = TestHost._(process);
+    host.port = (await host.event('ready'))['port'] as int;
+    return host;
+  }
+
   static Future<TestHost> start(String url,
       {String? stage, String? executionUrl, String? authorityFile}) async {
     final crash = stage != null;
@@ -32,7 +38,7 @@ class TestHost {
           ? 'test/recovery/crash_host.dart'
           : authorityFile == null
               ? 'test/recovery/legacy_host.dart'
-              : 'bin/local_host.dart'
+              : 'test/recovery/same_account_host.dart'
     ], environment: {
       if (authorityFile != null)
         'VENTIO_RECOVERY_AUTHORITY_FILE': authorityFile,

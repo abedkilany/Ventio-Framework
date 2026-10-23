@@ -13,7 +13,8 @@ Future<void> main(List<String> args) async {
     if (args.length != 1) throw ArgumentError('Private request file required');
     final request = jsonDecode(await PrivateFiles.read(args.single))
         as Map<String, dynamic>;
-    final authority = RecoveryAuthority(request['authorityFile'] as String);
+    final authority = RecoveryAuthority(request['authorityFile'] as String,
+        readerGroupId: request['witnessReaderGid'] as int?);
     final label = request['operatorLabel'] as String;
     db = await pg.Connection.openFromUrl(
         request['administrationDatabaseUrl'] as String);

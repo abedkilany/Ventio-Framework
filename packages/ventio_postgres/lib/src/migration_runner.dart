@@ -27,42 +27,51 @@ class PostgresMigrationRunner {
     if (files.map(_filename).toSet().length != files.length) {
       throw StateError('Duplicate migration filenames');
     }
-    final applied = <String>[];
+    final sources = <String, String>{};
+    final checksums = <String, String>{};
+    final versions = <String>{};
     for (final file in files) {
       final filename = _filename(file);
-      if (!RegExp(r'^[0-9]{3}_[a-z0-9_]+\.sql$').hasMatch(filename)) {
-        throw StateError('Invalid migration filename: $filename');
+      if (!RegExp(r'^[0-9]{3}_[a-z0-9_]+\.sql$').hasMatch(filename) ||
+          !versions.add(filename.substring(0, 3))) {
+        throw StateError('Invalid or duplicate migration version: $filename');
       }
       final sql = await file.readAsString();
       if (sql.trim().isEmpty) throw StateError('Empty migration: $filename');
-      final checksum = sha256.convert(utf8.encode(sql)).toString();
-      await connection.runTx((tx) async {
-        // Serialize concurrent migrators and protect the check/insert pair.
-        await tx.execute('SELECT pg_advisory_xact_lock(726341, 1)');
-        await tx
-            .execute('''CREATE TABLE IF NOT EXISTS ventio_schema_migrations (
-          name text PRIMARY KEY,
-          sha256 text NOT NULL,
-          applied_at timestamptz NOT NULL DEFAULT now()
-        )''');
-        final existing = await tx.execute(
-            pg.Sql.named(
-                'SELECT sha256 FROM ventio_schema_migrations WHERE name = @name'),
-            parameters: {'name': filename});
-        if (existing.isNotEmpty) {
-          if (existing.first.toColumnMap()['sha256'] != checksum) {
-            throw StateError('Migration checksum mismatch: $filename');
-          }
-          return;
-        }
-        // Single-statement files avoid unsafe homegrown SQL splitting.
-        await tx.execute(sql);
-        await tx.execute(pg.Sql.named('''INSERT INTO ventio_schema_migrations
-          (name, sha256) VALUES (@name, @checksum)'''),
-            parameters: {'name': filename, 'checksum': checksum});
-        applied.add(filename);
-      });
+      sources[filename] = sql;
+      checksums[filename] = sha256.convert(utf8.encode(sql)).toString();
     }
+    final applied = <String>[];
+    // One lock and transaction span preflight AND the entire vetted batch.
+    // An older checkout cannot silently accept a newer/missing ledger entry;
+    // a later SQL failure cannot leave earlier new migrations committed.
+    await connection.runTx((tx) async {
+      await tx.execute('SELECT pg_advisory_xact_lock(726341, 1)');
+      await tx.execute('''CREATE TABLE IF NOT EXISTS ventio_schema_migrations (
+        name text PRIMARY KEY, sha256 text NOT NULL,
+        applied_at timestamptz NOT NULL DEFAULT now()
+      )''');
+      final ledger = await tx.execute(
+          'SELECT name,sha256 FROM ventio_schema_migrations ORDER BY name');
+      final known = <String>{};
+      for (final row in ledger) {
+        final name = row[0] as String;
+        if (!checksums.containsKey(name) || checksums[name] != row[1]) {
+          throw StateError(
+              'Missing, unknown or modified applied migration: $name');
+        }
+        known.add(name);
+      }
+      for (final entry in sources.entries) {
+        if (known.contains(entry.key)) continue;
+        await tx.execute(entry.value);
+        await tx.execute(
+            pg.Sql.named('''INSERT INTO ventio_schema_migrations(name,sha256)
+          VALUES (@name,@checksum)'''),
+            parameters: {'name': entry.key, 'checksum': checksums[entry.key]});
+        applied.add(entry.key);
+      }
+    });
     return applied;
   }
 

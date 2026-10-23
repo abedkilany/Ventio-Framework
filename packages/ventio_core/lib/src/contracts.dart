@@ -109,6 +109,22 @@ String canonicalJson(Object? value) {
   return jsonEncode(value);
 }
 
+/// Detached, recursively immutable JSON for command fingerprints and receipts.
+/// Top-level Map.unmodifiable alone leaves nested maps/lists mutable.
+Object? immutableJson(Object? value) {
+  if (value is Map) {
+    return Map<String, dynamic>.unmodifiable(requireMap(value, 'json')
+        .map((key, item) => MapEntry(key, immutableJson(item))));
+  }
+  if (value is List)
+    return List<dynamic>.unmodifiable(value.map(immutableJson));
+  if (value == null ||
+      value is String ||
+      value is bool ||
+      (value is num && value.isFinite)) return value;
+  throw const ContractError('INVALID_CONTRACT', 'Value is not finite JSON');
+}
+
 class CommandDefinition {
   final String type;
   final int version;
@@ -302,7 +318,7 @@ class CommandEnvelope {
   final int docTypeVersion;
   final Map<String, dynamic> original;
 
-  const CommandEnvelope(
+  const CommandEnvelope._(
       {required this.commandId,
       required this.type,
       required this.typeVersion,
@@ -344,7 +360,7 @@ class CommandEnvelope {
       throw const ContractError('INVALID_CONTRACT',
           'expectedRevision must be null or a nonnegative integer');
     }
-    return CommandEnvelope(
+    return CommandEnvelope._(
       commandId: commandId,
       type: requireString(json, 'type'),
       typeVersion: requireInt(json, 'typeVersion', min: 1),
@@ -354,15 +370,13 @@ class CommandEnvelope {
       aggregateId: requireString(json, 'aggregateId'),
       expectedRevision: rawRev as int?,
       dependsOn: dependent,
-      payload: Map.unmodifiable(
-          jsonDecode(jsonEncode(requireMap(json['payload'], 'payload')))
-              as Map<String, dynamic>),
+      payload: immutableJson(requireMap(json['payload'], 'payload'))
+          as Map<String, dynamic>,
       deviceId: requireString(ctx, 'deviceId'),
       actorId: requireString(ctx, 'actorId'),
       moduleVersion: moduleVersion,
       docTypeVersion: requireInt(ctx, 'docTypeVersion', min: 1),
-      original: Map.unmodifiable(
-          jsonDecode(jsonEncode(json)) as Map<String, dynamic>),
+      original: immutableJson(json) as Map<String, dynamic>,
     );
   }
 }
@@ -386,8 +400,11 @@ class CommandReceipt {
       this.hostRevision,
       this.scopeCursor,
       this.currentRevision,
-      this.output})
-      : serverTimestamp = DateTime.now().toUtc().toIso8601String();
+      Map<String, dynamic>? output})
+      : output = output == null
+            ? null
+            : immutableJson(output) as Map<String, dynamic>,
+        serverTimestamp = DateTime.now().toUtc().toIso8601String();
 
   bool get accepted => status == 'ACCEPTED';
 

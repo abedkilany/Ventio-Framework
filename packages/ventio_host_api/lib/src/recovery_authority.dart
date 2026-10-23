@@ -12,13 +12,25 @@ import 'private_files.dart';
 /// stored/restored with PostgreSQL is not an independent recovery authority.
 class RecoveryAuthority {
   final String path;
+  final int? trustedOwnerUid;
+  final int? readerGroupId;
   final FutureOr<void> Function(String)? testBarrier;
   static final Map<String, Future<void>> _tails = {};
-  RecoveryAuthority(this.path, {this.testBarrier});
+  RecoveryAuthority(this.path,
+      {this.testBarrier, this.trustedOwnerUid, this.readerGroupId});
+
+  Future<String> _readFile() => trustedOwnerUid != null || readerGroupId != null
+      ? PrivateFiles.readAuthority(path, trustedOwnerUid: trustedOwnerUid)
+      : PrivateFiles.read(path);
+  Future<void> _create(Map<String, dynamic> value) => readerGroupId == null
+      ? PrivateFiles.create(path, value)
+      : PrivateFiles.createAuthority(path, value, readerGroupId!);
+  Future<void> _replace(Map<String, dynamic> value) => readerGroupId == null
+      ? PrivateFiles.replace(path, value)
+      : PrivateFiles.replaceAuthority(path, value, readerGroupId!);
 
   Future<Map<String, dynamic>> _read() async {
-    final data =
-        jsonDecode(await PrivateFiles.read(path)) as Map<String, dynamic>;
+    final data = jsonDecode(await _readFile()) as Map<String, dynamic>;
     if (data['authorityId'] is! String ||
         !OpaqueToken.isValid(data['authorityId'] as String) ||
         data['version'] != 1 ||
@@ -48,11 +60,23 @@ class RecoveryAuthority {
     await previous;
     RandomAccessFile? lock;
     try {
+      if (trustedOwnerUid != null)
+        throw StateError('Read-only Host cannot administer authority');
       final lockPath = '$path.lock';
       try {
-        await PrivateFiles.create(lockPath, {'lock': 1});
+        if (readerGroupId == null) {
+          await PrivateFiles.create(lockPath, {'lock': 1});
+        } else {
+          await PrivateFiles.createAuthority(
+              lockPath, {'lock': 1}, readerGroupId!,
+              lock: true);
+        }
       } catch (_) {
-        await PrivateFiles.read(lockPath);
+        if (readerGroupId == null) {
+          await PrivateFiles.read(lockPath);
+        } else {
+          await PrivateFiles.readAuthority(lockPath);
+        }
       }
       // OS lock serializes independent administration processes; the queue above
       // also serializes separate authority objects in this Dart process.
@@ -82,9 +106,9 @@ class RecoveryAuthority {
         };
         if (await FileSystemEntity.type(path, followLinks: false) ==
             FileSystemEntityType.notFound) {
-          await PrivateFiles.create(path, state);
+          await _create(state);
         } else {
-          await PrivateFiles.replace(path, state);
+          await _replace(state);
         }
         await testBarrier?.call('before_database');
         final fingerprint = await db.runTx((tx) async {
@@ -95,8 +119,8 @@ class RecoveryAuthority {
           return snapshot(tx);
         });
         await testBarrier?.call('after_commit');
-        await PrivateFiles.replace(
-            path, {...state, 'pending': false, 'fingerprint': fingerprint});
+        await _replace(
+            {...state, 'pending': false, 'fingerprint': fingerprint});
       });
 
   /// Mark external evidence pending and fsync BEFORE changing PostgreSQL. A
@@ -108,7 +132,7 @@ class RecoveryAuthority {
         final state = await _read();
         // Validate under the SAME exclusive DB lock as the mutation. Another
         // admin process using raw RPCs cannot slip a stale change in between.
-        await PrivateFiles.replace(path, {...state, 'pending': true});
+        await _replace({...state, 'pending': true});
         await testBarrier?.call('before_database');
         var rejectedBeforeCommit = false;
         late String fingerprint;
@@ -135,12 +159,12 @@ class RecoveryAuthority {
               await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
               return await snapshot(tx) == state['fingerprint'];
             });
-            if (unchanged) await PrivateFiles.replace(path, state);
+            if (unchanged) await _replace(state);
           }
           rethrow;
         }
         await testBarrier?.call('after_commit');
-        await PrivateFiles.replace(
-            path, {...state, 'pending': false, 'fingerprint': fingerprint});
+        await _replace(
+            {...state, 'pending': false, 'fingerprint': fingerprint});
       });
 }

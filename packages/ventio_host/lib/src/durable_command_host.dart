@@ -26,36 +26,7 @@ class DurableCommandHost {
   String _key(String type, int version) => '$type@$version';
 
   void registerTrustedCreateBinding(TrustedCommandBinding binding) {
-    final module =
-        modules.moduleForCommand(binding.commandType, binding.commandVersion);
-    final docType = docTypes.get(binding.docTypeName);
-    if (module == null ||
-        docType == null ||
-        !module.docTypes.contains(docType.name) ||
-        docType.moduleId != module.moduleId ||
-        docType.kind != 'operational') {
-      throw const ContractError('INVALID_BINDING',
-          'A trusted command must target an installed operational DocType');
-    }
-    final declaration = modules.getCommand(
-        module.moduleId, binding.commandType, binding.commandVersion);
-    final capability = declaration == null
-        ? null
-        : modules.getCapability(declaration.capabilityId);
-    if (declaration == null ||
-        capability == null ||
-        capability.executor != 'host' ||
-        capability.executionKind != 'trusted_builtin' ||
-        capability.transactionMode != 'required' ||
-        !capability.effects
-            .toSet()
-            .containsAll({'records', 'audit', 'outbox'}) ||
-        !capability.requiredPermissions.contains(declaration.permission) ||
-        docType.permissions['create'] != declaration.permission ||
-        docType.fields.any((field) => field.type == 'decimal')) {
-      throw const ContractError('INVALID_BINDING',
-          'Capability cannot execute generic operational record creation');
-    }
+    validateTrustedCreateBinding(modules, docTypes, binding);
     final key = _key(binding.commandType, binding.commandVersion);
     if (_trustedCreates.containsKey(key)) {
       throw ContractError('DUPLICATE_BINDING', key);

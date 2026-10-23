@@ -21,7 +21,11 @@ Future<void> main() async {
     final witness = Platform.environment['VENTIO_RECOVERY_AUTHORITY_FILE'];
     if (witness == null)
       throw StateError('Independent recovery authority required');
-    final admission = RecoveryAuthority(witness);
+    final writerUid = int.tryParse(
+        Platform.environment['VENTIO_RECOVERY_AUTHORITY_OWNER_UID'] ?? '');
+    if (writerUid == null || writerUid < 0)
+      throw StateError('Trusted witness owner UID required');
+    final admission = RecoveryAuthority(witness, trustedOwnerUid: writerUid);
     final parsed = Uri.parse(url);
     final boundedUrl = parsed.replace(queryParameters: {
       ...parsed.queryParameters,

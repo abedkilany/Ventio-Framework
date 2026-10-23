@@ -74,8 +74,9 @@ Future<void> main() async {
   Future<void> startupDenied(String url, String? witness, String label) async {
     final result = await Process.run(Platform.resolvedExecutable, [
       'run',
-      'bin/local_host.dart'
+      'test/recovery/same_account_host.dart'
     ], environment: {
+      'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
       'VENTIO_ENABLE_LOCAL_HOST': 'yes',
       'VENTIO_HOST_DATABASE_URL': url,
       'VENTIO_HOST_PORT': '0',
