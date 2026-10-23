@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -13,7 +14,7 @@ class DurableCommandHost {
   final Map<String, String> _trustedCreates = {};
 
   /// A test-only fault hook. Never supply this in a production Host.
-  final void Function(String stage)? testFaultInjector;
+  final FutureOr<void> Function(String stage)? testFaultInjector;
 
   DurableCommandHost({
     required this.connection,
@@ -94,7 +95,7 @@ class DurableCommandHost {
         sha256.convert(utf8.encode(canonicalJson(command.original))).toString();
 
     try {
-      return await connection.runTx((tx) async {
+      final result = await connection.runTx((tx) async {
         final authenticatedPrincipal = await resolvePrincipal(tx);
         if (authenticatedPrincipal == null) {
           return _failure(command, 'REJECTED', 'AUTHENTICATION_REQUIRED');
@@ -147,6 +148,7 @@ class DurableCommandHost {
           'device': command.deviceId,
           'fingerprint': fingerprint,
         });
+        await testFaultInjector?.call('after_reservation');
         if (reservation.isEmpty) {
           final prior = await tx.execute(pg.Sql.named('''
             SELECT fingerprint, receipt::text AS stored_receipt,
@@ -243,7 +245,7 @@ class DurableCommandHost {
               currentRevision:
                   previous.isEmpty ? null : previous.single[0] as int));
         }
-        testFaultInjector?.call('after_record');
+        await testFaultInjector?.call('after_record');
         final audit = <String, dynamic>{
           'tenantId': command.tenantId,
           'companyId': command.companyId,
@@ -269,7 +271,7 @@ class DurableCommandHost {
           'type': command.type,
           'details': jsonEncode(audit),
         });
-        testFaultInjector?.call('after_audit');
+        await testFaultInjector?.call('after_audit');
         final event = <String, dynamic>{
           'tenantId': command.tenantId,
           'companyId': command.companyId,
@@ -292,7 +294,7 @@ class DurableCommandHost {
           'type': event['type'],
           'payload': jsonEncode(event),
         });
-        testFaultInjector?.call('after_outbox');
+        await testFaultInjector?.call('after_outbox');
         final receipt = CommandReceipt(
           commandId: command.commandId, status: 'ACCEPTED', hostRevision: 1,
           output: {'serverRecordId': command.aggregateId},
@@ -306,11 +308,14 @@ class DurableCommandHost {
           'tenant': command.tenantId,
           'command': command.commandId,
         });
-        testFaultInjector?.call('before_commit');
+        await testFaultInjector?.call('before_commit');
         return receipt;
       },
           settings: pg.TransactionSettings(
               isolationLevel: pg.IsolationLevel.readCommitted));
+      // This point is reached only after the driver has acknowledged COMMIT.
+      await testFaultInjector?.call('after_commit');
+      return result;
     } on _RejectedCommand catch (error) {
       return error.receipt;
     }
