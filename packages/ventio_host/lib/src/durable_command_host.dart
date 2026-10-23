@@ -158,8 +158,9 @@ class DurableCommandHost {
             'command': command.commandId,
           });
           if (prior.isEmpty) {
-            // Unexpected visibility/serialization anomaly: do not execute.
-            throw StateError('Journal reservation was lost');
+            // RLS may intentionally hide a conflicting command in another
+            // branch/company. Refuse reuse without exposing its receipt.
+            return _failure(command, 'REJECTED', 'COMMAND_ID_REUSED');
           }
           final saved = prior.single.toColumnMap();
           if (saved['fingerprint'] != fingerprint ||

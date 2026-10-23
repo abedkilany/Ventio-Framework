@@ -226,6 +226,15 @@ Future<void> main() async {
                 principal))['status'] ==
             'ACCEPTED',
         'Second registered company and branch remain compatible');
+    final hiddenCollision = command(tenant, id: 1, record: 'hidden-collision')
+      ..['companyId'] = 'company-002'
+      ..['branchId'] = 'branch-002';
+    final hiddenReply = await executor.execute(
+        CommandEnvelope.fromJson(hiddenCollision), principal);
+    check(
+        hiddenReply['reasonCode'] == 'COMMAND_ID_REUSED' &&
+            hiddenReply['output'] == null,
+        'Cross-branch command ID collision is rejected without exposing the hidden receipt');
     for (final table in [
       'ventio_records',
       'ventio_command_journal',

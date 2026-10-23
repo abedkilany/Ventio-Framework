@@ -43,6 +43,8 @@ jobs:
         run: |
           dart run ../ventio_postgres/bin/migrate.dart
           psql -h localhost -U ventio -d ventio_host_test -v expected_database=ventio_host_test -f ../../security/postgres/bootstrap.sql
+          # A second installation verifies rerunnable ownership/policy setup.
+          psql -h localhost -U ventio -d ventio_host_test -v expected_database=ventio_host_test -f ../../security/postgres/bootstrap.sql
           psql -h localhost -U ventio -d ventio_host_test -f ../../security/postgres/test_logins.sql
       - name: Run isolated HTTP and PostgreSQL integration tests
         env:

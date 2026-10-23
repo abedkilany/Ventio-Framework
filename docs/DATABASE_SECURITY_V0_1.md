@@ -87,6 +87,9 @@ can authorize SQL within that identity's actual grants. SQL policies do not infe
 identity from Client JSON or from the database login alone. The HTTP interface
 continues to require the raw opaque token and hashes it server-side.
 
+Conflicting command IDs hidden by another branch's RLS are rejected without
+returning that branch's receipt. Normal same-envelope retries remain stable.
+
 Context is local to the transaction, explicitly cleared before reauthentication,
 and revalidated rather than cached. Tests cover missing/forged context, scope
 mixing, expired/revoked proof and savepoint rollback followed by permission
