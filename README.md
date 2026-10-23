@@ -53,3 +53,12 @@ Python checks require `jsonschema` (`pip install jsonschema`). They cannot subst
 - Offline declarations express design intent only. There is no local queue, offline synchronization, runtime plugin loading, data migration or production Host service.
 
 No original Ventio code or customer data was modified.
+
+
+## Host development branch
+
+Core Foundation v0.2.0 is the closed baseline. The Host feature branch adds
+PostgreSQL persistence, durable operational-create commands, and a loopback-only
+authenticated development HTTP API. See [Host API](packages/ventio_host_api/README.md)
+and [boundary decisions](docs/HOST_API_V0_1.md). These prototypes do not establish
+production readiness; earlier release-candidate notes below remain historical.

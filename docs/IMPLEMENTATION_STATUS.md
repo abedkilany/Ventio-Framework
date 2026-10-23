@@ -1,3 +1,11 @@
+> Current feature-branch update (2026-10-23): Core Foundation v0.2.0 is closed.
+> Core has 47 verified assertions; the prior durable-command CI run has 26.
+> PostgreSQL persistence and durable operational-create processing are implemented.
+> A separate loopback-only authenticated development HTTP package now wraps that
+> engine. See HOST_API_V0_1.md and packages/ventio_host_api/README.md for its scope,
+> tests and remaining production/security gates. The sections below are historical
+> foundation-stage notes, not the current Host completion claim.
+
 # Core Foundation v0.2.0 — Implementation Status
 
 **Release stage:** candidate. v0.1.0 was tested successfully by the user on Dart 3.12.1 (37/37, clean analyzer, Maintenance demo). New v0.2.0 Dart changes have not been executed in the packaging environment; see the closure gate.
@@ -28,3 +36,4 @@
 - Optional Offline Engine, real translation, dynamic Flutter UI, platform-scale multitenancy, ERP financial modules, AI Builder and Marketplace remain outside scope.
 
 See `CORE_FOUNDATION_V0_2_RELEASE_GATE.md` for specific sign-off commands and future work.
+
