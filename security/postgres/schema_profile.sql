@@ -5,11 +5,11 @@ SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 BEGIN
   IF EXISTS (
     WITH expected(name,sha256) AS (VALUES
-    ('001_records.sql','fe4cc335ef529378e89b1ba14ca31b17906147442cda6c34abd3d46fd08f90d1'),
-    ('002_command_journal.sql','dd0204676b0ec9fee55ce11f48de6fe919ce5a0731b28b9be0bc09076f5aa019'),
-    ('003_audit.sql','8175e7d962ac8dd9b3be4d57ca5fbb9db786ba7d7849f4b5f9233ab885f69ff5'),
-    ('004_outbox.sql','6d4f775f15c43504e7d9ed622fcfe52686a7bea9a93c51bb6a797b5ef33ec390'),
-    ('005_outbox_index.sql','bc98448c06687b1c5dfaf8ec74319b1e46f88681187ef2c526daaa4c67fe2f3b'),
+    ('001_records.sql','736d63fd6f013cac931a123064dd8e7a391609132175a15853bd6acca8a00d2b'),
+    ('002_command_journal.sql','8888d684aa63ab10c8bc9874aca6b402be4b4099c3774115309fa85f4983210a'),
+    ('003_audit.sql','b1565095ec74e58b0a42591bd1ed0b5b50b84bf922871a5fb8500755274009ad'),
+    ('004_outbox.sql','718e8fb1171512d46e3445625352e15594ddcd351a8b7b5f8d57ba6bf4f8784f'),
+    ('005_outbox_index.sql','33a3e6db19db32504a7ab312ec8286bc3c03e11a5dc42ea35d67281854bb154a'),
     ('006_identity_users.sql','69a4e68bde95a61d5acdba9fdcc6ece38736081e9538d8b45d23292ffaa68563'),
     ('007_identity_devices.sql','0ab66284bdec5a9d3f6abbe61807c81faa8e2141598c6d9d0d9fb709f73da876'),
     ('008_identity_credentials.sql','1466d2718e759fe30d1c5c3d62f9f69a3b9f4848450600dee24aadffb0fff801'),
