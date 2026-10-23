@@ -310,31 +310,31 @@ print(json.dumps(checks))
         );
         await tx.execute(
           pg.Sql.named(
-            "INSERT INTO ventio_identity_users(tenant_id,actor_id) SELECT 'benchmark-fixture','fixture-user-'||i FROM generate_series(@a,@b) i",
+            "INSERT INTO ventio_identity_users(tenant_id,actor_id) SELECT 'benchmark-fixture','fixture-user-'||i FROM generate_series(CAST(@a AS integer),CAST(@b AS integer)) i",
           ),
           parameters: {'a': priorUsers + 1, 'b': size.$1},
         );
         await tx.execute(
           pg.Sql.named(
-            "INSERT INTO ventio_identity_devices(tenant_id,actor_id,device_id) SELECT 'benchmark-fixture','fixture-user-'||((i+1)/2),'fixture-device-'||i FROM generate_series(@a,@b) i",
+            "INSERT INTO ventio_identity_devices(tenant_id,actor_id,device_id) SELECT 'benchmark-fixture','fixture-user-'||((i+1)/2),'fixture-device-'||i FROM generate_series(CAST(@a AS integer),CAST(@b AS integer)) i",
           ),
           parameters: {'a': priorDevices + 1, 'b': size.$1 * 2},
         );
         await tx.execute(
           pg.Sql.named(
-            "INSERT INTO ventio_identity_credentials(tenant_id,actor_id,device_id,credential_id,token_digest,expires_at) SELECT 'benchmark-fixture','fixture-user-'||((i+1)/2),'fixture-device-'||i,'fixture-credential-'||i,encode(sha256(convert_to('non-deliverable-fixture:'||i,'UTF8')),'hex'),clock_timestamp()+interval '1 hour' FROM generate_series(@a,@b) i",
+            "INSERT INTO ventio_identity_credentials(tenant_id,actor_id,device_id,credential_id,token_digest,expires_at) SELECT 'benchmark-fixture','fixture-user-'||((i+1)/2),'fixture-device-'||i,'fixture-credential-'||i,encode(sha256(convert_to('non-deliverable-fixture:'||i,'UTF8')),'hex'),clock_timestamp()+interval '1 hour' FROM generate_series(CAST(@a AS integer),CAST(@b AS integer)) i",
           ),
           parameters: {'a': priorDevices + 1, 'b': size.$1 * 2},
         );
         await tx.execute(
           pg.Sql.named(
-            "INSERT INTO ventio_identity_grants(tenant_id,actor_id,company_id,branch_id,permission) SELECT 'benchmark-fixture','fixture-user-'||i,'fixture-company','fixture-branch','maintenance.create' FROM generate_series(@a,@b) i",
+            "INSERT INTO ventio_identity_grants(tenant_id,actor_id,company_id,branch_id,permission) SELECT 'benchmark-fixture','fixture-user-'||i,'fixture-company','fixture-branch','maintenance.create' FROM generate_series(CAST(@a AS integer),CAST(@b AS integer)) i",
           ),
           parameters: {'a': priorUsers + 1, 'b': size.$1},
         );
         await tx.execute(
           pg.Sql.named(
-            "INSERT INTO ventio_identity_audit(tenant_id,operator_label,action,subject_id,details) SELECT 'benchmark-fixture','benchmark','BENCHMARK_FIXTURE','history-'||i,'{}' FROM generate_series(@a,@b) i",
+            "INSERT INTO ventio_identity_audit(tenant_id,operator_label,action,subject_id,details) SELECT 'benchmark-fixture','benchmark','BENCHMARK_FIXTURE','history-'||i,'{}' FROM generate_series(CAST(@a AS integer),CAST(@b AS integer)) i",
           ),
           parameters: {'a': priorAudit + 1, 'b': size.$2},
         );
