@@ -35,6 +35,15 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
       - run: dart run test/api_tests.dart
+      - name: Install database security profile in disposable PostgreSQL
+        env:
+          VENTIO_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable
+          VENTIO_MIGRATIONS_DIR: ../../migrations/postgres
+          PGPASSWORD: ventio_test_only
+        run: |
+          dart run ../ventio_postgres/bin/migrate.dart
+          psql -h localhost -U ventio -d ventio_host_test -v expected_database=ventio_host_test -f ../../security/postgres/bootstrap.sql
+          psql -h localhost -U ventio -d ventio_host_test -f ../../security/postgres/test_logins.sql
       - name: Run isolated HTTP and PostgreSQL integration tests
         env:
           VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
@@ -44,4 +53,6 @@ jobs:
         env:
           VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
           VENTIO_ALLOW_DATABASE_TESTS: 'yes'
+          VENTIO_TEST_RUNTIME_DATABASE_URL: postgresql://ventio_runtime_test:runtime_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
+          VENTIO_TEST_ADMIN_DATABASE_URL: postgresql://ventio_admin_test:admin_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
         run: dart run test/identity_integration.dart

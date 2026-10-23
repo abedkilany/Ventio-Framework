@@ -6,7 +6,13 @@ import 'authentication.dart';
 import 'host_api.dart';
 import 'identity_store.dart';
 
+/// Refuses owners, superusers, bypass roles, extra memberships and excess ACLs.
+Future<void> verifyRuntimeConnection(pg.Connection connection) async {
+  await connection.execute('SELECT ventio_security.assert_runtime()');
+}
+
 Future<void> _configure(pg.Connection connection) async {
+  await verifyRuntimeConnection(connection);
   await connection.execute("SET statement_timeout = '15s'");
   await connection.execute("SET lock_timeout = '5s'");
 }

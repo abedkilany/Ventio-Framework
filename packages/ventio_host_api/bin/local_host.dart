@@ -25,6 +25,12 @@ Future<void> main() async {
       'query_timeout': '20'
     }).toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
+    final probe = await connect();
+    try {
+      await verifyRuntimeConnection(probe);
+    } finally {
+      await probe.close();
+    }
     final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),

@@ -14,6 +14,12 @@ Future<void> main() async {
       '../../migrations/postgres');
   final conn = await pg.Connection.openFromUrl(url);
   try {
+    final role = Platform.environment['VENTIO_MIGRATION_ROLE'];
+    if (role != null) {
+      if (role != 'ventio_owner')
+        throw StateError('Unsupported migration role');
+      await conn.execute('SET ROLE ventio_owner');
+    }
     final applied = await PostgresMigrationRunner(conn, dir).apply();
     stdout.writeln(
         'Applied ${applied.length} migration(s): ${applied.join(', ')}');

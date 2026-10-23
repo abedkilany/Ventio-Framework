@@ -65,8 +65,17 @@ Future<void> main() async {
     return;
   }
   Future<pg.Connection> connect() => pg.Connection.openFromUrl(url);
+  final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
+  final administrationUrl =
+      Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
+  if (runtimeUrl == null || administrationUrl == null) {
+    throw StateError(
+        'Restricted runtime and administration test connections are required');
+  }
+  Future<pg.Connection> runtimeConnect() =>
+      pg.Connection.openFromUrl(runtimeUrl);
   final db = await connect();
-  final adminConnection = await connect();
+  final adminConnection = await pg.Connection.openFromUrl(administrationUrl);
   final tenant = 'identity-${DateTime.now().microsecondsSinceEpoch}';
   final otherTenant = '$tenant-other';
   final admin = IdentityAdministration(
@@ -78,11 +87,11 @@ Future<void> main() async {
       tenantId: otherTenant,
       operatorLabel: 'integration-operator');
   final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
-  final authenticator = PersistentTokenAuthenticator(connect: connect);
+  final authenticator = PersistentTokenAuthenticator(connect: runtimeConnect);
   PersistentCommandExecutor executor(
           {Future<pg.Connection> Function()? open}) =>
       PersistentCommandExecutor(
-          connect: open ?? connect,
+          connect: open ?? runtimeConnect,
           modules: prototype.modules,
           docTypes: prototype.docTypes,
           bindings: const [
@@ -295,7 +304,7 @@ Future<void> main() async {
         'Time-limited credential authenticates before expiry');
     final expiringSession = (await authenticator.authenticate(expiringToken))!;
     final lockConnection = await connect();
-    final commandConnection = await connect();
+    final commandConnection = await runtimeConnect();
     final commandPid =
         (await commandConnection.execute('SELECT pg_backend_pid()')).single[0]
             as int;
@@ -579,7 +588,7 @@ Future<void> main() async {
         'bin/local_host.dart'
       ], environment: {
         'VENTIO_ENABLE_LOCAL_HOST': 'yes',
-        'VENTIO_HOST_DATABASE_URL': url,
+        'VENTIO_HOST_DATABASE_URL': runtimeUrl,
         'VENTIO_HOST_PORT': '0',
       });
       child!.stderr.drain<void>();
