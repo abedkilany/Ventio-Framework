@@ -1,3 +1,8 @@
+> Database security update: the persistent Host now requires the restricted
+> runtime database profile, protected identity functions and credential-checked
+> forced RLS. Administration and migrations use separate connections/capabilities.
+> See [Database Security](DATABASE_SECURITY_V0_1.md) for setup and explicit limits.
+
 > Persistent identity slice: migrations 006-011, server-only audited identity
 > administration, digest-only expiring credentials, permanent user/device/credential
 > withdrawal, exact company/branch grants and transactional command authorization

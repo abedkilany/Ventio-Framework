@@ -13,8 +13,8 @@ BEGIN
       RAISE EXCEPTION 'Overprivileged Host login';
     END IF;
   END LOOP;
-  IF EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname NOT IN (session_user, 'ventio_runtime')
-      AND pg_has_role(session_user, r.oid, 'MEMBER')) THEN
+  IF EXISTS (SELECT FROM pg_catalog.pg_roles role_entry WHERE role_entry.rolname NOT IN (session_user, 'ventio_runtime')
+      AND pg_has_role(session_user, role_entry.oid, 'MEMBER')) THEN
     RAISE EXCEPTION 'Unexpected runtime role membership';
   END IF;
   IF has_database_privilege(current_user, current_database(), 'CREATE') OR
@@ -27,6 +27,10 @@ BEGIN
   END IF;
   FOREACH t IN ARRAY ARRAY['ventio_identity_users','ventio_identity_devices','ventio_identity_credentials',
       'ventio_identity_branches','ventio_identity_grants','ventio_identity_audit','ventio_schema_migrations'] LOOP
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_class pc JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace
+        WHERE pn.nspname = 'public' AND pc.relname = t AND pc.relrowsecurity AND pc.relforcerowsecurity) THEN
+      RAISE EXCEPTION 'Missing protection on private state';
+    END IF;
     IF has_any_column_privilege(current_user, 'public.' || t, 'SELECT,INSERT,UPDATE,REFERENCES') OR
        has_table_privilege(current_user, 'public.' || t, 'DELETE,TRUNCATE,TRIGGER') THEN
       RAISE EXCEPTION 'Runtime has direct access to protected identity or migration state';

@@ -1,3 +1,8 @@
+> Database security update: the persistent Host now requires the restricted
+> runtime database profile, protected identity functions and credential-checked
+> forced RLS. Administration and migrations use separate connections/capabilities.
+> See [Database Security](docs/DATABASE_SECURITY_V0_1.md) for setup and explicit limits.
+
 # Ventio Framework — Core Foundation v0.2.0 Release Candidate
 
 **Status:** Implementation and static checks prepared. The preceding v0.1.0 was run on Windows with Dart SDK 3.12.1: `dart analyze` reported no issues; its 37 Dart tests and Maintenance demo passed. **The additional v0.2.0 Dart tests and new demo have not yet been executed on Dart SDK in this environment.** Do not mark the foundation closed before those commands and CI pass.

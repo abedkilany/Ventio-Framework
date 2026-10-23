@@ -57,6 +57,20 @@ CREATE TABLE IF NOT EXISTS ventio_security.command_bindings (
   read_permission text NOT NULL,
   PRIMARY KEY (command_type, command_version)
 );
+-- Protected tables also default-deny runtime access if an ACL is accidentally
+-- broadened. Only the non-login owner used by vetted functions has a policy.
+DO $protected$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['public.ventio_identity_users','public.ventio_identity_devices',
+    'public.ventio_identity_credentials','public.ventio_identity_branches','public.ventio_identity_grants',
+    'public.ventio_identity_audit','public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
+    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS owner_access ON %s', t);
+    EXECUTE format('CREATE POLICY owner_access ON %s TO ventio_owner USING (true) WITH CHECK (true)', t);
+  END LOOP;
+END $protected$;
 INSERT INTO ventio_security.command_bindings VALUES
   ('maintenance.create', 1, 'MaintenanceRequest', 'maintenance.create', 'maintenance.read'),
   ('inspection.create', 1, 'EquipmentInspection', 'inspection.create', 'inspection.read')

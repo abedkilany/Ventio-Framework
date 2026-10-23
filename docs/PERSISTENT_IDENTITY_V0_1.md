@@ -1,3 +1,8 @@
+> Database hardening supersedes the earlier direct-SQL administration details:
+> IdentityAdministration now invokes a protected audited database function, and
+> the persistent runtime uses a separate restricted login with forced RLS.
+> See DATABASE_SECURITY_V0_1.md for the current deployment boundary.
+
 # Persistent identity, authorization and device revocation
 
 ## Implemented boundary

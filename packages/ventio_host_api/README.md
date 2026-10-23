@@ -1,3 +1,8 @@
+> Database security update: the persistent Host now requires the restricted
+> runtime database profile, protected identity functions and credential-checked
+> forced RLS. Administration and migrations use separate connections/capabilities.
+> See [Database Security](../../docs/DATABASE_SECURITY_V0_1.md) for setup and explicit limits.
+
 > Persistent identity update: the new `bin/local_host.dart` assembly uses
 > PostgreSQL identities, exact-scope grants and permanent device/credential
 > revocation, rechecked inside each command transaction. See
