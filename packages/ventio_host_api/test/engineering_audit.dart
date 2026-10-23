@@ -49,35 +49,54 @@ Future<void> main() async {
     authority: authority,
   );
   final metrics = <Map<String, Object?>>[];
-  final preserved =
-      'VENTIO_ENABLE_LOCAL_HOST,VENTIO_HOST_DATABASE_URL,VENTIO_HOST_PORT,VENTIO_RECOVERY_AUTHORITY_FILE,VENTIO_RECOVERY_AUTHORITY_OWNER_UID';
   Map<String, String> environment(
     String database,
     String file, {
     String? owner,
   }) => {
+    'PATH': '/usr/bin:/bin',
     'VENTIO_ENABLE_LOCAL_HOST': 'yes',
     'VENTIO_HOST_DATABASE_URL': database,
     'VENTIO_HOST_PORT': '0',
     'VENTIO_RECOVERY_AUTHORITY_FILE': file,
     'VENTIO_RECOVERY_AUTHORITY_OWNER_UID': owner ?? '$uid',
   };
-  List<String> isolatedArgs(List<String> command) => [
-    '-n',
-    '--preserve-env=$preserved',
-    '-u',
-    'nobody',
-    '-g',
-    '#$gid',
-    '--',
-    ...command,
-  ];
+  // CI sudo permits root rather than arbitrary run-as/environment preservation.
+  // This fixed fixture drops all groups/UID before exec. Secrets cross stdin.
+  Future<Process> isolatedStart(
+    List<String> command, {
+    Map<String, String>? configuration,
+  }) async {
+    final process = await Process.start('sudo', [
+      '-n',
+      '--',
+      '/usr/bin/python3',
+      '-c',
+      r"import os,sys,json; env=json.loads(sys.stdin.readline()); gid=int(sys.argv[1]); os.setgroups([gid]); os.setgid(gid); os.setuid(65534); os.execvpe(sys.argv[2],sys.argv[2:],env)",
+      '$gid',
+      ...command,
+    ], workingDirectory: env['VENTIO_AUDIT_HOST_WORKDIR']);
+    process.stdin.writeln(
+      jsonEncode(configuration ?? {'PATH': '/usr/bin:/bin'}),
+    );
+    await process.stdin.close();
+    return process;
+  }
+
+  Future<ProcessResult> collect(Process process) async {
+    final output = process.stdout.transform(utf8.decoder).join();
+    final errors = process.stderr.transform(utf8.decoder).join();
+    final code = await process.exitCode;
+    return ProcessResult(process.pid, code, await output, await errors);
+  }
+
   Future<TestHost> start({String? database, String? file}) async {
-    final process = await Process.start(
-      'sudo',
-      isolatedArgs([binary]),
-      environment: environment(database ?? runtimeUrl, file ?? authority.path),
-      workingDirectory: env['VENTIO_AUDIT_HOST_WORKDIR'],
+    final process = await isolatedStart(
+      [binary],
+      configuration: environment(
+        database ?? runtimeUrl,
+        file ?? authority.path,
+      ),
     );
     final host = await TestHost.attach(process);
     active.add(host);
@@ -100,16 +119,20 @@ Future<void> main() async {
     String? owner,
     bool sameUid = false,
   }) async {
-    final result = await Process.run(
-      sameUid ? binary : 'sudo',
-      sameUid ? [] : isolatedArgs([binary]),
-      environment: environment(
-        database ?? runtimeUrl,
-        file ?? authority.path,
-        owner: owner,
-      ),
-      workingDirectory: env['VENTIO_AUDIT_HOST_WORKDIR'],
-    ).timeout(const Duration(seconds: 20));
+    final configuration = environment(
+      database ?? runtimeUrl,
+      file ?? authority.path,
+      owner: owner,
+    );
+    final process = sameUid
+        ? await Process.start(
+            binary,
+            [],
+            environment: configuration,
+            workingDirectory: env['VENTIO_AUDIT_HOST_WORKDIR'],
+          )
+        : await isolatedStart([binary], configuration: configuration);
+    final result = await collect(process).timeout(const Duration(seconds: 20));
     check(
       result.exitCode == 2 && !(result.stdout as String).contains('listening'),
       '$label (exit=${result.exitCode}; diagnostic=${result.stderr})',
@@ -130,10 +153,7 @@ Future<void> main() async {
   }
 
   try {
-    final runtimeIdentity = await Process.run(
-      'sudo',
-      isolatedArgs(['id', '-u']),
-    );
+    final runtimeIdentity = await collect(await isolatedStart(['id', '-u']));
     check(
       runtimeIdentity.exitCode == 0 &&
           (runtimeIdentity.stdout as String).trim() == '65534',
@@ -189,9 +209,8 @@ Future<void> main() async {
       'Writable witness directory is rejected even when the file is read-only',
     );
     await Process.run('chmod', ['750', witness.path]);
-    final denied = await Process.run(
-      'sudo',
-      isolatedArgs([
+    final denied = await collect(
+      await isolatedStart([
         'python3',
         '-c',
         r'''
