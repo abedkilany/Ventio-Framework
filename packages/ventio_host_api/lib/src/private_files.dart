@@ -54,13 +54,24 @@ else:
         if op=='replace' and os.path.exists(tmp): os.unlink(tmp)
         raise
 ''';
-  static Future<String> _run(String operation, String path, String data,
-      {int ownerUid = -1, int readerGid = -1}) async {
+  static Future<String> _run(
+    String operation,
+    String path,
+    String data, {
+    int ownerUid = -1,
+    int readerGid = -1,
+  }) async {
     if (!Platform.isLinux || !File(path).isAbsolute) {
       throw StateError('Private storage requires an absolute Linux path');
     }
-    final process = await Process.start(
-        'python3', ['-c', _script, operation, path, '$ownerUid', '$readerGid']);
+    final process = await Process.start('python3', [
+      '-c',
+      _script,
+      operation,
+      path,
+      '$ownerUid',
+      '$readerGid',
+    ]);
     final output = process.stdout.transform(utf8.decoder).join();
     final errors = process.stderr.drain<void>();
     Future<String> perform() async {
@@ -87,18 +98,31 @@ else:
   }
 
   static Future<String> readAuthority(String path, {int? trustedOwnerUid}) =>
-      _run(trustedOwnerUid == null ? 'witness-read' : 'witness-read-runtime',
-          path, '',
-          ownerUid: trustedOwnerUid ?? -1);
-  static Future<void> createAuthority(String path, Object value, int gid,
-      {bool lock = false}) async {
+      _run(
+        trustedOwnerUid == null ? 'witness-read' : 'witness-read-runtime',
+        path,
+        '',
+        ownerUid: trustedOwnerUid ?? -1,
+      );
+  static Future<void> createAuthority(
+    String path,
+    Object value,
+    int gid, {
+    bool lock = false,
+  }) async {
     await _run(
-        lock ? 'witness-lock' : 'witness-create', path, jsonEncode(value),
-        readerGid: gid);
+      lock ? 'witness-lock' : 'witness-create',
+      path,
+      jsonEncode(value),
+      readerGid: gid,
+    );
   }
 
   static Future<void> replaceAuthority(
-      String path, Object value, int gid) async {
+    String path,
+    Object value,
+    int gid,
+  ) async {
     await _run('witness-replace', path, jsonEncode(value), readerGid: gid);
   }
 

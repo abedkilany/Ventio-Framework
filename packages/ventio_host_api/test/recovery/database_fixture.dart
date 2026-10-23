@@ -23,7 +23,8 @@ class DatabaseFixture {
         !{'localhost', '127.0.0.1'}.contains(uri.host) ||
         uri.path != '/ventio_host_test') {
       throw StateError(
-          'Explicit disposable CI container authorization required');
+        'Explicit disposable CI container authorization required',
+      );
     }
     final fixture = DatabaseFixture(id, url);
     final inspected = jsonDecode(await fixture.docker(['inspect', id])) as List;
@@ -40,8 +41,10 @@ class DatabaseFixture {
   }
 
   Future<String> docker(List<String> arguments) async {
-    final result = await Process.run('docker', arguments)
-        .timeout(const Duration(seconds: 45));
+    final result = await Process.run(
+      'docker',
+      arguments,
+    ).timeout(const Duration(seconds: 45));
     if (result.exitCode != 0)
       throw StateError('Fixture Docker operation failed: ${arguments.first}');
     return result.stdout as String;
@@ -77,7 +80,8 @@ class DatabaseFixture {
         (jsonDecode(await docker(['inspect', source])) as List).single['State'];
     if (state['ExitCode'] != 137 || state['OOMKilled'] != false) {
       throw StateError(
-          'PostgreSQL container did not exit from deliberate SIGKILL');
+        'PostgreSQL container did not exit from deliberate SIGKILL',
+      );
     }
     await docker(['start', source]);
     await ready(sourceUrl);
@@ -101,8 +105,9 @@ class DatabaseFixture {
     final dump = File('${temporary!.path}/database.dump');
     final globals = File('${temporary!.path}/roles.sql');
     final sequenceAcls = File('${temporary!.path}/sequence-acls.sql');
-    await sequenceAcls
-        .writeAsString(await exportSequenceAcls(sourceConnection));
+    await sequenceAcls.writeAsString(
+      await exportSequenceAcls(sourceConnection),
+    );
     await capture([
       'exec',
       source,
@@ -111,7 +116,7 @@ class DatabaseFixture {
       'ventio',
       '-d',
       'ventio_host_test',
-      '-Fc'
+      '-Fc',
     ], dump);
     // Roles and memberships are cluster objects. Passwords are deliberately excluded.
     await capture([
@@ -121,7 +126,7 @@ class DatabaseFixture {
       '-U',
       'ventio',
       '--roles-only',
-      '--no-role-passwords'
+      '--no-role-passwords',
     ], globals);
     // PostgreSQL 16 treats the cluster bootstrap grantor (OID 10) specially.
     // Preserve its source name/identity by initializing the target with ventio.
@@ -131,11 +136,16 @@ class DatabaseFixture {
     const bootstrapCreate = 'CREATE ROLE ventio;';
     if (bootstrapCreate.allMatches(rolesSql).length != 1) {
       throw StateError(
-          'Expected exactly one trusted bootstrap role definition');
+        'Expected exactly one trusted bootstrap role definition',
+      );
     }
     final replay = File('${temporary!.path}/roles-replay.sql');
-    await replay.writeAsString(rolesSql.replaceFirst(bootstrapCreate,
-        '-- Bootstrap role already exists in this fresh cluster.'));
+    await replay.writeAsString(
+      rolesSql.replaceFirst(
+        bootstrapCreate,
+        '-- Bootstrap role already exists in this fresh cluster.',
+      ),
+    );
     restored = (await docker([
       'run',
       '--detach',
@@ -149,9 +159,8 @@ class DatabaseFixture {
       'POSTGRES_DB=postgres',
       '--publish',
       '127.0.0.1::5432',
-      'postgres:16'
-    ]))
-        .trim();
+      'postgres:16',
+    ])).trim();
     final mapping = (await docker(['port', restored!, '5432/tcp'])).trim();
     final port = int.parse(mapping.split(':').last);
     final control =
@@ -168,7 +177,7 @@ class DatabaseFixture {
       '-U',
       'ventio',
       '-d',
-      'postgres'
+      'postgres',
     ], replay);
     // Restore ownership and ACLs; never repair/re-bootstrap security before comparison.
     await pipe([
@@ -181,7 +190,7 @@ class DatabaseFixture {
       '-U',
       'ventio',
       '-d',
-      'postgres'
+      'postgres',
     ], dump);
     // Explicit source ACL snapshot is a required backup component: PG16's
     // identity-sequence recreation may differ from the source's owner ACL.
@@ -196,7 +205,7 @@ class DatabaseFixture {
       '-U',
       'ventio',
       '-d',
-      'ventio_host_test'
+      'ventio_host_test',
     ], sequenceAcls);
     return Uri.parse(control).replace(path: '/ventio_host_test').toString();
   }
@@ -215,7 +224,7 @@ class DatabaseFixture {
       '-d',
       'ventio_host_test',
       '-c',
-      "ALTER ROLE ventio_runtime_test PASSWORD 'runtime_test_only'; ALTER ROLE ventio_admin_test PASSWORD 'admin_test_only'; ALTER ROLE ventio_migration_test PASSWORD 'migration_test_only';"
+      "ALTER ROLE ventio_runtime_test PASSWORD 'runtime_test_only'; ALTER ROLE ventio_admin_test PASSWORD 'admin_test_only'; ALTER ROLE ventio_migration_test PASSWORD 'migration_test_only';",
     ]);
   }
 
@@ -231,11 +240,13 @@ class DatabaseFixture {
 Future<Map<String, String>> manifest(pg.Connection db) async {
   final parts = <String, Object?>{};
   final tables = await db.execute(
-      "SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public','ventio_security') ORDER BY 1,2");
+    "SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public','ventio_security') ORDER BY 1,2",
+  );
   for (final row in tables) {
     final name = '"${row[0]}"."${row[1]}"';
     final rows = await db.execute(
-        'SELECT to_jsonb(t)::text FROM $name t ORDER BY to_jsonb(t)::text');
+      'SELECT to_jsonb(t)::text FROM $name t ORDER BY to_jsonb(t)::text',
+    );
     parts[name] = rows.map((r) => r[0]).toList();
   }
   var queryIndex = 0;
@@ -251,35 +262,42 @@ Future<Map<String, String>> manifest(pg.Connection db) async {
     "SELECT nspname,pg_get_userbyid(nspowner),nspacl::text FROM pg_namespace WHERE nspname IN ('public','ventio_security') ORDER BY 1",
   ]) {
     final rows = await db.execute(query);
-    parts['security-${queryIndex++}'] =
-        rows.map((r) => r.map((v) => v?.toString()).toList()).toList();
+    parts['security-${queryIndex++}'] = rows
+        .map((r) => r.map((v) => v?.toString()).toList())
+        .toList();
   }
-  return parts.map((key, value) =>
-      MapEntry(key, sha256.convert(utf8.encode(jsonEncode(value))).toString()));
+  return parts.map(
+    (key, value) => MapEntry(
+      key,
+      sha256.convert(utf8.encode(jsonEncode(value))).toString(),
+    ),
+  );
 }
 
 // Privilege metadata only; never includes row contents or credential digests.
 const relationSecuritySql =
     "SELECT n.nspname,c.relname,pg_get_userbyid(c.relowner),c.relrowsecurity,c.relforcerowsecurity,(SELECT jsonb_agg(jsonb_build_array(CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable) ORDER BY CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable)::text FROM aclexplode(COALESCE(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 'S'::\"char\" ELSE 'r'::\"char\" END,c.relowner))) a) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','ventio_security') AND c.relkind IN ('r','S') ORDER BY 1,2";
 Future<List<List<String?>>> relationSecurityRows(pg.Connection db) async =>
-    (await db.execute(relationSecuritySql))
-        .map((row) => row.map((value) => value?.toString()).toList())
-        .toList();
+    (await db.execute(
+      relationSecuritySql,
+    )).map((row) => row.map((value) => value?.toString()).toList()).toList();
 
 // Export privileges from the quiesced source, never infer/widen them at restore.
 // This fixture has direct owner grants; dependent grant-chain restoration is
 // outside its supported profile. Final manifest equality is always mandatory.
 Future<String> exportSequenceAcls(pg.Connection db) async {
   final rows = await db.execute(
-      "SELECT n.nspname,c.relname,CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl,acldefault('S',c.relowner))) a WHERE c.relkind='S' AND n.nspname IN ('public','ventio_security') ORDER BY 1,2,3,4,5");
+    "SELECT n.nspname,c.relname,CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl,acldefault('S',c.relowner))) a WHERE c.relkind='S' AND n.nspname IN ('public','ventio_security') ORDER BY 1,2,3,4,5",
+  );
   String identifier(String value) => '"${value.replaceAll('"', '""')}"';
   final resets = <String>{};
   final grants = <String>[];
   for (final row in rows) {
     final sequence =
         '${identifier(row[0] as String)}.${identifier(row[1] as String)}';
-    final grantee =
-        row[2] == 'PUBLIC' ? 'PUBLIC' : identifier(row[2] as String);
+    final grantee = row[2] == 'PUBLIC'
+        ? 'PUBLIC'
+        : identifier(row[2] as String);
     final grantor = identifier(row[3] as String);
     final privilege = row[4] as String;
     if (!{'SELECT', 'UPDATE', 'USAGE'}.contains(privilege)) {
@@ -288,7 +306,8 @@ Future<String> exportSequenceAcls(pg.Connection db) async {
     resets.add('REVOKE ALL ON SEQUENCE $sequence FROM PUBLIC;');
     resets.add('REVOKE ALL ON SEQUENCE $sequence FROM $grantee;');
     grants.add(
-        'SET ROLE $grantor;\nGRANT $privilege ON SEQUENCE $sequence TO $grantee${row[5] == true ? ' WITH GRANT OPTION' : ''};\nRESET ROLE;');
+      'SET ROLE $grantor;\nGRANT $privilege ON SEQUENCE $sequence TO $grantee${row[5] == true ? ' WITH GRANT OPTION' : ''};\nRESET ROLE;',
+    );
   }
   return ['BEGIN;', ...resets, ...grants, 'COMMIT;', ''].join('\n');
 }

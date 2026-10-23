@@ -35,10 +35,16 @@ Future<void> main() async {
   final acknowledged = <String, (Map<String, dynamic>, Map<String, dynamic>)>{};
   var sequence = 5000;
   Map<String, dynamic> next() => command(tenant, id: ++sequence);
-  Future<TestHost> host(
-      {String? stage, String? executionUrl, String? databaseUrl}) async {
-    final h = await TestHost.start(databaseUrl ?? runtimeUrl,
-        stage: stage, executionUrl: executionUrl);
+  Future<TestHost> host({
+    String? stage,
+    String? executionUrl,
+    String? databaseUrl,
+  }) async {
+    final h = await TestHost.start(
+      databaseUrl ?? runtimeUrl,
+      stage: stage,
+      executionUrl: executionUrl,
+    );
     hosts.add(h);
     return h;
   }
@@ -54,27 +60,37 @@ Future<void> main() async {
   }
 
   Future<void> gone(int backend) => waitFor(
-      () async =>
-          (await control!.execute(
-                  pg.Sql.named(
-                      'SELECT count(*) FROM pg_stat_activity WHERE pid=@pid'),
-                  parameters: {'pid': backend}))
-              .single[0] ==
-          0,
-      'terminated command backend');
-  Future<void> counts(Map<String, dynamic> cmd, int expected, String label,
-      {pg.Connection? db}) async {
-    check((await effectCounts(db ?? control!, cmd)).every((n) => n == expected),
-        label);
+    () async =>
+        (await control!.execute(
+          pg.Sql.named('SELECT count(*) FROM pg_stat_activity WHERE pid=@pid'),
+          parameters: {'pid': backend},
+        )).single[0] ==
+        0,
+    'terminated command backend',
+  );
+  Future<void> counts(
+    Map<String, dynamic> cmd,
+    int expected,
+    String label, {
+    pg.Connection? db,
+  }) async {
+    check(
+      (await effectCounts(db ?? control!, cmd)).every((n) => n == expected),
+      label,
+    );
   }
 
   Future<Map<String, dynamic>> accepted(
-      TestHost h, String token, Map<String, dynamic> cmd) async {
+    TestHost h,
+    String token,
+    Map<String, dynamic> cmd,
+  ) async {
     final response = await request(h, token, cmd);
     check(
-        response.status == 200 &&
-            response.body?['receipt']?['status'] == 'ACCEPTED',
-        'Command accepted through restricted persistent Host');
+      response.status == 200 &&
+          response.body?['receipt']?['status'] == 'ACCEPTED',
+      'Command accepted through restricted persistent Host',
+    );
     final receipt = response.body!['receipt'] as Map<String, dynamic>;
     acknowledged[cmd['commandId'] as String] = (cmd, receipt);
     return receipt;
@@ -85,28 +101,39 @@ Future<void> main() async {
     control = await pg.Connection.openFromUrl(url);
     administration = await pg.Connection.openFromUrl(adminUrl);
     final admin = IdentityAdministration(
-        connection: administration,
-        tenantId: tenant,
-        operatorLabel: 'recovery-test');
-    Future<String> provision(String actor, String device,
-        {DateTime? expires}) async {
+      connection: administration,
+      tenantId: tenant,
+      operatorLabel: 'recovery-test',
+    );
+    Future<String> provision(
+      String actor,
+      String device, {
+      DateTime? expires,
+    }) async {
       await admin.createUser(actor);
       await admin.registerDevice(actor, device);
       await admin.grant(
-          actor, 'company-001', 'branch-001', 'maintenance.create');
+        actor,
+        'company-001',
+        'branch-001',
+        'maintenance.create',
+      );
       return admin.issueCredential(
-          actorId: actor,
-          deviceId: device,
-          credentialId: 'credential-$device',
-          expiresAt:
-              expires ?? DateTime.now().toUtc().add(const Duration(hours: 1)));
+        actorId: actor,
+        deviceId: device,
+        credentialId: 'credential-$device',
+        expiresAt:
+            expires ?? DateTime.now().toUtc().add(const Duration(hours: 1)),
+      );
     }
 
     await admin.registerBranch('company-001', 'branch-001');
     final token = await provision('user-001', 'device-001');
     for (final setting in ['fsync', 'full_page_writes', 'synchronous_commit']) {
-      check((await control.execute('SHOW $setting')).single[0] == 'on',
-          'PostgreSQL $setting enabled for crash tests');
+      check(
+        (await control.execute('SHOW $setting')).single[0] == 'on',
+        'PostgreSQL $setting enabled for crash tests',
+      );
     }
     // Each kill interrupts a real separate Host process while its DB transaction
     // is paused. No exception injection is used to cause rollback.
@@ -116,7 +143,7 @@ Future<void> main() async {
       'after_audit',
       'after_outbox',
       'before_commit',
-      'after_commit'
+      'after_commit',
     ]) {
       final cmd = next();
       final worker = await host(stage: stage);
@@ -127,15 +154,23 @@ Future<void> main() async {
       await kill(worker);
       await response;
       await gone(barrier['backend'] as int);
-      await counts(cmd, committed ? 1 : 0,
-          'SIGKILL at $stage leaves all four effects ${committed ? 'committed' : 'absent'}');
+      await counts(
+        cmd,
+        committed ? 1 : 0,
+        'SIGKILL at $stage leaves all four effects ${committed ? 'committed' : 'absent'}',
+      );
       final restarted = await host();
       final first = await accepted(restarted, token, cmd);
       final second = await accepted(restarted, token, cmd);
-      check(same(first, second) && (!committed || same(first, receipt)),
-          'Restart at $stage returns stable journal receipt');
-      await counts(cmd, 1,
-          'Restart retry at $stage creates exactly one complete effect');
+      check(
+        same(first, second) && (!committed || same(first, receipt)),
+        'Restart at $stage returns stable journal receipt',
+      );
+      await counts(
+        cmd,
+        1,
+        'Restart retry at $stage creates exactly one complete effect',
+      );
       await stop(restarted);
     }
     // A duplicate waits on the uncommitted unique reservation. Two unrelated
@@ -149,14 +184,16 @@ Future<void> main() async {
     final br = request(b, token, alpha);
     final pid = (await b.event('executing'))['backend'];
     await waitFor(
-        () async =>
-            (await control!.execute(
-                    pg.Sql.named(
-                        "SELECT wait_event_type='Lock' FROM pg_stat_activity WHERE pid=@pid"),
-                    parameters: {'pid': pid}))
-                .single[0] ==
-            true,
-        'duplicate reservation lock');
+      () async =>
+          (await control!.execute(
+            pg.Sql.named(
+              "SELECT wait_event_type='Lock' FROM pg_stat_activity WHERE pid=@pid",
+            ),
+            parameters: {'pid': pid},
+          )).single[0] ==
+          true,
+      'duplicate reservation lock',
+    );
     final c = await host(stage: 'after_commit');
     final cr = request(c, token, beta);
     await c.event('barrier');
@@ -165,31 +202,44 @@ Future<void> main() async {
     await Future.wait([ar, cr]);
     final survivor = await br;
     check(
-        survivor.status == 200 &&
-            survivor.body?['receipt']?['status'] == 'ACCEPTED',
-        'Waiting duplicate survives concurrent Host SIGKILLs');
+      survivor.status == 200 &&
+          survivor.body?['receipt']?['status'] == 'ACCEPTED',
+      'Waiting duplicate survives concurrent Host SIGKILLs',
+    );
     await kill(b);
     final recovered = await host();
     check(
-        same(
-            await accepted(recovered, token, alpha), survivor.body?['receipt']),
-        'Duplicate winner receipt survives restart');
-    check(same(await accepted(recovered, token, beta), betaReceipt),
-        'Concurrently committed command receipt survives restart');
+      same(await accepted(recovered, token, alpha), survivor.body?['receipt']),
+      'Duplicate winner receipt survives restart',
+    );
+    check(
+      same(await accepted(recovered, token, beta), betaReceipt),
+      'Concurrently committed command receipt survives restart',
+    );
     await counts(
-        alpha, 1, 'Concurrent duplicate has one journal/audit/outbox/record');
-    await counts(beta, 1,
-        'Concurrent committed command has one journal/audit/outbox/record');
+      alpha,
+      1,
+      'Concurrent duplicate has one journal/audit/outbox/record',
+    );
+    await counts(
+      beta,
+      1,
+      'Concurrent committed command has one journal/audit/outbox/record',
+    );
     await stop(recovered);
 
     for (final forwarded in [false, true]) {
       final source = Uri.parse(runtimeUrl);
-      final proxy =
-          CommitProxy(source.host, source.port, forwardCommit: forwarded);
+      final proxy = CommitProxy(
+        source.host,
+        source.port,
+        forwardCommit: forwarded,
+      );
       proxies.add(proxy);
       await proxy.start();
-      final proxiedUrl =
-          source.replace(host: '127.0.0.1', port: proxy.port).toString();
+      final proxiedUrl = source
+          .replace(host: '127.0.0.1', port: proxy.port)
+          .toString();
       final cmd = next();
       final worker = await host(stage: 'unused', executionUrl: proxiedUrl);
       final response = request(worker, token, cmd);
@@ -198,17 +248,27 @@ Future<void> main() async {
       await proxy.close();
       proxies.remove(proxy);
       final lost = await response;
-      check(lost.status != 200,
-          'Lost commit acknowledgement is never reported as success');
+      check(
+        lost.status != 200,
+        'Lost commit acknowledgement is never reported as success',
+      );
       await kill(worker);
-      await counts(cmd, forwarded ? 1 : 0,
-          'Unknown-outcome connection leaves the expected committed state before retry');
+      await counts(
+        cmd,
+        forwarded ? 1 : 0,
+        'Unknown-outcome connection leaves the expected committed state before retry',
+      );
       final restarted = await host();
       final retried = await accepted(restarted, token, cmd);
-      check(!forwarded || same(retried, receipt),
-          'Unknown commit outcome reconciles ${forwarded ? 'committed' : 'uncommitted'} transaction by original ID');
-      await counts(cmd, 1,
-          'Unknown commit outcome retry has exactly one complete effect');
+      check(
+        !forwarded || same(retried, receipt),
+        'Unknown commit outcome reconciles ${forwarded ? 'committed' : 'uncommitted'} transaction by original ID',
+      );
+      await counts(
+        cmd,
+        1,
+        'Unknown commit outcome retry has exactly one complete effect',
+      );
       await stop(restarted);
     }
     final terminated = next();
@@ -216,18 +276,24 @@ Future<void> main() async {
     final pending = request(backendHost, token, terminated);
     final backend = (await backendHost.event('barrier'))['backend'];
     check(
-        (await control.execute(
-                    pg.Sql.named('SELECT pg_terminate_backend(@pid)'),
-                    parameters: {'pid': backend}))
-                .single[0] ==
-            true,
-        'PostgreSQL command backend forcibly terminated');
+      (await control.execute(
+            pg.Sql.named('SELECT pg_terminate_backend(@pid)'),
+            parameters: {'pid': backend},
+          )).single[0] ==
+          true,
+      'PostgreSQL command backend forcibly terminated',
+    );
     backendHost.resume();
-    check((await pending).status != 200,
-        'Terminated PostgreSQL backend cannot report accepted');
+    check(
+      (await pending).status != 200,
+      'Terminated PostgreSQL backend cannot report accepted',
+    );
     await kill(backendHost);
     await counts(
-        terminated, 0, 'Backend termination rolls back all four effects');
+      terminated,
+      0,
+      'Backend termination rolls back all four effects',
+    );
     final backendRestart = await host();
     await accepted(backendRestart, token, terminated);
     await stop(backendRestart);
@@ -253,53 +319,91 @@ Future<void> main() async {
     control = await pg.Connection.openFromUrl(url);
     administration = await pg.Connection.openFromUrl(adminUrl);
     for (final entry in acknowledged.values) {
-      check(same(await savedReceipt(control, entry.$1), entry.$2),
-          'Server crash retains previously HTTP-acknowledged receipt');
-      await counts(entry.$1, 1,
-          'Server crash retains every previously acknowledged complete effect');
+      check(
+        same(await savedReceipt(control, entry.$1), entry.$2),
+        'Server crash retains previously HTTP-acknowledged receipt',
+      );
+      await counts(
+        entry.$1,
+        1,
+        'Server crash retains every previously acknowledged complete effect',
+      );
     }
     await counts(
-        before, 0, 'PostgreSQL server crash discards uncommitted command');
-    await counts(after, 1,
-        'PostgreSQL server crash retains committed journal and effects');
+      before,
+      0,
+      'PostgreSQL server crash discards uncommitted command',
+    );
+    await counts(
+      after,
+      1,
+      'PostgreSQL server crash retains committed journal and effects',
+    );
     final walHost = await host();
     await accepted(walHost, token, before);
-    check(same(await accepted(walHost, token, after), afterReceipt),
-        'WAL recovery preserves exact committed receipt');
-    await counts(before, 1,
-        'WAL recovery retry applies previously uncommitted command once');
+    check(
+      same(await accepted(walHost, token, after), afterReceipt),
+      'WAL recovery preserves exact committed receipt',
+    );
+    await counts(
+      before,
+      1,
+      'WAL recovery retry applies previously uncommitted command once',
+    );
     await stop(walHost);
 
     final backupAdmin = IdentityAdministration(
-        connection: administration,
-        tenantId: tenant,
-        operatorLabel: 'backup-test');
+      connection: administration,
+      tenantId: tenant,
+      operatorLabel: 'backup-test',
+    );
     // Provision all identity states before the snapshot. Expiry is evaluated
     // using PostgreSQL time, independently of process restarts and restore.
-    final revokedToken =
-        await provisionWith(backupAdmin, 'revoked-user', 'revoked-device');
+    final revokedToken = await provisionWith(
+      backupAdmin,
+      'revoked-user',
+      'revoked-device',
+    );
     final revokedCredential = await provisionWith(
-        backupAdmin, 'credential-user', 'credential-device');
-    final deniedToken =
-        await provisionWith(backupAdmin, 'denied-user', 'denied-device');
+      backupAdmin,
+      'credential-user',
+      'credential-device',
+    );
+    final deniedToken = await provisionWith(
+      backupAdmin,
+      'denied-user',
+      'denied-device',
+    );
     final expiredToken = await provisionWith(
-        backupAdmin, 'expired-user', 'expired-device',
-        expires: DateTime.now().toUtc().add(const Duration(seconds: 2)));
+      backupAdmin,
+      'expired-user',
+      'expired-device',
+      expires: DateTime.now().toUtc().add(const Duration(seconds: 2)),
+    );
     await waitFor(
-        () async =>
-            (await control!.execute(
-                    pg.Sql.named(
-                        "SELECT expires_at <= clock_timestamp() FROM ventio_identity_credentials WHERE tenant_id=@tenant AND credential_id='credential-expired-device'"),
-                    parameters: {'tenant': tenant}))
-                .single[0] ==
-            true,
-        'real credential expiry before backup');
-    final laterToken =
-        await provisionWith(backupAdmin, 'later-user', 'later-device');
+      () async =>
+          (await control!.execute(
+            pg.Sql.named(
+              "SELECT expires_at <= clock_timestamp() FROM ventio_identity_credentials WHERE tenant_id=@tenant AND credential_id='credential-expired-device'",
+            ),
+            parameters: {'tenant': tenant},
+          )).single[0] ==
+          true,
+      'real credential expiry before backup',
+    );
+    final laterToken = await provisionWith(
+      backupAdmin,
+      'later-user',
+      'later-device',
+    );
     await backupAdmin.revokeDevice('revoked-device');
     await backupAdmin.revokeCredential('credential-credential-device');
     await backupAdmin.revokeGrant(
-        'denied-user', 'company-001', 'branch-001', 'maintenance.create');
+      'denied-user',
+      'company-001',
+      'branch-001',
+      'maintenance.create',
+    );
     final baseline = await manifest(control);
     final restoredUrl = await fixture.backupAndRestore(control);
     restoredControl = await pg.Connection.openFromUrl(restoredUrl);
@@ -313,35 +417,43 @@ Future<void> main() async {
       for (var index = 0; index < sourceRelations.length; index++) {
         if (!same(sourceRelations[index], targetRelations[index])) {
           stdout.writeln(
-              'RELATION_DIFF source=${jsonEncode(sourceRelations[index])} target=${jsonEncode(targetRelations[index])}');
+            'RELATION_DIFF source=${jsonEncode(sourceRelations[index])} target=${jsonEncode(targetRelations[index])}',
+          );
         }
       }
     }
-    check(same(restoredManifest, baseline),
-        'Fresh cluster restore preserves full rows, sequences, migration ledger, roles, ACLs, function definitions and FORCE RLS policies (differences: $differences)');
+    check(
+      same(restoredManifest, baseline),
+      'Fresh cluster restore preserves full rows, sequences, migration ledger, roles, ACLs, function definitions and FORCE RLS policies (differences: $differences)',
+    );
     await fixture.provisionRestoredPasswords();
-    String restoredLogin(String original) => Uri.parse(original)
-        .replace(host: '127.0.0.1', port: Uri.parse(restoredUrl).port)
-        .toString();
+    String restoredLogin(String original) => Uri.parse(
+      original,
+    ).replace(host: '127.0.0.1', port: Uri.parse(restoredUrl).port).toString();
     final restoredRuntime = restoredLogin(runtimeUrl);
     restoredAdmin = await pg.Connection.openFromUrl(restoredLogin(adminUrl));
     final runtime = await pg.Connection.openFromUrl(restoredRuntime);
     try {
       await verifyRuntimeConnection(runtime);
       check(
-          (await runtime.execute('SELECT count(*) FROM ventio_command_journal'))
-                  .single[0] ==
-              0,
-          'Restored RLS denies unproven direct SQL scope');
+        (await runtime.execute(
+              'SELECT count(*) FROM ventio_command_journal',
+            )).single[0] ==
+            0,
+        'Restored RLS denies unproven direct SQL scope',
+      );
       var denied = false;
       try {
-        await runtime
-            .execute("UPDATE ventio_identity_devices SET revoked_at=NULL");
+        await runtime.execute(
+          "UPDATE ventio_identity_devices SET revoked_at=NULL",
+        );
       } on pg.ServerException catch (error) {
         denied = error.code == '42501';
       }
-      check(denied,
-          'Restored runtime cannot undo device revocation through direct SQL');
+      check(
+        denied,
+        'Restored runtime cannot undo device revocation through direct SQL',
+      );
     } finally {
       await runtime.close();
     }
@@ -352,25 +464,39 @@ Future<void> main() async {
     await accepted(sourceHost, token, lateCommand);
     await stop(sourceHost);
     await backupAdmin.revokeDevice('later-device');
-    await counts(lateCommand, 0,
-        'Snapshot restore does not claim to recover commands accepted after backup',
-        db: restoredControl);
+    await counts(
+      lateCommand,
+      0,
+      'Snapshot restore does not claim to recover commands accepted after backup',
+      db: restoredControl,
+    );
     final lateRevocation = await restoredControl.execute(
-        pg.Sql.named(
-            'SELECT revoked_at FROM ventio_identity_devices WHERE tenant_id=@tenant AND device_id=\'later-device\''),
-        parameters: {'tenant': tenant});
-    check(lateRevocation.single[0] == null,
-        'Snapshot alone cannot preserve post-backup device revocation');
+      pg.Sql.named(
+        'SELECT revoked_at FROM ventio_identity_devices WHERE tenant_id=@tenant AND device_id=\'later-device\'',
+      ),
+      parameters: {'tenant': tenant},
+    );
+    check(
+      lateRevocation.single[0] == null,
+      'Snapshot alone cannot preserve post-backup device revocation',
+    );
     final reconciliation = IdentityAdministration(
-        connection: restoredAdmin,
-        tenantId: tenant,
-        operatorLabel: 'restore-reconciliation');
+      connection: restoredAdmin,
+      tenantId: tenant,
+      operatorLabel: 'restore-reconciliation',
+    );
     await reconciliation.revokeDevice('later-device');
     final targetHost = await host(databaseUrl: restoredRuntime);
-    check(same(await accepted(targetHost, token, after), afterReceipt),
-        'Restored Host replays pre-backup accepted receipt without reapplying effects');
-    await counts(after, 1, 'Restored replay preserves single audit and outbox',
-        db: restoredControl);
+    check(
+      same(await accepted(targetHost, token, after), afterReceipt),
+      'Restored Host replays pre-backup accepted receipt without reapplying effects',
+    );
+    await counts(
+      after,
+      1,
+      'Restored replay preserves single audit and outbox',
+      db: restoredControl,
+    );
     for (final entry in [
       (revokedToken, 'revoked-user', 'revoked-device', 401),
       (revokedCredential, 'credential-user', 'credential-device', 401),
@@ -381,58 +507,79 @@ Future<void> main() async {
       final cmd = next();
       cmd['clientContext']['actorId'] = entry.$2;
       cmd['clientContext']['deviceId'] = entry.$3;
-      check((await request(targetHost, entry.$1, cmd)).status == entry.$4,
-          'Restored authorization rejects ${entry.$3}');
-      await counts(cmd, 0, 'Denied restored identity leaves no command effects',
-          db: restoredControl);
+      check(
+        (await request(targetHost, entry.$1, cmd)).status == entry.$4,
+        'Restored authorization rejects ${entry.$3}',
+      );
+      await counts(
+        cmd,
+        0,
+        'Denied restored identity leaves no command effects',
+        db: restoredControl,
+      );
     }
     final foreign = next()..['branchId'] = 'foreign-branch';
-    check((await request(targetHost, token, foreign)).status == 403,
-        'Restored Host rejects manipulated branch');
+    check(
+      (await request(targetHost, token, foreign)).status == 403,
+      'Restored Host rejects manipulated branch',
+    );
     final foreignCompany = next()..['companyId'] = 'foreign-company';
-    check((await request(targetHost, token, foreignCompany)).status == 403,
-        'Restored Host rejects manipulated company');
+    check(
+      (await request(targetHost, token, foreignCompany)).status == 403,
+      'Restored Host rejects manipulated company',
+    );
     final foreignTenant = next()..['tenantId'] = '$tenant-foreign';
-    check((await request(targetHost, token, foreignTenant)).status == 403,
-        'Restored Host rejects manipulated tenant');
+    check(
+      (await request(targetHost, token, foreignTenant)).status == 403,
+      'Restored Host rejects manipulated tenant',
+    );
     final newCommand = next();
     await accepted(targetHost, token, newCommand);
-    await counts(newCommand, 1,
-        'Restored sequences allow a new atomic journal/audit/outbox command',
-        db: restoredControl);
+    await counts(
+      newCommand,
+      1,
+      'Restored sequences allow a new atomic journal/audit/outbox command',
+      db: restoredControl,
+    );
     await reconciliation.revokeDevice('device-001');
-    check((await request(targetHost, token, after)).status == 401,
-        'Revoked restored device cannot retrieve an old accepted receipt');
+    check(
+      (await request(targetHost, token, after)).status == 401,
+      'Revoked restored device cannot retrieve an old accepted receipt',
+    );
     await stop(targetHost);
     final targetRestart = await host(databaseUrl: restoredRuntime);
-    check((await request(targetRestart, token, after)).status == 401,
-        'Restored revocation survives another production Host restart');
+    check(
+      (await request(targetRestart, token, after)).status == 401,
+      'Restored revocation survives another production Host restart',
+    );
     await stop(targetRestart);
     // An independent restored cluster is new evidence: rerun the full existing
     // identity and hostile-SQL suites with the restored restricted logins.
     for (final suite in [
       'identity_integration',
-      'database_security_integration'
+      'database_security_integration',
     ]) {
-      final result = await Process.run(Platform.resolvedExecutable, [
-        'run',
-        'test/$suite.dart'
-      ], environment: {
-        'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
-        'VENTIO_TEST_DATABASE_URL': restoredUrl,
-        'VENTIO_TEST_RUNTIME_DATABASE_URL': restoredRuntime,
-        'VENTIO_TEST_ADMIN_DATABASE_URL': restoredLogin(adminUrl),
-        'VENTIO_TEST_MIGRATION_DATABASE_URL': Uri.parse(restoredRuntime)
-            .replace(userInfo: 'ventio_migration_test:migration_test_only')
-            .toString(),
-      }).timeout(const Duration(seconds: 120));
+      final result = await Process.run(
+        Platform.resolvedExecutable,
+        ['run', 'test/$suite.dart'],
+        environment: {
+          'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
+          'VENTIO_TEST_DATABASE_URL': restoredUrl,
+          'VENTIO_TEST_RUNTIME_DATABASE_URL': restoredRuntime,
+          'VENTIO_TEST_ADMIN_DATABASE_URL': restoredLogin(adminUrl),
+          'VENTIO_TEST_MIGRATION_DATABASE_URL': Uri.parse(restoredRuntime)
+              .replace(userInfo: 'ventio_migration_test:migration_test_only')
+              .toString(),
+        },
+      ).timeout(const Duration(seconds: 120));
       check(result.exitCode == 0, 'Full $suite passes on restored cluster');
       for (final line in (result.stdout as String).split('\n')) {
         if (line.startsWith('RESULT:')) stdout.writeln('RESTORED $line');
       }
     }
     stdout.writeln(
-        'RESULT: $assertions crash recovery and backup/restore assertions passed');
+      'RESULT: $assertions crash recovery and backup/restore assertions passed',
+    );
   } finally {
     for (final proxy in proxies) {
       await proxy.close();
@@ -450,15 +597,18 @@ Future<void> main() async {
 }
 
 Future<String> provisionWith(
-    IdentityAdministration admin, String actor, String device,
-    {DateTime? expires}) async {
+  IdentityAdministration admin,
+  String actor,
+  String device, {
+  DateTime? expires,
+}) async {
   await admin.createUser(actor);
   await admin.registerDevice(actor, device);
   await admin.grant(actor, 'company-001', 'branch-001', 'maintenance.create');
   return admin.issueCredential(
-      actorId: actor,
-      deviceId: device,
-      credentialId: 'credential-$device',
-      expiresAt:
-          expires ?? DateTime.now().toUtc().add(const Duration(hours: 1)));
+    actorId: actor,
+    deviceId: device,
+    credentialId: 'credential-$device',
+    expiresAt: expires ?? DateTime.now().toUtc().add(const Duration(hours: 1)),
+  );
 }

@@ -16,6 +16,7 @@ SET search_path = pg_catalog, ventio_security, pg_temp
 SET TimeZone = 'UTC' AS $fn$
   SELECT encode(sha256(convert_to(jsonb_build_array(
     (SELECT to_jsonb(s) FROM ventio_security.recovery_state s),
+    (SELECT jsonb_agg(jsonb_build_array(name,sha256) ORDER BY name) FROM public.ventio_schema_migrations),
     (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_users t),
     (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_devices t),
     (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_credentials t),

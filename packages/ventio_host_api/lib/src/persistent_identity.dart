@@ -32,12 +32,15 @@ class PersistentTokenAuthenticator implements HostAuthenticator {
     final connection = await connect();
     try {
       await _configure(connection);
-      final principal = await connection.runTx((tx) async {
-        await admission?.admit(tx);
-        return const PostgresIdentityStore().resolve(tx, digest);
-      },
-          settings: pg.TransactionSettings(
-              isolationLevel: pg.IsolationLevel.readCommitted));
+      final principal = await connection.runTx(
+        (tx) async {
+          await admission?.admit(tx);
+          return const PostgresIdentityStore().resolve(tx, digest);
+        },
+        settings: pg.TransactionSettings(
+          isolationLevel: pg.IsolationLevel.readCommitted,
+        ),
+      );
       if (principal == null) return null;
       return AuthenticatedSession.persistent(principal, digest);
     } finally {
@@ -56,37 +59,45 @@ class PersistentCommandExecutor implements CommandExecutor {
   final List<TrustedCommandBinding> bindings;
   final RecoveryAuthority? admission;
 
-  PersistentCommandExecutor(
-      {required this.connect,
-      required this.modules,
-      required this.docTypes,
-      this.admission,
-      required Iterable<TrustedCommandBinding> bindings})
-      : bindings = List.unmodifiable(bindings);
+  PersistentCommandExecutor({
+    required this.connect,
+    required this.modules,
+    required this.docTypes,
+    this.admission,
+    required Iterable<TrustedCommandBinding> bindings,
+  }) : bindings = List.unmodifiable(bindings);
 
   @override
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, AuthenticatedSession session) async {
+    CommandEnvelope command,
+    AuthenticatedSession session,
+  ) async {
     final digest = session.credentialDigest;
     if (digest == null || !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
       return CommandReceipt(
-              commandId: command.commandId,
-              status: 'REJECTED',
-              reasonCode: 'AUTHENTICATION_REQUIRED')
-          .toJson();
+        commandId: command.commandId,
+        status: 'REJECTED',
+        reasonCode: 'AUTHENTICATION_REQUIRED',
+      ).toJson();
     }
     final connection = await connect();
     try {
       await _configure(connection);
       final host = DurableCommandHost(
-          connection: connection, modules: modules, docTypes: docTypes);
+        connection: connection,
+        modules: modules,
+        docTypes: docTypes,
+      );
       for (final binding in bindings) {
         host.registerTrustedCreateBinding(binding);
       }
       return await host.executeAuthorized(command, (tx) async {
         await admission?.admit(tx);
-        return const PostgresIdentityStore()
-            .resolve(tx, digest, command: command);
+        return const PostgresIdentityStore().resolve(
+          tx,
+          digest,
+          command: command,
+        );
       });
     } finally {
       await connection.close();

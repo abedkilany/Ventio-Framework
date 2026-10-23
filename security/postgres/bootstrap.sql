@@ -221,11 +221,12 @@ GRANT SELECT, INSERT ON public.ventio_records, public.ventio_command_journal,
 GRANT UPDATE (receipt) ON public.ventio_command_journal TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
+\ir schema_profile.sql
 \ir runtime_check.sql
 REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
-  ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(),
+  ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
   ventio_security.admit_recovery(text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb), ventio_security.recovery_snapshot(),

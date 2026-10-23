@@ -16,8 +16,12 @@ class RecoveryAuthority {
   final int? readerGroupId;
   final FutureOr<void> Function(String)? testBarrier;
   static final Map<String, Future<void>> _tails = {};
-  RecoveryAuthority(this.path,
-      {this.testBarrier, this.trustedOwnerUid, this.readerGroupId});
+  RecoveryAuthority(
+    this.path, {
+    this.testBarrier,
+    this.trustedOwnerUid,
+    this.readerGroupId,
+  });
 
   Future<String> _readFile() => trustedOwnerUid != null || readerGroupId != null
       ? PrivateFiles.readAuthority(path, trustedOwnerUid: trustedOwnerUid)
@@ -45,13 +49,16 @@ class RecoveryAuthority {
   Future<void> admit(pg.TxSession tx) async {
     final state = await _read();
     await tx.execute(
-        pg.Sql.named('SELECT ventio_security.admit_recovery(@proof)'),
-        parameters: {'proof': state['fingerprint']});
+      pg.Sql.named('SELECT ventio_security.admit_recovery(@proof)'),
+      parameters: {'proof': state['fingerprint']},
+    );
   }
 
   static Future<String> snapshot(pg.Session session) async =>
-      (await session.execute('SELECT ventio_security.recovery_snapshot()'))
-          .single[0] as String;
+      (await session.execute(
+            'SELECT ventio_security.recovery_snapshot()',
+          )).single[0]
+          as String;
 
   Future<T> _exclusive<T>(Future<T> Function() body) async {
     final previous = _tails[path] ?? Future<void>.value();
@@ -68,8 +75,11 @@ class RecoveryAuthority {
           await PrivateFiles.create(lockPath, {'lock': 1});
         } else {
           await PrivateFiles.createAuthority(
-              lockPath, {'lock': 1}, readerGroupId!,
-              lock: true);
+            lockPath,
+            {'lock': 1},
+            readerGroupId!,
+            lock: true,
+          );
         }
       } catch (_) {
         if (readerGroupId == null) {
@@ -102,7 +112,7 @@ class RecoveryAuthority {
         final state = <String, dynamic>{
           'version': 1,
           'pending': true,
-          'authorityId': authority
+          'authorityId': authority,
         };
         if (await FileSystemEntity.type(path, followLinks: false) ==
             FileSystemEntityType.notFound) {
@@ -113,58 +123,62 @@ class RecoveryAuthority {
         await testBarrier?.call('before_database');
         final fingerprint = await db.runTx((tx) async {
           await tx.execute(
-              pg.Sql.named('SELECT ventio_security.reset_recovery(@id,@label)'),
-              parameters: {'id': authority, 'label': operatorLabel});
+            pg.Sql.named('SELECT ventio_security.reset_recovery(@id,@label)'),
+            parameters: {'id': authority, 'label': operatorLabel},
+          );
           await testBarrier?.call('before_commit');
           return snapshot(tx);
         });
         await testBarrier?.call('after_commit');
-        await _replace(
-            {...state, 'pending': false, 'fingerprint': fingerprint});
+        await _replace({
+          ...state,
+          'pending': false,
+          'fingerprint': fingerprint,
+        });
       });
 
   /// Mark external evidence pending and fsync BEFORE changing PostgreSQL. A
   /// crash/unknown commit/witness write failure leaves admission closed. There
   /// is no unsafe "repair witness from whichever DB was restored" fallback.
   Future<void> change(
-          pg.Connection db, Future<void> Function(pg.TxSession) action) =>
-      _exclusive(() async {
-        final state = await _read();
-        // Validate under the SAME exclusive DB lock as the mutation. Another
-        // admin process using raw RPCs cannot slip a stale change in between.
-        await _replace({...state, 'pending': true});
-        await testBarrier?.call('before_database');
-        var rejectedBeforeCommit = false;
-        late String fingerprint;
+    pg.Connection db,
+    Future<void> Function(pg.TxSession) action,
+  ) => _exclusive(() async {
+    final state = await _read();
+    // Validate under the SAME exclusive DB lock as the mutation. Another
+    // admin process using raw RPCs cannot slip a stale change in between.
+    await _replace({...state, 'pending': true});
+    await testBarrier?.call('before_database');
+    var rejectedBeforeCommit = false;
+    late String fingerprint;
+    try {
+      fingerprint = await db.runTx((tx) async {
+        await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
+        if (await snapshot(tx) != state['fingerprint']) {
+          throw StateError('Recovery evidence does not match database');
+        }
         try {
-          fingerprint = await db.runTx((tx) async {
-            await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
-            if (await snapshot(tx) != state['fingerprint']) {
-              throw StateError('Recovery evidence does not match database');
-            }
-            try {
-              await action(tx);
-            } on pg.ServerException {
-              rejectedBeforeCommit = true;
-              rethrow;
-            }
-            await testBarrier?.call('before_commit');
-            return snapshot(tx);
-          });
-        } catch (_) {
-          if (rejectedBeforeCommit) {
-            // No COMMIT was sent: restore ready evidence only when the exact
-            // previously trusted state is still present after rollback.
-            final unchanged = await db.runTx((tx) async {
-              await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
-              return await snapshot(tx) == state['fingerprint'];
-            });
-            if (unchanged) await _replace(state);
-          }
+          await action(tx);
+        } on pg.ServerException {
+          rejectedBeforeCommit = true;
           rethrow;
         }
-        await testBarrier?.call('after_commit');
-        await _replace(
-            {...state, 'pending': false, 'fingerprint': fingerprint});
+        await testBarrier?.call('before_commit');
+        return snapshot(tx);
       });
+    } catch (_) {
+      if (rejectedBeforeCommit) {
+        // No COMMIT was sent: restore ready evidence only when the exact
+        // previously trusted state is still present after rollback.
+        final unchanged = await db.runTx((tx) async {
+          await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
+          return await snapshot(tx) == state['fingerprint'];
+        });
+        if (unchanged) await _replace(state);
+      }
+      rethrow;
+    }
+    await testBarrier?.call('after_commit');
+    await _replace({...state, 'pending': false, 'fingerprint': fingerprint});
+  });
 }

@@ -11,33 +11,36 @@ final expiredToken = List.filled(43, 'c').join();
 final revokedToken = List.filled(43, 'd').join();
 
 Principal principal(String tenant, {bool permitted = true}) => Principal(
-    actorId: 'user-001',
-    deviceId: 'device-001',
-    tenantId: tenant,
-    companyIds: {'company-001'},
-    branchIds: {'branch-001'},
-    permissions: permitted ? {'maintenance.create'} : {});
+  actorId: 'user-001',
+  deviceId: 'device-001',
+  tenantId: tenant,
+  companyIds: {'company-001'},
+  branchIds: {'branch-001'},
+  permissions: permitted ? {'maintenance.create'} : {},
+);
 
 DevelopmentTokenAuthenticator authenticator(String tenant) {
-  DevelopmentCredential credential(String token,
-          {bool permitted = true, bool expired = false}) =>
-      DevelopmentCredential(
-          tokenDigest: DevelopmentCredential.digest(token),
-          principal: principal(tenant, permitted: permitted),
-          expiresAt:
-              DateTime.now().toUtc().add(Duration(hours: expired ? -1 : 1)));
+  DevelopmentCredential credential(
+    String token, {
+    bool permitted = true,
+    bool expired = false,
+  }) => DevelopmentCredential(
+    tokenDigest: DevelopmentCredential.digest(token),
+    principal: principal(tenant, permitted: permitted),
+    expiresAt: DateTime.now().toUtc().add(Duration(hours: expired ? -1 : 1)),
+  );
   return DevelopmentTokenAuthenticator([
     credential(validToken),
     credential(deniedToken, permitted: false),
     credential(expiredToken, expired: true),
     credential(revokedToken),
-  ])
-    ..revokeDigest(DevelopmentCredential.digest(revokedToken));
+  ])..revokeDigest(DevelopmentCredential.digest(revokedToken));
 }
 
 Map<String, dynamic> command(String tenant, {int id = 1, String? record}) {
-  final source =
-      loadJsonFile('../../spec/v1.2/examples/create_maintenance_command.json');
+  final source = loadJsonFile(
+    '../../spec/v1.2/examples/create_maintenance_command.json',
+  );
   source['tenantId'] = tenant;
   source['companyId'] = 'company-001';
   source['branchId'] = 'branch-001';
@@ -56,17 +59,21 @@ class Reply {
   Reply(this.status, this.body, this.headers);
 }
 
-Future<Reply> send(HostApi api,
-    {String path = '/api/v1/commands',
-    String method = 'POST',
-    String? token,
-    Object? body,
-    String contentType = 'application/json',
-    bool chunked = false}) async {
+Future<Reply> send(
+  HostApi api, {
+  String path = '/api/v1/commands',
+  String method = 'POST',
+  String? token,
+  Object? body,
+  String contentType = 'application/json',
+  bool chunked = false,
+}) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
   try {
     final request = await client.openUrl(
-        method, Uri.parse('http://127.0.0.1:${api.port}$path'));
+      method,
+      Uri.parse('http://127.0.0.1:${api.port}$path'),
+    );
     if (token != null) request.headers.set('Authorization', 'Bearer $token');
     request.headers.set('Content-Type', contentType);
     if (body != null) {
@@ -76,8 +83,11 @@ Future<Reply> send(HostApi api,
     }
     final response = await request.close();
     final text = await utf8.decoder.bind(response).join();
-    return Reply(response.statusCode, jsonDecode(text) as Map<String, dynamic>,
-        response.headers);
+    return Reply(
+      response.statusCode,
+      jsonDecode(text) as Map<String, dynamic>,
+      response.headers,
+    );
   } finally {
     client.close(force: true);
   }

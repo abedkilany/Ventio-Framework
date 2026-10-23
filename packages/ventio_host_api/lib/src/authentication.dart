@@ -15,9 +15,9 @@ class AuthenticatedSession {
   final Principal principal;
   final String? credentialDigest;
   const AuthenticatedSession.development(this.principal)
-      : credentialDigest = null;
+    : credentialDigest = null;
   const AuthenticatedSession.persistent(this.principal, String digest)
-      : credentialDigest = digest;
+    : credentialDigest = digest;
 }
 
 class OpaqueToken {
@@ -50,7 +50,7 @@ class DevelopmentCredential {
           principal.deviceId,
           principal.tenantId,
           ...principal.companyIds,
-          ...principal.branchIds
+          ...principal.branchIds,
         ].any((value) => value.trim().isEmpty)) {
       throw ArgumentError('Invalid development credential');
     }
@@ -67,10 +67,11 @@ class DevelopmentTokenAuthenticator implements HostAuthenticator {
   final Set<String> _revoked = {};
   final DateTime Function() _clock;
 
-  DevelopmentTokenAuthenticator(Iterable<DevelopmentCredential> credentials,
-      {DateTime Function()? clock})
-      : _credentials = {},
-        _clock = clock ?? DateTime.now {
+  DevelopmentTokenAuthenticator(
+    Iterable<DevelopmentCredential> credentials, {
+    DateTime Function()? clock,
+  }) : _credentials = {},
+       _clock = clock ?? DateTime.now {
     for (final credential in credentials) {
       if (_credentials.containsKey(credential.tokenDigest)) {
         throw ArgumentError('Duplicate credential digest');
@@ -88,7 +89,8 @@ class DevelopmentTokenAuthenticator implements HostAuthenticator {
     final credential = _credentials[digest];
     if (credential == null ||
         _revoked.contains(digest) ||
-        !_clock().toUtc().isBefore(credential.expiresAt.toUtc())) return null;
+        !_clock().toUtc().isBefore(credential.expiresAt.toUtc()))
+      return null;
     return AuthenticatedSession.development(credential.principal);
   }
 }

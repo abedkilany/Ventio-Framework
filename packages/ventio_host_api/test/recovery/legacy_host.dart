@@ -23,11 +23,15 @@ Future<void> main() async {
     if (url == null || url.isEmpty)
       throw StateError('Missing database configuration');
     final parsed = Uri.parse(url);
-    final boundedUrl = parsed.replace(queryParameters: {
-      ...parsed.queryParameters,
-      'connect_timeout': '5',
-      'query_timeout': '20'
-    }).toString();
+    final boundedUrl = parsed
+        .replace(
+          queryParameters: {
+            ...parsed.queryParameters,
+            'connect_timeout': '5',
+            'query_timeout': '20',
+          },
+        )
+        .toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
     final probe = await connect();
     try {
@@ -40,17 +44,19 @@ Future<void> main() async {
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
       authenticator: PersistentTokenAuthenticator(connect: connect),
       executor: PersistentCommandExecutor(
-          connect: connect,
-          modules: prototype.modules,
-          docTypes: prototype.docTypes,
-          bindings: const [
-            TrustedCommandBinding('maintenance.create', 1, 'MaintenanceRequest')
-          ]),
+        connect: connect,
+        modules: prototype.modules,
+        docTypes: prototype.docTypes,
+        bindings: const [
+          TrustedCommandBinding('maintenance.create', 1, 'MaintenanceRequest'),
+        ],
+      ),
     );
     stdout.writeln('Persistent local Host listening on 127.0.0.1:${api.port}');
   } catch (_) {
     stderr.writeln(
-        'Local Host startup failed. Check private server configuration.');
+      'Local Host startup failed. Check private server configuration.',
+    );
     exitCode = 2;
     return;
   }
@@ -58,11 +64,13 @@ Future<void> main() async {
   final subscriptions = <StreamSubscription<ProcessSignal>>[];
   for (final signal in [
     ProcessSignal.sigint,
-    if (!Platform.isWindows) ProcessSignal.sigterm
+    if (!Platform.isWindows) ProcessSignal.sigterm,
   ]) {
-    subscriptions.add(signal.watch().listen((_) {
-      if (!shutdown.isCompleted) shutdown.complete();
-    }));
+    subscriptions.add(
+      signal.watch().listen((_) {
+        if (!shutdown.isCompleted) shutdown.complete();
+      }),
+    );
   }
   await shutdown.future;
   await api.close();

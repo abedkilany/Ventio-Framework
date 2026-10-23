@@ -16,32 +16,50 @@ class CrashExecutor implements CommandExecutor {
   CrashExecutor(this.connect, this.prototype, this.stage, this.resume);
   @override
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, AuthenticatedSession session) async {
+    CommandEnvelope command,
+    AuthenticatedSession session,
+  ) async {
     final connection = await connect();
     try {
       await verifyRuntimeConnection(connection);
       await connection.execute("SET statement_timeout='15s'");
       await connection.execute("SET lock_timeout='15s'");
-      final backend =
-          (await connection.execute('SELECT pg_backend_pid()')).single[0];
+      final backend = (await connection.execute(
+        'SELECT pg_backend_pid()',
+      )).single[0];
       stdout.writeln(jsonEncode({'event': 'executing', 'backend': backend}));
-      final host = DurableCommandHost(
-          connection: connection,
-          modules: prototype.modules,
-          docTypes: prototype.docTypes,
-          testFaultInjector: (point) async {
-            if (point == stage) {
-              stdout.writeln(jsonEncode(
-                  {'event': 'barrier', 'stage': point, 'backend': backend}));
-              await resume.future.timeout(const Duration(seconds: 30));
-            }
-          })
-        ..registerTrustedCreateBinding(const TrustedCommandBinding(
-            'maintenance.create', 1, 'MaintenanceRequest'));
+      final host =
+          DurableCommandHost(
+            connection: connection,
+            modules: prototype.modules,
+            docTypes: prototype.docTypes,
+            testFaultInjector: (point) async {
+              if (point == stage) {
+                stdout.writeln(
+                  jsonEncode({
+                    'event': 'barrier',
+                    'stage': point,
+                    'backend': backend,
+                  }),
+                );
+                await resume.future.timeout(const Duration(seconds: 30));
+              }
+            },
+          )..registerTrustedCreateBinding(
+            const TrustedCommandBinding(
+              'maintenance.create',
+              1,
+              'MaintenanceRequest',
+            ),
+          );
       return await host.executeAuthorized(
-          command,
-          (tx) => const PostgresIdentityStore()
-              .resolve(tx, session.credentialDigest!, command: command));
+        command,
+        (tx) => const PostgresIdentityStore().resolve(
+          tx,
+          session.credentialDigest!,
+          command: command,
+        ),
+      );
     } finally {
       await connection.close();
     }
@@ -67,12 +85,15 @@ Future<void> main() async {
     if (line == 'resume' && !resume.isCompleted) resume.complete();
   });
   final api = await HostApi.bind(
-      authenticator: PersistentTokenAuthenticator(
-          connect: () => pg.Connection.openFromUrl(url)),
-      executor: CrashExecutor(
-          () => pg.Connection.openFromUrl(executionUrl),
-          bootstrapMaintenancePrototype('../../spec/v1.2'),
-          env['VENTIO_TEST_CRASH_STAGE'] ?? '',
-          resume));
+    authenticator: PersistentTokenAuthenticator(
+      connect: () => pg.Connection.openFromUrl(url),
+    ),
+    executor: CrashExecutor(
+      () => pg.Connection.openFromUrl(executionUrl),
+      bootstrapMaintenancePrototype('../../spec/v1.2'),
+      env['VENTIO_TEST_CRASH_STAGE'] ?? '',
+      resume,
+    ),
+  );
   stdout.writeln(jsonEncode({'event': 'ready', 'port': api.port}));
 }

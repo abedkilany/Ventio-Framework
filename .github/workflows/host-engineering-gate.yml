@@ -31,6 +31,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.13.7
+      - run: python3 ../../scripts/check_schema_profile.py
       - run: dart pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .

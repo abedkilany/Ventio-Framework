@@ -14,11 +14,12 @@ class IdentityAdministration {
   final String operatorLabel;
   final RecoveryAuthority? authority;
 
-  IdentityAdministration(
-      {required this.connection,
-      required this.tenantId,
-      required this.operatorLabel,
-      this.authority}) {
+  IdentityAdministration({
+    required this.connection,
+    required this.tenantId,
+    required this.operatorLabel,
+    this.authority,
+  }) {
     _identifier(tenantId);
     _identifier(operatorLabel);
   }
@@ -26,16 +27,18 @@ class IdentityAdministration {
   Future<void> _change(String action, Map<String, Object?> fields) async {
     Future<void> execute(pg.Session session) async {
       await session.execute(
-          pg.Sql.named(
-              'SELECT ventio_security.admin_change(CAST(@change AS jsonb))'),
-          parameters: {
-            'change': jsonEncode({
-              'tenantId': tenantId,
-              'operatorLabel': operatorLabel,
-              'action': action,
-              ...fields
-            })
-          });
+        pg.Sql.named(
+          'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
+        ),
+        parameters: {
+          'change': jsonEncode({
+            'tenantId': tenantId,
+            'operatorLabel': operatorLabel,
+            'action': action,
+            ...fields,
+          }),
+        },
+      );
     }
 
     if (authority == null) {
@@ -53,22 +56,27 @@ class IdentityAdministration {
   Future<void> registerBranch(String companyId, String branchId) {
     _identifier(companyId);
     _identifier(branchId);
-    return _change(
-        'BRANCH_REGISTERED', {'companyId': companyId, 'branchId': branchId});
+    return _change('BRANCH_REGISTERED', {
+      'companyId': companyId,
+      'branchId': branchId,
+    });
   }
 
   Future<void> registerDevice(String actorId, String deviceId) {
     _identifier(actorId);
     _identifier(deviceId);
-    return _change(
-        'DEVICE_REGISTERED', {'actorId': actorId, 'deviceId': deviceId});
+    return _change('DEVICE_REGISTERED', {
+      'actorId': actorId,
+      'deviceId': deviceId,
+    });
   }
 
-  Future<String> issueCredential(
-      {required String actorId,
-      required String deviceId,
-      required String credentialId,
-      required DateTime expiresAt}) async {
+  Future<String> issueCredential({
+    required String actorId,
+    required String deviceId,
+    required String credentialId,
+    required DateTime expiresAt,
+  }) async {
     _identifier(actorId);
     _identifier(deviceId);
     _identifier(credentialId);
@@ -78,20 +86,21 @@ class IdentityAdministration {
       'deviceId': deviceId,
       'credentialId': credentialId,
       'tokenDigest': OpaqueToken.digest(token),
-      'expiresAt': expiresAt.toUtc().toIso8601String()
+      'expiresAt': expiresAt.toUtc().toIso8601String(),
     });
     return token;
   }
 
   /// Provision through an operator-owned private local file, never a log/HTTP
   /// response. This method intentionally returns no raw credential.
-  Future<void> provisionToFile(
-      {required String actorId,
-      required String deviceId,
-      required String credentialId,
-      required DateTime expiresAt,
-      required List<Map<String, Object?>> allowedScopes,
-      required String outputPath}) async {
+  Future<void> provisionToFile({
+    required String actorId,
+    required String deviceId,
+    required String credentialId,
+    required DateTime expiresAt,
+    required List<Map<String, Object?>> allowedScopes,
+    required String outputPath,
+  }) async {
     if (authority == null) throw StateError('Recovery authority is required');
     final token = OpaqueToken.generate();
     await PrivateFiles.create(outputPath, {
@@ -101,7 +110,7 @@ class IdentityAdministration {
       'deviceId': deviceId,
       'credentialId': credentialId,
       'token': token,
-      'expiresAt': expiresAt.toUtc().toIso8601String()
+      'expiresAt': expiresAt.toUtc().toIso8601String(),
     });
     await _change('CREDENTIAL_PROVISIONED', {
       'actorId': actorId,
@@ -109,21 +118,22 @@ class IdentityAdministration {
       'credentialId': credentialId,
       'tokenDigest': OpaqueToken.digest(token),
       'expiresAt': expiresAt.toUtc().toIso8601String(),
-      'allowedScopes': allowedScopes
+      'allowedScopes': allowedScopes,
     });
   }
 
   /// Rotation is compare-and-swap on the prior digest. The DB atomically revokes
   /// the old credential, carries its exact scope ceiling and inserts the new one.
   /// Renewal uses this same operation with a new ID/secret; no in-place extension.
-  Future<void> rotateToFile(
-      {required String actorId,
-      required String deviceId,
-      required String previousCredentialId,
-      required String previousToken,
-      required String credentialId,
-      required DateTime expiresAt,
-      required String outputPath}) async {
+  Future<void> rotateToFile({
+    required String actorId,
+    required String deviceId,
+    required String previousCredentialId,
+    required String previousToken,
+    required String credentialId,
+    required DateTime expiresAt,
+    required String outputPath,
+  }) async {
     if (authority == null || !OpaqueToken.isValid(previousToken)) {
       throw StateError('Trusted rotation context is required');
     }
@@ -135,7 +145,7 @@ class IdentityAdministration {
       'deviceId': deviceId,
       'credentialId': credentialId,
       'token': token,
-      'expiresAt': expiresAt.toUtc().toIso8601String()
+      'expiresAt': expiresAt.toUtc().toIso8601String(),
     });
     await _change('CREDENTIAL_ROTATED', {
       'actorId': actorId,
@@ -144,29 +154,37 @@ class IdentityAdministration {
       'previousDigest': OpaqueToken.digest(previousToken),
       'credentialId': credentialId,
       'tokenDigest': OpaqueToken.digest(token),
-      'expiresAt': expiresAt.toUtc().toIso8601String()
+      'expiresAt': expiresAt.toUtc().toIso8601String(),
     });
   }
 
   Future<void> grant(
-      String actorId, String companyId, String branchId, String permission) {
+    String actorId,
+    String companyId,
+    String branchId,
+    String permission,
+  ) {
     _grantFields(actorId, companyId, branchId, permission);
     return _change('PERMISSION_GRANTED', {
       'actorId': actorId,
       'companyId': companyId,
       'branchId': branchId,
-      'permission': permission
+      'permission': permission,
     });
   }
 
   Future<void> revokeGrant(
-      String actorId, String companyId, String branchId, String permission) {
+    String actorId,
+    String companyId,
+    String branchId,
+    String permission,
+  ) {
     _grantFields(actorId, companyId, branchId, permission);
     return _change('PERMISSION_REVOKED', {
       'actorId': actorId,
       'companyId': companyId,
       'branchId': branchId,
-      'permission': permission
+      'permission': permission,
     });
   }
 
@@ -192,7 +210,11 @@ void _identifier(String value) {
 }
 
 void _grantFields(
-    String actorId, String companyId, String branchId, String permission) {
+  String actorId,
+  String companyId,
+  String branchId,
+  String permission,
+) {
   for (final value in [actorId, companyId, branchId, permission]) {
     _identifier(value);
   }

@@ -4,6 +4,7 @@ RETURNS void LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE r record; t text; c record;
 BEGIN
+  PERFORM ventio_security.assert_schema();
   IF NOT pg_has_role(session_user, 'ventio_runtime', 'MEMBER') OR
      NOT pg_has_role(current_user, 'ventio_runtime', 'MEMBER') THEN
     RAISE EXCEPTION 'Host requires the restricted runtime role';

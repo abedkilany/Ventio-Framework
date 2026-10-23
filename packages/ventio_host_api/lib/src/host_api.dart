@@ -9,7 +9,9 @@ import 'authentication.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, AuthenticatedSession session);
+    CommandEnvelope command,
+    AuthenticatedSession session,
+  );
 }
 
 /// Versioned HTTP routing, validation, and authenticated command dispatch.
@@ -26,15 +28,22 @@ class HostApi {
   bool _closing = false;
   Future<void>? _closeFuture;
 
-  HostApi._(this._server, this._authenticator, this._executor,
-      this.maxBodyBytes, this.maxConcurrentRequests, this.bodyTimeout) {
+  HostApi._(
+    this._server,
+    this._authenticator,
+    this._executor,
+    this.maxBodyBytes,
+    this.maxConcurrentRequests,
+    this.bodyTimeout,
+  ) {
     _server.serverHeader = null;
     _server.idleTimeout = const Duration(seconds: 5);
     _server.listen((request) {
       // Register synchronously before yielding so shutdown sees every request.
       late final Future<void> pending;
-      pending =
-          _handleSafely(request).whenComplete(() => _active.remove(pending));
+      pending = _handleSafely(
+        request,
+      ).whenComplete(() => _active.remove(pending));
       _active.add(pending);
     });
   }
@@ -53,8 +62,14 @@ class HostApi {
       throw ArgumentError('Resource limits must be positive');
     }
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
-    return HostApi._(server, authenticator, executor, maxBodyBytes,
-        maxConcurrentRequests, bodyTimeout);
+    return HostApi._(
+      server,
+      authenticator,
+      executor,
+      maxBodyBytes,
+      maxConcurrentRequests,
+      bodyTimeout,
+    );
   }
 
   int get port => _server.port;
@@ -82,8 +97,12 @@ class HostApi {
     try {
       await _handle(request, iterator, firstChunk);
     } on _ApiError catch (error) {
-      await _error(request, error.status, error.code,
-          retryable: error.retryable);
+      await _error(
+        request,
+        error.status,
+        error.code,
+        retryable: error.retryable,
+      );
     } on HttpException {
       await _error(request, 400, 'INVALID_REQUEST');
     } on FormatException {
@@ -97,15 +116,20 @@ class HostApi {
     } finally {
       try {
         await request.response.close();
-      } catch (_) {/* Peer disconnected. */}
+      } catch (_) {
+        /* Peer disconnected. */
+      }
       // Flush the response before cancellation; early cancellation truncates
       // error responses for incomplete uploads on dart:io.
       unawaited(iterator.cancel().catchError((Object _) {}));
     }
   }
 
-  Future<void> _handle(HttpRequest request, StreamIterator<List<int>> iterator,
-      Future<bool> firstChunk) async {
+  Future<void> _handle(
+    HttpRequest request,
+    StreamIterator<List<int>> iterator,
+    Future<bool> firstChunk,
+  ) async {
     request.response.headers
       ..set(HttpHeaders.cacheControlHeader, 'no-store')
       ..set('X-Content-Type-Options', 'nosniff');
@@ -133,12 +157,15 @@ class HostApi {
     final headers = request.headers[HttpHeaders.authorizationHeader];
     if (headers == null ||
         headers.length != 1 ||
-        !RegExp(r'^Bearer [A-Za-z0-9_-]{43,128}$', caseSensitive: false)
-            .hasMatch(headers.single)) {
+        !RegExp(
+          r'^Bearer [A-Za-z0-9_-]{43,128}$',
+          caseSensitive: false,
+        ).hasMatch(headers.single)) {
       throw const _ApiError(401, 'UNAUTHENTICATED');
     }
-    final session =
-        await _authenticator.authenticate(headers.single.substring(7));
+    final session = await _authenticator.authenticate(
+      headers.single.substring(7),
+    );
     if (session == null) throw const _ApiError(401, 'UNAUTHENTICATED');
     final principal = session.principal;
     final contentType = request.headers.contentType;
@@ -185,11 +212,12 @@ class HostApi {
     }
     if (session.credentialDigest == null &&
         !principal.withinScope(
-            tenantId: command.tenantId,
-            companyId: command.companyId,
-            branchId: command.branchId,
-            actorId: command.actorId,
-            deviceId: command.deviceId)) {
+          tenantId: command.tenantId,
+          companyId: command.companyId,
+          branchId: command.branchId,
+          actorId: command.actorId,
+          deviceId: command.deviceId,
+        )) {
       throw const _ApiError(403, 'SCOPE_DENIED');
     }
     final receipt = await _executor.execute(command, session);
@@ -201,20 +229,26 @@ class HostApi {
       'CONFLICT' => 409,
       'RETRY_LATER' => 409,
       _ => switch (receipt['reasonCode']) {
-          'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
-          'COMMAND_ID_REUSED' => 409,
-          _ => 422,
-        },
+        'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
+        'COMMAND_ID_REUSED' => 409,
+        _ => 422,
+      },
     };
     _json(request, status, {'apiVersion': 1, 'receipt': receipt});
   }
 
-  Future<void> _error(HttpRequest request, int status, String code,
-      {bool retryable = false}) async {
+  Future<void> _error(
+    HttpRequest request,
+    int status,
+    String code, {
+    bool retryable = false,
+  }) async {
     try {
       if (status == 401)
-        request.response.headers
-            .set(HttpHeaders.wwwAuthenticateHeader, 'Bearer');
+        request.response.headers.set(
+          HttpHeaders.wwwAuthenticateHeader,
+          'Bearer',
+        );
       if (retryable)
         request.response.headers.set(HttpHeaders.retryAfterHeader, '1');
       _json(request, status, {
@@ -230,9 +264,11 @@ class HostApi {
             _ => 'The request could not be processed.',
           },
           'retryable': retryable,
-        }
+        },
       });
-    } catch (_) {/* Peer disconnected before error delivery. */}
+    } catch (_) {
+      /* Peer disconnected before error delivery. */
+    }
   }
 
   void _json(HttpRequest request, int status, Map<String, dynamic> body) {
@@ -257,24 +293,27 @@ void _validateWireShape(Map<String, dynamic> json) {
     'expectedRevision',
     'dependsOn',
     'payload',
-    'clientContext'
+    'clientContext',
   };
   final context = requireMap(json['clientContext'], 'clientContext');
   if (json.keys.any((key) => !allowed.contains(key)) ||
-      context.keys.any((key) => !{
-            'deviceId',
-            'actorId',
-            'moduleVersion',
-            'docTypeVersion',
-            'clientTimestamp'
-          }.contains(key)) ||
+      context.keys.any(
+        (key) => !{
+          'deviceId',
+          'actorId',
+          'moduleVersion',
+          'docTypeVersion',
+          'clientTimestamp',
+        }.contains(key),
+      ) ||
       !RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(requireString(json, 'type'))) {
     throw const _ApiError(400, 'INVALID_COMMAND');
   }
   if (context.containsKey('clientTimestamp') &&
       (context['clientTimestamp'] is! String ||
-          !RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$')
-              .hasMatch(context['clientTimestamp'] as String) ||
+          !RegExp(
+            r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$',
+          ).hasMatch(context['clientTimestamp'] as String) ||
           DateTime.tryParse(context['clientTimestamp'] as String) == null)) {
     throw const _ApiError(400, 'INVALID_COMMAND');
   }
@@ -283,7 +322,7 @@ void _validateWireShape(Map<String, dynamic> json) {
     'companyId',
     'branchId',
     'aggregateId',
-    'type'
+    'type',
   ]) {
     if (requireString(json, key).length > 256)
       throw const _ApiError(400, 'INVALID_COMMAND');

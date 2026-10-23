@@ -10,8 +10,10 @@ Future<void> main() async {
     exitCode = 2;
     return;
   }
-  final dir = Directory(Platform.environment['VENTIO_MIGRATIONS_DIR'] ??
-      '../../migrations/postgres');
+  final dir = Directory(
+    Platform.environment['VENTIO_MIGRATIONS_DIR'] ??
+        '../../migrations/postgres',
+  );
   final conn = await pg.Connection.openFromUrl(url);
   try {
     final role = Platform.environment['VENTIO_MIGRATION_ROLE'];
@@ -22,7 +24,8 @@ Future<void> main() async {
     }
     final applied = await PostgresMigrationRunner(conn, dir).apply();
     stdout.writeln(
-        'Applied ${applied.length} migration(s): ${applied.join(', ')}');
+      'Applied ${applied.length} migration(s): ${applied.join(', ')}',
+    );
   } finally {
     await conn.close();
   }

@@ -22,16 +22,21 @@ Future<void> main() async {
     if (witness == null)
       throw StateError('Independent recovery authority required');
     final writerUid = int.tryParse(
-        Platform.environment['VENTIO_RECOVERY_AUTHORITY_OWNER_UID'] ?? '');
+      Platform.environment['VENTIO_RECOVERY_AUTHORITY_OWNER_UID'] ?? '',
+    );
     if (writerUid == null || writerUid < 0)
       throw StateError('Trusted witness owner UID required');
     final admission = RecoveryAuthority(witness, trustedOwnerUid: writerUid);
     final parsed = Uri.parse(url);
-    final boundedUrl = parsed.replace(queryParameters: {
-      ...parsed.queryParameters,
-      'connect_timeout': '5',
-      'query_timeout': '20'
-    }).toString();
+    final boundedUrl = parsed
+        .replace(
+          queryParameters: {
+            ...parsed.queryParameters,
+            'connect_timeout': '5',
+            'query_timeout': '20',
+          },
+        )
+        .toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
     final probe = await connect();
     try {
@@ -43,21 +48,25 @@ Future<void> main() async {
     final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
-      authenticator:
-          PersistentTokenAuthenticator(connect: connect, admission: admission),
+      authenticator: PersistentTokenAuthenticator(
+        connect: connect,
+        admission: admission,
+      ),
       executor: PersistentCommandExecutor(
-          connect: connect,
-          admission: admission,
-          modules: prototype.modules,
-          docTypes: prototype.docTypes,
-          bindings: const [
-            TrustedCommandBinding('maintenance.create', 1, 'MaintenanceRequest')
-          ]),
+        connect: connect,
+        admission: admission,
+        modules: prototype.modules,
+        docTypes: prototype.docTypes,
+        bindings: const [
+          TrustedCommandBinding('maintenance.create', 1, 'MaintenanceRequest'),
+        ],
+      ),
     );
     stdout.writeln('Persistent local Host listening on 127.0.0.1:${api.port}');
   } catch (_) {
     stderr.writeln(
-        'Local Host startup failed. Check private server configuration.');
+      'Local Host startup failed. Check private server configuration.',
+    );
     exitCode = 2;
     return;
   }
@@ -65,11 +74,13 @@ Future<void> main() async {
   final subscriptions = <StreamSubscription<ProcessSignal>>[];
   for (final signal in [
     ProcessSignal.sigint,
-    if (!Platform.isWindows) ProcessSignal.sigterm
+    if (!Platform.isWindows) ProcessSignal.sigterm,
   ]) {
-    subscriptions.add(signal.watch().listen((_) {
-      if (!shutdown.isCompleted) shutdown.complete();
-    }));
+    subscriptions.add(
+      signal.watch().listen((_) {
+        if (!shutdown.isCompleted) shutdown.complete();
+      }),
+    );
   }
   await shutdown.future;
   await api.close();

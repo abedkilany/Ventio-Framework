@@ -15,7 +15,8 @@ class PostgresMigrationRunner {
   Future<List<String>> apply() async {
     if (!await migrationsDirectory.exists()) {
       throw StateError(
-          'Migration directory is missing: ${migrationsDirectory.path}');
+        'Migration directory is missing: ${migrationsDirectory.path}',
+      );
     }
     final files = await migrationsDirectory
         .list(followLinks: false)
@@ -52,13 +53,15 @@ class PostgresMigrationRunner {
         applied_at timestamptz NOT NULL DEFAULT now()
       )''');
       final ledger = await tx.execute(
-          'SELECT name,sha256 FROM ventio_schema_migrations ORDER BY name');
+        'SELECT name,sha256 FROM ventio_schema_migrations ORDER BY name',
+      );
       final known = <String>{};
       for (final row in ledger) {
         final name = row[0] as String;
         if (!checksums.containsKey(name) || checksums[name] != row[1]) {
           throw StateError(
-              'Missing, unknown or modified applied migration: $name');
+            'Missing, unknown or modified applied migration: $name',
+          );
         }
         known.add(name);
       }
@@ -66,9 +69,10 @@ class PostgresMigrationRunner {
         if (known.contains(entry.key)) continue;
         await tx.execute(entry.value);
         await tx.execute(
-            pg.Sql.named('''INSERT INTO ventio_schema_migrations(name,sha256)
+          pg.Sql.named('''INSERT INTO ventio_schema_migrations(name,sha256)
           VALUES (@name,@checksum)'''),
-            parameters: {'name': entry.key, 'checksum': checksums[entry.key]});
+          parameters: {'name': entry.key, 'checksum': checksums[entry.key]},
+        );
         applied.add(entry.key);
       }
     });

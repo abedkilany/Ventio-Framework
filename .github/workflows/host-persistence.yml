@@ -31,7 +31,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.13.7
-      - run: dart pub get
+      - run: dart pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
       - name: PostgreSQL integration tests
