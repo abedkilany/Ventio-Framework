@@ -18,6 +18,10 @@ Future<void> main() async {
     final url = Platform.environment['VENTIO_HOST_DATABASE_URL'];
     if (url == null || url.isEmpty)
       throw StateError('Missing database configuration');
+    final witness = Platform.environment['VENTIO_RECOVERY_AUTHORITY_FILE'];
+    if (witness == null)
+      throw StateError('Independent recovery authority required');
+    final admission = RecoveryAuthority(witness);
     final parsed = Uri.parse(url);
     final boundedUrl = parsed.replace(queryParameters: {
       ...parsed.queryParameters,
@@ -28,15 +32,18 @@ Future<void> main() async {
     final probe = await connect();
     try {
       await verifyRuntimeConnection(probe);
+      await probe.runTx((tx) => admission.admit(tx));
     } finally {
       await probe.close();
     }
     final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
-      authenticator: PersistentTokenAuthenticator(connect: connect),
+      authenticator:
+          PersistentTokenAuthenticator(connect: connect, admission: admission),
       executor: PersistentCommandExecutor(
           connect: connect,
+          admission: admission,
           modules: prototype.modules,
           docTypes: prototype.docTypes,
           bindings: const [

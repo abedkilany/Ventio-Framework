@@ -24,12 +24,18 @@ class TestHost {
     process.stderr.drain<void>();
   }
   static Future<TestHost> start(String url,
-      {String? stage, String? executionUrl}) async {
+      {String? stage, String? executionUrl, String? authorityFile}) async {
     final crash = stage != null;
     final p = await Process.start(Platform.resolvedExecutable, [
       'run',
-      crash ? 'test/recovery/crash_host.dart' : 'bin/local_host.dart'
+      crash
+          ? 'test/recovery/crash_host.dart'
+          : authorityFile == null
+              ? 'test/recovery/legacy_host.dart'
+              : 'bin/local_host.dart'
     ], environment: {
+      if (authorityFile != null)
+        'VENTIO_RECOVERY_AUTHORITY_FILE': authorityFile,
       'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
       'VENTIO_TEST_RUNTIME_DATABASE_URL': url,
       'VENTIO_ENABLE_LOCAL_HOST': 'yes',

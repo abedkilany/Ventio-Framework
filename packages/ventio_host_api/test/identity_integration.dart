@@ -585,8 +585,9 @@ Future<void> main() async {
     Future<int> startChild() async {
       child = await Process.start(Platform.resolvedExecutable, [
         'run',
-        'bin/local_host.dart'
+        'test/recovery/legacy_host.dart'
       ], environment: {
+        'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
         'VENTIO_ENABLE_LOCAL_HOST': 'yes',
         'VENTIO_HOST_DATABASE_URL': runtimeUrl,
         'VENTIO_HOST_PORT': '0',

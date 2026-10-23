@@ -6,8 +6,10 @@ DECLARE tenant text := p->>'tenantId'; actor text := p->>'actorId'; device text 
   company text := p->>'companyId'; branch text := p->>'branchId'; permission_name text := p->>'permission';
   credential text := p->>'credentialId'; operation text := p->>'action'; label text := p->>'operatorLabel';
   subject text; details jsonb := '{}'; is_disabled timestamptz; revoked timestamptz; changed integer;
-  value text;
+  value text; scopes jsonb; old_credential public.ventio_identity_credentials%ROWTYPE;
+
 BEGIN
+  PERFORM pg_advisory_xact_lock(86744321);
   IF tenant IS NULL OR label IS NULL OR operation IS NULL THEN RAISE EXCEPTION 'Missing administrative context'; END IF;
   FOREACH value IN ARRAY ARRAY[tenant,label,actor,device,company,branch,credential] LOOP
     IF value IS NOT NULL AND (length(trim(value)) < 1 OR length(value) > 256) THEN
@@ -28,8 +30,8 @@ BEGIN
   ELSE
     IF operation = 'DEVICE_REVOKED' THEN
       SELECT actor_id INTO actor FROM public.ventio_identity_devices WHERE tenant_id = tenant AND device_id = device;
-    ELSIF operation = 'CREDENTIAL_REVOKED' THEN
-      SELECT actor_id INTO actor FROM public.ventio_identity_credentials WHERE tenant_id = tenant AND credential_id = credential;
+    ELSIF operation IN ('CREDENTIAL_REVOKED','CREDENTIAL_ROTATED') THEN
+      SELECT actor_id INTO actor FROM public.ventio_identity_credentials WHERE tenant_id = tenant AND credential_id = CASE WHEN operation='CREDENTIAL_ROTATED' THEN p->>'previousCredentialId' ELSE credential END;
     END IF;
     IF actor IS NULL THEN RAISE EXCEPTION 'Unknown identity'; END IF;
     SELECT disabled_at INTO is_disabled FROM public.ventio_identity_users
@@ -43,18 +45,60 @@ BEGIN
       IF device IS NULL THEN RAISE EXCEPTION 'Device is required'; END IF;
       INSERT INTO public.ventio_identity_devices (tenant_id, actor_id, device_id) VALUES (tenant, actor, device);
       subject := device; details := jsonb_build_object('actorId', actor);
-    WHEN 'CREDENTIAL_ISSUED' THEN
+    WHEN 'CREDENTIAL_ISSUED', 'CREDENTIAL_PROVISIONED', 'CREDENTIAL_ROTATED' THEN
       IF device IS NULL OR credential IS NULL OR p->>'tokenDigest' IS NULL OR p->>'expiresAt' IS NULL THEN
         RAISE EXCEPTION 'Credential fields are required';
       END IF;
       SELECT revoked_at INTO revoked FROM public.ventio_identity_devices
         WHERE tenant_id = tenant AND actor_id = actor AND device_id = device FOR UPDATE;
       IF NOT FOUND OR revoked IS NOT NULL THEN RAISE EXCEPTION 'Unknown or revoked device'; END IF;
+      IF operation='CREDENTIAL_ISSUED' AND (SELECT enforced FROM ventio_security.recovery_state) THEN
+        RAISE EXCEPTION 'Scoped provisioning is required';
+      END IF;
+      scopes := NULL;
+      IF operation = 'CREDENTIAL_PROVISIONED' THEN
+        scopes := p->'allowedScopes';
+        IF scopes IS NULL OR jsonb_typeof(scopes) <> 'array' OR jsonb_array_length(scopes) NOT BETWEEN 1 AND 64 THEN
+          RAISE EXCEPTION 'Explicit credential scopes are required';
+        END IF;
+        FOR value IN SELECT x->>'companyId' FROM jsonb_array_elements(scopes) x LOOP
+          IF value IS NULL THEN RAISE EXCEPTION 'Invalid credential scope'; END IF;
+        END LOOP;
+        IF EXISTS (SELECT FROM jsonb_array_elements(scopes) s WHERE
+            s->>'branchId' IS NULL OR jsonb_typeof(s->'permissions') IS DISTINCT FROM 'array' OR
+            jsonb_array_length(s->'permissions') NOT BETWEEN 1 AND 64) THEN
+          RAISE EXCEPTION 'Invalid credential scope';
+        END IF;
+        IF EXISTS (SELECT FROM jsonb_array_elements(scopes) s
+            CROSS JOIN LATERAL jsonb_array_elements_text(s->'permissions') AS requested(value)
+            WHERE NOT EXISTS (SELECT FROM public.ventio_identity_grants g WHERE
+              g.tenant_id=tenant AND g.actor_id=actor AND g.company_id=s->>'companyId'
+              AND g.branch_id=s->>'branchId' AND g.permission=requested.value)) THEN
+          RAISE EXCEPTION 'Credential scope exceeds current grants';
+        END IF;
+      ELSIF operation = 'CREDENTIAL_ROTATED' THEN
+        SELECT * INTO old_credential FROM public.ventio_identity_credentials
+          WHERE tenant_id=tenant AND credential_id=p->>'previousCredentialId' FOR UPDATE;
+        IF NOT FOUND OR old_credential.actor_id<>actor OR p->>'actorId' IS DISTINCT FROM actor OR old_credential.device_id<>device OR
+            old_credential.revoked_at IS NOT NULL OR old_credential.expires_at<=clock_timestamp() OR
+            old_credential.token_digest IS DISTINCT FROM p->>'previousDigest' OR
+            old_credential.allowed_scopes IS NULL THEN
+          RAISE EXCEPTION 'Credential is not eligible for rotation';
+        END IF;
+        scopes := old_credential.allowed_scopes;
+        UPDATE public.ventio_identity_credentials SET revoked_at=clock_timestamp()
+          WHERE token_digest=old_credential.token_digest;
+      END IF;
+      IF operation <> 'CREDENTIAL_ISSUED' AND
+          ((p->>'expiresAt')::timestamptz<=clock_timestamp() OR
+           (p->>'expiresAt')::timestamptz>clock_timestamp()+interval '30 days') THEN
+        RAISE EXCEPTION 'Credential expiry exceeds lifecycle policy';
+      END IF;
       INSERT INTO public.ventio_identity_credentials
-        (tenant_id, actor_id, device_id, credential_id, token_digest, expires_at)
-        VALUES (tenant, actor, device, credential, p->>'tokenDigest', (p->>'expiresAt')::timestamptz);
+        (tenant_id, actor_id, device_id, credential_id, token_digest, expires_at, allowed_scopes)
+        VALUES (tenant, actor, device, credential, p->>'tokenDigest', (p->>'expiresAt')::timestamptz, scopes);
       subject := credential;
-      details := jsonb_build_object('actorId', actor, 'deviceId', device, 'expiresAt', p->>'expiresAt');
+      details := jsonb_build_object('actorId', actor, 'deviceId', device, 'expiresAt', p->>'expiresAt', 'previousCredentialId', p->>'previousCredentialId');
     WHEN 'PERMISSION_GRANTED', 'PERMISSION_REVOKED' THEN
       IF company IS NULL OR branch IS NULL OR permission_name IS NULL OR
           permission_name !~ '^[a-z][a-z0-9_.]+$' OR length(permission_name) > 256 THEN

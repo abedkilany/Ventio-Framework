@@ -5,6 +5,7 @@ import 'package:ventio_host/ventio_host.dart';
 import 'authentication.dart';
 import 'host_api.dart';
 import 'identity_store.dart';
+import 'recovery_authority.dart';
 
 /// Refuses owners, superusers, bypass roles, extra memberships and excess ACLs.
 Future<void> verifyRuntimeConnection(pg.Connection connection) async {
@@ -21,7 +22,8 @@ Future<void> _configure(pg.Connection connection) async {
 /// in-memory permission cache or development-identity fallback on DB failure.
 class PersistentTokenAuthenticator implements HostAuthenticator {
   final Future<pg.Connection> Function() connect;
-  const PersistentTokenAuthenticator({required this.connect});
+  final RecoveryAuthority? admission;
+  const PersistentTokenAuthenticator({required this.connect, this.admission});
 
   @override
   Future<AuthenticatedSession?> authenticate(String token) async {
@@ -30,8 +32,10 @@ class PersistentTokenAuthenticator implements HostAuthenticator {
     final connection = await connect();
     try {
       await _configure(connection);
-      final principal = await connection.runTx(
-          (tx) => const PostgresIdentityStore().resolve(tx, digest),
+      final principal = await connection.runTx((tx) async {
+        await admission?.admit(tx);
+        return const PostgresIdentityStore().resolve(tx, digest);
+      },
           settings: pg.TransactionSettings(
               isolationLevel: pg.IsolationLevel.readCommitted));
       if (principal == null) return null;
@@ -50,11 +54,13 @@ class PersistentCommandExecutor implements CommandExecutor {
   final ModuleRegistry modules;
   final DocTypeRegistry docTypes;
   final List<TrustedCommandBinding> bindings;
+  final RecoveryAuthority? admission;
 
   PersistentCommandExecutor(
       {required this.connect,
       required this.modules,
       required this.docTypes,
+      this.admission,
       required Iterable<TrustedCommandBinding> bindings})
       : bindings = List.unmodifiable(bindings);
 
@@ -77,10 +83,11 @@ class PersistentCommandExecutor implements CommandExecutor {
       for (final binding in bindings) {
         host.registerTrustedCreateBinding(binding);
       }
-      return await host.executeAuthorized(
-          command,
-          (tx) => const PostgresIdentityStore()
-              .resolve(tx, digest, command: command));
+      return await host.executeAuthorized(command, (tx) async {
+        await admission?.admit(tx);
+        return const PostgresIdentityStore()
+            .resolve(tx, digest, command: command);
+      });
     } finally {
       await connection.close();
     }

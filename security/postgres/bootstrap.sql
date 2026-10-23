@@ -76,6 +76,8 @@ INSERT INTO ventio_security.command_bindings VALUES
   ('inspection.create', 1, 'EquipmentInspection', 'inspection.create', 'inspection.read')
 ON CONFLICT DO NOTHING;
 
+\ir recovery.sql
+
 -- Private identity reader. All locks survive until the caller's transaction ends.
 CREATE OR REPLACE FUNCTION ventio_security.identity_snapshot(p_digest text, p_company text, p_branch text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
@@ -85,6 +87,7 @@ DECLARE c public.ventio_identity_credentials%ROWTYPE;
         d public.ventio_identity_devices%ROWTYPE;
         g record; companies text[] := '{}'; branches text[] := '{}'; permissions text[] := '{}';
 BEGIN
+  IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
   IF p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' THEN RETURN NULL; END IF;
   SELECT * INTO c FROM public.ventio_identity_credentials WHERE token_digest = p_digest;
   IF NOT FOUND THEN RETURN NULL; END IF;
@@ -100,6 +103,10 @@ BEGIN
     WHERE tenant_id = c.tenant_id AND actor_id = c.actor_id
       AND (p_company IS NULL OR company_id = p_company)
       AND (p_branch IS NULL OR branch_id = p_branch)
+      AND (c.allowed_scopes IS NULL OR EXISTS (
+        SELECT FROM jsonb_array_elements(c.allowed_scopes) s
+        WHERE s->>'companyId' = company_id AND s->>'branchId' = branch_id
+          AND s->'permissions' ? permission))
     ORDER BY company_id, branch_id, permission FOR SHARE LOOP
     companies := array_append(companies, g.company_id);
     branches := array_append(branches, g.branch_id);
@@ -218,7 +225,9 @@ GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_
 REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
-  ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime()
+  ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(),
+  ventio_security.admit_recovery(text)
   TO ventio_runtime;
-GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb) TO ventio_identity_admin;
+GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb), ventio_security.recovery_snapshot(),
+  ventio_security.reset_recovery(text,text) TO ventio_identity_admin;
 COMMIT;
