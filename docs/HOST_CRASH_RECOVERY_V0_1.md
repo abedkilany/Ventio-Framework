@@ -66,10 +66,13 @@ expressions, security function bodies/owners/search paths/ACLs, capability-role
 attributes/memberships and database/schema ACLs. Local object OIDs, statistics,
 physical storage and password hashes are deliberately excluded. The manifest is
 compared on a fresh cluster **before** password provisioning or admin changes.
-PostgreSQL 16 membership grants are replayed under `SET ROLE` to each dumped
-original grantor, then reset, because the fresh bootstrap login differs from the
-source grantor. The membership options and grantor are preserved and compared;
-no privilege is widened and no `GRANTED BY` clause is stripped.
+PostgreSQL 16 gives the cluster bootstrap grantor (OID 10) special membership
+semantics. The fresh cluster is initialized with the same bootstrap role name
+`ventio`; only the redundant `CREATE ROLE ventio` from the roles dump is omitted
+in a separate replay file. Its attributes, all memberships, grantor names and
+options are restored unchanged and compared. New fixture passwords are
+provisioned separately. A differently named bootstrap role plus `SET ROLE` does
+not preserve the original bootstrap grantor semantics and is not used.
 The target is not re-bootstrapped to mask missing security settings.
 
 The test then checks restricted-runtime startup, RLS denial without proof,

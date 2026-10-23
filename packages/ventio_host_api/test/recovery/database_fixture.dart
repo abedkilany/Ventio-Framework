@@ -32,6 +32,7 @@ class DatabaseFixture {
     final ports = info['NetworkSettings']['Ports']['5432/tcp'] as List;
     if (config['Image'] != 'postgres:16' ||
         !(config['Env'] as List).contains('POSTGRES_DB=ventio_host_test') ||
+        !(config['Env'] as List).contains('POSTGRES_USER=ventio') ||
         !ports.any((p) => int.parse(p['HostPort'] as String) == uri.port)) {
       throw StateError('Container does not match the disposable test database');
     }
@@ -118,23 +119,27 @@ class DatabaseFixture {
       'ventio',
       '--roles-only',
       '--no-role-passwords'
-    ], globals);
-    // PostgreSQL 16 checks the current grantor even for a superuser running a
-    // GRANTED BY statement. The fresh cluster has a different bootstrap login.
-    // Execute each dumped membership as its original grantor; preserve the
-    // membership/options/grantor instead of stripping GRANTED BY or widening ACLs.
+    ], replay);
+    // PostgreSQL 16 treats the cluster bootstrap grantor (OID 10) specially.
+    // Preserve its source name/identity by initializing the target with ventio.
+    // Only its redundant CREATE is omitted; its dumped attributes, memberships,
+    // grantors and options are replayed unchanged. Passwords are provisioned anew.
     final rolesSql = await globals.readAsString();
-    final grantorReplay = rolesSql.replaceAllMapped(
-        RegExp(r'^GRANT .+ GRANTED BY (.+);$', multiLine: true),
-        (match) => 'SET ROLE ${match[1]};\n${match[0]}\nRESET ROLE;');
-    await globals.writeAsString(grantorReplay);
+    const bootstrapCreate = 'CREATE ROLE ventio;';
+    if (bootstrapCreate.allMatches(rolesSql).length != 1) {
+      throw StateError(
+          'Expected exactly one trusted bootstrap role definition');
+    }
+    final replay = File('${temporary!.path}/roles-replay.sql');
+    await replay.writeAsString(rolesSql.replaceFirst(bootstrapCreate,
+        '-- Bootstrap role already exists in this fresh cluster.'));
     restored = (await docker([
       'run',
       '--detach',
       '--name',
       'ventio-restore-${DateTime.now().microsecondsSinceEpoch}',
       '--env',
-      'POSTGRES_USER=restore_bootstrap',
+      'POSTGRES_USER=ventio',
       '--env',
       'POSTGRES_PASSWORD=restore_fixture_only',
       '--env',
@@ -147,7 +152,7 @@ class DatabaseFixture {
     final mapping = (await docker(['port', restored!, '5432/tcp'])).trim();
     final port = int.parse(mapping.split(':').last);
     final control =
-        'postgresql://restore_bootstrap:restore_fixture_only@127.0.0.1:$port/postgres?sslmode=disable&connect_timeout=2';
+        'postgresql://ventio:restore_fixture_only@127.0.0.1:$port/postgres?sslmode=disable&connect_timeout=2';
     await ready(control);
     await pipe([
       'exec',
@@ -158,10 +163,10 @@ class DatabaseFixture {
       '-v',
       'ON_ERROR_STOP=1',
       '-U',
-      'restore_bootstrap',
+      'ventio',
       '-d',
       'postgres'
-    ], globals);
+    ], replay);
     // Restore ownership and ACLs; never repair/re-bootstrap security before comparison.
     await pipe([
       'exec',
@@ -171,7 +176,7 @@ class DatabaseFixture {
       '--create',
       '--exit-on-error',
       '-U',
-      'restore_bootstrap',
+      'ventio',
       '-d',
       'postgres'
     ], dump);
@@ -188,7 +193,7 @@ class DatabaseFixture {
       '-v',
       'ON_ERROR_STOP=1',
       '-U',
-      'restore_bootstrap',
+      'ventio',
       '-d',
       'ventio_host_test',
       '-c',
