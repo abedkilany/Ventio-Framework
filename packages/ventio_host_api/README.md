@@ -1,3 +1,7 @@
+> Credential lifecycle update: production Host now requires an independent recovery
+> authority file and reviewed scoped provisioning. See [Credential Lifecycle and
+> Recovery Admission](../../docs/CREDENTIAL_LIFECYCLE_AND_RECOVERY_ADMISSION_V0_1.md).
+
 > Recovery verification: [Crash Recovery](../../docs/HOST_CRASH_RECOVERY_V0_1.md)
 > covers real process kills, lost commit acknowledgements and isolated restores.
 > This does not certify physical power-loss durability or production deployment.

@@ -37,7 +37,7 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 BEGIN
   PERFORM pg_advisory_xact_lock_shared(86744321);
-  IF NOT (SELECT enforced FROM ventio_security.recovery_state) OR
+  IF (SELECT enforced FROM ventio_security.recovery_state) IS DISTINCT FROM true OR
       p_fingerprint IS NULL OR p_fingerprint !~ '^[0-9a-f]{64}$' OR
       p_fingerprint IS DISTINCT FROM ventio_security.recovery_fingerprint() THEN
     RAISE EXCEPTION 'Recovery admission denied' USING ERRCODE='28000';

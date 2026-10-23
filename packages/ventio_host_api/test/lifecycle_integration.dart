@@ -6,6 +6,7 @@ import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
 import 'recovery/database_fixture.dart';
+import 'recovery/commit_proxy.dart';
 import 'recovery/support.dart';
 import 'test_support.dart' show check, command, assertions;
 
@@ -166,6 +167,19 @@ Future<void> main() async {
     final crossTenant = next('device-001')..['tenantId'] = '$tenant-other';
     check((await request(host, original, crossTenant)).status == 403,
         'Credential cannot assert a different tenant');
+    final originalMode =
+        await Process.run('stat', ['-c', '%a', path('original')]);
+    check((originalMode.stdout as String).trim() == '600',
+        'Delivery artifact is created with mode 0600');
+    final malformedRequest = await cli(
+        'unsupported', 'unsupported', {'secretMustNotLeak': original});
+    final rejectedCli = await invoke(malformedRequest);
+    check(
+        rejectedCli.exitCode == 2 &&
+            !('${rejectedCli.stdout}${rejectedCli.stderr}')
+                .contains(original) &&
+            !('${rejectedCli.stdout}${rejectedCli.stderr}').contains(adminUrl),
+        'Administrative errors reveal neither submitted secrets nor database connection');
     final unsafe = path('unsafe');
     await File(unsafe).writeAsString('unchanged');
     await Process.run('chmod', ['644', unsafe]);
@@ -514,6 +528,27 @@ Future<void> main() async {
           check(revoked == (stage == 'after_commit'),
               'Interrupted revocation has the expected atomic committed state');
         }
+        final expectedAction = action == 'provision'
+            ? 'CREDENTIAL_PROVISIONED'
+            : 'CREDENTIAL_REVOKED';
+        final subject = action == 'provision' ? issuedId : existingId;
+        final auditCount = (await db.execute(
+                pg.Sql.named(
+                    'SELECT count(*) FROM ventio_identity_audit WHERE tenant_id=@tenant AND action=@action AND subject_id=@subject'),
+                parameters: {
+              'tenant': tenant,
+              'action': expectedAction,
+              'subject': subject
+            }))
+            .single[0];
+        check(auditCount == (stage == 'after_commit' ? 1 : 0),
+            'Interrupted credential mutation and its audit commit atomically');
+        check(
+            (jsonDecode(await PrivateFiles.read(authority.path))
+                    as Map)['pending'] ==
+                true,
+            'SIGKILL leaves durable independent evidence pending');
+        if (action == 'provision') await tokenFile(path(issuedId));
         await startupDenied(runtimeUrl, authority.path,
             'Interrupted administration leaves recovery admission closed across restart');
         await authority.resetForReenrollment(
@@ -524,6 +559,63 @@ Future<void> main() async {
         await stop(resetHost);
       }
     }
+    // Actual PostgreSQL COMMIT succeeds but its acknowledgement is withheld.
+    // An unknown administrative outcome must leave the external witness pending.
+    await authority.resetForReenrollment(
+        administration, 'unknown-commit-setup');
+    await enroll('unknown-device', 'unknown-original');
+    final adminUri = Uri.parse(adminUrl);
+    final proxy =
+        CommitProxy(adminUri.host, adminUri.port, forwardCommit: true);
+    await proxy.start();
+    final uncertainDb = await pg.Connection.openFromUrl(
+        adminUri.replace(host: '127.0.0.1', port: proxy.port).toString());
+    try {
+      final uncertainAdmin = IdentityAdministration(
+          connection: uncertainDb,
+          tenantId: tenant,
+          operatorLabel: 'unknown-commit-test',
+          authority: authority);
+      final outcome = uncertainAdmin
+          .provisionToFile(
+              actorId: 'user-001',
+              deviceId: 'unknown-device',
+              credentialId: 'unknown-result',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+              allowedScopes: scopes,
+              outputPath: path('unknown-result'))
+          .then((_) => true, onError: (Object _) => false);
+      await proxy.reached.future.timeout(const Duration(seconds: 20));
+      await proxy.close();
+      check(!await outcome,
+          'Lost administrative COMMIT acknowledgement never reports completion');
+      await tokenFile(path('unknown-result'));
+      check(
+          (await db.execute(
+                      pg.Sql.named(
+                          "SELECT count(*) FROM ventio_identity_credentials WHERE tenant_id=@tenant AND credential_id='unknown-result'"),
+                      parameters: {'tenant': tenant}))
+                  .single[0] ==
+              1,
+          'Unknown issuance outcome can contain a real committed credential');
+      check(
+          (jsonDecode(await PrivateFiles.read(authority.path))
+                  as Map)['pending'] ==
+              true,
+          'Unknown commit outcome never publishes ready recovery evidence');
+      await startupDenied(runtimeUrl, authority.path,
+          'Unknown administrative commit blocks production admission');
+    } finally {
+      await proxy.close();
+      await uncertainDb.close();
+    }
+    await authority.resetForReenrollment(
+        administration, 'unknown-commit-safe-reenrollment');
+    final serverLogs = await Process.run('docker', ['logs', fixture.source]);
+    check(
+        tokens.every((token) =>
+            !('${serverLogs.stdout}${serverLogs.stderr}').contains(token)),
+        'PostgreSQL/container logs contain no raw provisioned credential');
     final audit = (await db.execute(
             'SELECT coalesce(jsonb_agg(details)::text,\'\') FROM ventio_identity_audit'))
         .single[0] as String;

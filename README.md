@@ -1,3 +1,7 @@
+> Credential lifecycle update: production Host now requires an independent recovery
+> authority file and reviewed scoped provisioning. See [Credential Lifecycle and
+> Recovery Admission](docs/CREDENTIAL_LIFECYCLE_AND_RECOVERY_ADMISSION_V0_1.md).
+
 > Recovery verification: real Host/PostgreSQL process kills, ambiguous-commit retries,
 > and fresh-cluster logical restore tests run in a dedicated CI job. See
 > [Crash Recovery](docs/HOST_CRASH_RECOVERY_V0_1.md) for guarantees and snapshot limits.

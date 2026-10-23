@@ -9,6 +9,7 @@ class PrivateFiles {
 import os,sys,stat,tempfile
 op,path=sys.argv[1:]
 parent=os.path.dirname(os.path.abspath(path))
+if os.path.realpath(parent)!=parent: raise RuntimeError('symlink ancestor refused')
 st=os.lstat(parent)
 if not stat.S_ISDIR(st.st_mode) or st.st_uid!=os.geteuid() or st.st_mode & 0o077:
     raise RuntimeError('private directory required')
