@@ -75,7 +75,8 @@ revocation, expired credentials, withdrawn grants, manipulated tenant/branch,
 and revocation persistence across another production Host restart. Identity
 administration still uses its separately privileged, audited RPC. RLS remains
 defense in depth; Host business/authorization checks remain mandatory. Existing
-least-privilege SQL and identity race suites run in their original workflow.
+least-privilege SQL and identity race suites run in their original workflow and
+are also rerun against the independently restored cluster.
 
 ## Snapshot RPO and revocation rollback
 

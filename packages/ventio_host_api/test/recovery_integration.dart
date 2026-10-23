@@ -197,6 +197,8 @@ Future<void> main() async {
       check(lost.status != 200,
           'Lost commit acknowledgement is never reported as success');
       await kill(worker);
+      await counts(cmd, forwarded ? 1 : 0,
+          'Unknown-outcome connection leaves the expected committed state before retry');
       final restarted = await host();
       final retried = await accepted(restarted, token, cmd);
       check(!forwarded || same(retried, receipt),
@@ -302,8 +304,8 @@ Future<void> main() async {
       try {
         await runtime
             .execute("UPDATE ventio_identity_devices SET revoked_at=NULL");
-      } catch (_) {
-        denied = true;
+      } on pg.ServerException catch (error) {
+        denied = error.code == '42501';
       }
       check(denied,
           'Restored runtime cannot undo device revocation through direct SQL');
@@ -354,6 +356,9 @@ Future<void> main() async {
     final foreign = next()..['branchId'] = 'foreign-branch';
     check((await request(targetHost, token, foreign)).status == 403,
         'Restored Host rejects manipulated branch');
+    final foreignCompany = next()..['companyId'] = 'foreign-company';
+    check((await request(targetHost, token, foreignCompany)).status == 403,
+        'Restored Host rejects manipulated company');
     final foreignTenant = next()..['tenantId'] = '$tenant-foreign';
     check((await request(targetHost, token, foreignTenant)).status == 403,
         'Restored Host rejects manipulated tenant');
@@ -370,6 +375,29 @@ Future<void> main() async {
     check((await request(targetRestart, token, after)).status == 401,
         'Restored revocation survives another production Host restart');
     await stop(targetRestart);
+    // An independent restored cluster is new evidence: rerun the full existing
+    // identity and hostile-SQL suites with the restored restricted logins.
+    for (final suite in [
+      'identity_integration',
+      'database_security_integration'
+    ]) {
+      final result = await Process.run(Platform.resolvedExecutable, [
+        'run',
+        'test/$suite.dart'
+      ], environment: {
+        'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
+        'VENTIO_TEST_DATABASE_URL': restoredUrl,
+        'VENTIO_TEST_RUNTIME_DATABASE_URL': restoredRuntime,
+        'VENTIO_TEST_ADMIN_DATABASE_URL': restoredLogin(adminUrl),
+        'VENTIO_TEST_MIGRATION_DATABASE_URL': Uri.parse(restoredRuntime)
+            .replace(userInfo: 'ventio_migration_test:migration_test_only')
+            .toString(),
+      }).timeout(const Duration(seconds: 120));
+      check(result.exitCode == 0, 'Full $suite passes on restored cluster');
+      for (final line in (result.stdout as String).split('\n')) {
+        if (line.startsWith('RESULT:')) stdout.writeln('RESTORED $line');
+      }
+    }
     stdout.writeln(
         'RESULT: $assertions crash recovery and backup/restore assertions passed');
   } finally {

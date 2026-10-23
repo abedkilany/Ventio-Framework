@@ -1,3 +1,7 @@
+> Recovery verification: [Crash Recovery](../../docs/HOST_CRASH_RECOVERY_V0_1.md)
+> covers real process kills, lost commit acknowledgements and isolated restores.
+> This does not certify physical power-loss durability or production deployment.
+
 > Database security update: the persistent Host now requires the restricted
 > runtime database profile, protected identity functions and credential-checked
 > forced RLS. Administration and migrations use separate connections/capabilities.
@@ -112,14 +116,15 @@ dart run test/api_tests.dart
 # VENTIO_ALLOW_DATABASE_TESTS=yes VENTIO_TEST_DATABASE_URL=... dart run test/api_integration.dart
 ```
 
-Tests cover authentication, scope forgery, malformed/oversized/slow requests,
+The original API tests cover authentication, scope forgery, malformed/oversized/slow requests,
 concurrency admission, graceful drain, durable replay, conflicting IDs, atomic
 rollback, closed DB failure, simulated loss after commit, and actual graceful
 server-process restart. Fault injection and simulated result loss are explicitly
 not hard in-transaction process-kill or infrastructure failure proofs.
 
-Remaining gates: persistent auditable authorization, credential issuance/rotation,
-revocation across processes, production TLS/identity provider, full header/slowloris
-limits, rate limiting by identity, pooling, telemetry, hard-kill and restore tests,
-RLS/least-privilege review, safe sync ordering, financial capabilities and offline
+Separate suites now cover persistent authorization/revocation, least-privilege RLS,
+and real process kills/restore. See the updates above for their limits. Remaining
+gates include production TLS/identity provider, full header/slowloris limits,
+rate limiting by identity, pooling, telemetry,
+safe sync ordering, financial capabilities and offline
 client reconciliation. Do not merge to stable on this slice alone.

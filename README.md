@@ -1,3 +1,7 @@
+> Recovery verification: real Host/PostgreSQL process kills, ambiguous-commit retries,
+> and fresh-cluster logical restore tests run in a dedicated CI job. See
+> [Crash Recovery](docs/HOST_CRASH_RECOVERY_V0_1.md) for guarantees and snapshot limits.
+
 > Database security update: the persistent Host now requires the restricted
 > runtime database profile, protected identity functions and credential-checked
 > forced RLS. Administration and migrations use separate connections/capabilities.

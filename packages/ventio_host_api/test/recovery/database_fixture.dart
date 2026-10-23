@@ -70,6 +70,12 @@ class DatabaseFixture {
 
   Future<void> restartAfterKill() async {
     await docker(['kill', '--signal', 'KILL', source]);
+    final state =
+        (jsonDecode(await docker(['inspect', source])) as List).single['State'];
+    if (state['ExitCode'] != 137 || state['OOMKilled'] != false) {
+      throw StateError(
+          'PostgreSQL container did not exit from deliberate SIGKILL');
+    }
     await docker(['start', source]);
     await ready(sourceUrl);
   }
