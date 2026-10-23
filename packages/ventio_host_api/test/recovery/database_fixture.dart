@@ -95,11 +95,14 @@ class DatabaseFixture {
     }, 'PostgreSQL restart');
   }
 
-  Future<String> backupAndRestore() async {
+  Future<String> backupAndRestore(pg.Connection sourceConnection) async {
     temporary = await Directory.systemTemp.createTemp('ventio-recovery-');
     await Process.run('chmod', ['700', temporary!.path]);
     final dump = File('${temporary!.path}/database.dump');
     final globals = File('${temporary!.path}/roles.sql');
+    final sequenceAcls = File('${temporary!.path}/sequence-acls.sql');
+    await sequenceAcls
+        .writeAsString(await exportSequenceAcls(sourceConnection));
     await capture([
       'exec',
       source,
@@ -180,6 +183,21 @@ class DatabaseFixture {
       '-d',
       'postgres'
     ], dump);
+    // Explicit source ACL snapshot is a required backup component: PG16's
+    // identity-sequence recreation may differ from the source's owner ACL.
+    await pipe([
+      'exec',
+      '-i',
+      restored!,
+      'psql',
+      '-X',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-U',
+      'ventio',
+      '-d',
+      'ventio_host_test'
+    ], sequenceAcls);
     return Uri.parse(control).replace(path: '/ventio_host_test').toString();
   }
 
@@ -247,3 +265,30 @@ Future<List<List<String?>>> relationSecurityRows(pg.Connection db) async =>
     (await db.execute(relationSecuritySql))
         .map((row) => row.map((value) => value?.toString()).toList())
         .toList();
+
+// Export privileges from the quiesced source, never infer/widen them at restore.
+// This fixture has direct owner grants; dependent grant-chain restoration is
+// outside its supported profile. Final manifest equality is always mandatory.
+Future<String> exportSequenceAcls(pg.Connection db) async {
+  final rows = await db.execute(
+      "SELECT n.nspname,c.relname,CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl,acldefault('S',c.relowner))) a WHERE c.relkind='S' AND n.nspname IN ('public','ventio_security') ORDER BY 1,2,3,4,5");
+  String identifier(String value) => '"${value.replaceAll('"', '""')}"';
+  final resets = <String>{};
+  final grants = <String>[];
+  for (final row in rows) {
+    final sequence =
+        '${identifier(row[0] as String)}.${identifier(row[1] as String)}';
+    final grantee =
+        row[2] == 'PUBLIC' ? 'PUBLIC' : identifier(row[2] as String);
+    final grantor = identifier(row[3] as String);
+    final privilege = row[4] as String;
+    if (!{'SELECT', 'UPDATE', 'USAGE'}.contains(privilege)) {
+      throw StateError('Unsupported sequence privilege in source snapshot');
+    }
+    resets.add('REVOKE ALL ON SEQUENCE $sequence FROM PUBLIC;');
+    resets.add('REVOKE ALL ON SEQUENCE $sequence FROM $grantee;');
+    grants.add(
+        'SET ROLE $grantor;\nGRANT $privilege ON SEQUENCE $sequence TO $grantee${row[5] == true ? ' WITH GRANT OPTION' : ''};\nRESET ROLE;');
+  }
+  return ['BEGIN;', ...resets, ...grants, 'COMMIT;', ''].join('\n');
+}

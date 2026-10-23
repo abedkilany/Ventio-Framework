@@ -301,7 +301,7 @@ Future<void> main() async {
     await backupAdmin.revokeGrant(
         'denied-user', 'company-001', 'branch-001', 'maintenance.create');
     final baseline = await manifest(control);
-    final restoredUrl = await fixture.backupAndRestore();
+    final restoredUrl = await fixture.backupAndRestore(control);
     restoredControl = await pg.Connection.openFromUrl(restoredUrl);
     final restoredManifest = await manifest(restoredControl);
     final differences = baseline.keys

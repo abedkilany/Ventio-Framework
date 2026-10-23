@@ -40,7 +40,7 @@ remain enabled. The dedicated job checks `fsync`, `full_page_writes` and
 | Commit acknowledgement lost | Proxy forwards COMMIT, observes PostgreSQL `CommandComplete COMMIT`, suppresses acknowledgement and destroys sockets | No false success; retry returns the already committed receipt |
 | Command backend dies | `pg_terminate_backend` while command is paused before commit | No accepted response or partial effects; retry succeeds |
 | PostgreSQL server dies | Docker SIGKILL to PostgreSQL PID 1, restart same container/volume with one uncommitted and one committed command | WAL recovery discards the former, retains the latter; retry preserves receipt and single effects |
-| Logical restore | Real `pg_dump -Fc`, roles-only dump, `pg_restore --create --exit-on-error` into a new PostgreSQL container/port | Exact data/security manifest match before any security repair; production Host replay and new writes succeed |
+| Logical restore | Real `pg_dump -Fc`, roles-only/sequence-ACL snapshots, `pg_restore --create --exit-on-error` into a new PostgreSQL container/port | Exact data/security manifest match before any security repair; production Host replay and new writes succeed |
 
 The async test barriers are optional `testFaultInjector` callbacks. Production
 launchers never supply them or read a crash-stage variable. A test fixture under
@@ -77,6 +77,17 @@ options are restored unchanged and compared. New fixture passwords are
 provisioned separately. A differently named bootstrap role plus `SET ROLE` does
 not preserve the original bootstrap grantor semantics and is not used.
 The target is not re-bootstrapped to mask missing security settings.
+
+The tested PG16 dump/restore recreated the identity-audit sequence with only
+`USAGE` for its owner, while the source owner ACL also contained `SELECT` and
+`UPDATE`. A plain database/roles dump therefore failed strict security equality.
+The tested backup bundle includes an explicit sequence-ACL SQL snapshot captured
+from the quiesced source alongside the dumps. Restore replays that component
+transactionally, including source grantees, grantors and grant options, before
+manifest validation. It does not infer privileges, grant blanket permissions or
+query a newer source at restore time. Original dumps remain unchanged. This
+fixture supports the installed direct-owner sequence grant profile; arbitrary
+dependent grant chains require additional restore tooling and validation.
 
 The test then checks restricted-runtime startup, RLS denial without proof,
 denial of raw identity UPDATE, pre-backup accepted-receipt replay, single audit
@@ -115,12 +126,13 @@ replication, zero-RPO failover or automated production restore admission.
    writers for this tested procedure. Keep the target isolated throughout.
 2. Use separately authorized backup tooling. The runtime role deliberately cannot
    dump all tenant/security rows or bypass RLS. Back up the database with ownership
-   and ACLs and separately capture cluster roles/memberships. `pg_dump` alone does
+   and ACLs and separately capture cluster roles/memberships and the explicit sequence-ACL
+   snapshot required by this tested profile. `pg_dump` alone does
    not include those global objects. Protect dumps as sensitive identity/business
    data; use authenticated encrypted storage and transport with access controls.
 3. This fixture uses `pg_dumpall --roles-only --no-role-passwords`. Restore trusted
    roles before `pg_restore --create --exit-on-error` into a fresh compatible
-   cluster. Provision new login secrets through the deployment secret manager,
+   cluster, then replay the saved sequence-ACL component. Provision new login secrets through the deployment secret manager,
    never through a checked-in backup. Do not use `--no-owner`, `--no-acl`, or
    repair RLS before checking that the backup preserved security. A logical restore
    executes SQL; accept backups only from trusted sources.
