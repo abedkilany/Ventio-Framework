@@ -1,0 +1,39 @@
+name: Ventio Durable Commands
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  durable-commands:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ventio
+          POSTGRES_PASSWORD: ventio_test_only
+          POSTGRES_DB: ventio_host_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: packages/ventio_host
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart format lib test
+      - run: dart analyze .
+      - name: Run durable PostgreSQL command integration tests
+        env:
+          VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable
+          VENTIO_ALLOW_DATABASE_TESTS: 'yes'
+        run: dart run test/durable_integration.dart
