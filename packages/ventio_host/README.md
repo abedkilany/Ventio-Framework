@@ -49,3 +49,14 @@ dart run test/durable_integration.dart
 ```
 
 Do not run this test against an existing Ventio database or production store.
+
+
+## Transactional authorization provider
+
+`executeAuthorized` resolves a current Principal through trusted server code in
+its own READ COMMITTED transaction before reading even an accepted stored receipt.
+The persistent API adapter locks current identity and exact-scope permission state
+through commit. The older `execute(command, principal)` entry point remains for
+trusted development/internal callers and does not itself load persistent policy.
+Use the persistent assembly for durable identity enforcement; see
+[Persistent Identity](../../docs/PERSISTENT_IDENTITY_V0_1.md).

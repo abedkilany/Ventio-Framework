@@ -15,7 +15,8 @@ class FakeExecutor implements CommandExecutor {
 
   @override
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, Principal principal) async {
+      CommandEnvelope command, AuthenticatedSession session) async {
+    final principal = session.principal;
     calls++;
     entered?.complete();
     if (release != null) await release!.future;

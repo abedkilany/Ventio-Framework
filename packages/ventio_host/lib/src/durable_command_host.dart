@@ -80,41 +80,54 @@ class DurableCommandHost {
   /// The caller must not report success if this future throws or the commit
   /// outcome is unknown. Instead retry the same command ID and payload.
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, Principal authenticatedPrincipal) async {
-    if (!authenticatedPrincipal.withinScope(
-        tenantId: command.tenantId,
-        companyId: command.companyId,
-        branchId: command.branchId,
-        actorId: command.actorId,
-        deviceId: command.deviceId)) {
-      return _failure(command, 'REJECTED', 'SCOPE_DENIED');
-    }
-    final module = modules.moduleForCommand(command.type, command.typeVersion);
-    final bindingName =
-        _trustedCreates[_key(command.type, command.typeVersion)];
-    if (module == null || bindingName == null) {
-      return _failure(command, 'REJECTED', 'UNKNOWN_COMMAND');
-    }
-    final declaration =
-        modules.getCommand(module.moduleId, command.type, command.typeVersion);
-    final capability = declaration == null
-        ? null
-        : modules.getCapability(declaration.capabilityId);
-    final docType = docTypes.get(bindingName);
-    if (declaration == null ||
-        capability == null ||
-        docType == null ||
-        !authenticatedPrincipal.allows(declaration.permission) ||
-        capability.requiredPermissions
-            .any((permission) => !authenticatedPrincipal.allows(permission))) {
-      return _failure(command, 'REJECTED', 'PERMISSION_DENIED');
-    }
+          CommandEnvelope command, Principal authenticatedPrincipal) =>
+      executeAuthorized(command, (_) async => authenticatedPrincipal);
+
+  /// Persistent adapters resolve current identity and exact-scope permissions
+  /// here, under this transaction, before journal access even on retries.
+  /// The provider is trusted server code and must hold authorization locks
+  /// through commit. A null result denies access without reading receipts.
+  Future<Map<String, dynamic>> executeAuthorized(CommandEnvelope command,
+      Future<Principal?> Function(pg.TxSession tx) resolvePrincipal) async {
     // Both payload and client context are covered by the idempotency digest.
     final fingerprint =
         sha256.convert(utf8.encode(canonicalJson(command.original))).toString();
 
     try {
       return await connection.runTx((tx) async {
+        final authenticatedPrincipal = await resolvePrincipal(tx);
+        if (authenticatedPrincipal == null) {
+          return _failure(command, 'REJECTED', 'AUTHENTICATION_REQUIRED');
+        }
+        if (!authenticatedPrincipal.withinScope(
+            tenantId: command.tenantId,
+            companyId: command.companyId,
+            branchId: command.branchId,
+            actorId: command.actorId,
+            deviceId: command.deviceId)) {
+          return _failure(command, 'REJECTED', 'SCOPE_DENIED');
+        }
+        final module =
+            modules.moduleForCommand(command.type, command.typeVersion);
+        final bindingName =
+            _trustedCreates[_key(command.type, command.typeVersion)];
+        if (module == null || bindingName == null) {
+          return _failure(command, 'REJECTED', 'UNKNOWN_COMMAND');
+        }
+        final declaration = modules.getCommand(
+            module.moduleId, command.type, command.typeVersion);
+        final capability = declaration == null
+            ? null
+            : modules.getCapability(declaration.capabilityId);
+        final docType = docTypes.get(bindingName);
+        if (declaration == null ||
+            capability == null ||
+            docType == null ||
+            !authenticatedPrincipal.allows(declaration.permission) ||
+            capability.requiredPermissions.any(
+                (permission) => !authenticatedPrincipal.allows(permission))) {
+          return _failure(command, 'REJECTED', 'PERMISSION_DENIED');
+        }
         // Reservation is uncommitted until ALL effects commit. PostgreSQL's
         // unique-key arbitration makes concurrent identical retries wait.
         final reservation = await tx.execute(pg.Sql.named('''
@@ -294,7 +307,9 @@ class DurableCommandHost {
         });
         testFaultInjector?.call('before_commit');
         return receipt;
-      });
+      },
+          settings: pg.TransactionSettings(
+              isolationLevel: pg.IsolationLevel.readCommitted));
     } on _RejectedCommand catch (error) {
       return error.receipt;
     }

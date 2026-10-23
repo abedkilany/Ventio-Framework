@@ -1,3 +1,9 @@
+> Persistent identity slice: migrations 006-011, server-only audited identity
+> administration, digest-only expiring credentials, permanent user/device/credential
+> withdrawal, exact company/branch grants and transactional command authorization
+> are implemented on the Host feature branch. See PERSISTENT_IDENTITY_V0_1.md for
+> verification scope and remaining security/operational gates. API remains loopback-only.
+
 > Current feature-branch update (2026-10-23): Core Foundation v0.2.0 is closed.
 > Core has 47 verified assertions; the prior durable-command CI run has 26.
 > PostgreSQL persistence and durable operational-create processing are implemented.

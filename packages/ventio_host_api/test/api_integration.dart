@@ -17,7 +17,8 @@ class FaultExecutor implements CommandExecutor {
 
   @override
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, Principal principal) async {
+      CommandEnvelope command, AuthenticatedSession session) async {
+    final principal = session.principal;
     final connection = await connect();
     try {
       if (fault == 'database') await connection.close();

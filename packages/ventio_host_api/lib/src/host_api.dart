@@ -9,7 +9,7 @@ import 'authentication.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, Principal principal);
+      CommandEnvelope command, AuthenticatedSession session);
 }
 
 /// Versioned HTTP routing, validation, and authenticated command dispatch.
@@ -137,9 +137,10 @@ class HostApi {
             .hasMatch(headers.single)) {
       throw const _ApiError(401, 'UNAUTHENTICATED');
     }
-    final principal =
+    final session =
         await _authenticator.authenticate(headers.single.substring(7));
-    if (principal == null) throw const _ApiError(401, 'UNAUTHENTICATED');
+    if (session == null) throw const _ApiError(401, 'UNAUTHENTICATED');
+    final principal = session.principal;
     final contentType = request.headers.contentType;
     if (contentType?.mimeType.toLowerCase() != 'application/json' ||
         (contentType?.charset != null &&
@@ -174,15 +175,27 @@ class HostApi {
     final json = requireMap(jsonDecode(text), 'command');
     _validateWireShape(json);
     final command = CommandEnvelope.fromJson(json);
-    if (!principal.withinScope(
-        tenantId: command.tenantId,
-        companyId: command.companyId,
-        branchId: command.branchId,
-        actorId: command.actorId,
-        deviceId: command.deviceId)) {
+    // Persistent scope/permissions are resolved inside the execution transaction.
+    // Only identity claims are checked against the authenticated snapshot here.
+    if (session.credentialDigest != null &&
+        (principal.tenantId != command.tenantId ||
+            principal.actorId != command.actorId ||
+            principal.deviceId != command.deviceId)) {
       throw const _ApiError(403, 'SCOPE_DENIED');
     }
-    final receipt = await _executor.execute(command, principal);
+    if (session.credentialDigest == null &&
+        !principal.withinScope(
+            tenantId: command.tenantId,
+            companyId: command.companyId,
+            branchId: command.branchId,
+            actorId: command.actorId,
+            deviceId: command.deviceId)) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    final receipt = await _executor.execute(command, session);
+    if (receipt['reasonCode'] == 'AUTHENTICATION_REQUIRED') {
+      throw const _ApiError(401, 'UNAUTHENTICATED');
+    }
     final status = switch (receipt['status']) {
       'ACCEPTED' => 200,
       'CONFLICT' => 409,

@@ -3,6 +3,7 @@ import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host/ventio_host.dart';
 
 import 'host_api.dart';
+import 'authentication.dart';
 
 /// One owned connection per command, bounded by HostApi admission limits.
 /// Pooling and production authorization persistence remain separate work.
@@ -21,7 +22,12 @@ class PostgresCommandExecutor implements CommandExecutor {
 
   @override
   Future<Map<String, dynamic>> execute(
-      CommandEnvelope command, Principal principal) async {
+      CommandEnvelope command, AuthenticatedSession session) async {
+    // Persistent credentials must never fall back to a snapshot-based executor.
+    if (session.credentialDigest != null) {
+      throw StateError('Persistent session requires PersistentCommandExecutor');
+    }
+    final principal = session.principal;
     final connection = await connect();
     try {
       await connection.execute("SET statement_timeout = '15s'");

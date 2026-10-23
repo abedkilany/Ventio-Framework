@@ -40,3 +40,8 @@ jobs:
           VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
           VENTIO_ALLOW_DATABASE_TESTS: 'yes'
         run: dart run test/api_integration.dart
+      - name: Run persistent identity and revocation integration tests
+        env:
+          VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
+          VENTIO_ALLOW_DATABASE_TESTS: 'yes'
+        run: dart run test/identity_integration.dart

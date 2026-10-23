@@ -62,3 +62,9 @@ PostgreSQL persistence, durable operational-create commands, and a loopback-only
 authenticated development HTTP API. See [Host API](packages/ventio_host_api/README.md)
 and [boundary decisions](docs/HOST_API_V0_1.md). These prototypes do not establish
 production readiness; earlier release-candidate notes below remain historical.
+
+The persistent local Host now uses server-owned PostgreSQL identities, exact-scope
+permission grants and durable device/credential revocation. See
+[Persistent Identity](docs/PERSISTENT_IDENTITY_V0_1.md) for setup, transaction
+semantics, tests and remaining deployment gates. External API listening remains
+unsupported; this feature branch is not a production readiness declaration.

@@ -1,11 +1,36 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:ventio_core/ventio_core.dart';
 
 /// Authentication is independent of the untrusted command body.
 abstract interface class HostAuthenticator {
-  Future<Principal?> authenticate(String token);
+  Future<AuthenticatedSession?> authenticate(String token);
+}
+
+/// A server-authenticated snapshot. Persistent execution MUST re-resolve the
+/// digest inside the command transaction; this snapshot is never authority.
+class AuthenticatedSession {
+  final Principal principal;
+  final String? credentialDigest;
+  const AuthenticatedSession.development(this.principal)
+      : credentialDigest = null;
+  const AuthenticatedSession.persistent(this.principal, String digest)
+      : credentialDigest = digest;
+}
+
+class OpaqueToken {
+  static bool isValid(String token) =>
+      RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(token);
+  static String digest(String token) =>
+      sha256.convert(utf8.encode(token)).toString();
+  static String generate() {
+    final random = Random.secure();
+    return base64Url
+        .encode(List.generate(32, (_) => random.nextInt(256)))
+        .replaceAll('=', '');
+  }
 }
 
 /// Controlled development identity. Never load these from client command JSON.
@@ -32,8 +57,7 @@ class DevelopmentCredential {
   }
 
   /// Provision tokens externally using at least 32 cryptographically random bytes.
-  static String digest(String token) =>
-      sha256.convert(utf8.encode(token)).toString();
+  static String digest(String token) => OpaqueToken.digest(token);
 }
 
 /// In-memory development credentials only; no login, JWT, or production claims.
@@ -58,13 +82,13 @@ class DevelopmentTokenAuthenticator implements HostAuthenticator {
   void revokeDigest(String digest) => _revoked.add(digest);
 
   @override
-  Future<Principal?> authenticate(String token) async {
-    if (!RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(token)) return null;
+  Future<AuthenticatedSession?> authenticate(String token) async {
+    if (!OpaqueToken.isValid(token)) return null;
     final digest = DevelopmentCredential.digest(token);
     final credential = _credentials[digest];
     if (credential == null ||
         _revoked.contains(digest) ||
         !_clock().toUtc().isBefore(credential.expiresAt.toUtc())) return null;
-    return credential.principal;
+    return AuthenticatedSession.development(credential.principal);
   }
 }

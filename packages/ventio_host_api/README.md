@@ -1,3 +1,10 @@
+> Persistent identity update: the new `bin/local_host.dart` assembly uses
+> PostgreSQL identities, exact-scope grants and permanent device/credential
+> revocation, rechecked inside each command transaction. See
+> [Persistent identity](../../docs/PERSISTENT_IDENTITY_V0_1.md). The development
+> identity-file provider and launcher described below remain test-only; they are
+> not used by the persistent assembly. External network deployment remains blocked.
+
 # Ventio Host API v0.1 development slice
 
 This package adds an authenticated HTTP boundary to the existing durable,

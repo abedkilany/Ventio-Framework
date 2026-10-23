@@ -32,10 +32,16 @@ Future<void> main() async {
   try {
     final runner = PostgresMigrationRunner(conn, migrations);
     final migrationsFirst = await runner.apply();
-    expect(migrationsFirst.length <= 5, 'Migration runner accepts known files');
+    final expectedMigrations = await migrations
+        .list()
+        .where((file) => file is File && file.path.endsWith('.sql'))
+        .length;
+    expect(migrationsFirst.length <= expectedMigrations,
+        'Migration runner accepts known files');
     final ledger =
         await conn.execute('SELECT count(*) FROM ventio_schema_migrations');
-    expect(ledger.single[0] == 5, 'All five migrations are recorded');
+    expect(ledger.single[0] == expectedMigrations,
+        'All ordered migrations are recorded');
     final migrationsSecond = await runner.apply();
     expect(migrationsSecond.isEmpty, 'Migrations are idempotent');
     final repo = PostgresRecordRepository(conn);
@@ -133,3 +139,4 @@ Future<void> main() async {
     await conn.close();
   }
 }
+
