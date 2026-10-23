@@ -1,5 +1,6 @@
 // Real process/connection interruption and isolated logical restore verification.
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
@@ -306,6 +307,16 @@ Future<void> main() async {
     final differences = baseline.keys
         .where((key) => baseline[key] != restoredManifest[key])
         .join(', ');
+    if (differences.contains('security-1')) {
+      final sourceRelations = await relationSecurityRows(control);
+      final targetRelations = await relationSecurityRows(restoredControl);
+      for (var index = 0; index < sourceRelations.length; index++) {
+        if (!same(sourceRelations[index], targetRelations[index])) {
+          stdout.writeln(
+              'RELATION_DIFF source=${jsonEncode(sourceRelations[index])} target=${jsonEncode(targetRelations[index])}');
+        }
+      }
+    }
     check(same(restoredManifest, baseline),
         'Fresh cluster restore preserves full rows, sequences, migration ledger, roles, ACLs, function definitions and FORCE RLS policies (differences: $differences)');
     await fixture.provisionRestoredPasswords();
