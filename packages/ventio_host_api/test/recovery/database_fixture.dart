@@ -119,7 +119,7 @@ class DatabaseFixture {
       'ventio',
       '--roles-only',
       '--no-role-passwords'
-    ], replay);
+    ], globals);
     // PostgreSQL 16 treats the cluster bootstrap grantor (OID 10) specially.
     // Preserve its source name/identity by initializing the target with ventio.
     // Only its redundant CREATE is omitted; its dumped attributes, memberships,
