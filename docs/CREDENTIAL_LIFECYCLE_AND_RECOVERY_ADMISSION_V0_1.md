@@ -107,7 +107,11 @@ The witness is a separate private, fsynced, atomically replaced file outside the
 PostgreSQL backup/restore domain. It contains a version, authority generation,
 ready/pending state and SHA-256 fingerprint of recovery configuration and all
 persistent user/device/credential/scope/grant/identity-audit rows. It contains no
-raw credential. The fingerprint is confidential admission evidence: do not log
+raw credential. The fingerprint is a consistency check against the value supplied by the trusted
+Host from independent storage, not a digital signature or a database-only
+freshness oracle. A privileged backup holder can reconstruct old snapshot hashes;
+never give clients database/runtime credentials or authority-path control.
+The fingerprint is confidential admission evidence: do not log
 or distribute the file to clients. It must remain the latest trusted linear
 record; copying an old witness back with an old DB defeats that assumption.
 
@@ -162,7 +166,9 @@ operator control, never synthesize ready state from a DB hash manually.
 
 The security reset does not discard journal, records, business audit or outbox.
 It does not recover accepted commands or external effects that occurred after
-the database backup. Reconcile that business recovery point and external outbox
+the database backup. Matching security state does not fence database clones or
+prove the business recovery point; a single-active-database lease/fence is not
+implemented. Reconcile that business recovery point and external outbox
 consumer state independently before any real operational resumption.
 
 ## Compatibility and executable evidence

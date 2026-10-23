@@ -19,7 +19,9 @@ class RecoveryAuthority {
   Future<Map<String, dynamic>> _read() async {
     final data =
         jsonDecode(await PrivateFiles.read(path)) as Map<String, dynamic>;
-    if (data['version'] != 1 ||
+    if (data['authorityId'] is! String ||
+        !OpaqueToken.isValid(data['authorityId'] as String) ||
+        data['version'] != 1 ||
         data['pending'] != false ||
         data['fingerprint'] is! String ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(data['fingerprint'] as String)) {

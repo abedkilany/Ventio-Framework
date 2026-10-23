@@ -139,6 +139,15 @@ Future<void> main() async {
     await startupDenied(runtimeUrl, null,
         'Production launcher refuses missing independent recovery evidence');
     await authority.resetForReenrollment(administration, 'initial-enrollment');
+    final corruptWitness = path('corrupt-authority');
+    await PrivateFiles.create(corruptWitness, {
+      'version': 1,
+      'pending': false,
+      'authorityId': OpaqueToken.generate(),
+      'fingerprint': List.filled(64, '0').join()
+    });
+    await startupDenied(runtimeUrl, corruptWitness,
+        'Unverified authority content cannot admit a production Host');
     await admin.createUser('user-001');
     await admin.registerBranch('company-001', 'branch-001');
     await admin.registerBranch('company-001', 'branch-002');
@@ -148,9 +157,24 @@ Future<void> main() async {
     await admin.grant(
         'user-001', 'company-002', 'branch-002', 'maintenance.create');
     final original = await enroll('device-001', 'original');
+    final initialProof = (jsonDecode(await PrivateFiles.read(authority.path))
+        as Map)['fingerprint'];
+    await administration.execute("SET timezone='Asia/Beirut'");
+    check(await RecoveryAuthority.snapshot(administration) == initialProof,
+        'Independent fingerprint is invariant across administration session timezones');
+    await administration.execute("SET timezone='UTC'");
     final host = await start(runtimeUrl, authority.path);
     final saved = next('device-001');
     await allowed(host, original, saved);
+    await admin.revokeGrant(
+        'user-001', 'company-001', 'branch-001', 'maintenance.create');
+    check((await request(host, original, saved)).status == 403,
+        'Current permission withdrawal blocks accepted-receipt retries under enforced admission');
+    await admin.grant(
+        'user-001', 'company-001', 'branch-001', 'maintenance.create');
+    await allowed(host, original, saved);
+    check((await effectCounts(db, saved)).every((n) => n == 1),
+        'Reviewed permission restoration replays without duplicate effects');
     for (final pair in [
       ('company-001', 'branch-002'),
       ('company-002', 'branch-002'),
