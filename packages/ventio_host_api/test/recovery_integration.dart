@@ -31,6 +31,7 @@ Future<void> main() async {
   final hosts = <TestHost>[];
   final proxies = <CommitProxy>[];
   final tenant = 'recovery-${DateTime.now().microsecondsSinceEpoch}';
+  final acknowledged = <String, (Map<String, dynamic>, Map<String, dynamic>)>{};
   var sequence = 5000;
   Map<String, dynamic> next() => command(tenant, id: ++sequence);
   Future<TestHost> host(
@@ -73,7 +74,9 @@ Future<void> main() async {
         response.status == 200 &&
             response.body?['receipt']?['status'] == 'ACCEPTED',
         'Command accepted through restricted persistent Host');
-    return response.body!['receipt'] as Map<String, dynamic>;
+    final receipt = response.body!['receipt'] as Map<String, dynamic>;
+    acknowledged[cmd['commandId'] as String] = (cmd, receipt);
+    return receipt;
   }
 
   bool same(Object? a, Object? b) => canonicalJson(a) == canonicalJson(b);
@@ -274,7 +277,16 @@ Future<void> main() async {
         await provisionWith(backupAdmin, 'denied-user', 'denied-device');
     final expiredToken = await provisionWith(
         backupAdmin, 'expired-user', 'expired-device',
-        expires: DateTime.now().toUtc().subtract(const Duration(minutes: 1)));
+        expires: DateTime.now().toUtc().add(const Duration(seconds: 2)));
+    await waitFor(
+        () async =>
+            (await control!.execute(
+                    pg.Sql.named(
+                        "SELECT expires_at <= clock_timestamp() FROM ventio_identity_credentials WHERE tenant_id=@tenant AND credential_id='credential-expired-device'"),
+                    parameters: {'tenant': tenant}))
+                .single[0] ==
+            true,
+        'real credential expiry before backup');
     final laterToken =
         await provisionWith(backupAdmin, 'later-user', 'later-device');
     await backupAdmin.revokeDevice('revoked-device');
