@@ -1,3 +1,5 @@
+> Historical stage evidence. Current launcher settings, separate OS witness ownership, schema compatibility and witness upgrade requirements are defined in [Host operations](HOST_ENGINE_V0_1_OPERATIONS.md). See the [final engineering audit](HOST_ENGINE_V0_1_FINAL_ENGINEERING_AUDIT.md) for the current acceptance boundary.
+
 # Host crash recovery and backup/restore verification v0.1
 
 > Updated admission boundary: see [Credential Lifecycle and Recovery Admission](CREDENTIAL_LIFECYCLE_AND_RECOVERY_ADMISSION_V0_1.md).

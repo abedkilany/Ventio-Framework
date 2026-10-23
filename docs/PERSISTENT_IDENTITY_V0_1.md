@@ -1,3 +1,5 @@
+> Historical stage evidence. Current launcher settings, separate OS witness ownership, schema compatibility and witness upgrade requirements are defined in [Host operations](HOST_ENGINE_V0_1_OPERATIONS.md). See the [final engineering audit](HOST_ENGINE_V0_1_FINAL_ENGINEERING_AUDIT.md) for the current acceptance boundary.
+
 > Database hardening supersedes the earlier direct-SQL administration details:
 > IdentityAdministration now invokes a protected audited database function, and
 > the persistent runtime uses a separate restricted login with forced RLS.

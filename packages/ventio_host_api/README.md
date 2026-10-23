@@ -1,3 +1,5 @@
+> Current launcher requires a separate trusted witness owner and `VENTIO_RECOVERY_AUTHORITY_OWNER_UID`. Use the [current operations guide](../../docs/HOST_ENGINE_V0_1_OPERATIONS.md) for deployment and upgrade; examples below retain their historical stage context. API remains loopback-only.
+
 > Credential lifecycle update: production Host now requires an independent recovery
 > authority file and reviewed scoped provisioning. See [Credential Lifecycle and
 > Recovery Admission](../../docs/CREDENTIAL_LIFECYCLE_AND_RECOVERY_ADMISSION_V0_1.md).

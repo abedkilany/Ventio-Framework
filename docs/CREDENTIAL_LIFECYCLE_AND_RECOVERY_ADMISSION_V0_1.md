@@ -1,3 +1,5 @@
+> Historical stage evidence. Current launcher settings, separate OS witness ownership, schema compatibility and witness upgrade requirements are defined in [Host operations](HOST_ENGINE_V0_1_OPERATIONS.md). See the [final engineering audit](HOST_ENGINE_V0_1_FINAL_ENGINEERING_AUDIT.md) for the current acceptance boundary.
+
 # Secure credential lifecycle and recovery admission v0.1
 
 Experimental, Linux local-operator workflow. No public network deployment is

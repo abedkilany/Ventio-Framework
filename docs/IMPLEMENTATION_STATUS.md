@@ -1,50 +1,20 @@
-> Database security update: the persistent Host now requires the restricted
-> runtime database profile, protected identity functions and credential-checked
-> forced RLS. Administration and migrations use separate connections/capabilities.
-> See [Database Security](DATABASE_SECURITY_V0_1.md) for setup and explicit limits.
+# Implementation status
 
-> Persistent identity slice: migrations 006-011, server-only audited identity
-> administration, digest-only expiring credentials, permanent user/device/credential
-> withdrawal, exact company/branch grants and transactional command authorization
-> are implemented on the Host feature branch. See PERSISTENT_IDENTITY_V0_1.md for
-> verification scope and remaining security/operational gates. API remains loopback-only.
+Current scope: Host Engine v0.1 final engineering audit on `feature/host-engine-v0.1`. Stable `main` and `v0.2.0` are not updated. The original Ventio application and its data are outside this repository's implementation scope.
 
-> Current feature-branch update (2026-10-23): Core Foundation v0.2.0 is closed.
-> Core has 47 verified assertions; the prior durable-command CI run has 26.
-> PostgreSQL persistence and durable operational-create processing are implemented.
-> A separate loopback-only authenticated development HTTP package now wraps that
-> engine. See HOST_API_V0_1.md and packages/ventio_host_api/README.md for its scope,
-> tests and remaining production/security gates. The sections below are historical
-> foundation-stage notes, not the current Host completion claim.
+| Layer | Implemented | Remaining boundary |
+| --- | --- | --- |
+| Core | Immutable JSON contracts, metadata/module installer, shared capability validation, English fallback, two independent operational fixtures | No executable third-party module sandbox, financial/inventory posting or Flutter UI |
+| PostgreSQL | Checksummed migrations, atomic preflight/batch, approved schema manifest, isolated record storage | No universal schema attestation or online migration policy |
+| Durable Host | One transaction for journal/record/audit/outbox/receipt; original-ID retry and replay authorization | No distributed side-effect exactly-once claim or completed sync protocol |
+| Identity/API | Persistent scoped credentials, user/device withdrawal, current grants checked on execute/retry; loopback-only bounded HTTP | No external-network deployment, end-user remote enrollment or platform secure-storage proof |
+| SQL security | Separate owner/runtime/admin/migrator capabilities; forced credential-checked RLS and direct-SQL regressions | Superuser/owner remain trusted; RLS is defense in depth, not business validation |
+| Recovery | Actual process kills/ambiguous commit tests; fresh-cluster logical restore; pending/ready independent witness; conservative re-enrollment | No hardware power-loss proof, PITR/RPO/RTO, HA or independently monotonic rollback authority |
+| Credential lifecycle | Private Linux delivery, bounded scopes, renewal/rotation/revocation and interruption regressions | Recipient transfer/import/keystore management and joint database+witness rollback remain production blockers |
+| Final audit | Shared-contract and migration fixes; real OS write separation; growth/concurrency/lock/drain tests | 75 engineering assertions and all implementation workflows passed; published final commit must retain all seven green; no numerical quality score |
 
-# Core Foundation v0.2.0 — Implementation Status
+See [the final engineering audit](HOST_ENGINE_V0_1_FINAL_ENGINEERING_AUDIT.md) for the measured acceptance decision and [operations](HOST_ENGINE_V0_1_OPERATIONS.md) for current launcher settings. Earlier stage reports describe their tested slices; their old same-account launcher examples and historical limitations are superseded by these current documents.
 
-**Release stage:** candidate. v0.1.0 was tested successfully by the user on Dart 3.12.1 (37/37, clean analyzer, Maintenance demo). New v0.2.0 Dart changes have not been executed in the packaging environment; see the closure gate.
+The historical lifecycle suite deliberately uses a test-only same-account launcher guarded by disposable-database flags. The engineering gate separately executes the real compiled launcher under another OS UID and verifies that it cannot modify the witness or read operator secrets. Test fixtures are not supported service launchers.
 
-## Implemented in v0.2.0
-
-- Preserved V1.2 wire schemas; updated Dart package version to 0.2.0.
-- English-only metadata, labels, localized key contracts; no optional Translation Module implementation.
-- `DeclarativeModuleInstaller` validates module metadata, trusted capabilities, DocType uniqueness, English catalog coverage and catalog integrity before changing registered state.
-- Original Maintenance module retained, installed through the common installer.
-- Independent Equipment Inspections fixture with its own DocType, catalog, command and Host-approved capability. Host can process both without changes to the Core runtime for the fixture.
-- Added tests covering two-module processing, permission boundaries, offline capability restrictions, dependency success and safe install rejection.
-- Maintained in-memory command idempotency, immutable state update, audit and outbox proof; no persistence and no real external code execution.
-- GitHub Actions workflow includes Dart formatter check, analyzer, test harness and both demos; Python schema/English checks.
-
-## Validation status
-
-- Original v0.1 Dart validation: **user-confirmed 37 tests passing, analyzer clean**.
-- New v0.2 Dart tests: **not executed yet** in this environment (Dart SDK unavailable).
-- v0.2 Python V1.2 contract tests: run by packaging environment; see closure gate.
-- Release approval: **pending** v0.2 Dart execution and passing CI.
-
-## Architectural limits
-
-- In-memory only: no PostgreSQL, SQLite, durable journal, ACID transaction, crash recovery, concurrency controls across processes or Host HTTP server.
-- Declarative modules may register schemas and use vetted Host capabilities; they cannot upload independent executable business algorithms. Generic create rejects sensitive DocTypes and decimal fields.
-- Module installation is synchronous preflight within one Dart isolate. It is not an atomic database migration or a production deployment and update system.
-- Optional Offline Engine, real translation, dynamic Flutter UI, platform-scale multitenancy, ERP financial modules, AI Builder and Marketplace remain outside scope.
-
-See `CORE_FOUNDATION_V0_2_RELEASE_GATE.md` for specific sign-off commands and future work.
-
+Next: [Native Flutter Client and Offline-first Proof](NATIVE_FLUTTER_OFFLINE_FIRST_PROOF_PLAN.md). Client-local work stays pending until Host accepts it. Production readiness is a separate, blocked decision.

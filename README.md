@@ -1,83 +1,52 @@
-> Credential lifecycle update: production Host now requires an independent recovery
-> authority file and reviewed scoped provisioning. See [Credential Lifecycle and
-> Recovery Admission](docs/CREDENTIAL_LIFECYCLE_AND_RECOVERY_ADMISSION_V0_1.md).
+# Ventio Framework
 
-> Recovery verification: real Host/PostgreSQL process kills, ambiguous-commit retries,
-> and fresh-cluster logical restore tests run in a dedicated CI job. See
-> [Crash Recovery](docs/HOST_CRASH_RECOVERY_V0_1.md) for guarantees and snapshot limits.
+Standalone, English-first modular ERP framework prototype, separate from the original Ventio application. Host is the final authority; future offline client changes remain provisional until accepted by Host.
 
-> Database security update: the persistent Host now requires the restricted
-> runtime database profile, protected identity functions and credential-checked
-> forced RLS. Administration and migrations use separate connections/capabilities.
-> See [Database Security](docs/DATABASE_SECURITY_V0_1.md) for setup and explicit limits.
+The stable Core Foundation tag is `v0.2.0`. Host work lives on `feature/host-engine-v0.1`; this branch includes audited fixes to shared Core contracts without modifying the stable tag or `main`.
 
-# Ventio Framework — Core Foundation v0.2.0 Release Candidate
+## Current release gate
 
-**Status:** Implementation and static checks prepared. The preceding v0.1.0 was run on Windows with Dart SDK 3.12.1: `dart analyze` reported no issues; its 37 Dart tests and Maintenance demo passed. **The additional v0.2.0 Dart tests and new demo have not yet been executed on Dart SDK in this environment.** Do not mark the foundation closed before those commands and CI pass.
+Host Engine v0.1 has passed the bounded development engineering tests described in the audit; acceptance is valid only with all seven workflows green on the published commit. **Production readiness remains blocked.** The API is hard-coded to `127.0.0.1`. No network exposure or production deployment is authorized by passing this prototype's tests.
 
-This source-only, standalone, English-first Dart proof is separate from the existing Ventio application. It implements a controlled declarative module registry, a minimal DocType validator, Host-supplied permissions and in-memory command processing. A second, independent **Equipment Inspections** module demonstrates installing another business module without changing `ventio_core` runtime code for its specific schema.
+- [Final engineering audit](docs/HOST_ENGINE_V0_1_FINAL_ENGINEERING_AUDIT.md): acceptance criteria, findings, evidence and limitations.
+- [Operations and recovery](docs/HOST_ENGINE_V0_1_OPERATIONS.md): separate OS/database identities, schema compatibility, witness upgrade, startup, shutdown and restore.
+- [Current implementation status](docs/IMPLEMENTATION_STATUS.md).
+- [Native Flutter and Offline-first proof plan](docs/NATIVE_FLUTTER_OFFLINE_FIRST_PROOF_PLAN.md).
 
-## Layout
+## Packages and ownership
 
-- `packages/ventio_core/` — Pure Dart package. `DeclarativeModuleInstaller` validates module metadata, English labels and DocType collisions before mutating the registries.
-- `packages/ventio_core/test/all_tests.dart` — No-dependency executable test harness (the original 37 plus v0.2 tests).
-- `packages/ventio_core/bin/maintenance_demo.dart` — Original Maintenance proof.
-- `packages/ventio_core/bin/two_module_demo.dart` — Maintenance + Equipment Inspections proof.
-- `fixtures/inspection/` — Independent module JSON manifest, DocType, English catalog, Host-approved capability declaration and sample command.
-- `spec/v1.2/` — Retained architecture contract baseline and 20 Python tests.
-- `docs/CORE_FOUNDATION_V0_2_RELEASE_GATE.md` — Acceptance criteria, compatibility review and limitations.
-- `.github/workflows/core-foundation.yml` — CI steps (Dart format, analysis, tests and examples; Python checks).
+| Package | Responsibility |
+| --- | --- |
+| `ventio_core` | Pure Dart contracts, immutable envelopes/receipts, metadata, English fallback, module preflight and trusted capability validation; in-memory reference Host |
+| `ventio_postgres` | Vetted transactional migrations and scoped record adapter; no independent authentication system |
+| `ventio_host` | Durable command transaction, idempotency receipt, record, audit and outbox |
+| `ventio_host_api` | Loopback HTTP, persistent credential authorization, recovery admission and trusted local administration |
 
-## Run the Dart checks on Windows
+PostgreSQL forced RLS and narrowly scoped database functions reinforce Host authorization. RLS does not validate the entire business payload or replace command handling. Generic operational create cannot post financial/inventory effects or execute uploaded code. The external recovery witness is independently writable by a trusted OS account; matching rollback of both witness and database remains a documented production blocker.
 
-In PowerShell, enter the extracted folder's Dart package directory (the directory containing `pubspec.yaml`):
+## Verification
 
-```powershell
-cd .\packages\ventio_core
+CI pins Dart 3.13.7 and PostgreSQL 16. From each Dart package, resolve dependencies, check formatting and analyze; test harnesses are executable Dart programs, not `dart test` suites. Database tests require explicitly guarded disposable fixtures. Never point them at original Ventio or customer databases.
+
+```sh
+cd packages/ventio_core
 dart pub get
-dart format lib bin test
+dart format --output=none --set-exit-if-changed lib bin test
 dart analyze .
 dart run test/all_tests.dart
 dart run bin/maintenance_demo.dart
 dart run bin/two_module_demo.dart
 ```
 
-`dart format` will update code style but should not alter behavior. Once formatted, run `dart format --output=none --set-exit-if-changed lib bin test` to verify the CI formatting rule. Tests use a custom executable runner; `dart test` is **not** supported because `package:test` is intentionally not a dependency.
-
-## Optional static and contract checks
-
-From the extracted root:
+From repository root:
 
 ```sh
 python scripts/verify_package.py
+python scripts/check_schema_profile.py
 python spec/v1.2/scripts/validate_contracts.py
 python -m unittest discover -s spec/v1.2/tests -v
 ```
 
-Python checks require `jsonschema` (`pip install jsonschema`). They cannot substitute for a Dart compiler or runtime.
+The seven Actions workflows cover Core/contracts, PostgreSQL persistence, durable commands, API/identity/SQL security, crash/restore, credential lifecycle and the final engineering audit. The latter records actual fingerprint growth, concurrent HTTP latency, RLS read cost and real OS witness separation in an isolated PostgreSQL fixture. Reported sample latency is not an enterprise performance guarantee.
 
-## Design and security rules
-
-- English text is embedded as the default. Localization keys support a future optional translation extension; no other locale is installed.
-- Module manifest files cannot supply executable Dart code or grant themselves Host capabilities.
-- Capabilities are preapproved by trusted Host bootstrap; this proof's generic create capability **cannot** post ledger or inventory transactions, execute custom algorithms or handle sensitive DocTypes.
-- The Host accepts an authenticated `Principal`; it does not trust tenant, branch, actor, device or permission claims from the command payload.
-- In-memory idempotency, audit and outbox **disappear on process restart**; this is not PostgreSQL transactional behavior or fault-tolerant exactly-once effects.
-- Offline declarations express design intent only. There is no local queue, offline synchronization, runtime plugin loading, data migration or production Host service.
-
-No original Ventio code or customer data was modified.
-
-
-## Host development branch
-
-Core Foundation v0.2.0 is the closed baseline. The Host feature branch adds
-PostgreSQL persistence, durable operational-create commands, and a loopback-only
-authenticated development HTTP API. See [Host API](packages/ventio_host_api/README.md)
-and [boundary decisions](docs/HOST_API_V0_1.md). These prototypes do not establish
-production readiness; earlier release-candidate notes below remain historical.
-
-The persistent local Host now uses server-owned PostgreSQL identities, exact-scope
-permission grants and durable device/credential revocation. See
-[Persistent Identity](docs/PERSISTENT_IDENTITY_V0_1.md) for setup, transaction
-semantics, tests and remaining deployment gates. External API listening remains
-unsupported; this feature branch is not a production readiness declaration.
+All code, documentation, fixtures and base UI text are English. Optional translation modules, installed native clients, production financial modules, AI Builder and Marketplace are future work.
