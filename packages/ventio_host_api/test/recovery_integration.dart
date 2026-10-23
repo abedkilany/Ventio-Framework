@@ -302,8 +302,12 @@ Future<void> main() async {
     final baseline = await manifest(control);
     final restoredUrl = await fixture.backupAndRestore();
     restoredControl = await pg.Connection.openFromUrl(restoredUrl);
-    check(await manifest(restoredControl) == baseline,
-        'Fresh cluster restore preserves full rows, sequences, migration ledger, roles, ACLs, function definitions and FORCE RLS policies');
+    final restoredManifest = await manifest(restoredControl);
+    final differences = baseline.keys
+        .where((key) => baseline[key] != restoredManifest[key])
+        .join(', ');
+    check(same(restoredManifest, baseline),
+        'Fresh cluster restore preserves full rows, sequences, migration ledger, roles, ACLs, function definitions and FORCE RLS policies (differences: $differences)');
     await fixture.provisionRestoredPasswords();
     String restoredLogin(String original) => Uri.parse(original)
         .replace(host: '127.0.0.1', port: Uri.parse(restoredUrl).port)

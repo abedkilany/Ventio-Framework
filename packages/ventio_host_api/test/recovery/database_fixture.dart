@@ -119,6 +119,15 @@ class DatabaseFixture {
       '--roles-only',
       '--no-role-passwords'
     ], globals);
+    // PostgreSQL 16 checks the current grantor even for a superuser running a
+    // GRANTED BY statement. The fresh cluster has a different bootstrap login.
+    // Execute each dumped membership as its original grantor; preserve the
+    // membership/options/grantor instead of stripping GRANTED BY or widening ACLs.
+    final rolesSql = await globals.readAsString();
+    final grantorReplay = rolesSql.replaceAllMapped(
+        RegExp(r'^GRANT .+ GRANTED BY (.+);$', multiLine: true),
+        (match) => 'SET ROLE ${match[1]};\n${match[0]}\nRESET ROLE;');
+    await globals.writeAsString(grantorReplay);
     restored = (await docker([
       'run',
       '--detach',
@@ -196,28 +205,32 @@ class DatabaseFixture {
 
 // Stable manifest ignores cluster-local object OIDs, physical storage, password
 // hashes and statistics. It includes full row contents, not just row counts.
-Future<String> manifest(pg.Connection db) async {
-  final parts = <Object?>[];
+Future<Map<String, String>> manifest(pg.Connection db) async {
+  final parts = <String, Object?>{};
   final tables = await db.execute(
       "SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public','ventio_security') ORDER BY 1,2");
   for (final row in tables) {
     final name = '"${row[0]}"."${row[1]}"';
     final rows = await db.execute(
         'SELECT to_jsonb(t)::text FROM $name t ORDER BY to_jsonb(t)::text');
-    parts.add([name, rows.map((r) => r[0]).toList()]);
+    parts[name] = rows.map((r) => r[0]).toList();
   }
+  var queryIndex = 0;
   for (final query in [
     "SELECT schemaname, sequencename, sequenceowner, data_type, start_value, min_value, max_value, increment_by, cycle, cache_size, last_value FROM pg_sequences WHERE schemaname IN ('public','ventio_security') ORDER BY 1,2",
     "SELECT n.nspname,c.relname,pg_get_userbyid(c.relowner),c.relrowsecurity,c.relforcerowsecurity,c.relacl::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','ventio_security') AND c.relkind IN ('r','S') ORDER BY 1,2",
     "SELECT schemaname,tablename,policyname,permissive,roles::text,cmd,qual,with_check FROM pg_policies WHERE schemaname IN ('public','ventio_security') ORDER BY 1,2,3",
     "SELECT n.nspname,p.proname,pg_get_userbyid(p.proowner),p.prosecdef,p.proconfig::text,p.proacl::text,pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ventio_security' ORDER BY 1,2",
     "SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolbypassrls,rolconnlimit,rolvaliduntil::text,rolconfig::text FROM pg_roles WHERE rolname LIKE 'ventio%' ORDER BY 1",
-    "SELECT r.rolname,m.rolname,a.admin_option,a.inherit_option,a.set_option FROM pg_auth_members a JOIN pg_roles r ON r.oid=a.roleid JOIN pg_roles m ON m.oid=a.member WHERE r.rolname LIKE 'ventio%' ORDER BY 1,2",
+    "SELECT r.rolname,m.rolname,pg_get_userbyid(a.grantor),a.admin_option,a.inherit_option,a.set_option FROM pg_auth_members a JOIN pg_roles r ON r.oid=a.roleid JOIN pg_roles m ON m.oid=a.member WHERE r.rolname LIKE 'ventio%' ORDER BY 1,2",
     "SELECT datname,pg_get_userbyid(datdba),datacl::text FROM pg_database WHERE datname='ventio_host_test'",
+    "SELECT pg_get_userbyid(d.defaclrole),n.nspname,d.defaclobjtype,d.defaclacl::text FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid=d.defaclnamespace ORDER BY 1,2,3",
     "SELECT nspname,pg_get_userbyid(nspowner),nspacl::text FROM pg_namespace WHERE nspname IN ('public','ventio_security') ORDER BY 1",
   ]) {
     final rows = await db.execute(query);
-    parts.add(rows.map((r) => r.map((v) => v?.toString()).toList()).toList());
+    parts['security-${queryIndex++}'] =
+        rows.map((r) => r.map((v) => v?.toString()).toList()).toList();
   }
-  return sha256.convert(utf8.encode(jsonEncode(parts))).toString();
+  return parts.map((key, value) =>
+      MapEntry(key, sha256.convert(utf8.encode(jsonEncode(value))).toString()));
 }

@@ -66,6 +66,10 @@ expressions, security function bodies/owners/search paths/ACLs, capability-role
 attributes/memberships and database/schema ACLs. Local object OIDs, statistics,
 physical storage and password hashes are deliberately excluded. The manifest is
 compared on a fresh cluster **before** password provisioning or admin changes.
+PostgreSQL 16 membership grants are replayed under `SET ROLE` to each dumped
+original grantor, then reset, because the fresh bootstrap login differs from the
+source grantor. The membership options and grantor are preserved and compared;
+no privilege is widened and no `GRANTED BY` clause is stripped.
 The target is not re-bootstrapped to mask missing security settings.
 
 The test then checks restricted-runtime startup, RLS denial without proof,
