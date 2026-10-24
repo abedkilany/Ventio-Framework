@@ -293,6 +293,78 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'Changed Host profile identity stops sync before queue attempts',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const profile = HostConnectionProfile(
+        endpoint: 'https://host.example.test',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'saved-user',
+        deviceId: 'saved-device',
+      );
+      await store.saveHostProfile(profile);
+      await queue.enqueue(
+        CommandEnvelope.fromJson({
+          'protocolVersion': 0,
+          'commandId': '1e1440d9-72aa-4b84-8c53-bb5856c675a5',
+          'type': 'extension.example.create',
+          'typeVersion': 1,
+          'tenantId': profile.tenantId,
+          'companyId': profile.companyId,
+          'branchId': profile.branchId,
+          'aggregateId': 'record-1',
+          'expectedRevision': null,
+          'dependsOn': <String>[],
+          'payload': <String, Object?>{'name': 'Pending'},
+          'clientContext': <String, Object?>{
+            'deviceId': profile.deviceId,
+            'actorId': profile.actorId,
+            'moduleVersion': '0.1.0',
+            'docTypeVersion': 1,
+            'clientTimestamp': '2026-10-24T10:00:00Z',
+          },
+        }),
+      );
+
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(
+            store: store,
+            queue: queue,
+            credentialVault: vault,
+            hostPackageClientFactory:
+                ({required endpoint, required credentials}) =>
+                    _FakeHostPackageClient(
+                      endpoint: endpoint,
+                      credentials: credentials,
+                    ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Sync pending records'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('HOST_PROFILE_IDENTITY_CHANGED'),
+        findsOneWidget,
+      );
+      final entry = (await queue.list()).single;
+      expect(entry.hostStatus, HostCommandStatus.pending);
+      expect(entry.attemptCount, 0);
+      expect(entry.lastAttemptAtUtc, isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Builder browses scoped approved packages and installs a draft', (
     tester,
   ) async {
