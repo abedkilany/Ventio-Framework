@@ -535,10 +535,11 @@ Future<void> main() async {
       filterContains: 'oversize-sentinel',
       sortField: null,
     );
+    final oversizedResult = oversizedPage.body['recordResult'];
     expect(
       oversizedPage.status == 413 &&
-          oversizedPage.body['recordResult']['reasonCode'] ==
-              'RECORD_PAGE_TOO_LARGE',
+          oversizedResult is Map &&
+          oversizedResult['reasonCode'] == 'RECORD_PAGE_TOO_LARGE',
       'Host rejects oversized dynamic record pages before serializing record values',
     );
     final unreadableRecords = await queryRecords(updateOnlyToken);

@@ -297,15 +297,14 @@ class PostgresExtensionRecordQueryGateway
           final clause = conditions.isEmpty
               ? ''
               : 'AND ${conditions.join(' AND ')}';
-          // Bound bytes before converting record JSON to text and transferring
-          // it to the Host process. The final HTTP limit remains a second line
-          // of defense against JSON encoding overhead.
+          // Bound serialized page bytes in PostgreSQL before transferring the
+          // values to the Host process. The final HTTP limit remains a second
+          // line of defense against JSON encoding overhead.
           parameters['maxRecordBytes'] = 512 * 1024;
           final rows = await tx.execute(
             pg.Sql.named('''
             WITH page AS (
-              SELECT record_id, revision, updated_at, record_data,
-                pg_column_size(record_data) AS record_bytes
+              SELECT record_id, revision, updated_at, record_data
               FROM ventio_records
               WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
                 AND module_id=@module AND doc_type=@doctype $clause
@@ -314,13 +313,18 @@ class PostgresExtensionRecordQueryGateway
                 CASE WHEN NOT @descending THEN record_data ->> @sortField END ASC,
                 record_id ASC
               OFFSET @offset LIMIT @limit
+            ), serialized_page AS (
+              SELECT record_id, revision, updated_at,
+                record_data::text AS record_json
+              FROM page
             ), bounded_page AS (
-              SELECT *, sum(record_bytes) OVER () AS page_bytes FROM page
+              SELECT *, sum(octet_length(record_json)) OVER () AS page_bytes
+              FROM serialized_page
             )
             SELECT record_id, revision, updated_at::text AS updated_at,
               page_bytes,
               CASE WHEN page_bytes <= @maxRecordBytes
-                THEN record_data::text ELSE NULL END AS record_json
+                THEN record_json ELSE NULL END AS record_json
             FROM bounded_page
           '''),
             parameters: parameters,
