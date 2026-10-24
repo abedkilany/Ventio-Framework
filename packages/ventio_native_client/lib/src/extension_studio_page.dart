@@ -2261,6 +2261,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _label;
+  late final TextEditingController _minLength;
   late final TextEditingController _maxLength;
   late final TextEditingController _minValue;
   late final TextEditingController _maxValue;
@@ -2275,6 +2276,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     final field = widget.existing;
     _name = TextEditingController(text: field?['name'] as String? ?? '');
     _label = TextEditingController(text: field?['label'] as String? ?? '');
+    _minLength = TextEditingController(
+      text: field?['minLength']?.toString() ?? '',
+    );
     _maxLength = TextEditingController(
       text: field?['maxLength']?.toString() ?? '160',
     );
@@ -2296,6 +2300,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   void dispose() {
     _name.dispose();
     _label.dispose();
+    _minLength.dispose();
     _maxLength.dispose();
     _minValue.dispose();
     _maxValue.dispose();
@@ -2315,7 +2320,11 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       'labelKey':
           '${_messageNamespace(widget.moduleId)}.${widget.docTypeName.toLowerCase()}.${fieldName.toLowerCase()}',
     };
-    if (_type == 'text') metadata['maxLength'] = int.parse(_maxLength.text);
+    if (_type == 'text') {
+      metadata['maxLength'] = int.parse(_maxLength.text);
+      final minimumLength = int.tryParse(_minLength.text.trim());
+      if (minimumLength != null) metadata['minLength'] = minimumLength;
+    }
     if (_type == 'integer' || _type == 'decimal') {
       final minimum = _parseBound(_minValue.text);
       final maximum = _parseBound(_maxValue.text);
@@ -2362,6 +2371,24 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       return minimum
           ? 'Minimum must not exceed the maximum.'
           : 'Maximum must not be below the minimum.';
+    }
+    return null;
+  }
+
+  String? _lengthError(String? value, {required bool minimum}) {
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty && minimum) return null;
+    final parsed = int.tryParse(raw);
+    if (parsed == null || parsed < 1 || parsed > 65535) {
+      return 'Enter a number from 1 to 65,535.';
+    }
+    final other = int.tryParse(
+      (minimum ? _maxLength.text : _minLength.text).trim(),
+    );
+    if (other != null && (minimum ? parsed > other : parsed < other)) {
+      return minimum
+          ? 'Minimum length must not exceed the maximum.'
+          : 'Maximum length must not be below the minimum.';
     }
     return null;
   }
@@ -2426,18 +2453,22 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                 if (_type == 'text') ...[
                   const SizedBox(height: 8),
                   TextFormField(
+                    controller: _minLength,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Minimum length',
+                      hintText: 'Optional',
+                    ),
+                    validator: (value) => _lengthError(value, minimum: true),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
                     controller: _maxLength,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'Maximum length',
                     ),
-                    validator: (value) {
-                      final parsed = int.tryParse(value ?? '');
-                      if (parsed == null || parsed < 1 || parsed > 65535) {
-                        return 'Enter a number from 1 to 65,535.';
-                      }
-                      return null;
-                    },
+                    validator: (value) => _lengthError(value, minimum: false),
                   ),
                 ],
                 if (_type == 'integer' || _type == 'decimal') ...[
@@ -3432,6 +3463,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       if (field.minValue != null) 'min ${field.minValue}',
       if (field.maxValue != null) 'max ${field.maxValue}',
     ];
+    final lengthConstraints = <String>[
+      if (field.minLength != null) 'min length ${field.minLength}',
+      if (field.maxLength != null) 'max length ${field.maxLength}',
+    ];
     return TextFormField(
       controller: _controllers[field.name],
       readOnly: widget.previewOnly,
@@ -3447,6 +3482,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         helperText: [
           field.type,
           field.required ? 'required' : 'optional',
+          ...lengthConstraints,
           ...numericBounds,
         ].join(' · '),
         border: const OutlineInputBorder(),
@@ -3457,6 +3493,15 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           return 'Enter ${field.label.toLowerCase()}.';
         }
         if (raw.isEmpty) return null;
+        if (field.type == 'text') {
+          final issue = field.validate(raw);
+          if (issue == 'TOO_SHORT') {
+            return 'Enter at least ${field.minLength} characters.';
+          }
+          if (issue == 'TOO_LONG') {
+            return 'Enter no more than ${field.maxLength} characters.';
+          }
+        }
         if (field.type == 'integer') {
           final parsed = int.tryParse(raw);
           if (parsed == null) return 'Enter a whole number.';

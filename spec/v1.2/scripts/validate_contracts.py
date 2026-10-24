@@ -43,6 +43,16 @@ def validate_numeric_bounds(doctype):
             raise ValueError(f"{field['name']}: minimum exceeds maximum")
 
 
+def validate_length_bounds(doctype):
+    for field in doctype['fields']:
+        minimum = field.get('minLength')
+        maximum = field.get('maxLength')
+        if minimum is not None and field['type'] != 'text':
+            raise ValueError(f"{field['name']}: minLength requires a text field")
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise ValueError(f"{field['name']}: minimum length exceeds maximum length")
+
+
 def validate_schema_pair(schema_name: str, example_name: str):
     schema = load_json(ROOT / 'contracts' / f'{schema_name}.schema.json')
     Draft202012Validator.check_schema(schema)
@@ -54,6 +64,7 @@ def validate_schema_pair(schema_name: str, example_name: str):
         raise ValueError(f'{example_name}: {formatted}')
     if schema_name == 'doctype':
         validate_numeric_bounds(payload)
+        validate_length_bounds(payload)
     return payload
 
 

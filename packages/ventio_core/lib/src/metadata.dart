@@ -6,6 +6,7 @@ class FieldDefinition {
   final bool required;
   final String label;
   final String labelKey;
+  final int? minLength;
   final int? maxLength;
   final num? minValue;
   final num? maxValue;
@@ -18,6 +19,7 @@ class FieldDefinition {
       required this.required,
       required this.label,
       required this.labelKey,
+      this.minLength,
       required this.maxLength,
       this.minValue,
       this.maxValue,
@@ -38,10 +40,27 @@ class FieldDefinition {
     ].contains(type)) {
       throw ContractError('INVALID_FIELD', 'Unsupported field type: $type');
     }
+    final minLength = json['minLength'];
+    if (minLength != null &&
+        (minLength is! int || minLength < 1 || minLength > 65535)) {
+      throw const ContractError('INVALID_FIELD', 'Invalid minLength');
+    }
     final maxLength = json['maxLength'];
     if (maxLength != null &&
         (maxLength is! int || maxLength < 1 || maxLength > 65535)) {
       throw const ContractError('INVALID_FIELD', 'Invalid maxLength');
+    }
+    if (minLength != null && type != 'text') {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'minLength requires a text field',
+      );
+    }
+    if (minLength != null && maxLength != null && minLength > maxLength) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'minLength must not exceed maxLength',
+      );
     }
     final minValue = json['minValue'];
     final maxValue = json['maxValue'];
@@ -103,6 +122,7 @@ class FieldDefinition {
         required: requireBool(json, 'required'),
         label: requireString(json, 'label'),
         labelKey: labelKey,
+        minLength: minLength as int?,
         maxLength: maxLength as int?,
         minValue: minValue as num?,
         maxValue: maxValue as num?,
@@ -117,6 +137,11 @@ class FieldDefinition {
       case 'reference':
         if (value is! String || (required && value.trim().isEmpty))
           return 'INVALID_TEXT';
+        if (type == 'text' &&
+            minLength != null &&
+            value.runes.length < minLength!) {
+          return 'TOO_SHORT';
+        }
         if (maxLength != null && value.runes.length > maxLength!)
           return 'TOO_LONG';
         return null;

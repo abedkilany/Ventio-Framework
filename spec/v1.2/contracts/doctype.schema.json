@@ -145,6 +145,11 @@
           "minimum": 1,
           "maximum": 65535
         },
+        "minLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
         "minValue": {
           "type": "number"
         },
@@ -211,6 +216,33 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "integer",
+                  "decimal",
+                  "boolean",
+                  "date",
+                  "datetime",
+                  "reference",
+                  "enum"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "minLength"
+              ]
+            }
+          }
+        },
         {
           "if": {
             "properties": {

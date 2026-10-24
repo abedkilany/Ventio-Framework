@@ -446,6 +446,11 @@ void main() {
       fields = find.byType(TextFormField);
       await tester.enterText(fields.at(3), 'name');
       await tester.enterText(fields.at(4), 'Name');
+      final nameDialogFields = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(nameDialogFields.at(2), '3');
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
@@ -495,6 +500,8 @@ void main() {
       final savedQuantity = (savedDefinition['fields'] as List).last as Map;
       expect(savedQuantity['minValue'], 1);
       expect(savedQuantity['maxValue'], 10);
+      final savedName = (savedDefinition['fields'] as List).first as Map;
+      expect(savedName['minLength'], 3);
 
       expect(find.text('Asset · operational DocType'), findsOneWidget);
       await tester.tap(find.text('Preview'));
@@ -517,11 +524,18 @@ void main() {
       await tester.tap(find.text('New record'));
       await tester.pumpAndSettle();
       final recordFields = find.byType(TextFormField);
+      await tester.enterText(recordFields.at(0), 'AB');
+      await tester.enterText(recordFields.at(1), '3');
+      await tester.tap(find.text('Save on device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter at least 3 characters.'), findsOneWidget);
+      await tester.tap(recordFields.at(0));
       await tester.enterText(recordFields.at(0), 'Laptop 42');
       await tester.enterText(recordFields.at(1), '0');
       await tester.tap(find.text('Save on device'));
       await tester.pumpAndSettle();
       expect(find.text('Enter a value of at least 1.'), findsOneWidget);
+      await tester.tap(recordFields.at(1));
       await tester.enterText(recordFields.at(1), '3');
       await tester.tap(find.text('Save on device'));
       await tester.pumpAndSettle();

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from validate_contracts import (  # noqa: E402
     cross_check,
+    validate_length_bounds,
     validate_numeric_bounds,
     validate_schema_pair,
 )
@@ -64,6 +65,23 @@ class ContractDraftTests(unittest.TestCase):
         self.assertTrue(self._is_valid(schema, doctype))
         with self.assertRaises(ValueError):
             validate_numeric_bounds(doctype)
+
+    def test_text_length_bounds_are_typed_and_ordered(self):
+        schema = read('contracts', 'doctype.schema.json')
+        doctype = read('examples', 'maintenance_doctype.json')
+        field = doctype['fields'][0]
+        field['minLength'] = 2
+        field['maxLength'] = 12
+        self.assertTrue(self._is_valid(schema, doctype))
+        validate_length_bounds(doctype)
+
+        field['type'] = 'integer'
+        self.assertFalse(self._is_valid(schema, doctype))
+
+        field['type'] = 'text'
+        field['minLength'] = 13
+        with self.assertRaises(ValueError):
+            validate_length_bounds(doctype)
 
     def test_invalid_command_id(self):
         schema = read('contracts', 'command_envelope.schema.json')

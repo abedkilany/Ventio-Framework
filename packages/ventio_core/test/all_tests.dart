@@ -259,6 +259,22 @@ void main() {
       'An invalid integer bound bypassed bundle validation',
     );
 
+    final minimumLength = changed(source);
+    final minimumLengthField = (((minimumLength['docTypes'] as List).single
+            as Map<String, dynamic>)['fields'] as List)
+        .single as Map<String, dynamic>;
+    minimumLengthField['minLength'] = 3;
+    check(
+      ExtensionBundle.fromJson(minimumLength)
+              .docTypes
+              .single
+              .fields
+              .single
+              .minLength ==
+          3,
+      'Minimum text length did not survive extension bundle parsing',
+    );
+
     final cyclic = extensionBundleJson();
     (cyclic['manifest'] as Map<String, dynamic>)['cycle'] = cyclic;
     checkThrows(
@@ -338,6 +354,43 @@ void main() {
         numberField(type: 'decimal', minimum: double.infinity),
       ),
       'A nonfinite numeric bound was accepted',
+    );
+  });
+
+  test('Text length bounds are typed and enforced', () {
+    Map<String, dynamic> textField({
+      String type = 'text',
+      int? minimum = 3,
+      int? maximum = 10,
+    }) =>
+        {
+          'name': 'title',
+          'type': type,
+          'required': true,
+          if (minimum != null) 'minLength': minimum,
+          if (maximum != null) 'maxLength': maximum,
+          'label': 'Title',
+          'labelKey': 'extension.example.asset.title',
+        };
+
+    final title = FieldDefinition.fromJson(textField());
+    check(
+      title.validate('AB') == 'TOO_SHORT' && title.validate('ABC') == null,
+      'Text minimum length was not enforced inclusively',
+    );
+    check(
+      FieldDefinition.fromJson(textField(minimum: null, maximum: 2))
+              .minLength ==
+          null,
+      'A field without a minimum length acquired one',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson(textField(type: 'integer')),
+      'Minimum text length was accepted on an integer field',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson(textField(minimum: 11, maximum: 10)),
+      'A minimum text length greater than the maximum was accepted',
     );
   });
 

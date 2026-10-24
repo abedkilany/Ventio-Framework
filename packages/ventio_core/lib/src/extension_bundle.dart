@@ -158,6 +158,7 @@ class ExtensionBundle {
             'required',
             'label',
             'labelKey',
+            'minLength',
             'maxLength',
             'minValue',
             'maxValue',

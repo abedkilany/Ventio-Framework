@@ -1465,6 +1465,83 @@ void main() {
     },
   );
 
+  test('Text length validation blocks destructive schema tightening', () async {
+    Map<String, dynamic> titleField({int? minimum = 2, int? maximum = 10}) {
+      final field = <String, dynamic>{
+        'name': 'title',
+        'type': 'text',
+        'required': true,
+        'label': 'Title',
+        'labelKey': 'asset_register.asset.title',
+      };
+      if (minimum != null) field['minLength'] = minimum;
+      if (maximum != null) field['maxLength'] = maximum;
+      return field;
+    }
+
+    Map<String, dynamic> definition({
+      required int schemaVersion,
+      int? minimum = 2,
+      int? maximum = 10,
+    }) => _docType(
+      schemaVersion: schemaVersion,
+      fields: [titleField(minimum: minimum, maximum: maximum)],
+    );
+
+    await createActiveExtension(docType: definition(schemaVersion: 1));
+    await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: {'title': 'Laptop'},
+      recordId: 'asset-title',
+    );
+    await expectLater(
+      store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: {'title': 'A'},
+        recordId: 'asset-short-title',
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'INVALID_RECORD',
+        ),
+      ),
+    );
+
+    await store.saveDocType(
+      definition(schemaVersion: 2, minimum: 1, maximum: 20),
+    );
+    for (final narrowed in [
+      definition(schemaVersion: 3, minimum: 7, maximum: 20),
+      definition(schemaVersion: 3, minimum: 1, maximum: 4),
+    ]) {
+      await expectLater(
+        store.saveDocType(narrowed),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'DESTRUCTIVE_SCHEMA_CHANGE',
+          ),
+        ),
+      );
+    }
+    final saved = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: 'asset-title',
+      scope: _scope,
+    ))!;
+    expect(saved.values['title'], 'Laptop');
+    expect(saved.schemaVersion, 2);
+    expect((await store.getExtension(_moduleId))!.version, '0.1.1');
+  });
+
   test(
     'Removal refuses to destroy data; disable keeps it readable offline',
     () async {

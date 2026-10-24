@@ -1817,10 +1817,10 @@ class LocalExtensionStore {
           'Removing a saved enum value from ${old.name} requires a reviewed migration.',
         );
       }
-      if (!_numericBoundsWidenedOrEqual(old, updated)) {
+      if (!_fieldConstraintsWidenedOrEqual(old, updated)) {
         throw ExtensionStoreException(
           'DESTRUCTIVE_SCHEMA_CHANGE',
-          'Tightening numeric bounds for ${old.name} may invalidate saved records and requires a reviewed data migration.',
+          'Tightening numeric or text-length bounds for ${old.name} may invalidate saved records and requires a reviewed data migration.',
         );
       }
       if (!old.required && updated.required) {
@@ -1842,17 +1842,26 @@ class LocalExtensionStore {
     }
   }
 
-  bool _numericBoundsWidenedOrEqual(
+  bool _fieldConstraintsWidenedOrEqual(
     FieldDefinition old,
     FieldDefinition updated,
   ) {
-    final minimumWidened =
+    final numericMinimumWidened =
         updated.minValue == null ||
         (old.minValue != null && updated.minValue! <= old.minValue!);
-    final maximumWidened =
+    final numericMaximumWidened =
         updated.maxValue == null ||
         (old.maxValue != null && updated.maxValue! >= old.maxValue!);
-    return minimumWidened && maximumWidened;
+    final lengthMinimumWidened =
+        updated.minLength == null ||
+        (old.minLength != null && updated.minLength! <= old.minLength!);
+    final lengthMaximumWidened =
+        updated.maxLength == null ||
+        (old.maxLength != null && updated.maxLength! >= old.maxLength!);
+    return numericMinimumWidened &&
+        numericMaximumWidened &&
+        lengthMinimumWidened &&
+        lengthMaximumWidened;
   }
 
   Future<void> _validateDependencyTargets(
