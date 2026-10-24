@@ -32,7 +32,11 @@ jobs:
         with:
           sdk: 3.13.7
       - run: dart pub get --enforce-lockfile
-      - run: dart format --output=none --set-exit-if-changed lib bin test
+      - name: Verify Dart 3.13 formatting and show formatter diff
+        run: |
+          dart format lib bin test
+          git diff -- lib bin test
+          git diff --exit-code -- lib bin test
       - run: dart analyze .
       - name: PostgreSQL integration tests
         env:
