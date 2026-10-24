@@ -24,6 +24,7 @@ flutter create \
   .
 
 python3 - <<'PY'
+import re
 from pathlib import Path
 
 manifest = Path('android/app/src/main/AndroidManifest.xml')
@@ -35,5 +36,13 @@ if permission not in text:
         permission + '\n    <application',
         1,
     )
-    manifest.write_text(text, encoding='utf-8')
+label, count = re.subn(
+    r'(<application\b[^>]*\bandroid:label=")[^"]*(")',
+    r'\1Ventio Framework\2',
+    text,
+    count=1,
+)
+if count != 1:
+    raise SystemExit('Generated Android manifest has no application label to set.')
+manifest.write_text(label, encoding='utf-8')
 PY

@@ -43,6 +43,20 @@ try {
             [System.Text.UTF8Encoding]::new($false)
         )
     }
+    if ($manifest -notmatch '<application\b[^>]*\bandroid:label="') {
+        throw 'Generated Android manifest has no application label to set.'
+    }
+    $manifest = [regex]::Replace(
+        $manifest,
+        '(<application\b[^>]*\bandroid:label=")[^"]*(")',
+        '$1Ventio Framework$2',
+        1
+    )
+    [System.IO.File]::WriteAllText(
+        $manifestPath,
+        $manifest,
+        [System.Text.UTF8Encoding]::new($false)
+    )
 }
 finally {
     Pop-Location
