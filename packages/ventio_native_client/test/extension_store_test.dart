@@ -25,6 +25,7 @@ Map<String, dynamic> _textField({
 };
 
 Map<String, dynamic> _docType({
+  String moduleId = _moduleId,
   String name = 'Asset',
   int schemaVersion = 1,
   List<Map<String, dynamic>>? fields,
@@ -46,19 +47,22 @@ Map<String, dynamic> _docType({
           },
       ];
   final fieldNames = selectedFields.map((field) => field['name'] as String);
+  final permissionNamespace = moduleId.toLowerCase().replaceAll(
+    RegExp(r'[^a-z0-9]+'),
+    '_',
+  );
   return {
     'name': name,
-    'moduleId': _moduleId,
+    'moduleId': moduleId,
     'schemaVersion': schemaVersion,
     'kind': 'operational',
     'fields': selectedFields,
     'permissions': {
-      'read': 'extension.com_example_asset_register.${name.toLowerCase()}.read',
+      'read': 'extension.$permissionNamespace.${name.toLowerCase()}.read',
       'create':
           createPermission ??
-          'extension.com_example_asset_register.${name.toLowerCase()}.create',
-      'update':
-          'extension.com_example_asset_register.${name.toLowerCase()}.update',
+          'extension.$permissionNamespace.${name.toLowerCase()}.create',
+      'update': 'extension.$permissionNamespace.${name.toLowerCase()}.update',
     },
     'ui': {
       'listColumns': fieldNames.take(2).toList(),
@@ -123,6 +127,49 @@ void main() {
     expect(restored.state, ExtensionState.active);
     expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
   });
+
+  test(
+    'Two independent extensions use the same generated data engine',
+    () async {
+      const secondModuleId = 'com.example.site_registry';
+      await createActiveExtension();
+      await store.createExtension(
+        moduleId: secondModuleId,
+        displayName: 'Site Registry',
+        description: 'Track operating locations.',
+      );
+      await store.saveDocType(_docType(moduleId: secondModuleId, name: 'Site'));
+      await store.activate(secondModuleId);
+
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: {'name': 'Laptop 1'},
+        recordId: 'asset-1',
+      );
+      await store.createRecord(
+        moduleId: secondModuleId,
+        docTypeName: 'Site',
+        scope: _scope,
+        values: {'name': 'Beirut Office'},
+        recordId: 'site-1',
+      );
+
+      expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
+      expect((await store.listDocTypes(secondModuleId)).single['name'], 'Site');
+      expect(
+        (await store.listRecords(
+          moduleId: secondModuleId,
+          docTypeName: 'Site',
+          scope: _scope,
+        )).single.values,
+        {'name': 'Beirut Office'},
+      );
+      expect(await store.countRecords(_moduleId), 1);
+      expect(await store.countRecords(secondModuleId), 1);
+    },
+  );
 
   test(
     'An extension cannot declare permissions outside its namespace',
