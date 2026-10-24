@@ -48,6 +48,12 @@ Future<void> main() async {
   final runtimeConnection = await pg.Connection.openFromUrl(runtimeUrl);
   final observer = await pg.Connection.openFromUrl(databaseUrl);
   final temporary = await Directory.systemTemp.createTemp('ventio-package-');
+  if (Platform.isLinux) {
+    final result = await Process.run('chmod', ['700', temporary.path]);
+    if (result.exitCode != 0) {
+      throw StateError('Could not protect extension test storage.');
+    }
+  }
   final authority = RecoveryAuthority(temporary.path + '/authority.json');
   final tenant =
       'extension-' + DateTime.now().toUtc().microsecondsSinceEpoch.toString();
