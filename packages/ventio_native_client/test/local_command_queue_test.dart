@@ -120,11 +120,38 @@ void main() {
     expect(restored.hostReceipt, isNull);
   });
 
+  test('Abrupt child-process exit preserves the pending command for recovery', () async {
+    final envelope = await maintenanceEnvelope();
+    await queue.close();
+    final child = await Process.run(
+      Platform.resolvedExecutable,
+      [
+        'test/support/crash_after_attempt.dart',
+        databasePath,
+        jsonEncode(envelope.original),
+      ],
+      workingDirectory: Directory.current.path,
+    );
+    expect(child.exitCode, 73, reason: '${child.stdout}\n${child.stderr}');
+
+    queue = await LocalCommandQueue.open(
+      factory: databaseFactoryFfi,
+      path: databasePath,
+      clock: () => fixedTime,
+    );
+    final restored = (await queue.getById(envelope.commandId))!;
+    expect(restored.attemptCount, 1);
+    expect(restored.hostStatus, HostCommandStatus.pending);
+    expect(restored.hostReceipt, isNull);
+  });
+
   test('Fixture receipt persists separately and never confirms Host acceptance', () async {
     final envelope = await maintenanceEnvelope();
     await queue.enqueue(envelope);
     await queue.recordAttempt(envelope.commandId);
     final response = await const DeterministicTransportFixture().send(envelope);
+    expect(response.apiVersion, hostApiVersion);
+    expect(response.source, TransportSource.fixture);
     await queue.recordFixtureReceipt(envelope.commandId, response);
 
     await reopenQueue();
@@ -138,8 +165,14 @@ void main() {
   test('A fixture receipt for another command ID is rejected', () async {
     final envelope = await maintenanceEnvelope();
     await queue.enqueue(envelope);
-    final receipt = await const DeterministicTransportFixture().send(envelope);
-    receipt['commandId'] = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    final validReceipt = await const DeterministicTransportFixture().send(envelope);
+    final alteredReceipt = Map<String, dynamic>.from(validReceipt.receipt)
+      ..['commandId'] = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    final receipt = TransportResponse(
+      apiVersion: validReceipt.apiVersion,
+      source: validReceipt.source,
+      receipt: alteredReceipt,
+    );
 
     await expectLater(
       queue.recordFixtureReceipt(envelope.commandId, receipt),

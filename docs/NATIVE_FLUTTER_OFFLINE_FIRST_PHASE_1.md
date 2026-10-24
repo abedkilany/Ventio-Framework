@@ -12,6 +12,7 @@ The app reuses `ventio_core` `CommandEnvelope` values and the shared v0 command 
 - The database has a unique primary key on command ID. Enqueue checks for an existing ID and never replaces its original intent.
 - The local `host_status` starts at `PENDING`. The accepted, rejected, conflict, and retry states require a separate Host receipt in the schema.
 - The transport fixture writes only `fixture_receipt_json`. It cannot write `host_receipt_json` or change `host_status`.
+- The transport boundary carries API version 1 and an explicit fixture/Host source. Phase 1 implements only the fixture source.
 - SQLite is configured for WAL and `synchronous=FULL`; attempt metadata and fixture output are committed transactionally.
 - The UI labels every local request Pending and explains that the fixture response is simulated.
 - Demo tenant/user/device identifiers are placeholders. No identity credentials are stored or sent.
@@ -37,9 +38,9 @@ On Linux, use `./scripts/prepare_native_client_platforms.sh` and run `flutter pu
 
 ## Test boundaries
 
-`flutter test` uses SQLite FFI and covers Core contract compatibility, exact envelope rehydration, close/reopen durability, duplicate-ID rejection without overwrite, interruption after attempt recording, fixture-receipt persistence, fixture/Host state separation, and the Maintenance form's Pending state.
+`flutter test` uses SQLite FFI and covers Core contract compatibility, exact envelope rehydration, close/reopen durability, an abrupt child-process exit after attempt recording, duplicate-ID rejection without overwrite, fixture-receipt persistence, fixture/Host state separation, and the Maintenance form's Pending state.
 
-The CI workflow uses Flutter 3.47.0 and has independent jobs for queue/contract tests, Windows build, and Android debug APK build. These builds do not prove emulator/physical-device installation or launch. The execution workspace used to prepare this change has no Flutter or Dart SDK, so local Flutter compilation and test execution were unavailable; CI is the required compiler/runtime verification. No actual process-kill, Android emulator, Windows interactive launch, or Host-to-client transport test is claimed.
+The CI workflow uses Flutter 3.47.0 and has independent jobs for queue/contract tests, Windows build, and Android debug APK build. The child-process test verifies SQLite recovery after an abrupt desktop Dart process exit; it does not prove power-loss durability or a Flutter OS process kill on Android/Windows. The builds do not prove emulator/physical-device installation or launch. The execution workspace used to prepare this change has no Flutter or Dart SDK, so local Flutter compilation and test execution were unavailable; CI is the required compiler/runtime verification. No Android emulator, Windows interactive launch, or Host-to-client transport test is claimed.
 
 ## Next proof boundary
 

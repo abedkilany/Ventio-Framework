@@ -105,6 +105,9 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
     try {
       await widget.queue.recordAttempt(entry.envelope.commandId);
       final receipt = await widget.transport.send(entry.envelope);
+      if (receipt.source != TransportSource.fixture) {
+        throw const FormatException('This screen only accepts fixture responses.');
+      }
       await widget.queue.recordFixtureReceipt(entry.envelope.commandId, receipt);
       await _refresh();
       _showMessage('Fixture response saved. Host status remains Pending.');

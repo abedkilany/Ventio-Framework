@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:sqflite_common/sqlite_api.dart';
 import 'package:ventio_core/ventio_core.dart';
 
+import 'transport_fixture.dart';
+
 const _table = 'local_commands';
 
 enum HostCommandStatus {
@@ -238,10 +240,14 @@ class LocalCommandQueue {
   /// Persists a test fixture response without changing Host status or receipt.
   Future<void> recordFixtureReceipt(
     String commandId,
-    Map<String, dynamic> rawReceipt,
+    TransportResponse response,
   ) async {
     _ensureOpen();
-    final receipt = CommandReceipt.fromJson(rawReceipt);
+    if (response.source != TransportSource.fixture ||
+        response.apiVersion != hostApiVersion) {
+      throw const FormatException('Only a matching-version fixture response can be recorded here');
+    }
+    final receipt = CommandReceipt.fromJson(response.receipt);
     if (receipt.commandId != commandId) {
       throw const FormatException('Fixture receipt command ID mismatch');
     }

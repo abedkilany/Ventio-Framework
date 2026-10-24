@@ -1,7 +1,25 @@
 import 'package:ventio_core/ventio_core.dart';
 
+const int hostApiVersion = 1;
+
+enum TransportSource { fixture, host }
+
+class TransportResponse {
+  TransportResponse({
+    required this.apiVersion,
+    required this.source,
+    required Map<String, dynamic> receipt,
+  }) : receipt = Map.unmodifiable(CommandReceipt.fromJson(receipt).toJson());
+
+  final int apiVersion;
+  final TransportSource source;
+  final Map<String, dynamic> receipt;
+}
+
 abstract interface class CommandTransport {
-  Future<Map<String, dynamic>> send(CommandEnvelope envelope);
+  int get apiVersion;
+
+  Future<TransportResponse> send(CommandEnvelope envelope);
 }
 
 /// Deterministic local fixture for tests and UI exploration.
@@ -17,14 +35,21 @@ class DeterministicTransportFixture implements CommandTransport {
   final String serverTimestamp;
 
   @override
-  Future<Map<String, dynamic>> send(CommandEnvelope envelope) async {
-    return CommandReceipt(
-      commandId: envelope.commandId,
-      status: 'ACCEPTED',
-      serverTimestamp: serverTimestamp,
-      hostRevision: 1,
-      scopeCursor: 'fixture-cursor-${envelope.commandId}',
-      output: {'serverRecordId': 'fixture-${envelope.aggregateId}'},
-    ).toJson();
+  int get apiVersion => hostApiVersion;
+
+  @override
+  Future<TransportResponse> send(CommandEnvelope envelope) async {
+    return TransportResponse(
+      apiVersion: apiVersion,
+      source: TransportSource.fixture,
+      receipt: CommandReceipt(
+        commandId: envelope.commandId,
+        status: 'ACCEPTED',
+        serverTimestamp: serverTimestamp,
+        hostRevision: 1,
+        scopeCursor: 'fixture-cursor-${envelope.commandId}',
+        output: {'serverRecordId': 'fixture-${envelope.aggregateId}'},
+      ).toJson(),
+    );
   }
 }
