@@ -15,7 +15,7 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('ventio_page_test_');
     queue = await LocalCommandQueue.open(
-      factory: databaseFactoryFfi,
+      factory: databaseFactoryFfiNoIsolate,
       path: '${directory.path}${Platform.pathSeparator}client.sqlite3',
     );
   });
@@ -41,27 +41,18 @@ void main() {
         ),
       ),
     );
-    // The queue shows an indeterminate loading animation until its async
-    // SQLite read completes, so pump one frame instead of waiting for settle.
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'Sample Customer');
     await tester.enterText(fields.at(1), 'Sample Laptop');
     await tester.enterText(fields.at(2), 'Battery does not charge');
     await tester.tap(find.text('Save locally'));
-    final entries = await tester.runAsync(() async {
-      for (var attempt = 0; attempt < 50; attempt++) {
-        final saved = await queue.list();
-        if (saved.isNotEmpty) return saved;
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
-      return queue.list();
-    });
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Pending'), findsOneWidget);
     expect(find.textContaining('Host has not accepted'), findsOneWidget);
+    final entries = await queue.list();
     expect(entries, hasLength(1));
     expect(entries!.single.isPending, isTrue);
     expect(entries.single.isHostConfirmed, isFalse);
