@@ -66,6 +66,9 @@ jobs:
       - name: Build Windows desktop app
         working-directory: packages/ventio_native_client
         run: flutter build windows --debug
+      - name: Build Windows release app
+        working-directory: packages/ventio_native_client
+        run: flutter build windows --release
 
   android-build:
     runs-on: ubuntu-latest
@@ -83,3 +86,6 @@ jobs:
       - name: Build Android debug APK
         working-directory: packages/ventio_native_client
         run: flutter build apk --debug
+      - name: Build Android release APK
+        working-directory: packages/ventio_native_client
+        run: flutter build apk --release
