@@ -181,10 +181,36 @@ void main() {
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
       expect(find.text('Save field'), findsNothing);
+
+      await tester.tap(find.text('Add field'));
+      await tester.pumpAndSettle();
+      final quantityDialog = find.byType(AlertDialog);
+      final quantityFields = find.descendant(
+        of: quantityDialog,
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(quantityFields.at(0), 'quantity');
+      await tester.enterText(quantityFields.at(1), 'Quantity');
+      await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Whole number').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(quantityFields.at(2), '1');
+      await tester.enterText(quantityFields.at(3), '20');
+      await _scrollTo(tester, find.text('Save field'));
+      await tester.tap(find.text('Save field'));
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await _scrollTo(tester, find.text('Save DocType'), delta: 300);
       await tester.tap(find.text('Save DocType'));
       await tester.pumpAndSettle();
+      final assetDefinition = (await store.listDocTypes(
+        'com.example.windows_acceptance',
+      )).single;
+      final quantityDefinition =
+          (assetDefinition['fields'] as List).last as Map;
+      expect(quantityDefinition['minValue'], 1);
+      expect(quantityDefinition['maxValue'], 20);
 
       await _waitForWidget(tester, find.text('Asset · operational DocType'));
       await _scrollTo(tester, find.text('Preview'));
@@ -213,10 +239,19 @@ void main() {
       await _scrollTo(tester, find.text('New record'));
       await tester.tap(find.text('New record'));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'Windows device',
-      );
+      final recordFields = find.byType(TextFormField);
+      await tester.enterText(recordFields.at(0), 'Windows device');
+      await tester.enterText(recordFields.at(1), '0');
+      await _finishTextEntry(tester);
+      await _scrollTo(tester, find.text('Save on device'));
+      await tester.tap(find.text('Save on device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter a value of at least 1.'), findsOneWidget);
+      final retryQuantity = find.byType(TextFormField).at(1);
+      await tester.ensureVisible(retryQuantity);
+      await tester.tap(retryQuantity);
+      await tester.enterText(retryQuantity, '4');
+      await tester.pumpAndSettle();
       await _finishTextEntry(tester);
       await _scrollTo(tester, find.text('Save on device'));
       await tester.tap(find.text('Save on device'));
@@ -264,6 +299,7 @@ void main() {
         ),
       );
       expect(retainedFirstRecords.single.values['name'], 'Windows device');
+      expect(retainedFirstRecords.single.values['quantity'], 4);
 
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -356,6 +392,7 @@ void main() {
       );
       expect(records, hasLength(1));
       expect(records.single.values['name'], 'Windows device');
+      expect(records.single.values['quantity'], 4);
       final secondExtension = await store.getExtension(
         'com.example.location_catalog',
       );
