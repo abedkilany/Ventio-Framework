@@ -138,6 +138,7 @@ class FieldDefinition {
         if (value is! String || (required && value.trim().isEmpty))
           return 'INVALID_TEXT';
         if (type == 'text' &&
+            value.isNotEmpty &&
             minLength != null &&
             value.runes.length < minLength!) {
           return 'TOO_SHORT';

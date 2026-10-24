@@ -360,13 +360,14 @@ void main() {
   test('Text length bounds are typed and enforced', () {
     Map<String, dynamic> textField({
       String type = 'text',
+      bool required = true,
       int? minimum = 3,
       int? maximum = 10,
     }) =>
         {
           'name': 'title',
           'type': type,
-          'required': true,
+          'required': required,
           if (minimum != null) 'minLength': minimum,
           if (maximum != null) 'maxLength': maximum,
           'label': 'Title',
@@ -377,6 +378,14 @@ void main() {
     check(
       title.validate('AB') == 'TOO_SHORT' && title.validate('ABC') == null,
       'Text minimum length was not enforced inclusively',
+    );
+    check(
+      title.validate('😀😀') == 'TOO_SHORT' && title.validate('😀😀😀') == null,
+      'Text minimum length counted UTF-16 code units instead of Unicode runes',
+    );
+    check(
+      FieldDefinition.fromJson(textField(required: false)).validate('') == null,
+      'A blank optional text field was rejected by its minimum length',
     );
     check(
       FieldDefinition.fromJson(textField(minimum: null, maximum: 2))
