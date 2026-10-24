@@ -32,7 +32,7 @@ The current Host API remains bound to `127.0.0.1`. There is no LAN or Internet l
 ## Verification performed
 
 - `flutter analyze`: passed on Flutter 3.44.1 / Dart 3.12.1.
-- `flutter test --reporter expanded`: passed all 22 client tests, including close/reopen SQLite persistence, version-one database upgrade, two independent extensions using the same data engine, Builder dependency selection, dependency order/cycle/version checks, child-process queue recovery, permission-namespace rejection, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, builder-to-generated-record flow and a 360×800 viewport.
+- `flutter test --reporter expanded`: passed all 23 client tests, including close/reopen SQLite persistence, version-one database upgrade, two independent extensions using the same data engine, Builder dependency selection, dependency order/cycle/version checks, child-process queue recovery, permission-namespace rejection, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, desktop builder-to-record flow, the full Builder setup flow at 360×800 and a generated record form at 360×800.
 - Windows Debug executable: built successfully from an isolated temporary copy with the installed Windows toolchain. The executable remained alive for a five-second startup smoke check; no visual/manual interaction check was performed.
 - Android Debug APK: attempted from the same isolated copy; no APK or device run was obtained before the initial Gradle run was stopped after output and artifact progress stalled.
 - Core executable suite: 52 passed.

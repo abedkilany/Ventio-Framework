@@ -152,6 +152,81 @@ void main() {
     expect(extension.dependencies, {'com.example.shared_catalog': '0.1.0'});
   });
 
+  testWidgets('The full builder setup flow fits a phone-sized viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(store: store, queue: queue),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Create your first extension'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create your first extension'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    var fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'com.example.phone_extension');
+    await tester.enterText(fields.at(1), 'Phone Extension');
+    await tester.enterText(fields.at(2), 'Created on a phone-sized screen.');
+    await tester.tap(find.text('Create draft'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.scrollUntilVisible(
+      find.text('Add DocType'),
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Add DocType'));
+    await tester.pumpAndSettle();
+    fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'PhoneNote');
+    await tester.enterText(fields.at(1), 'Phone Note');
+    await tester.enterText(fields.at(2), 'A note created from a compact view.');
+    await tester.scrollUntilVisible(
+      find.text('Add field'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(1), 'title');
+    await tester.enterText(fields.at(2), 'Title');
+    tester.binding.focusManager.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save field'));
+    await tester.tap(find.text('Save field'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Save DocType'),
+      160,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Save DocType'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      await store.listDocTypes('com.example.phone_extension'),
+      hasLength(1),
+    );
+  });
+
   testWidgets('Generated record list and form fit a phone-sized viewport', (
     tester,
   ) async {
