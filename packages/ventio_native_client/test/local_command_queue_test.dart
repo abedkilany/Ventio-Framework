@@ -132,6 +132,7 @@ void main() {
     'Abrupt child-process exit preserves the pending command for recovery',
     () async {
       final envelope = await maintenanceEnvelope();
+      await queue.enqueue(envelope);
       await queue.close();
       final child =
           await Process.run(Platform.isWindows ? 'dart.exe' : 'dart', [
