@@ -25,6 +25,14 @@ BEGIN
       has_function_privilege(current_user, 'ventio_security.admin_change(jsonb)', 'EXECUTE') OR
       has_function_privilege(current_user, 'ventio_security.identity_snapshot(text,text,text)', 'EXECUTE') OR
       has_function_privilege(current_user,
+        'ventio_security.bind_extension_authorization(jsonb,jsonb,text,text,text)', 'EXECUTE') OR
+      has_function_privilege(current_user,
+        'ventio_security.cached_extension_authorization(text,text,text)', 'EXECUTE') OR
+      has_function_privilege(current_user,
+        'ventio_security.extension_authorization_payload(jsonb,jsonb,text,text,text)', 'EXECUTE') OR
+      has_function_privilege(current_user,
+        'ventio_security.extension_policy(jsonb,text)', 'EXECUTE') OR
+      has_function_privilege(current_user,
         'ventio_security.identity_role_manager_allowed(text,text,text,text)', 'EXECUTE') OR
       has_function_privilege(current_user,
         'ventio_security.scoped_admin_change(text,text,text,jsonb)', 'EXECUTE') OR

@@ -208,10 +208,154 @@ BEGIN
     'scopeGrants', scope_grants, 'roles', role_assignments);
 END $fn$;
 
+-- Cache the identity and package policy already resolved by the trusted
+-- extension resolver. RLS calls scope_allows once per row, so re-reading and
+-- rebuilding the principal for every row creates avoidable N+1 database work.
+-- The cache is transaction, backend, role, and exact-scope bound with a private
+-- HMAC; callers cannot manufacture authorization by setting custom GUCs.
+CREATE OR REPLACE FUNCTION ventio_security.extension_policy(p_package jsonb, p_module text)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+  SELECT coalesce(jsonb_object_agg(item->>'name', jsonb_build_object(
+    'moduleId',item->>'moduleId','operations',item->'operations',
+    'permissions',item->'permissions')), '{}'::jsonb)
+  FROM jsonb_array_elements(p_package->'docTypes') AS rows(item)
+  WHERE item->>'moduleId'=p_module
+$fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.extension_authorization_payload(
+    p_identity jsonb, p_policy jsonb, p_digest text, p_company text, p_branch text)
+RETURNS text LANGUAGE sql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+  SELECT jsonb_build_array(
+    'ventio-extension-authorization-v1', current_database(), session_user,
+    current_user, pg_backend_pid(), pg_current_xact_id()::text,
+    p_digest, p_company, p_branch,
+    nullif(current_setting('ventio.command_type',true),''),
+    nullif(current_setting('ventio.command_version',true),''),
+    nullif(current_setting('ventio.command_id',true),''),
+    nullif(current_setting('ventio.aggregate_id',true),''),
+    nullif(current_setting('ventio.module_id',true),''),
+    nullif(current_setting('ventio.module_version',true),''),
+    nullif(current_setting('ventio.doc_type',true),''),
+    nullif(current_setting('ventio.operation',true),''),
+    nullif(current_setting('ventio.expected_revision',true),''),
+    p_identity, p_policy
+  )::text
+$fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.bind_extension_authorization(
+    p_identity jsonb, p_package jsonb, p_digest text,
+    p_company text, p_branch text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE state ventio_security.recovery_state%ROWTYPE;
+        scoped_identity jsonb; policy jsonb; item_count integer; unique_count integer;
+        payload text; proof text; module_id text; cache_key bytea;
+BEGIN
+  PERFORM set_config('ventio.extension_identity_snapshot','',true);
+  PERFORM set_config('ventio.extension_policy_snapshot','',true);
+  PERFORM set_config('ventio.extension_context_proof','',true);
+  SELECT * INTO state FROM ventio_security.recovery_state WHERE singleton;
+  -- Unenrolled databases are test/development profiles and must use the
+  -- original live identity lookup. Never sign a cache with a public default.
+  IF state.enforced IS DISTINCT FROM true OR state.authority_id !~ '^[A-Za-z0-9_-]{43}$' OR
+      p_identity IS NULL OR p_package IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_company IS NULL OR p_branch IS NULL OR
+      p_digest IS DISTINCT FROM nullif(current_setting('ventio.credential_digest',true),'') OR
+      p_company IS DISTINCT FROM nullif(current_setting('ventio.company_id',true),'') OR
+      p_branch IS DISTINCT FROM nullif(current_setting('ventio.branch_id',true),'') THEN
+    RETURN false;
+  END IF;
+  module_id := nullif(current_setting('ventio.module_id',true),'');
+  IF module_id IS NULL OR p_identity->>'tenantId' IS NULL OR
+      jsonb_typeof(p_package->'docTypes') IS DISTINCT FROM 'array' OR
+      NOT EXISTS (
+        SELECT FROM jsonb_array_elements(p_identity->'scopeGrants') AS grants(item)
+        WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+      ) OR p_package->'manifest'->>'moduleId' IS DISTINCT FROM module_id OR
+      p_package->'manifest'->>'version' IS DISTINCT FROM
+        nullif(current_setting('ventio.module_version',true),'') THEN
+    RETURN false;
+  END IF;
+  SELECT count(*)::integer,count(DISTINCT item->>'name')::integer
+    INTO item_count,unique_count
+    FROM jsonb_array_elements(p_package->'docTypes') AS rows(item)
+    WHERE item->>'moduleId'=module_id;
+  IF item_count NOT BETWEEN 1 AND 64 OR item_count<>unique_count THEN RETURN false; END IF;
+  policy := ventio_security.extension_policy(p_package,module_id);
+  IF NOT (policy ? nullif(current_setting('ventio.doc_type',true),'')) THEN
+    RETURN false;
+  END IF;
+  scoped_identity := jsonb_build_object(
+    'tenantId',p_identity->'tenantId','actorId',p_identity->'actorId',
+    'deviceId',p_identity->'deviceId','permissions',p_identity->'permissions',
+    'scopeGrants',p_identity->'scopeGrants');
+  payload := ventio_security.extension_authorization_payload(
+    scoped_identity,policy,p_digest,p_company,p_branch);
+  cache_key := ventio_crypto.hmac(
+    convert_to('ventio-extension-cache-key-v1','UTF8'),
+    convert_to(state.authority_id,'UTF8'),'sha256');
+  proof := encode(ventio_crypto.hmac(convert_to(payload,'UTF8'),
+    cache_key,'sha256'),'hex');
+  PERFORM set_config('ventio.extension_identity_snapshot',scoped_identity::text,true);
+  PERFORM set_config('ventio.extension_policy_snapshot',policy::text,true);
+  PERFORM set_config('ventio.extension_context_proof',proof,true);
+  RETURN true;
+END $fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.cached_extension_authorization(
+    p_tenant text, p_company text, p_branch text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE state ventio_security.recovery_state%ROWTYPE;
+        identity jsonb; policy jsonb; payload text; expected text; proof text;
+        digest text; cache_key bytea;
+BEGIN
+  SELECT * INTO state FROM ventio_security.recovery_state WHERE singleton;
+  IF state.enforced IS DISTINCT FROM true OR state.authority_id !~ '^[A-Za-z0-9_-]{43}$' THEN
+    RETURN NULL;
+  END IF;
+  digest := nullif(current_setting('ventio.credential_digest',true),'');
+  proof := nullif(current_setting('ventio.extension_context_proof',true),'');
+  IF digest IS NULL OR digest !~ '^[0-9a-f]{64}$' OR proof IS NULL OR proof !~ '^[0-9a-f]{64}$' OR
+      p_company IS DISTINCT FROM nullif(current_setting('ventio.company_id',true),'') OR
+      p_branch IS DISTINCT FROM nullif(current_setting('ventio.branch_id',true),'') THEN
+    RETURN NULL;
+  END IF;
+  BEGIN
+    identity := nullif(current_setting('ventio.extension_identity_snapshot',true),'')::jsonb;
+    policy := nullif(current_setting('ventio.extension_policy_snapshot',true),'')::jsonb;
+  EXCEPTION WHEN invalid_text_representation THEN
+    RETURN NULL;
+  END;
+  IF identity IS NULL OR policy IS NULL THEN RETURN NULL; END IF;
+  payload := ventio_security.extension_authorization_payload(
+    identity,policy,digest,p_company,p_branch);
+  cache_key := ventio_crypto.hmac(
+    convert_to('ventio-extension-cache-key-v1','UTF8'),
+    convert_to(state.authority_id,'UTF8'),'sha256');
+  expected := encode(ventio_crypto.hmac(convert_to(payload,'UTF8'),
+    cache_key,'sha256'),'hex');
+  IF proof IS DISTINCT FROM expected THEN RETURN NULL; END IF;
+  IF jsonb_typeof(identity) IS DISTINCT FROM 'object' OR
+      identity->>'tenantId' IS DISTINCT FROM p_tenant OR
+      jsonb_typeof(identity->'scopeGrants') IS DISTINCT FROM 'array' OR
+      jsonb_typeof(policy) IS DISTINCT FROM 'object' OR
+      NOT EXISTS (
+        SELECT FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
+        WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+      ) THEN
+    RETURN NULL;
+  END IF;
+  RETURN jsonb_build_object('identity',identity,'policy',policy);
+END $fn$;
+
 \ir extensions.sql
 
--- The context contains a confidential proof handle, not trusted scope claims.
--- Policies revalidate it against current identity/grants on EVERY statement.
+-- Legacy command bindings re-read identity in policy evaluation. Extension
+-- resolvers additionally bind a private, transaction-local authorization cache
+-- that scope_allows authenticates before using for each returned row.
 CREATE OR REPLACE FUNCTION ventio_security.resolve_identity(p_digest text, p_company text, p_branch text,
     p_type text, p_version integer, p_command text, p_aggregate text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
@@ -227,6 +371,9 @@ BEGIN
   PERFORM set_config('ventio.command_id', '', true);
   PERFORM set_config('ventio.aggregate_id', '', true);
   PERFORM set_config('ventio.module_id', '', true);
+  PERFORM set_config('ventio.extension_identity_snapshot', '', true);
+  PERFORM set_config('ventio.extension_policy_snapshot', '', true);
+  PERFORM set_config('ventio.extension_context_proof', '', true);
   result := ventio_security.identity_snapshot(p_digest, p_company, p_branch);
   IF result IS NOT NULL AND p_company IS NOT NULL AND p_branch IS NOT NULL THEN
     PERFORM set_config('ventio.credential_digest', p_digest, true);
@@ -248,7 +395,8 @@ CREATE OR REPLACE FUNCTION ventio_security.scope_allows(p_tenant text, p_company
     p_mode text, p_subject text DEFAULT NULL, p_actor text DEFAULT NULL, p_device text DEFAULT NULL)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
-DECLARE identity jsonb; binding ventio_security.command_bindings%ROWTYPE;
+DECLARE identity jsonb; cached_context jsonb; policy jsonb;
+        binding ventio_security.command_bindings%ROWTYPE;
         package_row public.ventio_extension_packages%ROWTYPE;
         dynamic_doc_type jsonb; target_doc_type jsonb;
         command_type text; dynamic_operation text; dynamic_module text;
@@ -269,24 +417,41 @@ BEGIN
         (command_type='extension.record.query' AND dynamic_operation IS DISTINCT FROM 'read') THEN
       RETURN false;
     END IF;
-    identity := ventio_security.identity_snapshot(
-      nullif(current_setting('ventio.credential_digest',true),''),p_company,p_branch);
+    cached_context := ventio_security.cached_extension_authorization(
+      p_tenant,p_company,p_branch);
+    IF cached_context IS NOT NULL THEN
+      identity := cached_context->'identity';
+      policy := cached_context->'policy';
+    ELSE
+      -- A present but invalid cache is a rejected context, not permission to
+      -- fall back to mutable caller-supplied authorization claims.
+      IF nullif(current_setting('ventio.extension_identity_snapshot',true),'') IS NOT NULL OR
+          nullif(current_setting('ventio.extension_policy_snapshot',true),'') IS NOT NULL OR
+          nullif(current_setting('ventio.extension_context_proof',true),'') IS NOT NULL THEN
+        RETURN false;
+      END IF;
+      identity := ventio_security.identity_snapshot(
+        nullif(current_setting('ventio.credential_digest',true),''),p_company,p_branch);
+    END IF;
     IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
         NOT EXISTS (
           SELECT 1 FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
           WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
         ) THEN RETURN false; END IF;
-    SELECT * INTO package_row FROM public.ventio_extension_packages
-      WHERE tenant_id=p_tenant AND module_id=dynamic_module
-        AND version=dynamic_version AND status='APPROVED'
-      FOR SHARE;
-    IF NOT FOUND OR jsonb_typeof(package_row.package_json->'docTypes') IS DISTINCT FROM 'array' THEN
-      RETURN false;
+    IF cached_context IS NULL THEN
+      SELECT * INTO package_row FROM public.ventio_extension_packages
+        WHERE tenant_id=p_tenant AND module_id=dynamic_module
+          AND version=dynamic_version AND status='APPROVED'
+        FOR SHARE;
+      IF NOT FOUND OR jsonb_typeof(package_row.package_json->'docTypes') IS DISTINCT FROM 'array' THEN
+        RETURN false;
+      END IF;
+      policy := ventio_security.extension_policy(package_row.package_json,dynamic_module);
     END IF;
-    SELECT item INTO dynamic_doc_type
-    FROM jsonb_array_elements(package_row.package_json->'docTypes') AS entries(item)
-    WHERE item->>'moduleId'=dynamic_module AND item->>'name'=dynamic_name
-    LIMIT 1;
+    dynamic_doc_type := policy->dynamic_name;
+    IF dynamic_doc_type->>'moduleId' IS DISTINCT FROM dynamic_module THEN
+      dynamic_doc_type := NULL;
+    END IF;
     IF dynamic_doc_type IS NULL THEN RETURN false; END IF;
     operation_permission := dynamic_doc_type->'permissions'->>dynamic_operation;
     read_permission := dynamic_doc_type->'permissions'->>'read';
@@ -302,10 +467,10 @@ BEGIN
       IF p_subject=dynamic_name THEN
         RETURN can_read;
       END IF;
-      SELECT item INTO target_doc_type
-      FROM jsonb_array_elements(package_row.package_json->'docTypes') AS entries(item)
-      WHERE item->>'moduleId'=dynamic_module AND item->>'name'=p_subject
-      LIMIT 1;
+      target_doc_type := policy->p_subject;
+      IF target_doc_type->>'moduleId' IS DISTINCT FROM dynamic_module THEN
+        target_doc_type := NULL;
+      END IF;
       IF target_doc_type IS NULL THEN RETURN false; END IF;
       read_permission := target_doc_type->'permissions'->>'read';
       IF read_permission IS NULL OR read_permission NOT LIKE

@@ -178,7 +178,9 @@ BEGIN
       'ventio.credential_digest','ventio.company_id','ventio.branch_id',
       'ventio.command_type','ventio.command_version','ventio.command_id',
       'ventio.aggregate_id','ventio.module_id','ventio.module_version',
-      'ventio.doc_type','ventio.operation','ventio.expected_revision'] LOOP
+      'ventio.doc_type','ventio.operation','ventio.expected_revision',
+      'ventio.extension_identity_snapshot','ventio.extension_policy_snapshot',
+      'ventio.extension_context_proof'] LOOP
     PERFORM set_config(expected_type, '', true);
   END LOOP;
   IF p_module IS NULL OR p_module !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$' OR
@@ -243,6 +245,8 @@ BEGIN
   PERFORM set_config('ventio.doc_type',p_doc_type,true);
   PERFORM set_config('ventio.operation','read',true);
   PERFORM set_config('ventio.expected_revision','',true);
+  PERFORM ventio_security.bind_extension_authorization(
+    identity,package_row.package_json,p_digest,p_company,p_branch);
   RETURN jsonb_build_object('identity',identity,
     'package',package_row.package_json,'packageSha256',package_row.package_sha256);
 END $fn$;
@@ -265,7 +269,9 @@ BEGIN
       'ventio.credential_digest','ventio.company_id','ventio.branch_id',
       'ventio.command_type','ventio.command_version','ventio.command_id',
       'ventio.aggregate_id','ventio.module_id','ventio.module_version',
-      'ventio.doc_type','ventio.operation','ventio.expected_revision'] LOOP
+      'ventio.doc_type','ventio.operation','ventio.expected_revision',
+      'ventio.extension_identity_snapshot','ventio.extension_policy_snapshot',
+      'ventio.extension_context_proof'] LOOP
     PERFORM set_config(expected_type, '', true);
   END LOOP;
   IF p_type IS NULL OR p_type NOT IN ('extension.record.create','extension.record.update') OR
@@ -354,6 +360,8 @@ BEGIN
   PERFORM set_config('ventio.doc_type',p_doc_type,true);
   PERFORM set_config('ventio.operation',p_operation,true);
   PERFORM set_config('ventio.expected_revision',coalesce(p_expected_revision::text,''),true);
+  PERFORM ventio_security.bind_extension_authorization(
+    identity,package_row.package_json,p_digest,p_company,p_branch);
   RETURN jsonb_build_object('identity',identity,
     'package',package_row.package_json,'packageSha256',package_row.package_sha256,
     'reasonCode',release_reason);

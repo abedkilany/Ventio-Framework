@@ -1145,17 +1145,54 @@ Future<void> main() async {
         "SELECT current_setting('ventio.recovery_fingerprint'), "
         "current_setting('ventio.recovery_proof')",
       );
+      final authorizationCache = await tx.execute(
+        "SELECT current_setting('ventio.extension_identity_snapshot',true), "
+        "current_setting('ventio.extension_policy_snapshot',true), "
+        "current_setting('ventio.extension_context_proof',true)",
+      );
       return {
         'resolved': resolved.single[0] != null,
         'visibleRows': visibleRows.length,
         'fingerprint': proof.single[0] as String,
         'proof': proof.single[1] as String,
+        'authorizationCache':
+            authorizationCache.single[0] is String &&
+            (authorizationCache.single[0] as String).isNotEmpty &&
+            authorizationCache.single[1] is String &&
+            (authorizationCache.single[1] as String).isNotEmpty &&
+            authorizationCache.single[2] is String &&
+            (authorizationCache.single[2] as String).isNotEmpty,
       };
     });
     expect(
       admittedRead['resolved'] == true &&
           admittedRead['visibleRows']! as int > 0,
       'An admitted transaction receives a recovery proof and scoped RLS rows',
+    );
+    expect(
+      admittedRead['authorizationCache'] == true,
+      'The trusted extension resolver binds a transaction-scoped RLS authorization cache',
+    );
+
+    final tamperedAuthorizationRows = await runtimeConnection.runTx((tx) async {
+      await authority.admit(tx);
+      await tx.execute(readBinding, parameters: readBindingParameters);
+      await tx.execute(
+        "SELECT set_config('ventio.extension_context_proof','00',true)",
+      );
+      return (await tx.execute(
+            pg.Sql.named(
+              'SELECT count(*) FROM public.ventio_records WHERE tenant_id=@tenant '
+              'AND company_id=@company AND branch_id=@branch AND module_id=@module '
+              "AND doc_type='Item'",
+            ),
+            parameters: scopedReadParameters,
+          )).single[0]
+          as int;
+    });
+    expect(
+      tamperedAuthorizationRows == 0,
+      'RLS denies rows after its signed extension authorization cache is tampered with',
     );
 
     Future<int> rowsWithRecoveryGucs(String proof) => runtimeConnection.runTx((
@@ -1261,25 +1298,61 @@ Future<void> main() async {
     final fingerprintSorted = [...fingerprintSamples]..sort();
     final fingerprintMedianMs = fingerprintSorted[2];
     final rlsSamples = <double>[];
+    final rlsTransactionSamples = <double>[];
     var benchmarkRows = 0;
     for (var sample = 0; sample < 5; sample++) {
       final watch = Stopwatch()..start();
+      var queryMs = 0.0;
       benchmarkRows = await runtimeConnection.runTx((tx) async {
         await authority.admit(tx);
         await tx.execute(readBinding, parameters: readBindingParameters);
-        return (await tx.execute(
+        final queryWatch = Stopwatch()..start();
+        final rows = await tx.execute(
           pg.Sql.named(
             'SELECT record_id FROM public.ventio_records WHERE tenant_id=@tenant '
             'AND company_id=@company AND branch_id=@branch AND module_id=@module '
             "AND doc_type='Item' ORDER BY record_id LIMIT 20",
           ),
           parameters: scopedReadParameters,
-        )).length;
+        );
+        queryWatch.stop();
+        queryMs = queryWatch.elapsedMicroseconds / 1000;
+        return rows.length;
       });
-      rlsSamples.add(watch.elapsedMicroseconds / 1000);
+      rlsSamples.add(queryMs);
+      rlsTransactionSamples.add(watch.elapsedMicroseconds / 1000);
     }
     final rlsSorted = [...rlsSamples]..sort();
     final rlsMedianMs = rlsSorted[2];
+    final rlsTransactionSorted = [...rlsTransactionSamples]..sort();
+    final rlsTransactionMedianMs = rlsTransactionSorted[2];
+    final uncachedRlsSamples = <double>[];
+    var uncachedRows = 0;
+    for (var sample = 0; sample < 5; sample++) {
+      uncachedRows = await runtimeConnection.runTx((tx) async {
+        await authority.admit(tx);
+        await tx.execute(readBinding, parameters: readBindingParameters);
+        await tx.execute(
+          "SELECT set_config('ventio.extension_identity_snapshot','',true), "
+          "set_config('ventio.extension_policy_snapshot','',true), "
+          "set_config('ventio.extension_context_proof','',true)",
+        );
+        final queryWatch = Stopwatch()..start();
+        final rows = await tx.execute(
+          pg.Sql.named(
+            'SELECT record_id FROM public.ventio_records WHERE tenant_id=@tenant '
+            'AND company_id=@company AND branch_id=@branch AND module_id=@module '
+            "AND doc_type='Item' ORDER BY record_id LIMIT 20",
+          ),
+          parameters: scopedReadParameters,
+        );
+        queryWatch.stop();
+        uncachedRlsSamples.add(queryWatch.elapsedMicroseconds / 1000);
+        return rows.length;
+      });
+    }
+    final uncachedRlsSorted = [...uncachedRlsSamples]..sort();
+    final uncachedRlsMedianMs = uncachedRlsSorted[2];
     final hostQuerySamples = <double>[];
     var hostQueryRows = 0;
     for (var sample = 0; sample < 5; sample++) {
@@ -1301,7 +1374,9 @@ Future<void> main() async {
       'fixtureAuditRows': 20000,
       'snapshotMedianMs': fingerprintMedianMs,
       'rlsRows': benchmarkRows,
-      'rlsReadMedianMs': rlsMedianMs,
+      'rlsCachedQueryMedianMs': rlsMedianMs,
+      'rlsUncachedQueryMedianMs': uncachedRlsMedianMs,
+      'rlsTransactionMedianMs': rlsTransactionMedianMs,
       'hostQueryRows': hostQueryRows,
       'hostQueryMedianMs': hostQueryMedianMs,
       'samples': 5,
@@ -1312,8 +1387,12 @@ Future<void> main() async {
       'Recovery fingerprint stays below 1 second at 1k users and 20k audit rows',
     );
     expect(
-      benchmarkRows == 20 && rlsMedianMs < 5000,
-      'Scoped RLS returns 20 rows below 5 seconds at the 1k/20k profile',
+      benchmarkRows == 20 && uncachedRows == 20 && rlsMedianMs < 5000,
+      'Signed-cache and live-lookup RLS paths both return 20 authorized rows',
+    );
+    expect(
+      rlsMedianMs < uncachedRlsMedianMs,
+      'Transaction-scoped authorization cache is faster than per-row identity lookup',
     );
     expect(
       hostQueryRows == 20 && hostQueryMedianMs < 5000,
