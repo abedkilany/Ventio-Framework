@@ -21,6 +21,21 @@ Future<void> main() async {
     final witness = Platform.environment['VENTIO_RECOVERY_AUTHORITY_FILE'];
     if (witness == null)
       throw StateError('Independent recovery authority required');
+    final hostWritesText =
+        Platform.environment['VENTIO_RECOVERY_AUTHORITY_HOST_WRITES'];
+    if (hostWritesText != null && hostWritesText != 'yes') {
+      throw StateError('Invalid recovery authority Host-write setting');
+    }
+    final hostWritesAuthority = hostWritesText == 'yes';
+    final identityAdminUrl =
+        Platform.environment['VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL'];
+    final hasIdentityAdmin =
+        identityAdminUrl != null && identityAdminUrl.isNotEmpty;
+    if (hasIdentityAdmin != hostWritesAuthority) {
+      throw StateError(
+        'Role administration requires explicit Host-owned recovery authority writes',
+      );
+    }
     final int? writerUid;
     final String? writerSid;
     final String? readerSid;
@@ -52,6 +67,7 @@ Future<void> main() async {
       trustedOwnerUid: writerUid,
       trustedOwnerSid: writerSid,
       readerSid: readerSid,
+      allowHostMutations: hostWritesAuthority,
     );
     final parsed = Uri.parse(url);
     final boundedUrl = parsed
@@ -64,8 +80,6 @@ Future<void> main() async {
         )
         .toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
-    final identityAdminUrl =
-        Platform.environment['VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL'];
     PostgresIdentityRoleAdministrationGateway? roleAdministration;
     if (identityAdminUrl != null && identityAdminUrl.isNotEmpty) {
       final parsedAdminUrl = Uri.parse(identityAdminUrl);

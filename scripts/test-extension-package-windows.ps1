@@ -147,6 +147,11 @@ try {
       if ($LASTEXITCODE -ne 0) {
         throw 'Extension package PostgreSQL integration failed.'
       }
+
+      dart run test/local_host_role_process_integration.dart
+      if ($LASTEXITCODE -ne 0) {
+        throw 'Windows persistent Host process role-administration integration failed.'
+      }
     }
   }
   finally {

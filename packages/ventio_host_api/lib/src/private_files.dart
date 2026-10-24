@@ -12,11 +12,14 @@ op,path,owner,gid=sys.argv[1:]
 owner=int(owner);gid=int(gid)
 witness=op.startswith('witness-')
 runtime=op=='witness-read-runtime'
+owner_read=op=='witness-read-owner'
 op=op.replace('witness-','').replace('-runtime','')
+if op=='read-owner': op='read'
 parent=os.path.dirname(os.path.abspath(path))
 if os.path.realpath(parent)!=parent: raise RuntimeError('symlink ancestor refused')
 st=os.lstat(parent)
-expected=owner if runtime else os.geteuid()
+expected=owner if runtime or owner_read else os.geteuid()
+if owner_read and expected!=os.geteuid(): raise RuntimeError('trusted owner required')
 mask=0o027 if witness else 0o077
 if not stat.S_ISDIR(st.st_mode) or st.st_uid!=expected or st.st_mode & mask:
     raise RuntimeError('protected directory required')
@@ -140,6 +143,27 @@ else:
     ownerSid: trustedOwnerSid,
     readerSid: readerSid,
   );
+  static Future<String> readAuthorityAsOwner(
+    String path, {
+    int? trustedOwnerUid,
+    int? readerGroupId,
+    String? trustedOwnerSid,
+    String? readerSid,
+  }) {
+    if (trustedOwnerUid == null && trustedOwnerSid == null) {
+      throw ArgumentError('Trusted recovery-authority owner is required.');
+    }
+    return _run(
+      'witness-read-owner',
+      path,
+      '',
+      ownerUid: trustedOwnerUid ?? -1,
+      readerGid: readerGroupId ?? -1,
+      ownerSid: trustedOwnerSid,
+      readerSid: readerSid,
+    );
+  }
+
   static Future<void> createAuthority(
     String path,
     Object value,

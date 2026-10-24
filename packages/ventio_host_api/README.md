@@ -1,4 +1,4 @@
-> The persistent launcher requires a separate trusted recovery-authority writer. Linux configures its UID; Windows configures its owner SID and Host reader-group SID. Use the [current operations guide](../../docs/HOST_ENGINE_V0_1_OPERATIONS.md) for deployment and upgrade; examples below retain their historical stage context.
+> The persistent launcher verifies a protected recovery authority on every admission. By default the Host is read-only to that authority and a separate trusted operator performs security changes. Enabling the Flutter role editor requires the explicit Host-writer profile described below; its OS account then becomes part of the trusted recovery boundary. Use the [current operations guide](../../docs/HOST_ENGINE_V0_1_OPERATIONS.md) for deployment and upgrade.
 
 > Credential lifecycle update: production Host now requires an independent recovery
 > authority file and reviewed scoped provisioning. See [Credential Lifecycle and
@@ -20,7 +20,7 @@
 > identity-file provider and launcher described below remain test-only; they are
 > not used by the persistent assembly. External network deployment has not been end-to-end verified.
 
-Persistent role administration update: when `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` is configured, the persistent Host enables the authenticated `/api/v1/identity/roles/*` routes and checks that connection against the restricted `ventio_identity_admin` profile. Role changes revalidate the persistent credential, its direct `identity.roles.manage` grant and exact branch ceiling inside the recovery-admitted transaction. Renaming, changing permissions, or deleting a shared role requires authority in every branch where it is assigned. The reserved role-management permission cannot be delegated through a role. If the dedicated connection is omitted, these routes remain unavailable.
+Persistent role administration update: the authenticated `/api/v1/identity/roles/*` routes require both `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` and `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`. The restricted database connection is checked against the `ventio_identity_admin` profile. The Host process must run as the configured recovery-authority owner so it can advance the protected witness after an authorized change. Role changes revalidate the persistent credential, its direct `identity.roles.manage` grant and exact branch ceiling inside the recovery-admitted transaction. Renaming, changing permissions, or deleting a shared role requires authority in every branch where it is assigned. The reserved role-management permission cannot be delegated through a role. If either setting is omitted, startup fails closed when only one is configured; role routes remain unavailable when both are omitted.
 
 # Ventio Host API v0.1
 
@@ -103,6 +103,13 @@ Set these private environment variables:
   interface address for a remote Host; wildcard addresses still require TLS.
 - `VENTIO_HOST_TLS_CERTIFICATE_FILE` and `VENTIO_HOST_TLS_PRIVATE_KEY_FILE`:
   required absolute paths for any non-loopback listener.
+- `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` and
+  `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`: configure both to enable Host role
+  administration. Run the Host under the recovery-authority owner SID/UID; this
+  trusted service identity can advance the witness only through the guarded
+  recovery-admitted change path. Use a restricted identity-admin login, never a
+  database owner, superuser, or migrator. Without this profile, use the trusted
+  operator CLI and keep the Host role routes disabled.
 
 Private identity file structure (all values are illustrative, not credentials):
 

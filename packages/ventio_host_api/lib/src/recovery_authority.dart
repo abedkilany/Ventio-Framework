@@ -16,6 +16,7 @@ class RecoveryAuthority {
   final int? readerGroupId;
   final String? trustedOwnerSid;
   final String? readerSid;
+  final bool allowHostMutations;
   final FutureOr<void> Function(String)? testBarrier;
   static final Map<String, Future<void>> _tails = {};
   RecoveryAuthority(
@@ -25,6 +26,7 @@ class RecoveryAuthority {
     this.readerGroupId,
     this.trustedOwnerSid,
     this.readerSid,
+    this.allowHostMutations = false,
   }) {
     if (trustedOwnerSid != null && readerSid == null) {
       throw ArgumentError(
@@ -40,20 +42,38 @@ class RecoveryAuthority {
         'Linux reader groups and Windows reader SIDs cannot be combined.',
       );
     }
+    if (allowHostMutations &&
+        trustedOwnerUid == null &&
+        trustedOwnerSid == null) {
+      throw ArgumentError(
+        'Host witness writes require a pinned recovery-authority owner.',
+      );
+    }
   }
 
-  Future<String> _readFile() =>
-      trustedOwnerUid != null ||
-          readerGroupId != null ||
-          trustedOwnerSid != null ||
-          readerSid != null
-      ? PrivateFiles.readAuthority(
-          path,
-          trustedOwnerUid: trustedOwnerUid,
-          trustedOwnerSid: trustedOwnerSid,
-          readerSid: readerSid,
-        )
-      : PrivateFiles.read(path);
+  Future<String> _readFile() {
+    if (allowHostMutations) {
+      return PrivateFiles.readAuthorityAsOwner(
+        path,
+        trustedOwnerUid: trustedOwnerUid,
+        readerGroupId: readerGroupId,
+        trustedOwnerSid: trustedOwnerSid,
+        readerSid: readerSid,
+      );
+    }
+    return trustedOwnerUid != null ||
+            readerGroupId != null ||
+            trustedOwnerSid != null ||
+            readerSid != null
+        ? PrivateFiles.readAuthority(
+            path,
+            trustedOwnerUid: trustedOwnerUid,
+            trustedOwnerSid: trustedOwnerSid,
+            readerSid: readerSid,
+          )
+        : PrivateFiles.read(path);
+  }
+
   Future<void> _create(Map<String, dynamic> value) => readerGroupId != null
       ? PrivateFiles.createAuthority(path, value, readerGroupId!)
       : readerSid != null
@@ -106,7 +126,8 @@ class RecoveryAuthority {
     await previous;
     RandomAccessFile? lock;
     try {
-      if (trustedOwnerUid != null || trustedOwnerSid != null)
+      if ((trustedOwnerUid != null || trustedOwnerSid != null) &&
+          !allowHostMutations)
         throw StateError('Read-only Host cannot administer authority');
       final lockPath = '$path.lock';
       try {

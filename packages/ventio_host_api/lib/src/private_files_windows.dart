@@ -20,8 +20,10 @@ try {
   $currentSid = $identity.User.Value
   $witness = $operation.StartsWith('witness-')
   $runtime = $operation -eq 'witness-read-runtime'
+  $ownerWriter = $operation -eq 'witness-read-owner'
   $action = $operation.Replace('witness-', '').Replace('-runtime', '')
-  $ownerSid = if ($runtime) { [string]$request.ownerSid } else { $currentSid }
+  if ($ownerWriter) { $action = 'read' }
+  $ownerSid = if ($runtime -or $ownerWriter) { [string]$request.ownerSid } else { $currentSid }
   $readerSid = [string]$request.readerSid
   if ([string]::IsNullOrWhiteSpace($readerSid)) { $readerSid = $null }
   $isAuthorityLock = [System.IO.Path]::GetFileName($path).EndsWith(
@@ -33,6 +35,9 @@ try {
   }
   if ($runtime -and ($ownerSid -eq $currentSid -or $null -eq $readerSid)) {
     throw 'independent witness owner and reader required'
+  }
+  if ($ownerWriter -and $ownerSid -ne $currentSid) {
+    throw 'trusted witness owner process required'
   }
   if ($witness -and $action -ne 'lock' -and $null -eq $readerSid) {
     throw 'explicit witness reader SID required'

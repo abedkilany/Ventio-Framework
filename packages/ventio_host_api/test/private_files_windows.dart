@@ -93,6 +93,27 @@ Future<void> main() async {
     if (!witnessData.contains('"fingerprint":"test"')) {
       throw StateError('Windows authority witness round-trip failed');
     }
+    final ownerWitnessData = await PrivateFiles.readAuthorityAsOwner(
+      witness,
+      trustedOwnerSid: sid,
+      readerSid: readerGroupSid,
+    );
+    if (!ownerWitnessData.contains('"fingerprint":"test"')) {
+      throw StateError('Windows witness owner read failed');
+    }
+    var wrongWriterRefused = false;
+    try {
+      await PrivateFiles.readAuthorityAsOwner(
+        witness,
+        trustedOwnerSid: 'S-1-5-18',
+        readerSid: readerGroupSid,
+      );
+    } on StateError {
+      wrongWriterRefused = true;
+    }
+    if (!wrongWriterRefused) {
+      throw StateError('A non-owner Windows Host could write the witness');
+    }
     await PrivateFiles.replaceAuthority(
       witness,
       {'version': 1, 'pending': false, 'fingerprint': 'rotated'},
