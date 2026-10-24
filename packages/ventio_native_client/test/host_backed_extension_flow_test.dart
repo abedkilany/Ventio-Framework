@@ -278,6 +278,11 @@ void main() {
           companyId: companyId,
           branchId: branchId,
         );
+        expect(upgradedBundle.docTypes.single.schemaVersion, 2);
+        expect(
+          upgradedBundle.docTypes.single.fields.map((field) => field.name),
+          containsAll(['title', 'notes']),
+        );
         await firstStore.disable(moduleId);
         await firstStore.installBundle(upgradedBundle);
         await firstStore.activate(moduleId);
@@ -307,6 +312,7 @@ void main() {
             scope: scope,
           );
           expect(record?.values['title'], 'Created while offline');
+          expect(record?.schemaVersion, 2);
           expect(record?.hostRevision, 1);
         }
 
@@ -325,6 +331,7 @@ void main() {
           scope: scope,
         );
         expect(reopenedExtension?.version, upgradedVersion);
+        expect(reopenedRecord?.schemaVersion, 2);
         expect(reopenedRecord?.values['title'], 'Created while offline');
         expect(reopenedRecord?.authorityState, 'HOST_ACCEPTED');
       } finally {

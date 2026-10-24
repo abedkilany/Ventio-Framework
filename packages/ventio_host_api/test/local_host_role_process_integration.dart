@@ -993,59 +993,74 @@ Map<String, Object?> _recordQuery(String company, String branch) => {
   'limit': 10,
 };
 
-Map<String, dynamic> _bundleJson({String version = '1.0.0'}) => {
-  'manifest': {
-    'manifestVersion': 0,
-    'moduleId': 'com.example.windows_records',
-    'version': version,
-    'minPlatformApi': '0.1.0',
-    'displayName': 'Windows Record Registry',
-    'displayNameKey': 'extension.com_example_windows_records.module.name',
-    'englishCatalog': 'localization/en.windows_records.json',
-    'dependencies': <String>[],
-    'docTypes': ['Item'],
-    'commands': <Object>[],
-    'requiredCapabilities': <String>[],
-    'offline': {'enabled': false, 'allowedCommands': <String>[]},
-  },
-  'docTypes': [
-    {
-      'name': 'Item',
+Map<String, dynamic> _bundleJson({String version = '1.0.0'}) {
+  final schemaVersion = version == '1.0.1' ? 2 : 1;
+  final hasNotesField = schemaVersion >= 2;
+  return {
+    'manifest': {
+      'manifestVersion': 0,
       'moduleId': 'com.example.windows_records',
-      'schemaVersion': 1,
-      'kind': 'operational',
-      'label': 'Item',
-      'labelKey': 'extension.com_example_windows_records.item',
-      'operations': ['read', 'create', 'update'],
-      'permissions': {
-        'read': 'extension.com_example_windows_records.item.read',
-        'create': 'extension.com_example_windows_records.item.create',
-        'update': 'extension.com_example_windows_records.item.update',
-      },
-      'fields': [
-        {
-          'name': 'title',
-          'type': 'text',
-          'required': true,
-          'label': 'Title',
-          'labelKey': 'extension.com_example_windows_records.item.title',
-          'maxLength': 100,
-        },
-      ],
-      'ui': {
-        'listColumns': ['title'],
-        'formFields': ['title'],
-      },
+      'version': version,
+      'minPlatformApi': '0.1.0',
+      'displayName': 'Windows Record Registry',
+      'displayNameKey': 'extension.com_example_windows_records.module.name',
+      'englishCatalog': 'localization/en.windows_records.json',
+      'dependencies': <String>[],
+      'docTypes': ['Item'],
+      'commands': <Object>[],
+      'requiredCapabilities': <String>[],
+      'offline': {'enabled': false, 'allowedCommands': <String>[]},
     },
-  ],
-  'dependencyVersions': <String, String>{},
-  'englishCatalog': {
-    'extension.com_example_windows_records.module.name':
-        'Windows Record Registry',
-    'extension.com_example_windows_records.item': 'Item',
-    'extension.com_example_windows_records.item.title': 'Title',
-  },
-};
+    'docTypes': [
+      {
+        'name': 'Item',
+        'moduleId': 'com.example.windows_records',
+        'schemaVersion': schemaVersion,
+        'kind': 'operational',
+        'label': 'Item',
+        'labelKey': 'extension.com_example_windows_records.item',
+        'operations': ['read', 'create', 'update'],
+        'permissions': {
+          'read': 'extension.com_example_windows_records.item.read',
+          'create': 'extension.com_example_windows_records.item.create',
+          'update': 'extension.com_example_windows_records.item.update',
+        },
+        'fields': [
+          {
+            'name': 'title',
+            'type': 'text',
+            'required': true,
+            'label': 'Title',
+            'labelKey': 'extension.com_example_windows_records.item.title',
+            'maxLength': 100,
+          },
+          if (hasNotesField)
+            {
+              'name': 'notes',
+              'type': 'text',
+              'required': false,
+              'label': 'Notes',
+              'labelKey': 'extension.com_example_windows_records.item.notes',
+              'maxLength': 200,
+            },
+        ],
+        'ui': {
+          'listColumns': ['title'],
+          'formFields': ['title', if (hasNotesField) 'notes'],
+        },
+      },
+    ],
+    'dependencyVersions': <String, String>{},
+    'englishCatalog': {
+      'extension.com_example_windows_records.module.name':
+          'Windows Record Registry',
+      'extension.com_example_windows_records.item': 'Item',
+      'extension.com_example_windows_records.item.title': 'Title',
+      if (hasNotesField)
+        'extension.com_example_windows_records.item.notes': 'Notes',
+    },
+  };
+}
 
 class _HttpResult {
   const _HttpResult(this.status, this.body);
