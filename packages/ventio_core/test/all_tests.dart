@@ -554,6 +554,70 @@ void main() {
           'INVALID_REFERENCE',
       'Host refuses a reference to a record in a different branch',
     );
+
+    final otherCompanyPrincipal = Principal(
+      tenantId: command.tenantId,
+      actorId: command.actorId,
+      deviceId: command.deviceId,
+      companyIds: {'other-company'},
+      branchIds: {command.branchId},
+      permissions: {'inspection.create'},
+    );
+    final otherCompanyParentRaw = Map<String, dynamic>.from(parentRaw)
+      ..['commandId'] = uuid(909)
+      ..['companyId'] = 'other-company'
+      ..['aggregateId'] = 'inspection-other-company';
+    final otherCompanyParent = CommandEnvelope.fromJson(otherCompanyParentRaw);
+    check(
+      host.execute(otherCompanyParent, otherCompanyPrincipal).accepted,
+      'Host stores the independent reference target in another company',
+    );
+    final crossCompanyPayload = Map<String, dynamic>.from(parentPayload)
+      ..['assetTag'] = 'EQ-103'
+      ..['relatedInspection'] = otherCompanyParent.aggregateId;
+    final crossCompanyRaw = Map<String, dynamic>.from(raw)
+      ..['commandId'] = uuid(910)
+      ..['aggregateId'] = 'inspection-cross-company-reference'
+      ..['payload'] = crossCompanyPayload;
+    check(
+      host
+              .execute(CommandEnvelope.fromJson(crossCompanyRaw), principal)
+              .reasonCode ==
+          'INVALID_REFERENCE',
+      'Host refuses a reference to a record in another company',
+    );
+
+    final otherTenantPrincipal = Principal(
+      tenantId: 'other-tenant',
+      actorId: command.actorId,
+      deviceId: command.deviceId,
+      companyIds: {command.companyId},
+      branchIds: {command.branchId},
+      permissions: {'inspection.create'},
+    );
+    final otherTenantParentRaw = Map<String, dynamic>.from(parentRaw)
+      ..['commandId'] = uuid(911)
+      ..['tenantId'] = 'other-tenant'
+      ..['aggregateId'] = 'inspection-other-tenant';
+    final otherTenantParent = CommandEnvelope.fromJson(otherTenantParentRaw);
+    check(
+      host.execute(otherTenantParent, otherTenantPrincipal).accepted,
+      'Host stores the independent reference target in another tenant',
+    );
+    final crossTenantPayload = Map<String, dynamic>.from(parentPayload)
+      ..['assetTag'] = 'EQ-104'
+      ..['relatedInspection'] = otherTenantParent.aggregateId;
+    final crossTenantRaw = Map<String, dynamic>.from(raw)
+      ..['commandId'] = uuid(912)
+      ..['aggregateId'] = 'inspection-cross-tenant-reference'
+      ..['payload'] = crossTenantPayload;
+    check(
+      host
+              .execute(CommandEnvelope.fromJson(crossTenantRaw), principal)
+              .reasonCode ==
+          'INVALID_REFERENCE',
+      'Host refuses a reference to a record in another tenant',
+    );
   });
 
   test('Generic extension record commands have a strict offline wire shape',
