@@ -54,9 +54,7 @@ Future<void> main() async {
   final administrationConnection = await pg.Connection.openFromUrl(
     administrationUrl,
   );
-  Process? host;
-  StreamSubscription<String>? outputSubscription;
-  StreamSubscription<String>? errorSubscription;
+  _RunningHost? runningHost;
   HttpClient? client;
 
   try {
@@ -120,7 +118,6 @@ Future<void> main() async {
             as Map<String, dynamic>;
     final readerToken = readerCredential['token'] as String;
 
-    final startup = Completer<int>();
     final processEnvironment = <String, String>{
       ...Platform.environment,
       'VENTIO_ENABLE_LOCAL_HOST': 'yes',
@@ -133,43 +130,8 @@ Future<void> main() async {
       'VENTIO_RECOVERY_AUTHORITY_READER_SID': sid,
       'VENTIO_RECOVERY_AUTHORITY_HOST_WRITES': 'yes',
     };
-    host = await Process.start(
-      Platform.resolvedExecutable,
-      ['run', 'bin/local_host.dart'],
-      workingDirectory: Directory.current.path,
-      environment: processEnvironment,
-      runInShell: false,
-    );
-    outputSubscription = host.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) {
-          final match = RegExp(
-            r'^Persistent Host listening on http://127\.0\.0\.1:(\d+)$',
-          ).firstMatch(line);
-          if (match != null && !startup.isCompleted) {
-            startup.complete(int.parse(match.group(1)!));
-          }
-        });
-    errorSubscription = host.stderr
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) {
-          if (line.contains('Local Host startup failed.') &&
-              !startup.isCompleted) {
-            startup.completeError(StateError('Local Host startup failed.'));
-          }
-        });
-    unawaited(
-      host.exitCode.then((code) {
-        if (!startup.isCompleted) {
-          startup.completeError(
-            StateError('Local Host exited before listening ($code).'),
-          );
-        }
-      }),
-    );
-    final port = await startup.future.timeout(const Duration(seconds: 45));
+    runningHost = await _startHost(processEnvironment);
+    final port = runningHost.port;
     check(port > 0, 'Windows persistent Host process binds loopback');
 
     client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
@@ -427,17 +389,143 @@ Future<void> main() async {
           updatedRows.single['revision'] == 2,
       'Second authenticated device receives the Host-updated record',
     );
+
+    await runningHost.stop();
+    runningHost = await _startHost(processEnvironment);
+    final restartedPort = runningHost.port;
+    final restartedHealth = await _request(
+      client,
+      restartedPort,
+      'GET',
+      '/healthz',
+    );
+    check(
+      restartedHealth.status == 200,
+      'Persistent Windows Host restarts against the same database and witness',
+    );
+
+    final restartedRoles = await _request(
+      client,
+      restartedPort,
+      'POST',
+      '/api/v1/identity/roles/list',
+      token: token,
+      body: {'companyId': company, 'branchId': branch},
+    );
+    final restartedRoleList =
+        (restartedRoles.body['identityRoles'] as Map<String, dynamic>)['roles']
+            as List;
+    check(
+      restartedRoles.status == 200 &&
+          restartedRoleList.any(
+            (entry) =>
+                entry['roleId'] == 'smoke.reader' &&
+                (entry['permissions'] as List).contains('extension.smoke.read'),
+          ),
+      'Scoped role configuration survives a Host process restart',
+    );
+
+    final restartedPackage = await _request(
+      client,
+      restartedPort,
+      'POST',
+      '/api/v1/extensions/read',
+      token: token,
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'moduleId': moduleId,
+        'version': packageVersion,
+      },
+    );
+    check(
+      restartedPackage.status == 200 &&
+          (restartedPackage.body['packageResult'] as Map)['packageSha256'] ==
+              packageDigest,
+      'Approved extension metadata survives a Host process restart',
+    );
+
+    final restartedRecord = await _request(
+      client,
+      restartedPort,
+      'POST',
+      '/api/v1/extensions/records/query',
+      token: readerToken,
+      body: _recordQuery(company, branch),
+    );
+    final restartedRows =
+        (restartedRecord.body['recordResult']
+                as Map<String, dynamic>)['records']
+            as List;
+    check(
+      restartedRecord.status == 200 &&
+          restartedRows.length == 1 &&
+          restartedRows.single['values']['title'] == 'After update' &&
+          restartedRows.single['revision'] == 2,
+      'Host record values and revision survive a process restart',
+    );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     client?.close(force: true);
-    if (host != null) {
-      host.kill();
-      await host.exitCode.timeout(const Duration(seconds: 10));
-    }
-    await outputSubscription?.cancel();
-    await errorSubscription?.cancel();
+    await runningHost?.stop();
     await administrationConnection.close();
     await directory.delete(recursive: true);
+  }
+}
+
+Future<_RunningHost> _startHost(Map<String, String> environment) async {
+  final startup = Completer<int>();
+  final process = await Process.start(
+    Platform.resolvedExecutable,
+    ['run', 'bin/local_host.dart'],
+    workingDirectory: Directory.current.path,
+    environment: environment,
+    runInShell: false,
+  );
+  final outputSubscription = process.stdout
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .listen((line) {
+        final match = RegExp(
+          r'^Persistent Host listening on http://127\.0\.0\.1:(\d+)$',
+        ).firstMatch(line);
+        if (match != null && !startup.isCompleted) {
+          startup.complete(int.parse(match.group(1)!));
+        }
+      });
+  final errorSubscription = process.stderr
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .listen((line) {
+        if (line.contains('Local Host startup failed.') &&
+            !startup.isCompleted) {
+          startup.completeError(StateError('Local Host startup failed.'));
+        }
+      });
+  unawaited(
+    process.exitCode.then((code) {
+      if (!startup.isCompleted) {
+        startup.completeError(
+          StateError('Local Host exited before listening ($code).'),
+        );
+      }
+    }),
+  );
+
+  try {
+    final port = await startup.future.timeout(const Duration(seconds: 45));
+    return _RunningHost(
+      process: process,
+      port: port,
+      outputSubscription: outputSubscription,
+      errorSubscription: errorSubscription,
+    );
+  } on Object {
+    process.kill();
+    await process.exitCode.timeout(const Duration(seconds: 10));
+    await outputSubscription.cancel();
+    await errorSubscription.cancel();
+    rethrow;
   }
 }
 
@@ -562,4 +650,25 @@ class _HttpResult {
   const _HttpResult(this.status, this.body);
   final int status;
   final Map<String, dynamic> body;
+}
+
+class _RunningHost {
+  _RunningHost({
+    required this.process,
+    required this.port,
+    required this.outputSubscription,
+    required this.errorSubscription,
+  });
+
+  final Process process;
+  final int port;
+  final StreamSubscription<String> outputSubscription;
+  final StreamSubscription<String> errorSubscription;
+
+  Future<void> stop() async {
+    process.kill();
+    await process.exitCode.timeout(const Duration(seconds: 10));
+    await outputSubscription.cancel();
+    await errorSubscription.cancel();
+  }
 }
