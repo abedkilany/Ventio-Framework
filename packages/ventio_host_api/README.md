@@ -35,6 +35,9 @@ External TLS listeners are supported when explicitly configured, but a productio
   `extension.package.submit` grant and returns `SUBMITTED`, never `APPROVED`.
 - `POST /api/v1/extensions/read`: returns one Host-approved immutable package
   version after rechecking the exact-scope `extension.package.read` grant.
+- `POST /api/v1/extensions/records/query`: searches or fetches bounded pages of
+  records for one Host-approved DocType, using its metadata to validate fields
+  and its exact company/branch read grant on every request.
 - `POST /api/v1/identity/roles/*`: persistent-identity role administration when the restricted `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` is configured; every operation checks direct authority for the exact branch on Host.
 - `GET /api/v1/session`: authenticated identity discovery for the current
   tenant, device and exact company/branch grants; it never returns credentials.
