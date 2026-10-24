@@ -35,20 +35,21 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 - Conflict receipts preserve the local draft and mark its state; a guided field-level merge/rebase workflow is not yet implemented. Shared package upgrades use the Host registry and the client only accepts additive schema updates supported by the local engine. Resumable destructive migrations and offline command upcasting are not available.
 - The in-app Host flow stores credentials via the platform secure-storage contract and selects an exact granted branch scope. Device enrollment/pairing, credential rotation, automated package upgrades, and background sync remain incomplete; users initiate sync.
 - Decimal fields in this generic local store are data fields; this does not implement exact-money rules or financial posting.
-- The Host extension registry and dynamic record integration suites run in CI against disposable PostgreSQL 16; CI for the latest commit is still running. No local Host database or physical Android device/emulator was used.
+- The Host extension registry and dynamic record integration suites passed in CI against disposable PostgreSQL 16 for source commit `7f31ad7`. No local Host database or physical Android device/emulator was used.
 
 ## Verification performed
 
 - `flutter analyze` and `flutter test`: passed on the current client source; all 56 client tests passed, including persistent SQLite reopen, Host query scope/digest checks, queued record updates, interrupted-save recovery, conflict/rejection preservation, and phone-sized layouts.
 - `dart format --output=none --set-exit-if-changed lib test`: passed with no formatting changes.
-- PowerShell parser: passed for `scripts/prepare_native_client_platforms.ps1`. The shell script syntax check could not run because this Windows environment's WSL installation lacks `/bin/bash`; the generator change was not executed against a fresh scaffold in this check.
+- Windows PowerShell and Ubuntu shell scaffolding generators ran successfully in their platform-specific CI jobs; fresh Windows and Android runner generation passed.
 - Windows Release executable: built from the current source and remained alive for a five-second startup smoke; the UI was not manually inspected during that smoke.
 - Host API: API unit tests passed (45). No local PostgreSQL service was configured, so database integration is delegated to the disposable PostgreSQL CI runs.
+- Windows ACL-backed private-file and recovery-witness checks passed on the development machine.
 - Android Release APK: built from the current source (55.3 MB). It has not been installed on an emulator or physical device.
 - Core executable suite: 58 passed, including declarative bundle validation, metadata bounds, exact-scope authorization and the strict create/update command envelope for generic extension records.
 - Host API unit suite: 45 passed.
 - PostgreSQL line-ending checksum test: passed without a database.
 - Python schema/package checks and V1.2 contract tests: passed (20 unit tests).
-- PostgreSQL adapter, Host package approval, and dynamic record read/write integration tests run in CI against disposable PostgreSQL 16. Current CI is still running. No local or existing Ventio database was used.
+- PostgreSQL adapter, Host package approval, dynamic record read/write and page-bound integration tests passed in CI against disposable PostgreSQL 16. All eight workflows passed for source commit `7f31ad7`. No local or existing Ventio database was used.
 
 These results prove the local foundation and its tested behavior. The client now has tested Host read/query and queued write/reconciliation paths, and CI exercises the package/record database gateways against disposable PostgreSQL. They do not prove Android installation, live Windows Host deployment, multi-device operation, or production readiness. See `IMPLEMENTATION_STATUS.md` for the latest build/CI state and limitations.

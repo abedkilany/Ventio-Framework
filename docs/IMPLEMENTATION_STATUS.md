@@ -21,12 +21,13 @@ Local checks on the current worktree:
 - `flutter analyze` in `packages/ventio_native_client`: passed with no issues.
 - `flutter test` in `packages/ventio_native_client`: all 56 tests passed, including persistent SQLite reopen, package digest round-trip, branch-scoped Host query/import, update command revision, offline queueing, interrupted-save recovery, conflict/rejection preservation, and phone-sized layouts.
 - `dart analyze .` and `dart run test/api_tests.dart` in `packages/ventio_host_api`: passed; the API suite reports 45 assertions.
+- `dart run test/private_files_windows.dart` in `packages/ventio_host_api`: passed Windows ACL-backed credential and recovery-witness file checks.
 - Windows Release build: `build/windows/x64/runner/Release/ventio_native_client.exe` produced successfully.
 - Windows Release startup smoke: the built process remained alive for five seconds and closed cleanly; the UI was not manually inspected in this smoke run.
 - Android Release build: `build/app/outputs/flutter-apk/app-release.apk` produced successfully (55.3 MB).
-- PostgreSQL-backed package, record authorization, RLS, and recovery integration are executed by GitHub Actions against disposable PostgreSQL 16; the machine has no local PostgreSQL service configured.
+- PostgreSQL-backed package, record authorization, oversized-page rejection, RLS, and recovery integration passed in GitHub Actions against disposable PostgreSQL 16; the machine has no local PostgreSQL service configured.
 
-The PostgreSQL integration run exposed test-fixture issues, which were corrected without relaxing Host checks: the direct scoped SQL fixture now supplies its trusted module ID, retry receipts are compared by canonical JSON content, and each test command has a unique idempotency ID. A fresh CI run is required to confirm those corrections and the current client/Host record integration; earlier green workflows do not prove this latest tree passes.
+The PostgreSQL integration run exposed test-fixture issues, which were corrected without relaxing Host checks: the direct scoped SQL fixture now supplies its trusted module ID, retry receipts are compared by canonical JSON content, and each test command has a unique idempotency ID. All eight GitHub Actions workflows passed for source commit `7f31ad7`, including PostgreSQL 16 package/record and RLS integrations, recovery and engineering gates, and Windows/Android client CI builds. The following status-only commit does not change tested code.
 
 No physical Android device/emulator run, full interactive Windows UI acceptance session, or Windows Host serving clients on a LAN is claimed here. Local UI widget tests and successful native builds are not substitutes for those checks.
 

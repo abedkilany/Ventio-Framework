@@ -62,7 +62,7 @@ python spec/v1.2/scripts/validate_contracts.py
 python -m unittest discover -s spec/v1.2/tests -v
 ```
 
-The seven Actions workflows cover Core/contracts, PostgreSQL persistence, durable commands, API/identity/SQL security, crash/restore, credential lifecycle and the final engineering audit. The latter records actual fingerprint growth, concurrent HTTP latency, RLS read cost and real OS witness separation in an isolated PostgreSQL fixture. Reported sample latency is not an enterprise performance guarantee.
+The eight Actions workflows cover Core/contracts, PostgreSQL persistence, durable commands, API/identity/SQL security, crash/restore, credential lifecycle, the final engineering audit, and native Flutter client tests plus Windows/Android builds. The final engineering gate records actual fingerprint growth, concurrent HTTP latency, RLS read cost and OS witness separation in an isolated PostgreSQL fixture. Reported sample latency is not an enterprise performance guarantee.
 
 All code, documentation, fixtures and base UI text are English. Optional translation modules, production sync and financial modules, AI Builder and Marketplace are future work.
 
