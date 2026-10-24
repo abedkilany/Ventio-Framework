@@ -566,7 +566,8 @@ Future<void> main() async {
     );
     expect(
       replayedCreate.status == 200 &&
-          replayedCreate.body['receipt'] == created.body['receipt'],
+          canonicalJson(replayedCreate.body['receipt']) ==
+              canonicalJson(created.body['receipt']),
       'A retried generic write returns its saved Host receipt without duplication',
     );
     final updateRecord = ExtensionRecordCommand.update(

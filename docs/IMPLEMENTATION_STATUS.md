@@ -19,9 +19,10 @@ Current work is on `codex/extension-platform`. It keeps the original Ventio app,
 Local checks on the current worktree:
 
 - `flutter analyze` in `packages/ventio_native_client`: passed with no issues.
-- `flutter test` in `packages/ventio_native_client`: all 55 tests passed, including persistent SQLite reopen, package digest round-trip, branch-scoped Host query/import, update command revision, offline queueing, interrupted-save recovery, and phone-sized layouts.
+- `flutter test` in `packages/ventio_native_client`: all 56 tests passed, including persistent SQLite reopen, package digest round-trip, branch-scoped Host query/import, update command revision, offline queueing, interrupted-save recovery, conflict/rejection preservation, and phone-sized layouts.
 - `dart analyze .` and `dart run test/api_tests.dart` in `packages/ventio_host_api`: passed; the API suite reports 45 assertions.
 - Windows Release build: `build/windows/x64/runner/Release/ventio_native_client.exe` produced successfully.
+- Windows Release startup smoke: the built process remained alive for five seconds and closed cleanly; the UI was not manually inspected in this smoke run.
 - Android Release build: `build/app/outputs/flutter-apk/app-release.apk` produced successfully (55.3 MB).
 - PostgreSQL-backed package, record authorization, RLS, and recovery integration are executed by GitHub Actions against disposable PostgreSQL 16; the machine has no local PostgreSQL service configured.
 

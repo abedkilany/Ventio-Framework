@@ -244,6 +244,110 @@ void main() {
     },
   );
 
+  test('Conflict and rejection receipts preserve the local draft', () async {
+    await createActiveExtension();
+    final created = await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: const {'name': 'Host value'},
+      recordId: 'conflicted-record',
+    );
+    await store.markRecordPending(
+      recordId: created.recordId,
+      scope: _scope,
+      commandId: 'create-command',
+    );
+    await store.applyHostReceipt(
+      recordId: created.recordId,
+      scope: _scope,
+      commandId: 'create-command',
+      receipt: CommandReceipt(
+        commandId: 'create-command',
+        status: 'ACCEPTED',
+        hostRevision: 1,
+      ),
+    );
+    final localEdit = await store.updateRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: created.recordId,
+      scope: _scope,
+      expectedRevision: 1,
+      values: const {'name': 'Local edit'},
+    );
+    await store.markRecordPending(
+      recordId: localEdit.recordId,
+      scope: _scope,
+      commandId: 'update-command',
+    );
+    await store.applyHostReceipt(
+      recordId: created.recordId,
+      scope: _scope,
+      commandId: 'update-command',
+      receipt: CommandReceipt(
+        commandId: 'update-command',
+        status: 'CONFLICT',
+        reasonCode: 'REVISION_CONFLICT',
+        currentRevision: 2,
+      ),
+    );
+    await store.applyHostRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      recordId: created.recordId,
+      revision: 2,
+      values: const {'name': 'Concurrent Host value'},
+      updatedAtUtc: DateTime.utc(2026, 10, 24),
+    );
+    var conflicted = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: created.recordId,
+      scope: _scope,
+    ))!;
+    expect(conflicted.authorityState, 'CONFLICT');
+    expect(conflicted.hostRevision, 2);
+    expect(conflicted.values['name'], 'Local edit');
+
+    final rebased = await store.updateRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: created.recordId,
+      scope: _scope,
+      expectedRevision: conflicted.revision,
+      values: const {'name': 'Reviewed local draft'},
+    );
+    expect(rebased.hostRevision, 2);
+    expect(rebased.authorityState, 'LOCAL_ONLY');
+    await store.markRecordPending(
+      recordId: rebased.recordId,
+      scope: _scope,
+      commandId: 'rebased-command',
+    );
+    await store.applyHostReceipt(
+      recordId: rebased.recordId,
+      scope: _scope,
+      commandId: 'rebased-command',
+      receipt: CommandReceipt(
+        commandId: 'rebased-command',
+        status: 'REJECTED',
+        reasonCode: 'PERMISSION_DENIED',
+      ),
+    );
+    conflicted = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: created.recordId,
+      scope: _scope,
+    ))!;
+    expect(conflicted.authorityState, 'REJECTED');
+    expect(conflicted.pendingCommandId, isNull);
+    expect(conflicted.hostRevision, 2);
+    expect(conflicted.values['name'], 'Reviewed local draft');
+  });
+
   test('Host record imports remain isolated by exact branch scope', () async {
     await createActiveExtension();
     const otherBranch = RecordScope(
