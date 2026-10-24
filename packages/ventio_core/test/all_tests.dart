@@ -61,6 +61,54 @@ Principal actor(
 MaintenancePrototype fresh() => bootstrapMaintenancePrototype(root);
 
 void main() {
+  test('Principal grants stay bound to exact company and branch pairs', () {
+    final principal = Principal(
+      actorId: 'user',
+      deviceId: 'device',
+      tenantId: 'tenant',
+      companyIds: {'company-A', 'company-B'},
+      branchIds: {'branch-1', 'branch-2'},
+      permissions: {'assets.read', 'assets.write'},
+      scopeGrants: [
+        PrincipalScope(
+          companyId: 'company-A',
+          branchId: 'branch-1',
+          permissions: {'assets.read'},
+        ),
+        PrincipalScope(
+          companyId: 'company-B',
+          branchId: 'branch-2',
+          permissions: {'assets.write'},
+        ),
+      ],
+    );
+
+    check(
+      principal.allowsInScope('assets.read', 'company-A', 'branch-1'),
+      'Grant for the authorized pair was lost',
+    );
+    check(
+      !principal.hasScope('company-A', 'branch-2'),
+      'Separate company and branch grants formed an unauthorized pair',
+    );
+    check(
+      !principal.allowsInScope('assets.write', 'company-A', 'branch-1') &&
+          !principal.allowsInScope('assets.read', 'company-B', 'branch-2'),
+      'Permissions leaked between exact scopes',
+    );
+    checkThrows(
+      () => Principal(
+        actorId: 'user',
+        deviceId: 'device',
+        tenantId: 'tenant',
+        companyIds: {'company-A', 'company-B'},
+        branchIds: {'branch-1', 'branch-2'},
+        permissions: {'assets.read'},
+      ),
+      'Multiple scope sets without explicit pairs were accepted',
+    );
+  });
+
   test('V1.2 fixture bootstraps an operational module', () {
     final p = fresh();
     check(p.modules.installedIds.single == 'com.ventio.maintenance',
@@ -275,6 +323,34 @@ void main() {
     final receipt =
         fresh().host.execute(command(), actor(permissions: <String>{}));
     check(receipt.reasonCode == 'PERMISSION_DENIED', 'Permission bypass');
+  });
+  test('Permission on another scope cannot authorize a Host command', () {
+    final envelope = command();
+    final principal = Principal(
+      actorId: envelope.actorId,
+      deviceId: envelope.deviceId,
+      tenantId: envelope.tenantId,
+      companyIds: {envelope.companyId, 'other-company'},
+      branchIds: {envelope.branchId, 'other-branch'},
+      permissions: {'maintenance.create', 'maintenance.read'},
+      scopeGrants: [
+        PrincipalScope(
+          companyId: envelope.companyId,
+          branchId: envelope.branchId,
+          permissions: {'maintenance.read'},
+        ),
+        PrincipalScope(
+          companyId: 'other-company',
+          branchId: 'other-branch',
+          permissions: {'maintenance.create', 'maintenance.read'},
+        ),
+      ],
+    );
+    final receipt = fresh().host.execute(envelope, principal);
+    check(
+      receipt.reasonCode == 'PERMISSION_DENIED',
+      'Permission from a different exact scope authorized the command',
+    );
   });
   test('Invalid field type is rejected before any effect', () {
     final p = fresh();

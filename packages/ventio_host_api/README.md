@@ -53,9 +53,10 @@ they cannot establish identity or grant permissions. The durable engine rechecks
 permissions before returning even previously saved receipts.
 
 Development revocation is not persistent or distributed. Existing admitted work
-may finish when a token is revoked. Principal company/branch sets grant their
-cross-product; provision only intended combinations (prefer one company per
-credential). Device identity here is token-bound, not hardware attestation.
+may finish when a token is revoked. A Principal binds permissions to exact
+company/branch pairs. A single-pair development identity can omit `scopeGrants`;
+multiple pairs must declare each exact pair and its permissions explicitly.
+Device identity here is token-bound, not hardware attestation.
 
 `HostApi.bind` always binds `127.0.0.1`; it has no external-bind switch, production
 mode, or unauthenticated default. Do not expose it through a public proxy or tunnel.
@@ -90,9 +91,21 @@ Private identity file structure (all values are illustrative, not credentials):
   "tenantId": "tenant-001",
   "companyIds": ["company-001"],
   "branchIds": ["branch-001"],
-  "permissions": ["maintenance.create"]
+  "permissions": ["maintenance.create"],
+  "scopeGrants": [
+    {
+      "companyId": "company-001",
+      "branchId": "branch-001",
+      "permissions": ["maintenance.create"]
+    }
+  ]
 }
 ```
+
+For one exact company/branch pair, `scopeGrants` may be omitted and the listed
+permissions apply to that pair. For more than one pair, it is required. Each
+grant must use IDs present in `companyIds` and `branchIds`, and permissions must
+be listed in `permissions`; pairs and permissions never form a cross-product.
 
 Then `dart run bin/development_host.dart`. The launcher installs the maintenance
 proof module only, never logs secrets, and rejects production or implicit startup.

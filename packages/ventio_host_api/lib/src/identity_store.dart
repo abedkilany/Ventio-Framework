@@ -31,6 +31,15 @@ class PostgresIdentityStore {
     if (rows.single[0] == null) return null;
     final identity =
         jsonDecode(rows.single[0] as String) as Map<String, dynamic>;
+    final grantsByScope = <(String, String), Set<String>>{};
+    for (final rawGrant in identity['scopeGrants'] as List) {
+      final grant = rawGrant as Map<String, dynamic>;
+      final companyId = grant['companyId'] as String;
+      final branchId = grant['branchId'] as String;
+      final permission = grant['permission'] as String;
+      grantsByScope.putIfAbsent((companyId, branchId), () => <String>{})
+        ..add(permission);
+    }
     return Principal(
       tenantId: identity['tenantId'] as String,
       actorId: identity['actorId'] as String,
@@ -38,6 +47,13 @@ class PostgresIdentityStore {
       companyIds: (identity['companyIds'] as List).cast<String>().toSet(),
       branchIds: (identity['branchIds'] as List).cast<String>().toSet(),
       permissions: (identity['permissions'] as List).cast<String>().toSet(),
+      scopeGrants: grantsByScope.entries.map(
+        (entry) => PrincipalScope(
+          companyId: entry.key.$1,
+          branchId: entry.key.$2,
+          permissions: entry.value,
+        ),
+      ),
     );
   }
 }

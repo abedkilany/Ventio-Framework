@@ -41,6 +41,19 @@ Future<void> main() async {
         requireList(identity, 'permissions'),
         'permissions',
       ).toSet(),
+      scopeGrants: identity['scopeGrants'] == null
+          ? null
+          : (identity['scopeGrants'] as List).map((rawGrant) {
+              final grant = requireMap(rawGrant, 'scope grant');
+              return PrincipalScope(
+                companyId: requireString(grant, 'companyId'),
+                branchId: requireString(grant, 'branchId'),
+                permissions: strings(
+                  requireList(grant, 'permissions'),
+                  'scope grant permissions',
+                ).toSet(),
+              );
+            }),
     );
     final credential = DevelopmentCredential(
       tokenDigest: requireString(identity, 'tokenDigest'),

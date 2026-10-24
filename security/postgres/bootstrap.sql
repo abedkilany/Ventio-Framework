@@ -86,6 +86,7 @@ DECLARE c public.ventio_identity_credentials%ROWTYPE;
         u public.ventio_identity_users%ROWTYPE;
         d public.ventio_identity_devices%ROWTYPE;
         g record; companies text[] := '{}'; branches text[] := '{}'; permissions text[] := '{}';
+        scope_grants jsonb := '[]'::jsonb;
 BEGIN
   IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
   IF p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' THEN RETURN NULL; END IF;
@@ -111,9 +112,12 @@ BEGIN
     companies := array_append(companies, g.company_id);
     branches := array_append(branches, g.branch_id);
     permissions := array_append(permissions, g.permission);
+    scope_grants := scope_grants || jsonb_build_array(jsonb_build_object(
+      'companyId', g.company_id, 'branchId', g.branch_id, 'permission', g.permission));
   END LOOP;
   RETURN jsonb_build_object('tenantId', c.tenant_id, 'actorId', c.actor_id, 'deviceId', c.device_id,
-    'companyIds', companies, 'branchIds', branches, 'permissions', permissions);
+    'companyIds', companies, 'branchIds', branches, 'permissions', permissions,
+    'scopeGrants', scope_grants);
 END $fn$;
 
 -- The context contains a confidential proof handle, not trusted scope claims.
@@ -159,7 +163,11 @@ BEGIN
   IF NOT FOUND THEN RETURN false; END IF;
   identity := ventio_security.identity_snapshot(nullif(current_setting('ventio.credential_digest', true), ''), p_company, p_branch);
   IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
-      NOT (identity->'companyIds' ? p_company AND identity->'branchIds' ? p_branch) THEN RETURN false; END IF;
+      NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(identity->'scopeGrants') AS grant_rows(grant_row)
+        WHERE grant_row->>'companyId' = p_company AND grant_row->>'branchId' = p_branch
+      ) THEN RETURN false; END IF;
   can_create := identity->'permissions' ? binding.create_permission;
   can_read := can_create OR identity->'permissions' ? binding.read_permission;
   IF p_mode = 'record_read' THEN RETURN can_read AND p_subject = binding.doc_type; END IF;

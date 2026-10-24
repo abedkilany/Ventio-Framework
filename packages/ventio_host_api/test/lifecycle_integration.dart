@@ -347,7 +347,12 @@ Future<void> main() async {
         );
       });
       check(
-        direct != null && !direct.allows('maintenance.create'),
+        direct != null &&
+            !direct.allowsInScope(
+              'maintenance.create',
+              'company-002',
+              'branch-002',
+            ),
         'Direct SQL proof retains exact credential scope ceiling',
       );
     } finally {

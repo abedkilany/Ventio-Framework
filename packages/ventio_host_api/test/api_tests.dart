@@ -19,16 +19,19 @@ class FakeExecutor implements CommandExecutor {
     AuthenticatedSession session,
   ) async {
     final principal = session.principal;
+    final canCreate = principal.allowsInScope(
+      'maintenance.create',
+      command.companyId,
+      command.branchId,
+    );
     calls++;
     entered?.complete();
     if (release != null) await release!.future;
     if (fail) throw StateError('sensitive database diagnostic');
     return CommandReceipt(
       commandId: command.commandId,
-      status: principal.allows('maintenance.create') ? 'ACCEPTED' : 'REJECTED',
-      reasonCode: principal.allows('maintenance.create')
-          ? null
-          : 'PERMISSION_DENIED',
+      status: canCreate ? 'ACCEPTED' : 'REJECTED',
+      reasonCode: canCreate ? null : 'PERMISSION_DENIED',
     ).toJson();
   }
 }

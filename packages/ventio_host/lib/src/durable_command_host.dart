@@ -108,9 +108,17 @@ class DurableCommandHost {
           if (declaration == null ||
               capability == null ||
               docType == null ||
-              !authenticatedPrincipal.allows(declaration.permission) ||
+              !authenticatedPrincipal.allowsInScope(
+                declaration.permission,
+                command.companyId,
+                command.branchId,
+              ) ||
               capability.requiredPermissions.any(
-                (permission) => !authenticatedPrincipal.allows(permission),
+                (permission) => !authenticatedPrincipal.allowsInScope(
+                  permission,
+                  command.companyId,
+                  command.branchId,
+                ),
               )) {
             return _failure(command, 'REJECTED', 'PERMISSION_DENIED');
           }

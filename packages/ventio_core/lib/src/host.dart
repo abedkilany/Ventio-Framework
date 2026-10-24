@@ -155,10 +155,20 @@ class InMemoryHost {
     final capability = modules.getCapability(declaration.capabilityId);
     final docType = docTypes.get(binding.docTypeName)!;
     // Re-check authorization on every request, including idempotent retries.
-    if (!authenticatedPrincipal.allows(declaration.permission) ||
+    if (!authenticatedPrincipal.allowsInScope(
+          declaration.permission,
+          command.companyId,
+          command.branchId,
+        ) ||
         capability == null ||
         capability.requiredPermissions
-            .any((p) => !authenticatedPrincipal.allows(p))) {
+            .any(
+              (permission) => !authenticatedPrincipal.allowsInScope(
+                permission,
+                command.companyId,
+                command.branchId,
+              ),
+            )) {
       return failure('REJECTED', 'PERMISSION_DENIED');
     }
     final journalKey = '${command.tenantId}\u0000${command.commandId}';
@@ -253,10 +263,14 @@ class InMemoryHost {
   StoredRecord? readRecord(
       String docType, String aggregateId, Principal principal,
       {required String companyId, required String branchId}) {
-    if (!principal.companyIds.contains(companyId) ||
-        !principal.branchIds.contains(branchId)) return null;
+    if (!principal.hasScope(companyId, branchId)) return null;
     final type = docTypes.get(docType);
-    if (type == null || !principal.allows(type.permissions['read'] ?? ''))
+    if (type == null ||
+        !principal.allowsInScope(
+          type.permissions['read'] ?? '',
+          companyId,
+          branchId,
+        ))
       return null;
     final record = _state.records[
         '${principal.tenantId}\u0000$companyId\u0000$branchId\u0000$docType\u0000$aggregateId'];
