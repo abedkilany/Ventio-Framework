@@ -81,8 +81,11 @@ class RecoveryAuthority {
   Future<void> admit(pg.TxSession tx) async {
     final state = await _read();
     await tx.execute(
-      pg.Sql.named('SELECT ventio_security.admit_recovery(@proof)'),
-      parameters: {'proof': state['fingerprint']},
+      pg.Sql.named('SELECT ventio_security.admit_recovery(@proof,@authority)'),
+      parameters: {
+        'proof': state['fingerprint'],
+        'authority': state['authorityId'],
+      },
     );
   }
 

@@ -108,12 +108,21 @@ Host also closes access when its database differs from the latest witness.
 
 The witness is a separate private, fsynced, atomically replaced file outside the
 PostgreSQL backup/restore domain. It contains a version, authority generation,
-ready/pending state and SHA-256 fingerprint of recovery configuration and all
-persistent user/device/credential/scope/grant/identity-audit rows. It contains no
-raw credential. The fingerprint is a consistency check against the value supplied by the trusted
-Host from independent storage, not a digital signature or a database-only
-freshness oracle. A privileged backup holder can reconstruct old snapshot hashes;
-never give clients database/runtime credentials or authority-path control.
+ready/pending state and SHA-256 fingerprint of the protected recovery state and
+approved migration ledger. Statement triggers serialize and advance the protected
+generation when identity, grant, audit, credential, branch, device, migration,
+approved/revoked package or corresponding registry-event rows change. The
+singleton recovery-state trigger serializes updates, forces the generation to
+advance by one and rejects row deletion or truncation. It contains no raw
+credential. Runtime admission compares the witness with the current
+database fingerprint once per transaction. SQL then issues an HMAC proof bound to
+the database, backend process, transaction ID and fingerprint; RLS verifies that
+proof without rescanning identity and audit history for every business row. Runtime
+roles cannot read the protected authority ID or use the separate `ventio_crypto`
+schema that contains the `pgcrypto` HMAC function. The fingerprint remains a consistency check against trusted Host input,
+not a digital signature or a database-only freshness oracle. A privileged backup
+holder can reconstruct old snapshot hashes; never give clients database/runtime
+credentials or authority-path control.
 The fingerprint is confidential admission evidence: do not log
 or distribute the file to clients. It must remain the latest trusted linear
 record; copying an old witness back with an old DB defeats that assumption.
@@ -125,7 +134,9 @@ transaction advisory lock it validates the previous fingerprint, executes the
 existing audited admin RPC and obtains the new fingerprint. Only after COMMIT
 acknowledgement does it fsync a ready witness. Authentication/commands take the
 shared counterpart through commit, so administration cannot interleave stale
-identity state with an accepted command.
+identity state with an accepted command. Shared admission locks remain held until
+the business transaction ends; protected mutations take the exclusive lock and
+advance the generation before they can become visible.
 
 A process kill, unknown commit, I/O error or crash after DB commit but before
 witness publication leaves admission closed. It never adopts the restored DB as
@@ -133,8 +144,21 @@ its own proof of freshness. A known SQL action rejection before any COMMIT can
 restore the prior ready witness only after rollback and a locked comparison with
 that exact previously trusted fingerprint. This lets a legitimate losing rotation
 fail without unnecessarily quarantining the winner. Unexpected errors remain
-pending. Direct admin RPCs that bypass the coordinator change the DB fingerprint
-and close subsequent Host access; they cannot silently update independent evidence.
+pending. Direct row changes to covered tables, while the installed triggers
+remain active, advance the generation and change the DB fingerprint, closing
+subsequent Host access; they cannot silently update independent evidence. A
+trusted database owner can alter or disable those triggers and remains part of
+the trusted computing base.
+
+The recovery fingerprint profile has changed from a full serialization of
+identity/history rows to the protected generation scheme. Applying the updated
+security bootstrap changes the profile and invalidates an old witness. Stop the
+Host, apply the reviewed bootstrap, preserve the old witness for investigation,
+then use the explicit `reset-for-reenrollment` procedure. This revokes every old
+credential/device and removes grants; do not copy or edit a witness to bypass the
+transition. The Windows PostgreSQL integration repeats bootstrap on an already
+initialized disposable cluster and verifies RLS proof replay/forgery denial plus
+fail-closed behavior after an out-of-band identity mutation.
 
 The local witness is an implemented prototype authority provider, not a remote
 consensus/immutable ledger. A trusted operator can change paths or roll it back;

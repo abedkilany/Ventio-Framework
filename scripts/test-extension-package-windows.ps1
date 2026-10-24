@@ -84,6 +84,20 @@ try {
     if ($LASTEXITCODE -ne 0) {
       throw 'PostgreSQL security bootstrap failed.'
     }
+    # Simulate the previous private extension schema, then exercise both the
+    # controlled pgcrypto move and repeatable installation on the same schema.
+    docker exec --env PGPASSWORD=ventio_test_only $containerName psql `
+      -v ON_ERROR_STOP=1 -h localhost -U ventio -d ventio_host_test `
+      -c 'ALTER EXTENSION pgcrypto SET SCHEMA ventio_security;'
+    if ($LASTEXITCODE -ne 0) {
+      throw 'Could not prepare the previous private pgcrypto schema profile.'
+    }
+    docker exec --env PGPASSWORD=ventio_test_only $containerName psql `
+      -v ON_ERROR_STOP=1 -h localhost -U ventio -d ventio_host_test `
+      -v expected_database=ventio_host_test -f /tmp/ventio-security/bootstrap.sql
+    if ($LASTEXITCODE -ne 0) {
+      throw 'Repeat PostgreSQL security bootstrap failed.'
+    }
     docker exec --env PGPASSWORD=ventio_test_only $containerName psql `
       -v ON_ERROR_STOP=1 -h localhost -U ventio -d ventio_host_test `
       -f /tmp/ventio-security/test_logins.sql

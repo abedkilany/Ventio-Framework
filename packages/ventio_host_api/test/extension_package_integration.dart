@@ -750,6 +750,216 @@ Future<void> main() async {
       'Package visibility is granted by the reader exact-scope permission',
     );
 
+    final readBinding = pg.Sql.named(
+      'SELECT ventio_security.resolve_extension_read_identity('
+      '@digest,@company,@branch,@module,@version,\'Item\')',
+    );
+    final readBindingParameters = {
+      'digest': OpaqueToken.digest(primaryToken),
+      'company': primaryCompany,
+      'branch': primaryBranch,
+      'module': package.moduleId,
+      'version': package.version,
+    };
+    final scopedReadParameters = {
+      'tenant': tenant,
+      'company': primaryCompany,
+      'branch': primaryBranch,
+      'module': package.moduleId,
+    };
+    final admittedRead = await runtimeConnection.runTx((tx) async {
+      await authority.admit(tx);
+      final resolved = await tx.execute(
+        readBinding,
+        parameters: readBindingParameters,
+      );
+      final visibleRows = await tx.execute(
+        pg.Sql.named(
+          'SELECT record_id FROM public.ventio_records WHERE tenant_id=@tenant '
+          'AND company_id=@company AND branch_id=@branch AND module_id=@module '
+          "AND doc_type='Item'",
+        ),
+        parameters: scopedReadParameters,
+      );
+      final proof = await tx.execute(
+        "SELECT current_setting('ventio.recovery_fingerprint'), "
+        "current_setting('ventio.recovery_proof')",
+      );
+      return {
+        'resolved': resolved.single[0] != null,
+        'visibleRows': visibleRows.length,
+        'fingerprint': proof.single[0] as String,
+        'proof': proof.single[1] as String,
+      };
+    });
+    expect(
+      admittedRead['resolved'] == true &&
+          admittedRead['visibleRows']! as int > 0,
+      'An admitted transaction receives a recovery proof and scoped RLS rows',
+    );
+
+    Future<int> rowsWithRecoveryGucs(String proof) => runtimeConnection.runTx((
+      tx,
+    ) async {
+      await tx.execute(
+        pg.Sql.named(
+          "SELECT set_config('ventio.recovery_fingerprint',@fingerprint,true), "
+          "set_config('ventio.recovery_proof',@proof,true)",
+        ),
+        parameters: {
+          'fingerprint': admittedRead['fingerprint'],
+          'proof': proof,
+        },
+      );
+      await tx.execute(readBinding, parameters: readBindingParameters);
+      return (await tx.execute(
+            pg.Sql.named(
+              'SELECT count(*) FROM public.ventio_records WHERE tenant_id=@tenant '
+              'AND company_id=@company AND branch_id=@branch AND module_id=@module '
+              "AND doc_type='Item'",
+            ),
+            parameters: scopedReadParameters,
+          )).single[0]
+          as int;
+    });
+    expect(
+      await rowsWithRecoveryGucs(admittedRead['proof']! as String) == 0,
+      'A signed recovery proof cannot be replayed in another transaction',
+    );
+    expect(
+      await rowsWithRecoveryGucs(admittedRead['fingerprint']! as String) == 0,
+      'A caller cannot forge recovery admission by setting custom GUCs',
+    );
+    var privateHmacDenied = false;
+    try {
+      await runtimeConnection.execute(
+        "SELECT ventio_crypto.hmac(decode('00','hex'),decode('00','hex'),'sha256')",
+      );
+    } on pg.ServerException {
+      privateHmacDenied = true;
+    }
+    expect(
+      privateHmacDenied,
+      'Runtime cannot call the private recovery proof primitive directly',
+    );
+
+    // Recreate the previously failing 1k-user / 20k-audit workload on the
+    // disposable database. The recovery check should stay bounded while the
+    // identity history grows, and current RLS still has to return scoped rows.
+    const benchmarkTenant = 'benchmark-recovery-scale';
+    await authority.change(observer, (tx) async {
+      await tx.execute(
+        "INSERT INTO public.ventio_identity_branches(tenant_id,company_id,branch_id) "
+        "VALUES ('$benchmarkTenant','benchmark-company','benchmark-branch')",
+      );
+      await tx.execute(
+        "INSERT INTO public.ventio_identity_users(tenant_id,actor_id) "
+        "SELECT '$benchmarkTenant','fixture-user-'||i FROM generate_series(1,1000) AS s(i)",
+      );
+      await tx.execute(
+        "INSERT INTO public.ventio_identity_devices(tenant_id,actor_id,device_id) "
+        "SELECT '$benchmarkTenant','fixture-user-'||i,'fixture-device-'||i "
+        "FROM generate_series(1,1000) AS s(i)",
+      );
+      await tx.execute(
+        "INSERT INTO public.ventio_identity_credentials(tenant_id,actor_id,device_id,credential_id,token_digest,expires_at) "
+        "SELECT '$benchmarkTenant','fixture-user-'||i,'fixture-device-'||i,'fixture-credential-'||i, "
+        "encode(sha256(convert_to('non-deliverable-fixture:'||i,'UTF8')),'hex'),clock_timestamp()+interval '1 hour' "
+        'FROM generate_series(1,1000) AS s(i)',
+      );
+      await tx.execute(
+        "INSERT INTO public.ventio_identity_grants(tenant_id,actor_id,company_id,branch_id,permission) "
+        "SELECT '$benchmarkTenant','fixture-user-'||i,'benchmark-company','benchmark-branch','extension.test.read' "
+        'FROM generate_series(1,1000) AS s(i)',
+      );
+      await tx.execute(
+        "INSERT INTO public.ventio_identity_audit(tenant_id,operator_label,action,subject_id,details) "
+        "SELECT '$benchmarkTenant','benchmark','HISTORY_FIXTURE','history-'||i,'{}'::jsonb "
+        'FROM generate_series(1,20000) AS s(i)',
+      );
+      await tx.execute(
+        pg.Sql.named(
+          'INSERT INTO public.ventio_records(tenant_id,company_id,branch_id,module_id,doc_type,record_id,revision,record_data) '
+          "SELECT @tenant,@company,@branch,@module,'Item','perf-'||i,1,jsonb_build_object('title','fixture-'||i) "
+          'FROM generate_series(1,32) AS s(i)',
+        ),
+        parameters: {
+          'tenant': tenant,
+          'company': primaryCompany,
+          'branch': primaryBranch,
+          'module': package.moduleId,
+        },
+      );
+    });
+
+    final fingerprintSamples = <double>[];
+    for (var sample = 0; sample < 5; sample++) {
+      final watch = Stopwatch()..start();
+      await RecoveryAuthority.snapshot(observer);
+      fingerprintSamples.add(watch.elapsedMicroseconds / 1000);
+    }
+    final fingerprintSorted = [...fingerprintSamples]..sort();
+    final fingerprintMedianMs = fingerprintSorted[2];
+    final rlsSamples = <double>[];
+    var benchmarkRows = 0;
+    for (var sample = 0; sample < 5; sample++) {
+      final watch = Stopwatch()..start();
+      benchmarkRows = await runtimeConnection.runTx((tx) async {
+        await authority.admit(tx);
+        await tx.execute(readBinding, parameters: readBindingParameters);
+        return (await tx.execute(
+          pg.Sql.named(
+            'SELECT record_id FROM public.ventio_records WHERE tenant_id=@tenant '
+            'AND company_id=@company AND branch_id=@branch AND module_id=@module '
+            "AND doc_type='Item' ORDER BY record_id LIMIT 20",
+          ),
+          parameters: scopedReadParameters,
+        )).length;
+      });
+      rlsSamples.add(watch.elapsedMicroseconds / 1000);
+    }
+    final rlsSorted = [...rlsSamples]..sort();
+    final rlsMedianMs = rlsSorted[2];
+    final hostQuerySamples = <double>[];
+    var hostQueryRows = 0;
+    for (var sample = 0; sample < 5; sample++) {
+      final watch = Stopwatch()..start();
+      final response = await queryRecords(primaryToken, limit: 20);
+      hostQueryRows =
+          ((response.body['recordResult'] as Map<String, dynamic>)['records']
+                  as List)
+              .length;
+      hostQuerySamples.add(watch.elapsedMicroseconds / 1000);
+      if (response.status != 200) {
+        throw StateError('Scaled Host query failed with ${response.status}');
+      }
+    }
+    final hostQuerySorted = [...hostQuerySamples]..sort();
+    final hostQueryMedianMs = hostQuerySorted[2];
+    final benchmarkResult = <String, Object?>{
+      'fixtureUsers': 1000,
+      'fixtureAuditRows': 20000,
+      'snapshotMedianMs': fingerprintMedianMs,
+      'rlsRows': benchmarkRows,
+      'rlsReadMedianMs': rlsMedianMs,
+      'hostQueryRows': hostQueryRows,
+      'hostQueryMedianMs': hostQueryMedianMs,
+      'samples': 5,
+    };
+    stdout.writeln('RECOVERY_BENCHMARK: ${jsonEncode(benchmarkResult)}');
+    expect(
+      fingerprintMedianMs < 1000,
+      'Recovery fingerprint stays below 1 second at 1k users and 20k audit rows',
+    );
+    expect(
+      benchmarkRows == 20 && rlsMedianMs < 5000,
+      'Scoped RLS returns 20 rows below 5 seconds at the 1k/20k profile',
+    );
+    expect(
+      hostQueryRows == 20 && hostQueryMedianMs < 5000,
+      'Authenticated Host query returns 20 rows below 5 seconds at the 1k/20k profile',
+    );
+
     final older = bundle('com.example.registry', '0.9.0');
     await submitPackage(primaryToken, older);
     await mustFail(
@@ -848,6 +1058,47 @@ Future<void> main() async {
           )).single[0] ==
           5,
       'Approval and revocation events remain in the operator audit ledger',
+    );
+    await observer.execute(
+      "UPDATE public.ventio_identity_users SET disabled_at=clock_timestamp() "
+      "WHERE tenant_id='$benchmarkTenant' AND actor_id='fixture-user-1'",
+    );
+    var staleWitnessDenied = false;
+    try {
+      await runtimeConnection.runTx(authority.admit);
+    } on pg.ServerException {
+      staleWitnessDenied = true;
+    }
+    expect(
+      staleWitnessDenied,
+      'A privileged out-of-band identity edit invalidates recovery admission',
+    );
+    final generationBeforeRollbackAttempt =
+        (await observer.execute(
+              'SELECT generation FROM ventio_security.recovery_state WHERE singleton',
+            )).single[0]
+            as int;
+    await observer.execute(
+      'UPDATE ventio_security.recovery_state SET generation=0 WHERE singleton',
+    );
+    final generationAfterRollbackAttempt =
+        (await observer.execute(
+              'SELECT generation FROM ventio_security.recovery_state WHERE singleton',
+            )).single[0]
+            as int;
+    expect(
+      generationAfterRollbackAttempt == generationBeforeRollbackAttempt + 1,
+      'A direct recovery-state update cannot roll its generation backward',
+    );
+    var recoveryTruncateDenied = false;
+    try {
+      await observer.execute('TRUNCATE ventio_security.recovery_state');
+    } on pg.ServerException {
+      recoveryTruncateDenied = true;
+    }
+    expect(
+      recoveryTruncateDenied,
+      'The recovery authority state cannot be truncated',
     );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {

@@ -3,6 +3,20 @@ CREATE OR REPLACE FUNCTION ventio_security.assert_schema()
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_extension e
+      JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
+      JOIN pg_catalog.pg_roles r ON r.oid=e.extowner
+    WHERE e.extname='pgcrypto' AND n.nspname='ventio_crypto'
+      AND r.rolname='ventio_owner'
+      AND pg_catalog.to_regprocedure('ventio_crypto.hmac(bytea,bytea,text)') IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Unsupported private recovery proof profile' USING ERRCODE='55000';
+  END IF;
+  IF has_schema_privilege('ventio_runtime','ventio_crypto','USAGE') OR
+      has_schema_privilege('ventio_identity_admin','ventio_crypto','USAGE') THEN
+    RAISE EXCEPTION 'Recovery HMAC schema is exposed to an operational role' USING ERRCODE='55000';
+  END IF;
   IF EXISTS (
     WITH expected(name,sha256) AS (VALUES
     ('001_records.sql','736d63fd6f013cac931a123064dd8e7a391609132175a15853bd6acca8a00d2b'),

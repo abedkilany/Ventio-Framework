@@ -21,6 +21,23 @@ BEGIN
   END LOOP;
 END $roles$;
 GRANT ventio_owner TO ventio_migrator WITH INHERIT FALSE, SET TRUE;
+-- A prior recovery profile kept pgcrypto beside callable RLS functions. Move
+-- that extension as the trusted cluster administrator before reducing to the
+-- non-superuser owner role below.
+CREATE SCHEMA IF NOT EXISTS ventio_crypto AUTHORIZATION ventio_owner;
+REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+DO $crypto_upgrade$
+DECLARE crypto_schema text; crypto_owner name;
+BEGIN
+  SELECT n.nspname,r.rolname INTO crypto_schema,crypto_owner
+    FROM pg_catalog.pg_extension e
+    JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
+    JOIN pg_catalog.pg_roles r ON r.oid=e.extowner
+    WHERE e.extname='pgcrypto';
+  IF crypto_schema='ventio_security' AND crypto_owner='ventio_owner' THEN
+    ALTER EXTENSION pgcrypto SET SCHEMA ventio_crypto;
+  END IF;
+END $crypto_upgrade$;
 DO $database$
 BEGIN
   EXECUTE format('REVOKE ALL ON DATABASE %I FROM PUBLIC', current_database());
@@ -44,6 +61,25 @@ SET LOCAL ROLE ventio_owner;
 CREATE SCHEMA IF NOT EXISTS ventio_security AUTHORIZATION ventio_owner;
 REVOKE ALL ON SCHEMA ventio_security FROM PUBLIC;
 GRANT USAGE ON SCHEMA ventio_security TO ventio_runtime, ventio_identity_admin;
+CREATE SCHEMA IF NOT EXISTS ventio_crypto AUTHORIZATION ventio_owner;
+REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA ventio_crypto;
+DO $crypto$
+DECLARE crypto_schema text; crypto_owner name;
+BEGIN
+  SELECT n.nspname,r.rolname INTO crypto_schema,crypto_owner
+    FROM pg_catalog.pg_extension e
+    JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
+    JOIN pg_catalog.pg_roles r ON r.oid=e.extowner
+    WHERE e.extname='pgcrypto';
+  IF crypto_owner IS DISTINCT FROM 'ventio_owner' OR
+      crypto_schema IS DISTINCT FROM 'ventio_crypto' THEN
+    RAISE EXCEPTION 'Private pgcrypto HMAC support is required';
+  END IF;
+  IF pg_catalog.to_regprocedure('ventio_crypto.hmac(bytea,bytea,text)') IS NULL THEN
+    RAISE EXCEPTION 'Private pgcrypto HMAC support is required';
+  END IF;
+END $crypto$;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
@@ -346,7 +382,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, 
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
   ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
-  ventio_security.admit_recovery(text),
+  ventio_security.admit_recovery(text,text),
   ventio_security.resolve_extension_read_identity(text,text,text,text,text,text),
   ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint),
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),

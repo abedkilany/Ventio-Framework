@@ -61,9 +61,45 @@ Measured on [engineering run 40039937764](https://github.com/abedkilany/Ventio-F
 
 Each profile has five fingerprint samples and eight real HTTP requests in two waves of four. Actual row counts include the operational test identity and administration audit. Every original envelope was replayed and each record/journal/audit/outbox count was exactly one. All measured RLS reads completed before their ten-second SQL deadline. Users, devices, grants and audit history co-vary; this experiment does not isolate their individual causal contributions. The full 75-assertion gate also passed separate-UID protection, FIFO/helper timeout, schema quarantine, administrative pending state, actual lock timeout/retry, SIGTERM drain/restart and isolated rollback/restore checks.
 
-**Performance finding: production capacity gate FAILS.** The bounded small-profile development gate passed, but approximately twenty-second command latency and 8.8-second limited reads at the largest profile are unacceptable evidence for general ERP deployment. No optimization is claimed. A follow-up must redesign trusted recovery-state proof and repeated RLS checks, define workload/SLOs, and re-prove revocation/rollback/concurrency properties before any production/network gate. Do not mask the cost with a client-controlled/session-only cached permission or fingerprint.
+### Recovery proof follow-up (Windows local PostgreSQL)
 
-The full-state fingerprint sorts/serializes identity and audit JSON on admission and repeated RLS identity checks. Its CPU/memory work grows with total identity history; row-policy evaluation can amplify it with business rows. Global recovery locks also couple tenant availability during administration. No untrusted session-variable cache is substituted for current authorization. These costs must be redesigned/benchmarked for production without weakening freshness or revocation guarantees.
+On 2026-10-24, the repeatable Windows integration created 1,000 users, devices,
+credentials and grants plus 20,000 identity-audit rows in a disposable
+PostgreSQL 16.15 container. Across five samples it measured a 1.818 ms median
+recovery snapshot, 632.218 ms median RLS read for 20 rows, and 1,375.098 ms
+median authenticated Host query for 20 rows. The same run passed 43 package,
+branch-isolation, migration-rebootstrap, proof replay/forgery, recovery
+generation monotonicity, and recovery invalidation assertions. It simulated
+`pgcrypto` in the previous private schema before applying the current bootstrap.
+Runtime access to the isolated crypto schema was denied.
+
+This is not a direct before/after comparison: the earlier 400 ms snapshot,
+19.6-second HTTP command, and 8.8-second RLS read came from a two-CPU Linux
+GitHub runner, while the follow-up ran on the Windows development machine with
+Docker PostgreSQL. The fixture directly measures the recovery and read paths;
+it does not remeasure concurrent command throughput or a customer workload.
+
+The follow-up replaces repeated full identity/audit serialization with a
+protected generation advanced by database triggers and an HMAC proof bound to
+one admitted transaction. The recovery-state row forces every update to advance
+the generation and rejects delete/truncate. RLS verifies that proof without
+rescanning all identity history. The HMAC primitive lives in the separate `ventio_crypto`
+schema, which runtime and identity-administration roles cannot use. The HMAC
+key is the owner-only authority ID, supplied from the independent witness and
+compared with protected database state. The database fingerprint still includes
+its protected state and migration ledger, so covered row changes fail closed
+while the installed triggers remain active. The trusted database owner can
+alter those triggers or functions and remains in the trust boundary. Existing witness files from the previous
+fingerprint profile require the controlled reset/re-enrollment transition in
+operations documentation.
+
+**Production capacity gate remains open.** These local results show that the
+specific 1k-user/20k-audit hot path is no longer dominated by full history scans,
+but a 1.2-second authenticated page query is not an enterprise SLO. Repeated
+authorization and HMAC checks, global recovery locks, command throughput,
+backpressure and larger/concurrent workloads still need measured targets and
+soak tests. Do not replace these guarantees with client-controlled cached
+permissions or fingerprints.
 
 Sample p95 for eight requests is effectively the maximum; it is not a statistically stable tail estimate. GitHub shared-runner CPU count is visible logical processors, not reserved cores. No customer workload, throughput SLA, multi-host load or long-running soak is represented.
 
@@ -88,7 +124,7 @@ Protected refs checked: `main` commit `f6296d9b40d9a8aa0c2bfc3dc697fc681a3e1bd2`
 ## Production blockers and unproved properties
 
 1. Independently anchored monotonic recovery authority/fencing and tested compromise/rollback procedures. A local hash, signature without latest-state anchoring, file permissions or a matching old backup cannot prove freshness after joint rollback. Until solved, trusted evidence unavailable means quarantine and conservative re-enrollment, not automatic reopening.
-2. Scalable current-authorization/recovery proof that retains SQL/Host revocation guarantees, bounded memory, pooling/backpressure and tenant isolation under load. Current full-state fingerprints and per-row RLS revalidation are not a production scale design.
+2. Production-scale current authorization and recovery proof. The 1k/20k local read profile now avoids full-history scans, but throughput, pooling/backpressure, larger histories, concurrent tenants and the 1.2-second Host query still have no SLO or soak evidence.
 3. Audited secure transport, remote enrollment/recipient authentication, keystore-backed device credentials, rotation delivery, abuse/DoS defense and independent security testing. Existing HTTP must stay loopback-only.
 4. Production schema/function/policy attestation, controlled migrations/upgrades and service packaging. Runtime checks are narrow privilege/ledger checks, not a complete defense against compromised trusted deployment administrators.
 5. Physical/WAL/PITR restore policy, independently protected backup/witness history, measured RPO/RTO, HA/fencing and actual storage/power-failure evidence. Process kills and logical restore cannot certify hardware durability or prevent loss of commands committed after the chosen backup snapshot.
