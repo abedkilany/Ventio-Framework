@@ -54,7 +54,7 @@ void main() {
     expect(find.textContaining('Host has not accepted'), findsOneWidget);
     final entries = await queue.list();
     expect(entries, hasLength(1));
-    expect(entries!.single.isPending, isTrue);
+    expect(entries.single.isPending, isTrue);
     expect(entries.single.isHostConfirmed, isFalse);
   });
 }
