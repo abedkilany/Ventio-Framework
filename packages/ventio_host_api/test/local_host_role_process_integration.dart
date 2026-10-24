@@ -133,7 +133,9 @@ Future<void> main() async {
     runningHost = await _startHost(processEnvironment);
     final port = runningHost.port;
     check(
-      port > 0 && runningHost.scheme == 'http',
+      port > 0 &&
+          runningHost.scheme == 'http' &&
+          runningHost.address == '127.0.0.1',
       'Windows persistent Host process binds loopback HTTP by default',
     );
 
@@ -516,21 +518,26 @@ Future<void> main() async {
     );
 
     await runningHost.stop();
-    final tlsFiles = await _createLoopbackTlsFiles(directory);
+    final networkAddress = await _localIpv4Address();
+    final tlsFiles = await _createHostTlsFiles(directory, networkAddress);
     final tlsEnvironment = {
       ...processEnvironment,
+      'VENTIO_HOST_BIND_ADDRESS': networkAddress,
       'VENTIO_HOST_TLS_CERTIFICATE_FILE': tlsFiles.certificatePath,
       'VENTIO_HOST_TLS_PRIVATE_KEY_FILE': tlsFiles.privateKeyPath,
     };
     runningHost = await _startHost(tlsEnvironment);
     final tlsPort = runningHost.port;
     check(
-      tlsPort > 0 && runningHost.scheme == 'https',
-      'Persistent Windows Host serves TLS and reports the HTTPS origin',
+      tlsPort > 0 &&
+          runningHost.scheme == 'https' &&
+          runningHost.address == networkAddress,
+      'Persistent Windows Host serves HTTPS on a non-loopback interface',
     );
 
     final tlsClientFlow = await _runFlutterClientFlow(
       scheme: 'https',
+      hostAddress: networkAddress,
       port: tlsPort,
       writerToken: token,
       readerToken: readerToken,
@@ -543,7 +550,7 @@ Future<void> main() async {
     if (tlsClientFlow.exitCode != 0) stderr.write(tlsClientFlow.stderr);
     check(
       tlsClientFlow.exitCode == 0,
-      'Flutter client requires the trusted certificate for real Host TLS',
+      'Flutter client validates the trusted certificate over the network address',
     );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
@@ -555,7 +562,7 @@ Future<void> main() async {
 }
 
 Future<_RunningHost> _startHost(Map<String, String> environment) async {
-  final startup = Completer<({String scheme, int port})>();
+  final startup = Completer<({String address, String scheme, int port})>();
   final process = await Process.start(
     Platform.resolvedExecutable,
     ['run', 'bin/local_host.dart'],
@@ -568,12 +575,13 @@ Future<_RunningHost> _startHost(Map<String, String> environment) async {
       .transform(const LineSplitter())
       .listen((line) {
         final match = RegExp(
-          r'^Persistent Host listening on (https?)://127\.0\.0\.1:(\d+)$',
+          r'^Persistent Host listening on (https?)://([0-9.]+):(\d+)$',
         ).firstMatch(line);
         if (match != null && !startup.isCompleted) {
           startup.complete((
             scheme: match.group(1)!,
-            port: int.parse(match.group(2)!),
+            address: match.group(2)!,
+            port: int.parse(match.group(3)!),
           ));
         }
       });
@@ -600,6 +608,7 @@ Future<_RunningHost> _startHost(Map<String, String> environment) async {
     final endpoint = await startup.future.timeout(const Duration(seconds: 45));
     return _RunningHost(
       process: process,
+      address: endpoint.address,
       scheme: endpoint.scheme,
       port: endpoint.port,
       outputSubscription: outputSubscription,
@@ -616,6 +625,7 @@ Future<_RunningHost> _startHost(Map<String, String> environment) async {
 
 Future<ProcessResult> _runFlutterClientFlow({
   required String scheme,
+  String hostAddress = '127.0.0.1',
   required int port,
   required String writerToken,
   required String readerToken,
@@ -639,7 +649,7 @@ Future<ProcessResult> _runFlutterClientFlow({
     workingDirectory: clientDirectory.path,
     environment: {
       ...Platform.environment,
-      'VENTIO_CLIENT_HOST_ENDPOINT': '$scheme://127.0.0.1:$port',
+      'VENTIO_CLIENT_HOST_ENDPOINT': '$scheme://$hostAddress:$port',
       'VENTIO_CLIENT_HOST_WRITER_TOKEN': writerToken,
       'VENTIO_CLIENT_HOST_READER_TOKEN': readerToken,
       'VENTIO_CLIENT_HOST_TENANT': tenant,
@@ -652,8 +662,37 @@ Future<ProcessResult> _runFlutterClientFlow({
   );
 }
 
-Future<_TestTlsFiles> _createLoopbackTlsFiles(Directory directory) async {
-  const powershell = r'''
+Future<String> _localIpv4Address() async {
+  final interfaces = await NetworkInterface.list(
+    type: InternetAddressType.IPv4,
+    includeLoopback: false,
+  );
+  final addresses = interfaces
+      .expand((interface) => interface.addresses)
+      .map((address) => address.address)
+      .where(
+        (address) =>
+            !address.startsWith('169.254.') &&
+            !address.startsWith('0.') &&
+            !address.startsWith('224.'),
+      )
+      .toList();
+  if (addresses.isEmpty) {
+    throw StateError('No usable non-loopback IPv4 address is available.');
+  }
+  return addresses.where(_isPrivateIpv4).firstOrNull ?? addresses.first;
+}
+
+bool _isPrivateIpv4(String address) =>
+    address.startsWith('10.') ||
+    address.startsWith('192.168.') ||
+    RegExp(r'^172\.(1[6-9]|2\d|3[01])\.').hasMatch(address);
+
+Future<_TestTlsFiles> _createHostTlsFiles(
+  Directory directory,
+  String hostAddress,
+) async {
+  final powershell = r'''
 $ErrorActionPreference = 'Stop'
 $rsa = [System.Security.Cryptography.RSA]::Create(2048)
 try {
@@ -662,6 +701,7 @@ try {
     [System.Security.Cryptography.HashAlgorithmName]::SHA256,
     [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
   $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
+  $san.AddIpAddress([System.Net.IPAddress]::Parse($env:VENTIO_TEST_HOST_ADDRESS))
   $san.AddIpAddress([System.Net.IPAddress]::Parse('127.0.0.1'))
   $san.AddDnsName('localhost')
   $request.CertificateExtensions.Add($san.Build())
@@ -688,13 +728,14 @@ try {
   $rsa.Dispose()
 }
 ''';
-  final generated = await Process.run('pwsh', [
-    '-NoLogo',
-    '-NoProfile',
-    '-NonInteractive',
-    '-Command',
-    powershell,
-  ]);
+  final generated = await Process.run(
+    'pwsh',
+    ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', powershell],
+    environment: {
+      ...Platform.environment,
+      'VENTIO_TEST_HOST_ADDRESS': hostAddress,
+    },
+  );
   if (generated.exitCode != 0) {
     throw StateError(
       'Could not generate the ephemeral Host TLS test certificate.',
@@ -714,9 +755,9 @@ try {
   }
 
   final certificatePath =
-      '${directory.path}${Platform.pathSeparator}loopback-certificate.pem';
+      '${directory.path}${Platform.pathSeparator}host-certificate.pem';
   final privateKeyPath =
-      '${directory.path}${Platform.pathSeparator}loopback-private-key.pem';
+      '${directory.path}${Platform.pathSeparator}host-private-key.pem';
   await PrivateFiles.create(certificatePath, {'pending': true});
   await File(certificatePath).writeAsString(toPem('CERTIFICATE', encoded[0]));
   await PrivateFiles.create(privateKeyPath, {'pending': true});
@@ -851,6 +892,7 @@ class _HttpResult {
 class _RunningHost {
   _RunningHost({
     required this.process,
+    required this.address,
     required this.scheme,
     required this.port,
     required this.outputSubscription,
@@ -858,6 +900,7 @@ class _RunningHost {
   });
 
   final Process process;
+  final String address;
   final String scheme;
   final int port;
   final StreamSubscription<String> outputSubscription;
