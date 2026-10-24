@@ -272,6 +272,7 @@ Future<void> main() async {
       String token, {
       String company = primaryCompany,
       String branch = primaryBranch,
+      String? recordId,
       String search = '',
       Map<String, dynamic> filters = const {},
       String? filterField,
@@ -290,6 +291,7 @@ Future<void> main() async {
         'moduleId': 'com.example.registry',
         'version': '1.0.0',
         'docType': 'Item',
+        if (recordId != null) 'recordId': recordId,
         'search': search,
         'filters': filters,
         'filterField': filterField,
@@ -484,6 +486,32 @@ Future<void> main() async {
           recordRows.single['recordId'] == 'registry-item-1' &&
           recordRows.single['values']['title'] == 'First item',
       'Approved dynamic record reads honor metadata filters and return Host values',
+    );
+    final exactRecord = await queryRecords(
+      primaryToken,
+      recordId: 'registry-item-2',
+      limit: 1,
+      sortField: null,
+    );
+    final exactResult =
+        exactRecord.body['recordResult'] as Map<String, dynamic>;
+    expect(
+      exactRecord.status == 200 &&
+          exactResult['hasMore'] == false &&
+          (exactResult['records'] as List).length == 1 &&
+          (exactResult['records'] as List).single['recordId'] ==
+              'registry-item-2',
+      'Host can securely return one exact record for conflict review',
+    );
+    final invalidExactRecordQuery = await queryRecords(
+      primaryToken,
+      recordId: 'registry-item-2',
+      search: 'item',
+      limit: 1,
+    );
+    expect(
+      invalidExactRecordQuery.status == 400,
+      'Exact record reads reject mixed search and paging parameters',
     );
     final firstPage = await queryRecords(
       primaryToken,

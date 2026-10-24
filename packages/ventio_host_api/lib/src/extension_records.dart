@@ -10,6 +10,7 @@ abstract interface class ExtensionRecordQueryGateway {
     required String moduleId,
     required String version,
     required String docType,
+    String? recordId,
     required String search,
     required Map<String, dynamic> filters,
     required String? filterField,

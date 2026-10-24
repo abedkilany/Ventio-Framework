@@ -148,6 +148,7 @@ class PostgresExtensionRecordQueryGateway
     required String moduleId,
     required String version,
     required String docType,
+    String? recordId,
     required String search,
     required Map<String, dynamic> filters,
     required String? filterField,
@@ -261,6 +262,10 @@ class PostgresExtensionRecordQueryGateway
             'limit': limit + 1,
           };
           final conditions = <String>[];
+          if (recordId != null) {
+            parameters['recordId'] = recordId;
+            conditions.add('record_id = @recordId');
+          }
           if (search.isNotEmpty && definition.fields.isNotEmpty) {
             parameters['search'] = search.toLowerCase();
             final searchClauses = <String>[];

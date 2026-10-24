@@ -69,6 +69,7 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
     required String moduleId,
     required String version,
     required String docType,
+    String? recordId,
     String search = '',
     Map<String, dynamic> filters = const {},
     String? filterField,
@@ -339,6 +340,127 @@ void main() {
       expect(records.single.syncState, 'LOCAL_ONLY');
     },
   );
+
+  testWidgets('Conflict review seeds a merge from the selected Host values', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const moduleId = 'com.example.conflict_review';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    const permission = 'extension.com_example_conflict_review.asset';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Conflict Review',
+      description: '',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+          'maxLength': 120,
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name'],
+      },
+      'label': 'Asset',
+      'labelKey': '$permission.title',
+    });
+    await store.activate(moduleId);
+    final created = await store.createRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: scope,
+      values: const {'name': 'Local draft'},
+      recordId: 'conflict-review-1',
+    );
+    await store.markRecordPending(
+      recordId: created.recordId,
+      scope: scope,
+      commandId: 'conflict-review-command',
+    );
+    await store.applyHostReceipt(
+      recordId: created.recordId,
+      scope: scope,
+      commandId: 'conflict-review-command',
+      receipt: CommandReceipt(
+        commandId: 'conflict-review-command',
+        status: 'CONFLICT',
+        reasonCode: 'REVISION_CONFLICT',
+        currentRevision: 2,
+      ),
+    );
+    await store.applyHostRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: scope,
+      recordId: created.recordId,
+      revision: 2,
+      values: const {'name': 'Concurrent Host value'},
+      updatedAtUtc: DateTime.utc(2026, 10, 24),
+    );
+    final conflicted = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      recordId: created.recordId,
+      scope: scope,
+    ))!;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordConflictPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(
+            (await store.listDocTypes(moduleId)).single,
+          ),
+          scope: scope,
+          record: conflicted,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Local · Local draft'), findsOneWidget);
+    expect(find.text('Host · Concurrent Host value'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Use Host'));
+    await tester.tap(find.text('Continue with selected values'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Asset'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextFormField>(find.byType(TextFormField).first)
+          .controller
+          ?.text,
+      'Concurrent Host value',
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Dynamic records read from Host and stay branch scoped', (
     tester,

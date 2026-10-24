@@ -292,6 +292,39 @@ void main() {
         currentRevision: 2,
       ),
     );
+    await expectLater(
+      store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+        expectedRevision: localEdit.revision,
+        values: const {'name': 'Unsafe automatic rebase'},
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'CONFLICT_SNAPSHOT_REQUIRED',
+        ),
+      ),
+    );
+    await store.applyHostRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      recordId: created.recordId,
+      revision: 1,
+      values: const {'name': 'Stale Host value'},
+      updatedAtUtc: DateTime.utc(2026, 10, 23),
+    );
+    var conflicted = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: created.recordId,
+      scope: _scope,
+    ))!;
+    expect(conflicted.conflictValues, isNull);
     await store.applyHostRecord(
       moduleId: _moduleId,
       docTypeName: 'Asset',
@@ -301,7 +334,7 @@ void main() {
       values: const {'name': 'Concurrent Host value'},
       updatedAtUtc: DateTime.utc(2026, 10, 24),
     );
-    var conflicted = (await store.getRecord(
+    conflicted = (await store.getRecord(
       moduleId: _moduleId,
       docTypeName: 'Asset',
       recordId: created.recordId,
@@ -310,6 +343,8 @@ void main() {
     expect(conflicted.authorityState, 'CONFLICT');
     expect(conflicted.hostRevision, 2);
     expect(conflicted.values['name'], 'Local edit');
+    expect(conflicted.conflictRevision, 2);
+    expect(conflicted.conflictValues?['name'], 'Concurrent Host value');
 
     final rebased = await store.updateRecord(
       moduleId: _moduleId,
@@ -346,6 +381,52 @@ void main() {
     expect(conflicted.pendingCommandId, isNull);
     expect(conflicted.hostRevision, 2);
     expect(conflicted.values['name'], 'Reviewed local draft');
+  });
+
+  test('Conflict can explicitly adopt the latest Host snapshot', () async {
+    await createActiveExtension();
+    final record = await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: const {'name': 'Local draft'},
+      recordId: 'host-adoption-record',
+    );
+    await store.markRecordPending(
+      recordId: record.recordId,
+      scope: _scope,
+      commandId: 'host-adoption-command',
+    );
+    await store.applyHostReceipt(
+      recordId: record.recordId,
+      scope: _scope,
+      commandId: 'host-adoption-command',
+      receipt: CommandReceipt(
+        commandId: 'host-adoption-command',
+        status: 'CONFLICT',
+        reasonCode: 'REVISION_CONFLICT',
+        currentRevision: 4,
+      ),
+    );
+    await store.applyHostRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      recordId: record.recordId,
+      revision: 4,
+      values: const {'name': 'Authoritative Host value'},
+      updatedAtUtc: DateTime.utc(2026, 10, 24),
+    );
+
+    final accepted = await store.resolveConflictWithHostSnapshot(
+      recordId: record.recordId,
+      scope: _scope,
+    );
+    expect(accepted.authorityState, 'HOST_ACCEPTED');
+    expect(accepted.revision, 4);
+    expect(accepted.hostRevision, 4);
+    expect(accepted.values['name'], 'Authoritative Host value');
+    expect(accepted.conflictValues, isNull);
   });
 
   test('Host record imports remain isolated by exact branch scope', () async {
@@ -609,6 +690,88 @@ void main() {
         expect(await migrated.getHostProfile(), isNull);
       } finally {
         await migrated.close();
+      }
+    },
+  );
+
+  test(
+    'Version-four record data survives the conflict snapshot migration',
+    () async {
+      final legacyPath =
+          '${directory.path}${Platform.pathSeparator}legacy_v4.sqlite3';
+      final legacy = await databaseFactoryFfi.openDatabase(
+        legacyPath,
+        options: OpenDatabaseOptions(
+          version: 4,
+          onCreate: (database, version) async {
+            await database.execute('''
+            CREATE TABLE local_extension_records (
+              record_id TEXT PRIMARY KEY NOT NULL,
+              module_id TEXT NOT NULL,
+              doctype_name TEXT NOT NULL,
+              organization_id TEXT NOT NULL,
+              company_id TEXT NOT NULL,
+              branch_id TEXT NOT NULL,
+              data_json TEXT NOT NULL,
+              schema_version INTEGER NOT NULL,
+              revision INTEGER NOT NULL,
+              sync_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+              host_revision INTEGER,
+              pending_command_id TEXT,
+              authority_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+              created_at_utc TEXT NOT NULL,
+              updated_at_utc TEXT NOT NULL
+            )
+          ''');
+            await database.insert('local_extension_records', {
+              'record_id': 'preserved-record',
+              'module_id': _moduleId,
+              'doctype_name': 'Asset',
+              'organization_id': _scope.organizationId,
+              'company_id': _scope.companyId,
+              'branch_id': _scope.branchId,
+              'data_json': jsonEncode({'name': 'Keep this record'}),
+              'schema_version': 1,
+              'revision': 3,
+              'host_revision': 2,
+              'pending_command_id': null,
+              'authority_state': 'CONFLICT',
+              'created_at_utc': '2026-10-24T00:00:00.000Z',
+              'updated_at_utc': '2026-10-24T00:00:00.000Z',
+            });
+          },
+        ),
+      );
+      await legacy.close();
+
+      final migrated = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: legacyPath,
+      );
+      await migrated.close();
+      final current = await databaseFactoryFfi.openDatabase(
+        legacyPath,
+        options: OpenDatabaseOptions(version: 5),
+      );
+      try {
+        final columns = await current.rawQuery(
+          'PRAGMA table_info(local_extension_records)',
+        );
+        final row = (await current.query(
+          'local_extension_records',
+          where: 'record_id = ?',
+          whereArgs: ['preserved-record'],
+        )).single;
+        expect(
+          columns.map((column) => column['name']),
+          containsAll(['conflict_revision', 'conflict_data_json']),
+        );
+        expect(row['data_json'], jsonEncode({'name': 'Keep this record'}));
+        expect(row['host_revision'], 2);
+        expect(row['conflict_revision'], isNull);
+        expect(row['conflict_data_json'], isNull);
+      } finally {
+        await current.close();
       }
     },
   );

@@ -327,4 +327,61 @@ void main() {
       expect(page.records.single.values['title'], 'First item');
     },
   );
+
+  test('Record query sends an exact Host record selector', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final seen = Completer<Map<String, dynamic>>();
+    server.listen((request) async {
+      final raw = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+      seen.complete(Map<String, dynamic>.from(raw));
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            'recordResult': {
+              'status': 'RECORDS',
+              'packageSha256': List.filled(64, 'a').join(),
+              'hasMore': false,
+              'records': [
+                {
+                  'recordId': 'record-1',
+                  'revision': 2,
+                  'updatedAtUtc': '2026-10-24T12:00:00Z',
+                  'values': {'title': 'Host value'},
+                },
+              ],
+            },
+          }),
+        );
+      await request.response.close();
+    });
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(endpoint, token);
+
+    final page =
+        await HostExtensionPackageClient(
+          endpoint: endpoint,
+          credentials: vault,
+        ).queryRecords(
+          companyId: 'company-1',
+          branchId: 'branch-1',
+          moduleId: 'com.example.host_package',
+          version: '1.0.0',
+          docType: 'Item',
+          recordId: 'record-1',
+          sortField: null,
+          limit: 1,
+        );
+    final body = await seen.future;
+
+    expect(body['recordId'], 'record-1');
+    expect(body['offset'], 0);
+    expect(body['limit'], 1);
+    expect(page.records.single.recordId, 'record-1');
+    expect(page.records.single.values['title'], 'Host value');
+  });
 }

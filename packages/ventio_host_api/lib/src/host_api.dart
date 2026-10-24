@@ -416,6 +416,22 @@ class HostApi {
       'moduleId',
       'version',
       'docType',
+      'recordId',
+      'search',
+      'filters',
+      'filterField',
+      'filterContains',
+      'sortField',
+      'descending',
+      'offset',
+      'limit',
+    };
+    const requiredKeys = {
+      'companyId',
+      'branchId',
+      'moduleId',
+      'version',
+      'docType',
       'search',
       'filters',
       'filterField',
@@ -426,7 +442,7 @@ class HostApi {
       'limit',
     };
     if (json.keys.any((key) => !allowedKeys.contains(key)) ||
-        json.keys.toSet().length != allowedKeys.length) {
+        !json.keys.toSet().containsAll(requiredKeys)) {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
     final companyId = _boundedIdentifier(json, 'companyId');
@@ -434,6 +450,13 @@ class HostApi {
     final moduleId = _boundedIdentifier(json, 'moduleId');
     final version = _boundedIdentifier(json, 'version');
     final docType = _boundedIdentifier(json, 'docType');
+    final recordIdValue = json['recordId'];
+    if (recordIdValue != null &&
+        (recordIdValue is! String ||
+            recordIdValue.isEmpty ||
+            recordIdValue.length > 128)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
     if (!RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
         moduleId.length > 128 ||
         !RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(docType) ||
@@ -486,6 +509,15 @@ class HostApi {
     if (offset > 1000000 || limit > 50) {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
+    if (recordIdValue != null &&
+        (offset != 0 ||
+            limit != 1 ||
+            search.isNotEmpty ||
+            rawFilters.isNotEmpty ||
+            filterFieldValue != null ||
+            filterContains.isNotEmpty)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
     final principal = session.principal;
     if (!principal.withinScope(
       tenantId: principal.tenantId,
@@ -503,6 +535,7 @@ class HostApi {
       moduleId: moduleId,
       version: version,
       docType: docType,
+      recordId: recordIdValue as String?,
       search: search,
       filters: rawFilters,
       filterField: filterFieldValue as String?,

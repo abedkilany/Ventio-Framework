@@ -2857,6 +2857,7 @@ class DynamicRecordFormPage extends StatefulWidget {
     this.credentialVault,
     this.hostPackageClientFactory,
     this.record,
+    this.initialValues,
     this.previewOnly = false,
     super.key,
   });
@@ -2871,6 +2872,7 @@ class DynamicRecordFormPage extends StatefulWidget {
   final HostCredentialVault? credentialVault;
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final LocalExtensionRecord? record;
+  final Map<String, dynamic>? initialValues;
   final bool previewOnly;
 
   @override
@@ -2899,7 +2901,11 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   void initState() {
     super.initState();
     for (final field in _formFields) {
-      final value = widget.record?.values[field.name];
+      final initialValues = widget.initialValues;
+      final value =
+          initialValues != null && initialValues.containsKey(field.name)
+          ? initialValues[field.name]
+          : widget.record?.values[field.name];
       if (field.type == 'boolean') {
         _booleans[field.name] = value as bool? ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
@@ -2942,7 +2948,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }
 
   Map<String, dynamic> _values() {
-    final values = Map<String, dynamic>.of(widget.record?.values ?? const {});
+    final values = Map<String, dynamic>.of(
+      widget.initialValues ?? widget.record?.values ?? const {},
+    );
     for (final field in _formFields) {
       if (field.type == 'boolean') {
         values[field.name] = _booleans[field.name] ?? false;
@@ -3309,7 +3317,7 @@ Future<void> _reconcileQueuedRecords(
   }
 }
 
-class DynamicRecordDetailsPage extends StatelessWidget {
+class DynamicRecordDetailsPage extends StatefulWidget {
   const DynamicRecordDetailsPage({
     required this.store,
     this.queue,
@@ -3336,32 +3344,173 @@ class DynamicRecordDetailsPage extends StatelessWidget {
   final LocalExtensionRecord record;
 
   @override
+  State<DynamicRecordDetailsPage> createState() =>
+      _DynamicRecordDetailsPageState();
+}
+
+class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
+  late LocalExtensionRecord _record;
+  bool _refreshingConflict = false;
+  String? _conflictRefreshError;
+
+  @override
+  void initState() {
+    super.initState();
+    _record = widget.record;
+    _loadRecord();
+  }
+
+  Future<void> _loadRecord() async {
+    final latest = await widget.store.getRecord(
+      moduleId: widget.moduleId,
+      docTypeName: widget.definition.name,
+      recordId: _record.recordId,
+      scope: widget.scope,
+    );
+    if (!mounted || latest == null) return;
+    setState(() => _record = latest);
+    if (latest.authorityState == 'CONFLICT' && latest.conflictValues == null) {
+      await _refreshConflictSnapshot();
+    }
+  }
+
+  Future<void> _refreshConflictSnapshot() async {
+    final profile = widget.hostProfile;
+    final vault = widget.credentialVault;
+    final version = widget.moduleVersion;
+    if (profile == null || vault == null || version == null) {
+      setState(() {
+        _conflictRefreshError =
+            'Connect to the authenticated Host to fetch its latest record.';
+      });
+      return;
+    }
+    setState(() {
+      _refreshingConflict = true;
+      _conflictRefreshError = null;
+    });
+    try {
+      final client =
+          widget.hostPackageClientFactory?.call(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+          ) ??
+          HostExtensionPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+          );
+      final bundle = await widget.store.exportBundle(widget.moduleId);
+      final digest = sha256
+          .convert(utf8.encode(canonicalJson(bundle.toJson())))
+          .toString();
+      final page = await client.queryRecords(
+        companyId: profile.companyId,
+        branchId: profile.branchId,
+        moduleId: widget.moduleId,
+        version: version,
+        docType: widget.definition.name,
+        recordId: _record.recordId,
+        sortField: null,
+        limit: 1,
+      );
+      if (page.packageSha256 != digest) {
+        throw const HostPackageTransportException(
+          'LOCAL_PACKAGE_DIFFERS_FROM_HOST_APPROVED_RELEASE',
+        );
+      }
+      if (page.records.length != 1 ||
+          page.records.single.recordId != _record.recordId) {
+        throw const HostPackageTransportException(
+          'CONFLICT_RECORD_NOT_AVAILABLE',
+        );
+      }
+      final hostRecord = page.records.single;
+      final minimumRevision = _record.hostRevision ?? 0;
+      if (hostRecord.revision < minimumRevision) {
+        throw const HostPackageTransportException(
+          'HOST_RETURNED_STALE_CONFLICT_SNAPSHOT',
+        );
+      }
+      await widget.store.applyHostRecord(
+        moduleId: widget.moduleId,
+        docTypeName: widget.definition.name,
+        scope: widget.scope,
+        recordId: hostRecord.recordId,
+        revision: hostRecord.revision,
+        values: hostRecord.values,
+        updatedAtUtc: DateTime.parse(hostRecord.updatedAtUtc),
+      );
+      final latest = await widget.store.getRecord(
+        moduleId: widget.moduleId,
+        docTypeName: widget.definition.name,
+        recordId: _record.recordId,
+        scope: widget.scope,
+      );
+      if (mounted && latest != null) setState(() => _record = latest);
+    } catch (error) {
+      if (mounted) setState(() => _conflictRefreshError = error.toString());
+    } finally {
+      if (mounted) setState(() => _refreshingConflict = false);
+    }
+  }
+
+  Future<void> _editRecord({Map<String, dynamic>? initialValues}) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (context) => DynamicRecordFormPage(
+          store: widget.store,
+          queue: widget.queue,
+          moduleId: widget.moduleId,
+          definition: widget.definition,
+          scope: widget.scope,
+          moduleVersion: widget.moduleVersion,
+          hostProfile: widget.hostProfile,
+          credentialVault: widget.credentialVault,
+          hostPackageClientFactory: widget.hostPackageClientFactory,
+          record: _record,
+          initialValues: initialValues,
+        ),
+      ),
+    );
+    if (!mounted || changed != true) return;
+    await _loadRecord();
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  Future<void> _reviewConflict() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (context) => DynamicRecordConflictPage(
+          store: widget.store,
+          queue: widget.queue,
+          moduleId: widget.moduleId,
+          definition: widget.definition,
+          scope: widget.scope,
+          moduleVersion: widget.moduleVersion,
+          hostProfile: widget.hostProfile,
+          credentialVault: widget.credentialVault,
+          hostPackageClientFactory: widget.hostPackageClientFactory,
+          record: _record,
+        ),
+      ),
+    );
+    if (!mounted || changed != true) return;
+    await _loadRecord();
+    if (_record.authorityState != 'CONFLICT' && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final record = _record;
+    final conflicted = record.authorityState == 'CONFLICT';
     return Scaffold(
-      appBar: AppBar(title: Text('${definition.label} details')),
-      floatingActionButton: definition.operations.contains('update')
+      appBar: AppBar(title: Text('${widget.definition.label} details')),
+      floatingActionButton:
+          !conflicted && widget.definition.operations.contains('update')
           ? FloatingActionButton.extended(
-              onPressed: () async {
-                final changed = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute<bool>(
-                    builder: (context) => DynamicRecordFormPage(
-                      store: store,
-                      queue: queue,
-                      moduleId: moduleId,
-                      definition: definition,
-                      scope: scope,
-                      moduleVersion: moduleVersion,
-                      hostProfile: hostProfile,
-                      credentialVault: credentialVault,
-                      hostPackageClientFactory: hostPackageClientFactory,
-                      record: record,
-                    ),
-                  ),
-                );
-                if (context.mounted && changed == true) {
-                  Navigator.pop(context, true);
-                }
-              },
+              onPressed: _editRecord,
               icon: const Icon(Icons.edit_outlined),
               label: const Text('Edit record'),
             )
@@ -3386,7 +3535,7 @@ class DynamicRecordDetailsPage extends StatelessWidget {
                   'PENDING' =>
                     'This record has a durable command in the local queue and is not shared until the Host returns a real receipt.',
                   'CONFLICT' =>
-                    'The Host has a newer revision. Local values are preserved for review before retrying.',
+                    'The Host has revision ${record.hostRevision ?? 'unknown'}. Local values are preserved separately until you review the latest Host version.',
                   'REJECTED' =>
                     'The Host denied the queued operation. Local values are preserved on this device.',
                   _ =>
@@ -3396,6 +3545,52 @@ class DynamicRecordDetailsPage extends StatelessWidget {
                     ? Icons.verified_user_outlined
                     : Icons.info_outline,
               ),
+              if (conflicted) ...[
+                const SizedBox(height: 12),
+                if (_conflictRefreshError != null)
+                  Text(
+                    _conflictRefreshError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                if (record.conflictValues == null)
+                  FilledButton.icon(
+                    onPressed: _refreshingConflict
+                        ? null
+                        : _refreshConflictSnapshot,
+                    icon: _refreshingConflict
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync),
+                    label: Text(
+                      _refreshingConflict
+                          ? 'Fetching Host version…'
+                          : 'Fetch latest Host version',
+                    ),
+                  )
+                else ...[
+                  Text(
+                    'Host snapshot revision ${record.conflictRevision}',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _refreshingConflict
+                        ? null
+                        : _refreshConflictSnapshot,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh Host version'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _reviewConflict,
+                    icon: const Icon(Icons.compare_arrows),
+                    label: const Text('Review and resolve conflict'),
+                  ),
+                ],
+              ],
               const SizedBox(height: 16),
               Card(
                 child: Padding(
@@ -3403,7 +3598,7 @@ class DynamicRecordDetailsPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final field in definition.fields) ...[
+                      for (final field in widget.definition.fields) ...[
                         Text(
                           field.label,
                           style: Theme.of(context).textTheme.labelLarge,
@@ -3421,6 +3616,211 @@ class DynamicRecordDetailsPage extends StatelessWidget {
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DynamicRecordConflictPage extends StatefulWidget {
+  const DynamicRecordConflictPage({
+    required this.store,
+    required this.queue,
+    required this.moduleId,
+    required this.definition,
+    required this.scope,
+    required this.record,
+    this.moduleVersion,
+    this.hostProfile,
+    this.credentialVault,
+    this.hostPackageClientFactory,
+    super.key,
+  });
+
+  final LocalExtensionStore store;
+  final LocalCommandQueue? queue;
+  final String moduleId;
+  final DocTypeDefinition definition;
+  final RecordScope scope;
+  final LocalExtensionRecord record;
+  final String? moduleVersion;
+  final HostConnectionProfile? hostProfile;
+  final HostCredentialVault? credentialVault;
+  final HostExtensionPackageClientFactory? hostPackageClientFactory;
+
+  @override
+  State<DynamicRecordConflictPage> createState() =>
+      _DynamicRecordConflictPageState();
+}
+
+class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
+  late final Map<String, String> _sources = {
+    for (final field in widget.definition.fields) field.name: 'local',
+  };
+  bool _saving = false;
+
+  Future<void> _useHostVersion() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Use Host version?'),
+        content: const Text(
+          'This replaces the local provisional values with the latest Host values on this device. The Host record is not changed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Replace local values'),
+          ),
+        ],
+      ),
+    );
+    if (discard != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await widget.store.resolveConflictWithHostSnapshot(
+        recordId: widget.record.recordId,
+        scope: widget.scope,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _mergeAndEdit() async {
+    final hostValues = widget.record.conflictValues;
+    if (hostValues == null) return;
+    final merged = <String, dynamic>{};
+    for (final field in widget.definition.fields) {
+      final chooseHost = _sources[field.name] == 'host';
+      if (chooseHost && hostValues.containsKey(field.name)) {
+        merged[field.name] = hostValues[field.name];
+      } else if (widget.record.values.containsKey(field.name)) {
+        merged[field.name] = widget.record.values[field.name];
+      } else if (hostValues.containsKey(field.name)) {
+        merged[field.name] = hostValues[field.name];
+      }
+    }
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (context) => DynamicRecordFormPage(
+          store: widget.store,
+          queue: widget.queue,
+          moduleId: widget.moduleId,
+          definition: widget.definition,
+          scope: widget.scope,
+          moduleVersion: widget.moduleVersion,
+          hostProfile: widget.hostProfile,
+          credentialVault: widget.credentialVault,
+          hostPackageClientFactory: widget.hostPackageClientFactory,
+          record: widget.record,
+          initialValues: merged,
+        ),
+      ),
+    );
+    if (mounted && changed == true) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hostValues = widget.record.conflictValues;
+    if (hostValues == null || widget.record.conflictRevision == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Resolve record conflict')),
+        body: const Center(
+          child: Text(
+            'Fetch the latest Host version before reviewing this conflict.',
+          ),
+        ),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Review record conflict')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              Text(
+                'Choose which value to keep for each field. Saving the merge creates a new command against Host revision ${widget.record.conflictRevision}; the Host will validate it again.',
+              ),
+              const SizedBox(height: 16),
+              for (final field in widget.definition.fields)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          field.label,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Local · ${_displayValue(field, widget.record.values[field.name])}',
+                        ),
+                        Text(
+                          'Host · ${_displayValue(field, hostValues[field.name])}',
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('Keep local'),
+                              selected: _sources[field.name] == 'local',
+                              onSelected: _saving
+                                  ? null
+                                  : (_) => setState(
+                                      () => _sources[field.name] = 'local',
+                                    ),
+                            ),
+                            ChoiceChip(
+                              label: const Text('Use Host'),
+                              selected: _sources[field.name] == 'host',
+                              onSelected: _saving
+                                  ? null
+                                  : (_) => setState(
+                                      () => _sources[field.name] = 'host',
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _useHostVersion,
+                icon: const Icon(Icons.download_done),
+                label: const Text('Discard local edits and use Host version'),
+              ),
+              if (widget.definition.operations.contains('update'))
+                FilledButton.icon(
+                  onPressed: _saving ? null : _mergeAndEdit,
+                  icon: const Icon(Icons.merge_type),
+                  label: const Text('Continue with selected values'),
+                )
+              else
+                const Text(
+                  'This DocType does not grant the update operation, so merged values cannot be submitted.',
+                ),
             ],
           ),
         ),

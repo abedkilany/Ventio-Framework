@@ -209,6 +209,7 @@ class HostExtensionPackageClient {
     required String moduleId,
     required String version,
     required String docType,
+    String? recordId,
     String search = '',
     Map<String, dynamic> filters = const {},
     String? filterField,
@@ -219,31 +220,44 @@ class HostExtensionPackageClient {
     int limit = 50,
   }) async {
     if (search.length > 256 ||
+        (recordId != null && (recordId.isEmpty || recordId.length > 128)) ||
         filterContains.length > 256 ||
         (filterField == null && filterContains.isNotEmpty) ||
         filters.length > 10 ||
         offset < 0 ||
         offset > 1000000 ||
         limit < 1 ||
-        limit > 50) {
+        limit > 50 ||
+        (recordId != null &&
+            (search.isNotEmpty ||
+                filters.isNotEmpty ||
+                filterField != null ||
+                filterContains.isNotEmpty ||
+                offset != 0 ||
+                limit != 1))) {
       throw const HostPackageTransportException('INVALID_RECORD_QUERY');
     }
-    final response =
-        await _request('POST', '/api/v1/extensions/records/query', {
-          'companyId': companyId,
-          'branchId': branchId,
-          'moduleId': moduleId,
-          'version': version,
-          'docType': docType,
-          'search': search,
-          'filters': filters,
-          'filterField': filterField,
-          'filterContains': filterContains,
-          'sortField': sortField,
-          'descending': descending,
-          'offset': offset,
-          'limit': limit,
-        });
+    final query = <String, Object?>{
+      'companyId': companyId,
+      'branchId': branchId,
+      'moduleId': moduleId,
+      'version': version,
+      'docType': docType,
+      'search': search,
+      'filters': filters,
+      'filterField': filterField,
+      'filterContains': filterContains,
+      'sortField': sortField,
+      'descending': descending,
+      'offset': offset,
+      'limit': limit,
+    };
+    if (recordId != null) query['recordId'] = recordId;
+    final response = await _request(
+      'POST',
+      '/api/v1/extensions/records/query',
+      query,
+    );
     final rawResult = response.body['recordResult'];
     if (rawResult is! Map) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');

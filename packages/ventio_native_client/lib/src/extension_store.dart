@@ -141,6 +141,8 @@ class LocalExtensionRecord {
     this.hostRevision,
     this.pendingCommandId,
     this.authorityState = 'LOCAL_ONLY',
+    this.conflictRevision,
+    this.conflictValues,
   });
 
   final String recordId;
@@ -154,12 +156,25 @@ class LocalExtensionRecord {
   final int? hostRevision;
   final String? pendingCommandId;
   final String authorityState;
+  final int? conflictRevision;
+  final Map<String, dynamic>? conflictValues;
 
   String get syncState => authorityState;
 
   factory LocalExtensionRecord.fromRow(Map<String, Object?> row) {
     final decoded = jsonDecode(row['data_json']! as String);
     if (decoded is! Map) throw const FormatException('Record data is invalid.');
+    final rawConflictValues = row['conflict_data_json'];
+    Map<String, dynamic>? conflictValues;
+    if (rawConflictValues != null) {
+      final decodedConflict = jsonDecode(rawConflictValues as String);
+      if (decodedConflict is! Map) {
+        throw const FormatException('Conflict snapshot data is invalid.');
+      }
+      conflictValues = Map.unmodifiable(
+        Map<String, dynamic>.from(decodedConflict),
+      );
+    }
     return LocalExtensionRecord(
       recordId: row['record_id']! as String,
       moduleId: row['module_id']! as String,
@@ -176,6 +191,8 @@ class LocalExtensionRecord {
       hostRevision: row['host_revision'] as int?,
       pendingCommandId: row['pending_command_id'] as String?,
       authorityState: row['authority_state'] as String? ?? 'LOCAL_ONLY',
+      conflictRevision: row['conflict_revision'] as int?,
+      conflictValues: conflictValues,
     );
   }
 }
@@ -210,7 +227,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -257,6 +274,9 @@ class LocalExtensionStore {
               pending_command_id TEXT,
               authority_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY'
                 CHECK (authority_state IN ('LOCAL_ONLY', 'PENDING', 'HOST_ACCEPTED', 'CONFLICT', 'REJECTED')),
+              conflict_revision INTEGER
+                CHECK (conflict_revision IS NULL OR conflict_revision > 0),
+              conflict_data_json TEXT,
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL,
               FOREIGN KEY (module_id, doctype_name)
@@ -335,6 +355,21 @@ class LocalExtensionStore {
                   ALTER TABLE $_hostProfileTable ADD COLUMN device_id TEXT
                 ''');
               }
+            }
+          }
+          if (oldVersion < 5) {
+            final recordTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_recordsTable],
+            );
+            if (recordTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN conflict_revision INTEGER
+                  CHECK (conflict_revision IS NULL OR conflict_revision > 0)
+              ''');
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN conflict_data_json TEXT
+              ''');
             }
           }
         },
@@ -1124,6 +1159,15 @@ class LocalExtensionStore {
           'Wait for the current Host command to resolve before editing this record again.',
         );
       }
+      if (current.authorityState == 'CONFLICT' &&
+          (current.conflictValues == null ||
+              current.conflictRevision == null ||
+              current.conflictRevision != current.hostRevision)) {
+        throw const ExtensionStoreException(
+          'CONFLICT_SNAPSHOT_REQUIRED',
+          'Fetch the latest Host version before editing a conflicted record.',
+        );
+      }
       if (current.revision != expectedRevision) {
         throw ExtensionStoreException(
           'REVISION_CONFLICT',
@@ -1142,6 +1186,8 @@ class LocalExtensionStore {
           'revision': nextRevision,
           'pending_command_id': null,
           'authority_state': 'LOCAL_ONLY',
+          'conflict_revision': null,
+          'conflict_data_json': null,
           'updated_at_utc': now,
         },
         where: '''record_id = ? AND organization_id = ? AND company_id = ?
@@ -1276,6 +1322,8 @@ class LocalExtensionStore {
       {
         'pending_command_id': null,
         'authority_state': receipt.status,
+        'conflict_revision': null,
+        'conflict_data_json': null,
         if (hostRevision != null && hostRevision > 0)
           'host_revision': hostRevision,
       },
@@ -1328,8 +1376,23 @@ class LocalExtensionStore {
       );
       if (rows.isNotEmpty) {
         final current = LocalExtensionRecord.fromRow(rows.single);
+        if (current.authorityState == 'CONFLICT') {
+          if (revision >= (current.conflictRevision ?? 0) &&
+              revision >= (current.hostRevision ?? 0)) {
+            await transaction.update(
+              _recordsTable,
+              {
+                'conflict_revision': revision,
+                'conflict_data_json': canonicalJson(values),
+                'host_revision': revision,
+              },
+              where: where,
+              whereArgs: whereArgs,
+            );
+          }
+          return;
+        }
         if (current.pendingCommandId != null ||
-            current.authorityState == 'CONFLICT' ||
             current.authorityState == 'REJECTED' ||
             (current.hostRevision != null &&
                 current.hostRevision! > revision) ||
@@ -1347,6 +1410,8 @@ class LocalExtensionStore {
             'host_revision': revision,
             'pending_command_id': null,
             'authority_state': 'HOST_ACCEPTED',
+            'conflict_revision': null,
+            'conflict_data_json': null,
             'updated_at_utc': updatedAtUtc.toUtc().toIso8601String(),
           },
           where: where,
@@ -1372,6 +1437,95 @@ class LocalExtensionStore {
         'created_at_utc': timestamp,
         'updated_at_utc': timestamp,
       }, conflictAlgorithm: ConflictAlgorithm.abort);
+    });
+  }
+
+  /// Replaces a conflicted provisional value only after the user chooses to
+  /// discard local edits and adopt a captured Host snapshot.
+  Future<LocalExtensionRecord> resolveConflictWithHostSnapshot({
+    required String recordId,
+    required RecordScope scope,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    return _database.transaction((transaction) async {
+      final rows = await transaction.query(
+        _recordsTable,
+        where: '''record_id = ? AND organization_id = ? AND company_id = ?
+          AND branch_id = ?''',
+        whereArgs: [
+          recordId,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        throw StateError('Record is not available in this scope.');
+      }
+      final current = LocalExtensionRecord.fromRow(rows.single);
+      final values = current.conflictValues;
+      final hostRevision = current.conflictRevision;
+      if (current.authorityState != 'CONFLICT' ||
+          values == null ||
+          hostRevision == null ||
+          hostRevision < (current.hostRevision ?? 0)) {
+        throw const ExtensionStoreException(
+          'CONFLICT_SNAPSHOT_REQUIRED',
+          'Fetch the latest Host version before resolving this conflict.',
+        );
+      }
+      final definition = DocTypeDefinition.fromJson(
+        await _loadActiveDocType(
+          transaction,
+          current.moduleId,
+          current.docTypeName,
+        ),
+      );
+      _validatePayload(definition, values);
+      final now = _now();
+      final changed = await transaction.update(
+        _recordsTable,
+        {
+          'data_json': canonicalJson(values),
+          'revision': hostRevision,
+          'host_revision': hostRevision,
+          'pending_command_id': null,
+          'authority_state': 'HOST_ACCEPTED',
+          'conflict_revision': null,
+          'conflict_data_json': null,
+          'updated_at_utc': now,
+        },
+        where: '''record_id = ? AND organization_id = ? AND company_id = ?
+          AND branch_id = ? AND authority_state = 'CONFLICT'
+          AND conflict_revision = ?''',
+        whereArgs: [
+          recordId,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+          hostRevision,
+        ],
+      );
+      if (changed != 1) {
+        throw const ExtensionStoreException(
+          'RECORD_SYNC_STATE_CHANGED',
+          'The conflict changed while it was being resolved.',
+        );
+      }
+      return LocalExtensionRecord(
+        recordId: current.recordId,
+        moduleId: current.moduleId,
+        docTypeName: current.docTypeName,
+        scope: scope,
+        schemaVersion: definition.schemaVersion,
+        revision: hostRevision,
+        values: Map.unmodifiable(values),
+        updatedAtUtc: DateTime.parse(now),
+        hostRevision: hostRevision,
+        authorityState: 'HOST_ACCEPTED',
+      );
     });
   }
 
