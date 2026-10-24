@@ -762,11 +762,72 @@ Future<void> main() async {
           uncommittedCompanyReferenceRecord.single[0] == 0,
       'Host rejects a cross-company reference without writing the record',
     );
+    final querySession = await PersistentTokenAuthenticator(
+      connect: () => pg.Connection.openFromUrl(runtimeUrl),
+      admission: authority,
+    ).authenticate(primaryToken);
+    if (querySession == null) {
+      throw StateError('Could not authenticate the integration query user.');
+    }
+    final directFilteredRecords =
+        await PostgresExtensionRecordQueryGateway(
+          connect: () => pg.Connection.openFromUrl(runtimeUrl),
+          admission: authority,
+        ).query(
+          session: querySession,
+          companyId: primaryCompany,
+          branchId: primaryBranch,
+          moduleId: package.moduleId,
+          version: package.version,
+          docType: 'Item',
+          search: 'first',
+          filters: const {'title': 'First item'},
+          filterField: null,
+          filterContains: '',
+          sortField: null,
+          descending: false,
+          offset: 0,
+          limit: 50,
+        );
+    if (directFilteredRecords['status'] != 'RECORDS') {
+      throw StateError(
+        'Direct filtered Host query failed: $directFilteredRecords',
+      );
+    }
+    expect(
+      (directFilteredRecords['records'] as List).single['recordId'] ==
+          'registry-item-1',
+      'PostgreSQL record gateway uses metadata equality filters',
+    );
+    final equalityFilterPlan = await observer.runTx((tx) async {
+      await tx.execute('SET LOCAL enable_seqscan = off');
+      return tx.execute(
+        pg.Sql.named('''
+          EXPLAIN SELECT record_id FROM public.ventio_records
+          WHERE record_data @> jsonb_build_object(
+            CAST(@field AS text), CAST(@value AS jsonb))
+        '''),
+        parameters: {'field': 'title', 'value': canonicalJson('First item')},
+      );
+    });
+    final equalityFilterPlanText = equalityFilterPlan
+        .map((row) => row[0] as String)
+        .join('\n');
+    expect(
+      equalityFilterPlanText.contains('ventio_records_record_data_gin_idx'),
+      'Dynamic JSON equality filters can use the shared GIN index',
+    );
     final queriedRecords = await queryRecords(
       primaryToken,
       search: 'first',
       filters: const {'title': 'First item'},
     );
+    if (queriedRecords.status != 200) {
+      throw StateError(
+        'Filtered Host query failed: ${queriedRecords.status} '
+        '${queriedRecords.body}',
+      );
+    }
     final recordResult =
         queriedRecords.body['recordResult'] as Map<String, dynamic>;
     final recordRows = recordResult['records'] as List;

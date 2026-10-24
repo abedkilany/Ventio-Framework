@@ -296,7 +296,8 @@ class PostgresExtensionRecordQueryGateway
               filters[sortedFilters[index]],
             );
             conditions.add(
-              'record_data -> @$fieldName = CAST(@$valueName AS jsonb)',
+              'record_data @> jsonb_build_object('
+              'CAST(@$fieldName AS text), CAST(@$valueName AS jsonb))',
             );
           }
           final clause = conditions.isEmpty
