@@ -138,7 +138,7 @@ void main() {
             'run',
             'test/support/crash_after_attempt.dart',
             databasePath,
-            jsonEncode(envelope.original),
+            envelope.commandId,
           ], workingDirectory: Directory.current.path);
       expect(child.exitCode, 73, reason: '${child.stdout}\n${child.stderr}');
 
