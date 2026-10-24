@@ -40,7 +40,7 @@ jobs:
       - name: Check formatting and static analysis
         working-directory: packages/ventio_native_client
         run: |
-          dart format --output=none --set-exit-if-changed lib test
+          dart format --output=none --set-exit-if-changed lib test integration_test
           flutter analyze
       - name: Test Extension Builder, local data engine and command queue
         working-directory: packages/ventio_native_client
@@ -60,6 +60,9 @@ jobs:
       - name: Resolve dependencies
         working-directory: packages/ventio_native_client
         run: flutter pub get
+      - name: Run native Windows Extension Builder acceptance
+        working-directory: packages/ventio_native_client
+        run: flutter test integration_test/extension_builder_app_test.dart -d windows --no-pub --reporter expanded
       - name: Build Windows desktop app
         working-directory: packages/ventio_native_client
         run: flutter build windows --debug
