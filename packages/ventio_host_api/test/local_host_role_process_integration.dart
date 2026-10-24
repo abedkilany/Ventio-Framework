@@ -554,25 +554,18 @@ Future<void> main() async {
     );
 
     if (Platform.environment['VENTIO_RUN_ANDROID_HOST_INTEGRATION'] == 'yes') {
-      await runningHost.stop();
-      final loopbackTlsEnvironment = {
-        ...processEnvironment,
-        'VENTIO_HOST_BIND_ADDRESS': '127.0.0.1',
-        'VENTIO_HOST_TLS_CERTIFICATE_FILE': tlsFiles.certificatePath,
-        'VENTIO_HOST_TLS_PRIVATE_KEY_FILE': tlsFiles.privateKeyPath,
-      };
-      runningHost = await _startHost(loopbackTlsEnvironment);
       final androidPort = runningHost.port;
       check(
         androidPort > 0 &&
             runningHost.scheme == 'https' &&
-            runningHost.address == '127.0.0.1',
-        'Windows Host restarts on loopback TLS for Android emulator gateway access',
+            runningHost.address == networkAddress,
+        'Windows Host remains on TLS at its selected network interface for Android client access',
       );
 
       final emulatorId = await _connectedAndroidEmulator();
       final androidFlow = await _runAndroidFlutterClientFlow(
         emulatorId: emulatorId,
+        hostAddress: networkAddress,
         port: androidPort,
         writerToken: token,
         readerToken: readerToken,
@@ -588,7 +581,7 @@ Future<void> main() async {
       if (androidFlow.exitCode != 0) stderr.write(androidFlow.stderr);
       check(
         androidFlow.exitCode == 0,
-        'Android emulator reaches loopback Windows Host through the 10.0.2.2 gateway, retries offline work, and reads accepted data',
+        'Android emulator reaches the Windows Host network address over TLS, retries offline work, and reads accepted data',
       );
     }
     stdout.writeln('RESULT: $assertions passed, 0 failed');
@@ -703,6 +696,7 @@ Future<ProcessResult> _runFlutterClientFlow({
 
 Future<ProcessResult> _runAndroidFlutterClientFlow({
   required String emulatorId,
+  required String hostAddress,
   required int port,
   required String writerToken,
   required String readerToken,
@@ -715,7 +709,7 @@ Future<ProcessResult> _runAndroidFlutterClientFlow({
   final certificate = await File(trustedCertificatePath).readAsString();
   final certificateBase64 = base64.encode(utf8.encode(certificate));
   final definitions = {
-    'VENTIO_ANDROID_HOST_ENDPOINT': 'https://10.0.2.2:$port',
+    'VENTIO_ANDROID_HOST_ENDPOINT': 'https://$hostAddress:$port',
     'VENTIO_ANDROID_WRITER_TOKEN': writerToken,
     'VENTIO_ANDROID_READER_TOKEN': readerToken,
     'VENTIO_ANDROID_TENANT': tenant,
@@ -791,6 +785,32 @@ Future<String> _connectedAndroidEmulator() async {
 }
 
 Future<String> _localIpv4Address() async {
+  if (Platform.isWindows) {
+    const command = r'''
+$ErrorActionPreference = 'Stop'
+$config = Get-NetIPConfiguration |
+  Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' } |
+  Select-Object -First 1
+if ($null -ne $config) {
+  $config.IPv4Address |
+    ForEach-Object { $_.IPAddress } |
+    Where-Object { $_ -match '^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)' } |
+    Select-Object -First 1
+}
+''';
+    final routed = await Process.run('powershell.exe', [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      command,
+    ], runInShell: false);
+    if (routed.exitCode == 0) {
+      final address = (routed.stdout as String).trim();
+      if (address.isNotEmpty && _isPrivateIpv4(address)) return address;
+    }
+  }
+
   final interfaces = await NetworkInterface.list(
     type: InternetAddressType.IPv4,
     includeLoopback: false,
@@ -831,7 +851,6 @@ try {
   $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
   $san.AddIpAddress([System.Net.IPAddress]::Parse($env:VENTIO_TEST_HOST_ADDRESS))
   $san.AddIpAddress([System.Net.IPAddress]::Parse('127.0.0.1'))
-  $san.AddIpAddress([System.Net.IPAddress]::Parse('10.0.2.2'))
   $san.AddDnsName('localhost')
   $request.CertificateExtensions.Add($san.Build())
   $request.CertificateExtensions.Add(

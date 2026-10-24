@@ -41,7 +41,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'Android syncs offline work through the Windows Host gateway',
+    'Android syncs offline work through the Windows Host network address',
     (tester) async {
       expect(_endpointText, isNotEmpty);
       expect(_writerToken, isNotEmpty);
