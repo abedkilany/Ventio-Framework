@@ -161,3 +161,8 @@ gates include production TLS/identity provider, full header/slowloris limits,
 rate limiting by identity, pooling, telemetry,
 safe sync ordering, financial capabilities and offline
 client reconciliation. Do not merge to stable on this slice alone.
+
+On Windows, also run `dart run test/private_files_windows.dart`. This creates a
+unique test directory under the current user profile, installs a constrained
+test DACL, verifies file replacement and witness reader ACLs, and removes only
+that unique directory. It does not run a PostgreSQL-backed Windows Host service.

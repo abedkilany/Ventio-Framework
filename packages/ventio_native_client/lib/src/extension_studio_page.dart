@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'command_id.dart';
@@ -79,6 +82,75 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     }
   }
 
+  Future<void> _installBundle() async {
+    final source = await showDialog<String>(
+      context: context,
+      builder: (context) => const _ExtensionBundleImportDialog(),
+    );
+    if (source == null || source.isEmpty) return;
+
+    try {
+      if (source.length > ExtensionBundle.maxEncodedBytes) {
+        throw const FormatException('Package JSON exceeds 1 MiB.');
+      }
+      final decoded = jsonDecode(source);
+      if (decoded is! Map) {
+        throw const FormatException('Package JSON must be an object.');
+      }
+      final bundle = ExtensionBundle.fromJson(
+        Map<String, dynamic>.from(decoded),
+      );
+      if (!mounted) return;
+      final install = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Review extension package'),
+          content: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(bundle.manifest.displayName),
+                const SizedBox(height: 4),
+                SelectableText('${bundle.moduleId} · ${bundle.version}'),
+                const SizedBox(height: 12),
+                Text(
+                  'DocTypes: ${bundle.docTypes.map((type) => type.name).join(', ')}',
+                ),
+                const SizedBox(height: 12),
+                const _LocalOnlyNotice(
+                  title: 'Local installation only',
+                  body:
+                      'Installing this package saves a local draft on this device. It does not approve or publish it through Host.',
+                  icon: Icons.phonelink_lock_outlined,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Install on this device'),
+            ),
+          ],
+        ),
+      );
+      if (install != true) return;
+      await widget.store.installBundle(bundle);
+      await _load();
+      if (!mounted) return;
+      _message('Package installed locally as a draft.');
+      await _openExtension(bundle.moduleId);
+    } catch (error) {
+      _message(error.toString());
+    }
+  }
+
   Future<void> _openExtension(String moduleId) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -115,6 +187,18 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       appBar: AppBar(
         title: const Text('Ventio · Extension Builder'),
         actions: [
+          if (MediaQuery.sizeOf(context).width < 720)
+            IconButton(
+              tooltip: 'Install extension package',
+              onPressed: _installBundle,
+              icon: const Icon(Icons.file_download_outlined),
+            )
+          else
+            TextButton.icon(
+              onPressed: _installBundle,
+              icon: const Icon(Icons.file_download_outlined),
+              label: const Text('Install package'),
+            ),
           if (MediaQuery.sizeOf(context).width < 720)
             IconButton(
               tooltip: 'Offline queue proof',
@@ -228,6 +312,78 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   }
 }
 
+class _ExtensionBundleImportDialog extends StatefulWidget {
+  const _ExtensionBundleImportDialog();
+
+  @override
+  State<_ExtensionBundleImportDialog> createState() =>
+      _ExtensionBundleImportDialogState();
+}
+
+class _ExtensionBundleImportDialogState
+    extends State<_ExtensionBundleImportDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
+    title: const Text('Install extension package'),
+    content: SizedBox(
+      width: 680,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Paste a Ventio declarative package. It can contain schemas and UI metadata only; scripts, SQL and executable capabilities are rejected.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            minLines: 8,
+            maxLines: 14,
+            maxLength: ExtensionBundle.maxEncodedBytes,
+            keyboardType: TextInputType.multiline,
+            decoration: const InputDecoration(
+              labelText: 'Package JSON',
+              hintText: '{"manifest": ...}',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () async {
+                final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+                if (mounted) _controller.text = clipboard?.text ?? '';
+              },
+              icon: const Icon(Icons.content_paste),
+              label: const Text('Paste from clipboard'),
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: const Text('Validate package'),
+      ),
+    ],
+  );
+}
+
 class ExtensionDetailsPage extends StatefulWidget {
   const ExtensionDetailsPage({
     required this.store,
@@ -333,6 +489,47 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     );
   }
 
+  Future<void> _exportBundle() async {
+    try {
+      final bundle = await widget.store.exportBundle(widget.moduleId);
+      final source = const JsonEncoder.withIndent(
+        '  ',
+      ).convert(bundle.toJson());
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          scrollable: true,
+          title: const Text('Declarative extension package'),
+          content: SizedBox(
+            width: 720,
+            height: MediaQuery.sizeOf(context).height * 0.6,
+            child: SelectableText(source),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: source));
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  _message('Package JSON copied to the clipboard.');
+                }
+              },
+              icon: const Icon(Icons.copy_outlined),
+              label: const Text('Copy package JSON'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _message(error.toString());
+    }
+  }
+
   Future<void> _changeState() async {
     final extension = _extension;
     if (extension == null) return;
@@ -396,7 +593,18 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
   Widget build(BuildContext context) {
     final extension = _extension;
     return Scaffold(
-      appBar: AppBar(title: Text(extension?.displayName ?? 'Extension')),
+      appBar: AppBar(
+        title: Text(extension?.displayName ?? 'Extension'),
+        actions: [
+          IconButton(
+            tooltip: 'Export declarative package',
+            onPressed: extension == null || _docTypes.isEmpty || _busy
+                ? null
+                : _exportBundle,
+            icon: const Icon(Icons.data_object_outlined),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

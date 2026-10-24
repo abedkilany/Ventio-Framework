@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -32,6 +33,86 @@ void main() {
     await store.close();
     await directory.delete(recursive: true);
   });
+
+  testWidgets(
+    'Builder exports, reviews and installs a declarative package locally',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const moduleId = 'com.example.package_source';
+      const permissionPrefix = 'extension.com_example_package_source.item';
+      await store.createExtension(
+        moduleId: moduleId,
+        displayName: 'Package Source',
+        description: 'Portable declarative example.',
+      );
+      await store.saveDocType({
+        'name': 'Item',
+        'moduleId': moduleId,
+        'schemaVersion': 1,
+        'kind': 'operational',
+        'fields': [
+          {
+            'name': 'label',
+            'type': 'text',
+            'required': true,
+            'label': 'Label',
+            'labelKey': '$permissionPrefix.label',
+            'maxLength': 80,
+          },
+        ],
+        'operations': ['read', 'create', 'update'],
+        'permissions': {
+          'read': '$permissionPrefix.read',
+          'create': '$permissionPrefix.create',
+          'update': '$permissionPrefix.update',
+        },
+        'ui': {
+          'listColumns': ['label'],
+          'formFields': ['label'],
+        },
+        'label': 'Item',
+        'labelKey': '$permissionPrefix.name',
+        'description': 'A portable item definition.',
+        'descriptionKey': '$permissionPrefix.description',
+      });
+      final package = jsonEncode((await store.exportBundle(moduleId)).toJson());
+      await store.remove(moduleId);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(store: store, queue: queue),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Install package'));
+      await tester.pumpAndSettle();
+      expect(find.text('Install extension package'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), package);
+      await tester.tap(find.text('Validate package'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Review extension package'), findsOneWidget);
+      expect(find.textContaining(moduleId), findsOneWidget);
+      expect(find.textContaining('Item'), findsWidgets);
+      await tester.tap(find.text('Install on this device'));
+      await tester.pumpAndSettle();
+
+      final installed = await store.getExtension(moduleId);
+      expect(installed?.state, ExtensionState.draft);
+      expect(find.text('Package Source'), findsWidgets);
+      expect(find.text('LOCAL ONLY'), findsWidgets);
+
+      await tester.tap(find.byTooltip('Export declarative package'));
+      await tester.pumpAndSettle();
+      expect(find.text('Declarative extension package'), findsOneWidget);
+      expect(find.textContaining(moduleId), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'Builder creates, previews, activates and runs a generated DocType',
