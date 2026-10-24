@@ -108,7 +108,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
             scope.branchId == profile.branchId,
       );
       setState(() {
-        _hostIdentity = identity.persistent && selectedScopeIsStillGranted
+        _hostIdentity =
+            identity.persistent &&
+                identity.tenantId == profile.tenantId &&
+                identity.actorId == profile.actorId &&
+                identity.deviceId == profile.deviceId &&
+                selectedScopeIsStillGranted
             ? identity
             : null;
       });
@@ -422,8 +427,13 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       return;
     }
     try {
+      final identity = await _requireHostSyncIdentity(
+        _hostPackageClient(endpoint: Uri.parse(profile.endpoint), vault: vault),
+        profile,
+      );
       final resolved = await HostSyncService(
         queue: widget.queue,
+        identity: identity,
         transport: HttpHostCommandTransport(
           endpoint: Uri.parse(profile.endpoint),
           credentials: vault,
@@ -1237,6 +1247,32 @@ class _ExtensionBundleImportDialogState
         child: const Text('Validate package'),
       ),
     ],
+  );
+}
+
+Future<HostSyncIdentity> _requireHostSyncIdentity(
+  HostExtensionPackageClient client,
+  HostConnectionProfile profile,
+) async {
+  final identity = await client.session();
+  final selectedScopeIsGranted = identity.scopes.any(
+    (scope) =>
+        scope.companyId == profile.companyId &&
+        scope.branchId == profile.branchId,
+  );
+  if (!identity.persistent ||
+      identity.tenantId != profile.tenantId ||
+      identity.actorId != profile.actorId ||
+      identity.deviceId != profile.deviceId ||
+      !selectedScopeIsGranted) {
+    throw const HostPackageTransportException('HOST_PROFILE_IDENTITY_CHANGED');
+  }
+  return HostSyncIdentity(
+    tenantId: profile.tenantId,
+    companyId: profile.companyId,
+    branchId: profile.branchId,
+    actorId: profile.actorId!,
+    deviceId: profile.deviceId!,
   );
 }
 
@@ -2785,8 +2821,19 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     final queue = widget.queue;
     if (profile == null || vault == null || queue == null) return;
     try {
+      final client =
+          widget.hostPackageClientFactory?.call(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+          ) ??
+          HostExtensionPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+          );
+      final identity = await _requireHostSyncIdentity(client, profile);
       final count = await HostSyncService(
         queue: queue,
+        identity: identity,
         transport: HttpHostCommandTransport(
           endpoint: Uri.parse(profile.endpoint),
           credentials: vault,

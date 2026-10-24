@@ -205,6 +205,7 @@ void main() {
     final service = HostSyncService(
       queue: queue,
       transport: const DeterministicTransportFixture(),
+      identity: _syncIdentity(envelope),
     );
 
     await expectLater(service.syncPending(), throwsA(isA<FormatException>()));
@@ -222,6 +223,7 @@ void main() {
     final service = HostSyncService(
       queue: queue,
       transport: _TestHostTransport((_) async => receipt),
+      identity: _syncIdentity(envelope),
     );
 
     expect(await service.syncPending(), 1);
@@ -249,6 +251,7 @@ void main() {
       var attempt = 0;
       final service = HostSyncService(
         queue: queue,
+        identity: _syncIdentity(envelope),
         transport: _TestHostTransport((_) async {
           attempt++;
           return _hostResponse(
@@ -270,7 +273,80 @@ void main() {
       expect(accepted.isHostConfirmed, isTrue);
     },
   );
+
+  test(
+    'A different Host identity or scope cannot attempt queued work',
+    () async {
+      final envelope = await maintenanceEnvelope();
+      await queue.enqueue(envelope);
+      var sends = 0;
+      final mismatches = [
+        HostSyncIdentity(
+          tenantId: 'another-tenant',
+          companyId: envelope.companyId,
+          branchId: envelope.branchId,
+          actorId: envelope.actorId,
+          deviceId: envelope.deviceId,
+        ),
+        HostSyncIdentity(
+          tenantId: envelope.tenantId,
+          companyId: 'another-company',
+          branchId: envelope.branchId,
+          actorId: envelope.actorId,
+          deviceId: envelope.deviceId,
+        ),
+        HostSyncIdentity(
+          tenantId: envelope.tenantId,
+          companyId: envelope.companyId,
+          branchId: 'another-branch',
+          actorId: envelope.actorId,
+          deviceId: envelope.deviceId,
+        ),
+        HostSyncIdentity(
+          tenantId: envelope.tenantId,
+          companyId: envelope.companyId,
+          branchId: envelope.branchId,
+          actorId: 'another-user',
+          deviceId: envelope.deviceId,
+        ),
+        HostSyncIdentity(
+          tenantId: envelope.tenantId,
+          companyId: envelope.companyId,
+          branchId: envelope.branchId,
+          actorId: envelope.actorId,
+          deviceId: 'another-device',
+        ),
+      ];
+
+      for (final identity in mismatches) {
+        await expectLater(
+          HostSyncService(
+            queue: queue,
+            identity: identity,
+            transport: _TestHostTransport((_) async {
+              sends++;
+              return _hostResponse(envelope, 'ACCEPTED');
+            }),
+          ).syncPending(),
+          throwsA(isA<HostSyncIdentityMismatchException>()),
+        );
+      }
+      final pending = (await queue.getById(envelope.commandId))!;
+      expect(sends, 0);
+      expect(pending.attemptCount, 0);
+      expect(pending.hostStatus, HostCommandStatus.pending);
+      expect(pending.hostReceipt, isNull);
+    },
+  );
 }
+
+HostSyncIdentity _syncIdentity(CommandEnvelope envelope) => HostSyncIdentity(
+  tenantId: envelope.tenantId,
+  companyId: envelope.companyId,
+  branchId: envelope.branchId,
+  actorId: envelope.actorId,
+  deviceId: envelope.deviceId,
+);
 
 TransportResponse _hostResponse(CommandEnvelope envelope, String status) {
   final accepted = status == 'ACCEPTED';

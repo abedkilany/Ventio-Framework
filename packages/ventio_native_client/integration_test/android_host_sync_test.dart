@@ -139,6 +139,13 @@ void main() {
         await expectLater(
           HostSyncService(
             queue: queue,
+            identity: HostSyncIdentity(
+              tenantId: writerSession.tenantId,
+              companyId: _companyId,
+              branchId: _branchId,
+              actorId: writerSession.actorId,
+              deviceId: writerSession.deviceId,
+            ),
             transport: HttpHostCommandTransport(
               endpoint: unavailableEndpoint,
               credentials: offlineVault,
@@ -162,6 +169,13 @@ void main() {
         expect(
           await HostSyncService(
             queue: queue,
+            identity: HostSyncIdentity(
+              tenantId: writerSession.tenantId,
+              companyId: _companyId,
+              branchId: _branchId,
+              actorId: writerSession.actorId,
+              deviceId: writerSession.deviceId,
+            ),
             transport: HttpHostCommandTransport(
               endpoint: endpoint,
               credentials: writerVault,
