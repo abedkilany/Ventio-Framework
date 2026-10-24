@@ -703,6 +703,12 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   }
 
   Future<void> _addField([Map<String, dynamic>? existing]) async {
+    final docTypeName = _nameController.text.trim();
+    final docTypeNameError = _docTypeIdentifierError(docTypeName);
+    if (docTypeNameError != null) {
+      _message('Enter a valid DocType ID before adding fields.');
+      return;
+    }
     final docTypes = await widget.store.listDocTypes(widget.moduleId);
     final targets = docTypes
         .map((item) => item['name']! as String)
@@ -713,7 +719,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       context: context,
       builder: (context) => _FieldEditorDialog(
         moduleId: widget.moduleId,
-        docTypeName: _nameController.text,
+        docTypeName: docTypeName,
         relationTargets: targets,
         existing: existing,
       ),
@@ -944,11 +950,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                         'Stable identifier. Use letters, numbers and underscores.',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) => _identifierError(
-                    value,
-                    RegExp(r'^[A-Z][A-Za-z0-9_]*$'),
-                    'Use an identifier such as Asset or AssetAssignment.',
-                  ),
+                  validator: _docTypeIdentifierError,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -2591,6 +2593,12 @@ String? _identifierError(String? value, RegExp pattern, String message) {
   final raw = value?.trim() ?? '';
   return pattern.hasMatch(raw) ? null : message;
 }
+
+String? _docTypeIdentifierError(String? value) => _identifierError(
+  value,
+  RegExp(r'^[A-Z][A-Za-z0-9_]*$'),
+  'Use an identifier such as Asset or AssetAssignment.',
+);
 
 String _enumLabel(FieldDefinition field, String value) {
   final raw = field.enumValues;

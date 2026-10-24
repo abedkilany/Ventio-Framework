@@ -60,6 +60,13 @@ void main() {
       expect(find.text('Asset Register'), findsWidgets);
       await tester.tap(find.text('Add DocType'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Add field'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Enter a valid DocType ID before adding fields.'),
+        findsOneWidget,
+      );
+      expect(find.text('Save field'), findsNothing);
       fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'Asset');
       await tester.enterText(fields.at(1), 'Asset');
