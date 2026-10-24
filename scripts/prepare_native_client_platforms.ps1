@@ -2,6 +2,13 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $clientDirectory = Join-Path $repositoryRoot 'packages/ventio_native_client'
+$existingPlatforms = @('android', 'windows') | Where-Object {
+    Test-Path -LiteralPath (Join-Path $clientDirectory $_)
+}
+if ($existingPlatforms.Count -gt 0) {
+    throw "Refusing to regenerate existing platform folders ($($existingPlatforms -join ', ')). Preserve or back them up before generating fresh runners."
+}
+
 Push-Location $clientDirectory
 try {
     flutter config --enable-windows-desktop

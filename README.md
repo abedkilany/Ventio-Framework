@@ -1,18 +1,19 @@
 # Ventio Framework
 
-Standalone, English-first modular ERP framework prototype, separate from the original Ventio application. Host is the final authority; future offline client changes remain provisional until accepted by Host.
+Standalone, English-first extension platform prototype, separate from the original Ventio application. It builds a framework for future extensions; it is not a ready-made ERP. Host is the final authority; offline client changes remain provisional until accepted by Host.
 
-The stable Core Foundation tag is `v0.2.0`. Host Engine v0.1 was accepted on `feature/host-engine-v0.1`. Native client foundation work is isolated on `feature/native-flutter-offline-proof`, based on the accepted Host commit. Neither `main`, `v0.2.0`, nor the original Ventio application is modified by this work.
+The stable Core Foundation tag is `v0.2.0`. Host Engine v0.1 was accepted on `feature/host-engine-v0.1`. Extension Builder development is isolated on `codex/extension-platform`, based on `feature/native-flutter-offline-proof` at `b60530a`. Neither `main`, `v0.2.0`, nor the original Ventio application is modified by this work.
 
 ## Current release gate
 
-Host Engine v0.1 passed its bounded development engineering gate. The Native Flutter Client Phase 1 adds a local SQLite command queue and a fixture-only transport; it does not connect to Host. **Production readiness remains blocked.** The Host API is hard-coded to `127.0.0.1`. No network exposure or production deployment is authorized by passing prototype tests.
+Host Engine v0.1 passed its bounded development engineering gate. The native client now includes a device-local Extension Builder foundation: durable definitions, metadata-rendered forms/lists, local records, scoped relationships and guarded additive schema upgrades. These definitions and records are **not Host-approved and do not synchronize**. The Host API remains loopback-only. Windows Host service operation, authenticated remote transport, role grants and production synchronization remain open gates.
 
 - [Final engineering audit](docs/HOST_ENGINE_V0_1_FINAL_ENGINEERING_AUDIT.md): acceptance criteria, findings, evidence and limitations.
 - [Operations and recovery](docs/HOST_ENGINE_V0_1_OPERATIONS.md): separate OS/database identities, schema compatibility, witness upgrade, startup, shutdown and restore.
 - [Current implementation status](docs/IMPLEMENTATION_STATUS.md).
 - [Native Flutter and Offline-first proof plan](docs/NATIVE_FLUTTER_OFFLINE_FIRST_PROOF_PLAN.md).
 - [Native Flutter Phase 1 implementation notes](docs/NATIVE_FLUTTER_OFFLINE_FIRST_PHASE_1.md).
+- [Extension Builder device-local foundation and remaining security gates](docs/EXTENSION_BUILDER_FOUNDATION.md).
 
 ## Packages and ownership
 
@@ -22,7 +23,7 @@ Host Engine v0.1 passed its bounded development engineering gate. The Native Flu
 | `ventio_postgres` | Vetted transactional migrations and scoped record adapter; no independent authentication system |
 | `ventio_host` | Durable command transaction, idempotency receipt, record, audit and outbox |
 | `ventio_host_api` | Loopback HTTP, persistent credential authorization, recovery admission and trusted local administration |
-| `ventio_native_client` | Separate Windows/Android Flutter client proof, immutable Core command contracts and durable SQLite provisional queue |
+| `ventio_native_client` | Separate Flutter client with a responsive Extension Builder, device-local extension/DocType/record storage, metadata-driven screens and the original durable command queue proof |
 
 PostgreSQL forced RLS and narrowly scoped database functions reinforce Host authorization. RLS does not validate the entire business payload or replace command handling. Generic operational create cannot post financial/inventory effects or execute uploaded code. The external recovery witness is independently writable by a trusted OS account; matching rollback of both witness and database remains a documented production blocker.
 
@@ -40,6 +41,14 @@ dart run bin/maintenance_demo.dart
 dart run bin/two_module_demo.dart
 ```
 
+Migration checksum line-ending regression test:
+
+```sh
+cd packages/ventio_postgres
+dart analyze .
+dart run test/migration_checksum_test.dart
+```
+
 From repository root:
 
 ```sh
@@ -55,4 +64,4 @@ All code, documentation, fixtures and base UI text are English. Optional transla
 
 ## Native client proof
 
-The app is in `packages/ventio_native_client`. Generate its standard native runner files with `scripts/prepare_native_client_platforms.ps1` on Windows or `scripts/prepare_native_client_platforms.sh` on Linux, then run `flutter pub get`, `flutter analyze` and `flutter test` in the app directory. The Native Flutter Client workflow builds a Windows desktop app and an Android debug APK. The fixture response is visibly simulated and cannot change a command from Pending to Host-accepted.
+The app is in `packages/ventio_native_client`. On a fresh checkout without `android/` or `windows/` folders, generate standard runner scaffolding with the matching `scripts/prepare_native_client_platforms` script, then run `flutter pub get`, `flutter analyze` and `flutter test`. The scripts refuse to overwrite existing platform folders. The client workflow builds Windows and Android targets. Its queue fixture remains simulated and cannot change a command from Pending to Host-accepted. Extension Builder records have a separate `LOCAL_ONLY` state and are not currently queued for sync.

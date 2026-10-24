@@ -1,9 +1,10 @@
-name: Native Flutter Client
+name: Native Flutter Client and Extension Builder
 
 on:
   push:
     branches:
       - feature/native-flutter-offline-proof
+      - 'codex/**'
     paths:
       - '.github/workflows/native-flutter-client.yml'
       - 'packages/ventio_core/**'
@@ -41,7 +42,7 @@ jobs:
         run: |
           dart format --output=none --set-exit-if-changed lib test
           flutter analyze
-      - name: Test durable queue and client contracts
+      - name: Test Extension Builder, local data engine and command queue
         working-directory: packages/ventio_native_client
         run: flutter test --reporter expanded
 

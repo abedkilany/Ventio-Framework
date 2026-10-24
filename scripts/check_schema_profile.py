@@ -5,7 +5,9 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
 sources = {
-    p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+    p.name: hashlib.sha256(
+        p.read_bytes().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+    ).hexdigest()
     for p in (root / 'migrations/postgres').glob('*.sql')
 }
 profile = (root / 'security/postgres/schema_profile.sql').read_text()

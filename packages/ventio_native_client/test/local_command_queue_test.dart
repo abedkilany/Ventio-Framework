@@ -134,13 +134,12 @@ void main() {
       final envelope = await maintenanceEnvelope();
       await queue.enqueue(envelope);
       await queue.close();
-      final child =
-          await Process.run(Platform.isWindows ? 'dart.exe' : 'dart', [
-            'run',
-            'test/support/crash_after_attempt.dart',
-            databasePath,
-            envelope.commandId,
-          ], workingDirectory: Directory.current.path);
+      final child = await Process.run(_dartRuntimeExecutable(), [
+        'run',
+        'test/support/crash_after_attempt.dart',
+        databasePath,
+        envelope.commandId,
+      ], workingDirectory: Directory.current.path);
       expect(child.exitCode, 73, reason: '${child.stdout}\n${child.stderr}');
 
       queue = await LocalCommandQueue.open(
@@ -199,4 +198,27 @@ void main() {
     expect(restored.fixtureReceipt, isNull);
     expect(restored.hostStatus, HostCommandStatus.pending);
   });
+}
+
+String _dartRuntimeExecutable() {
+  final resolved = Platform.resolvedExecutable;
+  final executableName = resolved
+      .split(Platform.pathSeparator)
+      .last
+      .toLowerCase();
+  if (executableName == (Platform.isWindows ? 'dart.exe' : 'dart')) {
+    return resolved;
+  }
+
+  final pathEntries = (Platform.environment['PATH'] ?? '').split(
+    Platform.isWindows ? ';' : ':',
+  );
+  for (final entry in pathEntries) {
+    final candidate = Platform.isWindows
+        ? '$entry${Platform.pathSeparator}cache${Platform.pathSeparator}dart-sdk${Platform.pathSeparator}bin${Platform.pathSeparator}dart.exe'
+        : '$entry${Platform.pathSeparator}cache${Platform.pathSeparator}dart-sdk${Platform.pathSeparator}bin${Platform.pathSeparator}dart';
+    if (File(candidate).existsSync()) return candidate;
+  }
+
+  return Platform.isWindows ? 'dart.exe' : 'dart';
 }

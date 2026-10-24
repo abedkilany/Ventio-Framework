@@ -4,6 +4,13 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:postgres/postgres.dart' as pg;
 
+/// Migration identity is independent of checkout line endings on each OS.
+String canonicalMigrationSql(String source) =>
+    source.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
+String migrationChecksum(String source) =>
+    sha256.convert(utf8.encode(canonicalMigrationSql(source))).toString();
+
 /// Only application-owned, vetted .sql files are accepted as migrations.
 /// Each file contains precisely ONE SQL statement; never user-provided SQL.
 class PostgresMigrationRunner {
@@ -37,10 +44,10 @@ class PostgresMigrationRunner {
           !versions.add(filename.substring(0, 3))) {
         throw StateError('Invalid or duplicate migration version: $filename');
       }
-      final sql = await file.readAsString();
+      final sql = canonicalMigrationSql(await file.readAsString());
       if (sql.trim().isEmpty) throw StateError('Empty migration: $filename');
       sources[filename] = sql;
-      checksums[filename] = sha256.convert(utf8.encode(sql)).toString();
+      checksums[filename] = migrationChecksum(sql);
     }
     final applied = <String>[];
     // One lock and transaction span preflight AND the entire vetted batch.
