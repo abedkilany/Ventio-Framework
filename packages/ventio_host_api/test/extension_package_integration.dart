@@ -603,11 +603,26 @@ Future<void> main() async {
       token: primaryToken,
       body: missingReference.envelope.original,
     );
+    final uncommittedMissingReferenceRecord = await observer.execute(
+      pg.Sql.named('''
+        SELECT count(*) FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item' AND record_id=@record
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+        'record': 'registry-item-missing-parent',
+      },
+    );
     expect(
       missingReferenceReply.status == 422 &&
           missingReferenceReply.body['receipt']['reasonCode'] ==
-              'INVALID_REFERENCE',
-      'Host rejects a reference to a nonexistent record',
+              'INVALID_REFERENCE' &&
+          uncommittedMissingReferenceRecord.single[0] == 0,
+      'Host rejects a missing reference without writing the record',
     );
 
     final foreignBranchTarget = ExtensionRecordCommand.create(

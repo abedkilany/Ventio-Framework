@@ -454,6 +454,17 @@ void main() {
           'EquipmentInspection',
         ),
       );
+    Map<String, int> effectCounts() => {
+          'records': host.recordCount,
+          'commands': host.acceptedCommandCount,
+          'audit': host.auditCount,
+          'outbox': host.outboxCount,
+        };
+    bool effectsUnchanged(Map<String, int> before) {
+      final after = effectCounts();
+      return before.keys.every((key) => before[key] == after[key]);
+    }
+
     final raw = loadJsonFile('$fixture/create_command.json');
     (raw['payload'] as Map<String, dynamic>)['priority'] = 0;
     final command = CommandEnvelope.fromJson(raw);
@@ -517,10 +528,12 @@ void main() {
       ..['payload'] = Map<String, dynamic>.from(childPayload)
       ..['payload']['relatedInspection'] = 'missing-inspection';
     final missingReference = CommandEnvelope.fromJson(missingReferenceRaw);
+    final beforeMissingReference = effectCounts();
     check(
       host.execute(missingReference, principal).reasonCode ==
-          'INVALID_REFERENCE',
-      'Host rejects a reference to a missing record',
+              'INVALID_REFERENCE' &&
+          effectsUnchanged(beforeMissingReference),
+      'Host rejects a missing reference without business effects',
     );
 
     final otherBranchPrincipal = Principal(
@@ -549,10 +562,12 @@ void main() {
       ..['aggregateId'] = 'inspection-cross-branch-reference'
       ..['payload'] = crossBranchPayload;
     final crossBranchReference = CommandEnvelope.fromJson(crossBranchRaw);
+    final beforeCrossBranchReference = effectCounts();
     check(
       host.execute(crossBranchReference, principal).reasonCode ==
-          'INVALID_REFERENCE',
-      'Host refuses a reference to a record in a different branch',
+              'INVALID_REFERENCE' &&
+          effectsUnchanged(beforeCrossBranchReference),
+      'Host refuses a cross-branch reference without business effects',
     );
 
     final otherCompanyPrincipal = Principal(
@@ -579,12 +594,14 @@ void main() {
       ..['commandId'] = uuid(910)
       ..['aggregateId'] = 'inspection-cross-company-reference'
       ..['payload'] = crossCompanyPayload;
+    final beforeCrossCompanyReference = effectCounts();
     check(
       host
-              .execute(CommandEnvelope.fromJson(crossCompanyRaw), principal)
-              .reasonCode ==
-          'INVALID_REFERENCE',
-      'Host refuses a reference to a record in another company',
+                  .execute(CommandEnvelope.fromJson(crossCompanyRaw), principal)
+                  .reasonCode ==
+              'INVALID_REFERENCE' &&
+          effectsUnchanged(beforeCrossCompanyReference),
+      'Host refuses a cross-company reference without business effects',
     );
 
     final otherTenantPrincipal = Principal(
@@ -611,12 +628,14 @@ void main() {
       ..['commandId'] = uuid(912)
       ..['aggregateId'] = 'inspection-cross-tenant-reference'
       ..['payload'] = crossTenantPayload;
+    final beforeCrossTenantReference = effectCounts();
     check(
       host
-              .execute(CommandEnvelope.fromJson(crossTenantRaw), principal)
-              .reasonCode ==
-          'INVALID_REFERENCE',
-      'Host refuses a reference to a record in another tenant',
+                  .execute(CommandEnvelope.fromJson(crossTenantRaw), principal)
+                  .reasonCode ==
+              'INVALID_REFERENCE' &&
+          effectsUnchanged(beforeCrossTenantReference),
+      'Host refuses a cross-tenant reference without business effects',
     );
   });
 
