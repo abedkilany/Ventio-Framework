@@ -22,3 +22,18 @@ flutter create \
   --project-name=ventio_native_client \
   --org=com.ventio \
   .
+
+python3 - <<'PY'
+from pathlib import Path
+
+manifest = Path('android/app/src/main/AndroidManifest.xml')
+text = manifest.read_text(encoding='utf-8')
+permission = '    <uses-permission android:name="android.permission.INTERNET" />'
+if permission not in text:
+    text = text.replace(
+        '<application',
+        permission + '\n    <application',
+        1,
+    )
+    manifest.write_text(text, encoding='utf-8')
+PY

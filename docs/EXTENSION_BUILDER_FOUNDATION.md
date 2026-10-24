@@ -10,13 +10,15 @@ Schema updates reject field removal, type or relation changes, enum value remova
 
 Each DocType can declare which of the built-in read, create and update operations it supports. The local engine rejects undeclared operations and the generated UI hides those actions. An extension can declare permission keys only inside its own namespace. These declarations do not create Host grants or authenticate a user; Host authorization remains a separate boundary. Definition content is parsed as JSON metadata. The client loads no extension-supplied Dart, SQL, JavaScript or scripts.
 
+The persisted maintenance-command queue now has an authenticated Host HTTP transport adapter. Credentials are kept behind a platform-secure-storage backend contract, remote origins require HTTPS, and cleartext is limited to exact loopback origins. Requests have bounded time and response size, use bearer auth, validate API and command IDs, refuse redirects, and use the platform TLS verifier. Only a response marked as coming from Host can resolve a queued command. `RETRY_LATER` receipts preserve the same command ID and remain eligible for idempotent retry; transport failures leave the command provisional. These are transport and queue foundations only: the current Extension Builder definitions and dynamic records are not yet converted into Host commands.
+
 ## Authority and security boundary
 
 `DRAFT`, `ACTIVE_LOCAL`, and `DISABLED_LOCAL` describe this device only. Local activation is not Host installation or approval. The extension database and generated records are not currently sent through the command queue and do not appear on another device. The existing Maintenance command queue remains a separate proof, and its fixture receipt cannot imply Host acceptance.
 
 The current app has no authenticated identity provider or Host-issued scope. The sample UI uses a fixed local workspace scope. SQLite queries and relationship checks include organization, company and branch IDs, but a user with access to the local device/database can bypass them. They are not a security boundary. Host authorization, exact role grants, row-level isolation and audited changes must be enforced by the Host before shared data is used.
 
-The current Host API remains bound to `127.0.0.1`. There is no LAN or Internet listener, TLS deployment profile, remote enrollment/pairing, Android keystore integration, Windows Host service package or proof that the Linux recovery-witness ownership model has a safe Windows equivalent. The Host must remain unexposed until these pieces are designed and reviewed.
+The current Host API remains bound to `127.0.0.1`, and its development authenticator is not a production enrollment lifecycle. There is no LAN or Internet listener, TLS server/deployment profile, remote enrollment/pairing, app-level credential setup UI, Windows Host service package or proof that the Linux recovery-witness ownership model has a safe Windows equivalent. The client transport tests use local test servers; they do not establish secure connectivity to a real multi-device Host. The Host must remain unexposed until these pieces are designed and reviewed.
 
 ## Current limits
 
@@ -26,13 +28,18 @@ The current Host API remains bound to `127.0.0.1`. There is no LAN or Internet l
 - Local search loads at most 1,000 recent scoped records before applying the text query. This is a prototype limit, not a scale claim.
 - The builder currently uses one fixed local workspace scope; it does not provide organization/company/branch sign-in or a scope selector.
 - Compatible metadata upgrades are deliberately additive. Destructive data transformations need a future reviewed, resumable Host migration protocol and offline-command upcasting.
+- The generic Host HTTP adapter currently transports the existing maintenance-command contract. It does not publish, approve, install or synchronize extension packages, schemas, dynamic records or extension versions.
+- The credential vault and transport are library plumbing; there is not yet an in-app Host enrollment/settings flow or automatic background synchronization policy.
 - Decimal fields in this generic local store are data fields; this does not implement exact-money rules or financial posting.
 - No local PostgreSQL test fixture, Android emulator, or physical Android device was used for this foundation slice. The PostgreSQL adapter migration and persistence integration suite passed in GitHub Actions against its disposable PostgreSQL 16 service. Android SDK licenses were not accepted locally.
 
 ## Verification performed
 
 - `flutter analyze`: passed on Flutter 3.44.1 / Dart 3.12.1.
-- `flutter test --reporter expanded`: passed all 26 client tests, including close/reopen SQLite persistence, version-one database upgrade, two independent extensions using the same data engine, Builder dependency selection, dependency order/cycle/version checks, child-process queue recovery, permission-namespace rejection, declared-operation enforcement, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, configurable list and form layout persistence, hidden optional value preservation, desktop builder-to-record flow, and phone-sized Builder and record-form flows at 360×800.
+- `flutter test --reporter compact`: passed all 37 client tests, including close/reopen SQLite persistence, version-one database upgrade, two independent extensions using the same data engine, Builder dependency selection, dependency order/cycle/version checks, child-process queue recovery, Host receipt and retry reconciliation, secure credential endpoint validation, bounded Host transport behavior and redirect refusal, permission-namespace rejection, declared-operation enforcement, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, configurable list and form layout persistence, hidden optional value preservation, desktop builder-to-record flow, and phone-sized Builder and record-form flows at 360×800.
+- `flutter analyze`: passed on Flutter 3.44.1 / Dart 3.12.1 with the transport changes.
+- `dart format --output=none --set-exit-if-changed lib test`: passed with no formatting changes.
+- PowerShell parser: passed for `scripts/prepare_native_client_platforms.ps1`. The shell script syntax check could not run because this Windows environment's WSL installation lacks `/bin/bash`; the generator change was not executed against a fresh scaffold in this check.
 - Windows Debug executable: built successfully from an isolated temporary copy with the installed Windows toolchain. The executable remained alive for a five-second startup smoke check; no visual/manual interaction check was performed.
 - Android Debug APK: CI builds the Android debug APK; no APK was installed on a physical device or emulator during this work.
 - Core executable suite: 54 passed, including ordered layout validation, required-field visibility and operation declaration validation.

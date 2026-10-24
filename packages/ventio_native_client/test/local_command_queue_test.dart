@@ -198,7 +198,111 @@ void main() {
     expect(restored.fixtureReceipt, isNull);
     expect(restored.hostStatus, HostCommandStatus.pending);
   });
+
+  test('Only a Host response can resolve queue status', () async {
+    final envelope = await maintenanceEnvelope();
+    await queue.enqueue(envelope);
+    final service = HostSyncService(
+      queue: queue,
+      transport: const DeterministicTransportFixture(),
+    );
+
+    await expectLater(service.syncPending(), throwsA(isA<FormatException>()));
+    final stillPending = (await queue.getById(envelope.commandId))!;
+    expect(stillPending.attemptCount, 1);
+    expect(stillPending.hostStatus, HostCommandStatus.pending);
+    expect(stillPending.hostReceipt, isNull);
+    expect(stillPending.fixtureReceipt, isNull);
+  });
+
+  test('Host receipts resolve commands idempotently', () async {
+    final envelope = await maintenanceEnvelope();
+    await queue.enqueue(envelope);
+    final receipt = _hostResponse(envelope, 'ACCEPTED');
+    final service = HostSyncService(
+      queue: queue,
+      transport: _TestHostTransport((_) async => receipt),
+    );
+
+    expect(await service.syncPending(), 1);
+    final accepted = (await queue.getById(envelope.commandId))!;
+    expect(accepted.hostStatus, HostCommandStatus.accepted);
+    expect(accepted.isHostConfirmed, isTrue);
+    expect(accepted.fixtureReceipt, isNull);
+
+    await queue.recordHostReceipt(envelope.commandId, receipt);
+    expect(
+      (await queue.getById(envelope.commandId))!.hostStatus,
+      HostCommandStatus.accepted,
+    );
+    await expectLater(
+      queue.recordAttempt(envelope.commandId),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test(
+    'RETRY_LATER receipts keep the same command eligible for retry',
+    () async {
+      final envelope = await maintenanceEnvelope();
+      await queue.enqueue(envelope);
+      var attempt = 0;
+      final service = HostSyncService(
+        queue: queue,
+        transport: _TestHostTransport((_) async {
+          attempt++;
+          return _hostResponse(
+            envelope,
+            attempt == 1 ? 'RETRY_LATER' : 'ACCEPTED',
+          );
+        }),
+      );
+
+      expect(await service.syncPending(), 1);
+      final retryable = (await queue.getById(envelope.commandId))!;
+      expect(retryable.hostStatus, HostCommandStatus.retryLater);
+      expect(retryable.isPending, isTrue);
+
+      expect(await service.syncPending(), 1);
+      final accepted = (await queue.getById(envelope.commandId))!;
+      expect(accepted.attemptCount, 2);
+      expect(accepted.hostStatus, HostCommandStatus.accepted);
+      expect(accepted.isHostConfirmed, isTrue);
+    },
+  );
 }
+
+TransportResponse _hostResponse(CommandEnvelope envelope, String status) {
+  final accepted = status == 'ACCEPTED';
+  return TransportResponse(
+    apiVersion: hostApiVersion,
+    source: TransportSource.host,
+    receipt: CommandReceipt(
+      commandId: envelope.commandId,
+      status: status,
+      serverTimestamp: _hostServerTime.toIso8601String(),
+      reasonCode: accepted ? null : 'DEPENDENCY_PENDING',
+      messageKey: accepted ? null : 'core.error.dependency_pending',
+      hostRevision: accepted ? 1 : null,
+      scopeCursor: accepted ? 'host-cursor-1' : null,
+      output: accepted ? {'serverRecordId': envelope.aggregateId} : null,
+    ).toJson(),
+  );
+}
+
+class _TestHostTransport implements CommandTransport {
+  const _TestHostTransport(this.handler);
+
+  final Future<TransportResponse> Function(CommandEnvelope) handler;
+
+  @override
+  int get apiVersion => hostApiVersion;
+
+  @override
+  Future<TransportResponse> send(CommandEnvelope envelope) => handler(envelope);
+}
+
+final _hostServerTime = DateTime.utc(2026, 10, 24, 1);
 
 String _dartRuntimeExecutable() {
   final resolved = Platform.resolvedExecutable;

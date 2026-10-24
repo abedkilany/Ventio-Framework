@@ -69,7 +69,9 @@ class QueueEntry {
   bool get isHostConfirmed =>
       hostStatus == HostCommandStatus.accepted && hostReceipt?.accepted == true;
 
-  bool get isPending => hostStatus == HostCommandStatus.pending;
+  bool get isPending =>
+      hostStatus == HostCommandStatus.pending ||
+      hostStatus == HostCommandStatus.retryLater;
 
   factory QueueEntry.fromRow(Map<String, Object?> row) {
     final rawEnvelope = jsonDecode(row['envelope_json']! as String);
@@ -223,9 +225,10 @@ class LocalCommandQueue {
         limit: 1,
       );
       if (rows.isEmpty) throw StateError('Unknown command: $commandId');
-      if (rows.single['host_status'] !=
-          HostCommandStatus.pending.databaseValue) {
-        throw StateError('Only pending commands can be attempted');
+      final status = rows.single['host_status'];
+      if (status != HostCommandStatus.pending.databaseValue &&
+          status != HostCommandStatus.retryLater.databaseValue) {
+        throw StateError('Only pending or retryable commands can be attempted');
       }
       final now = _clock().toUtc().toIso8601String();
       await transaction.update(
@@ -236,7 +239,7 @@ class LocalCommandQueue {
           'last_attempt_at_utc': now,
         },
         where: 'command_id = ? AND host_status = ?',
-        whereArgs: [commandId, HostCommandStatus.pending.databaseValue],
+        whereArgs: [commandId, status],
       );
     });
   }
@@ -281,6 +284,69 @@ class LocalCommandQueue {
         where: 'command_id = ? AND host_status = ?',
         whereArgs: [commandId, HostCommandStatus.pending.databaseValue],
       );
+    });
+  }
+
+  /// Stores an authoritative response returned by the real Host transport.
+  /// Fixture responses are deliberately rejected by this path.
+  Future<void> recordHostReceipt(
+    String commandId,
+    TransportResponse response,
+  ) async {
+    _ensureOpen();
+    if (response.source != TransportSource.host ||
+        response.apiVersion != hostApiVersion) {
+      throw const FormatException(
+        'Only a matching-version Host response can resolve a command.',
+      );
+    }
+    final receipt = CommandReceipt.fromJson(
+      requireMap(response.receipt, 'hostReceipt'),
+    );
+    if (receipt.commandId != commandId) {
+      throw const FormatException('Host receipt command ID mismatch');
+    }
+    final status = HostCommandStatus.values.firstWhere(
+      (value) => value.databaseValue == receipt.status,
+    );
+    await _database.transaction((transaction) async {
+      final rows = await transaction.query(
+        _table,
+        columns: const ['attempt_count', 'host_status', 'host_receipt_json'],
+        where: 'command_id = ?',
+        whereArgs: [commandId],
+        limit: 1,
+      );
+      if (rows.isEmpty) throw StateError('Unknown command: $commandId');
+      final row = rows.single;
+      final previousStatus = HostCommandStatus.fromDatabase(row['host_status']);
+      final encodedReceipt = canonicalJson(receipt.toJson());
+      if (previousStatus != HostCommandStatus.pending &&
+          previousStatus != HostCommandStatus.retryLater) {
+        if (previousStatus == status &&
+            row['host_receipt_json'] == encodedReceipt) {
+          return;
+        }
+        throw StateError('A final Host receipt cannot be replaced.');
+      }
+      if ((row['attempt_count']! as int) < 1) {
+        throw StateError('A Host receipt requires a recorded send attempt.');
+      }
+      final changed = await transaction.update(
+        _table,
+        {
+          'host_status': status.databaseValue,
+          'host_receipt_json': encodedReceipt,
+          'updated_at_utc': _clock().toUtc().toIso8601String(),
+        },
+        where: 'command_id = ? AND host_status = ?',
+        whereArgs: [commandId, previousStatus.databaseValue],
+      );
+      if (changed != 1) {
+        throw StateError(
+          'Command state changed before the Host receipt was saved.',
+        );
+      }
     });
   }
 

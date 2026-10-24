@@ -26,6 +26,23 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw 'Could not generate Android and Windows runner scaffolding.'
     }
+
+    $manifestPath = Join-Path $clientDirectory 'android/app/src/main/AndroidManifest.xml'
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw
+    $permission = '    <uses-permission android:name="android.permission.INTERNET" />'
+    if (-not $manifest.Contains($permission)) {
+        $manifest = [regex]::Replace(
+            $manifest,
+            '(<manifest\b[^>]*>)',
+            ('$1' + [Environment]::NewLine + $permission),
+            1
+        )
+        [System.IO.File]::WriteAllText(
+            $manifestPath,
+            $manifest,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+    }
 }
 finally {
     Pop-Location
