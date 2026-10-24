@@ -1,12 +1,29 @@
 # Host Engine v0.1 operations
 
-Scope: controlled Linux laboratory deployment only. The HTTP listener is hard-coded to `127.0.0.1`. No reverse proxy, LAN binding, tunnel, firewall opening or production authorization is supplied. See the final engineering audit for the release decision.
+Scope: controlled prototype deployment on Windows or Linux. The listener defaults to loopback. A non-loopback listener requires TLS, the persistent authenticator and the authoritative command executor; this guard does not certify a production network deployment. Windows protected-file operations have a local ACL integration test, but the complete Windows Host plus PostgreSQL and remote-device path has not been end-to-end verified.
 
 ## Identities and protected paths
 
-Use separate OS accounts for the Host service and trusted recovery administrator. Use a group whose members may read the witness; Host must not control group membership. The administrator owns the witness directory (0750) and witness (0640). Host has group read/traverse only. Credential delivery and administration request files remain in administrator-owned 0700 directories, with 0600 files. Do not put administrator database secrets in Host environment or readable service configuration.
+Use separate OS accounts for the Host service and trusted recovery administrator. Use a group whose members may read the witness; Host must not control group membership. Do not put administrator database secrets in Host environment or readable service configuration.
 
-`local_host.dart` requires `VENTIO_RECOVERY_AUTHORITY_OWNER_UID`, pinned by trusted deployment configuration to the administrator UID. It refuses a witness owned by Host, the wrong UID, a writable witness/parent, symlinks and unsafe permissions. Host cannot overwrite, unlink or rename the witness. Protect all ancestor directories, supplementary groups and ACLs as well. Root, a trusted deployment administrator, a compromised writer, debugger/root capabilities, or replacement of the Host executable/configuration remain outside this OS boundary.
+On Linux, `local_host.dart` requires `VENTIO_RECOVERY_AUTHORITY_OWNER_UID`, pinned by trusted deployment configuration to the administrator UID. It refuses a witness owned by Host, the wrong UID, a writable witness/parent, symlinks and unsafe permissions. Host cannot overwrite, unlink or rename the witness.
+
+On Windows, set `VENTIO_RECOVERY_AUTHORITY_OWNER_SID` to the separate writer account SID and `VENTIO_RECOVERY_AUTHORITY_READER_SID` to a dedicated local group SID containing the Host service account. Provision the authority directory before starting either process. Give its trusted writer, `SYSTEM` (`S-1-5-18`) and local Administrators (`S-1-5-32-544`) full control, and give only the reader group read/traverse (`RX`). Disable inherited entries and remove unexpected explicit entries. The writer must own the directory and witness; Host must be a member of the reader group and must not be the writer. The runtime checks the owner, explicit ACL, reader-group membership, local fixed-volume path and path chain, and refuses reparse points or ancestors that an untrusted principal can delete or replace. It does not create or repair authority directories or ACLs.
+
+For example, a trusted Windows administrator can provision a new directory using the SIDs above (replace the two placeholders with verified SIDs):
+
+```powershell
+$authorityDirectory = Join-Path $env:ProgramData 'Ventio\authority'
+$writerSid = '<trusted writer SID>'
+$readerGroupSid = '<Host reader group SID>'
+New-Item -ItemType Directory -Path $authorityDirectory
+icacls.exe $authorityDirectory /inheritance:r
+icacls.exe $authorityDirectory /setowner ('*' + $writerSid)
+icacls.exe $authorityDirectory /grant:r ('*' + $writerSid + ':(OI)(CI)F') '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' ('*' + $readerGroupSid + ':(OI)(CI)RX')
+icacls.exe $authorityDirectory
+```
+
+The protected-file implementation verifies the resulting ACL and fails closed on any unexpected entry. These ACLs do not protect against the trusted writer, a local administrator/SYSTEM, Host executable/configuration replacement, or a compromised OS account. Use a local fixed NTFS volume; no Windows service installer or automatic certificate rotation is supplied.
 
 Example path layout (provision by the trusted OS administrator):
 
@@ -14,10 +31,11 @@ Example path layout (provision by the trusted OS administrator):
 - `/var/lib/ventio-authority/authority.json`: writer owned, same group, 0640.
 - `/var/lib/ventio-operator`: writer owned, 0700; private requests/deliveries 0600.
 - Read-only deployment tree containing the compiled Host and `spec/v1.2`.
+- Windows: `%ProgramData%\Ventio\authority`, with the writer-owned protected DACL described above.
 
-The operator CLI accepts one private request-file path. Include `witnessReaderGid` (numeric reader group ID) alongside `authorityFile`, `operatorLabel`, `administrationDatabaseUrl` and action-specific fields. Never place the JSON contents or raw tokens on a shell command line. Initial `reset-for-reenrollment` establishes a new authority, revokes every device/credential and removes every grant. Enroll identities/grants again, then provision scope-limited credentials. Never use reset merely to make a mismatching backup look current.
+The operator CLI accepts one private request-file path. Include `witnessReaderGid` (numeric reader group ID) on Linux or `witnessReaderSid` (reader-group SID) on Windows, alongside `authorityFile`, `operatorLabel`, `administrationDatabaseUrl` and action-specific fields. Run the Windows operator CLI as the trusted writer account. Never place JSON contents or raw tokens on a shell command line. Initial `reset-for-reenrollment` establishes a new authority, revokes every device/credential and removes every grant. Enroll identities/grants again, then provision scope-limited credentials. Never use reset merely to make a mismatching backup look current.
 
-The actual delivery is a private local Linux file, not an implemented remote pairing protocol. Recipient verification, trusted physical transfer/import, deletion of delivery copies and platform keystore integration are still required. The runtime supports no administrative HTTP endpoint.
+The actual credential delivery is a private local file, not an implemented remote pairing protocol. Recipient verification, trusted physical transfer/import, deletion of delivery copies and platform keystore integration are still required. The runtime supports no administrative HTTP endpoint.
 
 ## Database deployment and compatibility
 
@@ -44,7 +62,17 @@ VENTIO_RECOVERY_AUTHORITY_FILE=/var/lib/ventio-authority/authority.json
 VENTIO_RECOVERY_AUTHORITY_OWNER_UID=<trusted writer UID>
 ```
 
-Run under the separate Host OS account, from `packages/ventio_host_api` in the deployed tree, so `../../spec/v1.2` resolves. Compile using the pinned Dart SDK 3.13.7. Keep the binary, spec, environment, interpreter and PATH read-only to that account; Python 3 is currently required for protected file operations. No configurable path or interpreter supplied by a client is accepted. Do not log environment, bearer tokens, private request contents or credential delivery files.
+On Windows, use the local path and SID settings instead:
+
+```text
+VENTIO_RECOVERY_AUTHORITY_FILE=C:\ProgramData\Ventio\authority\authority.json
+VENTIO_RECOVERY_AUTHORITY_OWNER_SID=<trusted writer SID>
+VENTIO_RECOVERY_AUTHORITY_READER_SID=<Host reader group SID>
+```
+
+Run under the separate Host OS account, from `packages/ventio_host_api` in the deployed tree, so `../../spec/v1.2` resolves. Compile using the pinned Dart SDK 3.13.7. Keep the binary, spec, environment and PATH read-only to that account. Protected file operations use Python 3 on Linux and the Windows system PowerShell runtime with ACL APIs on Windows; the executable is resolved from `SystemRoot`, not from a client path or mutable PATH lookup. Do not log environment, bearer tokens, private request contents or credential delivery files.
+
+For a single Windows device, leave `VENTIO_HOST_BIND_ADDRESS` unset to use loopback. For a separate Windows Host serving other devices, bind to its specific LAN address, configure a certificate whose SAN matches the Host name clients use, and permit only the intended Host port through the Windows firewall. Remote binding is TLS-only. This Host API is not yet integrated with Ventio's Flutter synchronization client, and this LAN topology has not been end-to-end verified.
 
 Startup probes restricted privileges, exact schema compatibility and independent recovery admission before listening. `/healthz` is liveness, not database/recovery readiness. Each authenticated command rechecks current identity and authorization inside its database transaction; receipt replay is also authorized. Authentication does not freeze a user's permissions for future requests.
 

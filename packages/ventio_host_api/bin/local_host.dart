@@ -21,22 +21,46 @@ Future<void> main() async {
     final witness = Platform.environment['VENTIO_RECOVERY_AUTHORITY_FILE'];
     if (witness == null)
       throw StateError('Independent recovery authority required');
-    final writerUid = int.tryParse(
-      Platform.environment['VENTIO_RECOVERY_AUTHORITY_OWNER_UID'] ?? '',
+    final int? writerUid;
+    final String? writerSid;
+    final String? readerSid;
+    if (Platform.isLinux) {
+      writerUid = int.tryParse(
+        Platform.environment['VENTIO_RECOVERY_AUTHORITY_OWNER_UID'] ?? '',
+      );
+      if (writerUid == null || writerUid < 0) {
+        throw StateError('Trusted witness owner UID required');
+      }
+      writerSid = null;
+      readerSid = null;
+    } else if (Platform.isWindows) {
+      writerUid = null;
+      writerSid = Platform.environment['VENTIO_RECOVERY_AUTHORITY_OWNER_SID'];
+      readerSid = Platform.environment['VENTIO_RECOVERY_AUTHORITY_READER_SID'];
+      final sidPattern = RegExp(r'^S-1-\d+(?:-\d+)+$');
+      if (writerSid == null ||
+          readerSid == null ||
+          !sidPattern.hasMatch(writerSid) ||
+          !sidPattern.hasMatch(readerSid)) {
+        throw StateError('Trusted witness owner and reader SIDs required');
+      }
+    } else {
+      throw StateError('Local Host private storage requires Windows or Linux');
+    }
+    final admission = RecoveryAuthority(
+      witness,
+      trustedOwnerUid: writerUid,
+      trustedOwnerSid: writerSid,
+      readerSid: readerSid,
     );
-    if (writerUid == null || writerUid < 0)
-      throw StateError('Trusted witness owner UID required');
-    final admission = RecoveryAuthority(witness, trustedOwnerUid: writerUid);
     final parsed = Uri.parse(url);
-    final boundedUrl = parsed
-        .replace(
-          queryParameters: {
-            ...parsed.queryParameters,
-            'connect_timeout': '5',
-            'query_timeout': '20',
-          },
-        )
-        .toString();
+    final boundedUrl = parsed.replace(
+      queryParameters: {
+        ...parsed.queryParameters,
+        'connect_timeout': '5',
+        'query_timeout': '20',
+      },
+    ).toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
     final probe = await connect();
     try {
@@ -60,7 +84,8 @@ Future<void> main() async {
           privateKey == null ||
           !File(certificate).isAbsolute ||
           !File(privateKey).isAbsolute) {
-        throw StateError('External Host requires absolute TLS certificate files');
+        throw StateError(
+            'External Host requires absolute TLS certificate files');
       }
       await PrivateFiles.verifyPrivateFile(privateKey);
       tlsContext = SecurityContext()

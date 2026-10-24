@@ -11,12 +11,12 @@ Future<void> main(List<String> args) async {
   pg.Connection? db;
   try {
     if (args.length != 1) throw ArgumentError('Private request file required');
-    final request =
-        jsonDecode(await PrivateFiles.read(args.single))
-            as Map<String, dynamic>;
+    final request = jsonDecode(await PrivateFiles.read(args.single))
+        as Map<String, dynamic>;
     final authority = RecoveryAuthority(
       request['authorityFile'] as String,
       readerGroupId: request['witnessReaderGid'] as int?,
+      readerSid: request['witnessReaderSid'] as String?,
     );
     final label = request['operatorLabel'] as String;
     db = await pg.Connection.openFromUrl(
@@ -77,13 +77,11 @@ Future<void> main(List<String> args) async {
             outputPath: request['outputPath'] as String,
           );
         case 'rotate':
-          final previous =
-              jsonDecode(
-                    await PrivateFiles.read(
-                      request['previousCredentialFile'] as String,
-                    ),
-                  )
-                  as Map<String, dynamic>;
+          final previous = jsonDecode(
+            await PrivateFiles.read(
+              request['previousCredentialFile'] as String,
+            ),
+          ) as Map<String, dynamic>;
           if (previous['tenantId'] != request['tenantId'] ||
               previous['actorId'] != request['actorId'] ||
               previous['deviceId'] != request['deviceId']) {

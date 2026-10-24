@@ -1,4 +1,4 @@
-> Current launcher requires a separate trusted witness owner and `VENTIO_RECOVERY_AUTHORITY_OWNER_UID`. Use the [current operations guide](../../docs/HOST_ENGINE_V0_1_OPERATIONS.md) for deployment and upgrade; examples below retain their historical stage context. API remains loopback-only.
+> The persistent launcher requires a separate trusted recovery-authority writer. Linux configures its UID; Windows configures its owner SID and Host reader-group SID. Use the [current operations guide](../../docs/HOST_ENGINE_V0_1_OPERATIONS.md) for deployment and upgrade; examples below retain their historical stage context.
 
 > Credential lifecycle update: production Host now requires an independent recovery
 > authority file and reviewed scoped provisioning. See [Credential Lifecycle and
@@ -63,13 +63,15 @@ TLS `SecurityContext`, persistent Host authenticator and authoritative command
 executor are supplied. The
 `local_host.dart` launcher accepts `VENTIO_HOST_BIND_ADDRESS` for an explicit
 listener and requires absolute `VENTIO_HOST_TLS_CERTIFICATE_FILE` and
-`VENTIO_HOST_TLS_PRIVATE_KEY_FILE` paths for non-loopback addresses. The current
-private-file authority implementation is Linux-only, so this launcher does not
-yet provide a supported Windows Host service. The certificate must match the DNS
-name or IP used by clients. The key is checked as an owner-only file before use.
-Do not forward a development listener through a proxy or tunnel. TLS transport
-does not by itself provide enrollment, automated certificate rotation, or a
-Windows service installer.
+`VENTIO_HOST_TLS_PRIVATE_KEY_FILE` paths for non-loopback addresses. Protected
+authority/private-file operations now have Linux and ACL-backed Windows
+implementations. The Windows private-file integration test covers local NTFS
+ACL verification; the complete Windows Host/PostgreSQL service and remote-device
+flow has not yet been end-to-end verified. The certificate must match the DNS
+name or IP used by clients. The key is checked against the Host account's
+protected ACL before use. Do not forward a development listener through a proxy
+or tunnel. TLS transport does not by itself provide automated certificate
+rotation, production enrollment, or a Windows service installer.
 
 ## Run locally
 

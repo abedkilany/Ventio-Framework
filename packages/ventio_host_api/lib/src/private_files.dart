@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Local Linux delivery/witness storage. Secrets travel only through stdin or
-/// private file descriptors, never argv, stdout diagnostics, environment or logs.
-/// Credential directories are owner-only 0700. Explicit authority operations
-/// support a writer-owned 0750 directory and group-read-only 0640 witness.
+import 'private_files_windows.dart';
+
+/// Protected local delivery/witness storage for Linux and Windows. Secrets
+/// travel through stdin or private file descriptors, never argv, diagnostics,
+/// environment or logs. Authority files have separate writer and reader ACLs.
 class PrivateFiles {
   static const _script = r'''import os,sys,stat,tempfile
 op,path,owner,gid=sys.argv[1:]
@@ -62,9 +63,23 @@ else:
     String data, {
     int ownerUid = -1,
     int readerGid = -1,
+    String? ownerSid,
+    String? readerSid,
   }) async {
-    if (!Platform.isLinux || !File(path).isAbsolute) {
-      throw StateError('Private storage requires an absolute Linux path');
+    if (!File(path).isAbsolute) {
+      throw StateError('Private storage requires an absolute path');
+    }
+    if (Platform.isWindows) {
+      return WindowsPrivateFiles.run(
+        operation,
+        path,
+        data,
+        ownerSid: ownerSid,
+        readerSid: readerSid,
+      );
+    }
+    if (!Platform.isLinux) {
+      throw StateError('Private storage is supported on Windows and Linux');
     }
     final process = await Process.start('python3', [
       '-c',
@@ -99,33 +114,47 @@ else:
     }
   }
 
-  static Future<String> readAuthority(String path, {int? trustedOwnerUid}) =>
+  static Future<String> readAuthority(
+    String path, {
+    int? trustedOwnerUid,
+    String? trustedOwnerSid,
+    String? readerSid,
+  }) =>
       _run(
-        trustedOwnerUid == null ? 'witness-read' : 'witness-read-runtime',
+        trustedOwnerUid == null && trustedOwnerSid == null
+            ? 'witness-read'
+            : 'witness-read-runtime',
         path,
         '',
         ownerUid: trustedOwnerUid ?? -1,
+        ownerSid: trustedOwnerSid,
+        readerSid: readerSid,
       );
   static Future<void> createAuthority(
     String path,
     Object value,
     int gid, {
     bool lock = false,
+    String? readerSid,
   }) async {
     await _run(
       lock ? 'witness-lock' : 'witness-create',
       path,
       jsonEncode(value),
       readerGid: gid,
+      readerSid: readerSid,
     );
   }
 
-  static Future<void> replaceAuthority(
-    String path,
-    Object value,
-    int gid,
-  ) async {
-    await _run('witness-replace', path, jsonEncode(value), readerGid: gid);
+  static Future<void> replaceAuthority(String path, Object value, int gid,
+      {String? readerSid}) async {
+    await _run(
+      'witness-replace',
+      path,
+      jsonEncode(value),
+      readerGid: gid,
+      readerSid: readerSid,
+    );
   }
 
   static Future<String> read(String path) => _run('read', path, '');
