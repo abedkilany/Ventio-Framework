@@ -517,6 +517,7 @@ class HostApi {
       'REJECTED' => switch (result['reasonCode']) {
         'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
         'EXTENSION_NOT_APPROVED' => 404,
+        'RECORD_PAGE_TOO_LARGE' => 413,
         _ => 422,
       },
       _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),

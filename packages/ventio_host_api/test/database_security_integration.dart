@@ -109,17 +109,20 @@ Future<void> main() async {
     String scope,
     String company,
     String branch, {
+    String moduleId = 'com.ventio.maintenance',
     String record = 'direct-record',
     String docType = 'MaintenanceRequest',
   }) async {
     await tx.execute(
       pg.Sql.named('''INSERT INTO public.ventio_records
-      (tenant_id, company_id, branch_id, doc_type, record_id, revision, record_data)
-      VALUES (@tenant,@company,@branch,@doctype,@record,1,'{}')'''),
+      (tenant_id, company_id, branch_id, module_id, doc_type, record_id,
+       revision, record_data)
+      VALUES (@tenant,@company,@branch,@module,@doctype,@record,1,'{}')'''),
       parameters: {
         'tenant': scope,
         'company': company,
         'branch': branch,
+        'module': moduleId,
         'doctype': docType,
         'record': record,
       },

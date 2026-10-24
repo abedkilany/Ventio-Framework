@@ -276,6 +276,7 @@ void main() {
               'apiVersion': hostApiVersion,
               'recordResult': {
                 'status': 'RECORDS',
+                'packageSha256': List.filled(64, 'a').join(),
                 'hasMore': true,
                 'records': [
                   {
@@ -320,6 +321,7 @@ void main() {
       expect(body['offset'], 50);
       expect(body['limit'], 25);
       expect(page.hasMore, isTrue);
+      expect(page.packageSha256, List.filled(64, 'a').join());
       expect(page.records.single.recordId, 'item-1');
       expect(page.records.single.revision, 3);
       expect(page.records.single.values['title'], 'First item');

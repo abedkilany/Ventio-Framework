@@ -106,12 +106,16 @@ class HostConnectionProfile {
     required this.tenantId,
     required this.companyId,
     required this.branchId,
+    this.actorId,
+    this.deviceId,
   });
 
   final String endpoint;
   final String tenantId;
   final String companyId;
   final String branchId;
+  final String? actorId;
+  final String? deviceId;
 
   factory HostConnectionProfile.fromRow(Map<String, Object?> row) =>
       HostConnectionProfile(
@@ -119,6 +123,8 @@ class HostConnectionProfile {
         tenantId: row['tenant_id']! as String,
         companyId: row['company_id']! as String,
         branchId: row['branch_id']! as String,
+        actorId: row['actor_id'] as String?,
+        deviceId: row['device_id'] as String?,
       );
 }
 
@@ -132,6 +138,9 @@ class LocalExtensionRecord {
     required this.revision,
     required this.values,
     required this.updatedAtUtc,
+    this.hostRevision,
+    this.pendingCommandId,
+    this.authorityState = 'LOCAL_ONLY',
   });
 
   final String recordId;
@@ -142,9 +151,11 @@ class LocalExtensionRecord {
   final int revision;
   final Map<String, dynamic> values;
   final DateTime updatedAtUtc;
+  final int? hostRevision;
+  final String? pendingCommandId;
+  final String authorityState;
 
-  /// This value stays local until a real Host receipt is stored separately.
-  String get syncState => 'LOCAL_ONLY';
+  String get syncState => authorityState;
 
   factory LocalExtensionRecord.fromRow(Map<String, Object?> row) {
     final decoded = jsonDecode(row['data_json']! as String);
@@ -162,6 +173,9 @@ class LocalExtensionRecord {
       revision: row['revision']! as int,
       values: Map<String, dynamic>.from(decoded),
       updatedAtUtc: DateTime.parse(row['updated_at_utc']! as String).toUtc(),
+      hostRevision: row['host_revision'] as int?,
+      pendingCommandId: row['pending_command_id'] as String?,
+      authorityState: row['authority_state'] as String? ?? 'LOCAL_ONLY',
     );
   }
 }
@@ -196,7 +210,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -239,6 +253,10 @@ class LocalExtensionStore {
               revision INTEGER NOT NULL CHECK (revision > 0),
               sync_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY'
                 CHECK (sync_state = 'LOCAL_ONLY'),
+              host_revision INTEGER CHECK (host_revision IS NULL OR host_revision > 0),
+              pending_command_id TEXT,
+              authority_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY'
+                CHECK (authority_state IN ('LOCAL_ONLY', 'PENDING', 'HOST_ACCEPTED', 'CONFLICT', 'REJECTED')),
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL,
               FOREIGN KEY (module_id, doctype_name)
@@ -258,6 +276,8 @@ class LocalExtensionStore {
               tenant_id TEXT NOT NULL,
               company_id TEXT NOT NULL,
               branch_id TEXT NOT NULL,
+              actor_id TEXT,
+              device_id TEXT,
               updated_at_utc TEXT NOT NULL
             )
           ''');
@@ -277,9 +297,45 @@ class LocalExtensionStore {
                 tenant_id TEXT NOT NULL,
                 company_id TEXT NOT NULL,
                 branch_id TEXT NOT NULL,
+                actor_id TEXT,
+                device_id TEXT,
                 updated_at_utc TEXT NOT NULL
               )
             ''');
+          }
+          if (oldVersion < 4) {
+            final recordTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_recordsTable],
+            );
+            if (recordTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN host_revision INTEGER
+                  CHECK (host_revision IS NULL OR host_revision > 0)
+              ''');
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN pending_command_id TEXT
+              ''');
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN authority_state TEXT NOT NULL
+                  DEFAULT 'LOCAL_ONLY'
+                  CHECK (authority_state IN ('LOCAL_ONLY', 'PENDING', 'HOST_ACCEPTED', 'CONFLICT', 'REJECTED'))
+              ''');
+            }
+            if (oldVersion >= 3) {
+              final profileTable = await database.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                [_hostProfileTable],
+              );
+              if (profileTable.isNotEmpty) {
+                await database.execute('''
+                  ALTER TABLE $_hostProfileTable ADD COLUMN actor_id TEXT
+                ''');
+                await database.execute('''
+                  ALTER TABLE $_hostProfileTable ADD COLUMN device_id TEXT
+                ''');
+              }
+            }
           }
         },
       ),
@@ -399,6 +455,8 @@ class LocalExtensionStore {
       'tenant_id': profile.tenantId,
       'company_id': profile.companyId,
       'branch_id': profile.branchId,
+      'actor_id': profile.actorId,
+      'device_id': profile.deviceId,
       'updated_at_utc': _now(),
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
@@ -1060,6 +1118,12 @@ class LocalExtensionStore {
         throw StateError('Record is not available in this scope.');
       }
       final current = LocalExtensionRecord.fromRow(rows.single);
+      if (current.pendingCommandId != null) {
+        throw const ExtensionStoreException(
+          'RECORD_COMMAND_PENDING',
+          'Wait for the current Host command to resolve before editing this record again.',
+        );
+      }
       if (current.revision != expectedRevision) {
         throw ExtensionStoreException(
           'REVISION_CONFLICT',
@@ -1076,6 +1140,8 @@ class LocalExtensionStore {
           'data_json': canonicalJson(values),
           'schema_version': definition.schemaVersion,
           'revision': nextRevision,
+          'pending_command_id': null,
+          'authority_state': 'LOCAL_ONLY',
           'updated_at_utc': now,
         },
         where: '''record_id = ? AND organization_id = ? AND company_id = ?
@@ -1105,7 +1171,207 @@ class LocalExtensionStore {
           jsonDecode(canonicalJson(values)) as Map<String, dynamic>,
         ),
         updatedAtUtc: DateTime.parse(now),
+        hostRevision: current.hostRevision,
+        authorityState: 'LOCAL_ONLY',
       );
+    });
+  }
+
+  Future<void> markRecordPending({
+    required String recordId,
+    required RecordScope scope,
+    required String commandId,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    if (commandId.isEmpty || commandId.length > 80) {
+      throw ArgumentError.value(commandId, 'commandId');
+    }
+    final changed = await _database.update(
+      _recordsTable,
+      {'pending_command_id': commandId, 'authority_state': 'PENDING'},
+      where: '''record_id = ? AND organization_id = ? AND company_id = ?
+        AND branch_id = ? AND (pending_command_id IS NULL OR pending_command_id = ?)''',
+      whereArgs: [
+        recordId,
+        scope.organizationId,
+        scope.companyId,
+        scope.branchId,
+        commandId,
+      ],
+    );
+    if (changed != 1) {
+      throw const ExtensionStoreException(
+        'RECORD_SYNC_STATE_CHANGED',
+        'The local record changed before its pending Host command was recorded.',
+      );
+    }
+  }
+
+  Future<void> applyHostReceipt({
+    required String recordId,
+    required RecordScope scope,
+    required String commandId,
+    required CommandReceipt receipt,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    if (receipt.commandId != commandId) {
+      throw const FormatException('Host receipt command ID mismatch.');
+    }
+    final rows = await _database.query(
+      _recordsTable,
+      where: '''record_id = ? AND organization_id = ? AND company_id = ?
+        AND branch_id = ?''',
+      whereArgs: [
+        recordId,
+        scope.organizationId,
+        scope.companyId,
+        scope.branchId,
+      ],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final current = LocalExtensionRecord.fromRow(rows.single);
+    if (receipt.status == 'ACCEPTED') {
+      final hostRevision = receipt.hostRevision;
+      if (hostRevision == null || hostRevision < 1) {
+        throw const FormatException('Accepted Host receipt has no revision.');
+      }
+      if (current.hostRevision != null &&
+          hostRevision < current.hostRevision!) {
+        return;
+      }
+      final hasNewerPending =
+          current.pendingCommandId != null &&
+          current.pendingCommandId != commandId;
+      await _database.update(
+        _recordsTable,
+        {
+          'host_revision': hostRevision,
+          if (!hasNewerPending) 'pending_command_id': null,
+          'authority_state': hasNewerPending ? 'PENDING' : 'HOST_ACCEPTED',
+        },
+        where: '''record_id = ? AND organization_id = ? AND company_id = ?
+          AND branch_id = ?''',
+        whereArgs: [
+          recordId,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+      );
+      return;
+    }
+    if (receipt.status != 'CONFLICT' && receipt.status != 'REJECTED') return;
+    if (current.pendingCommandId != null &&
+        current.pendingCommandId != commandId) {
+      return;
+    }
+    final hostRevision = receipt.status == 'CONFLICT'
+        ? receipt.currentRevision
+        : null;
+    await _database.update(
+      _recordsTable,
+      {
+        'pending_command_id': null,
+        'authority_state': receipt.status,
+        if (hostRevision != null && hostRevision > 0)
+          'host_revision': hostRevision,
+      },
+      where: '''record_id = ? AND organization_id = ? AND company_id = ?
+        AND branch_id = ?''',
+      whereArgs: [
+        recordId,
+        scope.organizationId,
+        scope.companyId,
+        scope.branchId,
+      ],
+    );
+  }
+
+  Future<void> applyHostRecord({
+    required String moduleId,
+    required String docTypeName,
+    required RecordScope scope,
+    required String recordId,
+    required int revision,
+    required Map<String, dynamic> values,
+    required DateTime updatedAtUtc,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    if (recordId.trim().isEmpty || revision < 1) {
+      throw const FormatException('Invalid Host record identity.');
+    }
+    await _database.transaction((transaction) async {
+      final definition = DocTypeDefinition.fromJson(
+        await _loadActiveDocType(transaction, moduleId, docTypeName),
+      );
+      _requireOperation(definition, 'read');
+      _validatePayload(definition, values);
+      final where = '''record_id = ? AND module_id = ? AND doctype_name = ?
+        AND organization_id = ? AND company_id = ? AND branch_id = ?''';
+      final whereArgs = [
+        recordId,
+        moduleId,
+        docTypeName,
+        scope.organizationId,
+        scope.companyId,
+        scope.branchId,
+      ];
+      final rows = await transaction.query(
+        _recordsTable,
+        where: where,
+        whereArgs: whereArgs,
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        final current = LocalExtensionRecord.fromRow(rows.single);
+        if (current.pendingCommandId != null ||
+            current.authorityState == 'CONFLICT' ||
+            current.authorityState == 'REJECTED' ||
+            (current.hostRevision != null &&
+                current.hostRevision! > revision) ||
+            (current.authorityState == 'LOCAL_ONLY' &&
+                current.hostRevision != null &&
+                current.revision > revision)) {
+          return;
+        }
+        await transaction.update(
+          _recordsTable,
+          {
+            'data_json': canonicalJson(values),
+            'schema_version': definition.schemaVersion,
+            'revision': revision,
+            'host_revision': revision,
+            'pending_command_id': null,
+            'authority_state': 'HOST_ACCEPTED',
+            'updated_at_utc': updatedAtUtc.toUtc().toIso8601String(),
+          },
+          where: where,
+          whereArgs: whereArgs,
+        );
+        return;
+      }
+      final timestamp = updatedAtUtc.toUtc().toIso8601String();
+      await transaction.insert(_recordsTable, {
+        'record_id': recordId,
+        'module_id': moduleId,
+        'doctype_name': docTypeName,
+        'organization_id': scope.organizationId,
+        'company_id': scope.companyId,
+        'branch_id': scope.branchId,
+        'data_json': canonicalJson(values),
+        'schema_version': definition.schemaVersion,
+        'revision': revision,
+        'sync_state': 'LOCAL_ONLY',
+        'host_revision': revision,
+        'pending_command_id': null,
+        'authority_state': 'HOST_ACCEPTED',
+        'created_at_utc': timestamp,
+        'updated_at_utc': timestamp,
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
     });
   }
 
@@ -1217,6 +1483,26 @@ class LocalExtensionStore {
         .map(LocalExtensionRecord.fromRow)
         .toList(growable: false);
     return List.unmodifiable(records);
+  }
+
+  Future<List<LocalExtensionRecord>> listUnqueuedRecords({
+    required RecordScope scope,
+    int limit = 1000,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    if (limit < 1 || limit > 1000) {
+      throw ArgumentError.value(limit, 'limit', 'Must be between 1 and 1000');
+    }
+    final rows = await _database.query(
+      _recordsTable,
+      where: '''organization_id = ? AND company_id = ? AND branch_id = ?
+        AND authority_state = 'LOCAL_ONLY' AND pending_command_id IS NULL''',
+      whereArgs: [scope.organizationId, scope.companyId, scope.branchId],
+      orderBy: 'updated_at_utc ASC, record_id ASC',
+      limit: limit,
+    );
+    return List.unmodifiable(rows.map(LocalExtensionRecord.fromRow));
   }
 
   Future<int> countRecords(String moduleId) async {

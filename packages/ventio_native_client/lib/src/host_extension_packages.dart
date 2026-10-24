@@ -53,10 +53,12 @@ class HostExtensionRecord {
 class HostExtensionRecordPage {
   HostExtensionRecordPage({
     required Iterable<HostExtensionRecord> records,
+    required this.packageSha256,
     required this.hasMore,
   }) : records = List.unmodifiable(records);
 
   final List<HostExtensionRecord> records;
+  final String packageSha256;
   final bool hasMore;
 }
 
@@ -259,7 +261,11 @@ class HostExtensionPackageClient {
       );
     }
     final rawRecords = result['records'];
-    if (rawRecords is! List || result['hasMore'] is! bool) {
+    final packageSha256 = result['packageSha256'];
+    if (rawRecords is! List ||
+        result['hasMore'] is! bool ||
+        packageSha256 is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(packageSha256)) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
     }
     final records = rawRecords
@@ -292,6 +298,7 @@ class HostExtensionPackageClient {
         .toList(growable: false);
     return HostExtensionRecordPage(
       records: records,
+      packageSha256: packageSha256,
       hasMore: result['hasMore'] as bool,
     );
   }

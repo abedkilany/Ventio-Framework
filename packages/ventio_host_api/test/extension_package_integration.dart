@@ -274,6 +274,12 @@ Future<void> main() async {
       String branch = primaryBranch,
       String search = '',
       Map<String, dynamic> filters = const {},
+      String? filterField,
+      String filterContains = '',
+      String? sortField = 'title',
+      bool descending = false,
+      int offset = 0,
+      int limit = 10,
     }) => send(
       api!,
       token: token,
@@ -286,12 +292,12 @@ Future<void> main() async {
         'docType': 'Item',
         'search': search,
         'filters': filters,
-        'filterField': null,
-        'filterContains': '',
-        'sortField': 'title',
-        'descending': false,
-        'offset': 0,
-        'limit': 10,
+        'filterField': filterField,
+        'filterContains': filterContains,
+        'sortField': sortField,
+        'descending': descending,
+        'offset': offset,
+        'limit': limit,
       },
     );
 
@@ -439,6 +445,29 @@ Future<void> main() async {
           persistedCreate.single.toColumnMap()['title'] == 'First item',
       'Generic records persist with module-qualified identity and values',
     );
+    final secondRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-2',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Second item'},
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: secondRecord.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'A second generic record is accepted under the same approved DocType',
+    );
     final queriedRecords = await queryRecords(
       primaryToken,
       search: 'first',
@@ -451,9 +480,66 @@ Future<void> main() async {
       queriedRecords.status == 200 &&
           recordRows.length == 1 &&
           recordResult['hasMore'] == false &&
+          recordResult['packageSha256'] == hash(package) &&
           recordRows.single['recordId'] == 'registry-item-1' &&
           recordRows.single['values']['title'] == 'First item',
       'Approved dynamic record reads honor metadata filters and return Host values',
+    );
+    final firstPage = await queryRecords(
+      primaryToken,
+      search: 'item',
+      limit: 1,
+    );
+    final firstPageResult =
+        firstPage.body['recordResult'] as Map<String, dynamic>;
+    final nextPage = await queryRecords(
+      primaryToken,
+      search: 'item',
+      offset: 1,
+      limit: 1,
+    );
+    final nextPageResult =
+        nextPage.body['recordResult'] as Map<String, dynamic>;
+    expect(
+      firstPage.status == 200 &&
+          firstPageResult['hasMore'] == true &&
+          (firstPageResult['records'] as List).single['recordId'] ==
+              'registry-item-1' &&
+          nextPage.status == 200 &&
+          nextPageResult['hasMore'] == false &&
+          (nextPageResult['records'] as List).single['recordId'] ==
+              'registry-item-2',
+      'Host dynamic record queries apply bounded ordering and offset paging',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        INSERT INTO ventio_records
+          (tenant_id, company_id, branch_id, module_id, doc_type, record_id,
+           revision, record_data)
+        VALUES (@tenant, @company, @branch, @module, 'Item', 'oversize-record',
+                1, CAST(@data AS jsonb))
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+        'data': jsonEncode({
+          'title': 'oversize-sentinel${List.filled(750000, '\u0001').join()}',
+        }),
+      },
+    );
+    final oversizedPage = await queryRecords(
+      primaryToken,
+      filterField: 'title',
+      filterContains: 'oversize-sentinel',
+      sortField: null,
+    );
+    expect(
+      oversizedPage.status == 413 &&
+          oversizedPage.body['recordResult']['reasonCode'] ==
+              'RECORD_PAGE_TOO_LARGE',
+      'Host rejects oversized dynamic record pages before serializing record values',
     );
     final unreadableRecords = await queryRecords(updateOnlyToken);
     expect(

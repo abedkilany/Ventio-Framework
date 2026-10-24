@@ -136,6 +136,8 @@ void main() {
       tenantId: 'tenant-west',
       companyId: 'company-west',
       branchId: 'branch-7',
+      actorId: 'user-west',
+      deviceId: 'desktop-west',
     );
     await store.saveHostProfile(profile);
     await store.close();
@@ -146,8 +148,134 @@ void main() {
     expect(restored?.tenantId, profile.tenantId);
     expect(restored?.companyId, profile.companyId);
     expect(restored?.branchId, profile.branchId);
+    expect(restored?.actorId, profile.actorId);
+    expect(restored?.deviceId, profile.deviceId);
     await store.clearHostProfile();
     expect(await store.getHostProfile(), isNull);
+  });
+
+  test(
+    'Host receipts and refreshes preserve provisional offline edits',
+    () async {
+      await createActiveExtension();
+      final created = await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Host accepted'},
+        recordId: 'host-record-1',
+      );
+      await store.markRecordPending(
+        recordId: created.recordId,
+        scope: _scope,
+        commandId: 'create-command',
+      );
+      await store.applyHostReceipt(
+        recordId: created.recordId,
+        scope: _scope,
+        commandId: 'create-command',
+        receipt: CommandReceipt(
+          commandId: 'create-command',
+          status: 'ACCEPTED',
+          hostRevision: 1,
+        ),
+      );
+      final accepted = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+      ))!;
+      expect(accepted.authorityState, 'HOST_ACCEPTED');
+      expect(accepted.hostRevision, 1);
+
+      final edited = await store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+        expectedRevision: 1,
+        values: const {'name': 'Offline edit'},
+      );
+      expect(edited.authorityState, 'LOCAL_ONLY');
+      expect(edited.hostRevision, 1);
+      await store.applyHostRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        recordId: created.recordId,
+        revision: 1,
+        values: const {'name': 'Host accepted'},
+        updatedAtUtc: DateTime.utc(2026, 10, 24, 1),
+      );
+      final preserved = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+      ))!;
+      expect(preserved.values['name'], 'Offline edit');
+      expect(preserved.hostRevision, 1);
+
+      await store.markRecordPending(
+        recordId: created.recordId,
+        scope: _scope,
+        commandId: 'update-command',
+      );
+      await store.applyHostReceipt(
+        recordId: created.recordId,
+        scope: _scope,
+        commandId: 'update-command',
+        receipt: CommandReceipt(
+          commandId: 'update-command',
+          status: 'ACCEPTED',
+          hostRevision: 2,
+        ),
+      );
+      final resolved = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+      ))!;
+      expect(resolved.authorityState, 'HOST_ACCEPTED');
+      expect(resolved.pendingCommandId, isNull);
+      expect(resolved.hostRevision, 2);
+    },
+  );
+
+  test('Host record imports remain isolated by exact branch scope', () async {
+    await createActiveExtension();
+    const otherBranch = RecordScope(
+      organizationId: 'org-one',
+      companyId: 'company-one',
+      branchId: 'branch-two',
+    );
+    await store.applyHostRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: otherBranch,
+      recordId: 'remote-branch-two',
+      revision: 4,
+      values: const {'name': 'Branch two'},
+      updatedAtUtc: DateTime.utc(2026, 10, 24),
+    );
+    expect(
+      await store.listRecords(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+      ),
+      isEmpty,
+    );
+    final imported = await store.listRecords(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: otherBranch,
+    );
+    expect(imported.single.values['name'], 'Branch two');
+    expect(imported.single.authorityState, 'HOST_ACCEPTED');
+    expect(imported.single.hostRevision, 4);
   });
 
   test('A local extension exports a bounded declarative package', () async {

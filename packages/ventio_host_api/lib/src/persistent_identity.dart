@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host/ventio_host.dart';
@@ -296,26 +297,45 @@ class PostgresExtensionRecordQueryGateway
           final clause = conditions.isEmpty
               ? ''
               : 'AND ${conditions.join(' AND ')}';
+          // Bound bytes before converting record JSON to text and transferring
+          // it to the Host process. The final HTTP limit remains a second line
+          // of defense against JSON encoding overhead.
+          parameters['maxRecordBytes'] = 512 * 1024;
           final rows = await tx.execute(
             pg.Sql.named('''
+            WITH page AS (
+              SELECT record_id, revision, updated_at, record_data,
+                pg_column_size(record_data) AS record_bytes
+              FROM ventio_records
+              WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+                AND module_id=@module AND doc_type=@doctype $clause
+              ORDER BY
+                CASE WHEN @descending THEN record_data ->> @sortField END DESC,
+                CASE WHEN NOT @descending THEN record_data ->> @sortField END ASC,
+                record_id ASC
+              OFFSET @offset LIMIT @limit
+            ), bounded_page AS (
+              SELECT *, sum(record_bytes) OVER () AS page_bytes FROM page
+            )
             SELECT record_id, revision, updated_at::text AS updated_at,
-              record_data::text AS record_json
-            FROM ventio_records
-            WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
-              AND module_id=@module AND doc_type=@doctype $clause
-            ORDER BY
-              CASE WHEN @descending THEN record_data ->> @sortField END DESC,
-              CASE WHEN NOT @descending THEN record_data ->> @sortField END ASC,
-              record_id ASC
-            OFFSET @offset LIMIT @limit
+              page_bytes,
+              CASE WHEN page_bytes <= @maxRecordBytes
+                THEN record_data::text ELSE NULL END AS record_json
+            FROM bounded_page
           '''),
             parameters: parameters,
           );
+          if (rows.isNotEmpty && (rows.first[3] as int) > 512 * 1024) {
+            return const {
+              'status': 'REJECTED',
+              'reasonCode': 'RECORD_PAGE_TOO_LARGE',
+            };
+          }
           final hasMore = rows.length > limit;
           final records = rows
               .take(limit)
               .map((row) {
-                final values = jsonDecode(row[3] as String);
+                final values = jsonDecode(row[4] as String);
                 if (values is! Map) {
                   throw const FormatException('Stored record JSON is invalid.');
                 }
@@ -327,7 +347,14 @@ class PostgresExtensionRecordQueryGateway
                 };
               })
               .toList(growable: false);
-          return {'status': 'RECORDS', 'records': records, 'hasMore': hasMore};
+          return {
+            'status': 'RECORDS',
+            'packageSha256': sha256
+                .convert(utf8.encode(canonicalJson(bundle.toJson())))
+                .toString(),
+            'records': records,
+            'hasMore': hasMore,
+          };
         },
         settings: pg.TransactionSettings(
           isolationLevel: pg.IsolationLevel.readCommitted,

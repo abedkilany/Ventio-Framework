@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -48,6 +49,39 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
       ),
     ],
   );
+}
+
+class _FakeRecordQueryClient extends HostExtensionPackageClient {
+  _FakeRecordQueryClient({
+    required super.endpoint,
+    required super.credentials,
+    required this.page,
+  });
+
+  final HostExtensionRecordPage page;
+  String? queriedCompany;
+  String? queriedBranch;
+
+  @override
+  Future<HostExtensionRecordPage> queryRecords({
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+    required String docType,
+    String search = '',
+    Map<String, dynamic> filters = const {},
+    String? filterField,
+    String filterContains = '',
+    String? sortField,
+    bool descending = false,
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    queriedCompany = companyId;
+    queriedBranch = branchId;
+    return page;
+  }
 }
 
 void main() {
@@ -146,6 +180,16 @@ void main() {
       expect(installed?.state, ExtensionState.draft);
       expect(find.text('Package Source'), findsWidgets);
       expect(find.text('LOCAL ONLY'), findsWidgets);
+      final sourceBundle = Map<String, dynamic>.from(
+        jsonDecode(package) as Map,
+      );
+      final installedBundle = await store.exportBundle(moduleId);
+      expect(
+        canonicalJson(installedBundle.toJson()),
+        canonicalJson(sourceBundle),
+        reason:
+            'Installed declarative metadata must retain the Host-approved digest.',
+      );
 
       await tester.tap(find.byTooltip('Export declarative package'));
       await tester.pumpAndSettle();
@@ -295,6 +339,369 @@ void main() {
       expect(records.single.syncState, 'LOCAL_ONLY');
     },
   );
+
+  testWidgets('Dynamic records read from Host and stay branch scoped', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1100, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const moduleId = 'com.example.host_records';
+    const readPermission = 'extension.com_example_host_records.asset.read';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Host Records',
+      description: 'Read records from the Host.',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'label': 'Name',
+          'labelKey': '$readPermission.name',
+          'maxLength': 120,
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': readPermission,
+        'create': 'extension.com_example_host_records.asset.create',
+        'update': 'extension.com_example_host_records.asset.update',
+      },
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name'],
+      },
+      'label': 'Asset',
+      'labelKey': '$readPermission.title',
+    });
+    await store.activate(moduleId);
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-host',
+      companyId: 'company-host',
+      branchId: 'branch-host',
+      actorId: 'user-host',
+      deviceId: 'device-host',
+    );
+    await store.saveHostProfile(profile);
+    final bundle = await store.exportBundle(moduleId);
+    final digest = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
+    final backend = _MemoryCredentialBackend();
+    final vault = HostCredentialVault(backend);
+    late _FakeRecordQueryClient fakeClient;
+    fakeClient = _FakeRecordQueryClient(
+      endpoint: Uri.parse(profile.endpoint),
+      credentials: vault,
+      page: HostExtensionRecordPage(
+        packageSha256: digest,
+        hasMore: false,
+        records: [
+          HostExtensionRecord(
+            recordId: 'host-asset-1',
+            revision: 7,
+            updatedAtUtc: '2026-10-24T12:00:00Z',
+            values: const {'name': 'Host record'},
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) => fakeClient,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Host Records').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open records'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Host-authoritative records'), findsOneWidget);
+    expect(find.text('Host record'), findsOneWidget);
+    expect(fakeClient.queriedCompany, profile.companyId);
+    expect(fakeClient.queriedBranch, profile.branchId);
+    final imported = await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      recordId: 'host-asset-1',
+      scope: const RecordScope(
+        organizationId: 'tenant-host',
+        companyId: 'company-host',
+        branchId: 'branch-host',
+      ),
+    );
+    expect(imported?.authorityState, 'HOST_ACCEPTED');
+    expect(imported?.hostRevision, 7);
+
+    await tester.tap(find.text('Host record').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Host accepted record'), findsOneWidget);
+    await tester.tap(find.text('Edit record'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'Edited offline');
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+    final queuedUpdate = await queue.list();
+    expect(queuedUpdate, hasLength(1));
+    expect(
+      queuedUpdate.single.envelope.type,
+      ExtensionRecordCommand.updateType,
+    );
+    expect(queuedUpdate.single.envelope.expectedRevision, 7);
+    final pendingEdit = await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      recordId: 'host-asset-1',
+      scope: const RecordScope(
+        organizationId: 'tenant-host',
+        companyId: 'company-host',
+        branchId: 'branch-host',
+      ),
+    );
+    expect(pendingEdit?.values['name'], 'Edited offline');
+    expect(pendingEdit?.authorityState, 'PENDING');
+    expect(pendingEdit?.hostRevision, 7);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Offline record saves enqueue a durable Host command', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1100, 1300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const moduleId = 'com.example.offline_records';
+    const permissionPrefix = 'extension.com_example_offline_records.asset';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Offline Records',
+      description: 'Queue record changes for Host acceptance.',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'label': 'Name',
+          'labelKey': '$permissionPrefix.name',
+          'maxLength': 120,
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permissionPrefix.read',
+        'create': '$permissionPrefix.create',
+        'update': '$permissionPrefix.update',
+      },
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name'],
+      },
+      'label': 'Asset',
+      'labelKey': '$permissionPrefix.title',
+    });
+    await store.activate(moduleId);
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-host',
+      companyId: 'company-host',
+      branchId: 'branch-host',
+      actorId: 'user-host',
+      deviceId: 'device-host',
+    );
+    await store.saveHostProfile(profile);
+    final bundle = await store.exportBundle(moduleId);
+    final digest = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeRecordQueryClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    page: HostExtensionRecordPage(
+                      packageSha256: digest,
+                      hasMore: false,
+                      records: const [],
+                    ),
+                  ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Offline Records').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open records'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New record'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'Pending asset');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+
+    final entries = await queue.list();
+    expect(entries, hasLength(1));
+    expect(entries.single.envelope.type, ExtensionRecordCommand.createType);
+    expect(entries.single.hostStatus, HostCommandStatus.pending);
+    expect(entries.single.envelope.tenantId, profile.tenantId);
+    expect(entries.single.envelope.companyId, profile.companyId);
+    expect(entries.single.envelope.branchId, profile.branchId);
+    expect(entries.single.envelope.actorId, profile.actorId);
+    expect(entries.single.envelope.deviceId, profile.deviceId);
+    expect(entries.single.envelope.payload['values']['name'], 'Pending asset');
+    final records = await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: const RecordScope(
+        organizationId: 'tenant-host',
+        companyId: 'company-host',
+        branchId: 'branch-host',
+      ),
+    );
+    expect(records.single.syncState, 'PENDING');
+    expect(records.single.hostRevision, isNull);
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Startup recovers a saved record missing its queued command', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.recovered_records';
+    const permissionPrefix = 'extension.com_example_recovered_records.asset';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Recovered Records',
+      description: 'Recover an interrupted local submission.',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'label': 'Name',
+          'labelKey': '$permissionPrefix.name',
+          'maxLength': 120,
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permissionPrefix.read',
+        'create': '$permissionPrefix.create',
+        'update': '$permissionPrefix.update',
+      },
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name'],
+      },
+      'label': 'Asset',
+      'labelKey': '$permissionPrefix.title',
+    });
+    await store.activate(moduleId);
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-host',
+      companyId: 'company-host',
+      branchId: 'branch-host',
+      actorId: 'user-host',
+      deviceId: 'device-host',
+    );
+    await store.saveHostProfile(profile);
+    final localRecord = await store.createRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: const RecordScope(
+        organizationId: 'tenant-host',
+        companyId: 'company-host',
+        branchId: 'branch-host',
+      ),
+      values: const {'name': 'Recovered after restart'},
+      recordId: 'interrupted-record',
+    );
+    final bundle = await store.exportBundle(moduleId);
+    final digest = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeRecordQueryClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    page: HostExtensionRecordPage(
+                      packageSha256: digest,
+                      hasMore: false,
+                      records: const [],
+                    ),
+                  ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final entries = await queue.list();
+    expect(entries, hasLength(1));
+    expect(entries.single.envelope.type, ExtensionRecordCommand.createType);
+    expect(entries.single.envelope.aggregateId, localRecord.recordId);
+    expect(
+      entries.single.envelope.payload['values']['name'],
+      'Recovered after restart',
+    );
+    final recovered = await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      recordId: localRecord.recordId,
+      scope: localRecord.scope,
+    );
+    expect(recovered?.authorityState, 'PENDING');
+    expect(recovered?.pendingCommandId, entries.single.envelope.commandId);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Builder saves an explicitly selected extension dependency', (
     tester,

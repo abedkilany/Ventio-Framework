@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ventio_core/ventio_core.dart';
@@ -8,12 +9,15 @@ import 'command_id.dart';
 import 'extension_store.dart';
 import 'host_credentials.dart';
 import 'host_extension_packages.dart';
+import 'host_sync_service.dart';
+import 'host_transport.dart';
 import 'local_command_queue.dart';
 import 'maintenance_request_page.dart';
 import 'transport_fixture.dart';
 
 enum _StudioMenuAction {
   connect,
+  sync,
   installFromHost,
   installPackage,
   offlineProof,
@@ -48,6 +52,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   List<LocalExtension> _extensions = const [];
   HostConnectionProfile? _hostProfile;
   String? _loadError;
+  String? _queueRecoveryWarning;
 
   @override
   void initState() {
@@ -67,13 +72,58 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         _hostProfile = values[1] as HostConnectionProfile?;
         _loading = false;
         _loadError = null;
+        _queueRecoveryWarning = null;
       });
+      await _reconcileQueuedRecords(widget.store, widget.queue);
+      await _enqueueOrphanedHostRecords();
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _loading = false;
         _loadError = error.toString();
       });
+    }
+  }
+
+  Future<void> _enqueueOrphanedHostRecords() async {
+    final profile = _hostProfile;
+    if (profile == null ||
+        profile.actorId == null ||
+        profile.deviceId == null) {
+      return;
+    }
+    final scope = RecordScope(
+      organizationId: profile.tenantId,
+      companyId: profile.companyId,
+      branchId: profile.branchId,
+    );
+    final records = await widget.store.listUnqueuedRecords(scope: scope);
+    for (final record in records) {
+      final extension = await widget.store.getExtension(record.moduleId);
+      if (extension?.state != ExtensionState.active) continue;
+      final metadata = await widget.store.listDocTypes(record.moduleId);
+      final matching = metadata.where(
+        (definition) => definition['name'] == record.docTypeName,
+      );
+      if (matching.length != 1) continue;
+      final definition = DocTypeDefinition.fromJson(matching.single);
+      final operation = record.hostRevision == null ? 'create' : 'update';
+      if (!definition.operations.contains(operation)) continue;
+      try {
+        await _queueDynamicRecordCommand(
+          queue: widget.queue,
+          store: widget.store,
+          profile: profile,
+          record: record,
+          moduleVersion: extension!.version,
+          definition: definition,
+          values: record.values,
+        );
+      } catch (error) {
+        if (mounted) {
+          setState(() => _queueRecoveryWarning = error.toString());
+        }
+      }
     }
   }
 
@@ -226,6 +276,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         tenantId: identity.tenantId,
         companyId: selected.companyId,
         branchId: selected.branchId,
+        actorId: identity.actorId,
+        deviceId: identity.deviceId,
       );
       await widget.store.saveHostProfile(profile);
       profileSaved = true;
@@ -289,6 +341,34 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     await widget.store.clearHostProfile();
     await _load();
     _message('Host disconnected. Local work was preserved.');
+  }
+
+  Future<void> _syncHost() async {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    if (profile == null || vault == null) {
+      _message('Configure an authenticated Host connection first.');
+      return;
+    }
+    try {
+      final resolved = await HostSyncService(
+        queue: widget.queue,
+        transport: HttpHostCommandTransport(
+          endpoint: Uri.parse(profile.endpoint),
+          credentials: vault,
+        ),
+      ).syncPending();
+      await _reconcileQueuedRecords(widget.store, widget.queue);
+      await _load();
+      if (mounted) _message('Host resolved $resolved queued command(s).');
+    } catch (error) {
+      await _reconcileQueuedRecords(widget.store, widget.queue);
+      if (mounted) {
+        _message(
+          'Host sync stopped; unresolved commands remain queued: $error',
+        );
+      }
+    }
   }
 
   Future<void> _installApprovedFromHost() async {
@@ -370,6 +450,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       MaterialPageRoute<void>(
         builder: (context) => ExtensionDetailsPage(
           store: widget.store,
+          queue: widget.queue,
           moduleId: moduleId,
           scope: widget.scope,
           hostProfile: _hostProfile,
@@ -422,6 +503,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 switch (action) {
                   case _StudioMenuAction.connect:
                     _configureHost();
+                  case _StudioMenuAction.sync:
+                    _syncHost();
                   case _StudioMenuAction.installFromHost:
                     _installApprovedFromHost();
                   case _StudioMenuAction.installPackage:
@@ -442,6 +525,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   enabled: _hostProfile != null,
                   child: const Text('Install from Host'),
                 ),
+                PopupMenuItem(
+                  value: _StudioMenuAction.sync,
+                  enabled: _hostProfile != null,
+                  child: const Text('Sync pending records'),
+                ),
                 const PopupMenuItem(
                   value: _StudioMenuAction.installPackage,
                   child: Text('Install package'),
@@ -453,6 +541,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               ],
             )
           else if (width < 1200) ...[
+            IconButton(
+              tooltip: 'Sync pending records',
+              onPressed: _hostProfile == null ? null : _syncHost,
+              icon: const Icon(Icons.sync),
+            ),
             IconButton(
               tooltip: 'Install Host-approved extension',
               onPressed: _hostProfile == null ? null : _installApprovedFromHost,
@@ -474,6 +567,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               icon: const Icon(Icons.cloud_off_outlined),
             ),
           ] else ...[
+            TextButton.icon(
+              onPressed: _hostProfile == null ? null : _syncHost,
+              icon: const Icon(Icons.sync),
+              label: const Text('Sync pending'),
+            ),
             TextButton.icon(
               onPressed: _hostProfile == null ? null : _installApprovedFromHost,
               icon: const Icon(Icons.cloud_download_outlined),
@@ -517,6 +615,19 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                       ? Icons.phonelink_setup_outlined
                       : Icons.cloud_done_outlined,
                 ),
+                if (_queueRecoveryWarning != null) ...[
+                  const SizedBox(height: 12),
+                  _StateCard(
+                    icon: Icons.warning_amber_outlined,
+                    title: 'A saved record could not enter the Host queue',
+                    body: _queueRecoveryWarning!,
+                    action: TextButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry queue recovery'),
+                    ),
+                  ),
+                ],
                 if (_hostProfile != null) ...[
                   const SizedBox(height: 12),
                   Align(
@@ -949,6 +1060,7 @@ class _ExtensionBundleImportDialogState
 class ExtensionDetailsPage extends StatefulWidget {
   const ExtensionDetailsPage({
     required this.store,
+    this.queue,
     required this.moduleId,
     required this.scope,
     this.hostProfile,
@@ -958,6 +1070,7 @@ class ExtensionDetailsPage extends StatefulWidget {
   });
 
   final LocalExtensionStore store;
+  final LocalCommandQueue? queue;
   final String moduleId;
   final RecordScope scope;
   final HostConnectionProfile? hostProfile;
@@ -1048,9 +1161,14 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
       MaterialPageRoute<void>(
         builder: (context) => DynamicDocTypePage(
           store: widget.store,
+          queue: widget.queue,
           moduleId: widget.moduleId,
           metadata: metadata,
           scope: widget.scope,
+          moduleVersion: _extension?.version,
+          hostProfile: widget.hostProfile,
+          credentialVault: widget.credentialVault,
+          hostPackageClientFactory: widget.hostPackageClientFactory,
           previewOnly: previewOnly,
         ),
       ),
@@ -1273,7 +1391,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                     _LocalOnlyNotice(
                       title: 'Device-local extension copy',
                       body:
-                          'Local activation controls this device only. Submit this declarative package for Host review before sharing its definition with other devices; local records remain provisional until a Host record-sync workflow is configured.',
+                          'Local activation controls this device only. Submit this declarative package for Host review before sharing its definition with other devices. Record commands stay provisional until Host receipts confirm acceptance.',
                       icon: Icons.lock_clock_outlined,
                     ),
                     const SizedBox(height: 20),
@@ -2170,17 +2288,27 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
 class DynamicDocTypePage extends StatefulWidget {
   const DynamicDocTypePage({
     required this.store,
+    this.queue,
     required this.moduleId,
     required this.metadata,
     required this.scope,
+    this.moduleVersion,
+    this.hostProfile,
+    this.credentialVault,
+    this.hostPackageClientFactory,
     this.previewOnly = false,
     super.key,
   });
 
   final LocalExtensionStore store;
+  final LocalCommandQueue? queue;
   final String moduleId;
   final Map<String, dynamic> metadata;
   final RecordScope scope;
+  final String? moduleVersion;
+  final HostConnectionProfile? hostProfile;
+  final HostCredentialVault? credentialVault;
+  final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final bool previewOnly;
 
   @override
@@ -2197,9 +2325,24 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   String? _sortField;
   bool _ascending = true;
   int _loadGeneration = 0;
+  int _hostOffset = 0;
+  bool _hostHasMore = false;
+  bool _hostQuerySucceeded = false;
+  String? _hostWarning;
 
   DocTypeDefinition get _definition =>
       DocTypeDefinition.fromJson(widget.metadata);
+
+  RecordScope get _recordScope {
+    final profile = widget.hostProfile;
+    return profile == null
+        ? widget.scope
+        : RecordScope(
+            organizationId: profile.tenantId,
+            companyId: profile.companyId,
+            branchId: profile.branchId,
+          );
+  }
 
   @override
   void initState() {
@@ -2220,20 +2363,33 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   Future<void> _loadRecords() async {
     if (!_definition.operations.contains('read')) return;
     final generation = ++_loadGeneration;
+    _hostOffset = 0;
+    _hostHasMore = false;
     setState(() {
       _loading = true;
       _error = null;
+      _hostWarning = null;
+      _hostQuerySucceeded = false;
     });
     try {
+      if (widget.queue != null) {
+        await _reconcileQueuedRecords(widget.store, widget.queue!);
+      }
+      try {
+        await _queryHostRecords(offset: 0);
+      } catch (error) {
+        _hostWarning = error.toString();
+      }
       final records = await widget.store.listRecords(
         moduleId: widget.moduleId,
         docTypeName: _definition.name,
-        scope: widget.scope,
+        scope: _recordScope,
         search: _searchController.text,
         filterField: _filterField,
         filterContains: _filterController.text,
         sortField: _sortField,
         ascending: _ascending,
+        limit: 1000,
       );
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
@@ -2249,6 +2405,135 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     }
   }
 
+  Future<void> _loadMoreHostRecords() async {
+    if (_loading || !_hostHasMore) return;
+    final generation = ++_loadGeneration;
+    setState(() {
+      _loading = true;
+      _hostWarning = null;
+    });
+    try {
+      await _queryHostRecords(offset: _hostOffset);
+      final records = await widget.store.listRecords(
+        moduleId: widget.moduleId,
+        docTypeName: _definition.name,
+        scope: _recordScope,
+        search: _searchController.text,
+        filterField: _filterField,
+        filterContains: _filterController.text,
+        sortField: _sortField,
+        ascending: _ascending,
+        limit: 1000,
+      );
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _records = records;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _loading = false;
+        _hostWarning = error.toString();
+      });
+    }
+  }
+
+  Future<void> _queryHostRecords({required int offset}) async {
+    final profile = widget.hostProfile;
+    final vault = widget.credentialVault;
+    final version = widget.moduleVersion;
+    if (widget.previewOnly || profile == null) {
+      return;
+    }
+    if (vault == null || version == null) {
+      throw const HostPackageTransportException(
+        'HOST_CONFIGURATION_INCOMPLETE',
+      );
+    }
+    final client =
+        widget.hostPackageClientFactory?.call(
+          endpoint: Uri.parse(profile.endpoint),
+          credentials: vault,
+        ) ??
+        HostExtensionPackageClient(
+          endpoint: Uri.parse(profile.endpoint),
+          credentials: vault,
+        );
+    final localBundle = await widget.store.exportBundle(widget.moduleId);
+    final localDigest = sha256
+        .convert(utf8.encode(canonicalJson(localBundle.toJson())))
+        .toString();
+    final page = await client.queryRecords(
+      companyId: profile.companyId,
+      branchId: profile.branchId,
+      moduleId: widget.moduleId,
+      version: version,
+      docType: _definition.name,
+      search: _searchController.text,
+      filterField: _filterField,
+      filterContains: _filterController.text,
+      sortField: _sortField,
+      descending: !_ascending,
+      offset: offset,
+      limit: 50,
+    );
+    if (page.packageSha256 != localDigest) {
+      throw const HostPackageTransportException(
+        'LOCAL_PACKAGE_DIFFERS_FROM_HOST_APPROVED_RELEASE',
+      );
+    }
+    for (final record in page.records) {
+      await widget.store.applyHostRecord(
+        moduleId: widget.moduleId,
+        docTypeName: _definition.name,
+        scope: _recordScope,
+        recordId: record.recordId,
+        revision: record.revision,
+        values: record.values,
+        updatedAtUtc: DateTime.parse(record.updatedAtUtc),
+      );
+    }
+    _hostHasMore = page.hasMore;
+    _hostOffset = offset + page.records.length;
+    _hostQuerySucceeded = true;
+  }
+
+  Future<void> _syncPendingCommands() async {
+    final profile = widget.hostProfile;
+    final vault = widget.credentialVault;
+    final queue = widget.queue;
+    if (profile == null || vault == null || queue == null) return;
+    try {
+      final count = await HostSyncService(
+        queue: queue,
+        transport: HttpHostCommandTransport(
+          endpoint: Uri.parse(profile.endpoint),
+          credentials: vault,
+        ),
+      ).syncPending();
+      await _reconcileQueuedRecords(widget.store, queue);
+      await _loadRecords();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Host resolved $count queued command(s).')),
+        );
+      }
+    } catch (error) {
+      await _reconcileQueuedRecords(widget.store, queue);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Host sync stopped; pending work was preserved: $error',
+            ),
+          ),
+        );
+      }
+      await _loadRecords();
+    }
+  }
+
   List<LocalExtensionRecord> get _visibleRecords => _records;
 
   Future<void> _openForm([LocalExtensionRecord? record]) async {
@@ -2259,7 +2544,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
             store: widget.store,
             moduleId: widget.moduleId,
             definition: _definition,
-            scope: widget.scope,
+            scope: _recordScope,
             previewOnly: true,
           ),
         ),
@@ -2270,9 +2555,14 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       MaterialPageRoute<bool>(
         builder: (context) => DynamicRecordFormPage(
           store: widget.store,
+          queue: widget.queue,
           moduleId: widget.moduleId,
           definition: _definition,
-          scope: widget.scope,
+          scope: _recordScope,
+          moduleVersion: widget.moduleVersion,
+          hostProfile: widget.hostProfile,
+          credentialVault: widget.credentialVault,
+          hostPackageClientFactory: widget.hostPackageClientFactory,
           record: record,
         ),
       ),
@@ -2285,9 +2575,14 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       MaterialPageRoute<bool>(
         builder: (context) => DynamicRecordDetailsPage(
           store: widget.store,
+          queue: widget.queue,
           moduleId: widget.moduleId,
           definition: _definition,
-          scope: widget.scope,
+          scope: _recordScope,
+          moduleVersion: widget.moduleVersion,
+          hostProfile: widget.hostProfile,
+          credentialVault: widget.credentialVault,
+          hostPackageClientFactory: widget.hostPackageClientFactory,
           record: record,
         ),
       ),
@@ -2302,7 +2597,27 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     final canRead = _definition.operations.contains('read');
     final canCreate = _definition.operations.contains('create');
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          if (widget.hostProfile != null)
+            IconButton(
+              tooltip: 'Sync pending commands with Host',
+              onPressed:
+                  widget.credentialVault == null ||
+                      widget.queue == null ||
+                      _loading
+                  ? null
+                  : _syncPendingCommands,
+              icon: const Icon(Icons.sync),
+            ),
+          IconButton(
+            tooltip: 'Refresh records',
+            onPressed: _loading ? null : _loadRecords,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       floatingActionButton: widget.previewOnly || canCreate
           ? FloatingActionButton.extended(
               onPressed: () => _openForm(),
@@ -2321,14 +2636,37 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
               _LocalOnlyNotice(
                 title: widget.previewOnly
                     ? 'Metadata preview'
-                    : 'Local records',
+                    : widget.hostProfile == null
+                    ? 'Provisional local records'
+                    : _hostQuerySucceeded
+                    ? 'Host-authoritative records'
+                    : 'Local records · Host unavailable',
                 body: widget.previewOnly
                     ? 'This screen is rendered from the DocType definition. Saving is disabled until the extension is activated on this device.'
-                    : 'Records are isolated in this local preview by organization, company and branch labels. Host authentication, authorization and synchronization are not connected.',
+                    : widget.hostProfile == null
+                    ? 'Records stay on this device as provisional work until an authenticated Host connection is configured.'
+                    : _hostQuerySucceeded
+                    ? 'The Host-approved package and exact company/branch scope were verified. Accepted records are cached locally; new changes remain provisional until a Host receipt arrives.'
+                    : 'The selected Host scope remains authoritative. The list below contains locally saved provisional records; connect or retry before treating them as shared data.',
                 icon: widget.previewOnly
                     ? Icons.visibility_outlined
+                    : _hostQuerySucceeded
+                    ? Icons.verified_user_outlined
                     : Icons.storage_outlined,
               ),
+              if (_hostWarning != null) ...[
+                const SizedBox(height: 10),
+                _StateCard(
+                  icon: Icons.cloud_off_outlined,
+                  title: 'Host records were not refreshed',
+                  body: _hostWarning!,
+                  action: TextButton.icon(
+                    onPressed: _loadRecords,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry Host query'),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               Text(title, style: Theme.of(context).textTheme.headlineMedium),
               if (metadata['description'] case final String description
@@ -2484,6 +2822,14 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                     columns: _listColumns,
                     onTap: () => _openDetails(record),
                   ),
+              if (!widget.previewOnly && _hostHasMore && !_loading)
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: _loadMoreHostRecords,
+                    icon: const Icon(Icons.expand_more),
+                    label: const Text('Load more Host records'),
+                  ),
+                ),
             ],
           ),
         ),
@@ -2502,18 +2848,28 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
 class DynamicRecordFormPage extends StatefulWidget {
   const DynamicRecordFormPage({
     required this.store,
+    this.queue,
     required this.moduleId,
     required this.definition,
     required this.scope,
+    this.moduleVersion,
+    this.hostProfile,
+    this.credentialVault,
+    this.hostPackageClientFactory,
     this.record,
     this.previewOnly = false,
     super.key,
   });
 
   final LocalExtensionStore store;
+  final LocalCommandQueue? queue;
   final String moduleId;
   final DocTypeDefinition definition;
   final RecordScope scope;
+  final String? moduleVersion;
+  final HostConnectionProfile? hostProfile;
+  final HostCredentialVault? credentialVault;
+  final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final LocalExtensionRecord? record;
   final bool previewOnly;
 
@@ -2626,16 +2982,18 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
     setState(() => _saving = true);
     try {
+      late final LocalExtensionRecord saved;
       if (widget.record == null) {
-        await widget.store.createRecord(
+        final recordId = createCommandId();
+        saved = await widget.store.createRecord(
           moduleId: widget.moduleId,
           docTypeName: widget.definition.name,
           scope: widget.scope,
           values: values,
-          recordId: createCommandId(),
+          recordId: recordId,
         );
       } else {
-        await widget.store.updateRecord(
+        saved = await widget.store.updateRecord(
           moduleId: widget.moduleId,
           docTypeName: widget.definition.name,
           recordId: widget.record!.recordId,
@@ -2643,6 +3001,19 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           expectedRevision: widget.record!.revision,
           values: values,
         );
+      }
+      try {
+        await _queueDynamicRecordCommand(
+          queue: widget.queue,
+          store: widget.store,
+          profile: widget.hostProfile,
+          record: saved,
+          moduleVersion: widget.moduleVersion,
+          definition: widget.definition,
+          values: values,
+        );
+      } catch (error) {
+        _message('Saved locally; Host command recovery is needed: $error');
       }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
@@ -2683,10 +3054,14 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
                 _LocalOnlyNotice(
                   title: widget.previewOnly
                       ? 'Preview form'
-                      : 'Device-only record',
+                      : widget.record?.authorityState == 'HOST_ACCEPTED'
+                      ? 'Host record · Local changes are provisional'
+                      : 'Provisional device record',
                   body: widget.previewOnly
                       ? 'Values are for preview and cannot be saved.'
-                      : 'This record is stored in the local workspace. A Host has not accepted it.',
+                      : widget.record?.authorityState == 'HOST_ACCEPTED'
+                      ? 'The Host accepted revision ${widget.record!.hostRevision ?? widget.record!.revision}. Saving changes creates a pending command and requires a new Host receipt.'
+                      : 'This record is stored locally. The Host has not accepted it yet; a Host receipt is required before it becomes shared data.',
                   icon: widget.previewOnly
                       ? Icons.preview_outlined
                       : Icons.save_outlined,
@@ -2836,20 +3211,128 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }
 }
 
+Future<void> _queueDynamicRecordCommand({
+  required LocalCommandQueue? queue,
+  required LocalExtensionStore store,
+  required HostConnectionProfile? profile,
+  required LocalExtensionRecord record,
+  required String? moduleVersion,
+  required DocTypeDefinition definition,
+  required Map<String, dynamic> values,
+}) async {
+  if (queue == null || profile == null) return;
+  final actorId = profile.actorId;
+  final deviceId = profile.deviceId;
+  if (actorId == null || deviceId == null || moduleVersion == null) {
+    throw StateError('Reconnect to Host to refresh the persistent identity.');
+  }
+  final commandId = createCommandId();
+  final command = record.hostRevision == null
+      ? ExtensionRecordCommand.create(
+          commandId: commandId,
+          tenantId: profile.tenantId,
+          companyId: profile.companyId,
+          branchId: profile.branchId,
+          recordId: record.recordId,
+          actorId: actorId,
+          deviceId: deviceId,
+          moduleId: record.moduleId,
+          moduleVersion: moduleVersion,
+          docType: definition.name,
+          schemaVersion: definition.schemaVersion,
+          values: values,
+        )
+      : ExtensionRecordCommand.update(
+          commandId: commandId,
+          tenantId: profile.tenantId,
+          companyId: profile.companyId,
+          branchId: profile.branchId,
+          recordId: record.recordId,
+          expectedRevision: record.hostRevision!,
+          actorId: actorId,
+          deviceId: deviceId,
+          moduleId: record.moduleId,
+          moduleVersion: moduleVersion,
+          docType: definition.name,
+          schemaVersion: definition.schemaVersion,
+          values: values,
+        );
+  await queue.enqueue(command.envelope);
+  await store.markRecordPending(
+    recordId: record.recordId,
+    scope: record.scope,
+    commandId: commandId,
+  );
+}
+
+Future<void> _reconcileQueuedRecords(
+  LocalExtensionStore store,
+  LocalCommandQueue queue,
+) async {
+  final entries = await queue.list(limit: 1000);
+  for (final entry in entries.reversed) {
+    final envelope = entry.envelope;
+    if (envelope.type != ExtensionRecordCommand.createType &&
+        envelope.type != ExtensionRecordCommand.updateType) {
+      continue;
+    }
+    final command = ExtensionRecordCommand.fromEnvelope(envelope);
+    final scope = RecordScope(
+      organizationId: envelope.tenantId,
+      companyId: envelope.companyId,
+      branchId: envelope.branchId,
+    );
+    final receipt = entry.hostReceipt;
+    if (receipt != null && receipt.status != 'RETRY_LATER') {
+      await store.applyHostReceipt(
+        recordId: envelope.aggregateId,
+        scope: scope,
+        commandId: envelope.commandId,
+        receipt: receipt,
+      );
+    } else if (entry.isPending) {
+      try {
+        await store.markRecordPending(
+          recordId: envelope.aggregateId,
+          scope: scope,
+          commandId: envelope.commandId,
+        );
+      } on ExtensionStoreException catch (error) {
+        if (error.code != 'RECORD_SYNC_STATE_CHANGED') rethrow;
+      }
+    }
+    // Validate the queue payload against the same trusted generic contract
+    // before applying any record state derived from its receipt.
+    if (command.moduleId != envelope.payload['moduleId']) {
+      throw const FormatException('Queued extension record identity mismatch.');
+    }
+  }
+}
+
 class DynamicRecordDetailsPage extends StatelessWidget {
   const DynamicRecordDetailsPage({
     required this.store,
+    this.queue,
     required this.moduleId,
     required this.definition,
     required this.scope,
+    this.moduleVersion,
+    this.hostProfile,
+    this.credentialVault,
+    this.hostPackageClientFactory,
     required this.record,
     super.key,
   });
 
   final LocalExtensionStore store;
+  final LocalCommandQueue? queue;
   final String moduleId;
   final DocTypeDefinition definition;
   final RecordScope scope;
+  final String? moduleVersion;
+  final HostConnectionProfile? hostProfile;
+  final HostCredentialVault? credentialVault;
+  final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final LocalExtensionRecord record;
 
   @override
@@ -2863,9 +3346,14 @@ class DynamicRecordDetailsPage extends StatelessWidget {
                   MaterialPageRoute<bool>(
                     builder: (context) => DynamicRecordFormPage(
                       store: store,
+                      queue: queue,
                       moduleId: moduleId,
                       definition: definition,
                       scope: scope,
+                      moduleVersion: moduleVersion,
+                      hostProfile: hostProfile,
+                      credentialVault: credentialVault,
+                      hostPackageClientFactory: hostPackageClientFactory,
                       record: record,
                     ),
                   ),
@@ -2884,11 +3372,29 @@ class DynamicRecordDetailsPage extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              const _LocalOnlyNotice(
-                title: 'Device-only record',
-                body:
-                    'No Host receipt or shared approval is associated with this record.',
-                icon: Icons.info_outline,
+              _LocalOnlyNotice(
+                title: switch (record.authorityState) {
+                  'HOST_ACCEPTED' => 'Host accepted record',
+                  'PENDING' => 'Waiting for Host receipt',
+                  'CONFLICT' => 'Host revision conflict',
+                  'REJECTED' => 'Host rejected this operation',
+                  _ => 'Provisional device record',
+                },
+                body: switch (record.authorityState) {
+                  'HOST_ACCEPTED' =>
+                    'Host revision ${record.hostRevision ?? record.revision} is authoritative. Local edits remain provisional until accepted.',
+                  'PENDING' =>
+                    'This record has a durable command in the local queue and is not shared until the Host returns a real receipt.',
+                  'CONFLICT' =>
+                    'The Host has a newer revision. Local values are preserved for review before retrying.',
+                  'REJECTED' =>
+                    'The Host denied the queued operation. Local values are preserved on this device.',
+                  _ =>
+                    'The record is stored locally. A Host receipt is required before it becomes shared data.',
+                },
+                icon: record.authorityState == 'HOST_ACCEPTED'
+                    ? Icons.verified_user_outlined
+                    : Icons.info_outline,
               ),
               const SizedBox(height: 16),
               Card(
@@ -2908,7 +3414,9 @@ class DynamicRecordDetailsPage extends StatelessWidget {
                         ),
                         const Divider(height: 24),
                       ],
-                      Text('Revision ${record.revision} · ${record.syncState}'),
+                      Text(
+                        'Local revision ${record.revision} · Host revision ${record.hostRevision ?? 'none'} · ${record.syncState}',
+                      ),
                     ],
                   ),
                 ),
