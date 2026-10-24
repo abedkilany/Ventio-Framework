@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
+import 'extension_packages.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
@@ -25,6 +26,7 @@ class HostApi {
   final HttpServer _server;
   final HostAuthenticator _authenticator;
   final CommandExecutor _executor;
+  final ExtensionPackageGateway? _extensionPackages;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
   final Duration bodyTimeout;
@@ -36,6 +38,7 @@ class HostApi {
     this._server,
     this._authenticator,
     this._executor,
+    this._extensionPackages,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
     this.bodyTimeout,
@@ -55,6 +58,7 @@ class HostApi {
   static Future<HostApi> bind({
     required HostAuthenticator authenticator,
     required CommandExecutor executor,
+    ExtensionPackageGateway? extensionPackages,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
     int port = 0,
@@ -71,7 +75,9 @@ class HostApi {
     if (!address.isLoopback &&
         (tlsContext == null ||
             authenticator is! PersistentHostAuthenticator ||
-            executor is! AuthoritativeCommandExecutor)) {
+            executor is! AuthoritativeCommandExecutor ||
+            (extensionPackages != null &&
+                extensionPackages is! AuthoritativeExtensionPackageGateway))) {
       throw ArgumentError(
         'External Host listeners require TLS and authoritative Host services.',
       );
@@ -83,6 +89,7 @@ class HostApi {
       server,
       authenticator,
       executor,
+      extensionPackages,
       maxBodyBytes,
       maxConcurrentRequests,
       bodyTimeout,
@@ -164,7 +171,12 @@ class HostApi {
       _json(request, 200, {'apiVersion': 1, 'status': 'alive'});
       return;
     }
-    if (request.uri.path != '/api/v1/commands') {
+    final packageRoute = switch (request.uri.path) {
+      '/api/v1/extensions/submit' => 'submit',
+      '/api/v1/extensions/read' => 'read',
+      _ => null,
+    };
+    if (request.uri.path != '/api/v1/commands' && packageRoute == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     if (request.method != 'POST') {
@@ -185,6 +197,12 @@ class HostApi {
     );
     if (session == null) throw const _ApiError(401, 'UNAUTHENTICATED');
     final principal = session.principal;
+    if (packageRoute != null && _extensionPackages == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if (packageRoute != null && session.credentialDigest == null) {
+      throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
+    }
     final contentType = request.headers.contentType;
     if (contentType?.mimeType.toLowerCase() != 'application/json' ||
         (contentType?.charset != null &&
@@ -192,7 +210,10 @@ class HostApi {
         request.headers.value(HttpHeaders.contentEncodingHeader) != null) {
       throw const _ApiError(415, 'UNSUPPORTED_MEDIA_TYPE');
     }
-    if (request.contentLength > maxBodyBytes) {
+    final bodyLimit = packageRoute == null
+        ? maxBodyBytes
+        : ExtensionBundle.maxEncodedBytes + 8192;
+    if (request.contentLength > bodyLimit) {
       throw const _ApiError(413, 'BODY_TOO_LARGE');
     }
     final bytes = BytesBuilder(copy: false);
@@ -205,7 +226,7 @@ class HostApi {
         if (remaining <= Duration.zero)
           throw const _ApiError(408, 'BODY_TIMEOUT');
         if (!await nextChunk.timeout(remaining)) break;
-        if (bytes.length + iterator.current.length > maxBodyBytes) {
+        if (bytes.length + iterator.current.length > bodyLimit) {
           throw const _ApiError(413, 'BODY_TOO_LARGE');
         }
         bytes.add(iterator.current);
@@ -217,6 +238,10 @@ class HostApi {
     final text = utf8.decode(bytes.takeBytes());
     _validateNesting(text);
     final json = requireMap(jsonDecode(text), 'command');
+    if (packageRoute != null) {
+      await _handleExtensionPackage(request, packageRoute, json, session);
+      return;
+    }
     _validateWireShape(json);
     final command = CommandEnvelope.fromJson(json);
     // Persistent scope/permissions are resolved inside the execution transaction.
@@ -246,12 +271,86 @@ class HostApi {
       'CONFLICT' => 409,
       'RETRY_LATER' => 409,
       _ => switch (receipt['reasonCode']) {
-        'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
-        'COMMAND_ID_REUSED' => 409,
-        _ => 422,
-      },
+          'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
+          'COMMAND_ID_REUSED' => 409,
+          _ => 422,
+        },
     };
     _json(request, status, {'apiVersion': 1, 'receipt': receipt});
+  }
+
+  Future<void> _handleExtensionPackage(
+    HttpRequest request,
+    String operation,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    final gateway = _extensionPackages!;
+    final allowedKeys = operation == 'submit'
+        ? const {'companyId', 'branchId', 'package'}
+        : const {'companyId', 'branchId', 'moduleId', 'version'};
+    if (json.keys.any((key) => !allowedKeys.contains(key)) ||
+        json.keys.toSet().length != allowedKeys.length) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final requiredPermission = operation == 'submit'
+        ? 'extension.package.submit'
+        : 'extension.package.read';
+    if (!session.principal.allowsInScope(
+      requiredPermission,
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+    final Map<String, dynamic> result;
+    if (operation == 'submit') {
+      final raw = json['package'];
+      if (raw is! Map) throw const _ApiError(400, 'INVALID_REQUEST');
+      final bundle = ExtensionBundle.fromJson(Map<String, dynamic>.from(raw));
+      result = await gateway.submit(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        bundle: bundle,
+      );
+    } else {
+      final moduleId = _boundedIdentifier(json, 'moduleId');
+      if (!RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
+          moduleId.length > 128) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      result = await gateway.readApproved(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        moduleId: moduleId,
+        version: _boundedIdentifier(json, 'version'),
+      );
+    }
+    final resultStatus = result['status'];
+    final statusCode = switch (resultStatus) {
+      'SUBMITTED' => 202,
+      'APPROVED' => 200,
+      'CONFLICT' => 409,
+      'REJECTED' => switch (result['reasonCode']) {
+          'PERMISSION_DENIED' => 403,
+          'PACKAGE_NOT_APPROVED' || 'PACKAGE_UNAVAILABLE' => 404,
+          _ => 422,
+        },
+      _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
+    };
+    _json(request, statusCode, {'apiVersion': 1, 'packageResult': result});
+  }
+
+  String _boundedIdentifier(Map<String, dynamic> json, String key) {
+    final value = requireString(json, key);
+    if (value.trim().isEmpty || value.length > 256) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    return value;
   }
 
   Future<void> _error(
@@ -276,6 +375,9 @@ class HostApi {
           'message': switch (code) {
             'UNAUTHENTICATED' => 'Valid credentials are required.',
             'SCOPE_DENIED' => 'The requested identity or scope is not allowed.',
+            'PERMISSION_DENIED' => 'The requested operation is not permitted.',
+            'PERSISTENT_IDENTITY_REQUIRED' =>
+              'A persistent Host identity is required.',
             'HOST_UNAVAILABLE' =>
               'Outcome may be unknown. Retry the identical command.',
             _ => 'The request could not be processed.',

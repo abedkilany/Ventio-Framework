@@ -41,6 +41,33 @@ class FakePersistentAuthenticator implements PersistentHostAuthenticator {
   Future<AuthenticatedSession?> authenticate(String token) async => null;
 }
 
+class FakeExtensionPackageGateway implements ExtensionPackageGateway {
+  int calls = 0;
+
+  @override
+  Future<Map<String, dynamic>> submit({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required ExtensionBundle bundle,
+  }) async {
+    calls++;
+    return {'status': 'SUBMITTED'};
+  }
+
+  @override
+  Future<Map<String, dynamic>> readApproved({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+  }) async {
+    calls++;
+    return {'status': 'APPROVED'};
+  }
+}
+
 Future<void> main() async {
   var cleartextExternalRejected = false;
   try {
@@ -90,9 +117,11 @@ Future<void> main() async {
   );
 
   final executor = FakeExecutor();
+  final fakePackages = FakeExtensionPackageGateway();
   final api = await HostApi.bind(
     authenticator: authenticator('api-test'),
     executor: executor,
+    extensionPackages: fakePackages,
     maxBodyBytes: 4096,
     bodyTimeout: const Duration(milliseconds: 200),
   );
@@ -108,6 +137,35 @@ Future<void> main() async {
       (await send(api, path: '/missing')).status == 404,
       'Unknown route is rejected',
     );
+    final draftTransfer = await send(
+      api,
+      path: '/api/v1/extensions/submit',
+      token: validToken,
+      body: {
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'package': {}
+      },
+    );
+    final packageRead = await send(
+      api,
+      path: '/api/v1/extensions/read',
+      token: validToken,
+      body: {
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'moduleId': 'com.example.package',
+        'version': '1.0.0',
+      },
+    );
+    check(
+      draftTransfer.status == 403 &&
+          draftTransfer.body['error']['code'] ==
+              'PERSISTENT_IDENTITY_REQUIRED' &&
+          packageRead.status == 403 &&
+          fakePackages.calls == 0,
+      'Package transfer refuses development-only identities before the gateway',
+    );
     check(
       (await send(api, method: 'GET')).status == 405,
       'Command route requires POST',
@@ -117,7 +175,8 @@ Future<void> main() async {
             api,
             path: '/api/v1/commands?token=secret',
             body: body,
-          )).status ==
+          ))
+              .status ==
           400,
       'Query credentials are unsupported',
     );
@@ -212,7 +271,8 @@ Future<void> main() async {
             token: validToken,
             body: body,
             contentType: 'text/plain',
-          )).status ==
+          ))
+              .status ==
           415,
       'Non-JSON media type is rejected',
     );
@@ -222,7 +282,8 @@ Future<void> main() async {
             token: validToken,
             body: body,
             contentType: 'application/json; charset=latin1',
-          )).status ==
+          ))
+              .status ==
           415,
       'Unsupported encoding is rejected',
     );
@@ -236,7 +297,8 @@ Future<void> main() async {
             token: validToken,
             body: List.filled(5000, 'a').join(),
             chunked: true,
-          )).status ==
+          ))
+              .status ==
           413,
       'Chunked oversized body is rejected',
     );
@@ -244,7 +306,8 @@ Future<void> main() async {
       (await submit(
             json:
                 '${List.filled(40, '[').join()}0${List.filled(40, ']').join()}',
-          )).status ==
+          ))
+              .status ==
           400,
       'Deeply nested JSON is bounded',
     );
@@ -273,7 +336,8 @@ Future<void> main() async {
     check(
       (await earlyResponse.timeout(
         const Duration(seconds: 5),
-      )).startsWith('HTTP/1.1 401'),
+      ))
+          .startsWith('HTTP/1.1 401'),
       'Unauthenticated incomplete upload is rejected without draining its body',
     );
     unauthenticatedSocket.destroy();

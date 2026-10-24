@@ -153,17 +153,20 @@ class ExtensionStoreException implements Exception {
 /// Durable device-local extension drafts, schemas and provisional records.
 /// This store deliberately has no Host transport or approval authority.
 class LocalExtensionStore {
-  LocalExtensionStore._(this._database, this._clock);
+  LocalExtensionStore._(this._database, this._clock, this.platformApiVersion);
 
   final Database _database;
   final DateTime Function() _clock;
+  final String platformApiVersion;
   bool _closed = false;
 
   static Future<LocalExtensionStore> open({
     required DatabaseFactory factory,
     required String path,
     DateTime Function()? clock,
+    String platformApiVersion = '0.1.0',
   }) async {
+    semverParts(platformApiVersion);
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
@@ -233,7 +236,11 @@ class LocalExtensionStore {
         },
       ),
     );
-    return LocalExtensionStore._(database, clock ?? DateTime.now);
+    return LocalExtensionStore._(
+      database,
+      clock ?? DateTime.now,
+      platformApiVersion,
+    );
   }
 
   Future<void> createExtension({
@@ -428,6 +435,12 @@ class LocalExtensionStore {
   /// be called. A new package remains a local draft until explicitly activated.
   Future<void> installBundle(ExtensionBundle bundle) async {
     _ensureOpen();
+    if (compareSemver(platformApiVersion, bundle.manifest.minPlatformApi) < 0) {
+      throw const ExtensionStoreException(
+        'INCOMPATIBLE_PLATFORM',
+        'This Ventio version does not satisfy the package platform requirement.',
+      );
+    }
     final moduleId = bundle.moduleId;
     final displayName = bundle.manifest.displayName;
     final description = bundle.manifestJson['description'] as String? ?? '';

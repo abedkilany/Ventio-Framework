@@ -100,6 +100,10 @@ Future<void> main() async {
         connect: connect,
         admission: admission,
       ),
+      extensionPackages: PostgresExtensionPackageGateway(
+        connect: connect,
+        admission: admission,
+      ),
       executor: PersistentCommandExecutor(
         connect: connect,
         admission: admission,

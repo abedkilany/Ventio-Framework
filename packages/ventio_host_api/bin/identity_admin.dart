@@ -32,6 +32,12 @@ Future<void> main(List<String> args) async {
         operatorLabel: label,
         authority: authority,
       );
+      final extensionAdmin = ExtensionPackageAdministration(
+        connection: db,
+        tenantId: request['tenantId'] as String,
+        operatorLabel: label,
+        authority: authority,
+      );
       switch (action) {
         case 'create-user':
           await admin.createUser(request['actorId'] as String);
@@ -65,6 +71,19 @@ Future<void> main(List<String> args) async {
           await admin.revokeCredential(request['credentialId'] as String);
         case 'disable-user':
           await admin.disableUser(request['actorId'] as String);
+        case 'approve-extension':
+          await extensionAdmin.approve(
+            moduleId: request['moduleId'] as String,
+            version: request['version'] as String,
+            packageSha256: request['packageSha256'] as String,
+          );
+        case 'revoke-extension':
+          await extensionAdmin.revoke(
+            moduleId: request['moduleId'] as String,
+            version: request['version'] as String,
+            packageSha256: request['packageSha256'] as String,
+            reason: request['reason'] as String,
+          );
         case 'provision':
           await admin.provisionToFile(
             actorId: request['actorId'] as String,

@@ -30,8 +30,8 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 - Local search loads at most 1,000 recent scoped records before applying the text query. This is a prototype limit, not a scale claim.
 - The builder currently uses one fixed local workspace scope; it does not provide organization/company/branch sign-in or a scope selector.
 - Compatible metadata upgrades are deliberately additive. Destructive data transformations need a future reviewed, resumable Host migration protocol and offline-command upcasting.
-- The generic Host HTTP adapter currently transports the existing maintenance-command contract. It does not publish, approve, install or synchronize extension packages, schemas, dynamic records or extension versions.
-- Declarative package export/import and local installation are now implemented, but there is no Host package registry, approval workflow, distribution endpoint or client-side package synchronization yet.
+- The Host now persists validated package submissions, supports exact-scope authenticated candidate submission and approved-package reads, and provides a recovery-witness-protected local approval/revocation path. The Flutter Builder is not connected to those routes yet, and dynamic records still do not use Host commands.
+- Host package distribution is not end-to-end in the client yet. Local export/import and installation work, but shared approval, cross-device package installation and version synchronization through the Builder remain incomplete.
 - The credential vault and transport are library plumbing; there is not yet an in-app Host enrollment/settings flow or automatic background synchronization policy.
 - Decimal fields in this generic local store are data fields; this does not implement exact-money rules or financial posting.
 - No local PostgreSQL test fixture, Android emulator, or physical Android device was used for this foundation slice. The PostgreSQL adapter migration and persistence integration suite passed in GitHub Actions against its disposable PostgreSQL 16 service. Android SDK licenses were not accepted locally.

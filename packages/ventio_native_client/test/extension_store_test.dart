@@ -280,6 +280,40 @@ void main() {
   );
 
   test(
+    'A package requiring a newer platform is rejected before install',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: 'Temporary package source.',
+      );
+      final metadata = _docType();
+      metadata['labelKey'] = 'extension.com_example_asset_register.asset.name';
+      (metadata['fields'] as List).single['labelKey'] =
+          'extension.com_example_asset_register.asset.name_value';
+      await store.saveDocType(metadata);
+      final source =
+          jsonDecode(jsonEncode((await store.exportBundle(_moduleId)).toJson()))
+              as Map<String, dynamic>;
+      await store.remove(_moduleId);
+      (source['manifest'] as Map<String, dynamic>)['minPlatformApi'] = '0.2.0';
+      final incompatible = ExtensionBundle.fromJson(source);
+
+      await expectLater(
+        store.installBundle(incompatible),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'INCOMPATIBLE_PLATFORM',
+          ),
+        ),
+      );
+      expect(await store.getExtension(_moduleId), isNull);
+    },
+  );
+
+  test(
     'Version-one local databases gain an empty dependency manifest',
     () async {
       final legacyPath =

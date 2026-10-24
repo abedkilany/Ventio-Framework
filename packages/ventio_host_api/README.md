@@ -28,6 +28,11 @@ not a deployable production authentication system or ERP server.
 
 - `POST /api/v1/commands`: API v1 wrapper around the existing **protocolVersion 0**
   command envelope. The accepted receipt is returned unchanged under `receipt`.
+- `POST /api/v1/extensions/submit`: validates and stores a bounded declarative
+  package as a Host-side candidate. It requires the exact-scope
+  `extension.package.submit` grant and returns `SUBMITTED`, never `APPROVED`.
+- `POST /api/v1/extensions/read`: returns one Host-approved immutable package
+  version after rechecking the exact-scope `extension.package.read` grant.
 - `GET /healthz`: unauthenticated process liveness only, not database readiness.
 - Authorization: one `Authorization: Bearer <opaque-token>` header. No query
   credentials, cookies, browser CORS access, JWT parsing, or anonymous bypass.
@@ -124,6 +129,16 @@ be listed in `permissions`; pairs and permissions never form a cross-product.
 Then `dart run bin/development_host.dart`. The launcher installs the maintenance
 proof module only, never logs secrets, and rejects production or implicit startup.
 SIGINT/SIGTERM stop admission and wait for admitted commands to finish before exit.
+
+The persistent `bin/local_host.dart` also exposes the extension package transfer
+routes. Candidate packages remain non-executable metadata and do not become
+available to clients until a local operator approves them with the
+`approve-extension` identity administration action. That action parses and
+hash-checks the stored package, requires Host-approved dependencies and a newer
+semantic version, writes an audit event, and advances the independent recovery
+witness. `revoke-extension` removes a version from future package reads and also
+advances the witness. Existing installed copies are not remotely erased; clients
+must implement explicit revocation/update policy before claiming that behavior.
 
 ## Connection ownership and failures
 

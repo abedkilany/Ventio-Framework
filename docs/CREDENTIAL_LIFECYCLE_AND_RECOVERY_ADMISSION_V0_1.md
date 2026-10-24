@@ -2,18 +2,19 @@
 
 # Secure credential lifecycle and recovery admission v0.1
 
-Experimental, Linux local-operator workflow. No public network deployment is
-approved. Host API remains bound to `127.0.0.1`. No client receives PostgreSQL
-administration credentials or an administrative HTTP endpoint.
+Historical local-operator workflow. No public network deployment is
+approved. The Host API defaults to `127.0.0.1`; any external listener requires
+TLS and persistent identity. No client receives PostgreSQL administration
+credentials or an administrative HTTP endpoint.
 
 ## One identity system
 
 Lifecycle operations use the existing opaque 256-bit credentials, SHA-256 digest
 storage, persistent identities, exact-scope grants, audited identity RPC and
 permanent device/user revocation. There is no parallel password/JWT authority.
-Apply migration 012, then rerun the vetted PostgreSQL security bootstrap with the
-separate migration/installation capability. Runtime and identity-administration
-connections remain separate. Runtime cannot read private identity/recovery state,
+Apply the full ordered migration set, then rerun the vetted PostgreSQL security
+bootstrap with the separate migration/installation capability. Runtime and
+identity-administration connections remain separate. Runtime cannot read private identity/recovery state,
 obtain a recovery snapshot, reset admission, issue credentials or rotate secrets.
 
 A new credential has an immutable ceiling of explicit company/branch/permission

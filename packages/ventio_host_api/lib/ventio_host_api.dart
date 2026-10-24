@@ -3,6 +3,9 @@ library;
 
 export 'src/authentication.dart';
 export 'src/host_api.dart';
+export 'src/extension_packages.dart';
+export 'src/extension_package_administration.dart';
+export 'src/postgres_extension_packages.dart';
 export 'src/postgres_executor.dart';
 
 export 'src/identity_store.dart';

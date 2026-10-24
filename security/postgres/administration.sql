@@ -7,6 +7,10 @@ DECLARE tenant text := p->>'tenantId'; actor text := p->>'actorId'; device text 
   credential text := p->>'credentialId'; operation text := p->>'action'; label text := p->>'operatorLabel';
   subject text; details jsonb := '{}'; is_disabled timestamptz; revoked timestamptz; changed integer;
   value text; scopes jsonb; old_credential public.ventio_identity_credentials%ROWTYPE;
+  package_module text := p->>'moduleId'; package_version text := p->>'version';
+  package_hash text := p->>'packageSha256'; package_reason text := p->>'reason';
+  package_row public.ventio_extension_packages%ROWTYPE;
+  dependency record; minimum_version text;
 
 BEGIN
   PERFORM pg_advisory_xact_lock(86744321);
@@ -27,6 +31,86 @@ BEGIN
     GET DIAGNOSTICS changed = ROW_COUNT;
     IF changed = 0 THEN RETURN; END IF;
     subject := branch; details := jsonb_build_object('companyId', company);
+  ELSIF operation IN ('EXTENSION_PACKAGE_APPROVED','EXTENSION_PACKAGE_REVOKED') THEN
+    IF package_module IS NULL OR package_version IS NULL OR
+        package_module !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$' OR
+        length(package_module) > 128 OR length(package_version) > 64 OR
+        package_version !~ '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' OR
+        package_hash IS NULL OR package_hash !~ '^[0-9a-f]{64}$' THEN
+      RAISE EXCEPTION 'Invalid extension release identity';
+    END IF;
+    SELECT * INTO package_row FROM public.ventio_extension_packages
+      WHERE tenant_id=tenant AND module_id=package_module AND version=package_version
+      FOR UPDATE;
+    IF NOT FOUND OR package_row.package_sha256 IS DISTINCT FROM package_hash THEN
+      RAISE EXCEPTION 'Extension package candidate changed or disappeared';
+    END IF;
+    IF operation = 'EXTENSION_PACKAGE_APPROVED' THEN
+      IF package_row.status <> 'SUBMITTED' THEN
+        RAISE EXCEPTION 'Only a submitted extension package can be approved';
+      END IF;
+      IF EXISTS (SELECT FROM public.ventio_extension_packages prior
+          WHERE prior.tenant_id=tenant AND prior.module_id=package_module
+            AND prior.status IN ('APPROVED','REVOKED')
+            AND (split_part(prior.version,'.',1)::numeric,
+                 split_part(prior.version,'.',2)::numeric,
+                 split_part(prior.version,'.',3)::numeric) >=
+                (split_part(package_version,'.',1)::numeric,
+                 split_part(package_version,'.',2)::numeric,
+                 split_part(package_version,'.',3)::numeric)) THEN
+        RAISE EXCEPTION 'Extension approval must advance the release version';
+      END IF;
+      FOR dependency IN
+        SELECT key, value FROM jsonb_each_text(package_row.package_json->'dependencyVersions')
+      LOOP
+        minimum_version := dependency.value;
+        IF minimum_version !~ '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' OR
+            NOT EXISTS (SELECT FROM public.ventio_extension_packages installed
+              WHERE installed.tenant_id=tenant AND installed.module_id=dependency.key
+                AND installed.status='APPROVED'
+                AND split_part(installed.version,'.',1)::numeric =
+                    split_part(minimum_version,'.',1)::numeric
+                AND (split_part(minimum_version,'.',1)::numeric <> 0 OR
+                     split_part(installed.version,'.',2)::numeric =
+                     split_part(minimum_version,'.',2)::numeric)
+                AND (split_part(installed.version,'.',1)::numeric,
+                     split_part(installed.version,'.',2)::numeric,
+                     split_part(installed.version,'.',3)::numeric) >=
+                    (split_part(minimum_version,'.',1)::numeric,
+                     split_part(minimum_version,'.',2)::numeric,
+                     split_part(minimum_version,'.',3)::numeric)) THEN
+          RAISE EXCEPTION 'Extension dependency is not Host-approved at a compatible version';
+        END IF;
+      END LOOP;
+      UPDATE public.ventio_extension_packages SET status='APPROVED',
+          approved_by=label, approved_at=clock_timestamp()
+        WHERE tenant_id=tenant AND module_id=package_module AND version=package_version;
+      INSERT INTO public.ventio_extension_package_events
+        (tenant_id,module_id,version,event_type,actor_id,company_id,branch_id,package_sha256)
+      VALUES (tenant,package_module,package_version,'APPROVED',label,
+        package_row.submitted_company_id,package_row.submitted_branch_id,package_hash);
+      details := jsonb_build_object('version',package_version,'packageSha256',package_hash);
+    ELSE
+      IF package_row.status <> 'APPROVED' OR package_reason IS NULL OR
+          length(trim(package_reason)) NOT BETWEEN 1 AND 500 THEN
+        RAISE EXCEPTION 'Only an approved release can be revoked with a reason';
+      END IF;
+      IF EXISTS (SELECT FROM public.ventio_extension_packages dependent
+          WHERE dependent.tenant_id=tenant AND dependent.status='APPROVED'
+            AND dependent.package_json->'dependencyVersions' ? package_module) THEN
+        RAISE EXCEPTION 'Revoke approved dependent extensions before their dependency';
+      END IF;
+      UPDATE public.ventio_extension_packages SET status='REVOKED',
+          revoked_by=label, revoked_at=clock_timestamp(), revoke_reason=package_reason
+        WHERE tenant_id=tenant AND module_id=package_module AND version=package_version;
+      INSERT INTO public.ventio_extension_package_events
+        (tenant_id,module_id,version,event_type,actor_id,company_id,branch_id,package_sha256,details)
+      VALUES (tenant,package_module,package_version,'REVOKED',label,
+        package_row.submitted_company_id,package_row.submitted_branch_id,package_hash,
+        jsonb_build_object('reason',package_reason));
+      details := jsonb_build_object('version',package_version,'packageSha256',package_hash,'reason',package_reason);
+    END IF;
+    subject := package_module;
   ELSE
     IF operation = 'DEVICE_REVOKED' THEN
       SELECT actor_id INTO actor FROM public.ventio_identity_devices WHERE tenant_id = tenant AND device_id = device;

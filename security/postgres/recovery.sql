@@ -22,7 +22,11 @@ SET TimeZone = 'UTC' AS $fn$
     (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_credentials t),
     (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_branches t),
     (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_grants t),
-    (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_audit t)
+    (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text) FROM public.ventio_identity_audit t),
+    (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)
+      FROM public.ventio_extension_packages t WHERE t.status IN ('APPROVED','REVOKED')),
+    (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)
+      FROM public.ventio_extension_package_events t WHERE t.event_type IN ('APPROVED','REVOKED'))
   )::text, 'UTF8')), 'hex')
 $fn$;
 

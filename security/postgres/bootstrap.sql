@@ -35,7 +35,8 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox',
     'ventio_identity_users','ventio_identity_devices','ventio_identity_credentials','ventio_identity_branches',
-    'ventio_identity_grants','ventio_identity_audit','ventio_schema_migrations'] LOOP
+    'ventio_identity_grants','ventio_identity_audit','ventio_extension_packages',
+    'ventio_extension_package_events','ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
   END LOOP;
 END $ownership$;
@@ -64,7 +65,8 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['public.ventio_identity_users','public.ventio_identity_devices',
     'public.ventio_identity_credentials','public.ventio_identity_branches','public.ventio_identity_grants',
-    'public.ventio_identity_audit','public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
+    'public.ventio_identity_audit','public.ventio_extension_packages',
+    'public.ventio_extension_package_events','public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS owner_access ON %s', t);
@@ -119,6 +121,8 @@ BEGIN
     'companyIds', companies, 'branchIds', branches, 'permissions', permissions,
     'scopeGrants', scope_grants);
 END $fn$;
+
+\ir extensions.sql
 
 -- The context contains a confidential proof handle, not trusted scope claims.
 -- Policies revalidate it against current identity/grants on EVERY statement.
@@ -235,8 +239,12 @@ REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, 
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
   ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
-  ventio_security.admit_recovery(text)
+  ventio_security.admit_recovery(text),
+  ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
+  ventio_security.read_approved_extension_package(text,text,text,text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb), ventio_security.recovery_snapshot(),
-  ventio_security.reset_recovery(text,text) TO ventio_identity_admin;
+  ventio_security.reset_recovery(text,text),
+  ventio_security.read_extension_submission(text,text,text),
+  ventio_security.assert_schema() TO ventio_identity_admin;
 COMMIT;
