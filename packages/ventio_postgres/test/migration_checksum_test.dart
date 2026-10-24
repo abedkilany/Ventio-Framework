@@ -8,11 +8,13 @@ void main() {
   if (migrationChecksum(crlf) != expected ||
       migrationChecksum(cr) != expected) {
     throw StateError(
-        'Migration checksums must not depend on platform newlines.');
+      'Migration checksums must not depend on platform newlines.',
+    );
   }
   if (canonicalMigrationSql(crlf) != lf || canonicalMigrationSql(cr) != lf) {
     throw StateError('Migration SQL must be normalized before execution.');
   }
   print(
-      'PASS: Migration SQL and checksums are stable across Windows and Unix line endings');
+    'PASS: Migration SQL and checksums are stable across Windows and Unix line endings',
+  );
 }
