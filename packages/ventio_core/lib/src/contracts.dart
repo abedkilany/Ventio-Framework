@@ -482,8 +482,7 @@ class CommandReceipt {
     final messageKey = optionalString(json, 'messageKey');
     final officialNumber = optionalString(json, 'officialNumber');
     final publicMessage = optionalString(json, 'publicMessage');
-    if (status == 'ACCEPTED' &&
-        (hostRevision == null || scopeCursor == null)) {
+    if (status == 'ACCEPTED' && (hostRevision == null || scopeCursor == null)) {
       invalid('Accepted receipts require hostRevision and scopeCursor');
     }
     if (status != 'ACCEPTED' && reasonCode == null) {
@@ -505,8 +504,8 @@ class CommandReceipt {
     final messageParams = objectField('messageParams');
     if (messageParams != null &&
         (messageParams.length > 20 ||
-            messageParams.keys.any(
-                (key) => !RegExp(r'^[a-z][A-Za-z0-9_]*$').hasMatch(key)) ||
+            messageParams.keys
+                .any((key) => !RegExp(r'^[a-z][A-Za-z0-9_]*$').hasMatch(key)) ||
             messageParams.values.any((value) =>
                 value != null &&
                 value is! String &&

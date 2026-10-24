@@ -19,7 +19,9 @@ void main() {
 
   Future<CommandEnvelope> maintenanceEnvelope() async {
     return CommandEnvelope.fromJson(
-      await readFixture('../../spec/v1.2/examples/create_maintenance_command.json'),
+      await readFixture(
+        '../../spec/v1.2/examples/create_maintenance_command.json',
+      ),
     );
   }
 
@@ -49,39 +51,45 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  test('Core command and Host receipt examples remain wire-compatible', () async {
-    final envelopeJson = await readFixture(
-      '../../spec/v1.2/examples/create_maintenance_command.json',
-    );
-    final envelope = CommandEnvelope.fromJson(envelopeJson);
-    expect(envelope.type, 'maintenance.create');
-    expect(canonicalJson(envelope.original), canonicalJson(envelopeJson));
+  test(
+    'Core command and Host receipt examples remain wire-compatible',
+    () async {
+      final envelopeJson = await readFixture(
+        '../../spec/v1.2/examples/create_maintenance_command.json',
+      );
+      final envelope = CommandEnvelope.fromJson(envelopeJson);
+      expect(envelope.type, 'maintenance.create');
+      expect(canonicalJson(envelope.original), canonicalJson(envelopeJson));
 
-    final acceptedJson = await readFixture(
-      '../../spec/v1.2/examples/accepted_receipt.json',
-    );
-    final receipt = CommandReceipt.fromJson(acceptedJson);
-    expect(receipt.accepted, isTrue);
-    expect(canonicalJson(receipt.toJson()), canonicalJson(acceptedJson));
-  });
+      final acceptedJson = await readFixture(
+        '../../spec/v1.2/examples/accepted_receipt.json',
+      );
+      final receipt = CommandReceipt.fromJson(acceptedJson);
+      expect(receipt.accepted, isTrue);
+      expect(canonicalJson(receipt.toJson()), canonicalJson(acceptedJson));
+    },
+  );
 
-  test('Original envelope, ID, and pending state survive close and reopen', () async {
-    final envelope = await maintenanceEnvelope();
-    await queue.enqueue(envelope);
+  test(
+    'Original envelope, ID, and pending state survive close and reopen',
+    () async {
+      final envelope = await maintenanceEnvelope();
+      await queue.enqueue(envelope);
 
-    await reopenQueue();
-    final restored = await queue.getById(envelope.commandId);
+      await reopenQueue();
+      final restored = await queue.getById(envelope.commandId);
 
-    expect(restored, isNotNull);
-    expect(restored!.envelope.commandId, envelope.commandId);
-    expect(
-      canonicalJson(restored.envelope.original),
-      canonicalJson(envelope.original),
-    );
-    expect(restored.hostStatus, HostCommandStatus.pending);
-    expect(restored.isHostConfirmed, isFalse);
-    expect(restored.hostReceipt, isNull);
-  });
+      expect(restored, isNotNull);
+      expect(restored!.envelope.commandId, envelope.commandId);
+      expect(
+        canonicalJson(restored.envelope.original),
+        canonicalJson(envelope.original),
+      );
+      expect(restored.hostStatus, HostCommandStatus.pending);
+      expect(restored.isHostConfirmed, isFalse);
+      expect(restored.hostReceipt, isNull);
+    },
+  );
 
   test('Duplicate command IDs cannot overwrite the original intent', () async {
     final original = await maintenanceEnvelope();
@@ -120,52 +128,62 @@ void main() {
     expect(restored.hostReceipt, isNull);
   });
 
-  test('Abrupt child-process exit preserves the pending command for recovery', () async {
-    final envelope = await maintenanceEnvelope();
-    await queue.close();
-    final child = await Process.run(
-      Platform.resolvedExecutable,
-      [
-        'test/support/crash_after_attempt.dart',
-        databasePath,
-        jsonEncode(envelope.original),
-      ],
-      workingDirectory: Directory.current.path,
-    );
-    expect(child.exitCode, 73, reason: '${child.stdout}\n${child.stderr}');
+  test(
+    'Abrupt child-process exit preserves the pending command for recovery',
+    () async {
+      final envelope = await maintenanceEnvelope();
+      await queue.close();
+      final child = await Process.run(
+        Platform.isWindows ? 'dart.exe' : 'dart',
+        [
+          'test/support/crash_after_attempt.dart',
+          databasePath,
+          jsonEncode(envelope.original),
+        ],
+        workingDirectory: Directory.current.path,
+      );
+      expect(child.exitCode, 73, reason: '${child.stdout}\n${child.stderr}');
 
-    queue = await LocalCommandQueue.open(
-      factory: databaseFactoryFfi,
-      path: databasePath,
-      clock: () => fixedTime,
-    );
-    final restored = (await queue.getById(envelope.commandId))!;
-    expect(restored.attemptCount, 1);
-    expect(restored.hostStatus, HostCommandStatus.pending);
-    expect(restored.hostReceipt, isNull);
-  });
+      queue = await LocalCommandQueue.open(
+        factory: databaseFactoryFfi,
+        path: databasePath,
+        clock: () => fixedTime,
+      );
+      final restored = (await queue.getById(envelope.commandId))!;
+      expect(restored.attemptCount, 1);
+      expect(restored.hostStatus, HostCommandStatus.pending);
+      expect(restored.hostReceipt, isNull);
+    },
+  );
 
-  test('Fixture receipt persists separately and never confirms Host acceptance', () async {
-    final envelope = await maintenanceEnvelope();
-    await queue.enqueue(envelope);
-    await queue.recordAttempt(envelope.commandId);
-    final response = await const DeterministicTransportFixture().send(envelope);
-    expect(response.apiVersion, hostApiVersion);
-    expect(response.source, TransportSource.fixture);
-    await queue.recordFixtureReceipt(envelope.commandId, response);
+  test(
+    'Fixture receipt persists separately and never confirms Host acceptance',
+    () async {
+      final envelope = await maintenanceEnvelope();
+      await queue.enqueue(envelope);
+      await queue.recordAttempt(envelope.commandId);
+      final response = await const DeterministicTransportFixture().send(
+        envelope,
+      );
+      expect(response.apiVersion, hostApiVersion);
+      expect(response.source, TransportSource.fixture);
+      await queue.recordFixtureReceipt(envelope.commandId, response);
 
-    await reopenQueue();
-    final restored = (await queue.getById(envelope.commandId))!;
-    expect(restored.fixtureReceipt?.accepted, isTrue);
-    expect(restored.hostStatus, HostCommandStatus.pending);
-    expect(restored.hostReceipt, isNull);
-    expect(restored.isHostConfirmed, isFalse);
-  });
+      await reopenQueue();
+      final restored = (await queue.getById(envelope.commandId))!;
+      expect(restored.fixtureReceipt?.accepted, isTrue);
+      expect(restored.hostStatus, HostCommandStatus.pending);
+      expect(restored.hostReceipt, isNull);
+      expect(restored.isHostConfirmed, isFalse);
+    },
+  );
 
   test('A fixture receipt for another command ID is rejected', () async {
     final envelope = await maintenanceEnvelope();
     await queue.enqueue(envelope);
-    final validReceipt = await const DeterministicTransportFixture().send(envelope);
+    final validReceipt = await const DeterministicTransportFixture().send(
+      envelope,
+    );
     final alteredReceipt = Map<String, dynamic>.from(validReceipt.receipt)
       ..['commandId'] = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     final receipt = TransportResponse(

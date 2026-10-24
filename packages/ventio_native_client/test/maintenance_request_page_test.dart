@@ -25,7 +25,9 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  testWidgets('Maintenance form saves a visibly pending local request', (tester) async {
+  testWidgets('Maintenance form saves a visibly pending local request', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: MaintenanceRequestPage(

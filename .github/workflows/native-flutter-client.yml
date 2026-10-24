@@ -36,11 +36,6 @@ jobs:
       - name: Resolve dependencies
         working-directory: packages/ventio_native_client
         run: flutter pub get
-      - name: Capture Dart formatter output
-        working-directory: packages/ventio_native_client
-        run: |
-          dart format lib test ../../packages/ventio_core/lib/src/contracts.dart ../../packages/ventio_core/test/all_tests.dart
-          git -C ../.. -c color.ui=false diff --unified=3 -- packages/ventio_core/lib/src/contracts.dart packages/ventio_core/test/all_tests.dart packages/ventio_native_client/lib packages/ventio_native_client/test
       - name: Check formatting and static analysis
         working-directory: packages/ventio_native_client
         run: |

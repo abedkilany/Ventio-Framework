@@ -26,12 +26,12 @@ enum HostCommandStatus {
   }
 
   String get label => switch (this) {
-        pending => 'Pending',
-        accepted => 'Accepted by Host',
-        rejected => 'Rejected by Host',
-        conflict => 'Conflict reported by Host',
-        retryLater => 'Retry later',
-      };
+    pending => 'Pending',
+    accepted => 'Accepted by Host',
+    rejected => 'Rejected by Host',
+    conflict => 'Conflict reported by Host',
+    retryLater => 'Retry later',
+  };
 }
 
 class DuplicateCommandIdException implements Exception {
@@ -84,9 +84,7 @@ class QueueEntry {
     CommandReceipt? parseReceipt(Object? raw, String fieldName) {
       if (raw == null) return null;
       final decoded = jsonDecode(raw as String);
-      final receipt = CommandReceipt.fromJson(
-        requireMap(decoded, fieldName),
-      );
+      final receipt = CommandReceipt.fromJson(requireMap(decoded, fieldName));
       if (receipt.commandId != commandId) {
         throw FormatException('$fieldName command ID does not match envelope');
       }
@@ -98,11 +96,15 @@ class QueueEntry {
     final hostReceipt = parseReceipt(row['host_receipt_json'], 'hostReceipt');
     final status = HostCommandStatus.fromDatabase(row['host_status']);
     if (status == HostCommandStatus.pending && hostReceipt != null) {
-      throw const FormatException('Pending state cannot contain a Host receipt');
+      throw const FormatException(
+        'Pending state cannot contain a Host receipt',
+      );
     }
     if (status != HostCommandStatus.pending &&
         hostReceipt?.status != status.databaseValue) {
-      throw const FormatException('Host state must match its authoritative receipt');
+      throw const FormatException(
+        'Host state must match its authoritative receipt',
+      );
     }
 
     return QueueEntry(
@@ -115,7 +117,10 @@ class QueueEntry {
           ? null
           : date(row['last_attempt_at_utc']),
       hostReceipt: hostReceipt,
-      fixtureReceipt: parseReceipt(row['fixture_receipt_json'], 'fixtureReceipt'),
+      fixtureReceipt: parseReceipt(
+        row['fixture_receipt_json'],
+        'fixtureReceipt',
+      ),
     );
   }
 }
@@ -177,7 +182,9 @@ class LocalCommandQueue {
     // client-specific command representation.
     final validated = CommandEnvelope.fromJson(envelope.original);
     if (validated.commandId != envelope.commandId) {
-      throw const FormatException('Command ID does not match original envelope');
+      throw const FormatException(
+        'Command ID does not match original envelope',
+      );
     }
     final now = _clock().toUtc().toIso8601String();
     await _database.transaction((transaction) async {
@@ -191,22 +198,18 @@ class LocalCommandQueue {
       if (existing.isNotEmpty) {
         throw DuplicateCommandIdException(envelope.commandId);
       }
-      await transaction.insert(
-        _table,
-        {
-          'command_id': envelope.commandId,
-          'type': envelope.type,
-          'envelope_json': canonicalJson(envelope.original),
-          'host_status': HostCommandStatus.pending.databaseValue,
-          'host_receipt_json': null,
-          'fixture_receipt_json': null,
-          'attempt_count': 0,
-          'created_at_utc': now,
-          'updated_at_utc': now,
-          'last_attempt_at_utc': null,
-        },
-        conflictAlgorithm: ConflictAlgorithm.abort,
-      );
+      await transaction.insert(_table, {
+        'command_id': envelope.commandId,
+        'type': envelope.type,
+        'envelope_json': canonicalJson(envelope.original),
+        'host_status': HostCommandStatus.pending.databaseValue,
+        'host_receipt_json': null,
+        'fixture_receipt_json': null,
+        'attempt_count': 0,
+        'created_at_utc': now,
+        'updated_at_utc': now,
+        'last_attempt_at_utc': null,
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
     });
   }
 
@@ -220,7 +223,8 @@ class LocalCommandQueue {
         limit: 1,
       );
       if (rows.isEmpty) throw StateError('Unknown command: $commandId');
-      if (rows.single['host_status'] != HostCommandStatus.pending.databaseValue) {
+      if (rows.single['host_status'] !=
+          HostCommandStatus.pending.databaseValue) {
         throw StateError('Only pending commands can be attempted');
       }
       final now = _clock().toUtc().toIso8601String();
@@ -245,7 +249,9 @@ class LocalCommandQueue {
     _ensureOpen();
     if (response.source != TransportSource.fixture ||
         response.apiVersion != hostApiVersion) {
-      throw const FormatException('Only a matching-version fixture response can be recorded here');
+      throw const FormatException(
+        'Only a matching-version fixture response can be recorded here',
+      );
     }
     final receipt = CommandReceipt.fromJson(response.receipt);
     if (receipt.commandId != commandId) {
@@ -260,8 +266,11 @@ class LocalCommandQueue {
         limit: 1,
       );
       if (rows.isEmpty) throw StateError('Unknown command: $commandId');
-      if (rows.single['host_status'] != HostCommandStatus.pending.databaseValue) {
-        throw StateError('Fixture results cannot update Host-resolved commands');
+      if (rows.single['host_status'] !=
+          HostCommandStatus.pending.databaseValue) {
+        throw StateError(
+          'Fixture results cannot update Host-resolved commands',
+        );
       }
       await transaction.update(
         _table,

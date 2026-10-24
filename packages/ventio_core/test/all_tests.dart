@@ -647,44 +647,34 @@ void main() {
     checkThrows(
         () => CommandEnvelope.fromJson(raw), 'Nonfinite value accepted');
   });
-  test('Host receipts parse and round-trip through the shared Core contract', () {
-    final acceptedJson =
-        loadJsonFile('$root/examples/accepted_receipt.json');
+  test('Host receipts parse and round-trip through the shared Core contract',
+      () {
+    final acceptedJson = loadJsonFile('$root/examples/accepted_receipt.json');
     final accepted = CommandReceipt.fromJson(acceptedJson);
     check(accepted.accepted, 'Accepted Host receipt changed state');
-    check(
-        accepted.serverTimestamp == acceptedJson['serverTimestamp'],
+    check(accepted.serverTimestamp == acceptedJson['serverTimestamp'],
         'Host timestamp was replaced with a client timestamp');
-    check(
-        canonicalJson(accepted.toJson()) == canonicalJson(acceptedJson),
+    check(canonicalJson(accepted.toJson()) == canonicalJson(acceptedJson),
         'Accepted Host receipt did not round-trip');
-    checkThrows(
-        () => accepted.output!['serverRecordId'] = 'forged',
+    checkThrows(() => accepted.output!['serverRecordId'] = 'forged',
         'Parsed Host receipt output was mutable');
 
-    final rejectedJson =
-        loadJsonFile('$root/examples/rejected_receipt.json');
+    final rejectedJson = loadJsonFile('$root/examples/rejected_receipt.json');
     final rejected = CommandReceipt.fromJson(rejectedJson);
     check(rejected.status == 'REJECTED', 'Rejected receipt status changed');
-    check(
-        rejected.messageParams?['field'] == 'Device Model',
+    check(rejected.messageParams?['field'] == 'Device Model',
         'Localized receipt parameters were lost');
-    check(
-        canonicalJson(rejected.toJson()) == canonicalJson(rejectedJson),
+    check(canonicalJson(rejected.toJson()) == canonicalJson(rejectedJson),
         'Rejected Host receipt did not round-trip');
   });
   test('Malformed Host receipt combinations fail closed', () {
-    final invalid =
-        loadJsonFile('$root/examples/accepted_receipt.json');
+    final invalid = loadJsonFile('$root/examples/accepted_receipt.json');
     invalid['retryable'] = true;
-    checkThrows(
-        () => CommandReceipt.fromJson(invalid),
+    checkThrows(() => CommandReceipt.fromJson(invalid),
         'Accepted receipt with retryable=true was accepted');
-    final unknown =
-        loadJsonFile('$root/examples/accepted_receipt.json');
+    final unknown = loadJsonFile('$root/examples/accepted_receipt.json');
     unknown['scope'] = 'client-controlled';
-    checkThrows(
-        () => CommandReceipt.fromJson(unknown),
+    checkThrows(() => CommandReceipt.fromJson(unknown),
         'Receipt with unsupported authority field was accepted');
   });
   print('RESULT: $passed passed, $failed failed');

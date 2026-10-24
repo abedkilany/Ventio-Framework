@@ -54,7 +54,9 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
     final customerName = _customerName.text.trim();
     final deviceModel = _deviceModel.text.trim();
     final problemDescription = _problemDescription.text.trim();
-    if (customerName.isEmpty || deviceModel.isEmpty || problemDescription.isEmpty) {
+    if (customerName.isEmpty ||
+        deviceModel.isEmpty ||
+        problemDescription.isEmpty) {
       _showMessage('Complete all fields before saving.');
       return;
     }
@@ -106,9 +108,14 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
       await widget.queue.recordAttempt(entry.envelope.commandId);
       final receipt = await widget.transport.send(entry.envelope);
       if (receipt.source != TransportSource.fixture) {
-        throw const FormatException('This screen only accepts fixture responses.');
+        throw const FormatException(
+          'This screen only accepts fixture responses.',
+        );
       }
-      await widget.queue.recordFixtureReceipt(entry.envelope.commandId, receipt);
+      await widget.queue.recordFixtureReceipt(
+        entry.envelope.commandId,
+        receipt,
+      );
       await _refresh();
       _showMessage('Fixture response saved. Host status remains Pending.');
     } catch (error) {
@@ -154,7 +161,8 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
                 const _NoticeCard(
                   icon: Icons.cloud_off_outlined,
                   title: 'Local-only demonstration',
-                  body: 'No Host connection is configured. The fixture below is simulated and cannot confirm shared state.',
+                  body:
+                      'No Host connection is configured. The fixture below is simulated and cannot confirm shared state.',
                 ),
                 const SizedBox(height: 20),
                 _requestForm(context),
@@ -177,7 +185,8 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
                   const _NoticeCard(
                     icon: Icons.inbox_outlined,
                     title: 'No requests yet',
-                    body: 'Saved requests will remain in this device’s local queue after the app restarts.',
+                    body:
+                        'Saved requests will remain in this device’s local queue after the app restarts.',
                   )
                 else
                   for (final entry in _entries) _entryCard(context, entry),
@@ -268,7 +277,9 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
             const SizedBox(height: 4),
             Text('${payload['problemDescription']}'),
             const SizedBox(height: 8),
-            Text('Saved on this device · ${entry.attemptCount} fixture/transport attempts'),
+            Text(
+              'Saved on this device · ${entry.attemptCount} fixture/transport attempts',
+            ),
             if (entry.fixtureReceipt != null) ...[
               const SizedBox(height: 10),
               Text(
@@ -295,7 +306,11 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
 }
 
 class _NoticeCard extends StatelessWidget {
-  const _NoticeCard({required this.icon, required this.title, required this.body});
+  const _NoticeCard({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
 
   final IconData icon;
   final String title;
