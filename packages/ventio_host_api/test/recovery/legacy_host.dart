@@ -1,5 +1,6 @@
 // Historical identity/crash fixture for unconfigured isolated test databases only.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:postgres/postgres.dart' as pg;
@@ -62,6 +63,7 @@ Future<void> main() async {
   }
   final shutdown = Completer<void>();
   final subscriptions = <StreamSubscription<ProcessSignal>>[];
+  StreamSubscription<String>? testShutdownInput;
   for (final signal in [
     ProcessSignal.sigint,
     if (!Platform.isWindows) ProcessSignal.sigterm,
@@ -72,9 +74,20 @@ Future<void> main() async {
       }),
     );
   }
+  if (Platform.environment['VENTIO_TEST_ALLOW_STDIN_SHUTDOWN'] == 'yes') {
+    testShutdownInput = stdin
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          if (line == 'shutdown' && !shutdown.isCompleted) {
+            shutdown.complete();
+          }
+        });
+  }
   await shutdown.future;
   await api.close();
   for (final subscription in subscriptions) {
     await subscription.cancel();
   }
+  await testShutdownInput?.cancel();
 }

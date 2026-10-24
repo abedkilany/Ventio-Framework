@@ -66,6 +66,9 @@ Supported `action` values:
 | `register-branch` | `companyId`, `branchId` |
 | `register-device` | `actorId`, a new `deviceId` |
 | `grant`, `revoke-grant` | `actorId`, `companyId`, `branchId`, `permission` |
+| `create-role`, `rename-role`, `delete-role` | `roleId`; create/rename also require `displayName` |
+| `grant-role-permission`, `revoke-role-permission` | `roleId`, `permission` |
+| `assign-role`, `revoke-role-assignment` | `actorId`, `roleId`, `companyId`, `branchId` |
 | `disable-user` | `actorId` |
 | `revoke-device` | `deviceId` |
 | `revoke-credential` | `credentialId` |
@@ -77,6 +80,15 @@ Example `allowedScopes` (not client-supplied administrative input):
 ```json
 [{"companyId":"company-001","branchId":"branch-001","permissions":["maintenance.create"]}]
 ```
+
+Roles belong to one tenant. Each assignment binds a role to one registered
+user, company and branch; role permissions do not combine company and branch
+lists into a cross-product. A provisioned credential further limits effective
+access to its exact `allowedScopes`. Permission removals and role unassignments
+take effect on the next Host request. Adding a permission beyond an existing
+credential's ceiling requires a newly provisioned credential. Role management
+is available only through the trusted local operator CLI; no administrative
+HTTP route or client-side role grant is provided.
 
 The private output artifact contains the new raw token and its tenant/user/device
 binding and expiry. It is staged before the DB mutation so a successful issue

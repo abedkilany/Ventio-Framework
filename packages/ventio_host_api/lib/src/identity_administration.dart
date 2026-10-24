@@ -188,6 +188,86 @@ class IdentityAdministration {
     });
   }
 
+  /// Roles group permission keys, but assignments always carry one exact
+  /// company and branch. A role never widens the credential's provisioned
+  /// scope or permission ceiling.
+  Future<void> createRole(String roleId, String displayName) {
+    _role(roleId);
+    _displayName(displayName);
+    return _change('ROLE_CREATED', {
+      'roleId': roleId,
+      'displayName': displayName.trim(),
+    });
+  }
+
+  Future<void> renameRole(String roleId, String displayName) {
+    _role(roleId);
+    _displayName(displayName);
+    return _change('ROLE_RENAMED', {
+      'roleId': roleId,
+      'displayName': displayName.trim(),
+    });
+  }
+
+  Future<void> deleteRole(String roleId) {
+    _role(roleId);
+    return _change('ROLE_DELETED', {'roleId': roleId});
+  }
+
+  Future<void> grantRolePermission(String roleId, String permission) {
+    _role(roleId);
+    _rolePermission(permission);
+    return _change('ROLE_PERMISSION_GRANTED', {
+      'roleId': roleId,
+      'permission': permission,
+    });
+  }
+
+  Future<void> revokeRolePermission(String roleId, String permission) {
+    _role(roleId);
+    _rolePermission(permission);
+    return _change('ROLE_PERMISSION_REVOKED', {
+      'roleId': roleId,
+      'permission': permission,
+    });
+  }
+
+  Future<void> assignRole({
+    required String actorId,
+    required String roleId,
+    required String companyId,
+    required String branchId,
+  }) {
+    for (final value in [actorId, companyId, branchId]) {
+      _identifier(value);
+    }
+    _role(roleId);
+    return _change('ROLE_ASSIGNED', {
+      'actorId': actorId,
+      'roleId': roleId,
+      'companyId': companyId,
+      'branchId': branchId,
+    });
+  }
+
+  Future<void> revokeRoleAssignment({
+    required String actorId,
+    required String roleId,
+    required String companyId,
+    required String branchId,
+  }) {
+    for (final value in [actorId, companyId, branchId]) {
+      _identifier(value);
+    }
+    _role(roleId);
+    return _change('ROLE_UNASSIGNED', {
+      'actorId': actorId,
+      'roleId': roleId,
+      'companyId': companyId,
+      'branchId': branchId,
+    });
+  }
+
   Future<void> revokeDevice(String deviceId) {
     _identifier(deviceId);
     return _change('DEVICE_REVOKED', {'deviceId': deviceId});
@@ -220,4 +300,23 @@ void _grantFields(
   }
   if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission))
     throw ArgumentError('Invalid permission name');
+}
+
+void _role(String roleId) {
+  if (roleId.length > 128 || !RegExp(r'^[a-z][a-z0-9_.-]*$').hasMatch(roleId)) {
+    throw ArgumentError('Invalid role identifier');
+  }
+}
+
+void _rolePermission(String permission) {
+  _identifier(permission);
+  if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission)) {
+    throw ArgumentError('Invalid role permission');
+  }
+}
+
+void _displayName(String value) {
+  if (value.trim().isEmpty || value.length > 120) {
+    throw ArgumentError('Invalid role display name');
+  }
 }

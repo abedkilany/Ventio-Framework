@@ -240,6 +240,151 @@ Future<void> main() async {
       canonicalJson((await submit(token, first)).body) == originalReceipt,
       'Authenticated retry returns stable stored receipt',
     );
+    await admin.createRole('maintenance-editor', 'Maintenance editor');
+    await admin.grantRolePermission('maintenance-editor', 'maintenance.create');
+    await admin.grantRolePermission('maintenance-editor', 'maintenance.read');
+    await admin.createUser('role-user');
+    await admin.registerDevice('role-user', 'role-device');
+    await admin.registerBranch('company-002', 'branch-002');
+    await admin.assignRole(
+      actorId: 'role-user',
+      roleId: 'maintenance-editor',
+      companyId: 'company-001',
+      branchId: 'branch-001',
+    );
+    await admin.assignRole(
+      actorId: 'role-user',
+      roleId: 'maintenance-editor',
+      companyId: 'company-002',
+      branchId: 'branch-002',
+    );
+    final roleToken = await admin.issueCredential(
+      actorId: 'role-user',
+      deviceId: 'role-device',
+      credentialId: 'role-credential',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+    );
+    final roleSession = (await authenticator.authenticate(roleToken))!;
+    check(
+      roleSession.principal.allowsInScope(
+            'maintenance.create',
+            'company-001',
+            'branch-001',
+          ) &&
+          roleSession.principal.allowsInScope(
+            'maintenance.read',
+            'company-002',
+            'branch-002',
+          ),
+      'Assigned role contributes permissions only at each assigned scope',
+    );
+    final scopedRoleToken = OpaqueToken.generate();
+    await adminConnection.execute(
+      pg.Sql.named(
+        'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
+      ),
+      parameters: {
+        'change': jsonEncode({
+          'tenantId': tenant,
+          'operatorLabel': 'integration-operator',
+          'action': 'CREDENTIAL_PROVISIONED',
+          'actorId': 'role-user',
+          'deviceId': 'role-device',
+          'credentialId': 'role-credential-scoped',
+          'tokenDigest': OpaqueToken.digest(scopedRoleToken),
+          'expiresAt': DateTime.now()
+              .toUtc()
+              .add(const Duration(hours: 1))
+              .toIso8601String(),
+          'allowedScopes': [
+            {
+              'companyId': 'company-001',
+              'branchId': 'branch-001',
+              'permissions': ['maintenance.create'],
+            },
+          ],
+        }),
+      },
+    );
+    final scopedRoleSession = (await authenticator.authenticate(
+      scopedRoleToken,
+    ))!;
+    check(
+      scopedRoleSession.principal.allowsInScope(
+            'maintenance.create',
+            'company-001',
+            'branch-001',
+          ) &&
+          !scopedRoleSession.principal.allowsInScope(
+            'maintenance.read',
+            'company-001',
+            'branch-001',
+          ) &&
+          !scopedRoleSession.principal.allowsInScope(
+            'maintenance.create',
+            'company-002',
+            'branch-002',
+          ),
+      'Provisioned role credentials retain their exact permission and branch ceiling',
+    );
+    final roleScoped = scoped(
+      tenant,
+      19,
+      actor: 'role-user',
+      device: 'role-device',
+    );
+    final roleBranchCommand =
+        scoped(tenant, 20, actor: 'role-user', device: 'role-device')
+          ..['companyId'] = 'company-002'
+          ..['branchId'] = 'branch-002';
+    final roleBranchOneReply = await submit(roleToken, roleScoped);
+    final roleBranchTwoReply = await submit(roleToken, roleBranchCommand);
+    check(
+      roleBranchOneReply.status == 200 && roleBranchTwoReply.status == 200,
+      'Role permissions authorize records in assigned branches',
+    );
+    final forgedRoleScope = Map<String, dynamic>.from(roleScoped)
+      ..['companyId'] = 'company-001'
+      ..['branchId'] = 'branch-002';
+    check(
+      (await submit(roleToken, forgedRoleScope)).status == 403,
+      'Role assignments cannot create a company/branch cross-product',
+    );
+    await mustFail(
+      () => admin.deleteRole('maintenance-editor'),
+      'A role with active assignments cannot be deleted',
+    );
+    await admin.revokeRolePermission(
+      'maintenance-editor',
+      'maintenance.create',
+    );
+    check(
+      (await submit(roleToken, roleScoped)).status == 403,
+      'Removing a role permission takes effect on the next command',
+    );
+    await admin.grantRolePermission('maintenance-editor', 'maintenance.create');
+    await admin.revokeRoleAssignment(
+      actorId: 'role-user',
+      roleId: 'maintenance-editor',
+      companyId: 'company-001',
+      branchId: 'branch-001',
+    );
+    check(
+      (await submit(roleToken, roleScoped)).status == 403 &&
+          (await submit(roleToken, roleBranchCommand)).status == 200,
+      'Revoking a role assignment removes only that exact branch access',
+    );
+    await admin.revokeRoleAssignment(
+      actorId: 'role-user',
+      roleId: 'maintenance-editor',
+      companyId: 'company-002',
+      branchId: 'branch-002',
+    );
+    await admin.deleteRole('maintenance-editor');
+    check(
+      (await submit(roleToken, roleBranchCommand)).status == 403,
+      'Deleted roles leave no permission path on issued credentials',
+    );
     final foreignCommand = scoped(otherTenant, 1);
     check(
       (await submit(foreignToken, foreignCommand)).status == 200,
@@ -832,17 +977,32 @@ Future<void> main() async {
         environment: {
           'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
           'VENTIO_ENABLE_LOCAL_HOST': 'yes',
+          'VENTIO_TEST_ALLOW_STDIN_SHUTDOWN': 'yes',
           'VENTIO_HOST_DATABASE_URL': runtimeUrl,
           'VENTIO_HOST_PORT': '0',
         },
       );
-      child!.stderr.drain<void>();
-      final line = await child!.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .first
-          .timeout(const Duration(seconds: 30));
-      return int.parse(line.split(':').last);
+      final stderrText = child!.stderr.transform(utf8.decoder).join();
+      try {
+        final line = await child!.stdout
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .first
+            .timeout(const Duration(seconds: 30));
+        return int.parse(line.split(':').last);
+      } catch (error) {
+        final code = await child!.exitCode.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            child!.kill();
+            return -999;
+          },
+        );
+        throw StateError(
+          'Persistent Host subprocess failed to start (exit $code): '
+          '${await stderrText}: $error',
+        );
+      }
     }
 
     Future<Reply> childSubmit(
@@ -871,11 +1031,10 @@ Future<void> main() async {
     }
 
     Future<void> stopChild() async {
-      child!.kill(ProcessSignal.sigterm);
-      check(
-        await child!.exitCode.timeout(const Duration(seconds: 20)) == 0,
-        'Persistent Host process shuts down cleanly',
-      );
+      child!.stdin.writeln('shutdown');
+      await child!.stdin.flush();
+      final code = await child!.exitCode.timeout(const Duration(seconds: 20));
+      check(code == 0, 'Persistent Host process shuts down cleanly');
       child = null;
     }
 
@@ -981,6 +1140,9 @@ Future<void> main() async {
       'ventio_command_journal',
       'ventio_records',
       'ventio_identity_audit',
+      'ventio_identity_role_assignments',
+      'ventio_identity_role_permissions',
+      'ventio_identity_roles',
       'ventio_identity_grants',
       'ventio_identity_credentials',
       'ventio_identity_devices',

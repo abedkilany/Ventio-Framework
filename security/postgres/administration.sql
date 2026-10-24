@@ -9,6 +9,7 @@ DECLARE tenant text := p->>'tenantId'; actor text := p->>'actorId'; device text 
   value text; scopes jsonb; old_credential public.ventio_identity_credentials%ROWTYPE;
   package_module text := p->>'moduleId'; package_version text := p->>'version';
   package_hash text := p->>'packageSha256'; package_reason text := p->>'reason';
+  role_key text := p->>'roleId'; role_name text := p->>'displayName';
   package_row public.ventio_extension_packages%ROWTYPE;
   dependency record; minimum_version text;
 
@@ -20,6 +21,13 @@ BEGIN
       RAISE EXCEPTION 'Invalid identity identifier';
     END IF;
   END LOOP;
+  IF role_key IS NOT NULL AND
+      (role_key !~ '^[a-z][a-z0-9_.-]*$' OR length(role_key) > 128) THEN
+    RAISE EXCEPTION 'Invalid role identifier';
+  END IF;
+  IF role_name IS NOT NULL AND length(trim(role_name)) NOT BETWEEN 1 AND 120 THEN
+    RAISE EXCEPTION 'Invalid role display name';
+  END IF;
   IF operation = 'USER_CREATED' THEN
     IF actor IS NULL THEN RAISE EXCEPTION 'User is required'; END IF;
     INSERT INTO public.ventio_identity_users (tenant_id, actor_id) VALUES (tenant, actor);
@@ -31,6 +39,74 @@ BEGIN
     GET DIAGNOSTICS changed = ROW_COUNT;
     IF changed = 0 THEN RETURN; END IF;
     subject := branch; details := jsonb_build_object('companyId', company);
+  ELSIF operation = 'ROLE_CREATED' THEN
+    IF role_key IS NULL OR role_name IS NULL THEN RAISE EXCEPTION 'Role identity is required'; END IF;
+    INSERT INTO public.ventio_identity_roles (tenant_id,role_id,display_name)
+      VALUES (tenant,role_key,trim(role_name));
+    subject := role_key; details := jsonb_build_object('displayName',trim(role_name));
+  ELSIF operation = 'ROLE_RENAMED' THEN
+    IF role_key IS NULL OR role_name IS NULL THEN RAISE EXCEPTION 'Role identity is required'; END IF;
+    UPDATE public.ventio_identity_roles SET display_name=trim(role_name)
+      WHERE tenant_id=tenant AND role_id=role_key;
+    GET DIAGNOSTICS changed = ROW_COUNT;
+    IF changed = 0 THEN RAISE EXCEPTION 'Unknown role'; END IF;
+    subject := role_key; details := jsonb_build_object('displayName',trim(role_name));
+  ELSIF operation = 'ROLE_DELETED' THEN
+    IF role_key IS NULL THEN RAISE EXCEPTION 'Role identity is required'; END IF;
+    PERFORM 1 FROM public.ventio_identity_roles
+      WHERE tenant_id=tenant AND role_id=role_key FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Unknown role'; END IF;
+    IF EXISTS (SELECT FROM public.ventio_identity_role_assignments
+        WHERE tenant_id=tenant AND role_id=role_key) THEN
+      RAISE EXCEPTION 'Remove role assignments before deleting the role';
+    END IF;
+    DELETE FROM public.ventio_identity_role_permissions
+      WHERE tenant_id=tenant AND role_id=role_key;
+    DELETE FROM public.ventio_identity_roles
+      WHERE tenant_id=tenant AND role_id=role_key;
+    subject := role_key;
+  ELSIF operation IN ('ROLE_PERMISSION_GRANTED','ROLE_PERMISSION_REVOKED') THEN
+    IF role_key IS NULL OR permission_name IS NULL OR
+        permission_name !~ '^[a-z][a-z0-9_.]+$' OR length(permission_name)>256 THEN
+      RAISE EXCEPTION 'Invalid role permission';
+    END IF;
+    PERFORM 1 FROM public.ventio_identity_roles
+      WHERE tenant_id=tenant AND role_id=role_key FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Unknown role'; END IF;
+    IF operation='ROLE_PERMISSION_GRANTED' THEN
+      INSERT INTO public.ventio_identity_role_permissions(tenant_id,role_id,permission)
+        VALUES (tenant,role_key,permission_name) ON CONFLICT DO NOTHING;
+    ELSE
+      DELETE FROM public.ventio_identity_role_permissions
+        WHERE tenant_id=tenant AND role_id=role_key AND permission=permission_name;
+    END IF;
+    GET DIAGNOSTICS changed = ROW_COUNT;
+    IF changed = 0 THEN RETURN; END IF;
+    subject := role_key;
+    details := jsonb_build_object('permission',permission_name);
+  ELSIF operation IN ('ROLE_ASSIGNED','ROLE_UNASSIGNED') THEN
+    IF actor IS NULL OR role_key IS NULL OR company IS NULL OR branch IS NULL THEN
+      RAISE EXCEPTION 'Role assignment scope is required';
+    END IF;
+    SELECT disabled_at INTO is_disabled FROM public.ventio_identity_users
+      WHERE tenant_id=tenant AND actor_id=actor FOR UPDATE;
+    IF NOT FOUND OR is_disabled IS NOT NULL THEN RAISE EXCEPTION 'Unknown or disabled user'; END IF;
+    PERFORM 1 FROM public.ventio_identity_roles
+      WHERE tenant_id=tenant AND role_id=role_key FOR SHARE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Unknown role'; END IF;
+    IF operation='ROLE_ASSIGNED' THEN
+      INSERT INTO public.ventio_identity_role_assignments
+        (tenant_id,actor_id,company_id,branch_id,role_id)
+        VALUES (tenant,actor,company,branch,role_key) ON CONFLICT DO NOTHING;
+    ELSE
+      DELETE FROM public.ventio_identity_role_assignments
+        WHERE tenant_id=tenant AND actor_id=actor AND company_id=company
+          AND branch_id=branch AND role_id=role_key;
+    END IF;
+    GET DIAGNOSTICS changed = ROW_COUNT;
+    IF changed = 0 THEN RETURN; END IF;
+    subject := actor;
+    details := jsonb_build_object('roleId',role_key,'companyId',company,'branchId',branch);
   ELSIF operation IN ('EXTENSION_PACKAGE_APPROVED','EXTENSION_PACKAGE_REVOKED') THEN
     IF package_module IS NULL OR package_version IS NULL OR
         package_module !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$' OR
@@ -157,9 +233,16 @@ BEGIN
         END IF;
         IF EXISTS (SELECT FROM jsonb_array_elements(scopes) s
             CROSS JOIN LATERAL jsonb_array_elements_text(s->'permissions') AS requested(value)
-            WHERE NOT EXISTS (SELECT FROM public.ventio_identity_grants g WHERE
-              g.tenant_id=tenant AND g.actor_id=actor AND g.company_id=s->>'companyId'
-              AND g.branch_id=s->>'branchId' AND g.permission=requested.value)) THEN
+            WHERE NOT (
+              EXISTS (SELECT FROM public.ventio_identity_grants g WHERE
+                g.tenant_id=tenant AND g.actor_id=actor AND g.company_id=s->>'companyId'
+                AND g.branch_id=s->>'branchId' AND g.permission=requested.value)
+              OR EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+                JOIN public.ventio_identity_role_permissions rp
+                  USING (tenant_id,role_id)
+                WHERE a.tenant_id=tenant AND a.actor_id=actor
+                  AND a.company_id=s->>'companyId' AND a.branch_id=s->>'branchId'
+                  AND rp.permission=requested.value))) THEN
           RAISE EXCEPTION 'Credential scope exceeds current grants';
         END IF;
       ELSIF operation = 'CREDENTIAL_ROTATED' THEN

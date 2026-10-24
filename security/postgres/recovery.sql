@@ -180,7 +180,9 @@ BEGIN
   FOREACH t IN ARRAY ARRAY[
     'ventio_identity_users','ventio_identity_devices',
     'ventio_identity_credentials','ventio_identity_branches',
-    'ventio_identity_grants','ventio_identity_audit',
+    'ventio_identity_grants','ventio_identity_roles',
+    'ventio_identity_role_permissions','ventio_identity_role_assignments',
+    'ventio_identity_audit',
     'ventio_schema_migrations'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_lock ON public.%I', t);
@@ -232,6 +234,9 @@ BEGIN
   UPDATE public.ventio_identity_credentials SET revoked_at=coalesce(revoked_at,clock_timestamp());
   UPDATE public.ventio_identity_devices SET revoked_at=coalesce(revoked_at,clock_timestamp());
   DELETE FROM public.ventio_identity_grants;
+  DELETE FROM public.ventio_identity_role_assignments;
+  DELETE FROM public.ventio_identity_role_permissions;
+  DELETE FROM public.ventio_identity_roles;
   UPDATE ventio_security.recovery_state SET enforced=true, authority_id=p_authority;
   INSERT INTO public.ventio_identity_audit(tenant_id,operator_label,action,subject_id,details)
     SELECT tenant_id,p_label,'RECOVERY_REENROLLMENT_REQUIRED',p_authority,'{}'::jsonb

@@ -66,6 +66,42 @@ Future<void> main(List<String> args) async {
             request['branchId'] as String,
             request['permission'] as String,
           );
+        case 'create-role':
+          await admin.createRole(
+            request['roleId'] as String,
+            request['displayName'] as String,
+          );
+        case 'rename-role':
+          await admin.renameRole(
+            request['roleId'] as String,
+            request['displayName'] as String,
+          );
+        case 'delete-role':
+          await admin.deleteRole(request['roleId'] as String);
+        case 'grant-role-permission':
+          await admin.grantRolePermission(
+            request['roleId'] as String,
+            request['permission'] as String,
+          );
+        case 'revoke-role-permission':
+          await admin.revokeRolePermission(
+            request['roleId'] as String,
+            request['permission'] as String,
+          );
+        case 'assign-role':
+          await admin.assignRole(
+            actorId: request['actorId'] as String,
+            roleId: request['roleId'] as String,
+            companyId: request['companyId'] as String,
+            branchId: request['branchId'] as String,
+          );
+        case 'revoke-role-assignment':
+          await admin.revokeRoleAssignment(
+            actorId: request['actorId'] as String,
+            roleId: request['roleId'] as String,
+            companyId: request['companyId'] as String,
+            branchId: request['branchId'] as String,
+          );
         case 'revoke-device':
           await admin.revokeDevice(request['deviceId'] as String);
         case 'revoke-credential':

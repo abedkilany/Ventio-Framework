@@ -34,7 +34,10 @@ BEGIN
     ('013_extension_packages.sql','022108cf3b76cdd76ca30e73fefa179e63f1184e3f1d6275ce41a11ab34ace62'),
     ('014_extension_package_events.sql','825151c5e2da7bc8627a46e09cfe9e3cde72d93048990ee7e699363c423c5b04'),
     ('015_scope_cursor_index.sql','538b674ee6c3d95b2a91ccc7d64c1410dc68bd56a2c635ade9dcf5a40fd339a9'),
-    ('016_module_scoped_records.sql','2b8647c77d86302de77de972f24ed764ebd50893254edb8d2f725968bf508467'))
+    ('016_module_scoped_records.sql','2b8647c77d86302de77de972f24ed764ebd50893254edb8d2f725968bf508467'),
+    ('017_identity_roles.sql','b76d8cd46b430341682a294321e9f89903a2b7a846df7b51c331022797b40171'),
+    ('018_identity_role_permissions.sql','2c118263c8787f6173a59130cec890d5d75a6266515caecb83f8e4ee0d655192'),
+    ('019_identity_role_assignments.sql','011c2e61e247513113391354da08c7dfced6fc7c6fc37886381fe4eb450dc767'))
     SELECT FROM expected e FULL JOIN public.ventio_schema_migrations m USING(name)
     WHERE e.sha256 IS DISTINCT FROM m.sha256
   ) THEN

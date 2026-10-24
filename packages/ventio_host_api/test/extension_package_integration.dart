@@ -64,6 +64,14 @@ Future<void> main() async {
       operatorLabel: 'package-test-operator',
       authority: authority,
     );
+    await identityAdmin.createRole(
+      'recovery-witness-role',
+      'Recovery witness role',
+    );
+    await identityAdmin.grantRolePermission(
+      'recovery-witness-role',
+      'extension.package.read',
+    );
 
     Future<String> provision({
       required String actor,
@@ -1060,8 +1068,17 @@ Future<void> main() async {
       'Approval and revocation events remain in the operator audit ledger',
     );
     await observer.execute(
-      "UPDATE public.ventio_identity_users SET disabled_at=clock_timestamp() "
-      "WHERE tenant_id='$benchmarkTenant' AND actor_id='fixture-user-1'",
+      pg.Sql.named(
+        'UPDATE public.ventio_identity_role_permissions '
+        'SET permission=@nextPermission '
+        'WHERE tenant_id=@tenant AND role_id=@role AND permission=@permission',
+      ),
+      parameters: {
+        'nextPermission': 'extension.package.submit',
+        'tenant': tenant,
+        'role': 'recovery-witness-role',
+        'permission': 'extension.package.read',
+      },
     );
     var staleWitnessDenied = false;
     try {
@@ -1071,7 +1088,7 @@ Future<void> main() async {
     }
     expect(
       staleWitnessDenied,
-      'A privileged out-of-band identity edit invalidates recovery admission',
+      'A privileged out-of-band role permission edit invalidates recovery admission',
     );
     final generationBeforeRollbackAttempt =
         (await observer.execute(

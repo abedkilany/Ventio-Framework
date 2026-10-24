@@ -1,6 +1,8 @@
-# Run the PostgreSQL-backed extension package integration on Windows using
-# a uniquely named disposable container and the repository's public test-only
+# Run the PostgreSQL-backed identity, RLS and extension package integrations on
+# Windows using a uniquely named disposable container and public test-only
 # credentials. No existing database or persistent Docker volume is used.
+param([switch] $IdentityOnly)
+
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -12,6 +14,7 @@ $environmentNames = @(
   'VENTIO_TEST_DATABASE_URL',
   'VENTIO_TEST_RUNTIME_DATABASE_URL',
   'VENTIO_TEST_ADMIN_DATABASE_URL',
+  'VENTIO_TEST_MIGRATION_DATABASE_URL',
   'VENTIO_ALLOW_DATABASE_TESTS',
   'PGPASSWORD'
 )
@@ -117,11 +120,28 @@ try {
       "postgresql://ventio_admin_test:admin_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20",
       'Process'
     )
+    [Environment]::SetEnvironmentVariable(
+      'VENTIO_TEST_MIGRATION_DATABASE_URL',
+      "postgresql://ventio_migration_test:migration_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20",
+      'Process'
+    )
     [Environment]::SetEnvironmentVariable('VENTIO_ALLOW_DATABASE_TESTS', 'yes', 'Process')
 
-    dart run test/extension_package_integration.dart
+    dart run test/identity_integration.dart
     if ($LASTEXITCODE -ne 0) {
-      throw 'Extension package PostgreSQL integration failed.'
+      throw 'Persistent identity PostgreSQL integration failed.'
+    }
+
+    if (-not $IdentityOnly) {
+      dart run test/database_security_integration.dart
+      if ($LASTEXITCODE -ne 0) {
+        throw 'PostgreSQL least-privilege and RLS integration failed.'
+      }
+
+      dart run test/extension_package_integration.dart
+      if ($LASTEXITCODE -ne 0) {
+        throw 'Extension package PostgreSQL integration failed.'
+      }
     }
   }
   finally {

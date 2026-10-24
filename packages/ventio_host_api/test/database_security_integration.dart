@@ -232,6 +232,9 @@ Future<void> main() async {
       'ventio_identity_credentials',
       'ventio_identity_branches',
       'ventio_identity_grants',
+      'ventio_identity_roles',
+      'ventio_identity_role_permissions',
+      'ventio_identity_role_assignments',
       'ventio_identity_audit',
     ]) {
       await denied(
@@ -241,6 +244,14 @@ Future<void> main() async {
       await denied(
         () => runtime.execute('DELETE FROM public.$table'),
         'Runtime has no direct DELETE on $table',
+      );
+      await denied(
+        () => administration.execute('SELECT * FROM public.$table'),
+        'Administrator cannot inspect $table outside vetted functions',
+      );
+      await denied(
+        () => administration.execute('DELETE FROM public.$table'),
+        'Administrator cannot mutate $table outside vetted functions',
       );
     }
     await denied(
@@ -705,6 +716,9 @@ Future<void> main() async {
       'ventio_command_journal',
       'ventio_records',
       'ventio_identity_audit',
+      'ventio_identity_role_assignments',
+      'ventio_identity_role_permissions',
+      'ventio_identity_roles',
       'ventio_identity_grants',
       'ventio_identity_credentials',
       'ventio_identity_devices',
