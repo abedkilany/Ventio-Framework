@@ -177,14 +177,15 @@ BEGIN
   IF p_company IS DISTINCT FROM nullif(current_setting('ventio.company_id', true), '') OR
      p_branch IS DISTINCT FROM nullif(current_setting('ventio.branch_id', true), '') THEN RETURN false; END IF;
   command_type := current_setting('ventio.command_type', true);
-  IF command_type IN ('extension.record.create','extension.record.update') THEN
+  IF command_type IN ('extension.record.create','extension.record.update','extension.record.query') THEN
     dynamic_operation := nullif(current_setting('ventio.operation',true),'');
     dynamic_module := nullif(current_setting('ventio.module_id',true),'');
     dynamic_version := nullif(current_setting('ventio.module_version',true),'');
     dynamic_name := nullif(current_setting('ventio.doc_type',true),'');
     IF dynamic_module IS NULL OR dynamic_version IS NULL OR dynamic_name IS NULL OR
         (command_type='extension.record.create' AND dynamic_operation IS DISTINCT FROM 'create') OR
-        (command_type='extension.record.update' AND dynamic_operation IS DISTINCT FROM 'update') THEN
+        (command_type='extension.record.update' AND dynamic_operation IS DISTINCT FROM 'update') OR
+        (command_type='extension.record.query' AND dynamic_operation IS DISTINCT FROM 'read') THEN
       RETURN false;
     END IF;
     identity := ventio_security.identity_snapshot(
@@ -346,6 +347,7 @@ REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_ru
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
   ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
   ventio_security.admit_recovery(text),
+  ventio_security.resolve_extension_read_identity(text,text,text,text,text,text),
   ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint),
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
   ventio_security.read_approved_extension_package(text,text,text,text,text,text)

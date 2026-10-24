@@ -101,6 +101,56 @@ class PostgresIdentityStore {
     return ResolvedExtensionCommand(principal: principal, bundle: bundle);
   }
 
+  Future<ResolvedExtensionCommand?> resolveExtensionRead(
+    pg.TxSession tx,
+    String digest, {
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+    required String docType,
+  }) async {
+    final rows = await tx.execute(
+      pg.Sql.named('''
+      SELECT ventio_security.resolve_extension_read_identity(
+        @digest,@company,@branch,@module,@module_version,@doc_type)::text
+    '''),
+      parameters: {
+        'digest': digest,
+        'company': companyId,
+        'branch': branchId,
+        'module': moduleId,
+        'module_version': version,
+        'doc_type': docType,
+      },
+    );
+    final raw = rows.single[0];
+    if (raw == null) return null;
+    final result = jsonDecode(raw as String) as Map<String, dynamic>;
+    final identity = result['identity'];
+    if (identity is! Map) return null;
+    final principal = _principalFrom(Map<String, dynamic>.from(identity));
+    final rawPackage = result['package'];
+    if (rawPackage is! Map) {
+      final reason = result['reasonCode'];
+      return ResolvedExtensionCommand(
+        principal: principal,
+        failureReasonCode: reason is String ? reason : 'EXTENSION_NOT_APPROVED',
+      );
+    }
+    final bundle = ExtensionBundle.fromJson(
+      Map<String, dynamic>.from(rawPackage),
+    );
+    final source = canonicalJson(bundle.toJson());
+    final hash = sha256.convert(utf8.encode(source)).toString();
+    if (bundle.moduleId != moduleId ||
+        bundle.version != version ||
+        result['packageSha256'] != hash) {
+      throw StateError('Approved extension integrity check failed.');
+    }
+    return ResolvedExtensionCommand(principal: principal, bundle: bundle);
+  }
+
   Principal _principalFrom(Map<String, dynamic> identity) {
     final grantsByScope = <(String, String), Set<String>>{};
     for (final rawGrant in identity['scopeGrants'] as List) {

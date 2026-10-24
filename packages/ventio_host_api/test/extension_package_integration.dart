@@ -155,6 +155,10 @@ Future<void> main() async {
         connect: () => pg.Connection.openFromUrl(runtimeUrl),
         admission: authority,
       ),
+      extensionRecordQueries: PostgresExtensionRecordQueryGateway(
+        connect: () => pg.Connection.openFromUrl(runtimeUrl),
+        admission: authority,
+      ),
     );
 
     Map<String, dynamic> bundleSource(
@@ -261,6 +265,33 @@ Future<void> main() async {
         'branchId': branch,
         'moduleId': moduleId,
         'version': version,
+      },
+    );
+
+    Future<Reply> queryRecords(
+      String token, {
+      String company = primaryCompany,
+      String branch = primaryBranch,
+      String search = '',
+      Map<String, dynamic> filters = const {},
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/records/query',
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'moduleId': 'com.example.registry',
+        'version': '1.0.0',
+        'docType': 'Item',
+        'search': search,
+        'filters': filters,
+        'filterField': null,
+        'filterContains': '',
+        'sortField': 'title',
+        'descending': false,
+        'offset': 0,
+        'limit': 10,
       },
     );
 
@@ -407,6 +438,39 @@ Future<void> main() async {
       persistedCreate.single.toColumnMap()['revision'] == 1 &&
           persistedCreate.single.toColumnMap()['title'] == 'First item',
       'Generic records persist with module-qualified identity and values',
+    );
+    final queriedRecords = await queryRecords(
+      primaryToken,
+      search: 'first',
+      filters: const {'title': 'First item'},
+    );
+    final recordResult =
+        queriedRecords.body['recordResult'] as Map<String, dynamic>;
+    final recordRows = recordResult['records'] as List;
+    expect(
+      queriedRecords.status == 200 &&
+          recordRows.length == 1 &&
+          recordResult['hasMore'] == false &&
+          recordRows.single['recordId'] == 'registry-item-1' &&
+          recordRows.single['values']['title'] == 'First item',
+      'Approved dynamic record reads honor metadata filters and return Host values',
+    );
+    final unreadableRecords = await queryRecords(updateOnlyToken);
+    expect(
+      unreadableRecords.status == 403 &&
+          unreadableRecords.body['recordResult']['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'An update-only grant cannot read extension records',
+    );
+    final forgedBranchRead = await queryRecords(
+      primaryToken,
+      company: secondaryCompany,
+      branch: secondaryBranch,
+    );
+    expect(
+      forgedBranchRead.status == 403 &&
+          forgedBranchRead.body['error']['code'] == 'SCOPE_DENIED',
+      'A scoped credential cannot query records in a different branch',
     );
     final replayedCreate = await send(
       api,

@@ -81,6 +81,77 @@ BEGIN
     'package',package_row.package_json);
 END $fn$;
 
+-- Bind a read-only record query to a live exact-scope identity and an approved
+-- package. The returned metadata is later hash-checked by the Host process.
+CREATE OR REPLACE FUNCTION ventio_security.resolve_extension_read_identity(
+    p_digest text, p_company text, p_branch text, p_module text,
+    p_module_version text, p_doc_type text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE identity jsonb; package_row public.ventio_extension_packages%ROWTYPE;
+        doc_type jsonb; permission text; expected_type text;
+BEGIN
+  FOREACH expected_type IN ARRAY ARRAY[
+      'ventio.credential_digest','ventio.company_id','ventio.branch_id',
+      'ventio.command_type','ventio.command_version','ventio.command_id',
+      'ventio.aggregate_id','ventio.module_id','ventio.module_version',
+      'ventio.doc_type','ventio.operation','ventio.expected_revision'] LOOP
+    PERFORM set_config(expected_type, '', true);
+  END LOOP;
+  IF p_module IS NULL OR p_module !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$' OR
+      p_module_version IS NULL OR p_doc_type IS NULL OR
+      p_doc_type !~ '^[A-Z][A-Za-z0-9_]*$' THEN
+    RETURN NULL;
+  END IF;
+  identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
+  IF identity IS NULL THEN RETURN NULL; END IF;
+  SELECT * INTO package_row FROM public.ventio_extension_packages
+    WHERE tenant_id=identity->>'tenantId' AND module_id=p_module
+      AND version=p_module_version AND status='APPROVED'
+    FOR SHARE;
+  IF NOT FOUND OR jsonb_typeof(package_row.package_json->'docTypes') IS DISTINCT FROM 'array' THEN
+    RETURN jsonb_build_object('identity',identity,'package',NULL,
+      'reasonCode','EXTENSION_NOT_APPROVED');
+  END IF;
+  SELECT item INTO doc_type
+  FROM jsonb_array_elements(package_row.package_json->'docTypes') AS entries(item)
+  WHERE item->>'name'=p_doc_type AND item->>'moduleId'=p_module
+  LIMIT 1;
+  IF doc_type IS NULL OR jsonb_typeof(doc_type->'operations') IS DISTINCT FROM 'array' OR
+      NOT (doc_type->'operations' ? 'read') THEN
+    RETURN jsonb_build_object('identity',identity,'package',NULL,
+      'reasonCode','EXTENSION_NOT_APPROVED');
+  END IF;
+  permission := doc_type->'permissions'->>'read';
+  IF permission IS NULL OR permission NOT LIKE
+      'extension.' || regexp_replace(p_module,'[^a-z0-9]+','_','g') || '.%' THEN
+    RETURN jsonb_build_object('identity',identity,'package',NULL,
+      'reasonCode','EXTENSION_NOT_APPROVED');
+  END IF;
+  IF NOT EXISTS (
+      SELECT FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
+      WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+        AND item->>'permission'=permission
+    ) THEN
+    RETURN jsonb_build_object('identity',identity,'package',NULL,
+      'reasonCode','PERMISSION_DENIED');
+  END IF;
+  PERFORM set_config('ventio.credential_digest',p_digest,true);
+  PERFORM set_config('ventio.company_id',p_company,true);
+  PERFORM set_config('ventio.branch_id',p_branch,true);
+  PERFORM set_config('ventio.command_type','extension.record.query',true);
+  PERFORM set_config('ventio.command_version','1',true);
+  PERFORM set_config('ventio.command_id','',true);
+  PERFORM set_config('ventio.aggregate_id','',true);
+  PERFORM set_config('ventio.module_id',p_module,true);
+  PERFORM set_config('ventio.module_version',p_module_version,true);
+  PERFORM set_config('ventio.doc_type',p_doc_type,true);
+  PERFORM set_config('ventio.operation','read',true);
+  PERFORM set_config('ventio.expected_revision','',true);
+  RETURN jsonb_build_object('identity',identity,
+    'package',package_row.package_json,'packageSha256',package_row.package_sha256);
+END $fn$;
+
 -- Resolve a generic record command against a Host-approved declarative package.
 -- The package row is locked in the command transaction so revocation cannot
 -- race an accepted write. No metadata in this package is executable code.

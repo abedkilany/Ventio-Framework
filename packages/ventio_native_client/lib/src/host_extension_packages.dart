@@ -36,6 +36,30 @@ class HostSessionIdentity {
   final List<HostScopeGrant> scopes;
 }
 
+class HostExtensionRecord {
+  HostExtensionRecord({
+    required this.recordId,
+    required this.revision,
+    required this.updatedAtUtc,
+    required Map<String, dynamic> values,
+  }) : values = Map.unmodifiable(values);
+
+  final String recordId;
+  final int revision;
+  final String updatedAtUtc;
+  final Map<String, dynamic> values;
+}
+
+class HostExtensionRecordPage {
+  HostExtensionRecordPage({
+    required Iterable<HostExtensionRecord> records,
+    required this.hasMore,
+  }) : records = List.unmodifiable(records);
+
+  final List<HostExtensionRecord> records;
+  final bool hasMore;
+}
+
 typedef HostExtensionPackageClientFactory =
     HostExtensionPackageClient Function({
       required Uri endpoint,
@@ -52,7 +76,7 @@ class HostExtensionPackageClient {
     required this.credentials,
     HttpClient Function()? clientFactory,
     this.timeout = const Duration(seconds: 15),
-    this.maxResponseBytes = 2 * 1024 * 1024,
+    this.maxResponseBytes = 4 * 1024 * 1024,
   }) : endpoint = HostCredentialVault.normalizeEndpoint(endpoint),
        _clientFactory = clientFactory ?? HttpClient.new {
     if (timeout <= Duration.zero || maxResponseBytes < 1) {
@@ -175,6 +199,101 @@ class HostExtensionPackageClient {
       );
     }
     return bundle;
+  }
+
+  Future<HostExtensionRecordPage> queryRecords({
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+    required String docType,
+    String search = '',
+    Map<String, dynamic> filters = const {},
+    String? filterField,
+    String filterContains = '',
+    String? sortField,
+    bool descending = false,
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    if (search.length > 256 ||
+        filterContains.length > 256 ||
+        (filterField == null && filterContains.isNotEmpty) ||
+        filters.length > 10 ||
+        offset < 0 ||
+        offset > 1000000 ||
+        limit < 1 ||
+        limit > 50) {
+      throw const HostPackageTransportException('INVALID_RECORD_QUERY');
+    }
+    final response =
+        await _request('POST', '/api/v1/extensions/records/query', {
+          'companyId': companyId,
+          'branchId': branchId,
+          'moduleId': moduleId,
+          'version': version,
+          'docType': docType,
+          'search': search,
+          'filters': filters,
+          'filterField': filterField,
+          'filterContains': filterContains,
+          'sortField': sortField,
+          'descending': descending,
+          'offset': offset,
+          'limit': limit,
+        });
+    final rawResult = response.body['recordResult'];
+    if (rawResult is! Map) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    final result = Map<String, dynamic>.from(rawResult);
+    if (response.statusCode != HttpStatus.ok || result['status'] != 'RECORDS') {
+      final reason = result['reasonCode'];
+      final code =
+          reason is String && RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(reason)
+          ? reason
+          : 'HOST_RECORD_QUERY_FAILED';
+      throw HostPackageTransportException(
+        code,
+        statusCode: response.statusCode,
+      );
+    }
+    final rawRecords = result['records'];
+    if (rawRecords is! List || result['hasMore'] is! bool) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    final records = rawRecords
+        .map((rawRecord) {
+          if (rawRecord is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final row = Map<String, dynamic>.from(rawRecord);
+          if (row.keys.toSet().difference(const {
+                'recordId',
+                'revision',
+                'updatedAtUtc',
+                'values',
+              }).isNotEmpty ||
+              row.length != 4 ||
+              row['recordId'] is! String ||
+              row['revision'] is! int ||
+              row['revision'] < 1 ||
+              row['updatedAtUtc'] is! String ||
+              row['values'] is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          return HostExtensionRecord(
+            recordId: row['recordId'] as String,
+            revision: row['revision'] as int,
+            updatedAtUtc: row['updatedAtUtc'] as String,
+            values: Map<String, dynamic>.from(row['values'] as Map),
+          );
+        })
+        .toList(growable: false);
+    return HostExtensionRecordPage(
+      records: records,
+      hasMore: result['hasMore'] as bool,
+    );
   }
 
   Future<_HostResponse> _request(

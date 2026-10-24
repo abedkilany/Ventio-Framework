@@ -258,4 +258,71 @@ void main() {
       );
     },
   );
+
+  test(
+    'Queries bounded Host records with explicit filters and paging',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final seen = Completer<Map<String, dynamic>>();
+      server.listen((request) async {
+        final body = jsonDecode(await utf8.decoder.bind(request).join());
+        seen.complete(Map<String, dynamic>.from(body as Map));
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode({
+              'apiVersion': hostApiVersion,
+              'recordResult': {
+                'status': 'RECORDS',
+                'hasMore': true,
+                'records': [
+                  {
+                    'recordId': 'item-1',
+                    'revision': 3,
+                    'updatedAtUtc': '2026-10-24T12:00:00Z',
+                    'values': {'title': 'First item'},
+                  },
+                ],
+              },
+            }),
+          );
+        await request.response.close();
+      });
+      final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(endpoint, token);
+
+      final page =
+          await HostExtensionPackageClient(
+            endpoint: endpoint,
+            credentials: vault,
+          ).queryRecords(
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            moduleId: 'com.example.host_package',
+            version: '1.0.0',
+            docType: 'Item',
+            search: 'first',
+            filterField: 'title',
+            filterContains: 'item',
+            sortField: 'title',
+            offset: 50,
+            limit: 25,
+          );
+      final body = await seen.future;
+
+      expect(body['companyId'], 'company-1');
+      expect(body['branchId'], 'branch-1');
+      expect(body['filterField'], 'title');
+      expect(body['filterContains'], 'item');
+      expect(body['offset'], 50);
+      expect(body['limit'], 25);
+      expect(page.hasMore, isTrue);
+      expect(page.records.single.recordId, 'item-1');
+      expect(page.records.single.revision, 3);
+      expect(page.records.single.values['title'], 'First item');
+    },
+  );
 }

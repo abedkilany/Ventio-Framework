@@ -197,9 +197,13 @@ Future<void> main() async {
       ),
       'Runtime cannot alter command identity or fingerprints',
     );
-    await denied(
-      () => runtime.execute("UPDATE public.ventio_records SET revision = 99"),
-      'Operational-create runtime cannot update records',
+    await runtime.execute("UPDATE public.ventio_records SET revision = 99");
+    check(
+      (await owner.execute(
+            'SELECT count(*) FROM public.ventio_records WHERE revision=99',
+          )).single[0] ==
+          0,
+      'Runtime RLS denies direct record updates without a proven Host scope',
     );
     await denied(
       () => runtime.execute('SELECT * FROM public.ventio_schema_migrations'),

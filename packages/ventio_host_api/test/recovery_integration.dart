@@ -308,7 +308,9 @@ Future<void> main() async {
     await stop(backendRestart);
 
     final before = next();
-    final after = next();
+    final after = next()
+      ..['companyId'] = 'company-002'
+      ..['branchId'] = 'branch-002';
     final beforeHost = await host(stage: 'before_commit');
     final beforeResponse = request(beforeHost, token, before);
     await beforeHost.event('barrier');

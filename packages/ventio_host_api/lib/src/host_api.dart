@@ -7,6 +7,7 @@ import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
 import 'extension_packages.dart';
+import 'extension_records.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
@@ -27,6 +28,7 @@ class HostApi {
   final HostAuthenticator _authenticator;
   final CommandExecutor _executor;
   final ExtensionPackageGateway? _extensionPackages;
+  final ExtensionRecordQueryGateway? _extensionRecordQueries;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
   final Duration bodyTimeout;
@@ -39,6 +41,7 @@ class HostApi {
     this._authenticator,
     this._executor,
     this._extensionPackages,
+    this._extensionRecordQueries,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
     this.bodyTimeout,
@@ -59,6 +62,7 @@ class HostApi {
     required HostAuthenticator authenticator,
     required CommandExecutor executor,
     ExtensionPackageGateway? extensionPackages,
+    ExtensionRecordQueryGateway? extensionRecordQueries,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
     int port = 0,
@@ -77,7 +81,10 @@ class HostApi {
             authenticator is! PersistentHostAuthenticator ||
             executor is! AuthoritativeCommandExecutor ||
             (extensionPackages != null &&
-                extensionPackages is! AuthoritativeExtensionPackageGateway))) {
+                extensionPackages is! AuthoritativeExtensionPackageGateway) ||
+            (extensionRecordQueries != null &&
+                extensionRecordQueries
+                    is! AuthoritativeExtensionRecordQueryGateway))) {
       throw ArgumentError(
         'External Host listeners require TLS and authoritative Host services.',
       );
@@ -90,6 +97,7 @@ class HostApi {
       authenticator,
       executor,
       extensionPackages,
+      extensionRecordQueries,
       maxBodyBytes,
       maxConcurrentRequests,
       bodyTimeout,
@@ -176,9 +184,12 @@ class HostApi {
       '/api/v1/extensions/read' => 'read',
       _ => null,
     };
+    final recordQueryRoute =
+        request.uri.path == '/api/v1/extensions/records/query';
     final sessionRoute = request.uri.path == '/api/v1/session';
     if (request.uri.path != '/api/v1/commands' &&
         packageRoute == null &&
+        !recordQueryRoute &&
         !sessionRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
@@ -241,7 +252,11 @@ class HostApi {
     if (packageRoute != null && _extensionPackages == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
-    if (packageRoute != null && session.credentialDigest == null) {
+    if (recordQueryRoute && _extensionRecordQueries == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if ((packageRoute != null || recordQueryRoute) &&
+        session.credentialDigest == null) {
       throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
     }
     final contentType = request.headers.contentType;
@@ -281,6 +296,10 @@ class HostApi {
     final json = requireMap(jsonDecode(text), 'command');
     if (packageRoute != null) {
       await _handleExtensionPackage(request, packageRoute, json, session);
+      return;
+    }
+    if (recordQueryRoute) {
+      await _handleExtensionRecordQuery(request, json, session);
       return;
     }
     _validateWireShape(json);
@@ -384,6 +403,128 @@ class HostApi {
       _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
     };
     _json(request, statusCode, {'apiVersion': 1, 'packageResult': result});
+  }
+
+  Future<void> _handleExtensionRecordQuery(
+    HttpRequest request,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    const allowedKeys = {
+      'companyId',
+      'branchId',
+      'moduleId',
+      'version',
+      'docType',
+      'search',
+      'filters',
+      'filterField',
+      'filterContains',
+      'sortField',
+      'descending',
+      'offset',
+      'limit',
+    };
+    if (json.keys.any((key) => !allowedKeys.contains(key)) ||
+        json.keys.toSet().length != allowedKeys.length) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final moduleId = _boundedIdentifier(json, 'moduleId');
+    final version = _boundedIdentifier(json, 'version');
+    final docType = _boundedIdentifier(json, 'docType');
+    if (!RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
+        moduleId.length > 128 ||
+        !RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(docType) ||
+        docType.length > 80) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    try {
+      semverParts(version);
+    } on ContractError {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final search = requireString(json, 'search', nonEmpty: false);
+    if (search.length > 256) throw const _ApiError(400, 'INVALID_REQUEST');
+    final rawFilters = requireMap(json['filters'], 'filters');
+    if (rawFilters.length > 10 ||
+        rawFilters.entries.any(
+          (entry) =>
+              entry.key.length > 80 ||
+              entry.value is Map ||
+              entry.value is List ||
+              (entry.value is String && (entry.value as String).length > 256),
+        )) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final filterFieldValue = json['filterField'];
+    final filterContains = requireString(
+      json,
+      'filterContains',
+      nonEmpty: false,
+    );
+    if ((filterFieldValue != null &&
+            (filterFieldValue is! String ||
+                filterFieldValue.isEmpty ||
+                filterFieldValue.length > 80)) ||
+        filterContains.length > 256 ||
+        (filterFieldValue == null && filterContains.isNotEmpty)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final sortFieldValue = json['sortField'];
+    if (sortFieldValue != null &&
+        (sortFieldValue is! String ||
+            sortFieldValue.isEmpty ||
+            sortFieldValue.length > 80)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final descending = json['descending'];
+    if (descending is! bool) throw const _ApiError(400, 'INVALID_REQUEST');
+    final offset = requireInt(json, 'offset');
+    final limit = requireInt(json, 'limit', min: 1);
+    if (offset > 1000000 || limit > 50) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final principal = session.principal;
+    if (!principal.withinScope(
+      tenantId: principal.tenantId,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: principal.actorId,
+      deviceId: principal.deviceId,
+    )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    final result = await _extensionRecordQueries!.query(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      moduleId: moduleId,
+      version: version,
+      docType: docType,
+      search: search,
+      filters: rawFilters,
+      filterField: filterFieldValue as String?,
+      filterContains: filterContains,
+      sortField: sortFieldValue as String?,
+      descending: descending,
+      offset: offset,
+      limit: limit,
+    );
+    final statusCode = switch (result['status']) {
+      'RECORDS' => 200,
+      'REJECTED' => switch (result['reasonCode']) {
+        'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
+        'EXTENSION_NOT_APPROVED' => 404,
+        _ => 422,
+      },
+      _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
+    };
+    if (utf8.encode(jsonEncode(result)).length > 4 * 1024 * 1024) {
+      throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+    }
+    _json(request, statusCode, {'apiVersion': 1, 'recordResult': result});
   }
 
   String _boundedIdentifier(Map<String, dynamic> json, String key) {
