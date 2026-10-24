@@ -44,7 +44,9 @@ void main() {
     await tester.enterText(fields.at(0), 'Sample Customer');
     await tester.enterText(fields.at(1), 'Sample Laptop');
     await tester.enterText(fields.at(2), 'Battery does not charge');
-    await tester.tap(find.text('Save locally'));
+    final saveButton = find.text('Save locally');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Pending'), findsOneWidget);
