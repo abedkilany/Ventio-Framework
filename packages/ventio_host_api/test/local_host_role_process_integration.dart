@@ -48,6 +48,7 @@ Future<void> main() async {
     readPermission,
     createPermission,
     updatePermission,
+    'maintenance.create',
   ];
   const readerPermissions = ['extension.package.read', readPermission];
   final authority = RecoveryAuthority(witnessPath, readerSid: sid);
@@ -166,6 +167,43 @@ Future<void> main() async {
           (scopes.single as Map)['companyId'] == company &&
           (scopes.single as Map)['branchId'] == branch,
       'Persistent Windows Host returns the authenticated exact branch scope',
+    );
+
+    final legacyBusinessCommand = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/commands',
+      token: token,
+      body: {
+        'protocolVersion': 0,
+        'commandId': '72000000-0000-4000-8000-000000000001',
+        'type': 'maintenance.create',
+        'typeVersion': 1,
+        'tenantId': tenant,
+        'companyId': company,
+        'branchId': branch,
+        'aggregateId': 'legacy-maintenance-1',
+        'expectedRevision': null,
+        'dependsOn': <String>[],
+        'payload': <String, Object?>{'title': 'Legacy command'},
+        'clientContext': {
+          'deviceId': device,
+          'actorId': actor,
+          'moduleVersion': '1.0.0',
+          'docTypeVersion': 1,
+        },
+      },
+    );
+    final legacyReceipt =
+        legacyBusinessCommand.body['receipt'] as Map<String, dynamic>;
+    check(
+      legacyBusinessCommand.status == 422 &&
+          legacyReceipt['status'] == 'REJECTED' &&
+          legacyReceipt['reasonCode'] == 'UNKNOWN_COMMAND',
+      'Production Host does not expose the old maintenance demo command '
+      '(HTTP ${legacyBusinessCommand.status}, '
+      '${legacyReceipt['status']}/${legacyReceipt['reasonCode']})',
     );
 
     final deniedScope = await _request(

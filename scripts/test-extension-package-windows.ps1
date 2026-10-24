@@ -3,7 +3,8 @@
 # credentials. No existing database or persistent Docker volume is used.
 param(
   [switch] $IdentityOnly,
-  [switch] $AndroidDeviceIntegration
+  [switch] $AndroidDeviceIntegration,
+  [switch] $HostProcessOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +32,10 @@ foreach ($name in $environmentNames) {
 }
 
 try {
+  if ($IdentityOnly -and $HostProcessOnly) {
+    throw 'IdentityOnly and HostProcessOnly cannot be used together.'
+  }
+
   if ($AndroidDeviceIntegration) {
     [Environment]::SetEnvironmentVariable(
       'VENTIO_RUN_ANDROID_HOST_INTEGRATION',
@@ -139,12 +144,20 @@ try {
     )
     [Environment]::SetEnvironmentVariable('VENTIO_ALLOW_DATABASE_TESTS', 'yes', 'Process')
 
-    dart run test/identity_integration.dart
-    if ($LASTEXITCODE -ne 0) {
-      throw 'Persistent identity PostgreSQL integration failed.'
+    if ($HostProcessOnly) {
+      dart run test/local_host_role_process_integration.dart
+      if ($LASTEXITCODE -ne 0) {
+        throw 'Windows persistent Host process integration failed.'
+      }
+    }
+    else {
+      dart run test/identity_integration.dart
+      if ($LASTEXITCODE -ne 0) {
+        throw 'Persistent identity PostgreSQL integration failed.'
+      }
     }
 
-    if (-not $IdentityOnly) {
+    if (-not $IdentityOnly -and -not $HostProcessOnly) {
       dart run test/database_security_integration.dart
       if ($LASTEXITCODE -ne 0) {
         throw 'PostgreSQL least-privilege and RLS integration failed.'

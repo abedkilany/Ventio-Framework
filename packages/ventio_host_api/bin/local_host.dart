@@ -113,7 +113,6 @@ Future<void> main() async {
     } finally {
       await probe.close();
     }
-    final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
     final addressText =
         Platform.environment['VENTIO_HOST_BIND_ADDRESS'] ?? '127.0.0.1';
     final address = InternetAddress.tryParse(addressText);
@@ -156,11 +155,12 @@ Future<void> main() async {
       executor: PersistentCommandExecutor(
         connect: connect,
         admission: admission,
-        modules: prototype.modules,
-        docTypes: prototype.docTypes,
-        bindings: const [
-          TrustedCommandBinding('maintenance.create', 1, 'MaintenanceRequest'),
-        ],
+        // The production Host is an extension platform. Business command
+        // bindings are supplied only by trusted platform deployments; this
+        // launcher starts with the generic metadata-backed record engine.
+        modules: ModuleRegistry(),
+        docTypes: DocTypeRegistry(),
+        bindings: const [],
       ),
     );
     final scheme = tlsContext == null ? 'http' : 'https';
