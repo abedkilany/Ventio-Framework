@@ -567,34 +567,29 @@ Future<void> main() async {
         androidPort > 0 &&
             runningHost.scheme == 'https' &&
             runningHost.address == '127.0.0.1',
-        'Windows Host restarts on loopback TLS for the Android emulator tunnel',
+        'Windows Host restarts on loopback TLS for Android emulator gateway access',
       );
 
       final emulatorId = await _connectedAndroidEmulator();
-      await _reverseAndroidPort(emulatorId, androidPort, enable: true);
-      try {
-        final androidFlow = await _runAndroidFlutterClientFlow(
-          emulatorId: emulatorId,
-          port: androidPort,
-          writerToken: token,
-          readerToken: readerToken,
-          tenant: tenant,
-          company: company,
-          branch: branch,
-          trustedCertificatePath: tlsFiles.certificatePath,
-          definitionsPath:
-              '${directory.path}${Platform.pathSeparator}'
-              'android-host-test-defines.json',
-        );
-        stdout.write(androidFlow.stdout);
-        if (androidFlow.exitCode != 0) stderr.write(androidFlow.stderr);
-        check(
-          androidFlow.exitCode == 0,
-          'Android emulator authenticates to Windows Host, retries offline work, and reads accepted data',
-        );
-      } finally {
-        await _reverseAndroidPort(emulatorId, androidPort, enable: false);
-      }
+      final androidFlow = await _runAndroidFlutterClientFlow(
+        emulatorId: emulatorId,
+        port: androidPort,
+        writerToken: token,
+        readerToken: readerToken,
+        tenant: tenant,
+        company: company,
+        branch: branch,
+        trustedCertificatePath: tlsFiles.certificatePath,
+        definitionsPath:
+            '${directory.path}${Platform.pathSeparator}'
+            'android-host-test-defines.json',
+      );
+      stdout.write(androidFlow.stdout);
+      if (androidFlow.exitCode != 0) stderr.write(androidFlow.stderr);
+      check(
+        androidFlow.exitCode == 0,
+        'Android emulator reaches loopback Windows Host through the 10.0.2.2 gateway, retries offline work, and reads accepted data',
+      );
     }
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
@@ -720,7 +715,7 @@ Future<ProcessResult> _runAndroidFlutterClientFlow({
   final certificate = await File(trustedCertificatePath).readAsString();
   final certificateBase64 = base64.encode(utf8.encode(certificate));
   final definitions = {
-    'VENTIO_ANDROID_HOST_ENDPOINT': 'https://127.0.0.1:$port',
+    'VENTIO_ANDROID_HOST_ENDPOINT': 'https://10.0.2.2:$port',
     'VENTIO_ANDROID_WRITER_TOKEN': writerToken,
     'VENTIO_ANDROID_READER_TOKEN': readerToken,
     'VENTIO_ANDROID_TENANT': tenant,
@@ -795,37 +790,6 @@ Future<String> _connectedAndroidEmulator() async {
   return devices.single;
 }
 
-Future<void> _reverseAndroidPort(
-  String emulatorId,
-  int port, {
-  required bool enable,
-}) async {
-  final localAppData = Platform.environment['LOCALAPPDATA'];
-  final sdkCandidates = [
-    Platform.environment['ANDROID_SDK_ROOT'],
-    Platform.environment['ANDROID_HOME'],
-    if (localAppData != null) '$localAppData\\Android\\Sdk',
-  ].whereType<String>();
-  final adbPath = sdkCandidates
-      .map(
-        (root) =>
-            '$root${Platform.pathSeparator}platform-tools'
-            '${Platform.pathSeparator}adb.exe',
-      )
-      .firstWhere((path) => File(path).existsSync(), orElse: () => 'adb.exe');
-  final result = await Process.run(adbPath, [
-    '-s',
-    emulatorId,
-    'reverse',
-    if (!enable) '--remove',
-    'tcp:$port',
-    if (enable) 'tcp:$port',
-  ]);
-  if (result.exitCode != 0) {
-    throw StateError('Could not manage the Android emulator tunnel.');
-  }
-}
-
 Future<String> _localIpv4Address() async {
   final interfaces = await NetworkInterface.list(
     type: InternetAddressType.IPv4,
@@ -867,6 +831,7 @@ try {
   $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
   $san.AddIpAddress([System.Net.IPAddress]::Parse($env:VENTIO_TEST_HOST_ADDRESS))
   $san.AddIpAddress([System.Net.IPAddress]::Parse('127.0.0.1'))
+  $san.AddIpAddress([System.Net.IPAddress]::Parse('10.0.2.2'))
   $san.AddDnsName('localhost')
   $request.CertificateExtensions.Add($san.Build())
   $request.CertificateExtensions.Add(
