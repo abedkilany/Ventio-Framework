@@ -95,6 +95,43 @@ void main() {
       'A required field was hidden from the generated form',
     );
   });
+  test('DocTypes default operations and can restrict their declared surface',
+      () {
+    final json = loadJsonFile('$root/examples/maintenance_doctype.json');
+    final legacy = DocTypeDefinition.fromJson(json);
+    check(
+      legacy.operations.join(',') == 'read,create,update',
+      'Legacy operation defaults changed',
+    );
+
+    json['operations'] = ['read'];
+    json['permissions'] = {'read': 'maintenance.read'};
+    final readOnly = DocTypeDefinition.fromJson(json);
+    check(
+      readOnly.operations.single == 'read' && readOnly.permissions.length == 1,
+      'Read-only operation declaration was not retained',
+    );
+
+    json['operations'] = ['read', 'delete'];
+    json['permissions'] = {
+      'read': 'maintenance.read',
+      'delete': 'maintenance.delete',
+    };
+    checkThrows(
+      () => DocTypeDefinition.fromJson(json),
+      'Unsupported operation was accepted',
+    );
+
+    json['operations'] = ['read'];
+    json['permissions'] = {
+      'read': 'maintenance.read',
+      'create': 'maintenance.create',
+    };
+    checkThrows(
+      () => DocTypeDefinition.fromJson(json),
+      'Undeclared permission key was accepted',
+    );
+  });
   test('English is built in without a translation module', () {
     final en = fresh().english;
     check(en.text('maintenance.module.name') == 'Maintenance Requests',

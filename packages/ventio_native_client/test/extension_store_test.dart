@@ -406,6 +406,8 @@ void main() {
 
     expect(
       await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
         recordId: 'asset-1',
         scope: const RecordScope(
           organizationId: 'org-one',
@@ -417,6 +419,8 @@ void main() {
     );
     expect(
       await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
         recordId: 'asset-1',
         scope: const RecordScope(
           organizationId: 'org-two',
@@ -439,6 +443,8 @@ void main() {
     );
 
     final updated = await store.updateRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
       recordId: 'asset-1',
       scope: _scope,
       expectedRevision: 1,
@@ -449,6 +455,8 @@ void main() {
 
     await expectLater(
       store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
         recordId: 'asset-1',
         scope: _scope,
         expectedRevision: 1,
@@ -458,12 +466,110 @@ void main() {
     );
     expect(
       (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
         recordId: 'asset-1',
         scope: _scope,
       ))!.values['name'],
       'Laptop 2',
     );
   });
+
+  test(
+    'Local record engine enforces each DocType operation declaration',
+    () async {
+      await createActiveExtension();
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: {'name': 'Laptop 1'},
+        recordId: 'asset-operations',
+      );
+
+      final readOnly = _docType(schemaVersion: 2)
+        ..['operations'] = ['read']
+        ..['permissions'] = {
+          'read': 'extension.com_example_asset_register.asset.read',
+        };
+      await store.saveDocType(readOnly);
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: {'name': 'Laptop 2'},
+          recordId: 'asset-create-denied',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'OPERATION_NOT_DECLARED',
+          ),
+        ),
+      );
+      await expectLater(
+        store.updateRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-operations',
+          scope: _scope,
+          expectedRevision: 1,
+          values: {'name': 'Laptop changed'},
+        ),
+        throwsA(isA<ExtensionStoreException>()),
+      );
+      expect(
+        (await store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+        )).single.recordId,
+        'asset-operations',
+      );
+      expect(
+        (await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-operations',
+          scope: _scope,
+        ))!.recordId,
+        'asset-operations',
+      );
+
+      final createOnly = _docType(schemaVersion: 3)
+        ..['operations'] = ['create']
+        ..['permissions'] = {
+          'create': 'extension.com_example_asset_register.asset.create',
+        };
+      await store.saveDocType(createOnly);
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: {'name': 'Laptop 2'},
+        recordId: 'asset-create-only',
+      );
+      await expectLater(
+        store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+        ),
+        throwsA(isA<ExtensionStoreException>()),
+      );
+      await expectLater(
+        store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-create-only',
+          scope: _scope,
+        ),
+        throwsA(isA<ExtensionStoreException>()),
+      );
+    },
+  );
 
   test(
     'Relationships cannot cross organization, company or branch scope',
@@ -542,6 +648,8 @@ void main() {
       final extension = (await store.getExtension(_moduleId))!;
       expect(extension.version, '0.1.1');
       final migrated = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
         recordId: 'asset-1',
         scope: _scope,
       ))!;

@@ -125,6 +125,7 @@ class DocTypeDefinition {
   final String kind;
   final String label;
   final String labelKey;
+  final List<String> operations;
   final Map<String, String> permissions;
   final List<FieldDefinition> fields;
   final List<String> listColumns;
@@ -137,6 +138,7 @@ class DocTypeDefinition {
       required this.kind,
       required this.label,
       required this.labelKey,
+      required this.operations,
       required this.permissions,
       required this.fields,
       required this.listColumns,
@@ -151,10 +153,30 @@ class DocTypeDefinition {
       throw const ContractError(
           'INVALID_DOCTYPE', 'Fields must be unique and nonempty');
     }
+    final operationsRaw = json['operations'];
+    final operations = operationsRaw == null
+        ? const ['read', 'create', 'update']
+        : strings(requireList(json, 'operations'), 'operations');
+    const supportedOperations = {'read', 'create', 'update'};
+    if (operations.toSet().length != operations.length ||
+        operations
+            .any((operation) => !supportedOperations.contains(operation))) {
+      throw const ContractError(
+        'INVALID_DOCTYPE',
+        'operations must contain unique supported record operations',
+      );
+    }
     final permissionsRaw = requireMap(json['permissions'], 'permissions');
+    if (permissionsRaw.keys.toSet().difference(operations.toSet()).isNotEmpty ||
+        operations.toSet().difference(permissionsRaw.keys.toSet()).isNotEmpty) {
+      throw const ContractError(
+        'INVALID_DOCTYPE',
+        'Permission keys must exactly match the declared operations',
+      );
+    }
     final permissions = <String, String>{
-      for (final verb in ['read', 'create', 'update'])
-        verb: requireString(permissionsRaw, verb),
+      for (final operation in operations)
+        operation: requireString(permissionsRaw, operation),
     };
     final kind = requireString(json, 'kind');
     if (!['operational', 'sensitive'].contains(kind)) {
@@ -201,6 +223,7 @@ class DocTypeDefinition {
         kind: kind,
         label: requireString(json, 'label'),
         labelKey: labelKey,
+        operations: List.unmodifiable(operations),
         permissions: Map.unmodifiable(permissions),
         fields: List.unmodifiable(fields),
         listColumns: List.unmodifiable(listColumns),

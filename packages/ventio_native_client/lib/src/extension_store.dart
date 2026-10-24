@@ -611,6 +611,7 @@ class LocalExtensionStore {
         docTypeName,
       );
       final definition = DocTypeDefinition.fromJson(metadata);
+      _requireOperation(definition, 'create');
       _validatePayload(definition, values);
       await _validateReferences(transaction, definition, values, scope);
       final now = _now();
@@ -644,6 +645,8 @@ class LocalExtensionStore {
   }
 
   Future<LocalExtensionRecord> updateRecord({
+    required String moduleId,
+    required String docTypeName,
     required String recordId,
     required RecordScope scope,
     required int expectedRevision,
@@ -653,12 +656,19 @@ class LocalExtensionStore {
     scope.validate();
     if (expectedRevision < 1) throw ArgumentError.value(expectedRevision);
     return _database.transaction((transaction) async {
+      final definition = DocTypeDefinition.fromJson(
+        await _loadActiveDocType(transaction, moduleId, docTypeName),
+      );
+      _requireOperation(definition, 'update');
       final rows = await transaction.query(
         _recordsTable,
-        where: '''record_id = ? AND organization_id = ? AND company_id = ?
+        where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+          AND organization_id = ? AND company_id = ?
           AND branch_id = ?''',
         whereArgs: [
           recordId,
+          moduleId,
+          docTypeName,
           scope.organizationId,
           scope.companyId,
           scope.branchId,
@@ -675,12 +685,6 @@ class LocalExtensionStore {
           'The record is at revision ${current.revision}; reload before saving.',
         );
       }
-      final metadata = await _loadActiveDocType(
-        transaction,
-        current.moduleId,
-        current.docTypeName,
-      );
-      final definition = DocTypeDefinition.fromJson(metadata);
       _validatePayload(definition, values);
       await _validateReferences(transaction, definition, values, scope);
       final nextRevision = current.revision + 1;
@@ -725,24 +729,34 @@ class LocalExtensionStore {
   }
 
   Future<LocalExtensionRecord?> getRecord({
+    required String moduleId,
+    required String docTypeName,
     required String recordId,
     required RecordScope scope,
   }) async {
     _ensureOpen();
     scope.validate();
+    final definition = DocTypeDefinition.fromJson(
+      await _loadActiveDocType(_database, moduleId, docTypeName),
+    );
+    _requireOperation(definition, 'read');
     final rows = await _database.query(
       _recordsTable,
-      where: '''record_id = ? AND organization_id = ? AND company_id = ?
+      where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+        AND organization_id = ? AND company_id = ?
         AND branch_id = ?''',
       whereArgs: [
         recordId,
+        moduleId,
+        docTypeName,
         scope.organizationId,
         scope.companyId,
         scope.branchId,
       ],
       limit: 1,
     );
-    return rows.isEmpty ? null : LocalExtensionRecord.fromRow(rows.single);
+    if (rows.isEmpty) return null;
+    return LocalExtensionRecord.fromRow(rows.single);
   }
 
   Future<List<LocalExtensionRecord>> listRecords({
@@ -757,11 +771,10 @@ class LocalExtensionStore {
     if (limit < 1 || limit > 1000) {
       throw ArgumentError.value(limit, 'limit', 'Must be between 1 and 1000');
     }
-    final module = await getExtension(moduleId);
-    if (module == null) throw StateError('Unknown extension: $moduleId');
-    if (module.state != ExtensionState.active) {
-      throw StateError('Only active local extensions can read records.');
-    }
+    final definition = DocTypeDefinition.fromJson(
+      await _loadActiveDocType(_database, moduleId, docTypeName),
+    );
+    _requireOperation(definition, 'read');
     final rows = await _database.query(
       _recordsTable,
       where: '''module_id = ? AND doctype_name = ? AND organization_id = ?
@@ -803,7 +816,7 @@ class LocalExtensionStore {
   }
 
   Future<Map<String, dynamic>> _loadActiveDocType(
-    Transaction transaction,
+    DatabaseExecutor transaction,
     String moduleId,
     String docTypeName,
   ) async {
@@ -827,6 +840,15 @@ class LocalExtensionStore {
     );
     if (rows.isEmpty) throw StateError('Unknown DocType: $docTypeName');
     return _decodeMap(rows.single['metadata_json']);
+  }
+
+  void _requireOperation(DocTypeDefinition definition, String operation) {
+    if (!definition.operations.contains(operation)) {
+      throw ExtensionStoreException(
+        'OPERATION_NOT_DECLARED',
+        'The ${definition.name} DocType does not declare the $operation operation.',
+      );
+    }
   }
 
   Future<void> _validateReferences(

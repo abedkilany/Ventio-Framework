@@ -647,6 +647,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   final List<Map<String, dynamic>> _fields = [];
   final List<String> _listColumns = [];
   final List<String> _formFields = [];
+  final List<String> _operations = [];
   bool _saving = false;
 
   @override
@@ -657,6 +658,14 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       _nameController.text = metadata['name'] as String;
       _labelController.text = metadata['label'] as String;
       _descriptionController.text = (metadata['description'] as String?) ?? '';
+      final rawOperations = metadata['operations'];
+      _operations.addAll(
+        rawOperations is List
+            ? rawOperations.whereType<String>().where(
+                const {'read', 'create', 'update'}.contains,
+              )
+            : const ['read', 'create', 'update'],
+      );
       _fields.addAll(
         (metadata['fields'] as List).map(
           (field) => Map<String, dynamic>.from(field as Map),
@@ -680,6 +689,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         final name = field['name']! as String;
         if (!_formFields.contains(name)) _formFields.add(name);
       }
+    } else {
+      _operations.addAll(const ['read', 'create', 'update']);
     }
   }
 
@@ -865,7 +876,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
     final fields = List<Map<String, dynamic>>.from(_fields);
     final namespace = _messageNamespace(widget.moduleId);
     final permissions = {
-      for (final operation in ['read', 'create', 'update'])
+      for (final operation in _operations)
         operation: permissionKey(widget.moduleId, name, operation),
     };
     final metadata = <String, dynamic>{
@@ -874,6 +885,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       'schemaVersion': (previousVersion ?? 0) + 1,
       'kind': 'operational',
       'fields': fields,
+      'operations': List<String>.of(_operations),
       'permissions': permissions,
       'ui': {
         'listColumns': List<String>.of(_listColumns),
@@ -1013,13 +1025,35 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Generated permissions',
+                          'Declared record operations',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Read, create and update keys are namespaced to this extension. A Host administrator grants these permissions; the extension cannot grant them to itself.',
+                          'Choose which local record operations this DocType supports. Permission keys are namespaced to this extension. These declarations do not grant user access; a Host administrator must grant each operation for an exact scope.',
                         ),
+                        for (final operation in const [
+                          'read',
+                          'create',
+                          'update',
+                        ])
+                          CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(operation),
+                            value: _operations.contains(operation),
+                            onChanged: (checked) => setState(() {
+                              if (checked == true &&
+                                  !_operations.contains(operation)) {
+                                _operations.add(operation);
+                              } else if (checked == false) {
+                                _operations.remove(operation);
+                              }
+                            }),
+                          ),
+                        if (_operations.isEmpty)
+                          const Text(
+                            'No record operations are enabled for this DocType.',
+                          ),
                       ],
                     ),
                   ),
@@ -1308,7 +1342,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   void initState() {
     super.initState();
     _sortField = _definition.fields.first.name;
-    if (!widget.previewOnly) _loadRecords();
+    if (!widget.previewOnly && _definition.operations.contains('read')) {
+      _loadRecords();
+    }
   }
 
   @override
@@ -1319,6 +1355,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   }
 
   Future<void> _loadRecords() async {
+    if (!_definition.operations.contains('read')) return;
     final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
@@ -1419,13 +1456,19 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   Widget build(BuildContext context) {
     final metadata = widget.metadata;
     final title = metadata['label'] as String;
+    final canRead = _definition.operations.contains('read');
+    final canCreate = _definition.operations.contains('create');
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openForm(),
-        icon: Icon(widget.previewOnly ? Icons.preview_outlined : Icons.add),
-        label: Text(widget.previewOnly ? 'Preview form' : 'New record'),
-      ),
+      floatingActionButton: widget.previewOnly || canCreate
+          ? FloatingActionButton.extended(
+              onPressed: () => _openForm(),
+              icon: Icon(
+                widget.previewOnly ? Icons.preview_outlined : Icons.add,
+              ),
+              label: Text(widget.previewOnly ? 'Preview form' : 'New record'),
+            )
+          : null,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1080),
@@ -1451,7 +1494,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                 Text(description),
               ],
               const SizedBox(height: 12),
-              if (!widget.previewOnly) ...[
+              if (!widget.previewOnly && canRead) ...[
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
@@ -1556,6 +1599,13 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                     icon: const Icon(Icons.open_in_new),
                     label: const Text('Open generated form'),
                   ),
+                )
+              else if (!canRead)
+                const _StateCard(
+                  icon: Icons.lock_outline,
+                  title: 'Read operation is not declared',
+                  body:
+                      'This DocType does not permit listing or opening records on this device.',
                 )
               else if (_loading)
                 const Center(child: CircularProgressIndicator())
@@ -1710,6 +1760,13 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
 
   Future<void> _save() async {
     if (widget.previewOnly) return;
+    final operation = widget.record == null ? 'create' : 'update';
+    if (!widget.definition.operations.contains(operation)) {
+      _message(
+        'The ${widget.definition.name} DocType does not declare $operation.',
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     final values = _values();
     final issues = widget.definition.validatePayload(values);
@@ -1729,6 +1786,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         );
       } else {
         await widget.store.updateRecord(
+          moduleId: widget.moduleId,
+          docTypeName: widget.definition.name,
           recordId: widget.record!.recordId,
           scope: widget.scope,
           expectedRevision: widget.record!.revision,
@@ -1752,6 +1811,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.record != null;
+    final canSave = widget.definition.operations.contains(
+      editing ? 'update' : 'create',
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -1789,11 +1851,15 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton.icon(
-                    onPressed: _saving || widget.previewOnly ? null : _save,
+                    onPressed: _saving || widget.previewOnly || !canSave
+                        ? null
+                        : _save,
                     icon: const Icon(Icons.save_outlined),
                     label: Text(
                       widget.previewOnly
                           ? 'Preview only'
+                          : !canSave
+                          ? 'Operation not declared'
                           : _saving
                           ? 'Saving…'
                           : editing
@@ -1940,24 +2006,28 @@ class DynamicRecordDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('${definition.label} details')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final changed = await Navigator.of(context).push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (context) => DynamicRecordFormPage(
-                store: store,
-                moduleId: moduleId,
-                definition: definition,
-                scope: scope,
-                record: record,
-              ),
-            ),
-          );
-          if (context.mounted && changed == true) Navigator.pop(context, true);
-        },
-        icon: const Icon(Icons.edit_outlined),
-        label: const Text('Edit record'),
-      ),
+      floatingActionButton: definition.operations.contains('update')
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final changed = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute<bool>(
+                    builder: (context) => DynamicRecordFormPage(
+                      store: store,
+                      moduleId: moduleId,
+                      definition: definition,
+                      scope: scope,
+                      record: record,
+                    ),
+                  ),
+                );
+                if (context.mounted && changed == true) {
+                  Navigator.pop(context, true);
+                }
+              },
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit record'),
+            )
+          : null,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 860),

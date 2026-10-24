@@ -209,11 +209,17 @@ void main() {
     await tester.tap(find.text('Save field'));
     await tester.pumpAndSettle();
 
-    final selectors = find.byType(CheckboxListTile);
-    expect(selectors, findsNWidgets(4));
-    await tester.ensureVisible(selectors.first);
-    await tester.tap(selectors.first);
+    final nameColumn = find.widgetWithText(CheckboxListTile, 'Name').first;
+    await tester.ensureVisible(nameColumn);
+    await tester.tap(nameColumn);
     await tester.pumpAndSettle();
+
+    for (final operation in ['create', 'update']) {
+      final operationToggle = find.widgetWithText(CheckboxListTile, operation);
+      await tester.ensureVisible(operationToggle);
+      await tester.tap(operationToggle);
+      await tester.pumpAndSettle();
+    }
 
     final moveNoteUp = find.byTooltip('Move Note up').last;
     await tester.ensureVisible(moveNoteUp);
@@ -229,6 +235,8 @@ void main() {
     final ui = definition['ui'] as Map;
     expect(ui['listColumns'], ['note']);
     expect(ui['formFields'], ['note', 'name']);
+    expect(definition['operations'], ['read']);
+    expect((definition['permissions'] as Map).keys, ['read']);
     expect(tester.takeException(), isNull);
   });
 
