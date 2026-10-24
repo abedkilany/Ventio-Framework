@@ -89,6 +89,12 @@ class ExtensionRecordCommand {
       );
 
   factory ExtensionRecordCommand.fromEnvelope(CommandEnvelope envelope) {
+    if (envelope.typeVersion != commandVersion) {
+      throw const ContractError(
+        'UNSUPPORTED_VERSION',
+        'Unsupported generic extension record command version.',
+      );
+    }
     final operation = switch (envelope.type) {
       createType => 'create',
       updateType => 'update',

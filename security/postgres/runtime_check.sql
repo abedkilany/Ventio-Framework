@@ -55,8 +55,10 @@ BEGIN
       RAISE EXCEPTION 'Unexpected destructive runtime privilege';
     END IF;
     FOR c IN SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = t LOOP
-      IF NOT (t = 'ventio_command_journal' AND
-          c.column_name IN ('receipt', 'scope_cursor')) AND
+      IF NOT ((t = 'ventio_command_journal' AND
+          c.column_name IN ('receipt', 'scope_cursor')) OR
+          (t = 'ventio_records' AND
+          c.column_name IN ('revision', 'record_data', 'updated_at'))) AND
           has_column_privilege(current_user, 'public.' || t, c.column_name, 'UPDATE') THEN
         RAISE EXCEPTION 'Unexpected runtime UPDATE privilege';
       END IF;
@@ -64,7 +66,7 @@ BEGIN
   END LOOP;
   IF (SELECT count(*) FROM pg_catalog.pg_policy pol JOIN pg_catalog.pg_class pc ON pc.oid = pol.polrelid
       JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace WHERE pn.nspname = 'public'
-      AND pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox')) <> 9 THEN
+      AND pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox')) <> 10 THEN
     RAISE EXCEPTION 'Unexpected row security policy set';
   END IF;
 END $fn$;

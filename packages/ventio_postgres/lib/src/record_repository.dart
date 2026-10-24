@@ -22,6 +22,7 @@ class RecordScope {
 
 class PersistedRecord {
   final RecordScope scope;
+  final String moduleId;
   final String docType;
   final String recordId;
   final int revision;
@@ -31,14 +32,18 @@ class PersistedRecord {
 
   PersistedRecord({
     required this.scope,
+    this.moduleId = 'legacy',
     required this.docType,
     required this.recordId,
     required this.revision,
     required Map<String, dynamic> data,
   }) : _data = Map.unmodifiable(
-         jsonDecode(jsonEncode(data)) as Map<String, dynamic>,
-       ) {
-    if (docType.trim().isEmpty || recordId.trim().isEmpty || revision < 1) {
+          jsonDecode(jsonEncode(data)) as Map<String, dynamic>,
+        ) {
+    if (moduleId.trim().isEmpty ||
+        docType.trim().isEmpty ||
+        recordId.trim().isEmpty ||
+        revision < 1) {
       throw ArgumentError('Invalid persisted record identity or revision');
     }
   }
@@ -54,16 +59,17 @@ class PostgresRecordRepository {
     await connection.execute(
       pg.Sql.named('''
       INSERT INTO ventio_records
-        (tenant_id, company_id, branch_id, doc_type, record_id,
+        (tenant_id, company_id, branch_id, module_id, doc_type, record_id,
          revision, record_data)
       VALUES
-        (@tenant, @company, @branch, @type, @record, @revision,
+        (@tenant, @company, @branch, @module, @type, @record, @revision,
          CAST(@data AS jsonb))
     '''),
       parameters: {
         'tenant': record.scope.tenantId,
         'company': record.scope.companyId,
         'branch': record.scope.branchId,
+        'module': record.moduleId,
         'type': record.docType,
         'record': record.recordId,
         'revision': record.revision,
@@ -74,6 +80,7 @@ class PostgresRecordRepository {
 
   Future<PersistedRecord?> find(
     RecordScope scope, {
+    String moduleId = 'legacy',
     required String docType,
     required String recordId,
   }) async {
@@ -85,12 +92,14 @@ class PostgresRecordRepository {
       SELECT revision, record_data::text AS record_json
       FROM ventio_records
       WHERE tenant_id = @tenant AND company_id = @company
-        AND branch_id = @branch AND doc_type = @type AND record_id = @record
+        AND branch_id = @branch AND module_id = @module
+        AND doc_type = @type AND record_id = @record
     '''),
       parameters: {
         'tenant': scope.tenantId,
         'company': scope.companyId,
         'branch': scope.branchId,
+        'module': moduleId,
         'type': docType,
         'record': recordId,
       },
@@ -99,6 +108,7 @@ class PostgresRecordRepository {
     final values = rows.single.toColumnMap();
     return PersistedRecord(
       scope: scope,
+      moduleId: moduleId,
       docType: docType,
       recordId: recordId,
       revision: values['revision'] as int,

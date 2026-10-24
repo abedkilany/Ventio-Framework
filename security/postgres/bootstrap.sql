@@ -56,8 +56,11 @@ CREATE TABLE IF NOT EXISTS ventio_security.command_bindings (
   doc_type text NOT NULL,
   create_permission text NOT NULL,
   read_permission text NOT NULL,
+  module_id text NOT NULL DEFAULT 'legacy',
   PRIMARY KEY (command_type, command_version)
 );
+ALTER TABLE ventio_security.command_bindings
+  ADD COLUMN IF NOT EXISTS module_id text NOT NULL DEFAULT 'legacy';
 -- Protected tables also default-deny runtime access if an ACL is accidentally
 -- broadened. Only the non-login owner used by vetted functions has a policy.
 DO $protected$
@@ -73,10 +76,12 @@ BEGIN
     EXECUTE format('CREATE POLICY owner_access ON %s TO ventio_owner USING (true) WITH CHECK (true)', t);
   END LOOP;
 END $protected$;
-INSERT INTO ventio_security.command_bindings VALUES
-  ('maintenance.create', 1, 'MaintenanceRequest', 'maintenance.create', 'maintenance.read'),
-  ('inspection.create', 1, 'EquipmentInspection', 'inspection.create', 'inspection.read')
-ON CONFLICT DO NOTHING;
+INSERT INTO ventio_security.command_bindings
+  (command_type,command_version,doc_type,create_permission,read_permission,module_id) VALUES
+  ('maintenance.create', 1, 'MaintenanceRequest', 'maintenance.create', 'maintenance.read','com.ventio.maintenance'),
+  ('inspection.create', 1, 'EquipmentInspection', 'inspection.create', 'inspection.read','com.ventio.inspection')
+ON CONFLICT (command_type,command_version) DO UPDATE
+  SET module_id=EXCLUDED.module_id;
 
 \ir recovery.sql
 
@@ -140,6 +145,7 @@ BEGIN
   PERFORM set_config('ventio.command_version', '', true);
   PERFORM set_config('ventio.command_id', '', true);
   PERFORM set_config('ventio.aggregate_id', '', true);
+  PERFORM set_config('ventio.module_id', '', true);
   result := ventio_security.identity_snapshot(p_digest, p_company, p_branch);
   IF result IS NOT NULL AND p_company IS NOT NULL AND p_branch IS NOT NULL THEN
     PERFORM set_config('ventio.credential_digest', p_digest, true);
@@ -149,6 +155,10 @@ BEGIN
     PERFORM set_config('ventio.command_version', coalesce(p_version::text, ''), true);
     PERFORM set_config('ventio.command_id', coalesce(p_command, ''), true);
     PERFORM set_config('ventio.aggregate_id', coalesce(p_aggregate, ''), true);
+    PERFORM set_config('ventio.module_id', coalesce((
+      SELECT module_id FROM ventio_security.command_bindings
+      WHERE command_type=p_type AND command_version=p_version
+    ), ''), true);
   END IF;
   RETURN result;
 END $fn$;
@@ -157,10 +167,89 @@ CREATE OR REPLACE FUNCTION ventio_security.scope_allows(p_tenant text, p_company
     p_mode text, p_subject text DEFAULT NULL, p_actor text DEFAULT NULL, p_device text DEFAULT NULL)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
-DECLARE identity jsonb; binding ventio_security.command_bindings%ROWTYPE; can_create boolean; can_read boolean;
+DECLARE identity jsonb; binding ventio_security.command_bindings%ROWTYPE;
+        package_row public.ventio_extension_packages%ROWTYPE;
+        dynamic_doc_type jsonb; target_doc_type jsonb;
+        command_type text; dynamic_operation text; dynamic_module text;
+        dynamic_version text; dynamic_name text; operation_permission text;
+        read_permission text; can_create boolean; can_read boolean;
 BEGIN
   IF p_company IS DISTINCT FROM nullif(current_setting('ventio.company_id', true), '') OR
      p_branch IS DISTINCT FROM nullif(current_setting('ventio.branch_id', true), '') THEN RETURN false; END IF;
+  command_type := current_setting('ventio.command_type', true);
+  IF command_type IN ('extension.record.create','extension.record.update') THEN
+    dynamic_operation := nullif(current_setting('ventio.operation',true),'');
+    dynamic_module := nullif(current_setting('ventio.module_id',true),'');
+    dynamic_version := nullif(current_setting('ventio.module_version',true),'');
+    dynamic_name := nullif(current_setting('ventio.doc_type',true),'');
+    IF dynamic_module IS NULL OR dynamic_version IS NULL OR dynamic_name IS NULL OR
+        (command_type='extension.record.create' AND dynamic_operation IS DISTINCT FROM 'create') OR
+        (command_type='extension.record.update' AND dynamic_operation IS DISTINCT FROM 'update') THEN
+      RETURN false;
+    END IF;
+    identity := ventio_security.identity_snapshot(
+      nullif(current_setting('ventio.credential_digest',true),''),p_company,p_branch);
+    IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
+        NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
+          WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+        ) THEN RETURN false; END IF;
+    SELECT * INTO package_row FROM public.ventio_extension_packages
+      WHERE tenant_id=p_tenant AND module_id=dynamic_module
+        AND version=dynamic_version AND status='APPROVED'
+      FOR SHARE;
+    IF NOT FOUND OR jsonb_typeof(package_row.package_json->'docTypes') IS DISTINCT FROM 'array' THEN
+      RETURN false;
+    END IF;
+    SELECT item INTO dynamic_doc_type
+    FROM jsonb_array_elements(package_row.package_json->'docTypes') AS entries(item)
+    WHERE item->>'moduleId'=dynamic_module AND item->>'name'=dynamic_name
+    LIMIT 1;
+    IF dynamic_doc_type IS NULL THEN RETURN false; END IF;
+    operation_permission := dynamic_doc_type->'permissions'->>dynamic_operation;
+    read_permission := dynamic_doc_type->'permissions'->>'read';
+    IF operation_permission IS NULL OR operation_permission NOT LIKE
+        'extension.' || regexp_replace(dynamic_module,'[^a-z0-9]+','_','g') || '.%' OR
+        (read_permission IS NOT NULL AND read_permission NOT LIKE
+          'extension.' || regexp_replace(dynamic_module,'[^a-z0-9]+','_','g') || '.%') THEN
+      RETURN false;
+    END IF;
+    can_create := identity->'permissions' ? operation_permission;
+    can_read := read_permission IS NOT NULL AND identity->'permissions' ? read_permission;
+    IF p_mode='record_read' THEN
+      IF p_subject=dynamic_name THEN
+        RETURN can_read;
+      END IF;
+      SELECT item INTO target_doc_type
+      FROM jsonb_array_elements(package_row.package_json->'docTypes') AS entries(item)
+      WHERE item->>'moduleId'=dynamic_module AND item->>'name'=p_subject
+      LIMIT 1;
+      IF target_doc_type IS NULL THEN RETURN false; END IF;
+      read_permission := target_doc_type->'permissions'->>'read';
+      IF read_permission IS NULL OR read_permission NOT LIKE
+          'extension.' || regexp_replace(dynamic_module,'[^a-z0-9]+','_','g') || '.%' THEN
+        RETURN false;
+      END IF;
+      RETURN identity->'permissions' ? read_permission;
+    END IF;
+    IF p_mode='record_insert' THEN
+      RETURN dynamic_operation='create' AND can_create AND p_subject=dynamic_name
+        AND nullif(current_setting('ventio.aggregate_id',true),'') IS NOT NULL;
+    END IF;
+    IF p_mode='record_update' THEN
+      RETURN dynamic_operation='update' AND can_create AND p_subject=dynamic_name;
+    END IF;
+    IF p_mode='journal_read' THEN RETURN can_create; END IF;
+    IF p_mode IN ('journal_write','audit_write','outbox_write') THEN
+      RETURN can_create AND p_subject=nullif(current_setting('ventio.command_id',true),'')
+        AND (p_actor IS NULL OR p_actor=identity->>'actorId')
+        AND (p_device IS NULL OR p_device=identity->>'deviceId');
+    END IF;
+    IF p_mode='event_read' THEN
+      RETURN can_read AND p_subject IN ('extension.record.changed',command_type);
+    END IF;
+    RETURN false;
+  END IF;
   SELECT * INTO binding FROM ventio_security.command_bindings
     WHERE command_type = current_setting('ventio.command_type', true)
       AND command_version::text = current_setting('ventio.command_version', true);
@@ -174,9 +263,13 @@ BEGIN
       ) THEN RETURN false; END IF;
   can_create := identity->'permissions' ? binding.create_permission;
   can_read := can_create OR identity->'permissions' ? binding.read_permission;
-  IF p_mode = 'record_read' THEN RETURN can_read AND p_subject = binding.doc_type; END IF;
+  IF p_mode = 'record_read' THEN
+    RETURN can_read AND p_subject = binding.doc_type
+      AND current_setting('ventio.module_id',true)=binding.module_id;
+  END IF;
   IF p_mode = 'record_insert' THEN
     RETURN can_create AND p_subject = binding.doc_type
+      AND current_setting('ventio.module_id',true)=binding.module_id
       AND current_setting('ventio.aggregate_id', true) IS NOT NULL;
   END IF;
   IF p_mode = 'journal_read' THEN RETURN can_create; END IF;
@@ -202,10 +295,22 @@ ALTER TABLE public.ventio_outbox FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS runtime_select ON public.ventio_records;
 DROP POLICY IF EXISTS runtime_insert ON public.ventio_records;
 CREATE POLICY runtime_select ON public.ventio_records FOR SELECT TO ventio_runtime
-  USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_read', doc_type));
+  USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_read', doc_type)
+    AND module_id = current_setting('ventio.module_id',true));
 CREATE POLICY runtime_insert ON public.ventio_records FOR INSERT TO ventio_runtime
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_insert', doc_type)
+    AND module_id = current_setting('ventio.module_id',true)
     AND record_id = current_setting('ventio.aggregate_id', true));
+DROP POLICY IF EXISTS runtime_update ON public.ventio_records;
+CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runtime
+  USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
+    AND module_id = current_setting('ventio.module_id',true)
+    AND record_id = current_setting('ventio.aggregate_id', true)
+    AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer)
+  WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
+    AND module_id = current_setting('ventio.module_id',true)
+    AND record_id = current_setting('ventio.aggregate_id', true)
+    AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1);
 DROP POLICY IF EXISTS runtime_select ON public.ventio_command_journal;
 DROP POLICY IF EXISTS runtime_insert ON public.ventio_command_journal;
 DROP POLICY IF EXISTS runtime_update ON public.ventio_command_journal;
@@ -230,6 +335,7 @@ CREATE POLICY runtime_insert ON public.ventio_outbox FOR INSERT TO ventio_runtim
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'outbox_write', command_id));
 GRANT SELECT, INSERT ON public.ventio_records, public.ventio_command_journal,
   public.ventio_audit_entries, public.ventio_outbox TO ventio_runtime;
+GRANT UPDATE (revision, record_data, updated_at) ON public.ventio_records TO ventio_runtime;
 GRANT UPDATE (receipt, scope_cursor) ON public.ventio_command_journal TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
@@ -240,6 +346,7 @@ REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_ru
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
   ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
   ventio_security.admit_recovery(text),
+  ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint),
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
   ventio_security.read_approved_extension_package(text,text,text,text,text,text)
   TO ventio_runtime;

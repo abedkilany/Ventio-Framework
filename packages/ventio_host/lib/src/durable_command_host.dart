@@ -5,6 +5,16 @@ import 'package:crypto/crypto.dart';
 import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 
+class ExtensionBundleAuthorization {
+  const ExtensionBundleAuthorization.approved(this.bundle)
+    : failureReasonCode = null;
+  const ExtensionBundleAuthorization.denied(this.failureReasonCode)
+    : bundle = null;
+
+  final ExtensionBundle? bundle;
+  final String? failureReasonCode;
+}
+
 /// Only explicitly registered, trusted operational-create handlers can run.
 /// New executable handlers cannot be loaded from declarative manifests.
 class DurableCommandHost {
@@ -64,8 +74,22 @@ class DurableCommandHost {
   /// through commit. A null result denies access without reading receipts.
   Future<Map<String, dynamic>> executeAuthorized(
     CommandEnvelope command,
-    Future<Principal?> Function(pg.TxSession tx) resolvePrincipal,
-  ) async {
+    Future<Principal?> Function(pg.TxSession tx) resolvePrincipal, {
+    Future<ExtensionBundleAuthorization> Function(
+      pg.TxSession tx,
+      ExtensionRecordCommand command,
+    )?
+    resolveExtensionBundle,
+  }) async {
+    ExtensionRecordCommand? extensionCommand;
+    if (command.type == ExtensionRecordCommand.createType ||
+        command.type == ExtensionRecordCommand.updateType) {
+      try {
+        extensionCommand = ExtensionRecordCommand.fromEnvelope(command);
+      } on ContractError {
+        return _failure(command, 'REJECTED', 'INVALID_COMMAND');
+      }
+    }
     // Both payload and client context are covered by the idempotency digest.
     final fingerprint = sha256
         .convert(utf8.encode(canonicalJson(command.original)))
@@ -87,40 +111,102 @@ class DurableCommandHost {
           )) {
             return _failure(command, 'REJECTED', 'SCOPE_DENIED');
           }
-          final module = modules.moduleForCommand(
-            command.type,
-            command.typeVersion,
-          );
-          final bindingName =
-              _trustedCreates[_key(command.type, command.typeVersion)];
-          if (module == null || bindingName == null) {
-            return _failure(command, 'REJECTED', 'UNKNOWN_COMMAND');
-          }
-          final declaration = modules.getCommand(
-            module.moduleId,
-            command.type,
-            command.typeVersion,
-          );
-          final capability = declaration == null
-              ? null
-              : modules.getCapability(declaration.capabilityId);
-          final docType = docTypes.get(bindingName);
-          if (declaration == null ||
-              capability == null ||
-              docType == null ||
-              !authenticatedPrincipal.allowsInScope(
-                declaration.permission,
-                command.companyId,
-                command.branchId,
-              ) ||
-              capability.requiredPermissions.any(
-                (permission) => !authenticatedPrincipal.allowsInScope(
+          late final DocTypeDefinition docType;
+          late final String moduleVersion;
+          late final String moduleId;
+          late final String operation;
+          late final Map<String, dynamic> recordValues;
+          if (extensionCommand != null) {
+            final authorization = await resolveExtensionBundle?.call(
+              tx,
+              extensionCommand,
+            );
+            final bundle = authorization?.bundle;
+            if (bundle == null) {
+              return _failure(
+                command,
+                'REJECTED',
+                authorization?.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
+              );
+            }
+            if (bundle.moduleId != extensionCommand.moduleId ||
+                bundle.version != command.moduleVersion) {
+              return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
+            }
+            final matches = bundle.docTypes.where(
+              (type) => type.name == extensionCommand!.docType,
+            );
+            if (matches.length != 1) {
+              return _failure(command, 'REJECTED', 'INVALID_EXTENSION');
+            }
+            docType = matches.single;
+            moduleVersion = bundle.version;
+            moduleId = bundle.moduleId;
+            operation = extensionCommand.operation;
+            recordValues = extensionCommand.values;
+            if (docType.moduleId != bundle.moduleId ||
+                docType.schemaVersion != command.docTypeVersion) {
+              return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
+            }
+            final permission = docType.permissions[operation];
+            final readPermission = docType.permissions['read'];
+            if (!docType.operations.contains(operation) ||
+                permission == null ||
+                !authenticatedPrincipal.allowsInScope(
                   permission,
                   command.companyId,
                   command.branchId,
-                ),
-              )) {
-            return _failure(command, 'REJECTED', 'PERMISSION_DENIED');
+                ) ||
+                (operation == 'update' &&
+                    (readPermission == null ||
+                        !authenticatedPrincipal.allowsInScope(
+                          readPermission,
+                          command.companyId,
+                          command.branchId,
+                        )))) {
+              return _failure(command, 'REJECTED', 'PERMISSION_DENIED');
+            }
+          } else {
+            final module = modules.moduleForCommand(
+              command.type,
+              command.typeVersion,
+            );
+            final bindingName =
+                _trustedCreates[_key(command.type, command.typeVersion)];
+            if (module == null || bindingName == null) {
+              return _failure(command, 'REJECTED', 'UNKNOWN_COMMAND');
+            }
+            final declaration = modules.getCommand(
+              module.moduleId,
+              command.type,
+              command.typeVersion,
+            );
+            final capability = declaration == null
+                ? null
+                : modules.getCapability(declaration.capabilityId);
+            final boundDocType = docTypes.get(bindingName);
+            if (declaration == null ||
+                capability == null ||
+                boundDocType == null ||
+                !authenticatedPrincipal.allowsInScope(
+                  declaration.permission,
+                  command.companyId,
+                  command.branchId,
+                ) ||
+                capability.requiredPermissions.any(
+                  (permission) => !authenticatedPrincipal.allowsInScope(
+                    permission,
+                    command.companyId,
+                    command.branchId,
+                  ),
+                )) {
+              return _failure(command, 'REJECTED', 'PERMISSION_DENIED');
+            }
+            docType = boundDocType;
+            moduleVersion = module.version;
+            moduleId = module.moduleId;
+            operation = 'create';
+            recordValues = command.payload;
           }
           // Reservation is uncommitted until ALL effects commit. PostgreSQL's
           // unique-key arbitration makes concurrent identical retries wait.
@@ -196,7 +282,7 @@ class DurableCommandHost {
 
           // Evaluate all mutable state under this same transaction. Throw to
           // roll back the journal reservation on every unsuccessful command.
-          if (command.moduleVersion != module.version ||
+          if (command.moduleVersion != moduleVersion ||
               command.docTypeVersion != docType.schemaVersion) {
             throw _RejectedCommand(
               _failure(command, 'REJECTED', 'UPGRADE_REQUIRED'),
@@ -228,7 +314,7 @@ class DurableCommandHost {
               );
             }
           }
-          if (command.expectedRevision != null) {
+          if (extensionCommand == null && command.expectedRevision != null) {
             throw _RejectedCommand(
               _failure(
                 command,
@@ -238,10 +324,38 @@ class DurableCommandHost {
               ),
             );
           }
-          if (docType.validatePayload(command.payload).isNotEmpty) {
+          if (docType.validatePayload(recordValues).isNotEmpty) {
             throw _RejectedCommand(
               _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
             );
+          }
+          for (final field in docType.fields.where(
+            (field) => field.type == 'reference',
+          )) {
+            final reference = recordValues[field.name];
+            if (reference == null) continue;
+            final rows = await tx.execute(
+              pg.Sql.named('''
+            SELECT record_id FROM ventio_records
+            WHERE tenant_id = @tenant AND company_id = @company
+              AND branch_id = @branch AND module_id = @module
+              AND doc_type = @doctype
+              AND record_id = @record
+          '''),
+              parameters: {
+                'tenant': command.tenantId,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'module': moduleId,
+                'doctype': field.referenceTo,
+                'record': reference,
+              },
+            );
+            if (rows.isEmpty) {
+              throw _RejectedCommand(
+                _failure(command, 'REJECTED', 'INVALID_REFERENCE'),
+              );
+            }
           }
           final cursorRows = await tx.execute(
             pg.Sql.named('''
@@ -258,50 +372,128 @@ class DurableCommandHost {
           );
           final cursorValue = cursorRows.single[0] as String;
           final scopeCursor = 'scope-v1-$cursorValue';
-          final record = await tx.execute(
-            pg.Sql.named('''
-          INSERT INTO ventio_records
-            (tenant_id, company_id, branch_id, doc_type, record_id,
-             revision, record_data)
-          VALUES (@tenant, @company, @branch, @doctype, @record, 1,
-                  CAST(@data AS jsonb))
-          ON CONFLICT (tenant_id, company_id, branch_id, doc_type, record_id)
-          DO NOTHING RETURNING record_id
-        '''),
-            parameters: {
-              'tenant': command.tenantId,
-              'company': command.companyId,
-              'branch': command.branchId,
-              'doctype': docType.name,
-              'record': command.aggregateId,
-              'data': jsonEncode(command.payload),
-            },
-          );
-          if (record.isEmpty) {
-            final previous = await tx.execute(
+          var recordRevision = 1;
+          if (operation == 'update') {
+            final expectedRevision = command.expectedRevision!;
+            if (expectedRevision >= 2147483647) {
+              throw _RejectedCommand(
+                _failure(
+                  command,
+                  'CONFLICT',
+                  'REVISION_LIMIT',
+                  currentRevision: expectedRevision,
+                ),
+              );
+            }
+            final current = await tx.execute(
               pg.Sql.named('''
-            SELECT revision FROM ventio_records WHERE tenant_id=@tenant
-              AND company_id=@company AND branch_id=@branch
-              AND doc_type=@doctype AND record_id=@record
+            SELECT revision FROM ventio_records
+            WHERE tenant_id = @tenant AND company_id = @company
+              AND branch_id = @branch AND module_id = @module
+              AND doc_type = @doctype
+              AND record_id = @record
           '''),
               parameters: {
                 'tenant': command.tenantId,
                 'company': command.companyId,
                 'branch': command.branchId,
+                'module': moduleId,
                 'doctype': docType.name,
                 'record': command.aggregateId,
               },
             );
-            throw _RejectedCommand(
-              _failure(
-                command,
-                'CONFLICT',
-                'RECORD_ALREADY_EXISTS',
-                currentRevision: previous.isEmpty
-                    ? null
-                    : previous.single[0] as int,
-              ),
+            if (current.isEmpty) {
+              throw _RejectedCommand(
+                _failure(command, 'CONFLICT', 'RECORD_NOT_FOUND'),
+              );
+            }
+            final currentRevision = current.single[0] as int;
+            if (currentRevision != expectedRevision) {
+              throw _RejectedCommand(
+                _failure(
+                  command,
+                  'CONFLICT',
+                  'REVISION_CONFLICT',
+                  currentRevision: currentRevision,
+                ),
+              );
+            }
+            final updated = await tx.execute(
+              pg.Sql.named('''
+            UPDATE ventio_records
+            SET revision = revision + 1, record_data = CAST(@data AS jsonb),
+                updated_at = clock_timestamp()
+            WHERE tenant_id = @tenant AND company_id = @company
+              AND branch_id = @branch AND module_id = @module
+              AND doc_type = @doctype
+              AND record_id = @record AND revision = @expected
+            RETURNING revision
+          '''),
+              parameters: {
+                'tenant': command.tenantId,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'module': moduleId,
+                'doctype': docType.name,
+                'record': command.aggregateId,
+                'expected': expectedRevision,
+                'data': jsonEncode(recordValues),
+              },
             );
+            if (updated.isEmpty) {
+              throw _RejectedCommand(
+                _failure(command, 'CONFLICT', 'REVISION_CONFLICT'),
+              );
+            }
+            recordRevision = updated.single[0] as int;
+          } else {
+            final record = await tx.execute(
+              pg.Sql.named('''
+          INSERT INTO ventio_records
+            (tenant_id, company_id, branch_id, module_id, doc_type,
+             record_id, revision, record_data)
+          VALUES (@tenant, @company, @branch, @module, @doctype, @record, 1,
+                  CAST(@data AS jsonb))
+          ON CONFLICT (tenant_id, company_id, branch_id, module_id, doc_type, record_id)
+          DO NOTHING RETURNING record_id
+        '''),
+              parameters: {
+                'tenant': command.tenantId,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'module': moduleId,
+                'doctype': docType.name,
+                'record': command.aggregateId,
+                'data': jsonEncode(recordValues),
+              },
+            );
+            if (record.isEmpty) {
+              final previous = await tx.execute(
+                pg.Sql.named('''
+            SELECT revision FROM ventio_records WHERE tenant_id=@tenant
+              AND company_id=@company AND branch_id=@branch
+              AND module_id=@module AND doc_type=@doctype AND record_id=@record
+          '''),
+                parameters: {
+                  'tenant': command.tenantId,
+                  'company': command.companyId,
+                  'branch': command.branchId,
+                  'module': moduleId,
+                  'doctype': docType.name,
+                  'record': command.aggregateId,
+                },
+              );
+              throw _RejectedCommand(
+                _failure(
+                  command,
+                  'CONFLICT',
+                  'RECORD_ALREADY_EXISTS',
+                  currentRevision: previous.isEmpty
+                      ? null
+                      : previous.single[0] as int,
+                ),
+              );
+            }
           }
           await testFaultInjector?.call('after_record');
           final audit = <String, dynamic>{
@@ -338,9 +530,16 @@ class DurableCommandHost {
             'companyId': command.companyId,
             'branchId': command.branchId,
             'commandId': command.commandId,
-            'type': '${docType.name}.created',
+            'type': extensionCommand == null
+                ? '${docType.name}.created'
+                : 'extension.record.changed',
             'aggregateId': command.aggregateId,
-            'recordRevision': 1,
+            'recordRevision': recordRevision,
+            if (extensionCommand != null) ...{
+              'moduleId': extensionCommand.moduleId,
+              'docType': extensionCommand.docType,
+              'operation': operation,
+            },
           };
           await tx.execute(
             pg.Sql.named('''
@@ -362,7 +561,7 @@ class DurableCommandHost {
           final receipt = CommandReceipt(
             commandId: command.commandId,
             status: 'ACCEPTED',
-            hostRevision: 1,
+            hostRevision: recordRevision,
             scopeCursor: scopeCursor,
             output: {'serverRecordId': command.aggregateId},
           ).toJson();

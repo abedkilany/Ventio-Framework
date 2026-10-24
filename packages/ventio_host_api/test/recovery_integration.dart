@@ -175,8 +175,17 @@ Future<void> main() async {
     }
     // A duplicate waits on the uncommitted unique reservation. Two unrelated
     // Host workers then die together on opposite sides of commit.
+    await admin.registerBranch('company-002', 'branch-002');
+    await admin.grant(
+      'user-001',
+      'company-002',
+      'branch-002',
+      'maintenance.create',
+    );
     final alpha = next();
-    final beta = next();
+    final beta = next()
+      ..['companyId'] = 'company-002'
+      ..['branchId'] = 'branch-002';
     final a = await host(stage: 'before_commit');
     final ar = request(a, token, alpha);
     await a.event('barrier');

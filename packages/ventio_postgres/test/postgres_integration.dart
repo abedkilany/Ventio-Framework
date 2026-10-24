@@ -182,12 +182,11 @@ Future<void> main() async {
       'ventio-migration-audit-',
     );
     try {
-      for (final source
-          in await migrations
-              .list()
-              .where((e) => e is File && e.path.endsWith('.sql'))
-              .cast<File>()
-              .toList()) {
+      for (final source in await migrations
+          .list()
+          .where((e) => e is File && e.path.endsWith('.sql'))
+          .cast<File>()
+          .toList()) {
         await source.copy('${temporary.path}/${source.uri.pathSegments.last}');
       }
       Future<bool> rejected() async {
@@ -232,14 +231,16 @@ Future<void> main() async {
       expect(
         (await conn.execute(
               "SELECT to_regclass('public.ventio_migration_probe') IS NULL",
-            )).single[0] ==
+            ))
+                .single[0] ==
             true,
         'Earlier new table is rolled back after later migration failure',
       );
       expect(
         (await conn.execute(
               "SELECT count(*) FROM ventio_schema_migrations WHERE name IN ('013_audit_probe.sql','014_audit_failure.sql')",
-            )).single[0] ==
+            ))
+                .single[0] ==
             0,
         'Failed new batch leaves no migration ledger entries',
       );

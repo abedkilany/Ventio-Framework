@@ -329,6 +329,15 @@ void main() {
       ),
       'Client supplied authority fields were accepted in a record command',
     );
+
+    final unsupportedVersion = changed(create.envelope.original);
+    unsupportedVersion['typeVersion'] = 2;
+    checkThrows(
+      () => ExtensionRecordCommand.fromEnvelope(
+        CommandEnvelope.fromJson(unsupportedVersion),
+      ),
+      'An unsupported generic record command version was accepted',
+    );
   });
 
   test('V1.2 fixture bootstraps an operational module', () {

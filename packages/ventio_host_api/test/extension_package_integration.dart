@@ -78,9 +78,10 @@ Future<void> main() async {
       required String company,
       required String branch,
       required List<String> permissions,
+      bool registerBranch = true,
     }) async {
       await identityAdmin.createUser(actor);
-      await identityAdmin.registerBranch(company, branch);
+      if (registerBranch) await identityAdmin.registerBranch(company, branch);
       await identityAdmin.registerDevice(actor, device);
       for (final permission in permissions) {
         await identityAdmin.grant(actor, company, branch, permission);
@@ -110,7 +111,13 @@ Future<void> main() async {
       credential: 'publisher-credential',
       company: primaryCompany,
       branch: primaryBranch,
-      permissions: const ['extension.package.submit', 'extension.package.read'],
+      permissions: const [
+        'extension.package.submit',
+        'extension.package.read',
+        'extension.com_example_registry.item.read',
+        'extension.com_example_registry.item.create',
+        'extension.com_example_registry.item.update',
+      ],
     );
     final readerToken = await provision(
       actor: 'reader',
@@ -119,6 +126,15 @@ Future<void> main() async {
       company: secondaryCompany,
       branch: secondaryBranch,
       permissions: const ['extension.package.read'],
+    );
+    final updateOnlyToken = await provision(
+      actor: 'update-only',
+      device: 'update-only-device',
+      credential: 'update-only-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.com_example_registry.item.update'],
+      registerBranch: false,
     );
     final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
     api = await HostApi.bind(
@@ -346,6 +362,207 @@ Future<void> main() async {
           approved.body['packageResult']['status'] == 'APPROVED' &&
           approved.body['packageResult']['packageSha256'] == hash(package),
       'Operator approval makes only the reviewed digest available to scoped clients',
+    );
+    final createRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'First item'},
+    );
+    final created = await send(
+      api,
+      token: primaryToken,
+      body: createRecord.envelope.original,
+    );
+    expect(
+      created.status == 200 &&
+          created.body['receipt']['status'] == 'ACCEPTED' &&
+          created.body['receipt']['hostRevision'] == 1,
+      'An approved generic DocType can create a Host-authoritative record',
+    );
+    final persistedCreate = await observer.execute(
+      pg.Sql.named('''
+        SELECT module_id, revision, record_data->>'title' AS title
+        FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item' AND record_id=@record
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+        'record': 'registry-item-1',
+      },
+    );
+    expect(
+      persistedCreate.single.toColumnMap()['revision'] == 1 &&
+          persistedCreate.single.toColumnMap()['title'] == 'First item',
+      'Generic records persist with module-qualified identity and values',
+    );
+    final replayedCreate = await send(
+      api,
+      token: primaryToken,
+      body: createRecord.envelope.original,
+    );
+    expect(
+      replayedCreate.status == 200 &&
+          replayedCreate.body['receipt'] == created.body['receipt'],
+      'A retried generic write returns its saved Host receipt without duplication',
+    );
+    final updateRecord = ExtensionRecordCommand.update(
+      commandId: '71000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Updated item'},
+    );
+    final updated = await send(
+      api,
+      token: primaryToken,
+      body: updateRecord.envelope.original,
+    );
+    expect(
+      updated.status == 200 &&
+          updated.body['receipt']['status'] == 'ACCEPTED' &&
+          updated.body['receipt']['hostRevision'] == 2,
+      'A generic record update honors expected revision and advances Host revision',
+    );
+    final persistedUpdate = await observer.execute(
+      pg.Sql.named('''
+        SELECT revision, record_data->>'title' AS title
+        FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item' AND record_id=@record
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+        'record': 'registry-item-1',
+      },
+    );
+    expect(
+      persistedUpdate.single.toColumnMap()['revision'] == 2 &&
+          persistedUpdate.single.toColumnMap()['title'] == 'Updated item',
+      'Host updates persist the new values and revision',
+    );
+    final updateWithoutRead = ExtensionRecordCommand.update(
+      commandId: '71000000-0000-4000-8000-000000000006',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 2,
+      actorId: 'update-only',
+      deviceId: 'update-only-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Update without read'},
+    );
+    final updateWithoutReadReply = await send(
+      api,
+      token: updateOnlyToken,
+      body: updateWithoutRead.envelope.original,
+    );
+    expect(
+      updateWithoutReadReply.status == 403 &&
+          updateWithoutReadReply.body['receipt']['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'Updating a record requires its explicit read permission',
+    );
+    final staleRecord = ExtensionRecordCommand.update(
+      commandId: '71000000-0000-4000-8000-000000000003',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Stale write'},
+    );
+    final stale = await send(
+      api,
+      token: primaryToken,
+      body: staleRecord.envelope.original,
+    );
+    expect(
+      stale.status == 409 &&
+          stale.body['receipt']['reasonCode'] == 'REVISION_CONFLICT' &&
+          stale.body['receipt']['currentRevision'] == 2,
+      'Stale generic writes are rejected with the current Host revision',
+    );
+    final forgedBranchRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000005',
+      tenantId: tenant,
+      companyId: secondaryCompany,
+      branchId: secondaryBranch,
+      recordId: 'registry-item-cross-branch',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Cross-branch item'},
+    );
+    final forgedBranchWrite = await send(
+      api,
+      token: primaryToken,
+      body: forgedBranchRecord.envelope.original,
+    );
+    expect(
+      forgedBranchWrite.status == 403 &&
+          forgedBranchWrite.body['receipt']['reasonCode'] == 'SCOPE_DENIED',
+      'A primary-branch credential cannot forge an approved extension write in another branch',
+    );
+    final deniedRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000004',
+      tenantId: tenant,
+      companyId: secondaryCompany,
+      branchId: secondaryBranch,
+      recordId: 'registry-item-forbidden',
+      actorId: 'reader',
+      deviceId: 'reader-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Forbidden item'},
+    );
+    final deniedWrite = await send(
+      api,
+      token: readerToken,
+      body: deniedRecord.envelope.original,
+    );
+    expect(
+      deniedWrite.status == 403 &&
+          deniedWrite.body['receipt']['reasonCode'] == 'PERMISSION_DENIED',
+      'An approved extension cannot grant create access in an ungranted branch',
     );
     expect(
       (await readPackage(

@@ -330,6 +330,7 @@ Future<void> main() async {
               companyId: 'test-company',
               branchId: 'test-branch',
             ),
+            moduleId: 'com.ventio.maintenance',
             docType: 'MaintenanceRequest',
             recordId: 'rollback',
           )) ==

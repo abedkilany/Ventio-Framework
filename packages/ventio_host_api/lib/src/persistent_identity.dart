@@ -91,14 +91,33 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
       for (final binding in bindings) {
         host.registerTrustedCreateBinding(binding);
       }
-      return await host.executeAuthorized(command, (tx) async {
-        await admission?.admit(tx);
-        return const PostgresIdentityStore().resolve(
-          tx,
-          digest,
-          command: command,
-        );
-      });
+      ExtensionBundleAuthorization? resolvedBundle;
+      return await host.executeAuthorized(
+        command,
+        (tx) async {
+          await admission?.admit(tx);
+          if (command.type == ExtensionRecordCommand.createType ||
+              command.type == ExtensionRecordCommand.updateType) {
+            final resolved = await const PostgresIdentityStore()
+                .resolveExtensionCommand(tx, digest, command);
+            if (resolved == null) return null;
+            resolvedBundle = resolved.bundle != null
+                ? ExtensionBundleAuthorization.approved(resolved.bundle!)
+                : ExtensionBundleAuthorization.denied(
+                    resolved.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
+                  );
+            return resolved.principal;
+          }
+          return const PostgresIdentityStore().resolve(
+            tx,
+            digest,
+            command: command,
+          );
+        },
+        resolveExtensionBundle: (_, __) async =>
+            resolvedBundle ??
+            const ExtensionBundleAuthorization.denied('EXTENSION_NOT_APPROVED'),
+      );
     } finally {
       await connection.close();
     }
