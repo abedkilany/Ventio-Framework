@@ -101,7 +101,8 @@ else:
       if (code != 0) {
         failureClass =
             RegExp(
-              r'(?m)^([A-Za-z_][A-Za-z0-9_]*):',
+              r'^([A-Za-z_][A-Za-z0-9_]*):',
+              multiLine: true,
             ).firstMatch(diagnostics)?.group(1) ??
             'unknown';
         throw StateError('Private storage operation failed');

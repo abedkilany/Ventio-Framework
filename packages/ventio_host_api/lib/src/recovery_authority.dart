@@ -114,11 +114,15 @@ class RecoveryAuthority {
             readerSid: readerSid,
           );
         }
-      } catch (_) {
-        if (readerGroupId == null && readerSid == null) {
-          await PrivateFiles.read(lockPath);
-        } else {
-          await PrivateFiles.readAuthority(lockPath, readerSid: readerSid);
+      } catch (createError, createStack) {
+        try {
+          if (readerGroupId == null && readerSid == null) {
+            await PrivateFiles.read(lockPath);
+          } else {
+            await PrivateFiles.readAuthority(lockPath, readerSid: readerSid);
+          }
+        } catch (_) {
+          Error.throwWithStackTrace(createError, createStack);
         }
       }
       // OS lock serializes independent administration processes; the queue above
