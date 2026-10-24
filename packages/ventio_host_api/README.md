@@ -35,6 +35,10 @@ External TLS listeners are supported when explicitly configured, but a productio
   `extension.package.submit` grant and returns `SUBMITTED`, never `APPROVED`.
 - `POST /api/v1/extensions/read`: returns one Host-approved immutable package
   version after rechecking the exact-scope `extension.package.read` grant.
+- `POST /api/v1/extensions/approved`: returns a bounded keyset-paginated list
+  of approved package summaries for the authenticated tenant and exact selected
+  company/branch scope. It never returns package bodies; each selection must
+  use the separately authorized, digest-verified read route.
 - `POST /api/v1/extensions/records/query`: searches or fetches bounded pages of
   records for one Host-approved DocType, using its metadata to validate fields
   and its exact company/branch read grant on every request.

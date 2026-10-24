@@ -81,6 +81,59 @@ BEGIN
     'package',package_row.package_json);
 END $fn$;
 
+-- The runtime can browse approved package summaries only within its current
+-- authenticated tenant/company/branch scope. Package bodies remain behind the
+-- exact-version read function above.
+CREATE OR REPLACE FUNCTION ventio_security.list_approved_extension_packages(
+    p_digest text, p_tenant text, p_company text, p_branch text,
+    p_after_module text, p_after_version text, p_limit integer)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE identity jsonb; entries jsonb; has_more boolean;
+BEGIN
+  IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
+  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 50 OR
+      ((p_after_module IS NULL) <> (p_after_version IS NULL)) OR
+      (p_after_module IS NOT NULL AND (
+        p_after_module !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$' OR
+        length(p_after_module) > 128 OR
+        p_after_version !~ '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+      )) THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_PAGE');
+  END IF;
+  identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
+  IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
+      NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(identity->'scopeGrants') AS g(item)
+        WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+          AND item->>'permission'='extension.package.read'
+      ) THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED');
+  END IF;
+
+  WITH page AS MATERIALIZED (
+    SELECT module_id, version, package_sha256,
+      coalesce(package_json #>> '{manifest,displayName}', module_id) AS display_name,
+      package_json #>> '{manifest,description}' AS description
+    FROM public.ventio_extension_packages
+    WHERE tenant_id=p_tenant AND status='APPROVED'
+      AND (p_after_module IS NULL OR (module_id,version)>(p_after_module,p_after_version))
+    ORDER BY module_id,version
+    LIMIT p_limit + 1
+  ), ranked AS (
+    SELECT *, row_number() OVER (ORDER BY module_id,version) AS position
+    FROM page
+  )
+  SELECT count(*) > p_limit,
+    coalesce(jsonb_agg(jsonb_build_object(
+      'moduleId',module_id,'version',version,'packageSha256',package_sha256,
+      'displayName',display_name,'description',description
+    ) ORDER BY module_id,version) FILTER (WHERE position <= p_limit),'[]'::jsonb)
+    INTO has_more,entries
+  FROM ranked;
+  RETURN jsonb_build_object('status','APPROVED','packages',entries,'hasMore',has_more);
+END $fn$;
+
 -- Bind a read-only record query to a live exact-scope identity and an approved
 -- package. The returned metadata is later hash-checked by the Host process.
 CREATE OR REPLACE FUNCTION ventio_security.resolve_extension_read_identity(

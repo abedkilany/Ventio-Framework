@@ -447,6 +447,119 @@ void main() {
   );
 
   test(
+    'Lists only validated approved package summaries with a bounded cursor',
+    () async {
+      final bundle = _bundle();
+      final packageHash = sha256
+          .convert(utf8.encode(canonicalJson(bundle.toJson())))
+          .toString();
+      final received = Completer<Map<String, dynamic>>();
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        final body = Map<String, dynamic>.from(
+          jsonDecode(await utf8.decoder.bind(request).join()) as Map,
+        );
+        received.complete(body);
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode({
+              'apiVersion': hostApiVersion,
+              'packageResult': {
+                'status': 'APPROVED',
+                'packages': [
+                  {
+                    'moduleId': bundle.moduleId,
+                    'version': bundle.version,
+                    'packageSha256': packageHash,
+                    'displayName': bundle.manifest.displayName,
+                    'description': null,
+                  },
+                ],
+                'hasMore': true,
+              },
+            }),
+          );
+        await request.response.close();
+      });
+      final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(endpoint, token);
+
+      final page =
+          await HostExtensionPackageClient(
+            endpoint: endpoint,
+            credentials: vault,
+          ).listApproved(
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            limit: 1,
+            afterModuleId: 'com.example.before',
+            afterVersion: '2.0.0',
+          );
+      final sent = await received.future;
+      expect(sent['companyId'], 'company-1');
+      expect(sent['branchId'], 'branch-1');
+      expect(sent['limit'], 1);
+      expect(sent['afterModuleId'], 'com.example.before');
+      expect(sent['afterVersion'], '2.0.0');
+      expect(page.hasMore, isTrue);
+      expect(page.packages, hasLength(1));
+      expect(page.packages.single.packageSha256, packageHash);
+      expect(page.nextCursor?.moduleId, bundle.moduleId);
+    },
+  );
+
+  test('Rejects malformed approved registry summaries', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      await request.drain<void>();
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            'packageResult': {
+              'status': 'APPROVED',
+              'packages': [
+                {
+                  'moduleId': '../escape',
+                  'version': '1.0.0',
+                  'packageSha256': List.filled(64, 'a').join(),
+                  'displayName': 'Unsafe summary',
+                  'description': null,
+                },
+              ],
+              'hasMore': false,
+            },
+          }),
+        );
+      await request.response.close();
+    });
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(endpoint, token);
+
+    await expectLater(
+      HostExtensionPackageClient(
+        endpoint: endpoint,
+        credentials: vault,
+      ).listApproved(companyId: 'company-1', branchId: 'branch-1'),
+      throwsA(
+        isA<HostPackageTransportException>().having(
+          (error) => error.code,
+          'code',
+          'HOST_INVALID_RESPONSE',
+        ),
+      ),
+    );
+  });
+
+  test(
     'Rejects a package whose Host digest does not match its metadata',
     () async {
       final bundle = _bundle();

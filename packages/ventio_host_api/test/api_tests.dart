@@ -66,6 +66,19 @@ class FakeExtensionPackageGateway implements ExtensionPackageGateway {
     calls++;
     return {'status': 'APPROVED'};
   }
+
+  @override
+  Future<Map<String, dynamic>> listApproved({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required int limit,
+    String? afterModuleId,
+    String? afterVersion,
+  }) async {
+    calls++;
+    return {'status': 'APPROVED', 'packages': <Object>[], 'hasMore': false};
+  }
 }
 
 Future<void> main() async {
@@ -190,13 +203,20 @@ Future<void> main() async {
         'version': '1.0.0',
       },
     );
+    final packageList = await send(
+      api,
+      path: '/api/v1/extensions/approved',
+      token: validToken,
+      body: {'companyId': 'company-001', 'branchId': 'branch-001', 'limit': 20},
+    );
     check(
       draftTransfer.status == 403 &&
           draftTransfer.body['error']['code'] ==
               'PERSISTENT_IDENTITY_REQUIRED' &&
           packageRead.status == 403 &&
+          packageList.status == 403 &&
           fakePackages.calls == 0,
-      'Package transfer refuses development-only identities before the gateway',
+      'Package transfer and registry reads refuse development-only identities before the gateway',
     );
     check(
       (await send(api, method: 'GET')).status == 405,

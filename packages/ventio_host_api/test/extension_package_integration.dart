@@ -270,6 +270,26 @@ Future<void> main() async {
       },
     );
 
+    Future<Reply> listPackages(
+      String token, {
+      String company = primaryCompany,
+      String branch = primaryBranch,
+      int limit = 50,
+      String? afterModuleId,
+      String? afterVersion,
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/approved',
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'limit': limit,
+        if (afterModuleId != null) 'afterModuleId': afterModuleId,
+        if (afterVersion != null) 'afterVersion': afterVersion,
+      },
+    );
+
     Future<Reply> queryRecords(
       String token, {
       String company = primaryCompany,
@@ -366,6 +386,12 @@ Future<void> main() async {
           404,
       'Candidates are unavailable through the approved-package read endpoint',
     );
+    final candidateRegistry = await listPackages(primaryToken, limit: 10);
+    expect(
+      candidateRegistry.status == 200 &&
+          (candidateRegistry.body['packageResult']['packages'] as List).isEmpty,
+      'Submitted candidates stay hidden from the approved package registry',
+    );
     expect(
       (await submitPackage(readerToken, package)).status == 403,
       'Read-only scoped identity cannot submit a package',
@@ -403,6 +429,53 @@ Future<void> main() async {
           approved.body['packageResult']['status'] == 'APPROVED' &&
           approved.body['packageResult']['packageSha256'] == hash(package),
       'Operator approval makes only the reviewed digest available to scoped clients',
+    );
+    final secondPackage = bundle('com.example.registry_extra', '1.0.0');
+    expect(
+      (await submitPackage(primaryToken, secondPackage)).status == 202,
+      'A second distinct package can be submitted independently',
+    );
+    await packageAdmin.approve(
+      moduleId: secondPackage.moduleId,
+      version: secondPackage.version,
+      packageSha256: hash(secondPackage),
+    );
+    final approvedRegistry = await listPackages(primaryToken, limit: 1);
+    final registryPackages =
+        approvedRegistry.body['packageResult']['packages'] as List;
+    expect(
+      approvedRegistry.status == 200 &&
+          registryPackages.length == 1 &&
+          registryPackages.single['moduleId'] == package.moduleId &&
+          registryPackages.single['version'] == package.version &&
+          registryPackages.single['packageSha256'] == hash(package) &&
+          approvedRegistry.body['packageResult']['hasMore'] == true,
+      'The exact approved digest is discoverable in the first bounded registry page',
+    );
+    final nextRegistryPage = await listPackages(
+      primaryToken,
+      limit: 1,
+      afterModuleId: package.moduleId,
+      afterVersion: package.version,
+    );
+    final nextRegistryPackages =
+        nextRegistryPage.body['packageResult']['packages'] as List;
+    expect(
+      nextRegistryPage.status == 200 &&
+          nextRegistryPackages.length == 1 &&
+          nextRegistryPackages.single['moduleId'] == secondPackage.moduleId &&
+          nextRegistryPackages.single['packageSha256'] == hash(secondPackage) &&
+          nextRegistryPage.body['packageResult']['hasMore'] == false,
+      'The Host registry cursor returns the next approved summary without overlap',
+    );
+    expect(
+      (await listPackages(
+            readerToken,
+            company: primaryCompany,
+            branch: primaryBranch,
+          )).status ==
+          403,
+      'The registry refuses users without package-read permission in the exact branch',
     );
     final createRecord = ExtensionRecordCommand.create(
       commandId: '71000000-0000-4000-8000-000000000001',
@@ -1064,7 +1137,7 @@ Future<void> main() async {
             ),
             parameters: {'tenant': tenant},
           )).single[0] ==
-          5,
+          6,
       'Approval and revocation events remain in the operator audit ledger',
     );
     await observer.execute(

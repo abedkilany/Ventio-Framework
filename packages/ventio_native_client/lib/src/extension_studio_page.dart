@@ -449,22 +449,27 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       _message('Configure an authenticated Host connection first.');
       return;
     }
-    final requested = await showDialog<_HostPackageIdentity>(
+    final client = _hostPackageClient(
+      endpoint: Uri.parse(profile.endpoint),
+      vault: vault,
+    );
+    final requested = await showDialog<HostApprovedPackageSummary>(
       context: context,
-      builder: (context) => const _HostPackageIdentityDialog(),
+      builder: (context) => _HostApprovedPackageDialog(
+        client: client,
+        companyId: profile.companyId,
+        branchId: profile.branchId,
+      ),
     );
     if (requested == null) return;
     try {
-      final bundle =
-          await _hostPackageClient(
-            endpoint: Uri.parse(profile.endpoint),
-            vault: vault,
-          ).readApproved(
-            moduleId: requested.moduleId,
-            version: requested.version,
-            companyId: profile.companyId,
-            branchId: profile.branchId,
-          );
+      final bundle = await client.readApproved(
+        moduleId: requested.moduleId,
+        version: requested.version,
+        companyId: profile.companyId,
+        branchId: profile.branchId,
+        expectedPackageSha256: requested.packageSha256,
+      );
       if (!mounted) return;
       final install = await showDialog<bool>(
         context: context,
@@ -979,92 +984,188 @@ class _HostScopeDialogState extends State<_HostScopeDialog> {
   }
 }
 
-class _HostPackageIdentity {
-  const _HostPackageIdentity(this.moduleId, this.version);
+class _HostApprovedPackageDialog extends StatefulWidget {
+  const _HostApprovedPackageDialog({
+    required this.client,
+    required this.companyId,
+    required this.branchId,
+  });
 
-  final String moduleId;
-  final String version;
+  final HostExtensionPackageClient client;
+  final String companyId;
+  final String branchId;
+
+  @override
+  State<_HostApprovedPackageDialog> createState() =>
+      _HostApprovedPackageDialogState();
 }
 
-class _HostPackageIdentityDialog extends StatefulWidget {
-  const _HostPackageIdentityDialog();
+class _HostApprovedPackageDialogState
+    extends State<_HostApprovedPackageDialog> {
+  static const _pageSize = 30;
+  final _packages = <HostApprovedPackageSummary>[];
+  bool _loading = false;
+  bool _hasMore = true;
+  String? _afterModuleId;
+  String? _afterVersion;
+  String? _error;
 
   @override
-  State<_HostPackageIdentityDialog> createState() =>
-      _HostPackageIdentityDialogState();
-}
-
-class _HostPackageIdentityDialogState
-    extends State<_HostPackageIdentityDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _moduleId = TextEditingController();
-  final _version = TextEditingController(text: '1.0.0');
-
-  @override
-  void dispose() {
-    _moduleId.dispose();
-    _version.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadPage(reset: true);
   }
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(
-      context,
-      _HostPackageIdentity(_moduleId.text.trim(), _version.text.trim()),
-    );
+  Future<void> _loadPage({bool reset = false}) async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      if (reset) {
+        _packages.clear();
+        _afterModuleId = null;
+        _afterVersion = null;
+        _hasMore = true;
+      }
+    });
+    try {
+      final page = await widget.client.listApproved(
+        companyId: widget.companyId,
+        branchId: widget.branchId,
+        limit: _pageSize,
+        afterModuleId: _afterModuleId,
+        afterVersion: _afterVersion,
+      );
+      if (!mounted) return;
+      setState(() {
+        _packages.addAll(page.packages);
+        _hasMore = page.hasMore;
+        final cursor = page.nextCursor;
+        _afterModuleId = cursor?.moduleId;
+        _afterVersion = cursor?.version;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Install approved package from Host'),
-    content: SizedBox(
-      width: 480,
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _moduleId,
-              decoration: const InputDecoration(labelText: 'Module ID'),
-              validator: (value) {
-                final id = value?.trim() ?? '';
-                return RegExp(
-                          r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$',
-                        ).hasMatch(id) &&
-                        id.length <= 128
-                    ? null
-                    : 'Enter a valid extension module ID.';
-              },
-            ),
-            TextFormField(
-              controller: _version,
-              decoration: const InputDecoration(labelText: 'Version'),
-              validator: (value) {
-                try {
-                  semverParts(value?.trim() ?? '');
-                  return null;
-                } catch (_) {
-                  return 'Use a semantic version such as 1.0.0.';
-                }
-              },
-            ),
-          ],
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: SizedBox(
+        width: (size.width - 32).clamp(0.0, 640.0),
+        height: (size.height - 32).clamp(0.0, 620.0),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Approved extensions',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${widget.companyId} / ${widget.branchId}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh approved extensions',
+                    onPressed: _loading ? null : () => _loadPage(reset: true),
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const Divider(),
+              if (_error != null)
+                MaterialBanner(
+                  content: Text(_error!),
+                  actions: [
+                    TextButton(
+                      onPressed: _loading ? null : () => _loadPage(),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              Expanded(
+                child: _packages.isEmpty && !_loading && _error == null
+                    ? const Center(
+                        child: Text(
+                          'No approved extensions are available for this Host scope.',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _packages.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final package = _packages[index];
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
+                            leading: const CircleAvatar(
+                              child: Icon(Icons.extension_outlined),
+                            ),
+                            title: Text(package.displayName),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${package.moduleId} · ${package.version}',
+                                ),
+                                if (package.description?.isNotEmpty == true)
+                                  Text(
+                                    package.description!,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                            ),
+                            isThreeLine:
+                                package.description?.isNotEmpty == true,
+                            trailing: const Icon(Icons.download_outlined),
+                            onTap: () => Navigator.pop(context, package),
+                          );
+                        },
+                      ),
+              ),
+              if (_loading) const LinearProgressIndicator(),
+              if (!_loading && _hasMore)
+                Align(
+                  alignment: Alignment.center,
+                  child: TextButton.icon(
+                    onPressed: () => _loadPage(),
+                    icon: const Icon(Icons.expand_more),
+                    label: const Text('Load more'),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: _submit,
-        child: const Text('Fetch approved package'),
-      ),
-    ],
-  );
+    );
+  }
 }
 
 class _ExtensionBundleImportDialog extends StatefulWidget {

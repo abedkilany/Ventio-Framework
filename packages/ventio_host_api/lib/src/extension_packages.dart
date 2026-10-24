@@ -20,6 +20,15 @@ abstract interface class ExtensionPackageGateway {
     required String moduleId,
     required String version,
   });
+
+  Future<Map<String, dynamic>> listApproved({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required int limit,
+    String? afterModuleId,
+    String? afterVersion,
+  });
 }
 
 /// Marker required when package routes are reachable beyond loopback.

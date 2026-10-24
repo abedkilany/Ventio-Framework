@@ -428,6 +428,7 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint),
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
   ventio_security.read_approved_extension_package(text,text,text,text,text,text),
+  ventio_security.list_approved_extension_packages(text,text,text,text,text,text,integer),
   ventio_security.identity_roles_snapshot(text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),

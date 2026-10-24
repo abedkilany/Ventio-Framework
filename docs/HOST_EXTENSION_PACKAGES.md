@@ -19,6 +19,16 @@ company/branch scope and returns only a release with `APPROVED` status. The Host
 validates the returned metadata and recomputes its canonical SHA-256 before
 returning it. Revoked versions are unavailable to future reads.
 
+`POST /api/v1/extensions/approved` requires the same exact-scope read grant and
+returns at most 50 approved summaries per request. Clients continue with the
+last `(moduleId, version)` pair; both cursor fields must be supplied together.
+The query is tenant-bound, keyset-paginated, and backed by a partial approved
+registry index. Summaries contain identity, display name, description, and the
+immutable package digest, never package JSON. Before installing a selection the
+client fetches that exact version through `/read` and requires its verified
+digest to match the summary, so a changed or revoked release cannot silently
+replace the selected artifact.
+
 `GET /api/v1/session` lets an authenticated client discover its tenant, device,
 and current exact company/branch permission grants. The response contains no
 credential material; the Builder uses it to offer valid Host scopes.
@@ -62,9 +72,11 @@ the repository.
 
 ## Current boundary
 
-The Flutter Builder can submit local bundles as Host candidates and fetch only
-Host-approved releases after authenticating and selecting an exact scope. An
-installed package stays a device-local draft until explicitly activated. The
-Host command engine still handles only explicitly bound trusted commands, and
-dynamic DocType records still use the local store. Record synchronization and
-multi-device conflict resolution are not implemented.
+The Flutter Builder can submit local bundles as Host candidates and browse the
+scoped approved registry. It fetches a selected immutable release, verifies its
+digest, and installs it as a device-local draft until explicitly activated.
+Dynamic DocType records can be queried, changed offline through durable generic
+commands, and reconciled from Host receipts. The Host remains authoritative;
+local installation and metadata declarations never confer package approval or
+Host grants. Background registry polling and automatic package upgrades are not
+implemented.

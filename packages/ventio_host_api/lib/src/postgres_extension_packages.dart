@@ -130,6 +130,53 @@ class PostgresExtensionPackageGateway
       await connection.close();
     }
   }
+
+  @override
+  Future<Map<String, dynamic>> listApproved({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required int limit,
+    String? afterModuleId,
+    String? afterVersion,
+  }) async {
+    final digest = _authorizeSnapshot(
+      session,
+      companyId,
+      branchId,
+      'extension.package.read',
+    );
+    if (limit < 1 ||
+        limit > 50 ||
+        (afterModuleId == null) != (afterVersion == null)) {
+      throw const ContractError('INVALID_PAGE', 'Invalid package page cursor.');
+    }
+    final connection = await connect();
+    try {
+      await _configure(connection);
+      return await connection.runTx((tx) async {
+        await admission.admit(tx);
+        final rows = await tx.execute(
+          pg.Sql.named('''
+          SELECT ventio_security.list_approved_extension_packages(
+            @digest,@tenant,@company,@branch,@after_module,@after_version,@limit)::text
+        '''),
+          parameters: {
+            'digest': digest,
+            'tenant': session.principal.tenantId,
+            'company': companyId,
+            'branch': branchId,
+            'after_module': afterModuleId,
+            'after_version': afterVersion,
+            'limit': limit,
+          },
+        );
+        return _decodeFunctionResult(rows.single[0], 'package registry read');
+      });
+    } finally {
+      await connection.close();
+    }
+  }
 }
 
 String _authorizeSnapshot(

@@ -32,6 +32,15 @@ class _MemoryCredentialBackend implements HostCredentialBackend {
 class _FakeHostPackageClient extends HostExtensionPackageClient {
   _FakeHostPackageClient({required super.endpoint, required super.credentials});
 
+  HostApprovedPackagePage registryPage = HostApprovedPackagePage(
+    packages: const [],
+    hasMore: false,
+  );
+  ExtensionBundle? approvedBundle;
+  String? listedCompany;
+  String? listedBranch;
+  String? expectedDigest;
+
   @override
   Future<HostSessionIdentity> session() async => HostSessionIdentity(
     tenantId: 'tenant-1',
@@ -50,6 +59,39 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
       ),
     ],
   );
+
+  @override
+  Future<HostApprovedPackagePage> listApproved({
+    required String companyId,
+    required String branchId,
+    int limit = 50,
+    String? afterModuleId,
+    String? afterVersion,
+  }) async {
+    listedCompany = companyId;
+    listedBranch = branchId;
+    return registryPage;
+  }
+
+  @override
+  Future<ExtensionBundle> readApproved({
+    required String moduleId,
+    required String version,
+    required String companyId,
+    required String branchId,
+    String? expectedPackageSha256,
+  }) async {
+    final bundle = approvedBundle;
+    if (bundle == null ||
+        bundle.moduleId != moduleId ||
+        bundle.version != version ||
+        (expectedPackageSha256 != null &&
+            expectedPackageSha256 != expectedDigest)) {
+      throw StateError('Unexpected approved package request.');
+    }
+    expectedDigest = expectedPackageSha256;
+    return bundle;
+  }
 }
 
 class _FakeRecordQueryClient extends HostExtensionPackageClient {
@@ -248,6 +290,116 @@ void main() {
     expect(profile?.branchId, 'branch-1');
     expect(backend.values.values, contains(token));
     expect(find.textContaining('Host connected'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Builder browses scoped approved packages and installs a draft', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const moduleId = 'com.example.host_browsed';
+    const permissionPrefix = 'extension.com_example_host_browsed.item';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Host Browsed',
+      description: 'Approved by the configured Host.',
+    );
+    await store.saveDocType({
+      'name': 'Item',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'title',
+          'type': 'text',
+          'required': true,
+          'label': 'Title',
+          'labelKey': '$permissionPrefix.title',
+          'maxLength': 100,
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permissionPrefix.read',
+        'create': '$permissionPrefix.create',
+        'update': '$permissionPrefix.update',
+      },
+      'ui': {
+        'listColumns': ['title'],
+        'formFields': ['title'],
+      },
+      'label': 'Item',
+      'labelKey': permissionPrefix,
+    });
+    final bundle = await store.exportBundle(moduleId);
+    await store.remove(moduleId);
+    final digest = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      actorId: 'user-1',
+      deviceId: 'device-1',
+    );
+    await store.saveHostProfile(profile);
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    final fakeClient =
+        _FakeHostPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+          )
+          ..approvedBundle = bundle
+          ..expectedDigest = digest
+          ..registryPage = HostApprovedPackagePage(
+            packages: [
+              HostApprovedPackageSummary(
+                moduleId: bundle.moduleId,
+                version: bundle.version,
+                packageSha256: digest,
+                displayName: bundle.manifest.displayName,
+                description: null,
+              ),
+            ],
+            hasMore: false,
+          );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) => fakeClient,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Workspace actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Install from Host'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Approved extensions'), findsOneWidget);
+    expect(find.text('Host Browsed'), findsOneWidget);
+    expect(fakeClient.listedCompany, profile.companyId);
+    expect(fakeClient.listedBranch, profile.branchId);
+    await tester.tap(find.text('Host Browsed').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Install Host-approved extension'), findsOneWidget);
+    await tester.tap(find.text('Install on this device'));
+    await tester.pumpAndSettle();
+
+    expect((await store.getExtension(moduleId))?.state, ExtensionState.draft);
+    expect(fakeClient.expectedDigest, digest);
     expect(tester.takeException(), isNull);
   });
 

@@ -93,6 +93,35 @@ class HostExtensionRecordPage {
   final bool hasMore;
 }
 
+class HostApprovedPackageSummary {
+  const HostApprovedPackageSummary({
+    required this.moduleId,
+    required this.version,
+    required this.packageSha256,
+    required this.displayName,
+    required this.description,
+  });
+
+  final String moduleId;
+  final String version;
+  final String packageSha256;
+  final String displayName;
+  final String? description;
+}
+
+class HostApprovedPackagePage {
+  HostApprovedPackagePage({
+    required Iterable<HostApprovedPackageSummary> packages,
+    required this.hasMore,
+  }) : packages = List.unmodifiable(packages);
+
+  final List<HostApprovedPackageSummary> packages;
+  final bool hasMore;
+
+  HostApprovedPackageSummary? get nextCursor =>
+      packages.isEmpty ? null : packages.last;
+}
+
 typedef HostExtensionPackageClientFactory =
     HostExtensionPackageClient Function({
       required Uri endpoint,
@@ -206,6 +235,7 @@ class HostExtensionPackageClient {
     required String version,
     required String companyId,
     required String branchId,
+    String? expectedPackageSha256,
   }) async {
     final response = await _request('POST', '/api/v1/extensions/read', {
       'companyId': companyId,
@@ -230,12 +260,121 @@ class HostExtensionPackageClient {
         bundle.moduleId != moduleId ||
         bundle.version != version ||
         result['packageSha256'] !=
-            sha256.convert(utf8.encode(canonical)).toString()) {
+            sha256.convert(utf8.encode(canonical)).toString() ||
+        (expectedPackageSha256 != null &&
+            result['packageSha256'] != expectedPackageSha256)) {
       throw const HostPackageTransportException(
         'HOST_PACKAGE_INTEGRITY_FAILED',
       );
     }
     return bundle;
+  }
+
+  Future<HostApprovedPackagePage> listApproved({
+    required String companyId,
+    required String branchId,
+    int limit = 50,
+    String? afterModuleId,
+    String? afterVersion,
+  }) async {
+    if (limit < 1 ||
+        limit > 50 ||
+        (afterModuleId == null) != (afterVersion == null)) {
+      throw const HostPackageTransportException('INVALID_PACKAGE_PAGE');
+    }
+    if (afterModuleId != null) {
+      if (!_validModuleId(afterModuleId)) {
+        throw const HostPackageTransportException('INVALID_PACKAGE_PAGE');
+      }
+      try {
+        semverParts(afterVersion!);
+      } on ContractError {
+        throw const HostPackageTransportException('INVALID_PACKAGE_PAGE');
+      }
+    }
+    final body = <String, Object?>{
+      'companyId': companyId,
+      'branchId': branchId,
+      'limit': limit,
+    };
+    if (afterModuleId != null) {
+      body['afterModuleId'] = afterModuleId;
+      body['afterVersion'] = afterVersion;
+    }
+    final response = await _request(
+      'POST',
+      '/api/v1/extensions/approved',
+      body,
+    );
+    final result = _packageResult(response);
+    if (response.statusCode != HttpStatus.ok ||
+        result['status'] != 'APPROVED') {
+      throw _packageError(response, result);
+    }
+    final rawPackages = result['packages'];
+    final hasMore = result['hasMore'];
+    if (result.keys.toSet().difference(const {
+          'status',
+          'packages',
+          'hasMore',
+        }).isNotEmpty ||
+        result.length != 3 ||
+        rawPackages is! List ||
+        hasMore is! bool ||
+        rawPackages.length > limit ||
+        (hasMore && rawPackages.isEmpty)) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    final packages = rawPackages
+        .map((rawPackage) {
+          if (rawPackage is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final item = Map<String, dynamic>.from(rawPackage);
+          if (item.keys.toSet().difference(const {
+                'moduleId',
+                'version',
+                'packageSha256',
+                'displayName',
+                'description',
+              }).isNotEmpty ||
+              item.length != 5) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final moduleId = item['moduleId'];
+          final version = item['version'];
+          final digest = item['packageSha256'];
+          final displayName = item['displayName'];
+          final description = item['description'];
+          if (moduleId is! String ||
+              !_validModuleId(moduleId) ||
+              version is! String ||
+              !_validVersion(version) ||
+              digest is! String ||
+              !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
+              displayName is! String ||
+              displayName.trim().isEmpty ||
+              displayName.length > 120 ||
+              (description != null &&
+                  (description is! String || description.length > 2000))) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          return HostApprovedPackageSummary(
+            moduleId: moduleId,
+            version: version,
+            packageSha256: digest,
+            displayName: displayName,
+            description: description as String?,
+          );
+        })
+        .toList(growable: false);
+    final seen = <String>{};
+    for (final package in packages) {
+      if (!seen.add('${package.moduleId}\u0000${package.version}')) {
+        throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+      }
+    }
+    return HostApprovedPackagePage(packages: packages, hasMore: hasMore);
   }
 
   Future<HostIdentityRoleSnapshot> listRoles({
@@ -659,6 +798,19 @@ String _requiredIdentifier(Object? value) {
     throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
   }
   return value;
+}
+
+bool _validModuleId(String value) =>
+    value.length <= 128 &&
+    RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(value);
+
+bool _validVersion(String value) {
+  try {
+    semverParts(value);
+    return true;
+  } on ContractError {
+    return false;
+  }
 }
 
 class HostPackageTransportException implements Exception {

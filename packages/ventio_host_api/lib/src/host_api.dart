@@ -192,6 +192,7 @@ class HostApi {
     final packageRoute = switch (request.uri.path) {
       '/api/v1/extensions/submit' => 'submit',
       '/api/v1/extensions/read' => 'read',
+      '/api/v1/extensions/approved' => 'list',
       _ => null,
     };
     final recordQueryRoute =
@@ -284,9 +285,9 @@ class HostApi {
         request.headers.value(HttpHeaders.contentEncodingHeader) != null) {
       throw const _ApiError(415, 'UNSUPPORTED_MEDIA_TYPE');
     }
-    final bodyLimit = packageRoute == null
-        ? maxBodyBytes
-        : ExtensionBundle.maxEncodedBytes + 8192;
+    final bodyLimit = packageRoute == 'submit'
+        ? ExtensionBundle.maxEncodedBytes + 8192
+        : maxBodyBytes;
     if (request.contentLength > bodyLimit) {
       throw const _ApiError(413, 'BODY_TOO_LARGE');
     }
@@ -373,11 +374,20 @@ class HostApi {
     AuthenticatedSession session,
   ) async {
     final gateway = _extensionPackages!;
-    final allowedKeys = operation == 'submit'
-        ? const {'companyId', 'branchId', 'package'}
-        : const {'companyId', 'branchId', 'moduleId', 'version'};
-    if (json.keys.any((key) => !allowedKeys.contains(key)) ||
-        json.keys.toSet().length != allowedKeys.length) {
+    final requiredKeys = switch (operation) {
+      'submit' => const {'companyId', 'branchId', 'package'},
+      'read' => const {'companyId', 'branchId', 'moduleId', 'version'},
+      _ => const {'companyId', 'branchId', 'limit'},
+    };
+    final optionalKeys = operation == 'list'
+        ? const {'afterModuleId', 'afterVersion'}
+        : const <String>{};
+    if (json.keys.any(
+          (key) => !requiredKeys.contains(key) && !optionalKeys.contains(key),
+        ) ||
+        !requiredKeys.every(json.containsKey) ||
+        (json.containsKey('afterModuleId') !=
+            json.containsKey('afterVersion'))) {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
     final companyId = _boundedIdentifier(json, 'companyId');
@@ -403,7 +413,7 @@ class HostApi {
         branchId: branchId,
         bundle: bundle,
       );
-    } else {
+    } else if (operation == 'read') {
       final moduleId = _boundedIdentifier(json, 'moduleId');
       if (!RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
           moduleId.length > 128) {
@@ -416,6 +426,25 @@ class HostApi {
         moduleId: moduleId,
         version: _boundedIdentifier(json, 'version'),
       );
+    } else {
+      final limit = json['limit'];
+      if (limit is! int || limit < 1 || limit > 50) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final afterModuleId = json['afterModuleId'];
+      final afterVersion = json['afterVersion'];
+      if ((afterModuleId != null && afterModuleId is! String) ||
+          (afterVersion != null && afterVersion is! String)) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      result = await gateway.listApproved(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        limit: limit,
+        afterModuleId: afterModuleId as String?,
+        afterVersion: afterVersion as String?,
+      );
     }
     final resultStatus = result['status'];
     final statusCode = switch (resultStatus) {
@@ -425,6 +454,7 @@ class HostApi {
       'REJECTED' => switch (result['reasonCode']) {
         'PERMISSION_DENIED' => 403,
         'PACKAGE_NOT_APPROVED' || 'PACKAGE_UNAVAILABLE' => 404,
+        'INVALID_PAGE' => 400,
         _ => 422,
       },
       _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
