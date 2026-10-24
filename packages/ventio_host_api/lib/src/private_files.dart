@@ -90,14 +90,22 @@ else:
       '$readerGid',
     ]);
     final output = process.stdout.transform(utf8.decoder).join();
-    final errors = process.stderr.drain<void>();
+    final errors = process.stderr.transform(utf8.decoder).join();
+    var failureClass = 'unknown';
     Future<String> perform() async {
       process.stdin.write(data);
       await process.stdin.close();
       final code = await process.exitCode;
-      await errors;
+      final diagnostics = await errors;
       final result = await output;
-      if (code != 0) throw StateError('Private storage operation failed');
+      if (code != 0) {
+        failureClass =
+            RegExp(
+              r'(?m)^([A-Za-z_][A-Za-z0-9_]*):',
+            ).firstMatch(diagnostics)?.group(1) ??
+            'unknown';
+        throw StateError('Private storage operation failed');
+      }
       return result;
     }
 
@@ -110,7 +118,9 @@ else:
       // expose interpreter exception text / secret contents to callers.
       await errors;
       await output;
-      throw StateError('Private storage operation failed');
+      throw StateError(
+        'Private storage operation failed ($operation, $failureClass)',
+      );
     }
   }
 
