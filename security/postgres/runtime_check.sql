@@ -55,7 +55,8 @@ BEGIN
       RAISE EXCEPTION 'Unexpected destructive runtime privilege';
     END IF;
     FOR c IN SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = t LOOP
-      IF NOT (t = 'ventio_command_journal' AND c.column_name = 'receipt') AND
+      IF NOT (t = 'ventio_command_journal' AND
+          c.column_name IN ('receipt', 'scope_cursor')) AND
           has_column_privilege(current_user, 'public.' || t, c.column_name, 'UPDATE') THEN
         RAISE EXCEPTION 'Unexpected runtime UPDATE privilege';
       END IF;

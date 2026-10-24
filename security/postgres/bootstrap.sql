@@ -230,7 +230,7 @@ CREATE POLICY runtime_insert ON public.ventio_outbox FOR INSERT TO ventio_runtim
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'outbox_write', command_id));
 GRANT SELECT, INSERT ON public.ventio_records, public.ventio_command_journal,
   public.ventio_audit_entries, public.ventio_outbox TO ventio_runtime;
-GRANT UPDATE (receipt) ON public.ventio_command_journal TO ventio_runtime;
+GRANT UPDATE (receipt, scope_cursor) ON public.ventio_command_journal TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
 \ir schema_profile.sql

@@ -178,7 +178,9 @@ class DurableCommandHost {
           // Serialize accepted commits within this exact tenant/company/branch
           // scope. PostgreSQL sequences are allocated before commit and can be
           // observed out of order, so they cannot safely serve as sync cursors.
-          // A transaction advisory lock is released only at commit/rollback.
+          // The cursor index makes the latest committed scope cursor an indexed
+          // lookup instead of rescanning every JSON receipt. The transaction
+          // advisory lock is released only at commit/rollback.
           final scopeKey = jsonEncode([
             command.tenantId,
             command.companyId,
@@ -242,15 +244,11 @@ class DurableCommandHost {
             );
           }
           final cursorRows = await tx.execute(
-            pg.Sql.named(r'''
-          SELECT (coalesce(
-            max(regexp_replace(receipt->>'scopeCursor', '^scope-v1-', '')::numeric),
-            0
-          ) + 1)::text AS next_cursor
+            pg.Sql.named('''
+          SELECT (coalesce(max(scope_cursor), 0) + 1)::text AS next_cursor
           FROM ventio_command_journal
           WHERE tenant_id = @tenant AND company_id = @company
-            AND branch_id = @branch
-            AND receipt->>'scopeCursor' ~ '^scope-v1-[0-9]{1,19}$'
+            AND branch_id = @branch AND scope_cursor IS NOT NULL
         '''),
             parameters: {
               'tenant': command.tenantId,
@@ -258,7 +256,8 @@ class DurableCommandHost {
               'branch': command.branchId,
             },
           );
-          final scopeCursor = 'scope-v1-${cursorRows.single[0]}';
+          final cursorValue = cursorRows.single[0] as String;
+          final scopeCursor = 'scope-v1-$cursorValue';
           final record = await tx.execute(
             pg.Sql.named('''
           INSERT INTO ventio_records
@@ -369,11 +368,13 @@ class DurableCommandHost {
           ).toJson();
           await tx.execute(
             pg.Sql.named('''
-          UPDATE ventio_command_journal SET receipt = CAST(@receipt AS jsonb)
+          UPDATE ventio_command_journal
+          SET scope_cursor = @cursor, receipt = CAST(@receipt AS jsonb)
           WHERE tenant_id = @tenant AND command_id = @command
         '''),
             parameters: {
               'receipt': jsonEncode(receipt),
+              'cursor': int.parse(cursorValue),
               'tenant': command.tenantId,
               'command': command.commandId,
             },

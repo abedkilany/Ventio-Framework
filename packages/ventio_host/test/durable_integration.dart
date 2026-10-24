@@ -142,6 +142,19 @@ Future<void> main() async {
       received['scopeCursor'] == 'scope-v1-1',
       'The first accepted command exposes the first scope cursor',
     );
+    final storedCursor = await conn.execute(
+      pg.Sql.named('''
+        SELECT scope_cursor, receipt->>'scopeCursor' AS receipt_cursor
+        FROM ventio_command_journal
+        WHERE tenant_id = @tenant AND command_id = @command
+      '''),
+      parameters: {'tenant': scope, 'command': first.commandId},
+    );
+    check(
+      storedCursor.single.toColumnMap()['scope_cursor'] == 1 &&
+          storedCursor.single.toColumnMap()['receipt_cursor'] == 'scope-v1-1',
+      'The indexed numeric cursor matches its durable receipt',
+    );
     check(
       await _count(conn, 'ventio_records', scope) == 1,
       'Business record was committed',
@@ -377,6 +390,18 @@ Future<void> main() async {
           await _count(conn, 'ventio_audit_entries', scope) == 6 &&
           await _count(conn, 'ventio_outbox', scope) == 6,
       'Record, journal, audit and outbox counts agree after concurrency',
+    );
+    final committedCursors = await conn.execute(
+      pg.Sql.named('''
+        SELECT array_agg(scope_cursor ORDER BY scope_cursor)
+        FROM ventio_command_journal
+        WHERE tenant_id = @tenant AND scope_cursor IS NOT NULL
+      '''),
+      parameters: {'tenant': scope},
+    );
+    check(
+      canonicalJson(committedCursors.single[0]) == '[1,2,3,4,5,6]',
+      'Only committed accepted commands advance the durable cursor sequence',
     );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {

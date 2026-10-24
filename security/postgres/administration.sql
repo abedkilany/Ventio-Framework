@@ -61,7 +61,9 @@ BEGIN
         RAISE EXCEPTION 'Extension approval must advance the release version';
       END IF;
       FOR dependency IN
-        SELECT key, value FROM jsonb_each_text(package_row.package_json->'dependencyVersions')
+        SELECT dependency_entry.key, dependency_entry.value
+        FROM jsonb_each_text(package_row.package_json->'dependencyVersions')
+          AS dependency_entry(key, value)
       LOOP
         minimum_version := dependency.value;
         IF minimum_version !~ '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' OR
