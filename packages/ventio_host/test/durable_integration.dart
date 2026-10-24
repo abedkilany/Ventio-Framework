@@ -139,8 +139,8 @@ Future<void> main() async {
     final received = await firstHost.execute(first, principal);
     check(received['status'] == 'ACCEPTED', 'First command is committed');
     check(
-      received['scopeCursor'] == null,
-      'No unsafe commit-order cursor exposed',
+      received['scopeCursor'] == 'scope-v1-1',
+      'The first accepted command exposes the first scope cursor',
     );
     check(
       await _count(conn, 'ventio_records', scope) == 1,
@@ -240,10 +240,23 @@ Future<void> main() async {
       record: 'dependent',
       dependencies: [first.commandId],
     );
+    final dependentReceipt = await firstHost.execute(
+      dependent,
+      _principal(dependent),
+    );
     check(
-      (await firstHost.execute(dependent, _principal(dependent)))['status'] ==
-          'ACCEPTED',
+      dependentReceipt['status'] == 'ACCEPTED',
       'Accepted dependencies permit later commands',
+    );
+    check(
+      dependentReceipt['scopeCursor'] == 'scope-v1-2',
+      'The accepted scope cursor advances in commit order',
+    );
+    check(
+      canonicalJson(
+              await firstHost.execute(dependent, _principal(dependent))) ==
+          canonicalJson(dependentReceipt),
+      'A successful retry retains its original scope cursor',
     );
     final pending = _command(
       maintenanceJson,
@@ -259,13 +272,17 @@ Future<void> main() async {
 
     final inspectionJson = loadJsonFile('$inspectionPath/create_command.json');
     final inspection = _command(inspectionJson, scope, record: 'inspection-1');
+    final inspectionReceipt = await secondHost.execute(
+      inspection,
+      _principal(inspection),
+    );
     check(
-      (await secondHost.execute(
-            inspection,
-            _principal(inspection),
-          ))['status'] ==
-          'ACCEPTED',
+      inspectionReceipt['status'] == 'ACCEPTED',
       'A separate business module uses the same transaction engine',
+    );
+    check(
+      inspectionReceipt['scopeCursor'] == 'scope-v1-3',
+      'The cursor is shared by accepted commands across modules in one scope',
     );
 
     final failCommand = _command(maintenanceJson, scope, record: 'rollback');
@@ -311,13 +328,17 @@ Future<void> main() async {
           await _count(conn, 'ventio_outbox', scope) == 3,
       'Failed transaction rolls back journal, audit and outbox',
     );
+    final retryAfterRollback = await firstHost.execute(
+      failCommand,
+      _principal(failCommand),
+    );
     check(
-      (await firstHost.execute(
-            failCommand,
-            _principal(failCommand),
-          ))['status'] ==
-          'ACCEPTED',
+      retryAfterRollback['status'] == 'ACCEPTED',
       'Same command can safely retry after transaction rollback',
+    );
+    check(
+      retryAfterRollback['scopeCursor'] == 'scope-v1-4',
+      'A rolled-back transaction does not consume a cursor',
     );
 
     final concurrent = _command(maintenanceJson, scope, record: 'concurrent-1');

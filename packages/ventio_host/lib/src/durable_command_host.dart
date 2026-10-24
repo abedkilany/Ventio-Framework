@@ -39,13 +39,14 @@ class DurableCommandHost {
     String status,
     String reason, {
     int? currentRevision,
-  }) => CommandReceipt(
-    commandId: command.commandId,
-    status: status,
-    reasonCode: reason,
-    messageKey: 'core.error.${reason.toLowerCase()}',
-    currentRevision: currentRevision,
-  ).toJson();
+  }) =>
+      CommandReceipt(
+        commandId: command.commandId,
+        status: status,
+        reasonCode: reason,
+        messageKey: 'core.error.${reason.toLowerCase()}',
+        currentRevision: currentRevision,
+      ).toJson();
 
   /// Runs the whole accepted effect, receipt, audit and outbox atomically.
   ///
@@ -56,7 +57,8 @@ class DurableCommandHost {
   Future<Map<String, dynamic>> execute(
     CommandEnvelope command,
     Principal authenticatedPrincipal,
-  ) => executeAuthorized(command, (_) async => authenticatedPrincipal);
+  ) =>
+      executeAuthorized(command, (_) async => authenticatedPrincipal);
 
   /// Persistent adapters resolve current identity and exact-scope permissions
   /// here, under this transaction, before journal access even on retries.
@@ -67,9 +69,8 @@ class DurableCommandHost {
     Future<Principal?> Function(pg.TxSession tx) resolvePrincipal,
   ) async {
     // Both payload and client context are covered by the idempotency digest.
-    final fingerprint = sha256
-        .convert(utf8.encode(canonicalJson(command.original)))
-        .toString();
+    final fingerprint =
+        sha256.convert(utf8.encode(canonicalJson(command.original))).toString();
 
     try {
       final result = await connection.runTx(
@@ -175,6 +176,23 @@ class DurableCommandHost {
                 as Map<String, dynamic>;
           }
 
+          // Serialize accepted commits within this exact tenant/company/branch
+          // scope. PostgreSQL sequences are allocated before commit and can be
+          // observed out of order, so they cannot safely serve as sync cursors.
+          // A transaction advisory lock is released only at commit/rollback.
+          final scopeKey = jsonEncode([
+            command.tenantId,
+            command.companyId,
+            command.branchId,
+          ]);
+          await tx.execute(
+            pg.Sql.named('''
+          SELECT pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtextextended(@scope_key, 0))
+        '''),
+            parameters: {'scope_key': scopeKey},
+          );
+
           // Evaluate all mutable state under this same transaction. Throw to
           // roll back the journal reservation on every unsuccessful command.
           if (command.moduleVersion != module.version ||
@@ -200,9 +218,8 @@ class DurableCommandHost {
             );
             if (rows.isEmpty ||
                 (jsonDecode(
-                          rows.single.toColumnMap()['stored_receipt'] as String,
-                        )
-                        as Map<String, dynamic>)['status'] !=
+                      rows.single.toColumnMap()['stored_receipt'] as String,
+                    ) as Map<String, dynamic>)['status'] !=
                     'ACCEPTED') {
               throw _RejectedCommand(
                 _failure(command, 'RETRY_LATER', 'DEPENDENCY_PENDING'),
@@ -224,6 +241,24 @@ class DurableCommandHost {
               _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
             );
           }
+          final cursorRows = await tx.execute(
+            pg.Sql.named(r'''
+          SELECT (coalesce(
+            max(regexp_replace(receipt->>'scopeCursor', '^scope-v1-', '')::numeric),
+            0
+          ) + 1)::text AS next_cursor
+          FROM ventio_command_journal
+          WHERE tenant_id = @tenant AND company_id = @company
+            AND branch_id = @branch
+            AND receipt->>'scopeCursor' ~ '^scope-v1-[0-9]{1,19}$'
+        '''),
+            parameters: {
+              'tenant': command.tenantId,
+              'company': command.companyId,
+              'branch': command.branchId,
+            },
+          );
+          final scopeCursor = 'scope-v1-${cursorRows.single[0]}';
           final record = await tx.execute(
             pg.Sql.named('''
           INSERT INTO ventio_records
@@ -263,9 +298,8 @@ class DurableCommandHost {
                 command,
                 'CONFLICT',
                 'RECORD_ALREADY_EXISTS',
-                currentRevision: previous.isEmpty
-                    ? null
-                    : previous.single[0] as int,
+                currentRevision:
+                    previous.isEmpty ? null : previous.single[0] as int,
               ),
             );
           }
@@ -329,8 +363,8 @@ class DurableCommandHost {
             commandId: command.commandId,
             status: 'ACCEPTED',
             hostRevision: 1,
+            scopeCursor: scopeCursor,
             output: {'serverRecordId': command.aggregateId},
-            // No scopeCursor yet: sequence IDs need not reflect commit order.
           ).toJson();
           await tx.execute(
             pg.Sql.named('''

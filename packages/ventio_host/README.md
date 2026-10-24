@@ -14,14 +14,20 @@ identical after reconnecting or restarting the Host process.
 On a failure before commit, PostgreSQL rolls back every write. If the commit
 outcome is unknown (e.g. network interruption), clients must retry the **same**
 command ID and byte-equivalent logical envelope; never generate a new ID for
-that attempt. An accepted command returns no sync cursor yet because outbox
-identity IDs do not establish commit order across transactions.
+that attempt. An accepted command returns an opaque scope-local cursor. The
+Host takes a transaction-scoped advisory lock for the exact
+tenant/company/branch and advances the cursor from committed journal receipts.
+The lock is released only at commit or rollback, so concurrent commits in one
+scope cannot publish a cursor out of order. A rollback does not consume a
+cursor. The durable journal must retain accepted receipts for as long as
+clients may resume from a cursor.
 
 ## Boundaries
 
 - Only accepted commands are journaled; rejections remain transient.
-- No public HTTP API, credential verification, durable permission-store,
-  financial posting, arbitrary third-party executable code or sync ordering.
+- No financial posting or arbitrary third-party executable code.
+- The cursor orders accepted commands within a scope; this does not yet provide
+  an authorized snapshot/delta feed or complete record synchronization.
 - Tenant/company/branch query scoping is enforced by application SQL, **not**
   by PostgreSQL RLS in this initial slice.
 - This first slice is intentionally a generic **operational create** executor,
