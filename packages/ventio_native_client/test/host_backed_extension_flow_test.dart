@@ -98,11 +98,24 @@ void main() {
         expect(firstSession.scopes.single.companyId, companyId);
         expect(firstSession.scopes.single.branchId, branchId);
 
+        final registryPage = await firstPackageClient.listApproved(
+          companyId: companyId!,
+          branchId: branchId!,
+          limit: 10,
+        );
+        final listedRelease = registryPage.packages.singleWhere(
+          (package) =>
+              package.moduleId == moduleId && package.version == firstVersion,
+        );
+        expect(registryPage.hasMore, isFalse);
+        expect(listedRelease.packageSha256, isNotEmpty);
+
         final initialBundle = await firstPackageClient.readApproved(
           moduleId: moduleId,
           version: firstVersion,
-          companyId: companyId!,
-          branchId: branchId!,
+          companyId: companyId,
+          branchId: branchId,
+          expectedPackageSha256: listedRelease.packageSha256,
         );
         firstStore = await LocalExtensionStore.open(
           factory: databaseFactoryFfi,
