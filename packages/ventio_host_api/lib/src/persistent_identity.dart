@@ -20,7 +20,7 @@ Future<void> _configure(pg.Connection connection) async {
 
 /// Resolves an opaque token from PostgreSQL on EVERY HTTP request. There is no
 /// in-memory permission cache or development-identity fallback on DB failure.
-class PersistentTokenAuthenticator implements HostAuthenticator {
+class PersistentTokenAuthenticator implements PersistentHostAuthenticator {
   final Future<pg.Connection> Function() connect;
   final RecoveryAuthority? admission;
   const PersistentTokenAuthenticator({required this.connect, this.admission});
@@ -52,7 +52,7 @@ class PersistentTokenAuthenticator implements HostAuthenticator {
 /// Identity and permissions are re-read and locked INSIDE the command's own
 /// transaction, before journal access. This closes the authentication-to-command
 /// race and applies equally to fresh commands and accepted-receipt retries.
-class PersistentCommandExecutor implements CommandExecutor {
+class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
   final Future<pg.Connection> Function() connect;
   final ModuleRegistry modules;
   final DocTypeRegistry docTypes;

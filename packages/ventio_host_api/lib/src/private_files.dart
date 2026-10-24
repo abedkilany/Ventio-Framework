@@ -24,14 +24,16 @@ if runtime and (expected==os.geteuid() or os.access(parent,os.W_OK)):
 def check(st):
     if not stat.S_ISREG(st.st_mode) or st.st_uid!=expected or st.st_mode & mask:
         raise RuntimeError('protected regular file required')
-if op=='read':
+if op=='read' or op=='verify':
     # NONBLOCK avoids hanging before fstat on a FIFO/device supplied by mistake.
     fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
     check(os.fstat(fd))
     if runtime and os.access(path,os.W_OK): raise RuntimeError('Host can write witness')
-    data=os.read(fd,1048577);os.close(fd)
-    if len(data)>1048576: raise RuntimeError('file too large')
-    sys.stdout.buffer.write(data)
+    if op=='read':
+        data=os.read(fd,1048577)
+        if len(data)>1048576: raise RuntimeError('file too large')
+        sys.stdout.buffer.write(data)
+    os.close(fd)
 else:
     data=sys.stdin.buffer.read(1048577)
     if len(data)>1048576: raise RuntimeError('file too large')
@@ -127,6 +129,11 @@ else:
   }
 
   static Future<String> read(String path) => _run('read', path, '');
+
+  static Future<void> verifyPrivateFile(String path) async {
+    await _run('verify', path, '');
+  }
+
   static Future<void> create(String path, Object value) async {
     await _run('create', path, jsonEncode(value));
   }

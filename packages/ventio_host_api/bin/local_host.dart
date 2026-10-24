@@ -6,7 +6,7 @@ import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
 /// Persistent identity launcher. No development identity file or bypass.
-/// Binding remains hard-coded to loopback; public deployment is unsupported.
+/// Cleartext remains loopback-only; external listeners require TLS files.
 Future<void> main() async {
   if (Platform.environment['VENTIO_ENABLE_LOCAL_HOST'] != 'yes') {
     stderr.writeln('Local Host requires explicit opt-in.');
@@ -46,8 +46,31 @@ Future<void> main() async {
       await probe.close();
     }
     final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
+    final addressText =
+        Platform.environment['VENTIO_HOST_BIND_ADDRESS'] ?? '127.0.0.1';
+    final address = InternetAddress.tryParse(addressText);
+    if (address == null) throw StateError('Invalid Host bind address');
+    SecurityContext? tlsContext;
+    if (!address.isLoopback) {
+      final certificate =
+          Platform.environment['VENTIO_HOST_TLS_CERTIFICATE_FILE'];
+      final privateKey =
+          Platform.environment['VENTIO_HOST_TLS_PRIVATE_KEY_FILE'];
+      if (certificate == null ||
+          privateKey == null ||
+          !File(certificate).isAbsolute ||
+          !File(privateKey).isAbsolute) {
+        throw StateError('External Host requires absolute TLS certificate files');
+      }
+      await PrivateFiles.verifyPrivateFile(privateKey);
+      tlsContext = SecurityContext()
+        ..useCertificateChain(certificate)
+        ..usePrivateKey(privateKey);
+    }
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
+      listenAddress: address,
+      tlsContext: tlsContext,
       authenticator: PersistentTokenAuthenticator(
         connect: connect,
         admission: admission,
@@ -62,7 +85,10 @@ Future<void> main() async {
         ],
       ),
     );
-    stdout.writeln('Persistent local Host listening on 127.0.0.1:${api.port}');
+    final scheme = address.isLoopback ? 'http' : 'https';
+    stdout.writeln(
+      'Persistent Host listening on $scheme://$addressText:${api.port}',
+    );
   } catch (_) {
     stderr.writeln(
       'Local Host startup failed. Check private server configuration.',

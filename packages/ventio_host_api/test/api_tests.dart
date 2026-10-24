@@ -36,7 +36,59 @@ class FakeExecutor implements CommandExecutor {
   }
 }
 
+class FakePersistentAuthenticator implements PersistentHostAuthenticator {
+  @override
+  Future<AuthenticatedSession?> authenticate(String token) async => null;
+}
+
 Future<void> main() async {
+  var cleartextExternalRejected = false;
+  try {
+    await HostApi.bind(
+      listenAddress: InternetAddress.anyIPv4,
+      authenticator: authenticator('external-cleartext-test'),
+      executor: FakeExecutor(),
+    );
+  } on ArgumentError {
+    cleartextExternalRejected = true;
+  }
+  check(
+    cleartextExternalRejected,
+    'An external cleartext Host listener is rejected',
+  );
+
+  var developmentExternalTlsRejected = false;
+  try {
+    await HostApi.bind(
+      listenAddress: InternetAddress.anyIPv4,
+      tlsContext: SecurityContext(withTrustedRoots: true),
+      authenticator: authenticator('external-development-test'),
+      executor: FakeExecutor(),
+    );
+  } on ArgumentError {
+    developmentExternalTlsRejected = true;
+  }
+  check(
+    developmentExternalTlsRejected,
+    'Development credentials cannot back an external TLS Host listener',
+  );
+
+  var nonAuthoritativeExecutorRejected = false;
+  try {
+    await HostApi.bind(
+      listenAddress: InternetAddress.anyIPv4,
+      tlsContext: SecurityContext(withTrustedRoots: true),
+      authenticator: FakePersistentAuthenticator(),
+      executor: FakeExecutor(),
+    );
+  } on ArgumentError {
+    nonAuthoritativeExecutorRejected = true;
+  }
+  check(
+    nonAuthoritativeExecutorRejected,
+    'An external TLS listener rejects non-authoritative executors',
+  );
+
   final executor = FakeExecutor();
   final api = await HostApi.bind(
     authenticator: authenticator('api-test'),

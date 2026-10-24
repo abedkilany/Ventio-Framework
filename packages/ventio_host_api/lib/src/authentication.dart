@@ -9,6 +9,11 @@ abstract interface class HostAuthenticator {
   Future<AuthenticatedSession?> authenticate(String token);
 }
 
+/// Marker for authenticators that resolve current identity and permissions
+/// from the authoritative persistent Host store on each request.
+abstract interface class PersistentHostAuthenticator
+    implements HostAuthenticator {}
+
 /// A server-authenticated snapshot. Persistent execution MUST re-resolve the
 /// digest inside the command transaction; this snapshot is never authority.
 class AuthenticatedSession {

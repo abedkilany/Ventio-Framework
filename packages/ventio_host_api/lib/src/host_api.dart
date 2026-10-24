@@ -14,9 +14,13 @@ abstract interface class CommandExecutor {
   );
 }
 
+/// Executor whose accepted effects use the authoritative durable Host store.
+abstract interface class AuthoritativeCommandExecutor
+    implements CommandExecutor {}
+
 /// Versioned HTTP routing, validation, and authenticated command dispatch.
-/// Intentionally binds only IPv4 loopback: development authentication is not a
-/// production identity lifecycle. No configuration flag weakens this boundary.
+/// Cleartext is limited to loopback. Any external listener requires TLS and
+/// persistent Host identity resolution.
 class HostApi {
   final HttpServer _server;
   final HostAuthenticator _authenticator;
@@ -51,6 +55,8 @@ class HostApi {
   static Future<HostApi> bind({
     required HostAuthenticator authenticator,
     required CommandExecutor executor,
+    InternetAddress? listenAddress,
+    SecurityContext? tlsContext,
     int port = 0,
     int maxBodyBytes = 65536,
     int maxConcurrentRequests = 16,
@@ -61,7 +67,18 @@ class HostApi {
         bodyTimeout <= Duration.zero) {
       throw ArgumentError('Resource limits must be positive');
     }
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    final address = listenAddress ?? InternetAddress.loopbackIPv4;
+    if (!address.isLoopback &&
+        (tlsContext == null ||
+            authenticator is! PersistentHostAuthenticator ||
+            executor is! AuthoritativeCommandExecutor)) {
+      throw ArgumentError(
+        'External Host listeners require TLS and authoritative Host services.',
+      );
+    }
+    final server = tlsContext == null
+        ? await HttpServer.bind(address, port)
+        : await HttpServer.bindSecure(address, port, tlsContext);
     return HostApi._(
       server,
       authenticator,

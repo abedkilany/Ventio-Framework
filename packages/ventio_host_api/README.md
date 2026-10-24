@@ -58,10 +58,18 @@ company/branch pairs. A single-pair development identity can omit `scopeGrants`;
 multiple pairs must declare each exact pair and its permissions explicitly.
 Device identity here is token-bound, not hardware attestation.
 
-`HostApi.bind` always binds `127.0.0.1`; it has no external-bind switch, production
-mode, or unauthenticated default. Do not expose it through a public proxy or tunnel.
-There is no TLS on this local development listener. Production authentication,
-TLS, durable policy/device lifecycle and deployment configuration are future gates.
+`HostApi.bind` defaults to `127.0.0.1`. It rejects an external listener unless a
+TLS `SecurityContext`, persistent Host authenticator and authoritative command
+executor are supplied. The
+`local_host.dart` launcher accepts `VENTIO_HOST_BIND_ADDRESS` for an explicit
+listener and requires absolute `VENTIO_HOST_TLS_CERTIFICATE_FILE` and
+`VENTIO_HOST_TLS_PRIVATE_KEY_FILE` paths for non-loopback addresses. The current
+private-file authority implementation is Linux-only, so this launcher does not
+yet provide a supported Windows Host service. The certificate must match the DNS
+name or IP used by clients. The key is checked as an owner-only file before use.
+Do not forward a development listener through a proxy or tunnel. TLS transport
+does not by itself provide enrollment, automated certificate rotation, or a
+Windows service installer.
 
 ## Run locally
 
@@ -79,6 +87,10 @@ Set these private environment variables:
 - `VENTIO_DEVELOPMENT_IDENTITY_FILE`: absolute path to a private JSON file outside
   the repository. Restrict access using operating-system file permissions.
 - `VENTIO_HOST_PORT`: optional, defaults to 8080; 0 chooses an available port.
+- `VENTIO_HOST_BIND_ADDRESS`: optional, defaults to `127.0.0.1`. Use a specific
+  interface address for a remote Host; wildcard addresses still require TLS.
+- `VENTIO_HOST_TLS_CERTIFICATE_FILE` and `VENTIO_HOST_TLS_PRIVATE_KEY_FILE`:
+  required absolute paths for any non-loopback listener.
 
 Private identity file structure (all values are illustrative, not credentials):
 
