@@ -250,9 +250,9 @@ BEGIN
     END IF;
     RETURN false;
   END IF;
-  SELECT * INTO binding FROM ventio_security.command_bindings
-    WHERE command_type = current_setting('ventio.command_type', true)
-      AND command_version::text = current_setting('ventio.command_version', true);
+  SELECT b.* INTO binding FROM ventio_security.command_bindings AS b
+    WHERE b.command_type = current_setting('ventio.command_type', true)
+      AND b.command_version::text = current_setting('ventio.command_version', true);
   IF NOT FOUND THEN RETURN false; END IF;
   identity := ventio_security.identity_snapshot(nullif(current_setting('ventio.credential_digest', true), ''), p_company, p_branch);
   IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
