@@ -129,6 +129,20 @@ Future<void> main() async {
       branch: secondaryBranch,
       permissions: const ['extension.package.read'],
     );
+    final secondaryPublisherToken = await provision(
+      actor: 'secondary-publisher',
+      device: 'secondary-publisher-device',
+      credential: 'secondary-publisher-credential',
+      company: secondaryCompany,
+      branch: secondaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_registry.item.read',
+        'extension.com_example_registry.item.create',
+        'extension.com_example_registry.item.update',
+      ],
+      registerBranch: false,
+    );
     final updateOnlyToken = await provision(
       actor: 'update-only',
       device: 'update-only-device',
@@ -215,6 +229,14 @@ Future<void> main() async {
                 'labelKey': fieldKey,
                 'maxLength': 80,
               },
+              {
+                'name': 'parent',
+                'type': 'reference',
+                'referenceTo': 'Item',
+                'required': false,
+                'label': 'Parent item',
+                'labelKey': '$typeKey.parent',
+              },
             ],
             'ui': {
               'listColumns': ['title'],
@@ -223,7 +245,12 @@ Future<void> main() async {
           },
         ],
         'dependencyVersions': dependencies,
-        'englishCatalog': {nameKey: title, typeKey: 'Item', fieldKey: title},
+        'englishCatalog': {
+          nameKey: title,
+          typeKey: 'Item',
+          fieldKey: title,
+          '$typeKey.parent': 'Parent item',
+        },
       };
     }
 
@@ -534,7 +561,7 @@ Future<void> main() async {
       moduleVersion: package.version,
       docType: 'Item',
       schemaVersion: 1,
-      values: {'title': 'Second item'},
+      values: {'title': 'Second item', 'parent': 'registry-item-1'},
     );
     expect(
       (await send(
@@ -544,6 +571,100 @@ Future<void> main() async {
           )).body['receipt']['status'] ==
           'ACCEPTED',
       'A second generic record is accepted under the same approved DocType',
+    );
+    final missingReference = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000008',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-missing-parent',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Missing parent', 'parent': 'not-present'},
+    );
+    final missingReferenceReply = await send(
+      api,
+      token: primaryToken,
+      body: missingReference.envelope.original,
+    );
+    expect(
+      missingReferenceReply.status == 422 &&
+          missingReferenceReply.body['receipt']['reasonCode'] ==
+              'INVALID_REFERENCE',
+      'Host rejects a reference to a nonexistent record',
+    );
+
+    final foreignBranchTarget = ExtensionRecordCommand.create(
+      commandId: '72000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: secondaryCompany,
+      branchId: secondaryBranch,
+      recordId: 'secondary-only-item',
+      actorId: 'secondary-publisher',
+      deviceId: 'secondary-publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Private branch item'},
+    );
+    final foreignTargetReply = await send(
+      api,
+      token: secondaryPublisherToken,
+      body: foreignBranchTarget.envelope.original,
+    );
+    expect(
+      foreignTargetReply.status == 200 &&
+          foreignTargetReply.body['receipt']['status'] == 'ACCEPTED',
+      'A reference target can exist independently in another authorized branch',
+    );
+
+    final crossBranchReference = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000009',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-cross-branch-reference',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {
+        'title': 'Foreign branch parent',
+        'parent': 'secondary-only-item',
+      },
+    );
+    final crossBranchReferenceReply = await send(
+      api,
+      token: primaryToken,
+      body: crossBranchReference.envelope.original,
+    );
+    final uncommittedReferenceRecord = await observer.execute(
+      pg.Sql.named('''
+        SELECT count(*) FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item' AND record_id=@record
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+        'record': 'registry-item-cross-branch-reference',
+      },
+    );
+    expect(
+      crossBranchReferenceReply.status == 422 &&
+          crossBranchReferenceReply.body['receipt']['reasonCode'] ==
+              'INVALID_REFERENCE' &&
+          uncommittedReferenceRecord.single[0] == 0,
+      'Host rejects a cross-branch reference without writing the record',
     );
     final queriedRecords = await queryRecords(
       primaryToken,

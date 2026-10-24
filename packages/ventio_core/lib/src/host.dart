@@ -199,9 +199,21 @@ class InMemoryHost {
     if (issues.isNotEmpty) {
       return failure('REJECTED', 'INVALID_PAYLOAD');
     }
+    for (final field in docType.fields.where(
+      (field) => field.type == 'reference',
+    )) {
+      final reference = command.payload[field.name];
+      if (reference == null) continue;
+      final targetKey = '${command.tenantId}\u0000${command.companyId}\u0000'
+          '${command.branchId}\u0000${module.moduleId}\u0000'
+          '${field.referenceTo}\u0000$reference';
+      if (!_state.records.containsKey(targetKey)) {
+        return failure('REJECTED', 'INVALID_REFERENCE');
+      }
+    }
 
     final recordKey =
-        '${command.tenantId}\u0000${command.companyId}\u0000${command.branchId}\u0000${docType.name}\u0000${command.aggregateId}';
+        '${command.tenantId}\u0000${command.companyId}\u0000${command.branchId}\u0000${module.moduleId}\u0000${docType.name}\u0000${command.aggregateId}';
     final existing = _state.records[recordKey];
     if (existing != null) {
       return failure('CONFLICT', 'RECORD_ALREADY_EXISTS',
@@ -271,7 +283,7 @@ class InMemoryHost {
           branchId,
         )) return null;
     final record = _state.records[
-        '${principal.tenantId}\u0000$companyId\u0000$branchId\u0000$docType\u0000$aggregateId'];
+        '${principal.tenantId}\u0000$companyId\u0000$branchId\u0000${type.moduleId}\u0000$docType\u0000$aggregateId'];
     if (record == null ||
         record.companyId != companyId ||
         record.branchId != branchId) return null;

@@ -410,9 +410,21 @@ void main() {
     final english = EnglishCatalog();
     final manifest = loadJsonFile('$fixture/manifest.json');
     final doctype = loadJsonFile('$fixture/doctype.json');
+    (doctype['fields'] as List).add({
+      'name': 'relatedInspection',
+      'type': 'reference',
+      'referenceTo': 'EquipmentInspection',
+      'required': false,
+      'label': 'Related inspection',
+      'labelKey': 'inspection.record.related_inspection',
+    });
+    ((doctype['ui'] as Map<String, dynamic>)['formFields'] as List)
+        .add('relatedInspection');
     ((doctype['fields'] as List).first as Map<String, dynamic>)['minLength'] =
         5;
-    final priority = (doctype['fields'] as List).last as Map<String, dynamic>;
+    final priority = (doctype['fields'] as List)
+        .cast<Map<String, dynamic>>()
+        .firstWhere((field) => field['name'] == 'priority');
     priority
       ..['type'] = 'integer'
       ..remove('enumValues')
@@ -422,6 +434,9 @@ void main() {
     modules.registerTrustedCapability(
       Capability.fromJson(loadJsonFile('$fixture/capability.json')),
     );
+    final englishCatalog = loadJsonFile(
+      '$fixture/localization/en.inspection.json',
+    )..['inspection.record.related_inspection'] = 'Related inspection';
     DeclarativeModuleInstaller(
       modules: modules,
       docTypes: docTypes,
@@ -429,9 +444,7 @@ void main() {
     ).install(
       manifestJson: manifest,
       docTypeJsons: [doctype],
-      englishCatalog: loadJsonFile(
-        '$fixture/localization/en.inspection.json',
-      ),
+      englishCatalog: englishCatalog,
     );
     final host = InMemoryHost(modules: modules, docTypes: docTypes)
       ..registerTrustedCreateBinding(
@@ -469,6 +482,77 @@ void main() {
     check(
       host.execute(shortTextCommand, principal).reasonCode == 'INVALID_PAYLOAD',
       'Host accepted text shorter than the declared minimum length',
+    );
+
+    final parentPayload = Map<String, dynamic>.from(
+      raw['payload'] as Map<String, dynamic>,
+    )..['priority'] = 3;
+    final parentRaw = Map<String, dynamic>.from(raw)
+      ..['commandId'] = uuid(904)
+      ..['aggregateId'] = 'inspection-parent'
+      ..['payload'] = parentPayload;
+    final parent = CommandEnvelope.fromJson(parentRaw);
+    final parentReceipt = host.execute(parent, principal);
+    check(
+      parentReceipt.accepted,
+      'Host accepts a reference target in the same branch (${parentReceipt.reasonCode})',
+    );
+
+    final childPayload = Map<String, dynamic>.from(parentPayload)
+      ..['assetTag'] = 'EQ-101'
+      ..['relatedInspection'] = parent.aggregateId;
+    final childRaw = Map<String, dynamic>.from(raw)
+      ..['commandId'] = uuid(905)
+      ..['aggregateId'] = 'inspection-child'
+      ..['payload'] = childPayload;
+    final child = CommandEnvelope.fromJson(childRaw);
+    check(
+      host.execute(child, principal).accepted,
+      'Host accepts a reference to an existing same-branch record',
+    );
+
+    final missingReferenceRaw = Map<String, dynamic>.from(childRaw)
+      ..['commandId'] = uuid(906)
+      ..['aggregateId'] = 'inspection-missing-reference'
+      ..['payload'] = Map<String, dynamic>.from(childPayload)
+      ..['payload']['relatedInspection'] = 'missing-inspection';
+    final missingReference = CommandEnvelope.fromJson(missingReferenceRaw);
+    check(
+      host.execute(missingReference, principal).reasonCode ==
+          'INVALID_REFERENCE',
+      'Host rejects a reference to a missing record',
+    );
+
+    final otherBranchPrincipal = Principal(
+      tenantId: command.tenantId,
+      actorId: command.actorId,
+      deviceId: command.deviceId,
+      companyIds: {command.companyId},
+      branchIds: {'other-branch'},
+      permissions: {'inspection.create'},
+    );
+    final otherBranchParentRaw = Map<String, dynamic>.from(parentRaw)
+      ..['commandId'] = uuid(907)
+      ..['branchId'] = 'other-branch'
+      ..['aggregateId'] = 'inspection-other-branch';
+    final otherBranchParent = CommandEnvelope.fromJson(otherBranchParentRaw);
+    check(
+      host.execute(otherBranchParent, otherBranchPrincipal).accepted,
+      'Host stores the independent reference target in another branch',
+    );
+
+    final crossBranchPayload = Map<String, dynamic>.from(parentPayload)
+      ..['assetTag'] = 'EQ-102'
+      ..['relatedInspection'] = otherBranchParent.aggregateId;
+    final crossBranchRaw = Map<String, dynamic>.from(raw)
+      ..['commandId'] = uuid(908)
+      ..['aggregateId'] = 'inspection-cross-branch-reference'
+      ..['payload'] = crossBranchPayload;
+    final crossBranchReference = CommandEnvelope.fromJson(crossBranchRaw);
+    check(
+      host.execute(crossBranchReference, principal).reasonCode ==
+          'INVALID_REFERENCE',
+      'Host refuses a reference to a record in a different branch',
     );
   });
 
