@@ -45,7 +45,11 @@ void main() {
     await tester.enterText(fields.at(1), 'Sample Laptop');
     await tester.enterText(fields.at(2), 'Battery does not charge');
     final saveButton = find.text('Save locally');
-    await tester.ensureVisible(saveButton);
+    await tester.dragUntilVisible(
+      saveButton,
+      find.byType(ListView),
+      const Offset(0, -300),
+    );
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
