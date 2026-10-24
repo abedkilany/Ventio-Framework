@@ -35,7 +35,7 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 - Conflict receipts preserve the local draft and mark its state; a guided field-level merge/rebase workflow is not yet implemented. Shared package upgrades use the Host registry and the client only accepts additive schema updates supported by the local engine. Resumable destructive migrations and offline command upcasting are not available.
 - The in-app Host flow stores credentials via the platform secure-storage contract and selects an exact granted branch scope. Device enrollment/pairing, credential rotation, automated package upgrades, and background sync remain incomplete; users initiate sync.
 - Decimal fields in this generic local store are data fields; this does not implement exact-money rules or financial posting.
-- The Host extension registry and dynamic record integration suites passed in CI against disposable PostgreSQL 16 for source commit `7f31ad7`. No local Host database or physical Android device/emulator was used.
+- The Host extension registry and dynamic record integration suites passed in CI against disposable PostgreSQL 16 for source commit `7f31ad7`. No local PostgreSQL Host database was configured. An Android API 37 x86_64 emulator was used for a device-local Builder and record lifecycle smoke; no Host was configured during that run, and no physical Android hardware was used.
 
 ## Verification performed
 
@@ -45,11 +45,11 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 - Windows Release executable: built from the current source and remained alive for a five-second startup smoke; the UI was not manually inspected during that smoke.
 - Host API: API unit tests passed (45). No local PostgreSQL service was configured, so database integration is delegated to the disposable PostgreSQL CI runs.
 - Windows ACL-backed private-file and recovery-witness checks passed on the development machine.
-- Android Release APK: built from the current source (55.3 MB). It has not been installed on an emulator or physical device.
+- Android Release APK: built from the current source (55.3 MB), installed and exercised on an Android API 37 x86_64 emulator. The smoke created two different local extensions and DocTypes, previewed a generated form, activated both locally, created records in both, edited a record, toggled local activation, and restarted the app to verify SQLite persistence. All records remained local-only because no authenticated Host was configured.
 - Core executable suite: 58 passed, including declarative bundle validation, metadata bounds, exact-scope authorization and the strict create/update command envelope for generic extension records.
 - Host API unit suite: 45 passed.
 - PostgreSQL line-ending checksum test: passed without a database.
 - Python schema/package checks and V1.2 contract tests: passed (20 unit tests).
 - PostgreSQL adapter, Host package approval, dynamic record read/write and page-bound integration tests passed in CI against disposable PostgreSQL 16. All eight workflows passed for source commit `7f31ad7`. No local or existing Ventio database was used.
 
-These results prove the local foundation and its tested behavior. The client now has tested Host read/query and queued write/reconciliation paths, and CI exercises the package/record database gateways against disposable PostgreSQL. They do not prove Android installation, live Windows Host deployment, multi-device operation, or production readiness. See `IMPLEMENTATION_STATUS.md` for the latest build/CI state and limitations.
+These results prove the local foundation and its tested behavior. The client now has tested Host read/query and queued write/reconciliation paths, and CI exercises the package/record database gateways against disposable PostgreSQL. The emulator run proves Android installation and the device-local workflow only; it does not prove physical-device behavior, live Windows Host deployment, multi-device operation, or production readiness. See `IMPLEMENTATION_STATUS.md` for the latest build/CI state and limitations.
