@@ -552,6 +552,50 @@ Future<void> main() async {
       tlsClientFlow.exitCode == 0,
       'Flutter client validates the trusted certificate over the network address',
     );
+
+    if (Platform.environment['VENTIO_RUN_ANDROID_HOST_INTEGRATION'] == 'yes') {
+      await runningHost.stop();
+      final loopbackTlsEnvironment = {
+        ...processEnvironment,
+        'VENTIO_HOST_BIND_ADDRESS': '127.0.0.1',
+        'VENTIO_HOST_TLS_CERTIFICATE_FILE': tlsFiles.certificatePath,
+        'VENTIO_HOST_TLS_PRIVATE_KEY_FILE': tlsFiles.privateKeyPath,
+      };
+      runningHost = await _startHost(loopbackTlsEnvironment);
+      final androidPort = runningHost.port;
+      check(
+        androidPort > 0 &&
+            runningHost.scheme == 'https' &&
+            runningHost.address == '127.0.0.1',
+        'Windows Host restarts on loopback TLS for the Android emulator tunnel',
+      );
+
+      final emulatorId = await _connectedAndroidEmulator();
+      await _reverseAndroidPort(emulatorId, androidPort, enable: true);
+      try {
+        final androidFlow = await _runAndroidFlutterClientFlow(
+          emulatorId: emulatorId,
+          port: androidPort,
+          writerToken: token,
+          readerToken: readerToken,
+          tenant: tenant,
+          company: company,
+          branch: branch,
+          trustedCertificatePath: tlsFiles.certificatePath,
+          definitionsPath:
+              '${directory.path}${Platform.pathSeparator}'
+              'android-host-test-defines.json',
+        );
+        stdout.write(androidFlow.stdout);
+        if (androidFlow.exitCode != 0) stderr.write(androidFlow.stderr);
+        check(
+          androidFlow.exitCode == 0,
+          'Android emulator authenticates to Windows Host, retries offline work, and reads accepted data',
+        );
+      } finally {
+        await _reverseAndroidPort(emulatorId, androidPort, enable: false);
+      }
+    }
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     client?.close(force: true);
@@ -660,6 +704,126 @@ Future<ProcessResult> _runFlutterClientFlow({
     },
     runInShell: true,
   );
+}
+
+Future<ProcessResult> _runAndroidFlutterClientFlow({
+  required String emulatorId,
+  required int port,
+  required String writerToken,
+  required String readerToken,
+  required String tenant,
+  required String company,
+  required String branch,
+  required String trustedCertificatePath,
+  required String definitionsPath,
+}) async {
+  final certificate = await File(trustedCertificatePath).readAsString();
+  final certificateBase64 = base64.encode(utf8.encode(certificate));
+  final definitions = {
+    'VENTIO_ANDROID_HOST_ENDPOINT': 'https://127.0.0.1:$port',
+    'VENTIO_ANDROID_WRITER_TOKEN': writerToken,
+    'VENTIO_ANDROID_READER_TOKEN': readerToken,
+    'VENTIO_ANDROID_TENANT': tenant,
+    'VENTIO_ANDROID_COMPANY': company,
+    'VENTIO_ANDROID_BRANCH': branch,
+    'VENTIO_ANDROID_HOST_CERTIFICATE_PEM_B64': certificateBase64,
+  };
+  await File(definitionsPath).writeAsString(jsonEncode(definitions));
+
+  final clientDirectory = Directory(
+    '${Directory.current.parent.path}${Platform.pathSeparator}'
+    'ventio_native_client',
+  );
+  try {
+    return await Process.run(
+      'flutter',
+      [
+        'test',
+        'integration_test/android_host_sync_test.dart',
+        '-d',
+        emulatorId,
+        '--no-pub',
+        '--reporter',
+        'expanded',
+        '--dart-define-from-file=$definitionsPath',
+      ],
+      workingDirectory: clientDirectory.path,
+      environment: Platform.environment,
+      runInShell: true,
+    );
+  } finally {
+    final file = File(definitionsPath);
+    if (await file.exists()) await file.delete();
+  }
+}
+
+Future<String> _connectedAndroidEmulator() async {
+  final localAppData = Platform.environment['LOCALAPPDATA'];
+  final sdkCandidates = [
+    Platform.environment['ANDROID_SDK_ROOT'],
+    Platform.environment['ANDROID_HOME'],
+    if (localAppData != null) '$localAppData\\Android\\Sdk',
+  ].whereType<String>();
+  final adbPath = sdkCandidates
+      .map(
+        (root) =>
+            '$root${Platform.pathSeparator}platform-tools'
+            '${Platform.pathSeparator}adb.exe',
+      )
+      .firstWhere((path) => File(path).existsSync(), orElse: () => 'adb.exe');
+  final result = await Process.run(adbPath, ['devices']);
+  if (result.exitCode != 0) {
+    throw StateError('Android emulator discovery failed: ${result.stderr}');
+  }
+  final devices = (result.stdout as String)
+      .split(RegExp(r'\r?\n'))
+      .skip(1)
+      .map((line) => line.trim().split(RegExp(r'\s+')))
+      .where(
+        (parts) =>
+            parts.length >= 2 &&
+            parts[0].startsWith('emulator-') &&
+            parts[1] == 'device',
+      )
+      .map((parts) => parts[0])
+      .toList();
+  if (devices.length != 1) {
+    throw StateError(
+      'Expected one connected Android emulator, found ${devices.length}.',
+    );
+  }
+  return devices.single;
+}
+
+Future<void> _reverseAndroidPort(
+  String emulatorId,
+  int port, {
+  required bool enable,
+}) async {
+  final localAppData = Platform.environment['LOCALAPPDATA'];
+  final sdkCandidates = [
+    Platform.environment['ANDROID_SDK_ROOT'],
+    Platform.environment['ANDROID_HOME'],
+    if (localAppData != null) '$localAppData\\Android\\Sdk',
+  ].whereType<String>();
+  final adbPath = sdkCandidates
+      .map(
+        (root) =>
+            '$root${Platform.pathSeparator}platform-tools'
+            '${Platform.pathSeparator}adb.exe',
+      )
+      .firstWhere((path) => File(path).existsSync(), orElse: () => 'adb.exe');
+  final result = await Process.run(adbPath, [
+    '-s',
+    emulatorId,
+    'reverse',
+    if (!enable) '--remove',
+    'tcp:$port',
+    if (enable) 'tcp:$port',
+  ]);
+  if (result.exitCode != 0) {
+    throw StateError('Could not manage the Android emulator tunnel.');
+  }
 }
 
 Future<String> _localIpv4Address() async {

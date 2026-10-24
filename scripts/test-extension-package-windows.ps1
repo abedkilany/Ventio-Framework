@@ -1,7 +1,10 @@
 # Run the PostgreSQL-backed identity, RLS and extension package integrations on
 # Windows using a uniquely named disposable container and public test-only
 # credentials. No existing database or persistent Docker volume is used.
-param([switch] $IdentityOnly)
+param(
+  [switch] $IdentityOnly,
+  [switch] $AndroidDeviceIntegration
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -16,6 +19,7 @@ $environmentNames = @(
   'VENTIO_TEST_ADMIN_DATABASE_URL',
   'VENTIO_TEST_MIGRATION_DATABASE_URL',
   'VENTIO_ALLOW_DATABASE_TESTS',
+  'VENTIO_RUN_ANDROID_HOST_INTEGRATION',
   'PGPASSWORD'
 )
 $previousEnvironment = @{}
@@ -27,6 +31,14 @@ foreach ($name in $environmentNames) {
 }
 
 try {
+  if ($AndroidDeviceIntegration) {
+    [Environment]::SetEnvironmentVariable(
+      'VENTIO_RUN_ANDROID_HOST_INTEGRATION',
+      'yes',
+      'Process'
+    )
+  }
+
   docker info | Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw 'Docker Desktop must be running before the disposable test starts.'
