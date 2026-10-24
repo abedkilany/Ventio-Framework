@@ -17,7 +17,8 @@ reusing that version for different content is a conflict.
 `POST /api/v1/extensions/read` requires `extension.package.read` in the exact
 company/branch scope and returns only a release with `APPROVED` status. The Host
 validates the returned metadata and recomputes its canonical SHA-256 before
-returning it. Revoked versions are unavailable to future reads.
+returning it. This route can return an older approved release for installation
+or review; a revoked version is unavailable to future reads.
 
 `POST /api/v1/extensions/approved` requires the same exact-scope read grant and
 returns at most 50 approved summaries per request. Clients continue with the
@@ -52,6 +53,20 @@ before the transaction and advanced only after the commit is acknowledged. A
 missing or stale witness leaves Host admission closed; use the documented
 re-enrollment procedure rather than rebuilding witness state from a database
 backup.
+
+The highest approved release is the only release that can query or mutate live
+records. A newer approved release makes all earlier releases return
+`UPGRADE_REQUIRED`; a newer revoked release blocks older releases with
+`EXTENSION_REVOKED` instead of silently restoring them. Package bytes for older
+approved releases remain available as immutable history, but their metadata
+cannot authorize runtime access. Runtime requests hold a shared per-tenant,
+per-module release lock, while approval and revocation hold its exclusive form,
+so a release change is ordered before or after every in-flight query or command.
+New commands authored against a superseded release are rejected. An identical
+retry of a command that the Host had already accepted still returns its saved
+receipt before the stale-release gate, preserving idempotency after an
+upgrade. Automatic command upcasting or merging is not implemented; the client
+must upgrade its package and resolve any rejected local draft.
 
 The package tables have forced row-level security and no direct runtime or
 identity-admin table grants. Runtime transfer uses narrow security-definer

@@ -134,6 +134,35 @@ BEGIN
   RETURN jsonb_build_object('status','APPROVED','packages',entries,'hasMore',has_more);
 END $fn$;
 
+-- An approved package remains available as immutable release history, but only
+-- the newest approved release may authorize live record operations. A newer
+-- revoked release is a high-water mark too: older packages must not silently
+-- become active again after revocation.
+CREATE OR REPLACE FUNCTION ventio_security.extension_release_reason(
+    p_tenant text, p_module text, p_version text)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $fn$
+DECLARE newer_status text;
+BEGIN
+  SELECT newer.status INTO newer_status
+  FROM public.ventio_extension_packages AS newer
+  WHERE newer.tenant_id=p_tenant AND newer.module_id=p_module
+    AND newer.status IN ('APPROVED','REVOKED')
+    AND (split_part(newer.version,'.',1)::numeric,
+         split_part(newer.version,'.',2)::numeric,
+         split_part(newer.version,'.',3)::numeric) >
+        (split_part(p_version,'.',1)::numeric,
+         split_part(p_version,'.',2)::numeric,
+         split_part(p_version,'.',3)::numeric)
+  ORDER BY split_part(newer.version,'.',1)::numeric DESC,
+           split_part(newer.version,'.',2)::numeric DESC,
+           split_part(newer.version,'.',3)::numeric DESC
+  LIMIT 1;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  IF newer_status='REVOKED' THEN RETURN 'EXTENSION_REVOKED'; END IF;
+  RETURN 'UPGRADE_REQUIRED';
+END $fn$;
+
 -- Bind a read-only record query to a live exact-scope identity and an approved
 -- package. The returned metadata is later hash-checked by the Host process.
 CREATE OR REPLACE FUNCTION ventio_security.resolve_extension_read_identity(
@@ -143,6 +172,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE identity jsonb; package_row public.ventio_extension_packages%ROWTYPE;
         doc_type jsonb; permission text; expected_type text;
+        release_reason text;
 BEGIN
   FOREACH expected_type IN ARRAY ARRAY[
       'ventio.credential_digest','ventio.company_id','ventio.branch_id',
@@ -158,6 +188,12 @@ BEGIN
   END IF;
   identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
   IF identity IS NULL THEN RETURN NULL; END IF;
+  -- Shared release locks allow normal queries to run concurrently while
+  -- serializing them with operator approval and revocation.
+  PERFORM pg_catalog.pg_advisory_xact_lock_shared(
+    pg_catalog.hashtextextended(
+      pg_catalog.jsonb_build_array('ventio-extension-release-v1',
+        identity->>'tenantId',p_module)::text, 0));
   SELECT * INTO package_row FROM public.ventio_extension_packages
     WHERE tenant_id=identity->>'tenantId' AND module_id=p_module
       AND version=p_module_version AND status='APPROVED'
@@ -165,6 +201,12 @@ BEGIN
   IF NOT FOUND OR jsonb_typeof(package_row.package_json->'docTypes') IS DISTINCT FROM 'array' THEN
     RETURN jsonb_build_object('identity',identity,'package',NULL,
       'reasonCode','EXTENSION_NOT_APPROVED');
+  END IF;
+  release_reason := ventio_security.extension_release_reason(
+    identity->>'tenantId',p_module,p_module_version);
+  IF release_reason IS NOT NULL THEN
+    RETURN jsonb_build_object('identity',identity,'package',NULL,
+      'reasonCode',release_reason);
   END IF;
   SELECT item INTO doc_type
   FROM jsonb_array_elements(package_row.package_json->'docTypes') AS entries(item)
@@ -217,6 +259,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE identity jsonb; package_row public.ventio_extension_packages%ROWTYPE;
         doc_type jsonb; permission text; expected_type text;
+        release_reason text;
 BEGIN
   FOREACH expected_type IN ARRAY ARRAY[
       'ventio.credential_digest','ventio.company_id','ventio.branch_id',
@@ -241,6 +284,11 @@ BEGIN
   END IF;
   identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
   IF identity IS NULL THEN RETURN NULL; END IF;
+  -- Keep the release high-water mark stable until the command commits.
+  PERFORM pg_catalog.pg_advisory_xact_lock_shared(
+    pg_catalog.hashtextextended(
+      pg_catalog.jsonb_build_array('ventio-extension-release-v1',
+        identity->>'tenantId',p_module)::text, 0));
   SELECT * INTO package_row FROM public.ventio_extension_packages
     WHERE tenant_id=identity->>'tenantId' AND module_id=p_module
       AND version=p_module_version AND status='APPROVED'
@@ -249,6 +297,11 @@ BEGIN
     RETURN jsonb_build_object('identity',identity,'package',NULL,
       'reasonCode','EXTENSION_NOT_APPROVED');
   END IF;
+  release_reason := ventio_security.extension_release_reason(
+    identity->>'tenantId',p_module,p_module_version);
+  -- Keep the reviewed package and proof context available to the command
+  -- journal path. It may return an already accepted receipt for an identical
+  -- retry; new effects are rejected after that replay check.
   IF jsonb_typeof(package_row.package_json->'docTypes') IS DISTINCT FROM 'array' THEN
     RETURN jsonb_build_object('identity',identity,'package',NULL,
       'reasonCode','EXTENSION_NOT_APPROVED');
@@ -302,7 +355,8 @@ BEGIN
   PERFORM set_config('ventio.operation',p_operation,true);
   PERFORM set_config('ventio.expected_revision',coalesce(p_expected_revision::text,''),true);
   RETURN jsonb_build_object('identity',identity,
-    'package',package_row.package_json,'packageSha256',package_row.package_sha256);
+    'package',package_row.package_json,'packageSha256',package_row.package_sha256,
+    'reasonCode',release_reason);
 END $fn$;
 
 -- The administration login may inspect a candidate, but can neither read the

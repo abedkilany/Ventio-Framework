@@ -86,7 +86,8 @@ void main() {
       expect(writerSession.scopes.single.branchId, _branchId);
 
       const moduleId = 'com.example.windows_records';
-      const initialVersion = '1.0.0';
+      const supersededVersion = '1.0.0';
+      const currentVersion = '1.0.1';
       final approved = await writer.listApproved(
         companyId: _companyId,
         branchId: _branchId,
@@ -94,16 +95,17 @@ void main() {
       );
       final summary = approved.packages.singleWhere(
         (package) =>
-            package.moduleId == moduleId && package.version == initialVersion,
+            package.moduleId == moduleId && package.version == currentVersion,
       );
       final bundle = await writer.readApproved(
         moduleId: moduleId,
-        version: initialVersion,
+        version: currentVersion,
         companyId: _companyId,
         branchId: _branchId,
         expectedPackageSha256: summary.packageSha256,
       );
       expect(bundle.docTypes, hasLength(1));
+      expect(bundle.docTypes.single.schemaVersion, 2);
 
       final databasePath = p.join(
         await getDatabasesPath(),
@@ -126,7 +128,7 @@ void main() {
           actorId: writerSession.actorId,
           deviceId: writerSession.deviceId,
           moduleId: moduleId,
-          moduleVersion: initialVersion,
+          moduleVersion: currentVersion,
           docType: 'Item',
           schemaVersion: bundle.docTypes.single.schemaVersion,
           values: const {'title': 'Written from Android while offline'},
@@ -207,11 +209,29 @@ void main() {
         );
         final readerSession = await reader.session();
         expect(readerSession.deviceId, isNot(writerSession.deviceId));
+        await expectLater(
+          reader.queryRecords(
+            companyId: _companyId,
+            branchId: _branchId,
+            moduleId: moduleId,
+            version: supersededVersion,
+            docType: 'Item',
+            recordId: recordId,
+            limit: 1,
+          ),
+          throwsA(
+            isA<HostPackageTransportException>().having(
+              (error) => error.code,
+              'code',
+              'UPGRADE_REQUIRED',
+            ),
+          ),
+        );
         final sharedRecord = await reader.queryRecords(
           companyId: _companyId,
           branchId: _branchId,
           moduleId: moduleId,
-          version: initialVersion,
+          version: currentVersion,
           docType: 'Item',
           recordId: recordId,
           limit: 1,

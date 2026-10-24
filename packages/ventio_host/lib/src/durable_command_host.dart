@@ -6,8 +6,10 @@ import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 
 class ExtensionBundleAuthorization {
-  const ExtensionBundleAuthorization.approved(this.bundle)
-    : failureReasonCode = null;
+  const ExtensionBundleAuthorization.approved(
+    this.bundle, {
+    this.failureReasonCode,
+  });
   const ExtensionBundleAuthorization.denied(this.failureReasonCode)
     : bundle = null;
 
@@ -117,6 +119,7 @@ class DurableCommandHost {
           late final String moduleId;
           late final String operation;
           late final Map<String, dynamic> recordValues;
+          String? releaseFailureReasonCode;
           if (extensionRequest != null) {
             final authorization = await resolveExtensionBundle?.call(
               tx,
@@ -134,6 +137,7 @@ class DurableCommandHost {
                 bundle.version != command.moduleVersion) {
               return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
             }
+            releaseFailureReasonCode = authorization?.failureReasonCode;
             final matches = bundle.docTypes.where(
               (type) => type.name == extensionRequest.docType,
             );
@@ -260,6 +264,15 @@ class DurableCommandHost {
             }
             return jsonDecode(saved['stored_receipt'] as String)
                 as Map<String, dynamic>;
+          }
+
+          // Return a saved accepted receipt for an identical retry even after
+          // a package upgrade. A fresh command from a superseded release must
+          // not proceed to its effects.
+          if (releaseFailureReasonCode != null) {
+            throw _RejectedCommand(
+              _failure(command, 'REJECTED', releaseFailureReasonCode),
+            );
           }
 
           // Serialize accepted commits within this exact tenant/company/branch

@@ -98,7 +98,12 @@ class PostgresIdentityStore {
         result['packageSha256'] != hash) {
       throw StateError('Approved extension integrity check failed.');
     }
-    return ResolvedExtensionCommand(principal: principal, bundle: bundle);
+    final reason = result['reasonCode'];
+    return ResolvedExtensionCommand(
+      principal: principal,
+      bundle: bundle,
+      failureReasonCode: reason is String ? reason : null,
+    );
   }
 
   Future<ResolvedExtensionCommand?> resolveExtensionRead(

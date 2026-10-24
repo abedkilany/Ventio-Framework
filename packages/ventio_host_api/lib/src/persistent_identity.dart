@@ -105,7 +105,10 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
                 .resolveExtensionCommand(tx, digest, command);
             if (resolved == null) return null;
             resolvedBundle = resolved.bundle != null
-                ? ExtensionBundleAuthorization.approved(resolved.bundle!)
+                ? ExtensionBundleAuthorization.approved(
+                    resolved.bundle!,
+                    failureReasonCode: resolved.failureReasonCode,
+                  )
                 : ExtensionBundleAuthorization.denied(
                     resolved.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
                   );

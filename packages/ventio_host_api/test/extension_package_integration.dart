@@ -333,6 +333,7 @@ Future<void> main() async {
       String token, {
       String company = primaryCompany,
       String branch = primaryBranch,
+      String version = '1.0.0',
       String? recordId,
       String search = '',
       Map<String, dynamic> filters = const {},
@@ -350,7 +351,7 @@ Future<void> main() async {
         'companyId': company,
         'branchId': branch,
         'moduleId': 'com.example.registry',
-        'version': '1.0.0',
+        'version': version,
         'docType': 'Item',
         if (recordId != null) 'recordId': recordId,
         'search': search,
@@ -1398,6 +1399,20 @@ Future<void> main() async {
       version: additiveSchema.version,
       packageSha256: hash(additiveSchema),
     );
+    final releaseReason = await observer.execute(
+      pg.Sql.named(
+        'SELECT ventio_security.extension_release_reason(@tenant,@module,@version)',
+      ),
+      parameters: {
+        'tenant': tenant,
+        'module': package.moduleId,
+        'version': package.version,
+      },
+    );
+    expect(
+      releaseReason.single[0] == 'UPGRADE_REQUIRED',
+      'Release gate returns its superseded-version reason: ${releaseReason.single[0]}',
+    );
     expect(
       (await readPackage(
             primaryToken,
@@ -1406,6 +1421,122 @@ Future<void> main() async {
           )).status ==
           200,
       'Host approves an additive optional-field schema release',
+    );
+
+    final replayedAfterUpgrade = await send(
+      api,
+      token: primaryToken,
+      body: createRecord.envelope.original,
+    );
+    expect(
+      replayedAfterUpgrade.status == 200 &&
+          canonicalJson(replayedAfterUpgrade.body['receipt']) ==
+              canonicalJson(created.body['receipt']),
+      'An accepted old-release command still returns its saved receipt after upgrade: ${replayedAfterUpgrade.status} ${replayedAfterUpgrade.body}',
+    );
+
+    final oldVersionQuery = await queryRecords(
+      primaryToken,
+      version: package.version,
+      recordId: 'registry-item-1',
+      limit: 1,
+    );
+    expect(
+      oldVersionQuery.status == 422 &&
+          oldVersionQuery.body['recordResult']['reasonCode'] ==
+              'UPGRADE_REQUIRED',
+      'The Host refuses dynamic reads through an approved but superseded release: ${oldVersionQuery.status} ${oldVersionQuery.body}',
+    );
+    final oldVersionUpdate = ExtensionRecordCommand.update(
+      commandId: '71000000-0000-4000-8000-000000000010',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 2,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Superseded update'},
+    );
+    final oldVersionUpdateReply = await send(
+      api,
+      token: primaryToken,
+      body: oldVersionUpdate.envelope.original,
+    );
+    expect(
+      oldVersionUpdateReply.status == 422 &&
+          oldVersionUpdateReply.body['receipt']['reasonCode'] ==
+              'UPGRADE_REQUIRED',
+      'The Host refuses record writes through an approved but superseded release',
+    );
+    final oldVersionCreate = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000012',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-old-release-create',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Superseded create'},
+    );
+    final oldVersionCreateReply = await send(
+      api,
+      token: primaryToken,
+      body: oldVersionCreate.envelope.original,
+    );
+    expect(
+      oldVersionCreateReply.status == 422 &&
+          oldVersionCreateReply.body['receipt']['reasonCode'] ==
+              'UPGRADE_REQUIRED',
+      'The Host refuses new records created through an approved but superseded release',
+    );
+    final currentVersionUpdate = ExtensionRecordCommand.update(
+      commandId: '71000000-0000-4000-8000-000000000011',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 2,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: additiveSchema.moduleId,
+      moduleVersion: additiveSchema.version,
+      docType: 'Item',
+      schemaVersion: 2,
+      values: {'title': 'Current schema update', 'notes': 'Kept on Host'},
+    );
+    final currentVersionUpdateReply = await send(
+      api,
+      token: primaryToken,
+      body: currentVersionUpdate.envelope.original,
+    );
+    expect(
+      currentVersionUpdateReply.status == 200 &&
+          currentVersionUpdateReply.body['receipt']['status'] == 'ACCEPTED' &&
+          currentVersionUpdateReply.body['receipt']['hostRevision'] == 3,
+      'The active release can update records with its additive schema',
+    );
+    final currentVersionQuery = await queryRecords(
+      primaryToken,
+      version: additiveSchema.version,
+      recordId: 'registry-item-1',
+      limit: 1,
+    );
+    expect(
+      currentVersionQuery.status == 200 &&
+          currentVersionQuery
+                  .body['recordResult']['records']
+                  .single['values']['notes'] ==
+              'Kept on Host',
+      'The active release reads and retains fields introduced by its schema',
     );
 
     ExtensionBundle nextSchemaRelease(
@@ -1507,6 +1638,24 @@ Future<void> main() async {
       packageSha256: hash(dependency),
       reason: 'Integration test revocation.',
     );
+    await packageAdmin.revoke(
+      moduleId: additiveSchema.moduleId,
+      version: additiveSchema.version,
+      packageSha256: hash(additiveSchema),
+      reason: 'Integration test revocation of the active release.',
+    );
+    final oldVersionAfterRevocation = await queryRecords(
+      primaryToken,
+      version: package.version,
+      recordId: 'registry-item-1',
+      limit: 1,
+    );
+    expect(
+      oldVersionAfterRevocation.status == 422 &&
+          oldVersionAfterRevocation.body['recordResult']['reasonCode'] ==
+              'EXTENSION_REVOKED',
+      'Revoking the newest release does not silently reactivate an older version',
+    );
     expect(
       (await readPackage(
             primaryToken,
@@ -1559,7 +1708,7 @@ Future<void> main() async {
             ),
             parameters: {'tenant': tenant},
           )).single[0] ==
-          7,
+          8,
       'Approval and revocation events remain in the operator audit ledger',
     );
     await observer.execute(

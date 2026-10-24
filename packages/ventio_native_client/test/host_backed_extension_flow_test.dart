@@ -142,6 +142,64 @@ void main() {
           values: const {'title': 'Created while offline'},
           recordId: recordId,
         );
+        final secondVault = HostCredentialVault(_MemoryCredentialBackend());
+        await secondVault.save(endpoint, readerToken!);
+        final secondPackageClient = HostExtensionPackageClient(
+          endpoint: endpoint,
+          credentials: secondVault,
+          clientFactory: trustedClientFactory,
+        );
+        final secondSession = await secondPackageClient.session();
+        expect(secondSession.deviceId, isNot(firstSession.deviceId));
+        final secondBundle = await secondPackageClient.readApproved(
+          moduleId: moduleId,
+          version: firstVersion,
+          companyId: companyId,
+          branchId: branchId,
+        );
+        secondStore = await LocalExtensionStore.open(
+          factory: databaseFactoryFfi,
+          path: secondDatabasePath,
+        );
+        await secondStore.installBundle(secondBundle);
+        await secondStore.activate(moduleId);
+        final upgradedBundle = await secondPackageClient.readApproved(
+          moduleId: moduleId,
+          version: upgradedVersion,
+          companyId: companyId,
+          branchId: branchId,
+        );
+        expect(upgradedBundle.docTypes.single.schemaVersion, 2);
+        expect(
+          upgradedBundle.docTypes.single.fields.map((field) => field.name),
+          containsAll(['title', 'notes']),
+        );
+        await firstStore.disable(moduleId);
+        await firstStore.installBundle(upgradedBundle);
+        await firstStore.activate(moduleId);
+        await secondStore.disable(moduleId);
+        await secondStore.installBundle(upgradedBundle);
+        await secondStore.activate(moduleId);
+
+        await expectLater(
+          secondPackageClient.queryRecords(
+            companyId: companyId,
+            branchId: branchId,
+            moduleId: moduleId,
+            version: firstVersion,
+            docType: docType,
+            recordId: 'host-item-1',
+            limit: 1,
+          ),
+          throwsA(
+            isA<HostPackageTransportException>().having(
+              (error) => error.code,
+              'code',
+              'UPGRADE_REQUIRED',
+            ),
+          ),
+        );
+
         final commandId = createCommandId();
         final command = ExtensionRecordCommand.create(
           commandId: commandId,
@@ -152,9 +210,9 @@ void main() {
           actorId: firstSession.actorId,
           deviceId: firstSession.deviceId,
           moduleId: moduleId,
-          moduleVersion: firstVersion,
+          moduleVersion: upgradedVersion,
           docType: docType,
-          schemaVersion: initialBundle.docTypes.single.schemaVersion,
+          schemaVersion: upgradedBundle.docTypes.single.schemaVersion,
           values: provisional.values,
         );
         await firstQueue.enqueue(command.envelope);
@@ -231,43 +289,21 @@ void main() {
         expect(acceptedLocal?.authorityState, 'HOST_ACCEPTED');
         expect(acceptedLocal?.hostRevision, 1);
 
-        final secondVault = HostCredentialVault(_MemoryCredentialBackend());
-        await secondVault.save(endpoint, readerToken!);
-        final secondPackageClient = HostExtensionPackageClient(
-          endpoint: endpoint,
-          credentials: secondVault,
-          clientFactory: trustedClientFactory,
-        );
-        final secondSession = await secondPackageClient.session();
-        expect(secondSession.deviceId, isNot(firstSession.deviceId));
-        final secondBundle = await secondPackageClient.readApproved(
-          moduleId: moduleId,
-          version: firstVersion,
-          companyId: companyId,
-          branchId: branchId,
-        );
-        secondStore = await LocalExtensionStore.open(
-          factory: databaseFactoryFfi,
-          path: secondDatabasePath,
-        );
-        await secondStore.installBundle(secondBundle);
-        await secondStore.activate(moduleId);
-        final hostPage = await secondPackageClient.queryRecords(
+        final upgradedHostPage = await secondPackageClient.queryRecords(
           companyId: companyId,
           branchId: branchId,
           moduleId: moduleId,
-          version: firstVersion,
+          version: upgradedVersion,
           docType: docType,
           recordId: recordId,
           limit: 1,
         );
-        expect(hostPage.records, hasLength(1));
-        expect(hostPage.records.single.revision, 1);
+        expect(upgradedHostPage.records.single.revision, 1);
         expect(
-          hostPage.records.single.values['title'],
+          upgradedHostPage.records.single.values['title'],
           'Created while offline',
         );
-        final hostRecord = hostPage.records.single;
+        final hostRecord = upgradedHostPage.records.single;
         await secondStore.applyHostRecord(
           moduleId: moduleId,
           docTypeName: docType,
@@ -285,39 +321,6 @@ void main() {
         );
         expect(secondDeviceCopy?.authorityState, 'HOST_ACCEPTED');
         expect(secondDeviceCopy?.hostRevision, 1);
-
-        final upgradedBundle = await secondPackageClient.readApproved(
-          moduleId: moduleId,
-          version: upgradedVersion,
-          companyId: companyId,
-          branchId: branchId,
-        );
-        expect(upgradedBundle.docTypes.single.schemaVersion, 2);
-        expect(
-          upgradedBundle.docTypes.single.fields.map((field) => field.name),
-          containsAll(['title', 'notes']),
-        );
-        await firstStore.disable(moduleId);
-        await firstStore.installBundle(upgradedBundle);
-        await firstStore.activate(moduleId);
-        await secondStore.disable(moduleId);
-        await secondStore.installBundle(upgradedBundle);
-        await secondStore.activate(moduleId);
-
-        final upgradedHostPage = await secondPackageClient.queryRecords(
-          companyId: companyId,
-          branchId: branchId,
-          moduleId: moduleId,
-          version: upgradedVersion,
-          docType: docType,
-          recordId: recordId,
-          limit: 1,
-        );
-        expect(upgradedHostPage.records.single.revision, 1);
-        expect(
-          upgradedHostPage.records.single.values['title'],
-          'Created while offline',
-        );
         for (final store in [firstStore, secondStore]) {
           final record = await store.getRecord(
             moduleId: moduleId,

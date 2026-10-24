@@ -136,6 +136,13 @@ BEGIN
         package_hash IS NULL OR package_hash !~ '^[0-9a-f]{64}$' THEN
       RAISE EXCEPTION 'Invalid extension release identity';
     END IF;
+    -- Match the shared locks held by runtime record queries and commands. This
+    -- makes release approval/revocation atomic with respect to operations that
+    -- resolve the currently active package version.
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        pg_catalog.jsonb_build_array('ventio-extension-release-v1',
+          tenant,package_module)::text, 0));
     SELECT * INTO package_row FROM public.ventio_extension_packages
       WHERE tenant_id=tenant AND module_id=package_module AND version=package_version
       FOR UPDATE;
