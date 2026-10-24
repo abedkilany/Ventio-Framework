@@ -133,6 +133,39 @@ Future<void> main() async {
       (await send(api, path: '/healthz', method: 'GET')).status == 200,
       'Liveness is available without credentials',
     );
+    final sessionReply = await send(
+      api,
+      path: '/api/v1/session',
+      method: 'GET',
+      token: validToken,
+    );
+    final sessionIdentity =
+        sessionReply.body['identity'] as Map<String, dynamic>;
+    check(
+      sessionReply.status == 200 &&
+          sessionIdentity['tenantId'] == 'api-test' &&
+          sessionIdentity['persistent'] == false &&
+          (sessionIdentity['scopes'] as List).single['companyId'] ==
+              'company-001' &&
+          ((sessionIdentity['scopes'] as List).single['permissions'] as List)
+              .contains('maintenance.create'),
+      'Authenticated session discovery returns only the caller exact-scope grants',
+    );
+    check(
+      (await send(api, path: '/api/v1/session', method: 'GET')).status == 401,
+      'Session discovery requires authentication',
+    );
+    check(
+      (await send(
+            api,
+            path: '/api/v1/session',
+            method: 'POST',
+            token: validToken,
+          ))
+              .status ==
+          405,
+      'Session discovery rejects non-GET methods',
+    );
     check(
       (await send(api, path: '/missing')).status == 404,
       'Unknown route is rejected',

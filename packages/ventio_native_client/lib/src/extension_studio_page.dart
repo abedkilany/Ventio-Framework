@@ -6,14 +6,25 @@ import 'package:ventio_core/ventio_core.dart';
 
 import 'command_id.dart';
 import 'extension_store.dart';
+import 'host_credentials.dart';
+import 'host_extension_packages.dart';
 import 'local_command_queue.dart';
 import 'maintenance_request_page.dart';
 import 'transport_fixture.dart';
+
+enum _StudioMenuAction {
+  connect,
+  installFromHost,
+  installPackage,
+  offlineProof,
+}
 
 class ExtensionStudioPage extends StatefulWidget {
   const ExtensionStudioPage({
     required this.store,
     required this.queue,
+    this.credentialVault,
+    this.hostPackageClientFactory,
     this.scope = const RecordScope(
       organizationId: 'local-organization',
       companyId: 'local-company',
@@ -24,6 +35,8 @@ class ExtensionStudioPage extends StatefulWidget {
 
   final LocalExtensionStore store;
   final LocalCommandQueue queue;
+  final HostCredentialVault? credentialVault;
+  final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final RecordScope scope;
 
   @override
@@ -33,6 +46,7 @@ class ExtensionStudioPage extends StatefulWidget {
 class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   bool _loading = true;
   List<LocalExtension> _extensions = const [];
+  HostConnectionProfile? _hostProfile;
   String? _loadError;
 
   @override
@@ -43,10 +57,14 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
 
   Future<void> _load() async {
     try {
-      final extensions = await widget.store.listExtensions();
+      final values = await Future.wait<Object?>([
+        widget.store.listExtensions(),
+        widget.store.getHostProfile(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _extensions = extensions;
+        _extensions = values[0] as List<LocalExtension>;
+        _hostProfile = values[1] as HostConnectionProfile?;
         _loading = false;
         _loadError = null;
       });
@@ -151,6 +169,202 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     }
   }
 
+  Future<void> _configureHost() async {
+    final vault = widget.credentialVault;
+    if (vault == null) {
+      _message('Secure Host credential storage is unavailable on this build.');
+      return;
+    }
+    final values = await showDialog<_HostConnectionValues>(
+      context: context,
+      builder: (context) => _HostConnectionDialog(profile: _hostProfile),
+    );
+    if (values == null) return;
+    Uri? endpoint;
+    String? previousToken;
+    var replacedCredential = false;
+    var profileSaved = false;
+    try {
+      endpoint = HostCredentialVault.normalizeEndpoint(
+        Uri.parse(values.endpoint.trim()),
+      );
+      previousToken = await vault.read(endpoint);
+      if (values.token.isNotEmpty) {
+        await vault.save(endpoint, values.token.trim());
+        replacedCredential = true;
+      } else if (previousToken == null) {
+        throw const HostPackageTransportException('HOST_CREDENTIAL_MISSING');
+      }
+      final client = _hostPackageClient(endpoint: endpoint, vault: vault);
+      final identity = await client.session();
+      if (!identity.persistent) {
+        throw const HostPackageTransportException(
+          'PERSISTENT_HOST_IDENTITY_REQUIRED',
+        );
+      }
+      if (identity.scopes.isEmpty) {
+        throw const HostPackageTransportException('HOST_SCOPE_UNAVAILABLE');
+      }
+      if (!mounted) return;
+      final selected = await showDialog<HostScopeGrant>(
+        context: context,
+        builder: (context) => _HostScopeDialog(
+          tenantId: identity.tenantId,
+          scopes: identity.scopes,
+          initialCompanyId: _hostProfile?.companyId,
+          initialBranchId: _hostProfile?.branchId,
+        ),
+      );
+      if (selected == null) {
+        if (replacedCredential) {
+          await _restoreCredential(vault, endpoint, previousToken);
+        }
+        return;
+      }
+      final profile = HostConnectionProfile(
+        endpoint: endpoint.toString(),
+        tenantId: identity.tenantId,
+        companyId: selected.companyId,
+        branchId: selected.branchId,
+      );
+      await widget.store.saveHostProfile(profile);
+      profileSaved = true;
+      final oldEndpoint = _hostProfile?.endpoint;
+      if (oldEndpoint != null && oldEndpoint != endpoint.toString()) {
+        await vault.delete(Uri.parse(oldEndpoint));
+      }
+      await _load();
+      _message('Authenticated Host scope saved for this device.');
+    } catch (error) {
+      if (!profileSaved && replacedCredential && endpoint != null) {
+        try {
+          await _restoreCredential(vault, endpoint, previousToken);
+        } catch (_) {
+          /* Keep the primary Host error visible. */
+        }
+      }
+      if (mounted) _message(error.toString());
+    }
+  }
+
+  Future<void> _restoreCredential(
+    HostCredentialVault vault,
+    Uri endpoint,
+    String? previousToken,
+  ) async {
+    if (previousToken == null) {
+      await vault.delete(endpoint);
+    } else {
+      await vault.save(endpoint, previousToken);
+    }
+  }
+
+  Future<void> _disconnectHost() async {
+    final profile = _hostProfile;
+    if (profile == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Disconnect this device from Host?'),
+        content: const Text(
+          'This removes the saved Host scope and this endpoint’s device credential. Local drafts and records stay on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Disconnect'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final vault = widget.credentialVault;
+    if (vault != null) {
+      await vault.delete(Uri.parse(profile.endpoint));
+    }
+    await widget.store.clearHostProfile();
+    await _load();
+    _message('Host disconnected. Local work was preserved.');
+  }
+
+  Future<void> _installApprovedFromHost() async {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    if (profile == null || vault == null) {
+      _message('Configure an authenticated Host connection first.');
+      return;
+    }
+    final requested = await showDialog<_HostPackageIdentity>(
+      context: context,
+      builder: (context) => const _HostPackageIdentityDialog(),
+    );
+    if (requested == null) return;
+    try {
+      final bundle =
+          await _hostPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            vault: vault,
+          ).readApproved(
+            moduleId: requested.moduleId,
+            version: requested.version,
+            companyId: profile.companyId,
+            branchId: profile.branchId,
+          );
+      if (!mounted) return;
+      final install = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Install Host-approved extension'),
+          content: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(bundle.manifest.displayName),
+                const SizedBox(height: 4),
+                SelectableText('${bundle.moduleId} · ${bundle.version}'),
+                const SizedBox(height: 12),
+                Text(
+                  'DocTypes: ${bundle.docTypes.map((type) => type.name).join(', ')}',
+                ),
+                const SizedBox(height: 12),
+                const _LocalOnlyNotice(
+                  title: 'Host-approved package',
+                  body:
+                      'The Host approved this metadata package. Installing saves it on this device as a draft; activate it after reviewing its fields and dependencies.',
+                  icon: Icons.verified_user_outlined,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Install on this device'),
+            ),
+          ],
+        ),
+      );
+      if (install != true) return;
+      await widget.store.installBundle(bundle);
+      await _load();
+      if (!mounted) return;
+      _message('Host-approved extension installed as a local draft.');
+      await _openExtension(bundle.moduleId);
+    } catch (error) {
+      _message(error.toString());
+    }
+  }
+
   Future<void> _openExtension(String moduleId) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -158,6 +372,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           store: widget.store,
           moduleId: moduleId,
           scope: widget.scope,
+          hostProfile: _hostProfile,
+          credentialVault: widget.credentialVault,
+          hostPackageClientFactory: widget.hostPackageClientFactory,
         ),
       ),
     );
@@ -181,36 +398,103 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       ..showSnackBar(SnackBar(content: Text(value)));
   }
 
+  HostExtensionPackageClient _hostPackageClient({
+    required Uri endpoint,
+    required HostCredentialVault vault,
+  }) =>
+      widget.hostPackageClientFactory?.call(
+        endpoint: endpoint,
+        credentials: vault,
+      ) ??
+      HostExtensionPackageClient(endpoint: endpoint, credentials: vault);
+
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ventio · Extension Builder'),
         actions: [
-          if (MediaQuery.sizeOf(context).width < 720)
+          if (width < 600)
+            PopupMenuButton<_StudioMenuAction>(
+              tooltip: 'Workspace actions',
+              onSelected: (action) {
+                switch (action) {
+                  case _StudioMenuAction.connect:
+                    _configureHost();
+                  case _StudioMenuAction.installFromHost:
+                    _installApprovedFromHost();
+                  case _StudioMenuAction.installPackage:
+                    _installBundle();
+                  case _StudioMenuAction.offlineProof:
+                    _openMaintenanceProof();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _StudioMenuAction.connect,
+                  child: Text(
+                    _hostProfile == null ? 'Connect Host' : 'Host settings',
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _StudioMenuAction.installFromHost,
+                  enabled: _hostProfile != null,
+                  child: const Text('Install from Host'),
+                ),
+                const PopupMenuItem(
+                  value: _StudioMenuAction.installPackage,
+                  child: Text('Install package'),
+                ),
+                const PopupMenuItem(
+                  value: _StudioMenuAction.offlineProof,
+                  child: Text('Offline queue proof'),
+                ),
+              ],
+            )
+          else if (width < 1200) ...[
+            IconButton(
+              tooltip: 'Install Host-approved extension',
+              onPressed: _hostProfile == null ? null : _installApprovedFromHost,
+              icon: const Icon(Icons.cloud_download_outlined),
+            ),
+            IconButton(
+              tooltip: _hostProfile == null ? 'Connect Host' : 'Host settings',
+              onPressed: _configureHost,
+              icon: const Icon(Icons.cloud_outlined),
+            ),
             IconButton(
               tooltip: 'Install extension package',
               onPressed: _installBundle,
               icon: const Icon(Icons.file_download_outlined),
-            )
-          else
+            ),
+            IconButton(
+              tooltip: 'Offline queue proof',
+              onPressed: _openMaintenanceProof,
+              icon: const Icon(Icons.cloud_off_outlined),
+            ),
+          ] else ...[
+            TextButton.icon(
+              onPressed: _hostProfile == null ? null : _installApprovedFromHost,
+              icon: const Icon(Icons.cloud_download_outlined),
+              label: const Text('Install from Host'),
+            ),
+            TextButton.icon(
+              onPressed: _configureHost,
+              icon: const Icon(Icons.cloud_outlined),
+              label: Text(_hostProfile == null ? 'Connect Host' : 'Host'),
+            ),
             TextButton.icon(
               onPressed: _installBundle,
               icon: const Icon(Icons.file_download_outlined),
               label: const Text('Install package'),
             ),
-          if (MediaQuery.sizeOf(context).width < 720)
-            IconButton(
-              tooltip: 'Offline queue proof',
-              onPressed: _openMaintenanceProof,
-              icon: const Icon(Icons.cloud_off_outlined),
-            )
-          else
             TextButton.icon(
               onPressed: _openMaintenanceProof,
               icon: const Icon(Icons.cloud_off_outlined),
               label: const Text('Offline queue proof'),
             ),
+          ],
           const SizedBox(width: 8),
         ],
       ),
@@ -223,11 +507,27 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               padding: const EdgeInsets.all(24),
               children: [
                 _LocalOnlyNotice(
-                  title: 'Device workspace',
-                  body:
-                      'Extension definitions and preview records are stored on this device. No authenticated Host connection is configured, so this workspace does not publish extensions or confirm shared data.',
-                  icon: Icons.phonelink_setup_outlined,
+                  title: _hostProfile == null
+                      ? 'Device workspace'
+                      : 'Host connected · ${_hostProfile!.tenantId}',
+                  body: _hostProfile == null
+                      ? 'Extension definitions and preview records are stored on this device. Connect to an authenticated Host to submit packages for review or install approved packages.'
+                      : 'Selected scope: ${_hostProfile!.companyId} / ${_hostProfile!.branchId}. Local drafts and records stay provisional; only Host-approved packages can be installed from the registry.',
+                  icon: _hostProfile == null
+                      ? Icons.phonelink_setup_outlined
+                      : Icons.cloud_done_outlined,
                 ),
+                if (_hostProfile != null) ...[
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _disconnectHost,
+                      icon: const Icon(Icons.link_off_outlined),
+                      label: const Text('Disconnect Host'),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -312,6 +612,268 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   }
 }
 
+class _HostConnectionValues {
+  const _HostConnectionValues(this.endpoint, this.token);
+
+  final String endpoint;
+  final String token;
+}
+
+class _HostConnectionDialog extends StatefulWidget {
+  const _HostConnectionDialog({this.profile});
+
+  final HostConnectionProfile? profile;
+
+  @override
+  State<_HostConnectionDialog> createState() => _HostConnectionDialogState();
+}
+
+class _HostConnectionDialogState extends State<_HostConnectionDialog> {
+  late final TextEditingController _endpoint = TextEditingController(
+    text: widget.profile?.endpoint ?? '',
+  );
+  final TextEditingController _token = TextEditingController();
+
+  @override
+  void dispose() {
+    _endpoint.dispose();
+    _token.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    try {
+      HostCredentialVault.normalizeEndpoint(Uri.parse(_endpoint.text.trim()));
+      Navigator.pop(
+        context,
+        _HostConnectionValues(_endpoint.text.trim(), _token.text.trim()),
+      );
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enter an HTTPS Host origin, or HTTP for a same-device loopback Host.',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Connect to Host'),
+    content: SizedBox(
+      width: 520,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _endpoint,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              labelText: 'Host origin',
+              hintText: 'https://ventio-host.example.com:8443',
+              helperText: 'Remote Hosts require HTTPS.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _token,
+            obscureText: true,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: InputDecoration(
+              labelText: widget.profile == null
+                  ? 'Host credential'
+                  : 'Replace Host credential (optional)',
+              helperText: widget.profile == null
+                  ? 'Stored in this device’s secure credential vault.'
+                  : 'Leave blank to reuse the credential stored for this endpoint.',
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Verify Host')),
+    ],
+  );
+}
+
+class _HostScopeDialog extends StatefulWidget {
+  const _HostScopeDialog({
+    required this.tenantId,
+    required this.scopes,
+    this.initialCompanyId,
+    this.initialBranchId,
+  });
+
+  final String tenantId;
+  final List<HostScopeGrant> scopes;
+  final String? initialCompanyId;
+  final String? initialBranchId;
+
+  @override
+  State<_HostScopeDialog> createState() => _HostScopeDialogState();
+}
+
+class _HostScopeDialogState extends State<_HostScopeDialog> {
+  HostScopeGrant? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final scope in widget.scopes) {
+      if (scope.companyId == widget.initialCompanyId &&
+          scope.branchId == widget.initialBranchId) {
+        _selected = scope;
+        break;
+      }
+    }
+    _selected ??= widget.scopes.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screen = MediaQuery.sizeOf(context);
+    return AlertDialog(
+      title: const Text('Choose Host scope'),
+      content: SizedBox(
+        width: screen.width < 640 ? null : 560,
+        height: screen.height * 0.45,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tenant: ${widget.tenantId}'),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final scope in widget.scopes)
+                    ListTile(
+                      onTap: () => setState(() => _selected = scope),
+                      leading: Icon(
+                        _selected == scope
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                      ),
+                      title: Text('${scope.companyId} / ${scope.branchId}'),
+                      subtitle: Text(scope.permissions.join(' · ')),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _selected == null
+              ? null
+              : () => Navigator.pop(context, _selected),
+          child: const Text('Use this scope'),
+        ),
+      ],
+    );
+  }
+}
+
+class _HostPackageIdentity {
+  const _HostPackageIdentity(this.moduleId, this.version);
+
+  final String moduleId;
+  final String version;
+}
+
+class _HostPackageIdentityDialog extends StatefulWidget {
+  const _HostPackageIdentityDialog();
+
+  @override
+  State<_HostPackageIdentityDialog> createState() =>
+      _HostPackageIdentityDialogState();
+}
+
+class _HostPackageIdentityDialogState
+    extends State<_HostPackageIdentityDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _moduleId = TextEditingController();
+  final _version = TextEditingController(text: '1.0.0');
+
+  @override
+  void dispose() {
+    _moduleId.dispose();
+    _version.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(
+      context,
+      _HostPackageIdentity(_moduleId.text.trim(), _version.text.trim()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Install approved package from Host'),
+    content: SizedBox(
+      width: 480,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _moduleId,
+              decoration: const InputDecoration(labelText: 'Module ID'),
+              validator: (value) {
+                final id = value?.trim() ?? '';
+                return RegExp(
+                          r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$',
+                        ).hasMatch(id) &&
+                        id.length <= 128
+                    ? null
+                    : 'Enter a valid extension module ID.';
+              },
+            ),
+            TextFormField(
+              controller: _version,
+              decoration: const InputDecoration(labelText: 'Version'),
+              validator: (value) {
+                try {
+                  semverParts(value?.trim() ?? '');
+                  return null;
+                } catch (_) {
+                  return 'Use a semantic version such as 1.0.0.';
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _submit,
+        child: const Text('Fetch approved package'),
+      ),
+    ],
+  );
+}
+
 class _ExtensionBundleImportDialog extends StatefulWidget {
   const _ExtensionBundleImportDialog();
 
@@ -389,12 +951,18 @@ class ExtensionDetailsPage extends StatefulWidget {
     required this.store,
     required this.moduleId,
     required this.scope,
+    this.hostProfile,
+    this.credentialVault,
+    this.hostPackageClientFactory,
     super.key,
   });
 
   final LocalExtensionStore store;
   final String moduleId;
   final RecordScope scope;
+  final HostConnectionProfile? hostProfile;
+  final HostCredentialVault? credentialVault;
+  final HostExtensionPackageClientFactory? hostPackageClientFactory;
 
   @override
   State<ExtensionDetailsPage> createState() => _ExtensionDetailsPageState();
@@ -530,6 +1098,69 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     }
   }
 
+  Future<void> _submitPackageForReview() async {
+    final profile = widget.hostProfile;
+    final vault = widget.credentialVault;
+    if (profile == null || vault == null) {
+      _message('Configure an authenticated Host connection first.');
+      return;
+    }
+    late final ExtensionBundle bundle;
+    try {
+      bundle = await widget.store.exportBundle(widget.moduleId);
+    } catch (error) {
+      _message(error.toString());
+      return;
+    }
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Submit extension for Host review?'),
+        content: SelectableText(
+          '${bundle.manifest.displayName}\n'
+          '${bundle.moduleId} · ${bundle.version}\n\n'
+          'This sends declarative metadata to the selected Host. It remains a candidate until a trusted Host operator reviews and approves it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.cloud_upload_outlined),
+            label: const Text('Submit candidate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      final status =
+          await _hostPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            vault: vault,
+          ).submit(
+            bundle: bundle,
+            companyId: profile.companyId,
+            branchId: profile.branchId,
+          );
+      if (mounted) {
+        _message(
+          status == HostPackageSubmissionStatus.submitted
+              ? 'Host stored the candidate. It is not shared until an operator approves it.'
+              : 'Host confirms this exact release is already approved.',
+        );
+      }
+    } catch (error) {
+      if (mounted) _message(error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _changeState() async {
     final extension = _extension;
     if (extension == null) return;
@@ -589,6 +1220,16 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
       ..showSnackBar(SnackBar(content: Text(value)));
   }
 
+  HostExtensionPackageClient _hostPackageClient({
+    required Uri endpoint,
+    required HostCredentialVault vault,
+  }) =>
+      widget.hostPackageClientFactory?.call(
+        endpoint: endpoint,
+        credentials: vault,
+      ) ??
+      HostExtensionPackageClient(endpoint: endpoint, credentials: vault);
+
   @override
   Widget build(BuildContext context) {
     final extension = _extension;
@@ -596,6 +1237,18 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
       appBar: AppBar(
         title: Text(extension?.displayName ?? 'Extension'),
         actions: [
+          IconButton(
+            tooltip: 'Submit package for Host review',
+            onPressed:
+                extension == null ||
+                    _docTypes.isEmpty ||
+                    _busy ||
+                    widget.hostProfile == null ||
+                    widget.credentialVault == null
+                ? null
+                : _submitPackageForReview,
+            icon: const Icon(Icons.cloud_upload_outlined),
+          ),
           IconButton(
             tooltip: 'Export declarative package',
             onPressed: extension == null || _docTypes.isEmpty || _busy
@@ -618,9 +1271,9 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                   padding: const EdgeInsets.all(24),
                   children: [
                     _LocalOnlyNotice(
-                      title: 'Saved on this device',
+                      title: 'Device-local extension copy',
                       body:
-                          'This extension has no Host approval. Its locally generated pages and records do not sync to other devices.',
+                          'Local activation controls this device only. Submit this declarative package for Host review before sharing its definition with other devices; local records remain provisional until a Host record-sync workflow is configured.',
                       icon: Icons.lock_clock_outlined,
                     ),
                     const SizedBox(height: 20),

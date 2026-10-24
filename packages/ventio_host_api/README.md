@@ -33,6 +33,8 @@ not a deployable production authentication system or ERP server.
   `extension.package.submit` grant and returns `SUBMITTED`, never `APPROVED`.
 - `POST /api/v1/extensions/read`: returns one Host-approved immutable package
   version after rechecking the exact-scope `extension.package.read` grant.
+- `GET /api/v1/session`: authenticated identity discovery for the current
+  tenant, device and exact company/branch grants; it never returns credentials.
 - `GET /healthz`: unauthenticated process liveness only, not database readiness.
 - Authorization: one `Authorization: Bearer <opaque-token>` header. No query
   credentials, cookies, browser CORS access, JWT parsing, or anonymous bypass.

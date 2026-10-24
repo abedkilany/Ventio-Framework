@@ -259,6 +259,29 @@ Future<void> main() async {
     String hash(ExtensionBundle package) =>
         sha256.convert(utf8.encode(canonicalJson(package.toJson()))).toString();
 
+    final discovered = await send(
+      api,
+      path: '/api/v1/session',
+      method: 'GET',
+      token: primaryToken,
+    );
+    final discoveredIdentity =
+        discovered.body['identity'] as Map<String, dynamic>;
+    expect(
+      discovered.status == 200 &&
+          discoveredIdentity['tenantId'] == tenant &&
+          discoveredIdentity['persistent'] == true &&
+          (discoveredIdentity['scopes'] as List).any(
+            (scope) =>
+                scope['companyId'] == primaryCompany &&
+                scope['branchId'] == primaryBranch &&
+                (scope['permissions'] as List).contains(
+                  'extension.package.submit',
+                ),
+          ),
+      'Persistent session discovery reports only the current exact branch grants',
+    );
+
     final package = bundle('com.example.registry', '1.0.0');
     expect(
       (await submitPackage(primaryToken, package)).status == 202,

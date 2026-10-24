@@ -5,4 +5,5 @@ export 'src/extension_store.dart';
 export 'src/transport_fixture.dart';
 export 'src/host_credentials.dart';
 export 'src/host_transport.dart';
+export 'src/host_extension_packages.dart';
 export 'src/host_sync_service.dart';

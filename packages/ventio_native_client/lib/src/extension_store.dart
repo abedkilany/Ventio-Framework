@@ -6,6 +6,7 @@ import 'package:ventio_core/ventio_core.dart';
 const _extensionsTable = 'local_extensions';
 const _docTypesTable = 'local_extension_doctypes';
 const _recordsTable = 'local_extension_records';
+const _hostProfileTable = 'local_host_profile';
 
 enum ExtensionState {
   draft('DRAFT'),
@@ -96,6 +97,31 @@ class RecordScope {
   }
 }
 
+/// A device-local routing choice. Host permissions remain authoritative and
+/// are revalidated for every request; these identifiers are never trusted by
+/// the Host without matching the credential's current exact-scope grants.
+class HostConnectionProfile {
+  const HostConnectionProfile({
+    required this.endpoint,
+    required this.tenantId,
+    required this.companyId,
+    required this.branchId,
+  });
+
+  final String endpoint;
+  final String tenantId;
+  final String companyId;
+  final String branchId;
+
+  factory HostConnectionProfile.fromRow(Map<String, Object?> row) =>
+      HostConnectionProfile(
+        endpoint: row['endpoint']! as String,
+        tenantId: row['tenant_id']! as String,
+        companyId: row['company_id']! as String,
+        branchId: row['branch_id']! as String,
+      );
+}
+
 class LocalExtensionRecord {
   LocalExtensionRecord({
     required this.recordId,
@@ -170,7 +196,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -225,12 +251,34 @@ class LocalExtensionStore {
             ON $_recordsTable(module_id, doctype_name, organization_id, company_id,
               branch_id, updated_at_utc DESC)
           ''');
+          await database.execute('''
+            CREATE TABLE $_hostProfileTable (
+              singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+              endpoint TEXT NOT NULL,
+              tenant_id TEXT NOT NULL,
+              company_id TEXT NOT NULL,
+              branch_id TEXT NOT NULL,
+              updated_at_utc TEXT NOT NULL
+            )
+          ''');
         },
         onUpgrade: (database, oldVersion, newVersion) async {
           if (oldVersion < 2) {
             await database.execute('''
               ALTER TABLE $_extensionsTable
               ADD COLUMN dependencies_json TEXT NOT NULL DEFAULT '{}'
+            ''');
+          }
+          if (oldVersion < 3) {
+            await database.execute('''
+              CREATE TABLE $_hostProfileTable (
+                singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                endpoint TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                branch_id TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+              )
             ''');
           }
         },
@@ -323,6 +371,41 @@ class LocalExtensionStore {
       limit: 1,
     );
     return rows.isEmpty ? null : LocalExtension.fromRow(rows.single);
+  }
+
+  Future<HostConnectionProfile?> getHostProfile() async {
+    _ensureOpen();
+    final rows = await _database.query(_hostProfileTable, limit: 1);
+    return rows.isEmpty ? null : HostConnectionProfile.fromRow(rows.single);
+  }
+
+  Future<void> saveHostProfile(HostConnectionProfile profile) async {
+    _ensureOpen();
+    if (profile.endpoint.trim().isEmpty || profile.endpoint.length > 2048) {
+      throw ArgumentError('A valid Host endpoint is required.');
+    }
+    for (final value in [
+      profile.tenantId,
+      profile.companyId,
+      profile.branchId,
+    ]) {
+      if (value.trim().isEmpty || value.length > 256) {
+        throw ArgumentError('The selected Host scope is invalid.');
+      }
+    }
+    await _database.insert(_hostProfileTable, {
+      'singleton': 1,
+      'endpoint': profile.endpoint,
+      'tenant_id': profile.tenantId,
+      'company_id': profile.companyId,
+      'branch_id': profile.branchId,
+      'updated_at_utc': _now(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> clearHostProfile() async {
+    _ensureOpen();
+    await _database.delete(_hostProfileTable);
   }
 
   /// Produces a bounded declarative package from the persisted local draft.

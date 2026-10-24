@@ -7,7 +7,48 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
 import 'package:ventio_native_client/src/extension_studio_page.dart';
+import 'package:ventio_native_client/src/host_credentials.dart';
+import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
+
+class _MemoryCredentialBackend implements HostCredentialBackend {
+  final values = <String, String>{};
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    values.remove(key);
+  }
+}
+
+class _FakeHostPackageClient extends HostExtensionPackageClient {
+  _FakeHostPackageClient({required super.endpoint, required super.credentials});
+
+  @override
+  Future<HostSessionIdentity> session() async => HostSessionIdentity(
+    tenantId: 'tenant-1',
+    actorId: 'user-1',
+    deviceId: 'device-1',
+    persistent: true,
+    scopes: [
+      HostScopeGrant(
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        permissions: const {
+          'extension.package.read',
+          'extension.package.submit',
+        },
+      ),
+    ],
+  );
+}
 
 void main() {
   late Directory directory;
@@ -88,7 +129,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Install package'));
+      await tester.tap(find.byTooltip('Install extension package'));
       await tester.pumpAndSettle();
       expect(find.text('Install extension package'), findsOneWidget);
       await tester.enterText(find.byType(TextField), package);
@@ -113,6 +154,56 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Builder verifies Host and saves an exact granted scope', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final endpoint = Uri.parse('http://127.0.0.1:8123');
+    const token = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
+    final backend = _MemoryCredentialBackend();
+    final vault = HostCredentialVault(backend);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                  ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Connect Host'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), endpoint.toString());
+    await tester.enterText(find.byType(TextField).at(1), token);
+    await tester.tap(find.text('Verify Host'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tenant: tenant-1'), findsOneWidget);
+
+    await tester.tap(find.text('company-1 / branch-1'));
+    await tester.tap(find.text('Use this scope'));
+    await tester.pumpAndSettle();
+
+    final profile = await store.getHostProfile();
+    expect(profile?.tenantId, 'tenant-1');
+    expect(profile?.companyId, 'company-1');
+    expect(profile?.branchId, 'branch-1');
+    expect(backend.values.values, contains(token));
+    expect(find.textContaining('Host connected'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'Builder creates, previews, activates and runs a generated DocType',

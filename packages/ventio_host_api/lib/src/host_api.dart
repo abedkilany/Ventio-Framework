@@ -176,11 +176,15 @@ class HostApi {
       '/api/v1/extensions/read' => 'read',
       _ => null,
     };
-    if (request.uri.path != '/api/v1/commands' && packageRoute == null) {
+    final sessionRoute = request.uri.path == '/api/v1/session';
+    if (request.uri.path != '/api/v1/commands' &&
+        packageRoute == null &&
+        !sessionRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
-    if (request.method != 'POST') {
-      request.response.headers.set(HttpHeaders.allowHeader, 'POST');
+    final requiredMethod = sessionRoute ? 'GET' : 'POST';
+    if (request.method != requiredMethod) {
+      request.response.headers.set(HttpHeaders.allowHeader, requiredMethod);
       throw const _ApiError(405, 'METHOD_NOT_ALLOWED');
     }
     final headers = request.headers[HttpHeaders.authorizationHeader];
@@ -197,6 +201,42 @@ class HostApi {
     );
     if (session == null) throw const _ApiError(401, 'UNAUTHENTICATED');
     final principal = session.principal;
+    if (sessionRoute) {
+      if (request.contentLength > 0 ||
+          request.headers.value(HttpHeaders.transferEncodingHeader) != null) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final scopes = principal.scopeGrants
+          .map(
+            (scope) => {
+              'companyId': scope.companyId,
+              'branchId': scope.branchId,
+              'permissions': scope.permissions.toList()..sort(),
+            },
+          )
+          .toList()
+        ..sort((left, right) {
+          final company = (left['companyId'] as String).compareTo(
+            right['companyId'] as String,
+          );
+          return company != 0
+              ? company
+              : (left['branchId'] as String).compareTo(
+                  right['branchId'] as String,
+                );
+        });
+      _json(request, 200, {
+        'apiVersion': 1,
+        'identity': {
+          'tenantId': principal.tenantId,
+          'actorId': principal.actorId,
+          'deviceId': principal.deviceId,
+          'persistent': session.credentialDigest != null,
+          'scopes': scopes,
+        },
+      });
+      return;
+    }
     if (packageRoute != null && _extensionPackages == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }

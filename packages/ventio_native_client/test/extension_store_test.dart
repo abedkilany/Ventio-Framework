@@ -130,6 +130,26 @@ void main() {
     expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
   });
 
+  test('Host scope profile persists across a database reopen', () async {
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test:8443',
+      tenantId: 'tenant-west',
+      companyId: 'company-west',
+      branchId: 'branch-7',
+    );
+    await store.saveHostProfile(profile);
+    await store.close();
+    await openStore();
+
+    final restored = await store.getHostProfile();
+    expect(restored?.endpoint, profile.endpoint);
+    expect(restored?.tenantId, profile.tenantId);
+    expect(restored?.companyId, profile.companyId);
+    expect(restored?.branchId, profile.branchId);
+    await store.clearHostProfile();
+    expect(await store.getHostProfile(), isNull);
+  });
+
   test('A local extension exports a bounded declarative package', () async {
     await store.createExtension(
       moduleId: _moduleId,
@@ -354,6 +374,7 @@ void main() {
       );
       try {
         expect((await migrated.getExtension(_moduleId))!.dependencies, isEmpty);
+        expect(await migrated.getHostProfile(), isNull);
       } finally {
         await migrated.close();
       }

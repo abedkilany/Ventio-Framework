@@ -19,6 +19,10 @@ company/branch scope and returns only a release with `APPROVED` status. The Host
 validates the returned metadata and recomputes its canonical SHA-256 before
 returning it. Revoked versions are unavailable to future reads.
 
+`GET /api/v1/session` lets an authenticated client discover its tenant, device,
+and current exact company/branch permission grants. The response contains no
+credential material; the Builder uses it to offer valid Host scopes.
+
 ## Approval and recovery
 
 Shared approval is a trusted local operator action, not a permission an
@@ -58,10 +62,9 @@ the repository.
 
 ## Current boundary
 
-The registry and authenticated transfer routes are Host-side foundations. The
-Flutter Builder still installs and exports device-local bundles; it is not yet
-connected to these Host routes. Dynamic DocType records still use the existing
-local store, and the Host command engine still handles only explicitly bound
-trusted commands. Do not claim shared package installation or dynamic record
-synchronization in the app until those client and Host paths are implemented and
-tested together.
+The Flutter Builder can submit local bundles as Host candidates and fetch only
+Host-approved releases after authenticating and selecting an exact scope. An
+installed package stays a device-local draft until explicitly activated. The
+Host command engine still handles only explicitly bound trusted commands, and
+dynamic DocType records still use the local store. Record synchronization and
+multi-device conflict resolution are not implemented.
