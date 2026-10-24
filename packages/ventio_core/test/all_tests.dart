@@ -257,6 +257,80 @@ void main() {
     );
   });
 
+  test('Generic extension record commands have a strict offline wire shape',
+      () {
+    final create = ExtensionRecordCommand.create(
+      commandId: uuid(901),
+      tenantId: 'tenant',
+      companyId: 'company',
+      branchId: 'branch',
+      recordId: 'asset-1',
+      actorId: 'actor',
+      deviceId: 'device',
+      moduleId: 'com.example.assets',
+      moduleVersion: '0.1.0',
+      docType: 'Asset',
+      schemaVersion: 1,
+      values: {'name': 'Keyboard'},
+    );
+    check(
+      create.operation == 'create' &&
+          create.envelope.type == ExtensionRecordCommand.createType &&
+          create.envelope.expectedRevision == null &&
+          create.moduleId == 'com.example.assets' &&
+          create.values['name'] == 'Keyboard',
+      'Generic create command did not preserve the extension record identity',
+    );
+
+    final update = ExtensionRecordCommand.update(
+      commandId: uuid(902),
+      tenantId: 'tenant',
+      companyId: 'company',
+      branchId: 'branch',
+      recordId: 'asset-1',
+      expectedRevision: 3,
+      actorId: 'actor',
+      deviceId: 'device',
+      moduleId: 'com.example.assets',
+      moduleVersion: '0.1.0',
+      docType: 'Asset',
+      schemaVersion: 1,
+      values: {'name': 'Mouse'},
+    );
+    check(
+      update.operation == 'update' && update.envelope.expectedRevision == 3,
+      'Generic update command lost its optimistic revision',
+    );
+    checkThrows(
+      () => ExtensionRecordCommand.update(
+        commandId: uuid(903),
+        tenantId: 'tenant',
+        companyId: 'company',
+        branchId: 'branch',
+        recordId: 'asset-1',
+        expectedRevision: 0,
+        actorId: 'actor',
+        deviceId: 'device',
+        moduleId: 'com.example.assets',
+        moduleVersion: '0.1.0',
+        docType: 'Asset',
+        schemaVersion: 1,
+        values: {'name': 'Mouse'},
+      ),
+      'Generic updates accepted a missing or zero revision',
+    );
+
+    final injected = changed(create.envelope.original);
+    (injected['payload'] as Map<String, dynamic>)['permission'] =
+        'system.admin';
+    checkThrows(
+      () => ExtensionRecordCommand.fromEnvelope(
+        CommandEnvelope.fromJson(injected),
+      ),
+      'Client supplied authority fields were accepted in a record command',
+    );
+  });
+
   test('V1.2 fixture bootstraps an operational module', () {
     final p = fresh();
     check(p.modules.installedIds.single == 'com.ventio.maintenance',

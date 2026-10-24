@@ -45,7 +45,7 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 - Windows Debug executable: built successfully from an isolated temporary copy with the installed Windows toolchain. The executable remained alive for a five-second startup smoke check; no visual/manual interaction check was performed.
 - Windows Host API: API unit tests passed (45). A PostgreSQL service and Host database URL were not available/configured, so the package registry integration suite and full Windows Host startup/remote service path were not exercised locally.
 - Android Debug APK: built successfully from an isolated client copy. It has not been installed on an emulator or physical device.
-- Core executable suite: 57 passed, including declarative bundle validation, metadata bounds and exact-scope authorization.
+- Core executable suite: 58 passed, including declarative bundle validation, metadata bounds, exact-scope authorization and the strict create/update command envelope for generic extension records.
 - Host API unit suite: 45 passed.
 - PostgreSQL line-ending checksum test: passed without a database.
 - Python schema/package checks and V1.2 contract tests: passed (20 unit tests).
