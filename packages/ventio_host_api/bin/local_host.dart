@@ -119,11 +119,10 @@ Future<void> main() async {
     final address = InternetAddress.tryParse(addressText);
     if (address == null) throw StateError('Invalid Host bind address');
     SecurityContext? tlsContext;
-    if (!address.isLoopback) {
-      final certificate =
-          Platform.environment['VENTIO_HOST_TLS_CERTIFICATE_FILE'];
-      final privateKey =
-          Platform.environment['VENTIO_HOST_TLS_PRIVATE_KEY_FILE'];
+    final certificate =
+        Platform.environment['VENTIO_HOST_TLS_CERTIFICATE_FILE'];
+    final privateKey = Platform.environment['VENTIO_HOST_TLS_PRIVATE_KEY_FILE'];
+    if (!address.isLoopback || certificate != null || privateKey != null) {
       if (certificate == null ||
           privateKey == null ||
           !File(certificate).isAbsolute ||
@@ -164,7 +163,7 @@ Future<void> main() async {
         ],
       ),
     );
-    final scheme = address.isLoopback ? 'http' : 'https';
+    final scheme = tlsContext == null ? 'http' : 'https';
     stdout.writeln(
       'Persistent Host listening on $scheme://$addressText:${api.port}',
     );

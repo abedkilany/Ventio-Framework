@@ -132,7 +132,10 @@ Future<void> main() async {
     };
     runningHost = await _startHost(processEnvironment);
     final port = runningHost.port;
-    check(port > 0, 'Windows persistent Host process binds loopback');
+    check(
+      port > 0 && runningHost.scheme == 'http',
+      'Windows persistent Host process binds loopback HTTP by default',
+    );
 
     client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     final health = await _request(client, port, 'GET', '/healthz');
@@ -496,35 +499,51 @@ Future<void> main() async {
       packageSha256: clientUpgradeDigest,
     );
 
-    final clientDirectory = Directory(
-      '${Directory.current.parent.path}${Platform.pathSeparator}'
-      'ventio_native_client',
-    );
-    final clientFlow = await Process.run(
-      'flutter',
-      [
-        'test',
-        'test/host_backed_extension_flow_test.dart',
-        '--reporter',
-        'expanded',
-      ],
-      workingDirectory: clientDirectory.path,
-      environment: {
-        ...Platform.environment,
-        'VENTIO_CLIENT_HOST_ENDPOINT': 'http://127.0.0.1:$restartedPort',
-        'VENTIO_CLIENT_HOST_WRITER_TOKEN': token,
-        'VENTIO_CLIENT_HOST_READER_TOKEN': readerToken,
-        'VENTIO_CLIENT_HOST_TENANT': tenant,
-        'VENTIO_CLIENT_HOST_COMPANY': company,
-        'VENTIO_CLIENT_HOST_BRANCH': branch,
-      },
-      runInShell: true,
+    final clientFlow = await _runFlutterClientFlow(
+      scheme: 'http',
+      port: restartedPort,
+      writerToken: token,
+      readerToken: readerToken,
+      tenant: tenant,
+      company: company,
+      branch: branch,
     );
     stdout.write(clientFlow.stdout);
     if (clientFlow.exitCode != 0) stderr.write(clientFlow.stderr);
     check(
       clientFlow.exitCode == 0,
       'Flutter client syncs through real Host, offline retry, second device and upgrade',
+    );
+
+    await runningHost.stop();
+    final tlsFiles = await _createLoopbackTlsFiles(directory);
+    final tlsEnvironment = {
+      ...processEnvironment,
+      'VENTIO_HOST_TLS_CERTIFICATE_FILE': tlsFiles.certificatePath,
+      'VENTIO_HOST_TLS_PRIVATE_KEY_FILE': tlsFiles.privateKeyPath,
+    };
+    runningHost = await _startHost(tlsEnvironment);
+    final tlsPort = runningHost.port;
+    check(
+      tlsPort > 0 && runningHost.scheme == 'https',
+      'Persistent Windows Host serves TLS and reports the HTTPS origin',
+    );
+
+    final tlsClientFlow = await _runFlutterClientFlow(
+      scheme: 'https',
+      port: tlsPort,
+      writerToken: token,
+      readerToken: readerToken,
+      tenant: tenant,
+      company: company,
+      branch: branch,
+      trustedCertificatePath: tlsFiles.certificatePath,
+    );
+    stdout.write(tlsClientFlow.stdout);
+    if (tlsClientFlow.exitCode != 0) stderr.write(tlsClientFlow.stderr);
+    check(
+      tlsClientFlow.exitCode == 0,
+      'Flutter client requires the trusted certificate for real Host TLS',
     );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
@@ -536,7 +555,7 @@ Future<void> main() async {
 }
 
 Future<_RunningHost> _startHost(Map<String, String> environment) async {
-  final startup = Completer<int>();
+  final startup = Completer<({String scheme, int port})>();
   final process = await Process.start(
     Platform.resolvedExecutable,
     ['run', 'bin/local_host.dart'],
@@ -549,10 +568,13 @@ Future<_RunningHost> _startHost(Map<String, String> environment) async {
       .transform(const LineSplitter())
       .listen((line) {
         final match = RegExp(
-          r'^Persistent Host listening on http://127\.0\.0\.1:(\d+)$',
+          r'^Persistent Host listening on (https?)://127\.0\.0\.1:(\d+)$',
         ).firstMatch(line);
         if (match != null && !startup.isCompleted) {
-          startup.complete(int.parse(match.group(1)!));
+          startup.complete((
+            scheme: match.group(1)!,
+            port: int.parse(match.group(2)!),
+          ));
         }
       });
   final errorSubscription = process.stderr
@@ -575,10 +597,11 @@ Future<_RunningHost> _startHost(Map<String, String> environment) async {
   );
 
   try {
-    final port = await startup.future.timeout(const Duration(seconds: 45));
+    final endpoint = await startup.future.timeout(const Duration(seconds: 45));
     return _RunningHost(
       process: process,
-      port: port,
+      scheme: endpoint.scheme,
+      port: endpoint.port,
       outputSubscription: outputSubscription,
       errorSubscription: errorSubscription,
     );
@@ -589,6 +612,117 @@ Future<_RunningHost> _startHost(Map<String, String> environment) async {
     await errorSubscription.cancel();
     rethrow;
   }
+}
+
+Future<ProcessResult> _runFlutterClientFlow({
+  required String scheme,
+  required int port,
+  required String writerToken,
+  required String readerToken,
+  required String tenant,
+  required String company,
+  required String branch,
+  String? trustedCertificatePath,
+}) {
+  final clientDirectory = Directory(
+    '${Directory.current.parent.path}${Platform.pathSeparator}'
+    'ventio_native_client',
+  );
+  return Process.run(
+    'flutter',
+    [
+      'test',
+      'test/host_backed_extension_flow_test.dart',
+      '--reporter',
+      'expanded',
+    ],
+    workingDirectory: clientDirectory.path,
+    environment: {
+      ...Platform.environment,
+      'VENTIO_CLIENT_HOST_ENDPOINT': '$scheme://127.0.0.1:$port',
+      'VENTIO_CLIENT_HOST_WRITER_TOKEN': writerToken,
+      'VENTIO_CLIENT_HOST_READER_TOKEN': readerToken,
+      'VENTIO_CLIENT_HOST_TENANT': tenant,
+      'VENTIO_CLIENT_HOST_COMPANY': company,
+      'VENTIO_CLIENT_HOST_BRANCH': branch,
+      if (trustedCertificatePath != null)
+        'VENTIO_CLIENT_HOST_TRUSTED_CERTIFICATE': trustedCertificatePath,
+    },
+    runInShell: true,
+  );
+}
+
+Future<_TestTlsFiles> _createLoopbackTlsFiles(Directory directory) async {
+  const powershell = r'''
+$ErrorActionPreference = 'Stop'
+$rsa = [System.Security.Cryptography.RSA]::Create(2048)
+try {
+  $request = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+    'CN=127.0.0.1', $rsa,
+    [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+    [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+  $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
+  $san.AddIpAddress([System.Net.IPAddress]::Parse('127.0.0.1'))
+  $san.AddDnsName('localhost')
+  $request.CertificateExtensions.Add($san.Build())
+  $request.CertificateExtensions.Add(
+    [System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($true, $false, 0, $true))
+  $keyUsage = [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]::DigitalSignature -bor
+    [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]::KeyEncipherment
+  $request.CertificateExtensions.Add(
+    [System.Security.Cryptography.X509Certificates.X509KeyUsageExtension]::new($keyUsage, $true))
+  $oids = [System.Security.Cryptography.OidCollection]::new()
+  $null = $oids.Add([System.Security.Cryptography.Oid]::new('1.3.6.1.5.5.7.3.1'))
+  $request.CertificateExtensions.Add(
+    [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]::new($oids, $false))
+  $certificate = $request.CreateSelfSigned(
+    [DateTimeOffset]::UtcNow.AddMinutes(-5), [DateTimeOffset]::UtcNow.AddDays(2))
+  try {
+    [Console]::Out.WriteLine([Convert]::ToBase64String(
+      $certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)))
+    [Console]::Out.WriteLine([Convert]::ToBase64String($rsa.ExportPkcs8PrivateKey()))
+  } finally {
+    $certificate.Dispose()
+  }
+} finally {
+  $rsa.Dispose()
+}
+''';
+  final generated = await Process.run('pwsh', [
+    '-NoLogo',
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    powershell,
+  ]);
+  if (generated.exitCode != 0) {
+    throw StateError(
+      'Could not generate the ephemeral Host TLS test certificate.',
+    );
+  }
+  final encoded = (generated.stdout as String).trim().split(RegExp(r'\r?\n'));
+  if (encoded.length != 2) {
+    throw StateError('The ephemeral Host TLS certificate output is invalid.');
+  }
+  String toPem(String label, String value) {
+    final lines = <String>[];
+    for (var offset = 0; offset < value.length; offset += 64) {
+      final end = offset + 64 < value.length ? offset + 64 : value.length;
+      lines.add(value.substring(offset, end));
+    }
+    return '-----BEGIN $label-----\n${lines.join('\n')}\n-----END $label-----\n';
+  }
+
+  final certificatePath =
+      '${directory.path}${Platform.pathSeparator}loopback-certificate.pem';
+  final privateKeyPath =
+      '${directory.path}${Platform.pathSeparator}loopback-private-key.pem';
+  await PrivateFiles.create(certificatePath, {'pending': true});
+  await File(certificatePath).writeAsString(toPem('CERTIFICATE', encoded[0]));
+  await PrivateFiles.create(privateKeyPath, {'pending': true});
+  await File(privateKeyPath).writeAsString(toPem('PRIVATE KEY', encoded[1]));
+  await PrivateFiles.verifyPrivateFile(privateKeyPath);
+  return _TestTlsFiles(certificatePath, privateKeyPath);
 }
 
 Future<String> _currentSid() async {
@@ -717,12 +851,14 @@ class _HttpResult {
 class _RunningHost {
   _RunningHost({
     required this.process,
+    required this.scheme,
     required this.port,
     required this.outputSubscription,
     required this.errorSubscription,
   });
 
   final Process process;
+  final String scheme;
   final int port;
   final StreamSubscription<String> outputSubscription;
   final StreamSubscription<String> errorSubscription;
@@ -733,4 +869,11 @@ class _RunningHost {
     await outputSubscription.cancel();
     await errorSubscription.cancel();
   }
+}
+
+class _TestTlsFiles {
+  const _TestTlsFiles(this.certificatePath, this.privateKeyPath);
+
+  final String certificatePath;
+  final String privateKeyPath;
 }

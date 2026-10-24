@@ -31,6 +31,8 @@ void main() {
   final tenantId = environment['VENTIO_CLIENT_HOST_TENANT'];
   final companyId = environment['VENTIO_CLIENT_HOST_COMPANY'];
   final branchId = environment['VENTIO_CLIENT_HOST_BRANCH'];
+  final trustedCertificate =
+      environment['VENTIO_CLIENT_HOST_TRUSTED_CERTIFICATE'];
   const moduleId = 'com.example.windows_records';
   const docType = 'Item';
   const firstVersion = '1.0.0';
@@ -59,11 +61,35 @@ void main() {
       LocalExtensionStore? secondStore;
       LocalCommandQueue? firstQueue;
       try {
+        final HttpClient Function()? trustedClientFactory =
+            trustedCertificate == null
+            ? null
+            : () => HttpClient(
+                context: SecurityContext(withTrustedRoots: false)
+                  ..setTrustedCertificates(trustedCertificate),
+              );
+
         final firstVault = HostCredentialVault(_MemoryCredentialBackend());
         await firstVault.save(endpoint, writerToken!);
+        if (trustedCertificate != null) {
+          await expectLater(
+            HostExtensionPackageClient(
+              endpoint: endpoint,
+              credentials: firstVault,
+            ).session(),
+            throwsA(
+              isA<HostPackageTransportException>().having(
+                (error) => error.code,
+                'code',
+                'HOST_TLS_VALIDATION_FAILED',
+              ),
+            ),
+          );
+        }
         final firstPackageClient = HostExtensionPackageClient(
           endpoint: endpoint,
           credentials: firstVault,
+          clientFactory: trustedClientFactory,
         );
         final firstSession = await firstPackageClient.session();
         expect(firstSession.tenantId, tenantId);
@@ -94,7 +120,8 @@ void main() {
           companyId: companyId,
           branchId: branchId,
         );
-        const recordId = 'native-client-offline-record';
+        final recordId =
+            'native-client-${DateTime.now().microsecondsSinceEpoch}';
         final provisional = await firstStore.createRecord(
           moduleId: moduleId,
           docTypeName: docType,
@@ -134,6 +161,7 @@ void main() {
               endpoint: unavailableEndpoint,
               credentials: offlineVault,
               timeout: const Duration(seconds: 3),
+              clientFactory: trustedClientFactory,
             ),
           ).syncPending(),
           throwsA(
@@ -154,6 +182,7 @@ void main() {
           transport: HttpHostCommandTransport(
             endpoint: endpoint,
             credentials: firstVault,
+            clientFactory: trustedClientFactory,
           ),
         ).syncPending();
         expect(resolved, 1);
@@ -180,6 +209,7 @@ void main() {
         final secondPackageClient = HostExtensionPackageClient(
           endpoint: endpoint,
           credentials: secondVault,
+          clientFactory: trustedClientFactory,
         );
         final secondSession = await secondPackageClient.session();
         expect(secondSession.deviceId, isNot(firstSession.deviceId));
