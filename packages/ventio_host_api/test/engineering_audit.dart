@@ -192,6 +192,21 @@ Future<void> main() async {
     final token =
         (jsonDecode(await PrivateFiles.read(delivery)) as Map)['token']
             as String;
+    final tlsPrivateKey = '${private.path}/tls-private-key-test';
+    await PrivateFiles.create(tlsPrivateKey, {'testOnly': true});
+    await PrivateFiles.verifyPrivateFile(tlsPrivateKey);
+    await Process.run('chmod', ['640', tlsPrivateKey]);
+    var permissiveTlsKeyRejected = false;
+    try {
+      await PrivateFiles.verifyPrivateFile(tlsPrivateKey);
+    } on StateError {
+      permissiveTlsKeyRejected = true;
+    }
+    check(
+      permissiveTlsKeyRejected,
+      'Remote Host rejects group-readable TLS private keys',
+    );
+    await Process.run('chmod', ['600', tlsPrivateKey]);
     final privateConfig = '${private.path}/operator-config.json';
     await PrivateFiles.create(privateConfig, {
       'administrationDatabaseUrl': adminUrl,
