@@ -15,11 +15,16 @@ class TestHost {
         .listen((line) {
           if (line.startsWith('{')) {
             _events.add(jsonDecode(line) as Map<String, dynamic>);
-          } else if (line.contains('listening on 127.0.0.1:')) {
-            _events.add({
-              'event': 'ready',
-              'port': int.parse(line.split(':').last),
-            });
+          } else {
+            final match = RegExp(
+              r'listening on (?:https?://)?127\.0\.0\.1:(\d+)',
+            ).firstMatch(line);
+            if (match != null) {
+              _events.add({
+                'event': 'ready',
+                'port': int.parse(match.group(1)!),
+              });
+            }
           }
         }, onDone: () {});
     // Capture neither credentials nor database diagnostics in shared test logs.
