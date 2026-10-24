@@ -35,4 +35,5 @@ jobs:
       - run: python scripts/verify_package.py
       - run: python spec/v1.2/scripts/validate_contracts.py
       - run: python -m unittest discover -s spec/v1.2/tests -v
+      - run: python -m unittest discover -s tests -v
 

@@ -1817,6 +1817,12 @@ class LocalExtensionStore {
           'Removing a saved enum value from ${old.name} requires a reviewed migration.',
         );
       }
+      if (!_numericBoundsWidenedOrEqual(old, updated)) {
+        throw ExtensionStoreException(
+          'DESTRUCTIVE_SCHEMA_CHANGE',
+          'Tightening numeric bounds for ${old.name} may invalidate saved records and requires a reviewed data migration.',
+        );
+      }
       if (!old.required && updated.required) {
         throw ExtensionStoreException(
           'DESTRUCTIVE_SCHEMA_CHANGE',
@@ -1834,6 +1840,19 @@ class LocalExtensionStore {
         );
       }
     }
+  }
+
+  bool _numericBoundsWidenedOrEqual(
+    FieldDefinition old,
+    FieldDefinition updated,
+  ) {
+    final minimumWidened =
+        updated.minValue == null ||
+        (old.minValue != null && updated.minValue! <= old.minValue!);
+    final maximumWidened =
+        updated.maxValue == null ||
+        (old.maxValue != null && updated.maxValue! >= old.maxValue!);
+    return minimumWidened && maximumWidened;
   }
 
   Future<void> _validateDependencyTargets(

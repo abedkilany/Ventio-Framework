@@ -2262,6 +2262,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   late final TextEditingController _name;
   late final TextEditingController _label;
   late final TextEditingController _maxLength;
+  late final TextEditingController _minValue;
+  late final TextEditingController _maxValue;
   late final TextEditingController _enumValues;
   String _type = 'text';
   String? _referenceTo;
@@ -2276,6 +2278,12 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _maxLength = TextEditingController(
       text: field?['maxLength']?.toString() ?? '160',
     );
+    _minValue = TextEditingController(
+      text: field?['minValue']?.toString() ?? '',
+    );
+    _maxValue = TextEditingController(
+      text: field?['maxValue']?.toString() ?? '',
+    );
     _enumValues = TextEditingController(
       text: ((field?['enumValues'] as List?) ?? const []).join(', '),
     );
@@ -2289,6 +2297,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _name.dispose();
     _label.dispose();
     _maxLength.dispose();
+    _minValue.dispose();
+    _maxValue.dispose();
     _enumValues.dispose();
     super.dispose();
   }
@@ -2306,6 +2316,12 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
           '${_messageNamespace(widget.moduleId)}.${widget.docTypeName.toLowerCase()}.${fieldName.toLowerCase()}',
     };
     if (_type == 'text') metadata['maxLength'] = int.parse(_maxLength.text);
+    if (_type == 'integer' || _type == 'decimal') {
+      final minimum = _parseBound(_minValue.text);
+      final maximum = _parseBound(_maxValue.text);
+      if (minimum != null) metadata['minValue'] = minimum;
+      if (maximum != null) metadata['maxValue'] = maximum;
+    }
     if (_type == 'reference') metadata['referenceTo'] = _referenceTo;
     if (_type == 'enum') {
       final values = _enumValues.text
@@ -2324,6 +2340,30 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       };
     }
     Navigator.pop(context, metadata);
+  }
+
+  num? _parseBound(String value) {
+    final raw = value.trim();
+    if (raw.isEmpty) return null;
+    return _type == 'integer' ? int.tryParse(raw) : num.tryParse(raw);
+  }
+
+  String? _boundError(String? value, {required bool minimum}) {
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) return null;
+    final parsed = _parseBound(raw);
+    if (parsed == null || !parsed.isFinite) {
+      return _type == 'integer'
+          ? 'Enter a whole number.'
+          : 'Enter a finite number.';
+    }
+    final other = _parseBound(minimum ? _maxValue.text : _minValue.text);
+    if (other != null && (minimum ? parsed > other : parsed < other)) {
+      return minimum
+          ? 'Minimum must not exceed the maximum.'
+          : 'Maximum must not be below the minimum.';
+    }
+    return null;
   }
 
   @override
@@ -2398,6 +2438,32 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                       }
                       return null;
                     },
+                  ),
+                ],
+                if (_type == 'integer' || _type == 'decimal') ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _minValue,
+                    keyboardType: _type == 'integer'
+                        ? TextInputType.number
+                        : const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Minimum value',
+                      hintText: 'Optional',
+                    ),
+                    validator: (value) => _boundError(value, minimum: true),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _maxValue,
+                    keyboardType: _type == 'integer'
+                        ? TextInputType.number
+                        : const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Maximum value',
+                      hintText: 'Optional',
+                    ),
+                    validator: (value) => _boundError(value, minimum: false),
                   ),
                 ],
                 if (_type == 'enum') ...[
@@ -3362,6 +3428,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
             : null,
       );
     }
+    final numericBounds = <String>[
+      if (field.minValue != null) 'min ${field.minValue}',
+      if (field.maxValue != null) 'max ${field.maxValue}',
+    ];
     return TextFormField(
       controller: _controllers[field.name],
       readOnly: widget.previewOnly,
@@ -3374,8 +3444,11 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       maxLines: field.type == 'text' && (field.maxLength ?? 0) > 500 ? 4 : 1,
       decoration: InputDecoration(
         labelText: field.label,
-        helperText:
-            '${field.type}${field.required ? ' · required' : ' · optional'}',
+        helperText: [
+          field.type,
+          field.required ? 'required' : 'optional',
+          ...numericBounds,
+        ].join(' · '),
         border: const OutlineInputBorder(),
       ),
       validator: (value) {
@@ -3384,11 +3457,17 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           return 'Enter ${field.label.toLowerCase()}.';
         }
         if (raw.isEmpty) return null;
-        if (field.type == 'integer' && int.tryParse(raw) == null) {
-          return 'Enter a whole number.';
+        if (field.type == 'integer') {
+          final parsed = int.tryParse(raw);
+          if (parsed == null) return 'Enter a whole number.';
+          return _numericValidationMessage(field, parsed);
         }
-        if (field.type == 'decimal' && num.tryParse(raw) == null) {
-          return 'Enter a number.';
+        if (field.type == 'decimal') {
+          final parsed = num.tryParse(raw);
+          if (parsed == null) return 'Enter a number.';
+          final issue = field.validate(parsed);
+          if (issue == 'INVALID_DECIMAL') return 'Enter a finite number.';
+          return _numericValidationMessage(field, parsed);
         }
         if (field.type == 'date' && field.validate(raw) != null) {
           return 'Enter a valid date in YYYY-MM-DD format.';
@@ -3399,6 +3478,17 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         return null;
       },
     );
+  }
+
+  String? _numericValidationMessage(FieldDefinition field, num value) {
+    final issue = field.validate(value);
+    if (issue == 'BELOW_MINIMUM') {
+      return 'Enter a value of at least ${field.minValue}.';
+    }
+    if (issue == 'ABOVE_MAXIMUM') {
+      return 'Enter a value no greater than ${field.maxValue}.';
+    }
+    return null;
   }
 }
 

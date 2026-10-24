@@ -238,6 +238,27 @@ void main() {
       'An absolute catalog path was accepted',
     );
 
+    final bounded = changed(source);
+    final boundedField = (((bounded['docTypes'] as List).single
+            as Map<String, dynamic>)['fields'] as List)
+        .single as Map<String, dynamic>;
+    boundedField
+      ..['type'] = 'integer'
+      ..remove('maxLength')
+      ..['minValue'] = 0
+      ..['maxValue'] = 100;
+    final boundedBundle = ExtensionBundle.fromJson(bounded);
+    check(
+      boundedBundle.docTypes.single.fields.single.minValue == 0 &&
+          boundedBundle.docTypes.single.fields.single.maxValue == 100,
+      'Numeric bounds did not survive extension bundle parsing',
+    );
+    boundedField['minValue'] = 0.5;
+    checkThrows(
+      () => ExtensionBundle.fromJson(bounded),
+      'An invalid integer bound bypassed bundle validation',
+    );
+
     final cyclic = extensionBundleJson();
     (cyclic['manifest'] as Map<String, dynamic>)['cycle'] = cyclic;
     checkThrows(
@@ -254,6 +275,123 @@ void main() {
     checkThrows(
       () => ExtensionBundle.fromJson(deeplyNested),
       'Overly nested package metadata was accepted',
+    );
+  });
+
+  test('Numeric field bounds are typed, finite and enforced', () {
+    Map<String, dynamic> numberField({
+      String type = 'integer',
+      Object? minimum = 1,
+      Object? maximum = 10,
+    }) =>
+        {
+          'name': 'quantity',
+          'type': type,
+          'required': false,
+          if (minimum != null) 'minValue': minimum,
+          if (maximum != null) 'maxValue': maximum,
+          'label': 'Quantity',
+          'labelKey': 'extension.example.asset.quantity',
+        };
+
+    final integer = FieldDefinition.fromJson(numberField());
+    check(
+      integer.validate(1) == null && integer.validate(10) == null,
+      'Inclusive integer bounds rejected their edge values',
+    );
+    check(
+      integer.validate(0) == 'BELOW_MINIMUM' &&
+          integer.validate(11) == 'ABOVE_MAXIMUM',
+      'Integer values outside the declared bounds were accepted',
+    );
+
+    final decimal = FieldDefinition.fromJson(
+      numberField(type: 'decimal', minimum: -1.25, maximum: 2.5),
+    );
+    check(
+      decimal.validate(-1.3) == 'BELOW_MINIMUM' &&
+          decimal.validate(2.6) == 'ABOVE_MAXIMUM' &&
+          decimal.validate(2.5) == null,
+      'Decimal bounds were not applied inclusively',
+    );
+
+    checkThrows(
+      () => FieldDefinition.fromJson(
+        numberField(type: 'integer', minimum: 1.5),
+      ),
+      'Fractional bounds were accepted for integer fields',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson(
+        numberField(type: 'text', minimum: 1),
+      ),
+      'Numeric bounds were accepted for text fields',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson(
+        numberField(minimum: 11, maximum: 10),
+      ),
+      'A minimum greater than the maximum was accepted',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson(
+        numberField(type: 'decimal', minimum: double.infinity),
+      ),
+      'A nonfinite numeric bound was accepted',
+    );
+  });
+
+  test('Host rejects an extension record outside numeric field bounds', () {
+    const fixture = '../../fixtures/inspection';
+    final modules = ModuleRegistry();
+    final docTypes = DocTypeRegistry();
+    final english = EnglishCatalog();
+    final manifest = loadJsonFile('$fixture/manifest.json');
+    final doctype = loadJsonFile('$fixture/doctype.json');
+    final priority = (doctype['fields'] as List).last as Map<String, dynamic>;
+    priority
+      ..['type'] = 'integer'
+      ..remove('enumValues')
+      ..remove('enumLabels')
+      ..['minValue'] = 1
+      ..['maxValue'] = 5;
+    modules.registerTrustedCapability(
+      Capability.fromJson(loadJsonFile('$fixture/capability.json')),
+    );
+    DeclarativeModuleInstaller(
+      modules: modules,
+      docTypes: docTypes,
+      english: english,
+    ).install(
+      manifestJson: manifest,
+      docTypeJsons: [doctype],
+      englishCatalog: loadJsonFile(
+        '$fixture/localization/en.inspection.json',
+      ),
+    );
+    final host = InMemoryHost(modules: modules, docTypes: docTypes)
+      ..registerTrustedCreateBinding(
+        const TrustedCommandBinding(
+          'inspection.create',
+          1,
+          'EquipmentInspection',
+        ),
+      );
+    final raw = loadJsonFile('$fixture/create_command.json');
+    (raw['payload'] as Map<String, dynamic>)['priority'] = 0;
+    final command = CommandEnvelope.fromJson(raw);
+    final principal = Principal(
+      tenantId: command.tenantId,
+      actorId: command.actorId,
+      deviceId: command.deviceId,
+      companyIds: {command.companyId},
+      branchIds: {command.branchId},
+      permissions: {'inspection.create'},
+    );
+
+    check(
+      host.execute(command, principal).reasonCode == 'INVALID_PAYLOAD',
+      'Host accepted an extension record outside its declared numeric bounds',
     );
   });
 

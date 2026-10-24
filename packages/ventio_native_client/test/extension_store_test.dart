@@ -1378,6 +1378,94 @@ void main() {
   );
 
   test(
+    'Numeric validation and schema upgrades preserve saved records',
+    () async {
+      Map<String, dynamic> quantityField({
+        int? minimum = 0,
+        int? maximum = 100,
+      }) {
+        final field = <String, dynamic>{
+          'name': 'quantity',
+          'type': 'integer',
+          'required': false,
+          'label': 'Quantity',
+          'labelKey': 'asset_register.asset.quantity',
+        };
+        if (minimum != null) field['minValue'] = minimum;
+        if (maximum != null) field['maxValue'] = maximum;
+        return field;
+      }
+
+      Map<String, dynamic> definition({
+        required int schemaVersion,
+        int? minimum = 0,
+        int? maximum = 100,
+      }) => _docType(
+        schemaVersion: schemaVersion,
+        fields: [
+          _textField(),
+          quantityField(minimum: minimum, maximum: maximum),
+        ],
+      );
+
+      await createActiveExtension(docType: definition(schemaVersion: 1));
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: {'name': 'Laptop', 'quantity': 50},
+        recordId: 'asset-bounded',
+      );
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: {'name': 'Out of range', 'quantity': 101},
+          recordId: 'asset-invalid',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'INVALID_RECORD',
+          ),
+        ),
+      );
+
+      await store.saveDocType(
+        definition(schemaVersion: 2, minimum: -10, maximum: 200),
+      );
+      final migrated = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: 'asset-bounded',
+        scope: _scope,
+      ))!;
+      expect(migrated.values['quantity'], 50);
+      expect(migrated.schemaVersion, 2);
+
+      for (final narrowed in [
+        definition(schemaVersion: 3, minimum: -10, maximum: 40),
+        definition(schemaVersion: 3, minimum: 60, maximum: 200),
+      ]) {
+        await expectLater(
+          store.saveDocType(narrowed),
+          throwsA(
+            isA<ExtensionStoreException>().having(
+              (error) => error.code,
+              'code',
+              'DESTRUCTIVE_SCHEMA_CHANGE',
+            ),
+          ),
+        );
+      }
+      expect(await store.countRecords(_moduleId), 1);
+      expect((await store.getExtension(_moduleId))!.version, '0.1.1');
+    },
+  );
+
+  test(
     'Removal refuses to destroy data; disable keeps it readable offline',
     () async {
       await createActiveExtension();

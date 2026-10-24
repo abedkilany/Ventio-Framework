@@ -7,6 +7,8 @@ class FieldDefinition {
   final String label;
   final String labelKey;
   final int? maxLength;
+  final num? minValue;
+  final num? maxValue;
   final List<String> enumValues;
   final String? referenceTo;
 
@@ -17,6 +19,8 @@ class FieldDefinition {
       required this.label,
       required this.labelKey,
       required this.maxLength,
+      this.minValue,
+      this.maxValue,
       required this.enumValues,
       required this.referenceTo});
 
@@ -38,6 +42,32 @@ class FieldDefinition {
     if (maxLength != null &&
         (maxLength is! int || maxLength < 1 || maxLength > 65535)) {
       throw const ContractError('INVALID_FIELD', 'Invalid maxLength');
+    }
+    final minValue = json['minValue'];
+    final maxValue = json['maxValue'];
+    for (final entry in {'minValue': minValue, 'maxValue': maxValue}.entries) {
+      final bound = entry.value;
+      if (bound != null && (bound is! num || !bound.isFinite)) {
+        throw ContractError('INVALID_FIELD', 'Invalid ${entry.key}');
+      }
+      if (bound != null && type != 'integer' && type != 'decimal') {
+        throw ContractError(
+          'INVALID_FIELD',
+          'Numeric bounds require an integer or decimal field',
+        );
+      }
+      if (bound != null && type == 'integer' && bound is! int) {
+        throw ContractError(
+          'INVALID_FIELD',
+          '${entry.key} must be a whole number for integer fields',
+        );
+      }
+    }
+    if (minValue != null && maxValue != null && minValue > maxValue) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'minValue must not exceed maxValue',
+      );
     }
     final options = json['enumValues'] == null
         ? <String>[]
@@ -74,6 +104,8 @@ class FieldDefinition {
         label: requireString(json, 'label'),
         labelKey: labelKey,
         maxLength: maxLength as int?,
+        minValue: minValue as num?,
+        maxValue: maxValue as num?,
         enumValues: List.unmodifiable(options),
         referenceTo: referenceTo);
   }
@@ -93,11 +125,13 @@ class FieldDefinition {
             ? null
             : 'INVALID_ENUM';
       case 'integer':
-        return value is int ? null : 'INVALID_INTEGER';
+        if (value is! int) return 'INVALID_INTEGER';
+        return _validateNumberBounds(value);
       case 'decimal':
         // Monetary values need a decimal-precision contract before this type can
         // be used for financial postings. Never use binary doubles for ledgers.
-        return value is num && value.isFinite ? null : 'INVALID_DECIMAL';
+        if (value is! num || !value.isFinite) return 'INVALID_DECIMAL';
+        return _validateNumberBounds(value);
       case 'boolean':
         return value is bool ? null : 'INVALID_BOOLEAN';
       case 'date':
@@ -113,6 +147,12 @@ class FieldDefinition {
         return DateTime.tryParse(value) != null ? null : 'INVALID_DATETIME';
     }
     return 'UNSUPPORTED_FIELD_TYPE';
+  }
+
+  String? _validateNumberBounds(num value) {
+    if (minValue != null && value < minValue!) return 'BELOW_MINIMUM';
+    if (maxValue != null && value > maxValue!) return 'ABOVE_MAXIMUM';
+    return null;
   }
 }
 

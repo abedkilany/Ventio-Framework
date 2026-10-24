@@ -159,6 +159,8 @@ class ExtensionBundle {
             'label',
             'labelKey',
             'maxLength',
+            'minValue',
+            'maxValue',
             'enumValues',
             'enumLabels',
             'referenceTo',

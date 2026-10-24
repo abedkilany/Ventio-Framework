@@ -450,9 +450,51 @@ void main() {
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
       expect(find.text('Save field'), findsNothing);
+
+      await tester.tap(find.text('Add field'));
+      await tester.pumpAndSettle();
+      final quantityDialog = find.byType(AlertDialog);
+      await tester.enterText(
+        find
+            .descendant(
+              of: quantityDialog,
+              matching: find.byType(TextFormField),
+            )
+            .at(0),
+        'quantity',
+      );
+      await tester.enterText(
+        find
+            .descendant(
+              of: quantityDialog,
+              matching: find.byType(TextFormField),
+            )
+            .at(1),
+        'Quantity',
+      );
+      await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Whole number').last);
+      await tester.pumpAndSettle();
+      final quantityFields = find.descendant(
+        of: quantityDialog,
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(quantityFields.at(2), '1');
+      await tester.enterText(quantityFields.at(3), '10');
+      await tester.ensureVisible(find.text('Save field'));
+      await tester.tap(find.text('Save field'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Save DocType'));
       await tester.tap(find.text('Save DocType'));
       await tester.pumpAndSettle();
+
+      final savedDefinition = (await store.listDocTypes(
+        'com.example.asset_register',
+      )).single;
+      final savedQuantity = (savedDefinition['fields'] as List).last as Map;
+      expect(savedQuantity['minValue'], 1);
+      expect(savedQuantity['maxValue'], 10);
 
       expect(find.text('Asset · operational DocType'), findsOneWidget);
       await tester.tap(find.text('Preview'));
@@ -474,7 +516,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('New record'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).first, 'Laptop 42');
+      final recordFields = find.byType(TextFormField);
+      await tester.enterText(recordFields.at(0), 'Laptop 42');
+      await tester.enterText(recordFields.at(1), '0');
+      await tester.tap(find.text('Save on device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter a value of at least 1.'), findsOneWidget);
+      await tester.enterText(recordFields.at(1), '3');
       await tester.tap(find.text('Save on device'));
       await tester.pumpAndSettle();
 
@@ -490,6 +538,7 @@ void main() {
       );
       expect(records, hasLength(1));
       expect(records.single.values['name'], 'Laptop 42');
+      expect(records.single.values['quantity'], 3);
       expect(records.single.syncState, 'LOCAL_ONLY');
     },
   );

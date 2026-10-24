@@ -27,6 +27,22 @@ def load_json(path: Path):
         return json.load(stream)
 
 
+def validate_numeric_bounds(doctype):
+    for field in doctype['fields']:
+        minimum = field.get('minValue')
+        maximum = field.get('maxValue')
+        if minimum is None and maximum is None:
+            continue
+        if field['type'] not in {'integer', 'decimal'}:
+            raise ValueError(f"{field['name']}: numeric bounds require a numeric field")
+        if field['type'] == 'integer' and any(
+            type(bound) is not int for bound in (minimum, maximum) if bound is not None
+        ):
+            raise ValueError(f"{field['name']}: integer bounds must be whole numbers")
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise ValueError(f"{field['name']}: minimum exceeds maximum")
+
+
 def validate_schema_pair(schema_name: str, example_name: str):
     schema = load_json(ROOT / 'contracts' / f'{schema_name}.schema.json')
     Draft202012Validator.check_schema(schema)
@@ -36,6 +52,8 @@ def validate_schema_pair(schema_name: str, example_name: str):
     if errors:
         formatted = '; '.join(f'{list(err.absolute_path)}: {err.message}' for err in errors)
         raise ValueError(f'{example_name}: {formatted}')
+    if schema_name == 'doctype':
+        validate_numeric_bounds(payload)
     return payload
 
 

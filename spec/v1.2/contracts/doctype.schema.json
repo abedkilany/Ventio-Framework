@@ -145,6 +145,12 @@
           "minimum": 1,
           "maximum": 65535
         },
+        "minValue": {
+          "type": "number"
+        },
+        "maxValue": {
+          "type": "number"
+        },
         "referenceTo": {
           "type": "string"
         },
@@ -205,6 +211,63 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "integer"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "minValue": {
+                "type": "integer"
+              },
+              "maxValue": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "text",
+                  "boolean",
+                  "date",
+                  "datetime",
+                  "reference",
+                  "enum"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "minValue"
+                  ]
+                },
+                {
+                  "required": [
+                    "maxValue"
+                  ]
+                }
+              ]
+            }
+          }
+        },
         {
           "if": {
             "properties": {
