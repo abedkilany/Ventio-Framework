@@ -1274,6 +1274,139 @@ Future<void> main() async {
       'A rejected downgrade remains unapproved',
     );
 
+    ExtensionBundle schemaRelease(String version, {required bool removeField}) {
+      final source =
+          jsonDecode(jsonEncode(package.toJson())) as Map<String, dynamic>;
+      (source['manifest'] as Map<String, dynamic>)['version'] = version;
+      final type = (source['docTypes'] as List).single as Map<String, dynamic>;
+      type['schemaVersion'] = 2;
+      final fields = type['fields'] as List;
+      if (removeField) {
+        fields.removeWhere(
+          (field) => (field as Map<String, dynamic>)['name'] == 'parent',
+        );
+      } else {
+        final slug = package.moduleId.toLowerCase().replaceAll(
+          RegExp(r'[^a-z0-9]+'),
+          '_',
+        );
+        final notesKey = 'extension.$slug.item.notes';
+        fields.add({
+          'name': 'notes',
+          'type': 'text',
+          'required': false,
+          'label': 'Notes',
+          'labelKey': notesKey,
+          'maxLength': 120,
+        });
+        (source['englishCatalog'] as Map<String, dynamic>)[notesKey] = 'Notes';
+      }
+      return ExtensionBundle.fromJson(source);
+    }
+
+    final destructiveSchema = schemaRelease('1.0.1', removeField: true);
+    expect(
+      (await submitPackage(primaryToken, destructiveSchema)).status == 202,
+      'A destructive schema release can be submitted for operator review',
+    );
+    await mustFail(
+      () => packageAdmin.approve(
+        moduleId: destructiveSchema.moduleId,
+        version: destructiveSchema.version,
+        packageSha256: hash(destructiveSchema),
+      ),
+      'Host refuses to approve a release that removes a DocType field',
+    );
+    expect(
+      (await readPackage(
+            primaryToken,
+            destructiveSchema.moduleId,
+            destructiveSchema.version,
+          )).status ==
+          404,
+      'A destructive schema release remains unavailable to clients',
+    );
+
+    final additiveSchema = schemaRelease('1.0.2', removeField: false);
+    expect(
+      (await submitPackage(primaryToken, additiveSchema)).status == 202,
+      'A versioned additive schema release can be submitted',
+    );
+    await packageAdmin.approve(
+      moduleId: additiveSchema.moduleId,
+      version: additiveSchema.version,
+      packageSha256: hash(additiveSchema),
+    );
+    expect(
+      (await readPackage(
+            primaryToken,
+            additiveSchema.moduleId,
+            additiveSchema.version,
+          )).status ==
+          200,
+      'Host approves an additive optional-field schema release',
+    );
+
+    ExtensionBundle nextSchemaRelease(
+      String version,
+      void Function(Map<String, dynamic> source, Map<String, dynamic> type)
+      change,
+    ) {
+      final source =
+          jsonDecode(jsonEncode(additiveSchema.toJson()))
+              as Map<String, dynamic>;
+      (source['manifest'] as Map<String, dynamic>)['version'] = version;
+      final type = (source['docTypes'] as List).single as Map<String, dynamic>;
+      type['schemaVersion'] = 3;
+      change(source, type);
+      return ExtensionBundle.fromJson(source);
+    }
+
+    final tightenedBounds = nextSchemaRelease('1.0.3', (source, type) {
+      final title = (type['fields'] as List)
+          .cast<Map<String, dynamic>>()
+          .singleWhere((field) => field['name'] == 'title');
+      title['maxLength'] = 40;
+    });
+    await submitPackage(primaryToken, tightenedBounds);
+    await mustFail(
+      () => packageAdmin.approve(
+        moduleId: tightenedBounds.moduleId,
+        version: tightenedBounds.version,
+        packageSha256: hash(tightenedBounds),
+      ),
+      'Host refuses an upgrade that tightens a saved text-field bound',
+    );
+
+    final requiredAddition = nextSchemaRelease('1.0.4', (source, type) {
+      final slug = package.moduleId.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]+'),
+        '_',
+      );
+      final statusKey = 'extension.$slug.item.status';
+      (type['fields'] as List).add({
+        'name': 'status',
+        'type': 'text',
+        'required': true,
+        'label': 'Status',
+        'labelKey': statusKey,
+        'maxLength': 40,
+      });
+      ((type['ui'] as Map<String, dynamic>)['formFields'] as List).add(
+        'status',
+      );
+      (source['englishCatalog'] as Map<String, dynamic>)[statusKey] = 'Status';
+    });
+    await submitPackage(primaryToken, requiredAddition);
+    await mustFail(
+      () => packageAdmin.approve(
+        moduleId: requiredAddition.moduleId,
+        version: requiredAddition.version,
+        packageSha256: hash(requiredAddition),
+      ),
+      'Host refuses a newly required field without a data migration',
+    );
+
     final dependency = bundle('com.example.dependency', '1.0.0');
     await submitPackage(primaryToken, dependency);
     await packageAdmin.approve(
@@ -1347,6 +1480,17 @@ Future<void> main() async {
       runtimeReadBlocked && adminReadBlocked,
       'Runtime and identity-admin logins cannot bypass package functions with direct table reads',
     );
+    final compatibilityGuardPrivileges = await observer.execute('''
+      SELECT has_function_privilege('ventio_identity_admin',
+        'public.ventio_validate_extension_schema_upgrade(text,text,text)', 'EXECUTE'),
+        has_function_privilege('ventio_runtime',
+        'public.ventio_validate_extension_schema_upgrade(text,text,text)', 'EXECUTE')
+    ''');
+    expect(
+      compatibilityGuardPrivileges.single[0] == true &&
+          compatibilityGuardPrivileges.single[1] == false,
+      'Only the restricted operator login can execute the schema compatibility guard',
+    );
     expect(
       (await observer.execute(
             pg.Sql.named(
@@ -1354,7 +1498,7 @@ Future<void> main() async {
             ),
             parameters: {'tenant': tenant},
           )).single[0] ==
-          6,
+          7,
       'Approval and revocation events remain in the operator audit ledger',
     );
     await observer.execute(

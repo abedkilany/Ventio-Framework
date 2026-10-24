@@ -21,6 +21,10 @@ BEGIN
   END LOOP;
 END $roles$;
 GRANT ventio_owner TO ventio_migrator WITH INHERIT FALSE, SET TRUE;
+ALTER FUNCTION public.ventio_validate_extension_schema_upgrade(text,text,text)
+  OWNER TO ventio_owner;
+REVOKE ALL ON FUNCTION public.ventio_validate_extension_schema_upgrade(text,text,text)
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin;
 -- A prior recovery profile kept pgcrypto beside callable RLS functions. Move
 -- that extension as the trusted cluster administrator before reducing to the
 -- non-superuser owner role below.
@@ -437,5 +441,6 @@ GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
   ventio_security.recovery_snapshot(),
   ventio_security.reset_recovery(text,text),
   ventio_security.read_extension_submission(text,text,text),
+  public.ventio_validate_extension_schema_upgrade(text,text,text),
   ventio_security.assert_schema() TO ventio_identity_admin;
 COMMIT;
