@@ -83,6 +83,7 @@ Future<void> main() async {
   }
   final shutdown = Completer<void>();
   final subscriptions = <StreamSubscription<ProcessSignal>>[];
+  StreamSubscription<String>? testShutdown;
   for (final signal in [
     ProcessSignal.sigint,
     if (!Platform.isWindows) ProcessSignal.sigterm,
@@ -93,9 +94,20 @@ Future<void> main() async {
       }),
     );
   }
+  if (Platform.environment['VENTIO_TEST_SHUTDOWN_VIA_STDIN'] == 'yes') {
+    testShutdown = stdin
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          if (line == 'shutdown' && !shutdown.isCompleted) {
+            shutdown.complete();
+          }
+        });
+  }
   await shutdown.future;
   await api.close();
   for (final subscription in subscriptions) {
     await subscription.cancel();
   }
+  await testShutdown?.cancel();
 }

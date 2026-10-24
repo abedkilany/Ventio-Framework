@@ -9,6 +9,16 @@ import 'package:ventio_postgres/ventio_postgres.dart';
 
 import 'test_support.dart';
 
+Future<int> _stopServerProcess(Process process) async {
+  if (Platform.isWindows) {
+    process.stdin.writeln('shutdown');
+    await process.stdin.flush();
+  } else {
+    process.kill(ProcessSignal.sigterm);
+  }
+  return process.exitCode.timeout(const Duration(seconds: 20));
+}
+
 class FaultExecutor implements CommandExecutor {
   final Future<pg.Connection> Function() connect;
   final MaintenancePrototype prototype;
@@ -277,6 +287,7 @@ Future<void> main() async {
           'VENTIO_DEVELOPMENT_IDENTITY_FILE': identity.absolute.path,
           'VENTIO_HOST_DATABASE_URL': url,
           'VENTIO_HOST_PORT': '0',
+          if (Platform.isWindows) 'VENTIO_TEST_SHUTDOWN_VIA_STDIN': 'yes',
         },
       );
       child!.stderr.drain<void>();
@@ -315,11 +326,8 @@ Future<void> main() async {
           canonicalJson(receipt.body),
       'Independent server process reads durable receipt',
     );
-    child!.kill(ProcessSignal.sigterm);
-    check(
-      await child!.exitCode.timeout(const Duration(seconds: 20)) == 0,
-      'Server process shuts down gracefully',
-    );
+    final firstShutdownCode = await _stopServerProcess(child!);
+    check(firstShutdownCode == 0, 'Server process shuts down gracefully');
     child = null;
     final secondPort = await startChild();
     check(
@@ -327,11 +335,8 @@ Future<void> main() async {
           canonicalJson(receipt.body),
       'Restarted server process returns identical persisted receipt',
     );
-    child!.kill(ProcessSignal.sigterm);
-    check(
-      await child!.exitCode.timeout(const Duration(seconds: 20)) == 0,
-      'Restarted process shuts down cleanly',
-    );
+    final secondShutdownCode = await _stopServerProcess(child!);
+    check(secondShutdownCode == 0, 'Restarted process shuts down cleanly');
     child = null;
     await effects(6, 'Process restart does not duplicate any persisted effect');
     stdout.writeln('RESULT: $assertions passed, 0 failed');
