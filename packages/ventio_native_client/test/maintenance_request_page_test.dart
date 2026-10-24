@@ -28,6 +28,11 @@ void main() {
   testWidgets('Maintenance form saves a visibly pending local request', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       MaterialApp(
         home: MaintenanceRequestPage(
@@ -44,13 +49,7 @@ void main() {
     await tester.enterText(fields.at(0), 'Sample Customer');
     await tester.enterText(fields.at(1), 'Sample Laptop');
     await tester.enterText(fields.at(2), 'Battery does not charge');
-    final saveButton = find.text('Save locally');
-    await tester.dragUntilVisible(
-      saveButton,
-      find.byType(ListView),
-      const Offset(0, -300),
-    );
-    await tester.tap(saveButton);
+    await tester.tap(find.text('Save locally'));
     await tester.pumpAndSettle();
 
     expect(find.text('Pending'), findsOneWidget);
