@@ -105,6 +105,7 @@ void main() {
                 'actorId': 'user-1',
                 'deviceId': 'device-1',
                 'persistent': true,
+                'roleAdministrationAvailable': true,
                 'scopes': [
                   {
                     'companyId': 'company-1',
@@ -137,6 +138,242 @@ void main() {
       expect(identity.scopes.single.permissions, {'extension.package.read'});
     },
   );
+
+  test('Lists Host roles for the requested exact branch', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final seen = Completer<Map<String, dynamic>>();
+    server.listen((request) async {
+      final body = jsonDecode(await utf8.decoder.bind(request).join());
+      seen.complete({
+        'method': request.method,
+        'path': request.uri.path,
+        'authorization': request.headers.value(HttpHeaders.authorizationHeader),
+        'body': body,
+      });
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            'identityRoles': {
+              'tenantId': 'tenant-1',
+              'companyId': 'company-1',
+              'branchId': 'branch-1',
+              'roles': [
+                {
+                  'roleId': 'branch-editor',
+                  'displayName': 'Branch editor',
+                  'permissions': ['example.item.read'],
+                  'assignedActorIds': ['user-1'],
+                },
+              ],
+            },
+          }),
+        );
+      await request.response.close();
+    });
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(endpoint, token);
+    final client = HostExtensionPackageClient(
+      endpoint: endpoint,
+      credentials: vault,
+    );
+
+    final snapshot = await client.listRoles(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final request = await seen.future;
+    expect(request, {
+      'method': 'POST',
+      'path': '/api/v1/identity/roles/list',
+      'authorization': 'Bearer $token',
+      'body': {'companyId': 'company-1', 'branchId': 'branch-1'},
+    });
+    expect(snapshot.tenantId, 'tenant-1');
+    expect(snapshot.roles.single.roleId, 'branch-editor');
+    expect(snapshot.roles.single.permissions, {'example.item.read'});
+    expect(snapshot.roles.single.assignedActorIds, ['user-1']);
+  });
+
+  test('Rejects a role snapshot returned for another branch', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      await request.drain<void>();
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            'identityRoles': {
+              'tenantId': 'tenant-1',
+              'companyId': 'company-1',
+              'branchId': 'other-branch',
+              'roles': <Object>[],
+            },
+          }),
+        );
+      await request.response.close();
+    });
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(endpoint, token);
+
+    await expectLater(
+      HostExtensionPackageClient(
+        endpoint: endpoint,
+        credentials: vault,
+      ).listRoles(companyId: 'company-1', branchId: 'branch-1'),
+      throwsA(
+        isA<HostPackageTransportException>().having(
+          (error) => error.code,
+          'code',
+          'HOST_INVALID_RESPONSE',
+        ),
+      ),
+    );
+  });
+
+  test('Sends role changes through the explicit Host routes', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final requests = <Map<String, dynamic>>[];
+    server.listen((request) async {
+      requests.add({
+        'path': request.uri.path,
+        'body': jsonDecode(await utf8.decoder.bind(request).join()),
+      });
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            'identityRoleResult': {'status': 'APPLIED'},
+          }),
+        );
+      await request.response.close();
+    });
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(endpoint, token);
+    final client = HostExtensionPackageClient(
+      endpoint: endpoint,
+      credentials: vault,
+    );
+
+    await client.createRole(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleId: 'branch-editor',
+      displayName: 'Branch editor',
+    );
+    await client.renameRole(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleId: 'branch-editor',
+      displayName: 'Editor',
+    );
+    await client.grantRolePermission(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleId: 'branch-editor',
+      permission: 'example.item.read',
+    );
+    await client.revokeRolePermission(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleId: 'branch-editor',
+      permission: 'example.item.read',
+    );
+    await client.assignRole(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleId: 'branch-editor',
+      actorId: 'user-1',
+    );
+    await client.unassignRole(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleId: 'branch-editor',
+      actorId: 'user-1',
+    );
+    await client.deleteRole(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleId: 'branch-editor',
+    );
+
+    expect(requests, [
+      {
+        'path': '/api/v1/identity/roles/create',
+        'body': {
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'roleId': 'branch-editor',
+          'displayName': 'Branch editor',
+        },
+      },
+      {
+        'path': '/api/v1/identity/roles/rename',
+        'body': {
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'roleId': 'branch-editor',
+          'displayName': 'Editor',
+        },
+      },
+      {
+        'path': '/api/v1/identity/roles/grant-permission',
+        'body': {
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'roleId': 'branch-editor',
+          'permission': 'example.item.read',
+        },
+      },
+      {
+        'path': '/api/v1/identity/roles/revoke-permission',
+        'body': {
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'roleId': 'branch-editor',
+          'permission': 'example.item.read',
+        },
+      },
+      {
+        'path': '/api/v1/identity/roles/assign',
+        'body': {
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'roleId': 'branch-editor',
+          'actorId': 'user-1',
+        },
+      },
+      {
+        'path': '/api/v1/identity/roles/unassign',
+        'body': {
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'roleId': 'branch-editor',
+          'actorId': 'user-1',
+        },
+      },
+      {
+        'path': '/api/v1/identity/roles/delete',
+        'body': {
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'roleId': 'branch-editor',
+        },
+      },
+    ]);
+  });
 
   test(
     'Submits candidates and installs only verified approved packages',

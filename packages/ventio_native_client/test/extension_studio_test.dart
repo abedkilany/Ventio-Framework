@@ -38,6 +38,7 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
     actorId: 'user-1',
     deviceId: 'device-1',
     persistent: true,
+    roleAdministrationAvailable: true,
     scopes: [
       HostScopeGrant(
         companyId: 'company-1',

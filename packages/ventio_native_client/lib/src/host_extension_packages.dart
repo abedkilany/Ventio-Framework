@@ -26,6 +26,7 @@ class HostSessionIdentity {
     required this.actorId,
     required this.deviceId,
     required this.persistent,
+    required this.roleAdministrationAvailable,
     required Iterable<HostScopeGrant> scopes,
   }) : scopes = List.unmodifiable(scopes);
 
@@ -33,7 +34,37 @@ class HostSessionIdentity {
   final String actorId;
   final String deviceId;
   final bool persistent;
+  final bool roleAdministrationAvailable;
   final List<HostScopeGrant> scopes;
+}
+
+class HostIdentityRole {
+  HostIdentityRole({
+    required this.roleId,
+    required this.displayName,
+    required Iterable<String> permissions,
+    required Iterable<String> assignedActorIds,
+  }) : permissions = Set.unmodifiable(permissions),
+       assignedActorIds = List.unmodifiable(assignedActorIds);
+
+  final String roleId;
+  final String displayName;
+  final Set<String> permissions;
+  final List<String> assignedActorIds;
+}
+
+class HostIdentityRoleSnapshot {
+  HostIdentityRoleSnapshot({
+    required this.tenantId,
+    required this.companyId,
+    required this.branchId,
+    required Iterable<HostIdentityRole> roles,
+  }) : roles = List.unmodifiable(roles);
+
+  final String tenantId;
+  final String companyId;
+  final String branchId;
+  final List<HostIdentityRole> roles;
 }
 
 class HostExtensionRecord {
@@ -107,10 +138,12 @@ class HostExtensionPackageClient {
           'actorId',
           'deviceId',
           'persistent',
+          'roleAdministrationAvailable',
           'scopes',
         }).isNotEmpty ||
-        identity.keys.length != 5 ||
+        identity.keys.length != 6 ||
         identity['persistent'] is! bool ||
+        identity['roleAdministrationAvailable'] is! bool ||
         identity['scopes'] is! List) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
     }
@@ -144,6 +177,8 @@ class HostExtensionPackageClient {
       actorId: _requiredIdentifier(identity['actorId']),
       deviceId: _requiredIdentifier(identity['deviceId']),
       persistent: identity['persistent'] as bool,
+      roleAdministrationAvailable:
+          identity['roleAdministrationAvailable'] as bool,
       scopes: scopes,
     );
   }
@@ -201,6 +236,177 @@ class HostExtensionPackageClient {
       );
     }
     return bundle;
+  }
+
+  Future<HostIdentityRoleSnapshot> listRoles({
+    required String companyId,
+    required String branchId,
+  }) async {
+    final response = await _request('POST', '/api/v1/identity/roles/list', {
+      'companyId': companyId,
+      'branchId': branchId,
+    });
+    final raw = response.body['identityRoles'];
+    if (response.statusCode != HttpStatus.ok || raw is! Map) {
+      throw _responseError(response);
+    }
+    final result = Map<String, dynamic>.from(raw);
+    if (result.keys.toSet().difference(const {
+          'tenantId',
+          'companyId',
+          'branchId',
+          'roles',
+        }).isNotEmpty ||
+        result.keys.length != 4 ||
+        result['roles'] is! List) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    final roles = (result['roles'] as List)
+        .map((rawRole) {
+          if (rawRole is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final role = Map<String, dynamic>.from(rawRole);
+          if (role.keys.toSet().difference(const {
+                'roleId',
+                'displayName',
+                'permissions',
+                'assignedActorIds',
+              }).isNotEmpty ||
+              role.keys.length != 4 ||
+              role['permissions'] is! List ||
+              role['assignedActorIds'] is! List ||
+              (role['permissions'] as List).any((value) => value is! String) ||
+              (role['assignedActorIds'] as List).any(
+                (value) => value is! String,
+              )) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final permissions = (role['permissions'] as List).cast<String>();
+          final actorIds = (role['assignedActorIds'] as List).cast<String>();
+          if (permissions.toSet().length != permissions.length ||
+              actorIds.toSet().length != actorIds.length ||
+              role['displayName'] is! String ||
+              (role['displayName'] as String).trim().isEmpty ||
+              (role['displayName'] as String).length > 120 ||
+              !RegExp(
+                r'^[a-z][a-z0-9_.-]{0,127}$',
+              ).hasMatch(_requiredIdentifier(role['roleId'])) ||
+              permissions.any(
+                (permission) =>
+                    permission.length > 256 ||
+                    !RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission),
+              ) ||
+              actorIds.any(
+                (actorId) => actorId.trim().isEmpty || actorId.length > 256,
+              )) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          return HostIdentityRole(
+            roleId: role['roleId'] as String,
+            displayName: role['displayName'] as String,
+            permissions: permissions,
+            assignedActorIds: actorIds,
+          );
+        })
+        .toList(growable: false);
+    final tenantId = _requiredIdentifier(result['tenantId']);
+    final responseCompanyId = _requiredIdentifier(result['companyId']);
+    final responseBranchId = _requiredIdentifier(result['branchId']);
+    if (responseCompanyId != companyId || responseBranchId != branchId) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    return HostIdentityRoleSnapshot(
+      tenantId: tenantId,
+      companyId: responseCompanyId,
+      branchId: responseBranchId,
+      roles: roles,
+    );
+  }
+
+  Future<void> createRole({
+    required String companyId,
+    required String branchId,
+    required String roleId,
+    required String displayName,
+  }) => _changeRole('create', companyId, branchId, {
+    'roleId': roleId,
+    'displayName': displayName,
+  });
+
+  Future<void> renameRole({
+    required String companyId,
+    required String branchId,
+    required String roleId,
+    required String displayName,
+  }) => _changeRole('rename', companyId, branchId, {
+    'roleId': roleId,
+    'displayName': displayName,
+  });
+
+  Future<void> deleteRole({
+    required String companyId,
+    required String branchId,
+    required String roleId,
+  }) => _changeRole('delete', companyId, branchId, {'roleId': roleId});
+
+  Future<void> grantRolePermission({
+    required String companyId,
+    required String branchId,
+    required String roleId,
+    required String permission,
+  }) => _changeRole('grant-permission', companyId, branchId, {
+    'roleId': roleId,
+    'permission': permission,
+  });
+
+  Future<void> revokeRolePermission({
+    required String companyId,
+    required String branchId,
+    required String roleId,
+    required String permission,
+  }) => _changeRole('revoke-permission', companyId, branchId, {
+    'roleId': roleId,
+    'permission': permission,
+  });
+
+  Future<void> assignRole({
+    required String companyId,
+    required String branchId,
+    required String roleId,
+    required String actorId,
+  }) => _changeRole('assign', companyId, branchId, {
+    'roleId': roleId,
+    'actorId': actorId,
+  });
+
+  Future<void> unassignRole({
+    required String companyId,
+    required String branchId,
+    required String roleId,
+    required String actorId,
+  }) => _changeRole('unassign', companyId, branchId, {
+    'roleId': roleId,
+    'actorId': actorId,
+  });
+
+  Future<void> _changeRole(
+    String action,
+    String companyId,
+    String branchId,
+    Map<String, Object?> fields,
+  ) async {
+    final response = await _request('POST', '/api/v1/identity/roles/$action', {
+      'companyId': companyId,
+      'branchId': branchId,
+      ...fields,
+    });
+    final rawResult = response.body['identityRoleResult'];
+    if (response.statusCode != HttpStatus.ok ||
+        rawResult is! Map ||
+        rawResult['status'] != 'APPLIED') {
+      throw _responseError(response);
+    }
   }
 
   Future<HostExtensionRecordPage> queryRecords({

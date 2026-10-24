@@ -80,6 +80,10 @@ class RecoveryAuthority {
 
   Future<void> admit(pg.TxSession tx) async {
     final state = await _read();
+    await _admitState(tx, state);
+  }
+
+  Future<void> _admitState(pg.TxSession tx, Map<String, dynamic> state) async {
     await tx.execute(
       pg.Sql.named('SELECT ventio_security.admit_recovery(@proof,@authority)'),
       parameters: {
@@ -182,8 +186,9 @@ class RecoveryAuthority {
   /// is no unsafe "repair witness from whichever DB was restored" fallback.
   Future<void> change(
     pg.Connection db,
-    Future<void> Function(pg.TxSession) action,
-  ) => _exclusive(() async {
+    Future<void> Function(pg.TxSession) action, {
+    bool requireAdmissionProof = false,
+  }) => _exclusive(() async {
     final state = await _read();
     // Validate under the SAME exclusive DB lock as the mutation. Another
     // admin process using raw RPCs cannot slip a stale change in between.
@@ -197,6 +202,7 @@ class RecoveryAuthority {
         if (await snapshot(tx) != state['fingerprint']) {
           throw StateError('Recovery evidence does not match database');
         }
+        if (requireAdmissionProof) await _admitState(tx, state);
         try {
           await action(tx);
         } on pg.ServerException {

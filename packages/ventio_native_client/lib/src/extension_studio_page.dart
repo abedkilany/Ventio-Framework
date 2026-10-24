@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -13,6 +14,7 @@ import 'host_sync_service.dart';
 import 'host_transport.dart';
 import 'local_command_queue.dart';
 import 'maintenance_request_page.dart';
+import 'role_administration_page.dart';
 import 'transport_fixture.dart';
 
 enum _StudioMenuAction {
@@ -51,6 +53,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   bool _loading = true;
   List<LocalExtension> _extensions = const [];
   HostConnectionProfile? _hostProfile;
+  HostSessionIdentity? _hostIdentity;
   String? _loadError;
   String? _queueRecoveryWarning;
 
@@ -74,6 +77,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         _loadError = null;
         _queueRecoveryWarning = null;
       });
+      unawaited(_refreshHostIdentity());
       await _reconcileQueuedRecords(widget.store, widget.queue);
       await _enqueueOrphanedHostRecords();
     } catch (error) {
@@ -83,6 +87,72 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         _loadError = error.toString();
       });
     }
+  }
+
+  Future<void> _refreshHostIdentity() async {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    if (profile == null || vault == null) {
+      if (mounted) setState(() => _hostIdentity = null);
+      return;
+    }
+    try {
+      final identity = await _hostPackageClient(
+        endpoint: Uri.parse(profile.endpoint),
+        vault: vault,
+      ).session();
+      if (!mounted || _hostProfile?.endpoint != profile.endpoint) return;
+      final selectedScopeIsStillGranted = identity.scopes.any(
+        (scope) =>
+            scope.companyId == profile.companyId &&
+            scope.branchId == profile.branchId,
+      );
+      setState(() {
+        _hostIdentity = identity.persistent && selectedScopeIsStillGranted
+            ? identity
+            : null;
+      });
+    } catch (_) {
+      if (mounted && _hostProfile?.endpoint == profile.endpoint) {
+        setState(() => _hostIdentity = null);
+      }
+    }
+  }
+
+  bool get _canManageRoles {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    if (profile == null ||
+        identity == null ||
+        !identity.roleAdministrationAvailable) {
+      return false;
+    }
+    return identity.scopes.any(
+      (scope) =>
+          scope.companyId == profile.companyId &&
+          scope.branchId == profile.branchId &&
+          scope.permissions.contains('identity.roles.manage'),
+    );
+  }
+
+  Future<void> _openRoleAdministration() async {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    if (!_canManageRoles || profile == null || vault == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => RoleAdministrationPage(
+          client: _hostPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            vault: vault,
+          ),
+          tenantId: profile.tenantId,
+          companyId: profile.companyId,
+          branchId: profile.branchId,
+        ),
+      ),
+    );
+    await _refreshHostIdentity();
   }
 
   Future<void> _enqueueOrphanedHostRecords() async {
@@ -339,6 +409,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       await vault.delete(Uri.parse(profile.endpoint));
     }
     await widget.store.clearHostProfile();
+    if (mounted) setState(() => _hostIdentity = null);
     await _load();
     _message('Host disconnected. Local work was preserved.');
   }
@@ -629,6 +700,17 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   ),
                 ],
                 if (_hostProfile != null) ...[
+                  if (_canManageRoles) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.tonalIcon(
+                        onPressed: _openRoleAdministration,
+                        icon: const Icon(Icons.manage_accounts_outlined),
+                        label: const Text('Manage roles & access'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,

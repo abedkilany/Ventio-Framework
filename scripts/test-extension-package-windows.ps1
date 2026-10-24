@@ -138,6 +138,11 @@ try {
         throw 'PostgreSQL least-privilege and RLS integration failed.'
       }
 
+      dart run test/role_administration_integration.dart
+      if ($LASTEXITCODE -ne 0) {
+        throw 'Scoped role administration integration failed.'
+      }
+
       dart run test/extension_package_integration.dart
       if ($LASTEXITCODE -ne 0) {
         throw 'Extension package PostgreSQL integration failed.'

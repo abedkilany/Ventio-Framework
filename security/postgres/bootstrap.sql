@@ -166,6 +166,7 @@ BEGIN
         JOIN public.ventio_identity_role_permissions rp
           USING (tenant_id,role_id)
         WHERE a.tenant_id=c.tenant_id AND a.actor_id=c.actor_id
+          AND rp.permission <> 'identity.roles.manage'
     ) effective
     WHERE (p_company IS NULL OR effective.company_id=p_company)
       AND (p_branch IS NULL OR effective.branch_id=p_branch)
@@ -426,9 +427,13 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.resolve_extension_read_identity(text,text,text,text,text,text),
   ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint),
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
-  ventio_security.read_approved_extension_package(text,text,text,text,text,text)
+  ventio_security.read_approved_extension_package(text,text,text,text,text,text),
+  ventio_security.identity_roles_snapshot(text,text,text)
   TO ventio_runtime;
-GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb), ventio_security.recovery_snapshot(),
+GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
+  ventio_security.scoped_admin_change(text,text,text,jsonb),
+  ventio_security.admit_recovery(text,text),
+  ventio_security.recovery_snapshot(),
   ventio_security.reset_recovery(text,text),
   ventio_security.read_extension_submission(text,text,text),
   ventio_security.assert_schema() TO ventio_identity_admin;

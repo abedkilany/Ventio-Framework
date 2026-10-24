@@ -18,13 +18,15 @@
 > revocation, rechecked inside each command transaction. See
 > [Persistent identity](../../docs/PERSISTENT_IDENTITY_V0_1.md). The development
 > identity-file provider and launcher described below remain test-only; they are
-> not used by the persistent assembly. External network deployment remains blocked.
+> not used by the persistent assembly. External network deployment has not been end-to-end verified.
 
-# Ventio Host API v0.1 development slice
+Persistent role administration update: when `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` is configured, the persistent Host enables the authenticated `/api/v1/identity/roles/*` routes and checks that connection against the restricted `ventio_identity_admin` profile. Role changes revalidate the persistent credential, its direct `identity.roles.manage` grant and exact branch ceiling inside the recovery-admitted transaction. Renaming, changing permissions, or deleting a shared role requires authority in every branch where it is assigned. The reserved role-management permission cannot be delegated through a role. If the dedicated connection is omitted, these routes remain unavailable.
 
-This package adds an authenticated HTTP boundary to the existing durable,
-trusted operational-create engine. It is an **internal loopback-only prototype**,
-not a deployable production authentication system or ERP server.
+# Ventio Host API v0.1
+
+This package provides a versioned authenticated HTTP boundary around the durable Host engine.
+It includes a development-only loopback API and a persistent PostgreSQL assembly for credentials, extension packages, dynamic records and identity-role administration.
+External TLS listeners are supported when explicitly configured, but a production Windows service or multi-device deployment has not yet been certified.
 
 - `POST /api/v1/commands`: API v1 wrapper around the existing **protocolVersion 0**
   command envelope. The accepted receipt is returned unchanged under `receipt`.
@@ -33,6 +35,7 @@ not a deployable production authentication system or ERP server.
   `extension.package.submit` grant and returns `SUBMITTED`, never `APPROVED`.
 - `POST /api/v1/extensions/read`: returns one Host-approved immutable package
   version after rechecking the exact-scope `extension.package.read` grant.
+- `POST /api/v1/identity/roles/*`: persistent-identity role administration when the restricted `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` is configured; every operation checks direct authority for the exact branch on Host.
 - `GET /api/v1/session`: authenticated identity discovery for the current
   tenant, device and exact company/branch grants; it never returns credentials.
 - `GET /healthz`: unauthenticated process liveness only, not database readiness.

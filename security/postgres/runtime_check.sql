@@ -23,7 +23,11 @@ BEGIN
       has_schema_privilege(current_user, 'public', 'CREATE') OR
       has_schema_privilege(current_user, 'ventio_security', 'CREATE') OR
       has_function_privilege(current_user, 'ventio_security.admin_change(jsonb)', 'EXECUTE') OR
-      has_function_privilege(current_user, 'ventio_security.identity_snapshot(text,text,text)', 'EXECUTE') THEN
+      has_function_privilege(current_user, 'ventio_security.identity_snapshot(text,text,text)', 'EXECUTE') OR
+      has_function_privilege(current_user,
+        'ventio_security.identity_role_manager_allowed(text,text,text,text)', 'EXECUTE') OR
+      has_function_privilege(current_user,
+        'ventio_security.scoped_admin_change(text,text,text,jsonb)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected runtime DDL or identity capability';
   END IF;
   FOREACH t IN ARRAY ARRAY['ventio_identity_users','ventio_identity_devices','ventio_identity_credentials',

@@ -64,6 +64,34 @@ Future<void> main() async {
         )
         .toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
+    final identityAdminUrl =
+        Platform.environment['VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL'];
+    PostgresIdentityRoleAdministrationGateway? roleAdministration;
+    if (identityAdminUrl != null && identityAdminUrl.isNotEmpty) {
+      final parsedAdminUrl = Uri.parse(identityAdminUrl);
+      final boundedAdminUrl = parsedAdminUrl
+          .replace(
+            queryParameters: {
+              ...parsedAdminUrl.queryParameters,
+              'connect_timeout': '5',
+              'query_timeout': '20',
+            },
+          )
+          .toString();
+      Future<pg.Connection> connectAdministration() =>
+          pg.Connection.openFromUrl(boundedAdminUrl);
+      final adminProbe = await connectAdministration();
+      try {
+        await verifyIdentityAdministrationConnection(adminProbe);
+      } finally {
+        await adminProbe.close();
+      }
+      roleAdministration = PostgresIdentityRoleAdministrationGateway(
+        connectRuntime: connect,
+        connectAdministration: connectAdministration,
+        admission: admission,
+      );
+    }
     final probe = await connect();
     try {
       await verifyRuntimeConnection(probe);
@@ -107,6 +135,7 @@ Future<void> main() async {
         connect: connect,
         admission: admission,
       ),
+      identityRoleAdministration: roleAdministration,
       executor: PersistentCommandExecutor(
         connect: connect,
         admission: admission,

@@ -8,6 +8,7 @@ import 'package:ventio_core/ventio_core.dart';
 import 'authentication.dart';
 import 'extension_packages.dart';
 import 'extension_records.dart';
+import 'role_administration.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
@@ -29,6 +30,7 @@ class HostApi {
   final CommandExecutor _executor;
   final ExtensionPackageGateway? _extensionPackages;
   final ExtensionRecordQueryGateway? _extensionRecordQueries;
+  final IdentityRoleAdministrationGateway? _identityRoleAdministration;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
   final Duration bodyTimeout;
@@ -42,6 +44,7 @@ class HostApi {
     this._executor,
     this._extensionPackages,
     this._extensionRecordQueries,
+    this._identityRoleAdministration,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
     this.bodyTimeout,
@@ -63,6 +66,7 @@ class HostApi {
     required CommandExecutor executor,
     ExtensionPackageGateway? extensionPackages,
     ExtensionRecordQueryGateway? extensionRecordQueries,
+    IdentityRoleAdministrationGateway? identityRoleAdministration,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
     int port = 0,
@@ -84,7 +88,10 @@ class HostApi {
                 extensionPackages is! AuthoritativeExtensionPackageGateway) ||
             (extensionRecordQueries != null &&
                 extensionRecordQueries
-                    is! AuthoritativeExtensionRecordQueryGateway))) {
+                    is! AuthoritativeExtensionRecordQueryGateway) ||
+            (identityRoleAdministration != null &&
+                identityRoleAdministration
+                    is! AuthoritativeIdentityRoleAdministrationGateway))) {
       throw ArgumentError(
         'External Host listeners require TLS and authoritative Host services.',
       );
@@ -98,6 +105,7 @@ class HostApi {
       executor,
       extensionPackages,
       extensionRecordQueries,
+      identityRoleAdministration,
       maxBodyBytes,
       maxConcurrentRequests,
       bodyTimeout,
@@ -141,6 +149,8 @@ class HostApi {
       await _error(request, 400, 'INVALID_REQUEST');
     } on ContractError {
       await _error(request, 400, 'INVALID_COMMAND');
+    } on IdentityRoleAdministrationException catch (error) {
+      await _error(request, error.statusCode, error.code);
     } catch (_) {
       // Never return exception text, database details, tokens, or request bodies.
       // Any execution exception may have an ambiguous commit outcome.
@@ -186,10 +196,12 @@ class HostApi {
     };
     final recordQueryRoute =
         request.uri.path == '/api/v1/extensions/records/query';
+    final identityRoleRoute = _identityRoleAction(request.uri.path);
     final sessionRoute = request.uri.path == '/api/v1/session';
     if (request.uri.path != '/api/v1/commands' &&
         packageRoute == null &&
         !recordQueryRoute &&
+        identityRoleRoute == null &&
         !sessionRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
@@ -244,6 +256,7 @@ class HostApi {
           'actorId': principal.actorId,
           'deviceId': principal.deviceId,
           'persistent': session.credentialDigest != null,
+          'roleAdministrationAvailable': _identityRoleAdministration != null,
           'scopes': scopes,
         },
       });
@@ -255,9 +268,14 @@ class HostApi {
     if (recordQueryRoute && _extensionRecordQueries == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
-    if ((packageRoute != null || recordQueryRoute) &&
+    if ((packageRoute != null ||
+            recordQueryRoute ||
+            identityRoleRoute != null) &&
         session.credentialDigest == null) {
       throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
+    }
+    if (identityRoleRoute != null && _identityRoleAdministration == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
     }
     final contentType = request.headers.contentType;
     if (contentType?.mimeType.toLowerCase() != 'application/json' ||
@@ -294,6 +312,15 @@ class HostApi {
     final text = utf8.decode(bytes.takeBytes());
     _validateNesting(text);
     final json = requireMap(jsonDecode(text), 'command');
+    if (identityRoleRoute != null) {
+      await _handleIdentityRoleAdministration(
+        request,
+        identityRoleRoute,
+        json,
+        session,
+      );
+      return;
+    }
     if (packageRoute != null) {
       await _handleExtensionPackage(request, packageRoute, json, session);
       return;
@@ -404,6 +431,113 @@ class HostApi {
     };
     _json(request, statusCode, {'apiVersion': 1, 'packageResult': result});
   }
+
+  Future<void> _handleIdentityRoleAdministration(
+    HttpRequest request,
+    String action,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    final requiredKeys = switch (action) {
+      'list' => const {'companyId', 'branchId'},
+      'create' ||
+      'rename' => const {'companyId', 'branchId', 'roleId', 'displayName'},
+      'delete' => const {'companyId', 'branchId', 'roleId'},
+      'grant-permission' || 'revoke-permission' => const {
+        'companyId',
+        'branchId',
+        'roleId',
+        'permission',
+      },
+      'assign' ||
+      'unassign' => const {'companyId', 'branchId', 'roleId', 'actorId'},
+      _ => throw const _ApiError(404, 'NOT_FOUND'),
+    };
+    if (json.keys.toSet().length != requiredKeys.length ||
+        !json.keys.toSet().containsAll(requiredKeys)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    if (!session.principal.allowsInScope(
+      'identity.roles.manage',
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+    final gateway = _identityRoleAdministration!;
+    if (action == 'list') {
+      final roles = await gateway.list(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+      );
+      if (utf8.encode(jsonEncode(roles)).length > 1024 * 1024) {
+        throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+      }
+      _json(request, 200, {'apiVersion': 1, 'identityRoles': roles});
+      return;
+    }
+
+    final roleId = _boundedIdentifier(json, 'roleId');
+    if (!RegExp(r'^[a-z][a-z0-9_.-]*$').hasMatch(roleId)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final change = <String, Object?>{
+      'action': switch (action) {
+        'create' => 'ROLE_CREATED',
+        'rename' => 'ROLE_RENAMED',
+        'delete' => 'ROLE_DELETED',
+        'grant-permission' => 'ROLE_PERMISSION_GRANTED',
+        'revoke-permission' => 'ROLE_PERMISSION_REVOKED',
+        'assign' => 'ROLE_ASSIGNED',
+        'unassign' => 'ROLE_UNASSIGNED',
+        _ => throw const _ApiError(404, 'NOT_FOUND'),
+      },
+      'roleId': roleId,
+    };
+    if (action == 'create' || action == 'rename') {
+      final displayName = requireString(json, 'displayName');
+      if (displayName.trim().isEmpty || displayName.length > 120) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      change['displayName'] = displayName;
+    } else if (action == 'grant-permission' || action == 'revoke-permission') {
+      final permission = _boundedIdentifier(json, 'permission');
+      if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission)) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      change['permission'] = permission;
+    } else if (action == 'assign' || action == 'unassign') {
+      change
+        ..['actorId'] = _boundedIdentifier(json, 'actorId')
+        ..['companyId'] = companyId
+        ..['branchId'] = branchId;
+    }
+    await gateway.change(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      change: change,
+    );
+    _json(request, 200, {
+      'apiVersion': 1,
+      'identityRoleResult': {'status': 'APPLIED'},
+    });
+  }
+
+  String? _identityRoleAction(String path) => switch (path) {
+    '/api/v1/identity/roles/list' => 'list',
+    '/api/v1/identity/roles/create' => 'create',
+    '/api/v1/identity/roles/rename' => 'rename',
+    '/api/v1/identity/roles/delete' => 'delete',
+    '/api/v1/identity/roles/grant-permission' => 'grant-permission',
+    '/api/v1/identity/roles/revoke-permission' => 'revoke-permission',
+    '/api/v1/identity/roles/assign' => 'assign',
+    '/api/v1/identity/roles/unassign' => 'unassign',
+    _ => null,
+  };
 
   Future<void> _handleExtensionRecordQuery(
     HttpRequest request,
