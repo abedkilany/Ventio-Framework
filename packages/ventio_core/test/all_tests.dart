@@ -40,6 +40,59 @@ Map<String, dynamic> changed(Map<String, dynamic> original) =>
 String uuid(int index) =>
     '1e1440d9-72aa-4b84-8c53-${index.toString().padLeft(12, '0')}';
 
+Map<String, dynamic> extensionBundleJson() => {
+      'manifest': {
+        'manifestVersion': 0,
+        'moduleId': 'com.example.assets',
+        'version': '0.1.0',
+        'minPlatformApi': '0.1.0',
+        'displayName': 'Assets',
+        'displayNameKey': 'extension.com_example_assets.module.name',
+        'englishCatalog': 'localization/en.assets.json',
+        'dependencies': <String>[],
+        'docTypes': ['Asset'],
+        'commands': <Object>[],
+        'requiredCapabilities': <String>[],
+        'offline': {'enabled': false, 'allowedCommands': <String>[]},
+      },
+      'docTypes': [
+        {
+          'name': 'Asset',
+          'moduleId': 'com.example.assets',
+          'schemaVersion': 1,
+          'kind': 'operational',
+          'label': 'Asset',
+          'labelKey': 'extension.com_example_assets.asset.name',
+          'operations': ['read', 'create', 'update'],
+          'permissions': {
+            'read': 'extension.com_example_assets.asset.read',
+            'create': 'extension.com_example_assets.asset.create',
+            'update': 'extension.com_example_assets.asset.update',
+          },
+          'fields': [
+            {
+              'name': 'name',
+              'type': 'text',
+              'required': true,
+              'maxLength': 120,
+              'label': 'Name',
+              'labelKey': 'extension.com_example_assets.asset.name_value',
+            },
+          ],
+          'ui': {
+            'listColumns': ['name'],
+            'formFields': ['name'],
+          },
+        },
+      ],
+      'dependencyVersions': <String, String>{},
+      'englishCatalog': {
+        'extension.com_example_assets.module.name': 'Assets',
+        'extension.com_example_assets.asset.name': 'Asset',
+        'extension.com_example_assets.asset.name_value': 'Name',
+      },
+    };
+
 CommandEnvelope command([Map<String, dynamic>? json]) =>
     CommandEnvelope.fromJson(json ?? commandJson());
 
@@ -106,6 +159,101 @@ void main() {
         permissions: {'assets.read'},
       ),
       'Multiple scope sets without explicit pairs were accepted',
+    );
+  });
+
+  test('Extension bundles are declarative, namespaced and versioned', () {
+    final source = extensionBundleJson();
+    final bundle = ExtensionBundle.fromJson(source);
+    check(
+      bundle.moduleId == 'com.example.assets' &&
+          bundle.version == '0.1.0' &&
+          bundle.docTypes.single.name == 'Asset',
+      'Valid extension bundle did not parse',
+    );
+    check(
+      canonicalJson(bundle.toJson()) == canonicalJson(source),
+      'Extension bundle did not round-trip canonically',
+    );
+    checkThrows(
+      () => (bundle.docTypeJson.single['fields'] as List).add({'name': 'sql'}),
+      'Nested extension bundle metadata remained mutable',
+    );
+
+    final executable = changed(source);
+    (executable['manifest'] as Map<String, dynamic>)['commands'] = [
+      {
+        'type': 'arbitrary.sql',
+        'version': 1,
+        'capabilityId': 'arbitrary.executor@1',
+        'permission': 'extension.com_example_assets.asset.run',
+      },
+    ];
+    (executable['manifest'] as Map<String, dynamic>)['requiredCapabilities'] = [
+      'arbitrary.executor@1',
+    ];
+    checkThrows(
+      () => ExtensionBundle.fromJson(executable),
+      'An extension supplied an executable command surface',
+    );
+
+    final permissions = changed(source);
+    ((permissions['docTypes'] as List).single
+        as Map<String, dynamic>)['permissions']['create'] = 'system.admin';
+    checkThrows(
+      () => ExtensionBundle.fromJson(permissions),
+      'A package declared a permission outside its namespace',
+    );
+
+    final injectedLabel = changed(source);
+    (injectedLabel['englishCatalog']
+        as Map<String, dynamic>)['core.app.title'] = 'Injected';
+    checkThrows(
+      () => ExtensionBundle.fromJson(injectedLabel),
+      'An extension wrote into the Core message namespace',
+    );
+
+    final hiddenMigration = changed(source);
+    (hiddenMigration['manifest'] as Map<String, dynamic>)['migrations'] = [
+      'DROP TABLE ventio_records',
+    ];
+    checkThrows(
+      () => ExtensionBundle.fromJson(hiddenMigration),
+      'An extension smuggled SQL through unknown manifest metadata',
+    );
+
+    final hiddenUiScript = changed(source);
+    ((hiddenUiScript['docTypes'] as List).single as Map<String, dynamic>)['ui']
+        ['script'] = 'return process.env';
+    checkThrows(
+      () => ExtensionBundle.fromJson(hiddenUiScript),
+      'Executable UI metadata was accepted',
+    );
+
+    final escapedCatalogPath = changed(source);
+    (escapedCatalogPath['manifest'] as Map<String, dynamic>)['englishCatalog'] =
+        'C:/outside/catalog.json';
+    checkThrows(
+      () => ExtensionBundle.fromJson(escapedCatalogPath),
+      'An absolute catalog path was accepted',
+    );
+
+    final cyclic = extensionBundleJson();
+    (cyclic['manifest'] as Map<String, dynamic>)['cycle'] = cyclic;
+    checkThrows(
+      () => ExtensionBundle.fromJson(cyclic),
+      'Cyclic metadata bypassed bounded package validation',
+    );
+
+    final deeplyNested = changed(source);
+    Object nestedValue = 'leaf';
+    for (var i = 0; i < 40; i++) {
+      nestedValue = [nestedValue];
+    }
+    deeplyNested['extra'] = nestedValue;
+    checkThrows(
+      () => ExtensionBundle.fromJson(deeplyNested),
+      'Overly nested package metadata was accepted',
     );
   });
 

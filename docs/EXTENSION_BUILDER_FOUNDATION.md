@@ -6,6 +6,8 @@ The Windows/Android Flutter client now opens on an Extension Builder workspace. 
 
 Active local DocTypes render generated list, search, filter, sort, detail, create and update screens. The form handles text, integer, decimal, boolean, date, date-time, enum and same-scope record references. Metadata, records and revisions persist in a separate SQLite database using WAL and `synchronous=FULL`. Local record updates use optimistic revision checks.
 
+Persisted extension drafts can be exported as a bounded, declarative `ExtensionBundle` and atomically installed or upgraded in another local store. Bundles are limited to 1 MiB, 64 DocTypes and 100 fields per DocType; nested JSON has structural limits. The package contract rejects unknown metadata, executable commands/capabilities, scripts, SQL, UI code and out-of-namespace permissions or localization keys. A new install remains a draft until explicitly activated. Package version changes must be monotonic; schema updates preserve existing DocTypes and fields and allow only reviewed non-destructive changes supported by the local engine. Export/install remains device-local and does not establish Host approval.
+
 Schema updates reject field removal, type or relation changes, enum value removal, making existing optional fields required, and adding required fields without a migration. A compatible update advances the extension patch version and records' schema version in one local transaction. Existing business values are preserved.
 
 Each DocType can declare which of the built-in read, create and update operations it supports. The local engine rejects undeclared operations and the generated UI hides those actions. An extension can declare permission keys only inside its own namespace. These declarations do not create Host grants or authenticate a user; Host authorization remains a separate boundary. Definition content is parsed as JSON metadata. The client loads no extension-supplied Dart, SQL, JavaScript or scripts.
@@ -29,6 +31,7 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 - The builder currently uses one fixed local workspace scope; it does not provide organization/company/branch sign-in or a scope selector.
 - Compatible metadata upgrades are deliberately additive. Destructive data transformations need a future reviewed, resumable Host migration protocol and offline-command upcasting.
 - The generic Host HTTP adapter currently transports the existing maintenance-command contract. It does not publish, approve, install or synchronize extension packages, schemas, dynamic records or extension versions.
+- Declarative package export/import and local installation are now implemented, but there is no Host package registry, approval workflow, distribution endpoint or client-side package synchronization yet.
 - The credential vault and transport are library plumbing; there is not yet an in-app Host enrollment/settings flow or automatic background synchronization policy.
 - Decimal fields in this generic local store are data fields; this does not implement exact-money rules or financial posting.
 - No local PostgreSQL test fixture, Android emulator, or physical Android device was used for this foundation slice. The PostgreSQL adapter migration and persistence integration suite passed in GitHub Actions against its disposable PostgreSQL 16 service. Android SDK licenses were not accepted locally.
@@ -36,14 +39,13 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 ## Verification performed
 
 - `flutter analyze`: passed on Flutter 3.44.1 / Dart 3.12.1.
-- `flutter test --reporter compact`: passed all 37 client tests, including close/reopen SQLite persistence, version-one database upgrade, two independent extensions using the same data engine, Builder dependency selection, dependency order/cycle/version checks, child-process queue recovery, Host receipt and retry reconciliation, secure credential endpoint validation, bounded Host transport behavior and redirect refusal, permission-namespace rejection, declared-operation enforcement, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, configurable list and form layout persistence, hidden optional value preservation, desktop builder-to-record flow, and phone-sized Builder and record-form flows at 360×800.
-- `flutter analyze`: passed on Flutter 3.44.1 / Dart 3.12.1 with the transport changes.
+- `flutter test --reporter compact`: passed all 39 client tests, including close/reopen SQLite persistence, version-one database upgrade, declarative package export/install, atomic non-destructive package upgrade with record preservation, two independent extensions using the same data engine, Builder dependency selection, dependency order/cycle/version checks, child-process queue recovery, Host receipt and retry reconciliation, secure credential endpoint validation, bounded Host transport behavior and redirect refusal, permission-namespace rejection, declared-operation enforcement, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, configurable list and form layout persistence, hidden optional value preservation, desktop builder-to-record flow, and phone-sized Builder and record-form flows at 360×800.
 - `dart format --output=none --set-exit-if-changed lib test`: passed with no formatting changes.
 - PowerShell parser: passed for `scripts/prepare_native_client_platforms.ps1`. The shell script syntax check could not run because this Windows environment's WSL installation lacks `/bin/bash`; the generator change was not executed against a fresh scaffold in this check.
 - Windows Debug executable: built successfully from an isolated temporary copy with the installed Windows toolchain. The executable remained alive for a five-second startup smoke check; no visual/manual interaction check was performed.
-- Android Debug APK: CI builds the Android debug APK; no APK was installed on a physical device or emulator during this work.
-- Core executable suite: 54 passed, including ordered layout validation, required-field visibility and operation declaration validation.
-- Host API unit suite: 38 passed.
+- Android Debug APK: a local debug APK build is in progress; no APK has been installed on a physical device or emulator.
+- Core executable suite: 57 passed, including declarative bundle validation, metadata bounds and exact-scope authorization.
+- Host API unit suite: 41 passed.
 - PostgreSQL line-ending checksum test: passed without a database.
 - Python schema/package checks and V1.2 contract tests: passed (20 unit tests).
 - PostgreSQL adapter integration tests ran in CI against a disposable PostgreSQL 16 fixture. No local or existing Ventio database was used.

@@ -318,6 +318,291 @@ class LocalExtensionStore {
     return rows.isEmpty ? null : LocalExtension.fromRow(rows.single);
   }
 
+  /// Produces a bounded declarative package from the persisted local draft.
+  /// The result is metadata only; exporting it does not grant Host approval.
+  Future<ExtensionBundle> exportBundle(String moduleId) async {
+    _ensureOpen();
+    final extension = await getExtension(moduleId);
+    if (extension == null) {
+      throw const ExtensionStoreException(
+        'UNKNOWN_MODULE',
+        'Create the extension before exporting it.',
+      );
+    }
+    final docTypes = await listDocTypes(moduleId);
+    if (docTypes.isEmpty) {
+      throw const ExtensionStoreException(
+        'EMPTY_EXTENSION',
+        'Add at least one DocType before exporting the extension.',
+      );
+    }
+
+    final namespace =
+        'extension.${moduleId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
+    final catalog = <String, String>{};
+    void addLabel(Object? rawKey, Object? rawLabel) {
+      if (rawKey is! String || rawLabel is! String) {
+        throw const ExtensionStoreException(
+          'INVALID_BUNDLE_METADATA',
+          'Every exported message needs a nonempty key and English label.',
+        );
+      }
+      final existing = catalog[rawKey];
+      if (existing != null && existing != rawLabel) {
+        throw const ExtensionStoreException(
+          'DUPLICATE_MESSAGE_KEY',
+          'Different labels use the same localization key.',
+        );
+      }
+      catalog[rawKey] = rawLabel;
+    }
+
+    final displayNameKey = '$namespace.module.name';
+    final descriptionKey = '$namespace.module.description';
+    addLabel(displayNameKey, extension.displayName);
+    addLabel(descriptionKey, extension.description);
+    for (final docType in docTypes) {
+      addLabel(docType['labelKey'], docType['label']);
+      if (docType.containsKey('descriptionKey')) {
+        addLabel(docType['descriptionKey'], docType['description']);
+      }
+      final fields = docType['fields'];
+      if (fields is! List) {
+        throw const ExtensionStoreException(
+          'INVALID_BUNDLE_METADATA',
+          'A DocType has an invalid fields definition.',
+        );
+      }
+      for (final rawField in fields) {
+        if (rawField is! Map<String, dynamic>) {
+          throw const ExtensionStoreException(
+            'INVALID_BUNDLE_METADATA',
+            'A field has an invalid metadata definition.',
+          );
+        }
+        addLabel(rawField['labelKey'], rawField['label']);
+        if (rawField.containsKey('descriptionKey')) {
+          addLabel(rawField['descriptionKey'], rawField['description']);
+        }
+        final enumLabels = rawField['enumLabels'];
+        if (enumLabels is Map) {
+          for (final rawLabel in enumLabels.values) {
+            if (rawLabel is! Map) {
+              throw const ExtensionStoreException(
+                'INVALID_BUNDLE_METADATA',
+                'An enum option has an invalid label definition.',
+              );
+            }
+            addLabel(rawLabel['labelKey'], rawLabel['label']);
+          }
+        }
+      }
+    }
+
+    return ExtensionBundle.fromJson({
+      'manifest': {
+        'manifestVersion': 0,
+        'moduleId': moduleId,
+        'version': extension.version,
+        'minPlatformApi': '0.1.0',
+        'displayName': extension.displayName,
+        'displayNameKey': displayNameKey,
+        'description': extension.description,
+        'descriptionKey': descriptionKey,
+        'englishCatalog':
+            'localization/en.${namespace.substring('extension.'.length)}.json',
+        'dependencies': extension.dependencies.keys.toList()..sort(),
+        'docTypes': docTypes.map((type) => type['name'] as String).toList(),
+        'commands': <Object>[],
+        'requiredCapabilities': <String>[],
+        'offline': {'enabled': false, 'allowedCommands': <String>[]},
+      },
+      'docTypes': docTypes,
+      'dependencyVersions': extension.dependencies,
+      'englishCatalog': catalog,
+    });
+  }
+
+  /// Installs or upgrades a metadata-only package atomically.
+  /// Executable content is rejected by ExtensionBundle before this method can
+  /// be called. A new package remains a local draft until explicitly activated.
+  Future<void> installBundle(ExtensionBundle bundle) async {
+    _ensureOpen();
+    final moduleId = bundle.moduleId;
+    final displayName = bundle.manifest.displayName;
+    final description = bundle.manifestJson['description'] as String? ?? '';
+    final dependencies = bundle.dependencyVersions;
+    final incomingByName = <String, Map<String, dynamic>>{
+      for (final json in bundle.docTypeJson) json['name'] as String: json,
+    };
+    final now = _now();
+
+    await _database.transaction((transaction) async {
+      final modules = await transaction.query(
+        _extensionsTable,
+        where: 'module_id = ?',
+        whereArgs: [moduleId],
+        limit: 1,
+      );
+      await _validateDependencyGraph(
+        transaction,
+        moduleId: moduleId,
+        dependencies: dependencies,
+      );
+      await _validateDependencyTargets(transaction, dependencies);
+
+      final existingByName = <String, Map<String, dynamic>>{};
+      if (modules.isNotEmpty) {
+        final current = LocalExtension.fromRow(modules.single);
+        final currentRows = await transaction.query(
+          _docTypesTable,
+          columns: const ['doctype_name', 'metadata_json'],
+          where: 'module_id = ?',
+          whereArgs: [moduleId],
+        );
+        for (final row in currentRows) {
+          existingByName[row['doctype_name']! as String] = _decodeMap(
+            row['metadata_json'],
+          );
+        }
+        if (incomingByName.keys.toSet().containsAll(existingByName.keys) ==
+            false) {
+          throw const ExtensionStoreException(
+            'DESTRUCTIVE_PACKAGE_UPDATE',
+            'A package cannot remove an installed DocType or its saved data.',
+          );
+        }
+        final versionOrder = compareSemver(bundle.version, current.version);
+        if (versionOrder < 0) {
+          throw const ExtensionStoreException(
+            'VERSION_DOWNGRADE',
+            'Installed extension versions cannot move backwards.',
+          );
+        }
+        for (final entry in existingByName.entries) {
+          final next = incomingByName[entry.key]!;
+          final previousDefinition = DocTypeDefinition.fromJson(entry.value);
+          final nextDefinition = DocTypeDefinition.fromJson(next);
+          _validateDefinition(nextDefinition);
+          if (nextDefinition.schemaVersion < previousDefinition.schemaVersion) {
+            throw const ExtensionStoreException(
+              'SCHEMA_VERSION_DOWNGRADE',
+              'DocType schema versions cannot move backwards.',
+            );
+          }
+          if (nextDefinition.schemaVersion ==
+                  previousDefinition.schemaVersion &&
+              canonicalJson(next) != canonicalJson(entry.value)) {
+            throw const ExtensionStoreException(
+              'SCHEMA_VERSION_REQUIRED',
+              'Changed DocType metadata requires a higher schema version.',
+            );
+          }
+          if (nextDefinition.schemaVersion > previousDefinition.schemaVersion) {
+            _validateNonDestructiveUpgrade(previousDefinition, nextDefinition);
+          }
+        }
+
+        if (versionOrder == 0) {
+          final unchanged =
+              current.displayName == displayName &&
+              current.description == description &&
+              _sameDependencies(current.dependencies, dependencies) &&
+              incomingByName.length == existingByName.length &&
+              incomingByName.entries.every(
+                (entry) =>
+                    existingByName.containsKey(entry.key) &&
+                    canonicalJson(entry.value) ==
+                        canonicalJson(existingByName[entry.key]),
+              );
+          if (unchanged) return;
+          throw const ExtensionStoreException(
+            'VERSION_CONFLICT',
+            'Package contents changed without increasing the extension version.',
+          );
+        }
+        if (current.state == ExtensionState.active) {
+          throw const ExtensionStoreException(
+            'DISABLE_BEFORE_UPDATE',
+            'Disable the local extension before installing an update.',
+          );
+        }
+        await _validateDependentsForVersion(
+          transaction,
+          moduleId,
+          bundle.version,
+        );
+        await transaction.update(
+          _extensionsTable,
+          {
+            'display_name': displayName,
+            'description': description,
+            'version': bundle.version,
+            'dependencies_json': canonicalJson(dependencies),
+            'updated_at_utc': now,
+          },
+          where: 'module_id = ?',
+          whereArgs: [moduleId],
+        );
+      } else {
+        await transaction.insert(_extensionsTable, {
+          'module_id': moduleId,
+          'display_name': displayName,
+          'description': description,
+          'version': bundle.version,
+          'dependencies_json': canonicalJson(dependencies),
+          'state': ExtensionState.draft.databaseValue,
+          'created_at_utc': now,
+          'updated_at_utc': now,
+        });
+      }
+
+      final knownNames = <String>{
+        ...existingByName.keys,
+        ...incomingByName.keys,
+      };
+      for (final entry in incomingByName.entries) {
+        final definition = DocTypeDefinition.fromJson(entry.value);
+        _validateDefinition(definition);
+        if (definition.fields.any(
+          (field) =>
+              field.type == 'reference' &&
+              !knownNames.contains(field.referenceTo),
+        )) {
+          throw ExtensionStoreException(
+            'UNKNOWN_RELATION_TARGET',
+            '${definition.name} refers to a DocType outside the installed package.',
+          );
+        }
+        final previous = existingByName[entry.key];
+        if (previous == null) {
+          await transaction.insert(_docTypesTable, {
+            'module_id': moduleId,
+            'doctype_name': entry.key,
+            'schema_version': definition.schemaVersion,
+            'metadata_json': canonicalJson(entry.value),
+          });
+        } else if (canonicalJson(previous) != canonicalJson(entry.value)) {
+          await transaction.update(
+            _docTypesTable,
+            {
+              'schema_version': definition.schemaVersion,
+              'metadata_json': canonicalJson(entry.value),
+            },
+            where: 'module_id = ? AND doctype_name = ?',
+            whereArgs: [moduleId, entry.key],
+          );
+          await transaction.update(
+            _recordsTable,
+            {'schema_version': definition.schemaVersion, 'updated_at_utc': now},
+            where: 'module_id = ? AND doctype_name = ?',
+            whereArgs: [moduleId, entry.key],
+          );
+        }
+      }
+    });
+  }
+
   Future<void> updateExtensionDetails({
     required String moduleId,
     required String displayName,

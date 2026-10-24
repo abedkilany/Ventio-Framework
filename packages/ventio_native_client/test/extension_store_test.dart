@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
 
 const _moduleId = 'com.example.asset_register';
@@ -127,6 +129,155 @@ void main() {
     expect(restored.state, ExtensionState.active);
     expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
   });
+
+  test('A local extension exports a bounded declarative package', () async {
+    await store.createExtension(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: 'Track equipment by branch.',
+    );
+    final metadata = _docType();
+    metadata['labelKey'] = 'extension.com_example_asset_register.asset.name';
+    final fields = (metadata['fields'] as List).cast<Map<String, dynamic>>();
+    fields.single['labelKey'] =
+        'extension.com_example_asset_register.asset.name_value';
+    fields.add({
+      'name': 'status',
+      'type': 'enum',
+      'required': false,
+      'label': 'Status',
+      'labelKey': 'extension.com_example_asset_register.asset.status',
+      'enumValues': ['active', 'retired'],
+      'enumLabels': {
+        'active': {
+          'label': 'Active',
+          'labelKey':
+              'extension.com_example_asset_register.asset.status_active',
+        },
+        'retired': {
+          'label': 'Retired',
+          'labelKey':
+              'extension.com_example_asset_register.asset.status_retired',
+        },
+      },
+    });
+    (metadata['ui'] as Map<String, dynamic>)['listColumns'] = [
+      'name',
+      'status',
+    ];
+    (metadata['ui'] as Map<String, dynamic>)['formFields'] = ['name', 'status'];
+    await store.saveDocType(metadata);
+
+    final bundle = await store.exportBundle(_moduleId);
+    expect(bundle.moduleId, _moduleId);
+    expect(bundle.docTypes.single.name, 'Asset');
+    expect(bundle.manifest.commands, isEmpty);
+    expect(bundle.manifest.requiredCapabilities, isEmpty);
+    expect(
+      bundle.englishCatalog['extension.com_example_asset_register.module.name'],
+      'Asset Register',
+    );
+    expect(
+      bundle
+          .englishCatalog['extension.com_example_asset_register.asset.status_active'],
+      'Active',
+    );
+    expect(
+      () => (bundle.toJson()['docTypes'] as List).clear(),
+      throwsUnsupportedError,
+    );
+  });
+
+  test(
+    'A declarative package installs atomically and upgrades saved records',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: 'Track equipment by branch.',
+      );
+      final metadata = _docType();
+      metadata['labelKey'] = 'extension.com_example_asset_register.asset.name';
+      final fields = (metadata['fields'] as List).cast<Map<String, dynamic>>();
+      fields.single['labelKey'] =
+          'extension.com_example_asset_register.asset.name_value';
+      await store.saveDocType(metadata);
+      final bundle = await store.exportBundle(_moduleId);
+
+      final target = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: '${directory.path}${Platform.pathSeparator}installed.sqlite3',
+      );
+      try {
+        await target.installBundle(bundle);
+        expect(
+          (await target.getExtension(_moduleId))!.state,
+          ExtensionState.draft,
+        );
+        await target.activate(_moduleId);
+        await target.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: {'name': 'Workshop press'},
+          recordId: 'asset-package-1',
+        );
+
+        final updateJson =
+            jsonDecode(jsonEncode(bundle.toJson())) as Map<String, dynamic>;
+        (updateJson['manifest'] as Map<String, dynamic>)['version'] = '0.2.0';
+        final updatedType =
+            (updateJson['docTypes'] as List).single as Map<String, dynamic>;
+        updatedType['schemaVersion'] = 2;
+        final updatedFields = (updatedType['fields'] as List)
+            .cast<Map<String, dynamic>>();
+        updatedFields.add({
+          'name': 'serialNumber',
+          'type': 'text',
+          'required': false,
+          'label': 'Serial number',
+          'labelKey':
+              'extension.com_example_asset_register.asset.serial_number',
+          'maxLength': 80,
+        });
+        final ui = updatedType['ui'] as Map<String, dynamic>;
+        ui['listColumns'] = ['name', 'serialNumber'];
+        ui['formFields'] = ['name', 'serialNumber'];
+        (updateJson['englishCatalog']
+                as Map<
+                  String,
+                  dynamic
+                >)['extension.com_example_asset_register.asset.serial_number'] =
+            'Serial number';
+        final upgrade = ExtensionBundle.fromJson(updateJson);
+
+        await expectLater(
+          target.installBundle(upgrade),
+          throwsA(
+            isA<ExtensionStoreException>().having(
+              (error) => error.code,
+              'code',
+              'DISABLE_BEFORE_UPDATE',
+            ),
+          ),
+        );
+        await target.disable(_moduleId);
+        await target.installBundle(upgrade);
+        await target.activate(_moduleId);
+        final preserved = await target.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-package-1',
+          scope: _scope,
+        );
+        expect(preserved!.values, {'name': 'Workshop press'});
+        expect(preserved.schemaVersion, 2);
+        expect((await target.getExtension(_moduleId))!.version, '0.2.0');
+      } finally {
+        await target.close();
+      }
+    },
+  );
 
   test(
     'Version-one local databases gain an empty dependency manifest',
