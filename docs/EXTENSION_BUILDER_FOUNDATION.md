@@ -27,7 +27,7 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 - Device-local extension dependencies support minimum compatible semantic versions (patch-only for `0.x`, same-major for `1.x` onward), activation order, cycle rejection and safe disable/remove checks. Host approval enforces compatible approved dependencies and monotonic releases. Package transfer through the Builder is manually initiated; background discovery and automatic upgrades are not implemented.
 - Local permission keys are not tied to users or roles. The extension cannot grant itself authority, but a Host-controlled role editor is still needed.
 - Only the built-in local data renderer is available. No user-defined executable operation or workflow DSL is included.
-- Local search loads at most 1,000 recent scoped records before applying the text query. This is a prototype limit, not a scale claim.
+- Local search, filtering and sorting run in SQLite before the result limit is applied, so older matching records are not hidden by the page size. Searches use escaped `LIKE` predicates over JSON fields; the engine does not yet build indexes for those paths, so large datasets still need query-plan and indexing work before making scale claims.
 - The local record preview still uses one fixed sample workspace scope. A separate Host scope selector is available for package transfers, but dynamic Host records and branch-scoped user sign-in are not wired into the record engine yet.
 - Compatible metadata upgrades are deliberately additive. Destructive data transformations need a future reviewed, resumable Host migration protocol and offline-command upcasting.
 - The Host persists validated candidates, supports exact-scope package submission and approved reads, and provides recovery-witness-protected local approval/revocation. The Builder now connects to these routes: it can submit a review candidate and fetch an approved package, verify the Host digest, and install it as a local draft. Operator approval remains a separate trusted Host action.
@@ -39,12 +39,12 @@ The Host API defaults to `127.0.0.1` and rejects external listeners unless they 
 ## Verification performed
 
 - `flutter analyze`: passed on the isolated native-client workspace.
-- `flutter test --reporter compact`: passed all 46 client tests, including close/reopen SQLite persistence, profile migration, Host session and package transport validation, in-app exact-scope selection, declarative package export/install, atomic schema upgrades, offline command recovery, dynamic local DocType rendering, permission and relationship scope checks, and 360×800 phone layouts.
+- `flutter test --reporter compact`: passed all 49 client tests, including close/reopen SQLite persistence, profile migration, Host session and package transport validation, in-app exact-scope selection, declarative package export/install, atomic schema upgrades, offline command recovery, dynamic local DocType rendering, permission and relationship scope checks, SQL-backed search/filter/sort beyond the first 1,000 records, and 360×800 phone layouts.
 - `dart format --output=none --set-exit-if-changed lib test`: passed with no formatting changes.
 - PowerShell parser: passed for `scripts/prepare_native_client_platforms.ps1`. The shell script syntax check could not run because this Windows environment's WSL installation lacks `/bin/bash`; the generator change was not executed against a fresh scaffold in this check.
 - Windows Debug executable: built successfully from an isolated temporary copy with the installed Windows toolchain. The executable remained alive for a five-second startup smoke check; no visual/manual interaction check was performed.
 - Windows Host API: API unit tests passed (45). A PostgreSQL service and Host database URL were not available/configured, so the package registry integration suite and full Windows Host startup/remote service path were not exercised locally.
-- Android Debug APK: built successfully at `packages/ventio_native_client/build/app/outputs/flutter-apk/app-debug.apk`. It has not been installed on an emulator or physical device.
+- Android Debug APK: built successfully from an isolated client copy. It has not been installed on an emulator or physical device.
 - Core executable suite: 57 passed, including declarative bundle validation, metadata bounds and exact-scope authorization.
 - Host API unit suite: 45 passed.
 - PostgreSQL line-ending checksum test: passed without a database.

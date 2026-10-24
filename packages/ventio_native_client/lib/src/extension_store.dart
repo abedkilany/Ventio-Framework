@@ -1145,6 +1145,10 @@ class LocalExtensionStore {
     required String docTypeName,
     required RecordScope scope,
     String search = '',
+    String? filterField,
+    String filterContains = '',
+    String? sortField,
+    bool ascending = true,
     int limit = 200,
   }) async {
     _ensureOpen();
@@ -1156,31 +1160,61 @@ class LocalExtensionStore {
       await _loadActiveDocType(_database, moduleId, docTypeName),
     );
     _requireOperation(definition, 'read');
-    final rows = await _database.query(
-      _recordsTable,
-      where: '''module_id = ? AND doctype_name = ? AND organization_id = ?
-        AND company_id = ? AND branch_id = ?''',
-      whereArgs: [
-        moduleId,
-        docTypeName,
-        scope.organizationId,
-        scope.companyId,
-        scope.branchId,
-      ],
-      orderBy: 'updated_at_utc DESC, record_id ASC',
-      limit: 1000,
-    );
+    final fieldNames = definition.fields.map((field) => field.name).toSet();
+    if ((filterField != null && !fieldNames.contains(filterField)) ||
+        (sortField != null && !fieldNames.contains(sortField))) {
+      throw ArgumentError(
+        'Filter and sort fields must belong to this DocType.',
+      );
+    }
+
+    final conditions = <String>[
+      'module_id = ? AND doctype_name = ? AND organization_id = ? '
+          'AND company_id = ? AND branch_id = ?',
+    ];
+    final parameters = <Object?>[
+      moduleId,
+      docTypeName,
+      scope.organizationId,
+      scope.companyId,
+      scope.branchId,
+    ];
+    String jsonPath(String fieldName) => r'$."' + fieldName + r'"';
+    String likePattern(String value) =>
+        '%${value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%';
+
     final query = search.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      conditions.add(
+        '(${definition.fields.map((_) => "lower(CAST(json_extract(data_json, ?) AS TEXT)) LIKE ? ESCAPE '\\'").join(' OR ')})',
+      );
+      for (final field in definition.fields) {
+        parameters
+          ..add(jsonPath(field.name))
+          ..add(likePattern(query));
+      }
+    }
+    final filterValue = filterContains.trim().toLowerCase();
+    if (filterField != null && filterValue.isNotEmpty) {
+      conditions.add(
+        "lower(CAST(json_extract(data_json, ?) AS TEXT)) LIKE ? ESCAPE '\\'",
+      );
+      parameters
+        ..add(jsonPath(filterField))
+        ..add(likePattern(filterValue));
+    }
+
+    final orderExpression = sortField == null
+        ? 'updated_at_utc'
+        : 'json_extract(data_json, ?)';
+    if (sortField != null) parameters.add(jsonPath(sortField));
+    parameters.add(limit);
+    final rows = await _database.rawQuery('''SELECT * FROM $_recordsTable
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY $orderExpression ${ascending ? 'ASC' : 'DESC'}, record_id ASC
+        LIMIT ?''', parameters);
     final records = rows
         .map(LocalExtensionRecord.fromRow)
-        .where((record) {
-          if (query.isEmpty) return true;
-          return record.values.values.any(
-            (value) =>
-                value != null && value.toString().toLowerCase().contains(query),
-          );
-        })
-        .take(limit)
         .toList(growable: false);
     return List.unmodifiable(records);
   }

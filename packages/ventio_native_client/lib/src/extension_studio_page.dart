@@ -2230,6 +2230,10 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         docTypeName: _definition.name,
         scope: widget.scope,
         search: _searchController.text,
+        filterField: _filterField,
+        filterContains: _filterController.text,
+        sortField: _sortField,
+        ascending: _ascending,
       );
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
@@ -2245,31 +2249,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     }
   }
 
-  List<LocalExtensionRecord> get _visibleRecords {
-    final records = [..._records];
-    final field = _sortField;
-    records.sort((left, right) {
-      final comparison = field == null
-          ? left.updatedAtUtc.compareTo(right.updatedAtUtc)
-          : (left.values[field]?.toString().toLowerCase() ?? '').compareTo(
-              right.values[field]?.toString().toLowerCase() ?? '',
-            );
-      return _ascending ? comparison : -comparison;
-    });
-    final filter = _filterController.text.trim().toLowerCase();
-    if (_filterField != null && filter.isNotEmpty) {
-      return records
-          .where(
-            (record) =>
-                record.values[_filterField]?.toString().toLowerCase().contains(
-                  filter,
-                ) ==
-                true,
-          )
-          .toList(growable: false);
-    }
-    return records;
-  }
+  List<LocalExtensionRecord> get _visibleRecords => _records;
 
   Future<void> _openForm([LocalExtensionRecord? record]) async {
     if (widget.previewOnly) {
@@ -2400,8 +2380,10 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                               child: Text(field.label),
                             ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => _filterField = value),
+                        onChanged: (value) {
+                          setState(() => _filterField = value);
+                          _loadRecords();
+                        },
                       ),
                     ),
                     SizedBox(
@@ -2413,7 +2395,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                           labelText: 'Contains',
                           border: OutlineInputBorder(),
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) => _loadRecords(),
                       ),
                     ),
                     SizedBox(
@@ -2436,13 +2418,18 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                               child: Text(field.label),
                             ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => _sortField = value),
+                        onChanged: (value) {
+                          setState(() => _sortField = value);
+                          _loadRecords();
+                        },
                       ),
                     ),
                     IconButton(
                       tooltip: _ascending ? 'Ascending' : 'Descending',
-                      onPressed: () => setState(() => _ascending = !_ascending),
+                      onPressed: () {
+                        setState(() => _ascending = !_ascending);
+                        _loadRecords();
+                      },
                       icon: Icon(
                         _ascending ? Icons.arrow_upward : Icons.arrow_downward,
                       ),

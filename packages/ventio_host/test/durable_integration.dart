@@ -254,7 +254,8 @@ Future<void> main() async {
     );
     check(
       canonicalJson(
-              await firstHost.execute(dependent, _principal(dependent))) ==
+            await firstHost.execute(dependent, _principal(dependent)),
+          ) ==
           canonicalJson(dependentReceipt),
       'A successful retry retains its original scope cursor',
     );

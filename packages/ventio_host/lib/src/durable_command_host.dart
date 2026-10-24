@@ -39,14 +39,13 @@ class DurableCommandHost {
     String status,
     String reason, {
     int? currentRevision,
-  }) =>
-      CommandReceipt(
-        commandId: command.commandId,
-        status: status,
-        reasonCode: reason,
-        messageKey: 'core.error.${reason.toLowerCase()}',
-        currentRevision: currentRevision,
-      ).toJson();
+  }) => CommandReceipt(
+    commandId: command.commandId,
+    status: status,
+    reasonCode: reason,
+    messageKey: 'core.error.${reason.toLowerCase()}',
+    currentRevision: currentRevision,
+  ).toJson();
 
   /// Runs the whole accepted effect, receipt, audit and outbox atomically.
   ///
@@ -57,8 +56,7 @@ class DurableCommandHost {
   Future<Map<String, dynamic>> execute(
     CommandEnvelope command,
     Principal authenticatedPrincipal,
-  ) =>
-      executeAuthorized(command, (_) async => authenticatedPrincipal);
+  ) => executeAuthorized(command, (_) async => authenticatedPrincipal);
 
   /// Persistent adapters resolve current identity and exact-scope permissions
   /// here, under this transaction, before journal access even on retries.
@@ -69,8 +67,9 @@ class DurableCommandHost {
     Future<Principal?> Function(pg.TxSession tx) resolvePrincipal,
   ) async {
     // Both payload and client context are covered by the idempotency digest.
-    final fingerprint =
-        sha256.convert(utf8.encode(canonicalJson(command.original))).toString();
+    final fingerprint = sha256
+        .convert(utf8.encode(canonicalJson(command.original)))
+        .toString();
 
     try {
       final result = await connection.runTx(
@@ -218,8 +217,9 @@ class DurableCommandHost {
             );
             if (rows.isEmpty ||
                 (jsonDecode(
-                      rows.single.toColumnMap()['stored_receipt'] as String,
-                    ) as Map<String, dynamic>)['status'] !=
+                          rows.single.toColumnMap()['stored_receipt'] as String,
+                        )
+                        as Map<String, dynamic>)['status'] !=
                     'ACCEPTED') {
               throw _RejectedCommand(
                 _failure(command, 'RETRY_LATER', 'DEPENDENCY_PENDING'),
@@ -298,8 +298,9 @@ class DurableCommandHost {
                 command,
                 'CONFLICT',
                 'RECORD_ALREADY_EXISTS',
-                currentRevision:
-                    previous.isEmpty ? null : previous.single[0] as int,
+                currentRevision: previous.isEmpty
+                    ? null
+                    : previous.single[0] as int,
               ),
             );
           }

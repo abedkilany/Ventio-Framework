@@ -682,6 +682,107 @@ void main() {
   });
 
   test(
+    'Search filters before paging when a DocType exceeds one thousand rows',
+    () async {
+      await createActiveExtension();
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: {'name': 'needle-oldest-record'},
+        recordId: 'asset-oldest',
+      );
+      for (var index = 0; index < 1000; index++) {
+        await store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: {'name': 'ordinary-record-$index'},
+          recordId: 'asset-$index',
+        );
+      }
+
+      final results = await store.listRecords(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        search: 'needle-oldest',
+      );
+      expect(results.map((record) => record.recordId), ['asset-oldest']);
+    },
+  );
+
+  test(
+    'Record filters and ordering run in SQLite using declared fields',
+    () async {
+      await createActiveExtension();
+      for (final (id, name) in [
+        ('asset-z', 'Zebra'),
+        ('asset-a2', 'Alpine'),
+        ('asset-a1', 'Atlas'),
+        ('asset-other', 'Desk'),
+      ]) {
+        await store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: {'name': name},
+          recordId: id,
+        );
+      }
+
+      final results = await store.listRecords(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        filterField: 'name',
+        filterContains: 'a',
+        sortField: 'name',
+      );
+      expect(results.map((record) => record.values['name']), [
+        'Alpine',
+        'Atlas',
+        'Zebra',
+      ]);
+      await expectLater(
+        store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          sortField: 'name; DROP TABLE local_extension_records',
+        ),
+        throwsArgumentError,
+      );
+    },
+  );
+
+  test('Search treats user wildcards as literal text', () async {
+    await createActiveExtension();
+    await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: {'name': 'A%_B'},
+      recordId: 'asset-special',
+    );
+    await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: {'name': 'AXYZB'},
+      recordId: 'asset-ordinary',
+    );
+
+    final results = await store.listRecords(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      search: 'a%_',
+    );
+    expect(results.map((record) => record.recordId), ['asset-special']);
+  });
+
+  test(
     'Local record engine enforces each DocType operation declaration',
     () async {
       await createActiveExtension();

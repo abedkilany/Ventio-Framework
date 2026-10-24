@@ -161,8 +161,7 @@ Future<void> main() async {
             path: '/api/v1/session',
             method: 'POST',
             token: validToken,
-          ))
-              .status ==
+          )).status ==
           405,
       'Session discovery rejects non-GET methods',
     );
@@ -177,7 +176,7 @@ Future<void> main() async {
       body: {
         'companyId': 'company-001',
         'branchId': 'branch-001',
-        'package': {}
+        'package': {},
       },
     );
     final packageRead = await send(
@@ -208,8 +207,7 @@ Future<void> main() async {
             api,
             path: '/api/v1/commands?token=secret',
             body: body,
-          ))
-              .status ==
+          )).status ==
           400,
       'Query credentials are unsupported',
     );
@@ -304,8 +302,7 @@ Future<void> main() async {
             token: validToken,
             body: body,
             contentType: 'text/plain',
-          ))
-              .status ==
+          )).status ==
           415,
       'Non-JSON media type is rejected',
     );
@@ -315,8 +312,7 @@ Future<void> main() async {
             token: validToken,
             body: body,
             contentType: 'application/json; charset=latin1',
-          ))
-              .status ==
+          )).status ==
           415,
       'Unsupported encoding is rejected',
     );
@@ -330,8 +326,7 @@ Future<void> main() async {
             token: validToken,
             body: List.filled(5000, 'a').join(),
             chunked: true,
-          ))
-              .status ==
+          )).status ==
           413,
       'Chunked oversized body is rejected',
     );
@@ -339,8 +334,7 @@ Future<void> main() async {
       (await submit(
             json:
                 '${List.filled(40, '[').join()}0${List.filled(40, ']').join()}',
-          ))
-              .status ==
+          )).status ==
           400,
       'Deeply nested JSON is bounded',
     );
@@ -369,8 +363,7 @@ Future<void> main() async {
     check(
       (await earlyResponse.timeout(
         const Duration(seconds: 5),
-      ))
-          .startsWith('HTTP/1.1 401'),
+      )).startsWith('HTTP/1.1 401'),
       'Unauthenticated incomplete upload is rejected without draining its body',
     );
     unauthenticatedSocket.destroy();

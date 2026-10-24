@@ -54,13 +54,15 @@ Future<void> main() async {
       readerSid: readerSid,
     );
     final parsed = Uri.parse(url);
-    final boundedUrl = parsed.replace(
-      queryParameters: {
-        ...parsed.queryParameters,
-        'connect_timeout': '5',
-        'query_timeout': '20',
-      },
-    ).toString();
+    final boundedUrl = parsed
+        .replace(
+          queryParameters: {
+            ...parsed.queryParameters,
+            'connect_timeout': '5',
+            'query_timeout': '20',
+          },
+        )
+        .toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
     final probe = await connect();
     try {
@@ -85,7 +87,8 @@ Future<void> main() async {
           !File(certificate).isAbsolute ||
           !File(privateKey).isAbsolute) {
         throw StateError(
-            'External Host requires absolute TLS certificate files');
+          'External Host requires absolute TLS certificate files',
+        );
       }
       await PrivateFiles.verifyPrivateFile(privateKey);
       tlsContext = SecurityContext()

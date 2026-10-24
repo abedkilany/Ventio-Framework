@@ -28,10 +28,11 @@ Future<void> main() async {
       '/nh',
     ]);
     if (identity.exitCode != 0) throw StateError('Cannot resolve current SID');
-    final sid = (identity.stdout as String).split(',').last.trim().replaceAll(
-          '"',
-          '',
-        );
+    final sid = (identity.stdout as String)
+        .split(',')
+        .last
+        .trim()
+        .replaceAll('"', '');
     if (!RegExp(r'^S-1-\d+(?:-\d+)+$').hasMatch(sid)) {
       throw StateError('Windows returned an invalid current SID');
     }

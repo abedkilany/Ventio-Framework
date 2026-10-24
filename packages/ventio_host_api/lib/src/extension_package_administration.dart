@@ -39,11 +39,7 @@ class ExtensionPackageAdministration {
       pg.Sql.named('''
       SELECT ventio_security.read_extension_submission(@tenant,@module,@version)::text
     '''),
-      parameters: {
-        'tenant': tenantId,
-        'module': moduleId,
-        'version': version,
-      },
+      parameters: {'tenant': tenantId, 'module': moduleId, 'version': version},
     );
     final raw = rows.single[0];
     if (raw is! String) {
@@ -56,8 +52,9 @@ class ExtensionPackageAdministration {
     final bundle = ExtensionBundle.fromJson(
       Map<String, dynamic>.from(candidate['package'] as Map),
     );
-    final computedHash =
-        sha256.convert(utf8.encode(canonicalJson(bundle.toJson()))).toString();
+    final computedHash = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
     if (bundle.moduleId != moduleId ||
         bundle.version != version ||
         candidate['packageSha256'] != packageSha256 ||
@@ -85,7 +82,8 @@ class ExtensionPackageAdministration {
     _hash(packageSha256);
     if (reason.trim().isEmpty || reason.length > 500) {
       throw ArgumentError(
-          'A revocation reason up to 500 characters is required.');
+        'A revocation reason up to 500 characters is required.',
+      );
     }
     await _change('EXTENSION_PACKAGE_REVOKED', {
       'moduleId': moduleId,

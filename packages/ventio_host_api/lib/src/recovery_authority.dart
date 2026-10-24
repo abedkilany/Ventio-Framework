@@ -37,11 +37,13 @@ class RecoveryAuthority {
     }
     if (readerSid != null && readerGroupId != null) {
       throw ArgumentError(
-          'Linux reader groups and Windows reader SIDs cannot be combined.');
+        'Linux reader groups and Windows reader SIDs cannot be combined.',
+      );
     }
   }
 
-  Future<String> _readFile() => trustedOwnerUid != null ||
+  Future<String> _readFile() =>
+      trustedOwnerUid != null ||
           readerGroupId != null ||
           trustedOwnerSid != null ||
           readerSid != null
@@ -55,13 +57,13 @@ class RecoveryAuthority {
   Future<void> _create(Map<String, dynamic> value) => readerGroupId != null
       ? PrivateFiles.createAuthority(path, value, readerGroupId!)
       : readerSid != null
-          ? PrivateFiles.createAuthority(path, value, -1, readerSid: readerSid)
-          : PrivateFiles.create(path, value);
+      ? PrivateFiles.createAuthority(path, value, -1, readerSid: readerSid)
+      : PrivateFiles.create(path, value);
   Future<void> _replace(Map<String, dynamic> value) => readerGroupId != null
       ? PrivateFiles.replaceAuthority(path, value, readerGroupId!)
       : readerSid != null
-          ? PrivateFiles.replaceAuthority(path, value, -1, readerSid: readerSid)
-          : PrivateFiles.replace(path, value);
+      ? PrivateFiles.replaceAuthority(path, value, -1, readerSid: readerSid)
+      : PrivateFiles.replace(path, value);
 
   Future<Map<String, dynamic>> _read() async {
     final data = jsonDecode(await _readFile()) as Map<String, dynamic>;
@@ -86,9 +88,9 @@ class RecoveryAuthority {
 
   static Future<String> snapshot(pg.Session session) async =>
       (await session.execute(
-        'SELECT ventio_security.recovery_snapshot()',
-      ))
-          .single[0] as String;
+            'SELECT ventio_security.recovery_snapshot()',
+          )).single[0]
+          as String;
 
   Future<T> _exclusive<T>(Future<T> Function() body) async {
     final previous = _tails[path] ?? Future<void>.value();
@@ -174,44 +176,42 @@ class RecoveryAuthority {
   Future<void> change(
     pg.Connection db,
     Future<void> Function(pg.TxSession) action,
-  ) =>
-      _exclusive(() async {
-        final state = await _read();
-        // Validate under the SAME exclusive DB lock as the mutation. Another
-        // admin process using raw RPCs cannot slip a stale change in between.
-        await _replace({...state, 'pending': true});
-        await testBarrier?.call('before_database');
-        var rejectedBeforeCommit = false;
-        late String fingerprint;
+  ) => _exclusive(() async {
+    final state = await _read();
+    // Validate under the SAME exclusive DB lock as the mutation. Another
+    // admin process using raw RPCs cannot slip a stale change in between.
+    await _replace({...state, 'pending': true});
+    await testBarrier?.call('before_database');
+    var rejectedBeforeCommit = false;
+    late String fingerprint;
+    try {
+      fingerprint = await db.runTx((tx) async {
+        await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
+        if (await snapshot(tx) != state['fingerprint']) {
+          throw StateError('Recovery evidence does not match database');
+        }
         try {
-          fingerprint = await db.runTx((tx) async {
-            await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
-            if (await snapshot(tx) != state['fingerprint']) {
-              throw StateError('Recovery evidence does not match database');
-            }
-            try {
-              await action(tx);
-            } on pg.ServerException {
-              rejectedBeforeCommit = true;
-              rethrow;
-            }
-            await testBarrier?.call('before_commit');
-            return snapshot(tx);
-          });
-        } catch (_) {
-          if (rejectedBeforeCommit) {
-            // No COMMIT was sent: restore ready evidence only when the exact
-            // previously trusted state is still present after rollback.
-            final unchanged = await db.runTx((tx) async {
-              await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
-              return await snapshot(tx) == state['fingerprint'];
-            });
-            if (unchanged) await _replace(state);
-          }
+          await action(tx);
+        } on pg.ServerException {
+          rejectedBeforeCommit = true;
           rethrow;
         }
-        await testBarrier?.call('after_commit');
-        await _replace(
-            {...state, 'pending': false, 'fingerprint': fingerprint});
+        await testBarrier?.call('before_commit');
+        return snapshot(tx);
       });
+    } catch (_) {
+      if (rejectedBeforeCommit) {
+        // No COMMIT was sent: restore ready evidence only when the exact
+        // previously trusted state is still present after rollback.
+        final unchanged = await db.runTx((tx) async {
+          await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
+          return await snapshot(tx) == state['fingerprint'];
+        });
+        if (unchanged) await _replace(state);
+      }
+      rethrow;
+    }
+    await testBarrier?.call('after_commit');
+    await _replace({...state, 'pending': false, 'fingerprint': fingerprint});
+  });
 }

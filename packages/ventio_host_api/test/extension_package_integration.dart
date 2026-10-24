@@ -16,10 +16,9 @@ Future<void> main() async {
       runtimeUrl == null ||
       adminUrl == null ||
       Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
-      Uri.parse(databaseUrl)
-              .pathSegments
-              .where((part) => part.isNotEmpty)
-              .lastOrNull !=
+      Uri.parse(
+            databaseUrl,
+          ).pathSegments.where((part) => part.isNotEmpty).lastOrNull !=
           'ventio_host_test') {
     stderr.writeln(
       'Extension package integration requires the disposable ventio_host_test database and explicit test opt-in.',
@@ -105,10 +104,7 @@ Future<void> main() async {
       credential: 'publisher-credential',
       company: primaryCompany,
       branch: primaryBranch,
-      permissions: const [
-        'extension.package.submit',
-        'extension.package.read',
-      ],
+      permissions: const ['extension.package.submit', 'extension.package.read'],
     );
     final readerToken = await provision(
       actor: 'reader',
@@ -145,8 +141,10 @@ Future<void> main() async {
       Map<String, String> dependencies = const {},
       String title = 'Item',
     }) {
-      final slug =
-          moduleId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+      final slug = moduleId.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]+'),
+        '_',
+      );
       final namespace = 'extension.' + slug;
       final nameKey = '$namespace.name';
       final typeKey = '$namespace.item';
@@ -197,11 +195,7 @@ Future<void> main() async {
           },
         ],
         'dependencyVersions': dependencies,
-        'englishCatalog': {
-          nameKey: title,
-          typeKey: 'Item',
-          fieldKey: title,
-        },
+        'englishCatalog': {nameKey: title, typeKey: 'Item', fieldKey: title},
       };
     }
 
@@ -210,32 +204,25 @@ Future<void> main() async {
       String version, {
       Map<String, String> dependencies = const {},
       String title = 'Item',
-    }) =>
-        ExtensionBundle.fromJson(
-          bundleSource(
-            moduleId,
-            version,
-            dependencies: dependencies,
-            title: title,
-          ),
-        );
+    }) => ExtensionBundle.fromJson(
+      bundleSource(moduleId, version, dependencies: dependencies, title: title),
+    );
 
     Future<Reply> submitPackage(
       String token,
       ExtensionBundle package, {
       String company = primaryCompany,
       String branch = primaryBranch,
-    }) =>
-        send(
-          api!,
-          token: token,
-          path: '/api/v1/extensions/submit',
-          body: {
-            'companyId': company,
-            'branchId': branch,
-            'package': package.toJson(),
-          },
-        );
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/submit',
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'package': package.toJson(),
+      },
+    );
 
     Future<Reply> readPackage(
       String token,
@@ -243,18 +230,17 @@ Future<void> main() async {
       String version, {
       String company = primaryCompany,
       String branch = primaryBranch,
-    }) =>
-        send(
-          api!,
-          token: token,
-          path: '/api/v1/extensions/read',
-          body: {
-            'companyId': company,
-            'branchId': branch,
-            'moduleId': moduleId,
-            'version': version,
-          },
-        );
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/read',
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'moduleId': moduleId,
+        'version': version,
+      },
+    );
 
     String hash(ExtensionBundle package) =>
         sha256.convert(utf8.encode(canonicalJson(package.toJson()))).toString();
@@ -292,10 +278,10 @@ Future<void> main() async {
       duplicate.status == 202 &&
           (await observer.execute(
                 pg.Sql.named(
-                    "SELECT count(*) FROM ventio_extension_package_events WHERE tenant_id=@tenant AND event_type='SUBMITTED' AND module_id='com.example.registry'"),
+                  "SELECT count(*) FROM ventio_extension_package_events WHERE tenant_id=@tenant AND event_type='SUBMITTED' AND module_id='com.example.registry'",
+                ),
                 parameters: {'tenant': tenant},
-              ))
-                  .single[0] ==
+              )).single[0] ==
               1,
       'Identical package retries are idempotent and audited once',
     );
@@ -309,8 +295,11 @@ Future<void> main() async {
       'A release version cannot be reused for different metadata',
     );
     expect(
-      (await readPackage(primaryToken, package.moduleId, package.version))
-              .status ==
+      (await readPackage(
+            primaryToken,
+            package.moduleId,
+            package.version,
+          )).status ==
           404,
       'Candidates are unavailable through the approved-package read endpoint',
     );
@@ -325,8 +314,7 @@ Future<void> main() async {
             package.version,
             company: primaryCompany,
             branch: primaryBranch,
-          ))
-              .status ==
+          )).status ==
           403,
       'A user cannot read packages outside the granted company/branch pair',
     );
@@ -360,8 +348,7 @@ Future<void> main() async {
             package.version,
             company: secondaryCompany,
             branch: secondaryBranch,
-          ))
-              .status ==
+          )).status ==
           200,
       'Package visibility is granted by the reader exact-scope permission',
     );
@@ -426,8 +413,7 @@ Future<void> main() async {
             primaryToken,
             dependency.moduleId,
             dependency.version,
-          ))
-              .status ==
+          )).status ==
           404,
       'Revoked package versions are denied by future Host reads',
     );
@@ -459,10 +445,10 @@ Future<void> main() async {
     expect(
       (await observer.execute(
             pg.Sql.named(
-                "SELECT count(*) FROM public.ventio_extension_package_events WHERE tenant_id=@tenant AND event_type IN ('APPROVED','REVOKED')"),
+              "SELECT count(*) FROM public.ventio_extension_package_events WHERE tenant_id=@tenant AND event_type IN ('APPROVED','REVOKED')",
+            ),
             parameters: {'tenant': tenant},
-          ))
-              .single[0] ==
+          )).single[0] ==
           5,
       'Approval and revocation events remain in the operator audit ledger',
     );

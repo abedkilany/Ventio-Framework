@@ -161,14 +161,13 @@ class InMemoryHost {
           command.branchId,
         ) ||
         capability == null ||
-        capability.requiredPermissions
-            .any(
-              (permission) => !authenticatedPrincipal.allowsInScope(
-                permission,
-                command.companyId,
-                command.branchId,
-              ),
-            )) {
+        capability.requiredPermissions.any(
+          (permission) => !authenticatedPrincipal.allowsInScope(
+            permission,
+            command.companyId,
+            command.branchId,
+          ),
+        )) {
       return failure('REJECTED', 'PERMISSION_DENIED');
     }
     final journalKey = '${command.tenantId}\u0000${command.commandId}';
@@ -270,8 +269,7 @@ class InMemoryHost {
           type.permissions['read'] ?? '',
           companyId,
           branchId,
-        ))
-      return null;
+        )) return null;
     final record = _state.records[
         '${principal.tenantId}\u0000$companyId\u0000$branchId\u0000$docType\u0000$aggregateId'];
     if (record == null ||

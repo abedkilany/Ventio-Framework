@@ -119,17 +119,16 @@ else:
     int? trustedOwnerUid,
     String? trustedOwnerSid,
     String? readerSid,
-  }) =>
-      _run(
-        trustedOwnerUid == null && trustedOwnerSid == null
-            ? 'witness-read'
-            : 'witness-read-runtime',
-        path,
-        '',
-        ownerUid: trustedOwnerUid ?? -1,
-        ownerSid: trustedOwnerSid,
-        readerSid: readerSid,
-      );
+  }) => _run(
+    trustedOwnerUid == null && trustedOwnerSid == null
+        ? 'witness-read'
+        : 'witness-read-runtime',
+    path,
+    '',
+    ownerUid: trustedOwnerUid ?? -1,
+    ownerSid: trustedOwnerSid,
+    readerSid: readerSid,
+  );
   static Future<void> createAuthority(
     String path,
     Object value,
@@ -146,8 +145,12 @@ else:
     );
   }
 
-  static Future<void> replaceAuthority(String path, Object value, int gid,
-      {String? readerSid}) async {
+  static Future<void> replaceAuthority(
+    String path,
+    Object value,
+    int gid, {
+    String? readerSid,
+  }) async {
     await _run(
       'witness-replace',
       path,

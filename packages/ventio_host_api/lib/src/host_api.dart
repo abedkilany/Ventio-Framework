@@ -206,25 +206,26 @@ class HostApi {
           request.headers.value(HttpHeaders.transferEncodingHeader) != null) {
         throw const _ApiError(400, 'INVALID_REQUEST');
       }
-      final scopes = principal.scopeGrants
-          .map(
-            (scope) => {
-              'companyId': scope.companyId,
-              'branchId': scope.branchId,
-              'permissions': scope.permissions.toList()..sort(),
-            },
-          )
-          .toList()
-        ..sort((left, right) {
-          final company = (left['companyId'] as String).compareTo(
-            right['companyId'] as String,
-          );
-          return company != 0
-              ? company
-              : (left['branchId'] as String).compareTo(
-                  right['branchId'] as String,
-                );
-        });
+      final scopes =
+          principal.scopeGrants
+              .map(
+                (scope) => {
+                  'companyId': scope.companyId,
+                  'branchId': scope.branchId,
+                  'permissions': scope.permissions.toList()..sort(),
+                },
+              )
+              .toList()
+            ..sort((left, right) {
+              final company = (left['companyId'] as String).compareTo(
+                right['companyId'] as String,
+              );
+              return company != 0
+                  ? company
+                  : (left['branchId'] as String).compareTo(
+                      right['branchId'] as String,
+                    );
+            });
       _json(request, 200, {
         'apiVersion': 1,
         'identity': {
@@ -311,10 +312,10 @@ class HostApi {
       'CONFLICT' => 409,
       'RETRY_LATER' => 409,
       _ => switch (receipt['reasonCode']) {
-          'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
-          'COMMAND_ID_REUSED' => 409,
-          _ => 422,
-        },
+        'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
+        'COMMAND_ID_REUSED' => 409,
+        _ => 422,
+      },
     };
     _json(request, status, {'apiVersion': 1, 'receipt': receipt});
   }
@@ -376,10 +377,10 @@ class HostApi {
       'APPROVED' => 200,
       'CONFLICT' => 409,
       'REJECTED' => switch (result['reasonCode']) {
-          'PERMISSION_DENIED' => 403,
-          'PACKAGE_NOT_APPROVED' || 'PACKAGE_UNAVAILABLE' => 404,
-          _ => 422,
-        },
+        'PERMISSION_DENIED' => 403,
+        'PACKAGE_NOT_APPROVED' || 'PACKAGE_UNAVAILABLE' => 404,
+        _ => 422,
+      },
       _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
     };
     _json(request, statusCode, {'apiVersion': 1, 'packageResult': result});
