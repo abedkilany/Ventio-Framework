@@ -464,6 +464,68 @@ Future<void> main() async {
           restartedRows.single['revision'] == 2,
       'Host record values and revision survive a process restart',
     );
+
+    const clientUpgradeVersion = '1.0.1';
+    final clientUpgradeBundle = ExtensionBundle.fromJson(
+      _bundleJson(version: clientUpgradeVersion),
+    );
+    final clientUpgradeSubmission = await _request(
+      client,
+      restartedPort,
+      'POST',
+      '/api/v1/extensions/submit',
+      token: token,
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'package': clientUpgradeBundle.toJson(),
+      },
+    );
+    check(
+      clientUpgradeSubmission.status == 202 &&
+          (clientUpgradeSubmission.body['packageResult'] as Map)['status'] ==
+              'SUBMITTED',
+      'Persistent Host stores the next client integration package candidate',
+    );
+    final clientUpgradeDigest = sha256
+        .convert(utf8.encode(canonicalJson(clientUpgradeBundle.toJson())))
+        .toString();
+    await packageAdministration.approve(
+      moduleId: moduleId,
+      version: clientUpgradeVersion,
+      packageSha256: clientUpgradeDigest,
+    );
+
+    final clientDirectory = Directory(
+      '${Directory.current.parent.path}${Platform.pathSeparator}'
+      'ventio_native_client',
+    );
+    final clientFlow = await Process.run(
+      'flutter',
+      [
+        'test',
+        'test/host_backed_extension_flow_test.dart',
+        '--reporter',
+        'expanded',
+      ],
+      workingDirectory: clientDirectory.path,
+      environment: {
+        ...Platform.environment,
+        'VENTIO_CLIENT_HOST_ENDPOINT': 'http://127.0.0.1:$restartedPort',
+        'VENTIO_CLIENT_HOST_WRITER_TOKEN': token,
+        'VENTIO_CLIENT_HOST_READER_TOKEN': readerToken,
+        'VENTIO_CLIENT_HOST_TENANT': tenant,
+        'VENTIO_CLIENT_HOST_COMPANY': company,
+        'VENTIO_CLIENT_HOST_BRANCH': branch,
+      },
+      runInShell: true,
+    );
+    stdout.write(clientFlow.stdout);
+    if (clientFlow.exitCode != 0) stderr.write(clientFlow.stderr);
+    check(
+      clientFlow.exitCode == 0,
+      'Flutter client syncs through real Host, offline retry, second device and upgrade',
+    );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     client?.close(force: true);
@@ -592,11 +654,11 @@ Map<String, Object?> _recordQuery(String company, String branch) => {
   'limit': 10,
 };
 
-Map<String, dynamic> _bundleJson() => {
+Map<String, dynamic> _bundleJson({String version = '1.0.0'}) => {
   'manifest': {
     'manifestVersion': 0,
     'moduleId': 'com.example.windows_records',
-    'version': '1.0.0',
+    'version': version,
     'minPlatformApi': '0.1.0',
     'displayName': 'Windows Record Registry',
     'displayNameKey': 'extension.com_example_windows_records.module.name',
