@@ -129,6 +129,194 @@ void main() {
   });
 
   test(
+    'Version-one local databases gain an empty dependency manifest',
+    () async {
+      final legacyPath =
+          '${directory.path}${Platform.pathSeparator}legacy_extensions.sqlite3';
+      final legacy = await databaseFactoryFfi.openDatabase(
+        legacyPath,
+        options: OpenDatabaseOptions(
+          version: 1,
+          onCreate: (database, version) async {
+            await database.execute('''
+            CREATE TABLE local_extensions (
+              module_id TEXT PRIMARY KEY NOT NULL,
+              display_name TEXT NOT NULL,
+              description TEXT NOT NULL,
+              version TEXT NOT NULL,
+              state TEXT NOT NULL,
+              created_at_utc TEXT NOT NULL,
+              updated_at_utc TEXT NOT NULL
+            )
+          ''');
+            await database.insert('local_extensions', {
+              'module_id': _moduleId,
+              'display_name': 'Asset Register',
+              'description': '',
+              'version': '0.1.0',
+              'state': 'DRAFT',
+              'created_at_utc': '2026-10-24T00:00:00.000Z',
+              'updated_at_utc': '2026-10-24T00:00:00.000Z',
+            });
+          },
+        ),
+      );
+      await legacy.close();
+
+      final migrated = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: legacyPath,
+      );
+      try {
+        expect((await migrated.getExtension(_moduleId))!.dependencies, isEmpty);
+      } finally {
+        await migrated.close();
+      }
+    },
+  );
+
+  test('Dependencies enforce install order and compatible versions', () async {
+    const dependentId = 'com.example.asset_inspections';
+    await store.createExtension(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: '',
+    );
+    await store.saveDocType(_docType());
+    await store.createExtension(
+      moduleId: dependentId,
+      displayName: 'Asset Inspections',
+      description: '',
+      dependencies: const {_moduleId: '0.1.0'},
+    );
+    await store.saveDocType(
+      _docType(moduleId: dependentId, name: 'Inspection'),
+    );
+
+    await expectLater(
+      store.activate(dependentId),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'DEPENDENCY_NOT_ACTIVE',
+        ),
+      ),
+    );
+    await store.activate(_moduleId);
+    await store.activate(dependentId);
+    expect((await store.getExtension(dependentId))!.dependencies, {
+      _moduleId: '0.1.0',
+    });
+
+    await expectLater(
+      store.updateExtensionDetails(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: '',
+        version: '0.2.0',
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'BREAKING_DEPENDENCY_UPDATE',
+        ),
+      ),
+    );
+    await expectLater(
+      store.updateExtensionDetails(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: '',
+        version: '1.0.0',
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'BREAKING_DEPENDENCY_UPDATE',
+        ),
+      ),
+    );
+    await store.updateExtensionDetails(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: '',
+      version: '0.1.1',
+    );
+    await expectLater(
+      store.disable(_moduleId),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'ACTIVE_DEPENDENTS',
+        ),
+      ),
+    );
+    await store.disable(dependentId);
+    await store.disable(_moduleId);
+    await expectLater(
+      store.remove(_moduleId),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'EXTENSION_IS_DEPENDENCY',
+        ),
+      ),
+    );
+  });
+
+  test('Dependency cycles and missing versions are rejected', () async {
+    const dependentId = 'com.example.asset_inspections';
+    await store.createExtension(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: '',
+    );
+    await store.createExtension(
+      moduleId: dependentId,
+      displayName: 'Asset Inspections',
+      description: '',
+      dependencies: const {_moduleId: '0.1.0'},
+    );
+
+    await expectLater(
+      store.updateExtensionDetails(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: '',
+        version: '0.1.0',
+        dependencies: const {dependentId: '0.1.0'},
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'DEPENDENCY_CYCLE',
+        ),
+      ),
+    );
+    await expectLater(
+      store.createExtension(
+        moduleId: 'com.example.missing_dependency',
+        displayName: 'Missing dependency',
+        description: '',
+        dependencies: const {'com.example.not_installed': '1.0.0'},
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'MISSING_DEPENDENCY',
+        ),
+      ),
+    );
+  });
+
+  test(
     'Two independent extensions use the same generated data engine',
     () async {
       const secondModuleId = 'com.example.site_registry';

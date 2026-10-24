@@ -20,7 +20,7 @@ The current Host API remains bound to `127.0.0.1`. There is no LAN or Internet l
 
 ## Current limits
 
-- Extension dependencies and shared version compatibility are not implemented.
+- Device-local extension dependencies support minimum compatible semantic versions (patch-only for `0.x`, same-major for `1.x` onward), activation order, cycle rejection and safe disable/remove checks. Host-approved dependency resolution, shared version authority and cross-device distribution are not implemented.
 - Local permission keys are not tied to users or roles. The extension cannot grant itself authority, but a Host-controlled role editor is still needed.
 - Only the built-in local data renderer is available. No user-defined executable operation or workflow DSL is included.
 - Local search loads at most 1,000 recent scoped records before applying the text query. This is a prototype limit, not a scale claim.
@@ -32,7 +32,7 @@ The current Host API remains bound to `127.0.0.1`. There is no LAN or Internet l
 ## Verification performed
 
 - `flutter analyze`: passed on Flutter 3.44.1 / Dart 3.12.1.
-- `flutter test --reporter expanded`: passed all 18 client tests, including close/reopen SQLite persistence, two independent extensions using the same data engine, child-process queue recovery, permission-namespace rejection, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, builder-to-generated-record flow and a 360×800 viewport.
+- `flutter test --reporter expanded`: passed all 22 client tests, including close/reopen SQLite persistence, version-one database upgrade, two independent extensions using the same data engine, Builder dependency selection, dependency order/cycle/version checks, child-process queue recovery, permission-namespace rejection, organization/company/branch filtering, relationship scope, optimistic conflicts, non-destructive metadata upgrades, builder-to-generated-record flow and a 360×800 viewport.
 - Windows Debug executable: built successfully from an isolated temporary copy with the installed Windows toolchain. The executable remained alive for a five-second startup smoke check; no visual/manual interaction check was performed.
 - Android Debug APK: attempted from the same isolated copy; no APK or device run was obtained before the initial Gradle run was stopped after output and artifact progress stalled.
 - Core executable suite: 52 passed.

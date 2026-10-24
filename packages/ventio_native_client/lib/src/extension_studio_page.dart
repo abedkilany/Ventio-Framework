@@ -59,7 +59,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   Future<void> _createExtension() async {
     final values = await showDialog<_ExtensionFormValues>(
       context: context,
-      builder: (context) => const _ExtensionFormDialog(),
+      builder: (context) =>
+          _ExtensionFormDialog(availableExtensions: _extensions),
     );
     if (values == null) return;
     try {
@@ -67,6 +68,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         moduleId: values.moduleId,
         displayName: values.displayName,
         description: values.description,
+        version: values.version,
+        dependencies: values.dependencies,
       );
       await _load();
       if (!mounted) return;
@@ -279,9 +282,14 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
   Future<void> _editExtension() async {
     final extension = _extension;
     if (extension == null) return;
+    final availableExtensions = await widget.store.listExtensions();
+    if (!mounted) return;
     final values = await showDialog<_ExtensionFormValues>(
       context: context,
-      builder: (context) => _ExtensionFormDialog(extension: extension),
+      builder: (context) => _ExtensionFormDialog(
+        extension: extension,
+        availableExtensions: availableExtensions,
+      ),
     );
     if (values == null) return;
     await _run(() async {
@@ -290,6 +298,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
         displayName: values.displayName,
         description: values.description,
         version: values.version,
+        dependencies: values.dependencies,
       );
     });
   }
@@ -486,6 +495,14 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
               children: [
                 _MetadataText(label: 'Module ID', value: extension.moduleId),
                 _MetadataText(label: 'Version', value: extension.version),
+                _MetadataText(
+                  label: 'Dependencies',
+                  value: extension.dependencies.isEmpty
+                      ? 'None'
+                      : extension.dependencies.entries
+                            .map((entry) => _dependencyVersionRange(entry))
+                            .join(', '),
+                ),
                 _MetadataText(
                   label: 'Updated',
                   value: extension.updatedAtUtc
@@ -1843,18 +1860,24 @@ class _ExtensionFormValues {
     required this.displayName,
     required this.description,
     required this.version,
+    required this.dependencies,
   });
 
   final String moduleId;
   final String displayName;
   final String description;
   final String version;
+  final Map<String, String> dependencies;
 }
 
 class _ExtensionFormDialog extends StatefulWidget {
-  const _ExtensionFormDialog({this.extension});
+  const _ExtensionFormDialog({
+    this.extension,
+    this.availableExtensions = const [],
+  });
 
   final LocalExtension? extension;
+  final List<LocalExtension> availableExtensions;
 
   @override
   State<_ExtensionFormDialog> createState() => _ExtensionFormDialogState();
@@ -1866,6 +1889,7 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
   late final TextEditingController _name;
   late final TextEditingController _description;
   late final TextEditingController _version;
+  late final Map<String, String> _dependencies;
 
   @override
   void initState() {
@@ -1877,6 +1901,7 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
     _name = TextEditingController(text: extension?.displayName ?? '');
     _description = TextEditingController(text: extension?.description ?? '');
     _version = TextEditingController(text: extension?.version ?? '0.1.0');
+    _dependencies = Map.of(extension?.dependencies ?? const {});
   }
 
   @override
@@ -1897,6 +1922,7 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
         displayName: _name.text.trim(),
         description: _description.text.trim(),
         version: _version.text.trim(),
+        dependencies: Map.unmodifiable(_dependencies),
       ),
     );
   }
@@ -1963,6 +1989,62 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Dependencies',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 4),
+                    child: Text(
+                      widget.extension?.state == ExtensionState.active
+                          ? 'Disable this extension before changing dependencies.'
+                          : 'Dependencies must be installed locally. Version 0.x dependencies accept patch updates only; later versions accept updates within the same major version.',
+                    ),
+                  ),
+                ),
+                if (widget.availableExtensions
+                    .where(
+                      (item) => item.moduleId != widget.extension?.moduleId,
+                    )
+                    .isEmpty)
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Create another extension to add a dependency.',
+                    ),
+                  )
+                else
+                  for (final dependency in widget.availableExtensions.where(
+                    (item) => item.moduleId != widget.extension?.moduleId,
+                  ))
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _dependencies.containsKey(dependency.moduleId),
+                      title: Text(dependency.displayName),
+                      subtitle: Text(
+                        '${dependency.moduleId} · ${_dependencyVersionRange(MapEntry(dependency.moduleId, _dependencies[dependency.moduleId] ?? dependency.version))}',
+                      ),
+                      onChanged:
+                          widget.extension?.state == ExtensionState.active
+                          ? null
+                          : (selected) {
+                              setState(() {
+                                if (selected == true) {
+                                  _dependencies[dependency.moduleId] =
+                                      _dependencies[dependency.moduleId] ??
+                                      dependency.version;
+                                } else {
+                                  _dependencies.remove(dependency.moduleId);
+                                }
+                              });
+                            },
+                    ),
               ],
             ),
           ),
@@ -2318,6 +2400,14 @@ String _recordTitle(LocalExtensionRecord record) {
     orElse: () => record.recordId,
   );
   return first.toString();
+}
+
+String _dependencyVersionRange(MapEntry<String, String> dependency) {
+  final version = semverParts(dependency.value);
+  final upperBound = version[0] == 0
+      ? '0.${version[1] + 1}.0'
+      : '${version[0] + 1}.0.0';
+  return '>=${dependency.value}, <$upperBound';
 }
 
 final RegExp _enumValue = RegExp(r'^[a-z][a-z0-9_]*$');

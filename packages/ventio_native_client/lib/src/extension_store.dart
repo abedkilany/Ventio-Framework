@@ -29,6 +29,7 @@ class LocalExtension {
     required this.displayName,
     required this.description,
     required this.version,
+    required this.dependencies,
     required this.state,
     required this.updatedAtUtc,
   });
@@ -37,20 +38,42 @@ class LocalExtension {
   final String displayName;
   final String description;
   final String version;
+  final Map<String, String> dependencies;
   final ExtensionState state;
   final DateTime updatedAtUtc;
 
   /// Local metadata is never evidence of Host approval or shared installation.
   String get authorityState => 'LOCAL_ONLY';
 
-  factory LocalExtension.fromRow(Map<String, Object?> row) => LocalExtension(
-    moduleId: row['module_id']! as String,
-    displayName: row['display_name']! as String,
-    description: row['description']! as String,
-    version: row['version']! as String,
-    state: ExtensionState.fromDatabase(row['state']),
-    updatedAtUtc: DateTime.parse(row['updated_at_utc']! as String).toUtc(),
-  );
+  factory LocalExtension.fromRow(Map<String, Object?> row) {
+    final rawDependencies = jsonDecode(row['dependencies_json']! as String);
+    if (rawDependencies is! Map ||
+        rawDependencies.keys.any((key) => key is! String) ||
+        rawDependencies.values.any((value) => value is! String)) {
+      throw const FormatException('Stored extension dependencies are invalid.');
+    }
+    final dependencies = <String, String>{};
+    for (final entry in rawDependencies.entries) {
+      final id = entry.key as String;
+      final version = entry.value as String;
+      if (!_moduleId.hasMatch(id)) {
+        throw const FormatException(
+          'Stored extension dependency ID is invalid.',
+        );
+      }
+      semverParts(version);
+      dependencies[id] = version;
+    }
+    return LocalExtension(
+      moduleId: row['module_id']! as String,
+      displayName: row['display_name']! as String,
+      description: row['description']! as String,
+      version: row['version']! as String,
+      dependencies: Map.unmodifiable(dependencies),
+      state: ExtensionState.fromDatabase(row['state']),
+      updatedAtUtc: DateTime.parse(row['updated_at_utc']! as String).toUtc(),
+    );
+  }
 }
 
 class RecordScope {
@@ -144,7 +167,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -157,6 +180,7 @@ class LocalExtensionStore {
               display_name TEXT NOT NULL,
               description TEXT NOT NULL,
               version TEXT NOT NULL,
+              dependencies_json TEXT NOT NULL DEFAULT '{}',
               state TEXT NOT NULL CHECK (state IN ('DRAFT', 'ACTIVE_LOCAL', 'DISABLED_LOCAL')),
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL
@@ -199,6 +223,14 @@ class LocalExtensionStore {
               branch_id, updated_at_utc DESC)
           ''');
         },
+        onUpgrade: (database, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await database.execute('''
+              ALTER TABLE $_extensionsTable
+              ADD COLUMN dependencies_json TEXT NOT NULL DEFAULT '{}'
+            ''');
+          }
+        },
       ),
     );
     return LocalExtensionStore._(database, clock ?? DateTime.now);
@@ -209,6 +241,7 @@ class LocalExtensionStore {
     required String displayName,
     required String description,
     String version = '0.1.0',
+    Map<String, String> dependencies = const {},
   }) async {
     _ensureOpen();
     final id = moduleId.trim();
@@ -233,17 +266,27 @@ class LocalExtensionStore {
       );
     }
     semverParts(version);
+    final normalizedDependencies = _normalizeDependencies(id, dependencies);
     final now = _now();
     try {
-      await _database.insert(_extensionsTable, {
-        'module_id': id,
-        'display_name': name,
-        'description': summary,
-        'version': version,
-        'state': ExtensionState.draft.databaseValue,
-        'created_at_utc': now,
-        'updated_at_utc': now,
-      }, conflictAlgorithm: ConflictAlgorithm.abort);
+      await _database.transaction((transaction) async {
+        await _validateDependencyGraph(
+          transaction,
+          moduleId: id,
+          dependencies: normalizedDependencies,
+        );
+        await _validateDependencyTargets(transaction, normalizedDependencies);
+        await transaction.insert(_extensionsTable, {
+          'module_id': id,
+          'display_name': name,
+          'description': summary,
+          'version': version,
+          'dependencies_json': canonicalJson(normalizedDependencies),
+          'state': ExtensionState.draft.databaseValue,
+          'created_at_utc': now,
+          'updated_at_utc': now,
+        }, conflictAlgorithm: ConflictAlgorithm.abort);
+      });
     } on DatabaseException catch (error) {
       if (error.isUniqueConstraintError()) {
         throw const ExtensionStoreException(
@@ -280,6 +323,7 @@ class LocalExtensionStore {
     required String displayName,
     required String description,
     required String version,
+    Map<String, String>? dependencies,
   }) async {
     _ensureOpen();
     final name = displayName.trim();
@@ -291,26 +335,52 @@ class LocalExtensionStore {
         'Enter a name up to 120 characters and a description up to 2,000 characters.',
       );
     }
-    final existing = await getExtension(moduleId);
-    if (existing == null) throw StateError('Unknown extension: $moduleId');
-    if (compareSemver(version, existing.version) < 0) {
-      throw const ExtensionStoreException(
-        'VERSION_DOWNGRADE',
-        'Extension versions cannot move backwards.',
+    await _database.transaction((transaction) async {
+      final rows = await transaction.query(
+        _extensionsTable,
+        where: 'module_id = ?',
+        whereArgs: [moduleId],
+        limit: 1,
       );
-    }
-    final changed = await _database.update(
-      _extensionsTable,
-      {
-        'display_name': name,
-        'description': summary,
-        'version': version,
-        'updated_at_utc': _now(),
-      },
-      where: 'module_id = ?',
-      whereArgs: [moduleId],
-    );
-    if (changed != 1) throw StateError('Unknown extension: $moduleId');
+      if (rows.isEmpty) throw StateError('Unknown extension: $moduleId');
+      final existing = LocalExtension.fromRow(rows.single);
+      if (compareSemver(version, existing.version) < 0) {
+        throw const ExtensionStoreException(
+          'VERSION_DOWNGRADE',
+          'Extension versions cannot move backwards.',
+        );
+      }
+      final nextDependencies = _normalizeDependencies(
+        moduleId,
+        dependencies ?? existing.dependencies,
+      );
+      if (existing.state == ExtensionState.active &&
+          !_sameDependencies(existing.dependencies, nextDependencies)) {
+        throw const ExtensionStoreException(
+          'DISABLE_BEFORE_DEPENDENCY_CHANGE',
+          'Disable the extension before changing its dependencies.',
+        );
+      }
+      await _validateDependencyGraph(
+        transaction,
+        moduleId: moduleId,
+        dependencies: nextDependencies,
+      );
+      await _validateDependencyTargets(transaction, nextDependencies);
+      await _validateDependentsForVersion(transaction, moduleId, version);
+      await transaction.update(
+        _extensionsTable,
+        {
+          'display_name': name,
+          'description': summary,
+          'version': version,
+          'dependencies_json': canonicalJson(nextDependencies),
+          'updated_at_utc': _now(),
+        },
+        where: 'module_id = ?',
+        whereArgs: [moduleId],
+      );
+    });
   }
 
   Future<List<Map<String, dynamic>>> listDocTypes(String moduleId) async {
@@ -456,6 +526,8 @@ class LocalExtensionStore {
         limit: 1,
       );
       if (module.isEmpty) throw StateError('Unknown extension: $moduleId');
+      final extension = LocalExtension.fromRow(module.single);
+      await _validateDependenciesActive(transaction, extension.dependencies);
       final definitions = await transaction.query(
         _docTypesTable,
         columns: const ['metadata_json'],
@@ -482,21 +554,31 @@ class LocalExtensionStore {
 
   Future<void> disable(String moduleId) async {
     _ensureOpen();
-    final changed = await _database.update(
-      _extensionsTable,
-      {
-        'state': ExtensionState.disabled.databaseValue,
-        'updated_at_utc': _now(),
-      },
-      where: 'module_id = ?',
-      whereArgs: [moduleId],
-    );
-    if (changed == 0) throw StateError('Unknown extension: $moduleId');
+    await _database.transaction((transaction) async {
+      final modules = await transaction.query(
+        _extensionsTable,
+        where: 'module_id = ?',
+        whereArgs: [moduleId],
+        limit: 1,
+      );
+      if (modules.isEmpty) throw StateError('Unknown extension: $moduleId');
+      await _ensureNoActiveDependents(transaction, moduleId);
+      await transaction.update(
+        _extensionsTable,
+        {
+          'state': ExtensionState.disabled.databaseValue,
+          'updated_at_utc': _now(),
+        },
+        where: 'module_id = ?',
+        whereArgs: [moduleId],
+      );
+    });
   }
 
   Future<void> remove(String moduleId) async {
     _ensureOpen();
     await _database.transaction((transaction) async {
+      await _ensureNoDependents(transaction, moduleId);
       final count = await _countRecords(transaction, moduleId);
       if (count != 0) {
         throw const ExtensionStoreException(
@@ -877,6 +959,166 @@ class LocalExtensionStore {
     }
   }
 
+  Future<void> _validateDependencyTargets(
+    DatabaseExecutor executor,
+    Map<String, String> dependencies,
+  ) async {
+    for (final entry in dependencies.entries) {
+      final rows = await executor.query(
+        _extensionsTable,
+        columns: const ['version'],
+        where: 'module_id = ?',
+        whereArgs: [entry.key],
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        throw ExtensionStoreException(
+          'MISSING_DEPENDENCY',
+          'Install local dependency ${entry.key} before declaring it.',
+        );
+      }
+      final currentVersion = rows.single['version']! as String;
+      if (!_versionSatisfies(currentVersion, entry.value)) {
+        throw ExtensionStoreException(
+          'INCOMPATIBLE_DEPENDENCY',
+          '${entry.key} $currentVersion does not satisfy the compatible range starting at ${entry.value}.',
+        );
+      }
+    }
+  }
+
+  Future<void> _validateDependencyGraph(
+    DatabaseExecutor executor, {
+    required String moduleId,
+    required Map<String, String> dependencies,
+  }) async {
+    final rows = await executor.query(
+      _extensionsTable,
+      columns: const ['module_id', 'dependencies_json'],
+    );
+    final graph = <String, Set<String>>{
+      for (final row in rows)
+        row['module_id']! as String: _decodeDependencies(
+          row['dependencies_json']! as String,
+        ).keys.toSet(),
+    };
+    graph[moduleId] = dependencies.keys.toSet();
+    final visiting = <String>{};
+    final visited = <String>{};
+    bool visit(String current) {
+      if (visiting.contains(current)) return false;
+      if (!visited.add(current)) return true;
+      visiting.add(current);
+      for (final dependency in graph[current] ?? const <String>{}) {
+        if (graph.containsKey(dependency) && !visit(dependency)) return false;
+      }
+      visiting.remove(current);
+      return true;
+    }
+
+    for (final id in graph.keys) {
+      if (!visit(id)) {
+        throw const ExtensionStoreException(
+          'DEPENDENCY_CYCLE',
+          'Extension dependencies cannot contain a cycle.',
+        );
+      }
+    }
+  }
+
+  Future<void> _validateDependenciesActive(
+    DatabaseExecutor executor,
+    Map<String, String> dependencies,
+  ) async {
+    for (final entry in dependencies.entries) {
+      final rows = await executor.query(
+        _extensionsTable,
+        columns: const ['version', 'state'],
+        where: 'module_id = ?',
+        whereArgs: [entry.key],
+        limit: 1,
+      );
+      if (rows.isEmpty ||
+          rows.single['state'] != ExtensionState.active.databaseValue) {
+        throw ExtensionStoreException(
+          'DEPENDENCY_NOT_ACTIVE',
+          '${entry.key} must be active on this device first.',
+        );
+      }
+      if (!_versionSatisfies(rows.single['version']! as String, entry.value)) {
+        throw ExtensionStoreException(
+          'INCOMPATIBLE_DEPENDENCY',
+          '${entry.key} no longer satisfies the required compatible version ${entry.value}.',
+        );
+      }
+    }
+  }
+
+  Future<void> _validateDependentsForVersion(
+    DatabaseExecutor executor,
+    String moduleId,
+    String version,
+  ) async {
+    final rows = await executor.query(
+      _extensionsTable,
+      columns: const ['module_id', 'dependencies_json'],
+    );
+    for (final row in rows) {
+      final dependencies = _decodeDependencies(
+        row['dependencies_json']! as String,
+      );
+      final requiredVersion = dependencies[moduleId];
+      if (requiredVersion != null &&
+          !_versionSatisfies(version, requiredVersion)) {
+        throw ExtensionStoreException(
+          'BREAKING_DEPENDENCY_UPDATE',
+          '${row['module_id']} requires $moduleId compatible with $requiredVersion.',
+        );
+      }
+    }
+  }
+
+  Future<void> _ensureNoActiveDependents(
+    DatabaseExecutor executor,
+    String moduleId,
+  ) async {
+    final rows = await executor.query(
+      _extensionsTable,
+      columns: const ['module_id', 'state', 'dependencies_json'],
+    );
+    for (final row in rows) {
+      if (row['state'] == ExtensionState.active.databaseValue &&
+          _decodeDependencies(
+            row['dependencies_json']! as String,
+          ).containsKey(moduleId)) {
+        throw ExtensionStoreException(
+          'ACTIVE_DEPENDENTS',
+          'Disable ${row['module_id']} before disabling $moduleId.',
+        );
+      }
+    }
+  }
+
+  Future<void> _ensureNoDependents(
+    DatabaseExecutor executor,
+    String moduleId,
+  ) async {
+    final rows = await executor.query(
+      _extensionsTable,
+      columns: const ['module_id', 'dependencies_json'],
+    );
+    for (final row in rows) {
+      if (_decodeDependencies(
+        row['dependencies_json']! as String,
+      ).containsKey(moduleId)) {
+        throw ExtensionStoreException(
+          'EXTENSION_IS_DEPENDENCY',
+          'Remove ${row['module_id']} dependency on $moduleId before removing it.',
+        );
+      }
+    }
+  }
+
   String _now() => _clock().toUtc().toIso8601String();
 
   void _ensureOpen() {
@@ -887,6 +1129,60 @@ class LocalExtensionStore {
 final RegExp _moduleId = RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$');
 final RegExp _docTypeName = RegExp(r'^[A-Z][A-Za-z0-9_]*$');
 final RegExp _fieldName = RegExp(r'^[a-z][A-Za-z0-9_]*$');
+
+Map<String, String> _normalizeDependencies(
+  String moduleId,
+  Map<String, String> dependencies,
+) {
+  if (dependencies.length > 32) {
+    throw const ExtensionStoreException(
+      'TOO_MANY_DEPENDENCIES',
+      'An extension may declare at most 32 dependencies.',
+    );
+  }
+  final normalized = <String, String>{};
+  for (final entry in dependencies.entries) {
+    if (!_moduleId.hasMatch(entry.key) || entry.key.length > 128) {
+      throw ExtensionStoreException(
+        'INVALID_DEPENDENCY_ID',
+        'Invalid dependency module ID: ${entry.key}',
+      );
+    }
+    if (entry.key == moduleId) {
+      throw const ExtensionStoreException(
+        'INVALID_DEPENDENCY',
+        'An extension cannot depend on itself.',
+      );
+    }
+    semverParts(entry.value);
+    normalized[entry.key] = entry.value;
+  }
+  return Map.unmodifiable(normalized);
+}
+
+Map<String, String> _decodeDependencies(String source) {
+  final decoded = jsonDecode(source);
+  if (decoded is! Map ||
+      decoded.keys.any((key) => key is! String) ||
+      decoded.values.any((value) => value is! String)) {
+    throw const FormatException('Stored extension dependencies are invalid.');
+  }
+  return decoded.cast<String, String>();
+}
+
+bool _versionSatisfies(String version, String minimumCompatibleVersion) {
+  final current = semverParts(version);
+  final minimum = semverParts(minimumCompatibleVersion);
+  if (compareSemver(version, minimumCompatibleVersion) < 0) return false;
+  if (minimum[0] == 0) {
+    return current[0] == 0 && current[1] == minimum[1];
+  }
+  return current[0] == minimum[0];
+}
+
+bool _sameDependencies(Map<String, String> left, Map<String, String> right) =>
+    left.length == right.length &&
+    left.entries.every((entry) => right[entry.key] == entry.value);
 
 String permissionKey(String moduleId, String docTypeName, String operation) =>
     '${_permissionPrefix(moduleId)}.${docTypeName.toLowerCase()}.$operation';

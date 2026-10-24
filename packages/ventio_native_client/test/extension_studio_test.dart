@@ -116,6 +116,42 @@ void main() {
     },
   );
 
+  testWidgets('Builder saves an explicitly selected extension dependency', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await store.createExtension(
+      moduleId: 'com.example.shared_catalog',
+      displayName: 'Shared Catalog',
+      description: 'A local dependency.',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(store: store, queue: queue),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New extension'));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'com.example.catalog_client');
+    await tester.enterText(fields.at(1), 'Catalog Client');
+    await tester.enterText(fields.at(2), 'Uses the shared catalog.');
+    await tester.enterText(fields.at(3), '1.2.3');
+    await tester.tap(find.byType(CheckboxListTile).first);
+    await tester.tap(find.text('Create draft'));
+    await tester.pumpAndSettle();
+
+    final extension = (await store.getExtension('com.example.catalog_client'))!;
+    expect(extension.version, '1.2.3');
+    expect(extension.dependencies, {'com.example.shared_catalog': '0.1.0'});
+  });
+
   testWidgets('Generated record list and form fit a phone-sized viewport', (
     tester,
   ) async {
