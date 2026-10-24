@@ -127,6 +127,8 @@ class DocTypeDefinition {
   final String labelKey;
   final Map<String, String> permissions;
   final List<FieldDefinition> fields;
+  final List<String> listColumns;
+  final List<String> formFields;
 
   const DocTypeDefinition(
       {required this.name,
@@ -136,7 +138,9 @@ class DocTypeDefinition {
       required this.label,
       required this.labelKey,
       required this.permissions,
-      required this.fields});
+      required this.fields,
+      required this.listColumns,
+      required this.formFields});
 
   factory DocTypeDefinition.fromJson(Map<String, dynamic> json) {
     final fields = requireList(json, 'fields')
@@ -160,17 +164,35 @@ class DocTypeDefinition {
     if (!_messageKey.hasMatch(labelKey)) {
       throw const ContractError('INVALID_DOCTYPE', 'Invalid labelKey');
     }
+    final fieldNames = fields.map((field) => field.name).toSet();
     final uiRaw = json['ui'];
-    if (uiRaw != null) {
-      final ui = requireMap(uiRaw, 'ui');
-      final fieldNames = fields.map((f) => f.name).toSet();
-      for (final key in ['listColumns', 'formFields']) {
-        final columns = strings(requireList(ui, key), 'ui.$key');
-        if (columns.any((item) => !fieldNames.contains(item))) {
-          throw ContractError(
-              'INVALID_DOCTYPE', 'ui.$key references unknown field');
-        }
+    final ui = uiRaw == null ? null : requireMap(uiRaw, 'ui');
+    final listColumns = ui == null
+        ? fields.take(4).map((field) => field.name).toList()
+        : strings(requireList(ui, 'listColumns'), 'ui.listColumns');
+    final formFields = ui == null
+        ? fields.map((field) => field.name).toList()
+        : strings(requireList(ui, 'formFields'), 'ui.formFields');
+    for (final (key, names) in [
+      ('listColumns', listColumns),
+      ('formFields', formFields),
+    ]) {
+      if (names.isEmpty || names.any((name) => !fieldNames.contains(name))) {
+        throw ContractError(
+          'INVALID_DOCTYPE',
+          'ui.$key must contain known fields',
+        );
       }
+    }
+    final requiredFields = fields
+        .where((field) => field.required)
+        .map((field) => field.name)
+        .toSet();
+    if (!formFields.toSet().containsAll(requiredFields)) {
+      throw const ContractError(
+        'INVALID_DOCTYPE',
+        'Required fields must appear in ui.formFields',
+      );
     }
     return DocTypeDefinition(
         name: requireString(json, 'name'),
@@ -180,7 +202,9 @@ class DocTypeDefinition {
         label: requireString(json, 'label'),
         labelKey: labelKey,
         permissions: Map.unmodifiable(permissions),
-        fields: List.unmodifiable(fields));
+        fields: List.unmodifiable(fields),
+        listColumns: List.unmodifiable(listColumns),
+        formFields: List.unmodifiable(formFields));
   }
 
   List<String> validatePayload(Map<String, dynamic> payload) {

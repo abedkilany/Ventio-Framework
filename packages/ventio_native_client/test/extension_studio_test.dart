@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
 import 'package:ventio_native_client/src/extension_studio_page.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
@@ -152,6 +153,85 @@ void main() {
     expect(extension.dependencies, {'com.example.shared_catalog': '0.1.0'});
   });
 
+  testWidgets('Builder saves configured list columns and form order', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(store: store, queue: queue),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create your first extension'));
+    await tester.pumpAndSettle();
+    var fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'com.example.configured_layout');
+    await tester.enterText(fields.at(1), 'Configured Layout');
+    await tester.enterText(fields.at(2), 'A configurable generated layout.');
+    await tester.tap(find.text('Create draft'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add DocType'));
+    await tester.pumpAndSettle();
+    fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'LayoutRecord');
+    await tester.enterText(fields.at(1), 'Layout Record');
+    await tester.enterText(fields.at(2), 'Test form and list layout.');
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    final fieldDialog = find.byType(AlertDialog);
+    fields = find.descendant(
+      of: fieldDialog,
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(fields.at(0), 'name');
+    await tester.enterText(fields.at(1), 'Name');
+    await tester.tap(
+      find.descendant(of: fieldDialog, matching: find.byType(SwitchListTile)),
+    );
+    await tester.tap(find.text('Save field'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    final noteDialog = find.byType(AlertDialog);
+    fields = find.descendant(
+      of: noteDialog,
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(fields.at(0), 'note');
+    await tester.enterText(fields.at(1), 'Note');
+    await tester.tap(find.text('Save field'));
+    await tester.pumpAndSettle();
+
+    final selectors = find.byType(CheckboxListTile);
+    expect(selectors, findsNWidgets(4));
+    await tester.ensureVisible(selectors.first);
+    await tester.tap(selectors.first);
+    await tester.pumpAndSettle();
+
+    final moveNoteUp = find.byTooltip('Move Note up').last;
+    await tester.ensureVisible(moveNoteUp);
+    await tester.tap(moveNoteUp);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save DocType'));
+    await tester.tap(find.text('Save DocType'));
+    await tester.pumpAndSettle();
+
+    final definition = (await store.listDocTypes(
+      'com.example.configured_layout',
+    )).single;
+    final ui = definition['ui'] as Map;
+    expect(ui['listColumns'], ['note']);
+    expect(ui['formFields'], ['note', 'name']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('The full builder setup flow fits a phone-sized viewport', (
     tester,
   ) async {
@@ -294,4 +374,123 @@ void main() {
     expect(find.text('New Asset'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Generated forms follow configured order and preserve hidden values',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const moduleId = 'com.example.layout_preview';
+      const scope = RecordScope(
+        organizationId: 'local-organization',
+        companyId: 'local-company',
+        branchId: 'local-branch',
+      );
+      final metadata = <String, dynamic>{
+        'name': 'LayoutItem',
+        'moduleId': moduleId,
+        'schemaVersion': 1,
+        'kind': 'operational',
+        'fields': [
+          {
+            'name': 'name',
+            'type': 'text',
+            'required': true,
+            'maxLength': 120,
+            'label': 'Name',
+            'labelKey': 'layout_preview.item.name',
+          },
+          {
+            'name': 'internalNote',
+            'type': 'text',
+            'required': false,
+            'maxLength': 240,
+            'label': 'Internal note',
+            'labelKey': 'layout_preview.item.internal_note',
+          },
+          {
+            'name': 'flagged',
+            'type': 'boolean',
+            'required': false,
+            'label': 'Flagged',
+            'labelKey': 'layout_preview.item.flagged',
+          },
+        ],
+        'permissions': {
+          'read': 'extension.com_example_layout_preview.layout_item.read',
+          'create': 'extension.com_example_layout_preview.layout_item.create',
+          'update': 'extension.com_example_layout_preview.layout_item.update',
+        },
+        'ui': {
+          'listColumns': ['name'],
+          'formFields': ['internalNote', 'name'],
+        },
+        'label': 'Layout item',
+        'labelKey': 'layout_preview.item.label',
+      };
+      await store.createExtension(
+        moduleId: moduleId,
+        displayName: 'Layout Preview',
+        description: '',
+      );
+      await store.saveDocType(metadata);
+      await store.activate(moduleId);
+      await store.createRecord(
+        moduleId: moduleId,
+        docTypeName: 'LayoutItem',
+        scope: scope,
+        values: {
+          'name': 'Before',
+          'internalNote': 'Retain this',
+          'flagged': true,
+        },
+        recordId: 'layout-record-1',
+      );
+      final record = (await store.listRecords(
+        moduleId: moduleId,
+        docTypeName: 'LayoutItem',
+        scope: scope,
+      )).single;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DynamicRecordFormPage(
+            store: store,
+            moduleId: moduleId,
+            definition: DocTypeDefinition.fromJson(metadata),
+            scope: scope,
+            record: record,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Internal note'), findsOneWidget);
+      expect(find.text('Name'), findsOneWidget);
+      expect(find.text('Flagged'), findsNothing);
+      expect(
+        tester.getTopLeft(find.text('Internal note')).dy,
+        lessThan(tester.getTopLeft(find.text('Name')).dy),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Name'),
+        'After',
+      );
+      await tester.ensureVisible(find.text('Save changes'));
+      await tester.tap(find.text('Save changes'));
+      await tester.pumpAndSettle();
+
+      final updated = (await store.listRecords(
+        moduleId: moduleId,
+        docTypeName: 'LayoutItem',
+        scope: scope,
+      )).single;
+      expect(updated.values['name'], 'After');
+      expect(updated.values['internalNote'], 'Retain this');
+      expect(updated.values['flagged'], true);
+    },
+  );
 }

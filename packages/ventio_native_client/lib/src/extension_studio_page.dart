@@ -645,6 +645,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   final _descriptionController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final List<Map<String, dynamic>> _fields = [];
+  final List<String> _listColumns = [];
+  final List<String> _formFields = [];
   bool _saving = false;
 
   @override
@@ -660,6 +662,24 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
           (field) => Map<String, dynamic>.from(field as Map),
         ),
       );
+      final names = _fields.map((field) => field['name']! as String).toList();
+      final ui = metadata['ui'];
+      final rawListColumns = ui is Map ? ui['listColumns'] : null;
+      final rawFormFields = ui is Map ? ui['formFields'] : null;
+      _listColumns.addAll(
+        rawListColumns is List
+            ? rawListColumns.whereType<String>().where(names.contains)
+            : names.take(4),
+      );
+      _formFields.addAll(
+        rawFormFields is List
+            ? rawFormFields.whereType<String>().where(names.contains)
+            : names,
+      );
+      for (final field in _fields.where((item) => item['required'] == true)) {
+        final name = field['name']! as String;
+        if (!_formFields.contains(name)) _formFields.add(name);
+      }
     }
   }
 
@@ -691,6 +711,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
     setState(() {
       if (existing == null) {
         _fields.add(field);
+        final name = field['name']! as String;
+        _formFields.add(name);
+        if (_listColumns.length < 4) _listColumns.add(name);
       } else {
         final index = _fields.indexOf(existing);
         if (index >= 0) _fields[index] = field;
@@ -718,7 +741,108 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         ],
       ),
     );
-    if (confirmed == true) setState(() => _fields.remove(field));
+    if (confirmed == true) {
+      setState(() {
+        _fields.remove(field);
+        final name = field['name']! as String;
+        _listColumns.remove(name);
+        _formFields.remove(name);
+      });
+    }
+  }
+
+  void _toggleLayoutField(List<String> selected, String name, bool checked) {
+    setState(() {
+      if (checked && !selected.contains(name)) {
+        selected.add(name);
+      } else if (!checked) {
+        selected.remove(name);
+      }
+    });
+  }
+
+  void _moveLayoutField(List<String> selected, int index, int delta) {
+    final destination = index + delta;
+    if (destination < 0 || destination >= selected.length) return;
+    setState(() {
+      final field = selected.removeAt(index);
+      selected.insert(destination, field);
+    });
+  }
+
+  Widget _layoutCard({
+    required String title,
+    required String description,
+    required List<String> selected,
+    required bool requiredFieldsOnly,
+  }) {
+    final selectedRequired = _fields
+        .where((field) => field['required'] == true)
+        .map((field) => field['name']! as String)
+        .toSet();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(description),
+            if (_fields.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text('Add fields to configure this layout.'),
+              ),
+            for (final field in _fields)
+              Builder(
+                builder: (context) {
+                  final name = field['name']! as String;
+                  final index = selected.indexOf(name);
+                  final isRequired = selectedRequired.contains(name);
+                  return CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: index >= 0,
+                    title: Text(field['label']! as String),
+                    subtitle: Text('$name · ${field['type']}'),
+                    secondary: index < 0
+                        ? null
+                        : Wrap(
+                            spacing: 0,
+                            children: [
+                              IconButton(
+                                tooltip: 'Move ${field['label']} up',
+                                onPressed: index == 0
+                                    ? null
+                                    : () =>
+                                          _moveLayoutField(selected, index, -1),
+                                icon: const Icon(Icons.arrow_upward),
+                              ),
+                              IconButton(
+                                tooltip: 'Move ${field['label']} down',
+                                onPressed: index == selected.length - 1
+                                    ? null
+                                    : () =>
+                                          _moveLayoutField(selected, index, 1),
+                                icon: const Icon(Icons.arrow_downward),
+                              ),
+                            ],
+                          ),
+                    onChanged: requiredFieldsOnly && isRequired
+                        ? null
+                        : (checked) => _toggleLayoutField(
+                            selected,
+                            name,
+                            checked ?? false,
+                          ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -727,11 +851,18 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       _message('Add at least one field to the DocType.');
       return;
     }
+    if (_listColumns.isEmpty) {
+      _message('Choose at least one list column.');
+      return;
+    }
+    if (_formFields.isEmpty) {
+      _message('Choose at least one generated form field.');
+      return;
+    }
     final name = _nameController.text.trim();
     final label = _labelController.text.trim();
     final previousVersion = widget.existing?['schemaVersion'] as int?;
     final fields = List<Map<String, dynamic>>.from(_fields);
-    final names = fields.map((field) => field['name'] as String).toList();
     final namespace = _messageNamespace(widget.moduleId);
     final permissions = {
       for (final operation in ['read', 'create', 'update'])
@@ -744,7 +875,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       'kind': 'operational',
       'fields': fields,
       'permissions': permissions,
-      'ui': {'listColumns': names.take(4).toList(), 'formFields': names},
+      'ui': {
+        'listColumns': List<String>.of(_listColumns),
+        'formFields': List<String>.of(_formFields),
+      },
       'label': label,
       'labelKey': '$namespace.${name.toLowerCase()}.name',
       'description': _descriptionController.text.trim(),
@@ -856,6 +990,22 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                       onDelete: () => _removeField(field),
                     ),
                 const SizedBox(height: 24),
+                _layoutCard(
+                  title: 'List page columns',
+                  description:
+                      'Choose visible columns and their order in generated lists.',
+                  selected: _listColumns,
+                  requiredFieldsOnly: false,
+                ),
+                const SizedBox(height: 12),
+                _layoutCard(
+                  title: 'Generated form fields',
+                  description:
+                      'Choose and order fields shown on create and edit forms. Required fields stay visible.',
+                  selected: _formFields,
+                  requiredFieldsOnly: true,
+                ),
+                const SizedBox(height: 12),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -1400,7 +1550,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                   icon: Icons.view_list_outlined,
                   title: 'Generated list view',
                   body:
-                      'The list uses ${(_definition.fields.length).clamp(1, 4)} configured field${_definition.fields.length == 1 ? '' : 's'} and will support search and local filters when activated.',
+                      'The list shows ${_definition.listColumns.length} configured column${_definition.listColumns.length == 1 ? '' : 's'} and will support search and local filters when activated.',
                   action: OutlinedButton.icon(
                     onPressed: () => _openForm(),
                     icon: const Icon(Icons.open_in_new),
@@ -1442,20 +1592,10 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   }
 
   List<FieldDefinition> get _listColumns {
-    final ui = widget.metadata['ui'];
-    final rawColumns = ui is Map ? ui['listColumns'] : null;
-    if (rawColumns is List) {
-      final byName = {
-        for (final field in _definition.fields) field.name: field,
-      };
-      final columns = rawColumns
-          .whereType<String>()
-          .map((name) => byName[name])
-          .whereType<FieldDefinition>()
-          .toList(growable: false);
-      if (columns.isNotEmpty) return columns;
-    }
-    return [_definition.fields.first];
+    final byName = {for (final field in _definition.fields) field.name: field};
+    return _definition.listColumns
+        .map((name) => byName[name]!)
+        .toList(growable: false);
   }
 }
 
@@ -1490,10 +1630,19 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   bool _loadingReferences = false;
   bool _saving = false;
 
+  List<FieldDefinition> get _formFields {
+    final byName = {
+      for (final field in widget.definition.fields) field.name: field,
+    };
+    return widget.definition.formFields
+        .map((name) => byName[name]!)
+        .toList(growable: false);
+  }
+
   @override
   void initState() {
     super.initState();
-    for (final field in widget.definition.fields) {
+    for (final field in _formFields) {
       final value = widget.record?.values[field.name];
       if (field.type == 'boolean') {
         _booleans[field.name] = value as bool? ?? false;
@@ -1517,9 +1666,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }
 
   Future<void> _loadReferences() async {
-    final fields = widget.definition.fields.where(
-      (field) => field.type == 'reference',
-    );
+    final fields = _formFields.where((field) => field.type == 'reference');
     if (fields.isEmpty) return;
     setState(() => _loadingReferences = true);
     try {
@@ -1539,8 +1686,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }
 
   Map<String, dynamic> _values() {
-    final values = <String, dynamic>{};
-    for (final field in widget.definition.fields) {
+    final values = Map<String, dynamic>.of(widget.record?.values ?? const {});
+    for (final field in _formFields) {
       if (field.type == 'boolean') {
         values[field.name] = _booleans[field.name] ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
@@ -1633,7 +1780,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
                       : Icons.save_outlined,
                 ),
                 const SizedBox(height: 20),
-                for (final field in widget.definition.fields) ...[
+                for (final field in _formFields) ...[
                   _fieldInput(field),
                   const SizedBox(height: 14),
                 ],

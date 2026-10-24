@@ -67,6 +67,34 @@ void main() {
         'Module missing');
     check(p.docTypes.get('MaintenanceRequest') != null, 'DocType missing');
   });
+  test('Dynamic layouts retain order and keep required fields visible', () {
+    final json = loadJsonFile('$root/examples/maintenance_doctype.json');
+    json['ui'] = {
+      'listColumns': ['status', 'customerName'],
+      'formFields': [
+        'status',
+        'problemDescription',
+        'deviceModel',
+        'customerName',
+      ],
+    };
+    final definition = DocTypeDefinition.fromJson(json);
+    check(
+      definition.listColumns.join(',') == 'status,customerName',
+      'List column order was not retained',
+    );
+    check(
+      definition.formFields.first == 'status' &&
+          definition.formFields.last == 'customerName',
+      'Form field order was not retained',
+    );
+
+    json['ui']['formFields'] = ['status', 'problemDescription', 'deviceModel'];
+    checkThrows(
+      () => DocTypeDefinition.fromJson(json),
+      'A required field was hidden from the generated form',
+    );
+  });
   test('English is built in without a translation module', () {
     final en = fresh().english;
     check(en.text('maintenance.module.name') == 'Maintenance Requests',
