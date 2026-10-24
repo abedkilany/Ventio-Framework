@@ -1,0 +1,81 @@
+name: Native Flutter Client
+
+on:
+  push:
+    branches:
+      - feature/native-flutter-offline-proof
+    paths:
+      - '.github/workflows/native-flutter-client.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_native_client/**'
+      - 'scripts/prepare_native_client_platforms.*'
+      - 'spec/v1.2/examples/**'
+  pull_request:
+    paths:
+      - '.github/workflows/native-flutter-client.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_native_client/**'
+      - 'scripts/prepare_native_client_platforms.*'
+      - 'spec/v1.2/examples/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  client-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+      - name: Generate native runner scaffolding
+        run: ./scripts/prepare_native_client_platforms.sh
+      - name: Resolve dependencies
+        working-directory: packages/ventio_native_client
+        run: flutter pub get
+      - name: Check formatting and static analysis
+        working-directory: packages/ventio_native_client
+        run: |
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze
+      - name: Test durable queue and client contracts
+        working-directory: packages/ventio_native_client
+        run: flutter test --reporter expanded
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+      - name: Generate native runner scaffolding
+        shell: pwsh
+        run: ./scripts/prepare_native_client_platforms.ps1
+      - name: Resolve dependencies
+        working-directory: packages/ventio_native_client
+        run: flutter pub get
+      - name: Build Windows desktop app
+        working-directory: packages/ventio_native_client
+        run: flutter build windows --debug
+
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+      - name: Generate native runner scaffolding
+        run: ./scripts/prepare_native_client_platforms.sh
+      - name: Resolve dependencies
+        working-directory: packages/ventio_native_client
+        run: flutter pub get
+      - name: Build Android debug APK
+        working-directory: packages/ventio_native_client
+        run: flutter build apk --debug
