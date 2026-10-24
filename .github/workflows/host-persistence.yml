@@ -32,6 +32,8 @@ jobs:
         with:
           sdk: 3.13.7
       - run: dart pub get --enforce-lockfile
+      - name: Show Dart 3.13 formatting for changed adapter sources
+        run: dart format --output=show lib/src/record_repository.dart test/postgres_integration.dart
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
       - name: PostgreSQL integration tests

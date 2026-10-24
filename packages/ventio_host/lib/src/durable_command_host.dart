@@ -98,6 +98,7 @@ class DurableCommandHost {
     try {
       final result = await connection.runTx(
         (tx) async {
+          final extensionRequest = extensionCommand;
           final authenticatedPrincipal = await resolvePrincipal(tx);
           if (authenticatedPrincipal == null) {
             return _failure(command, 'REJECTED', 'AUTHENTICATION_REQUIRED');
@@ -116,10 +117,10 @@ class DurableCommandHost {
           late final String moduleId;
           late final String operation;
           late final Map<String, dynamic> recordValues;
-          if (extensionCommand != null) {
+          if (extensionRequest != null) {
             final authorization = await resolveExtensionBundle?.call(
               tx,
-              extensionCommand,
+              extensionRequest,
             );
             final bundle = authorization?.bundle;
             if (bundle == null) {
@@ -129,12 +130,12 @@ class DurableCommandHost {
                 authorization?.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
               );
             }
-            if (bundle.moduleId != extensionCommand.moduleId ||
+            if (bundle.moduleId != extensionRequest.moduleId ||
                 bundle.version != command.moduleVersion) {
               return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
             }
             final matches = bundle.docTypes.where(
-              (type) => type.name == extensionCommand!.docType,
+              (type) => type.name == extensionRequest.docType,
             );
             if (matches.length != 1) {
               return _failure(command, 'REJECTED', 'INVALID_EXTENSION');
@@ -142,8 +143,8 @@ class DurableCommandHost {
             docType = matches.single;
             moduleVersion = bundle.version;
             moduleId = bundle.moduleId;
-            operation = extensionCommand.operation;
-            recordValues = extensionCommand.values;
+            operation = extensionRequest.operation;
+            recordValues = extensionRequest.values;
             if (docType.moduleId != bundle.moduleId ||
                 docType.schemaVersion != command.docTypeVersion) {
               return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
@@ -314,7 +315,7 @@ class DurableCommandHost {
               );
             }
           }
-          if (extensionCommand == null && command.expectedRevision != null) {
+          if (extensionRequest == null && command.expectedRevision != null) {
             throw _RejectedCommand(
               _failure(
                 command,
@@ -530,14 +531,14 @@ class DurableCommandHost {
             'companyId': command.companyId,
             'branchId': command.branchId,
             'commandId': command.commandId,
-            'type': extensionCommand == null
+            'type': extensionRequest == null
                 ? '${docType.name}.created'
                 : 'extension.record.changed',
             'aggregateId': command.aggregateId,
             'recordRevision': recordRevision,
-            if (extensionCommand != null) ...{
-              'moduleId': extensionCommand.moduleId,
-              'docType': extensionCommand.docType,
+            if (extensionRequest != null) ...{
+              'moduleId': extensionRequest.moduleId,
+              'docType': extensionRequest.docType,
               'operation': operation,
             },
           };
