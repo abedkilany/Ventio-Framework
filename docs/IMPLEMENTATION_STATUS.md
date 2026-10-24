@@ -26,7 +26,7 @@ Local checks on the current worktree:
 - Android Release build: `build/app/outputs/flutter-apk/app-release.apk` produced successfully (55.3 MB).
 - PostgreSQL-backed package, record authorization, RLS, and recovery integration are executed by GitHub Actions against disposable PostgreSQL 16; the machine has no local PostgreSQL service configured.
 
-The current CI run exposed a SQL security test-fixture mismatch: its direct scoped insert omitted the now-required module identifier. The fixture was corrected to pass the trusted maintenance module ID explicitly. That correction and the current client/Host record integration are awaiting a fresh CI result; prior green workflows do not prove this latest tree passes.
+The PostgreSQL integration run exposed test-fixture issues, which were corrected without relaxing Host checks: the direct scoped SQL fixture now supplies its trusted module ID, retry receipts are compared by canonical JSON content, and each test command has a unique idempotency ID. A fresh CI run is required to confirm those corrections and the current client/Host record integration; earlier green workflows do not prove this latest tree passes.
 
 No physical Android device/emulator run, full interactive Windows UI acceptance session, or Windows Host serving clients on a LAN is claimed here. Local UI widget tests and successful native builds are not substitutes for those checks.
 

@@ -571,7 +571,7 @@ Future<void> main() async {
       'A retried generic write returns its saved Host receipt without duplication',
     );
     final updateRecord = ExtensionRecordCommand.update(
-      commandId: '71000000-0000-4000-8000-000000000002',
+      commandId: '71000000-0000-4000-8000-000000000007',
       tenantId: tenant,
       companyId: primaryCompany,
       branchId: primaryBranch,
