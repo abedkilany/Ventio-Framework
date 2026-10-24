@@ -394,13 +394,15 @@ void main() {
     );
   });
 
-  test('Host rejects an extension record outside numeric field bounds', () {
+  test('Host rejects extension records outside declared field bounds', () {
     const fixture = '../../fixtures/inspection';
     final modules = ModuleRegistry();
     final docTypes = DocTypeRegistry();
     final english = EnglishCatalog();
     final manifest = loadJsonFile('$fixture/manifest.json');
     final doctype = loadJsonFile('$fixture/doctype.json');
+    ((doctype['fields'] as List).first as Map<String, dynamic>)['minLength'] =
+        5;
     final priority = (doctype['fields'] as List).last as Map<String, dynamic>;
     priority
       ..['type'] = 'integer'
@@ -445,6 +447,19 @@ void main() {
     check(
       host.execute(command, principal).reasonCode == 'INVALID_PAYLOAD',
       'Host accepted an extension record outside its declared numeric bounds',
+    );
+
+    final shortTextRaw = Map<String, dynamic>.from(raw)
+      ..['commandId'] = uuid(903)
+      ..['payload'] = Map<String, dynamic>.from(
+        raw['payload'] as Map<String, dynamic>,
+      )
+      ..['payload']['priority'] = 'normal'
+      ..['payload']['assetTag'] = 'EQ';
+    final shortTextCommand = CommandEnvelope.fromJson(shortTextRaw);
+    check(
+      host.execute(shortTextCommand, principal).reasonCode == 'INVALID_PAYLOAD',
+      'Host accepted text shorter than the declared minimum length',
     );
   });
 
