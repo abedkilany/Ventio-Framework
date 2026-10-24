@@ -36,7 +36,9 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // The queue shows an indeterminate loading animation until its async
+    // SQLite read completes, so pump one frame instead of waiting for settle.
+    await tester.pump();
 
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'Sample Customer');

@@ -133,15 +133,13 @@ void main() {
     () async {
       final envelope = await maintenanceEnvelope();
       await queue.close();
-      final child = await Process.run(
-        Platform.isWindows ? 'dart.exe' : 'dart',
-        [
-          'test/support/crash_after_attempt.dart',
-          databasePath,
-          jsonEncode(envelope.original),
-        ],
-        workingDirectory: Directory.current.path,
-      );
+      final child =
+          await Process.run(Platform.isWindows ? 'dart.exe' : 'dart', [
+            'run',
+            'test/support/crash_after_attempt.dart',
+            databasePath,
+            jsonEncode(envelope.original),
+          ], workingDirectory: Directory.current.path);
       expect(child.exitCode, 73, reason: '${child.stdout}\n${child.stderr}');
 
       queue = await LocalCommandQueue.open(
