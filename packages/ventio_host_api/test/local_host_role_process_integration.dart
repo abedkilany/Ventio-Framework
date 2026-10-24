@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:postgres/postgres.dart' as pg;
+import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
 import 'test_support.dart';
@@ -34,6 +36,20 @@ Future<void> main() async {
   final branch = 'branch-one';
   final actor = 'host-operator';
   final device = 'windows-client';
+  const moduleId = 'com.example.windows_records';
+  const packageVersion = '1.0.0';
+  const readPermission = 'extension.com_example_windows_records.item.read';
+  const createPermission = 'extension.com_example_windows_records.item.create';
+  const updatePermission = 'extension.com_example_windows_records.item.update';
+  const publisherPermissions = [
+    'identity.roles.manage',
+    'extension.package.submit',
+    'extension.package.read',
+    readPermission,
+    createPermission,
+    updatePermission,
+  ];
+  const readerPermissions = ['extension.package.read', readPermission];
   final authority = RecoveryAuthority(witnessPath, readerSid: sid);
   final administrationConnection = await pg.Connection.openFromUrl(
     administrationUrl,
@@ -57,7 +73,9 @@ Future<void> main() async {
     await identity.createUser(actor);
     await identity.registerBranch(company, branch);
     await identity.registerDevice(actor, device);
-    await identity.grant(actor, company, branch, 'identity.roles.manage');
+    for (final permission in publisherPermissions) {
+      await identity.grant(actor, company, branch, permission);
+    }
     await identity.provisionToFile(
       actorId: actor,
       deviceId: device,
@@ -67,15 +85,40 @@ Future<void> main() async {
         {
           'companyId': company,
           'branchId': branch,
-          'permissions': ['identity.roles.manage'],
+          'permissions': publisherPermissions,
         },
       ],
       outputPath: credentialPath,
+    );
+    await identity.createUser('host-reader');
+    await identity.registerDevice('host-reader', 'windows-reader-device');
+    for (final permission in readerPermissions) {
+      await identity.grant('host-reader', company, branch, permission);
+    }
+    final readerCredentialPath =
+        '${directory.path}${Platform.pathSeparator}reader-credential.json';
+    await identity.provisionToFile(
+      actorId: 'host-reader',
+      deviceId: 'windows-reader-device',
+      credentialId: 'host-reader-credential',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': company,
+          'branchId': branch,
+          'permissions': readerPermissions,
+        },
+      ],
+      outputPath: readerCredentialPath,
     );
     final credential =
         jsonDecode(await PrivateFiles.read(credentialPath))
             as Map<String, dynamic>;
     final token = credential['token'] as String;
+    final readerCredential =
+        jsonDecode(await PrivateFiles.read(readerCredentialPath))
+            as Map<String, dynamic>;
+    final readerToken = readerCredential['token'] as String;
 
     final startup = Completer<int>();
     final processEnvironment = <String, String>{
@@ -221,6 +264,169 @@ Future<void> main() async {
           (role['permissions'] as List).contains('extension.smoke.read'),
       'Windows Host returns the durable role on a subsequent request',
     );
+
+    final bundle = ExtensionBundle.fromJson(_bundleJson());
+    final submitted = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/extensions/submit',
+      token: token,
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'package': bundle.toJson(),
+      },
+    );
+    check(
+      submitted.status == 202 &&
+          (submitted.body['packageResult'] as Map)['status'] == 'SUBMITTED',
+      'Windows Host persists a submitted declarative extension package',
+    );
+
+    final packageDigest = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
+    final packageAdministration = ExtensionPackageAdministration(
+      connection: administrationConnection,
+      tenantId: tenant,
+      operatorLabel: 'windows-process-integration',
+      authority: authority,
+    );
+    await packageAdministration.approve(
+      moduleId: moduleId,
+      version: packageVersion,
+      packageSha256: packageDigest,
+    );
+    final approved = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/extensions/read',
+      token: token,
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'moduleId': moduleId,
+        'version': packageVersion,
+      },
+    );
+    check(
+      approved.status == 200 &&
+          (approved.body['packageResult'] as Map)['packageSha256'] ==
+              packageDigest,
+      'Windows Host serves only the operator-approved package digest',
+    );
+
+    final command = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: company,
+      branchId: branch,
+      recordId: 'host-item-1',
+      actorId: actor,
+      deviceId: device,
+      moduleId: moduleId,
+      moduleVersion: packageVersion,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Before update'},
+    );
+    final recordCreated = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/commands',
+      token: token,
+      body: command.envelope.original,
+    );
+    final createReceipt = recordCreated.body['receipt'] as Map<String, dynamic>;
+    check(
+      recordCreated.status == 200 &&
+          createReceipt['status'] == 'ACCEPTED' &&
+          createReceipt['hostRevision'] == 1,
+      'Windows Host creates a Host-authoritative dynamic record',
+    );
+
+    final query = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/extensions/records/query',
+      token: readerToken,
+      body: _recordQuery(company, branch),
+    );
+    final queryResult = query.body['recordResult'] as Map<String, dynamic>;
+    final queriedRows = queryResult['records'] as List;
+    check(
+      query.status == 200 &&
+          queriedRows.length == 1 &&
+          queriedRows.single['recordId'] == 'host-item-1' &&
+          queriedRows.single['values']['title'] == 'Before update',
+      'Second authenticated device reads the same Host record',
+    );
+
+    final wrongBranchRead = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/extensions/records/query',
+      token: readerToken,
+      body: _recordQuery(company, 'another-branch'),
+    );
+    check(
+      wrongBranchRead.status == 403,
+      'Windows Host rejects dynamic record reads from another branch',
+    );
+
+    final updatedCommand = ExtensionRecordCommand.update(
+      commandId: '71000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: company,
+      branchId: branch,
+      recordId: 'host-item-1',
+      expectedRevision: 1,
+      actorId: actor,
+      deviceId: device,
+      moduleId: moduleId,
+      moduleVersion: packageVersion,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'After update'},
+    );
+    final recordUpdated = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/commands',
+      token: token,
+      body: updatedCommand.envelope.original,
+    );
+    final updateReceipt = recordUpdated.body['receipt'] as Map<String, dynamic>;
+    check(
+      recordUpdated.status == 200 &&
+          updateReceipt['status'] == 'ACCEPTED' &&
+          updateReceipt['hostRevision'] == 2,
+      'Windows Host advances a dynamic record with expected-revision checking',
+    );
+
+    final afterUpdate = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/extensions/records/query',
+      token: readerToken,
+      body: _recordQuery(company, branch),
+    );
+    final updatedRows =
+        (afterUpdate.body['recordResult'] as Map<String, dynamic>)['records']
+            as List;
+    check(
+      afterUpdate.status == 200 &&
+          updatedRows.single['values']['title'] == 'After update' &&
+          updatedRows.single['revision'] == 2,
+      'Second authenticated device receives the Host-updated record',
+    );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     client?.close(force: true);
@@ -281,6 +487,76 @@ Future<_HttpResult> _request(
     jsonDecode(text) as Map<String, dynamic>,
   );
 }
+
+Map<String, Object?> _recordQuery(String company, String branch) => {
+  'companyId': company,
+  'branchId': branch,
+  'moduleId': 'com.example.windows_records',
+  'version': '1.0.0',
+  'docType': 'Item',
+  'search': '',
+  'filters': <String, Object?>{},
+  'filterField': null,
+  'filterContains': '',
+  'sortField': 'title',
+  'descending': false,
+  'offset': 0,
+  'limit': 10,
+};
+
+Map<String, dynamic> _bundleJson() => {
+  'manifest': {
+    'manifestVersion': 0,
+    'moduleId': 'com.example.windows_records',
+    'version': '1.0.0',
+    'minPlatformApi': '0.1.0',
+    'displayName': 'Windows Record Registry',
+    'displayNameKey': 'extension.com_example_windows_records.module.name',
+    'englishCatalog': 'localization/en.windows_records.json',
+    'dependencies': <String>[],
+    'docTypes': ['Item'],
+    'commands': <Object>[],
+    'requiredCapabilities': <String>[],
+    'offline': {'enabled': false, 'allowedCommands': <String>[]},
+  },
+  'docTypes': [
+    {
+      'name': 'Item',
+      'moduleId': 'com.example.windows_records',
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'label': 'Item',
+      'labelKey': 'extension.com_example_windows_records.item',
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': 'extension.com_example_windows_records.item.read',
+        'create': 'extension.com_example_windows_records.item.create',
+        'update': 'extension.com_example_windows_records.item.update',
+      },
+      'fields': [
+        {
+          'name': 'title',
+          'type': 'text',
+          'required': true,
+          'label': 'Title',
+          'labelKey': 'extension.com_example_windows_records.item.title',
+          'maxLength': 100,
+        },
+      ],
+      'ui': {
+        'listColumns': ['title'],
+        'formFields': ['title'],
+      },
+    },
+  ],
+  'dependencyVersions': <String, String>{},
+  'englishCatalog': {
+    'extension.com_example_windows_records.module.name':
+        'Windows Record Registry',
+    'extension.com_example_windows_records.item': 'Item',
+    'extension.com_example_windows_records.item.title': 'Title',
+  },
+};
 
 class _HttpResult {
   const _HttpResult(this.status, this.body);

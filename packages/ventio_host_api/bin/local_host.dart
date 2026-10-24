@@ -149,6 +149,10 @@ Future<void> main() async {
         connect: connect,
         admission: admission,
       ),
+      extensionRecordQueries: PostgresExtensionRecordQueryGateway(
+        connect: connect,
+        admission: admission,
+      ),
       identityRoleAdministration: roleAdministration,
       executor: PersistentCommandExecutor(
         connect: connect,
