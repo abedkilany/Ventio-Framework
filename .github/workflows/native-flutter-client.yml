@@ -41,7 +41,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Use the pinned Windows Flutter SDK
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\verify-flutter-sdk.ps1
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\verify-flutter-sdk.ps1
       - name: Set up Java for Android builds
         uses: actions/setup-java@v6
         with:
