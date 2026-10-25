@@ -154,6 +154,104 @@ void main() {
     expect(await store.getHostProfile(), isNull);
   });
 
+  test('Version-five stores migrate scoped Host record denial state', () async {
+    final legacyPath =
+        '${directory.path}${Platform.pathSeparator}legacy_v5.sqlite3';
+    final legacy = await databaseFactoryFfi.openDatabase(
+      legacyPath,
+      options: OpenDatabaseOptions(
+        version: 5,
+        onCreate: (database, version) async {
+          await database.execute('''
+            CREATE TABLE local_extensions (
+              module_id TEXT PRIMARY KEY NOT NULL,
+              display_name TEXT NOT NULL,
+              description TEXT NOT NULL,
+              version TEXT NOT NULL,
+              dependencies_json TEXT NOT NULL DEFAULT '{}',
+              state TEXT NOT NULL,
+              created_at_utc TEXT NOT NULL,
+              updated_at_utc TEXT NOT NULL
+            )
+          ''');
+        },
+      ),
+    );
+    await legacy.close();
+
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-west',
+      companyId: 'company-west',
+      branchId: 'branch-7',
+      actorId: 'user-west',
+      deviceId: 'desktop-west',
+    );
+    var migrated = await LocalExtensionStore.open(
+      factory: databaseFactoryFfi,
+      path: legacyPath,
+    );
+    await migrated.createExtension(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: '',
+    );
+    await migrated.markHostRecordReadDenied(
+      profile: profile,
+      moduleId: _moduleId,
+      reasonCode: 'PERMISSION_DENIED',
+    );
+    expect(
+      await migrated.hasHostRecordReadDenial(
+        profile: profile,
+        moduleId: _moduleId,
+      ),
+      isTrue,
+    );
+    await migrated.close();
+
+    migrated = await LocalExtensionStore.open(
+      factory: databaseFactoryFfi,
+      path: legacyPath,
+    );
+    try {
+      expect(
+        await migrated.hasHostRecordReadDenial(
+          profile: profile,
+          moduleId: _moduleId,
+        ),
+        isTrue,
+      );
+      expect(
+        await migrated.hasHostRecordReadDenial(
+          profile: const HostConnectionProfile(
+            endpoint: 'https://host.example.test',
+            tenantId: 'tenant-west',
+            companyId: 'company-west',
+            branchId: 'branch-7',
+            actorId: 'another-user',
+            deviceId: 'desktop-west',
+          ),
+          moduleId: _moduleId,
+        ),
+        isFalse,
+      );
+      await migrated.clearHostRecordReadDenial(
+        profile: profile,
+        moduleId: _moduleId,
+      );
+      expect(
+        await migrated.hasHostRecordReadDenial(
+          profile: profile,
+          moduleId: _moduleId,
+        ),
+        isFalse,
+      );
+    } finally {
+      await migrated.close();
+    }
+  });
+
   test(
     'Host receipts and refreshes preserve provisional offline edits',
     () async {
@@ -775,7 +873,7 @@ void main() {
       await migrated.close();
       final current = await databaseFactoryFfi.openDatabase(
         legacyPath,
-        options: OpenDatabaseOptions(version: 5),
+        options: OpenDatabaseOptions(version: 6),
       );
       try {
         final columns = await current.rawQuery(

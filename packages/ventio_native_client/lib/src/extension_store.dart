@@ -7,6 +7,7 @@ const _extensionsTable = 'local_extensions';
 const _docTypesTable = 'local_extension_doctypes';
 const _recordsTable = 'local_extension_records';
 const _hostProfileTable = 'local_host_profile';
+const _hostRecordDenialsTable = 'local_host_record_read_denials';
 
 enum ExtensionState {
   draft('DRAFT'),
@@ -227,7 +228,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 6,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -301,6 +302,25 @@ class LocalExtensionStore {
               updated_at_utc TEXT NOT NULL
             )
           ''');
+          await database.execute('''
+            CREATE TABLE $_hostRecordDenialsTable (
+              endpoint TEXT NOT NULL,
+              tenant_id TEXT NOT NULL,
+              company_id TEXT NOT NULL,
+              branch_id TEXT NOT NULL,
+              actor_id TEXT NOT NULL,
+              device_id TEXT NOT NULL,
+              module_id TEXT NOT NULL,
+              reason_code TEXT NOT NULL,
+              updated_at_utc TEXT NOT NULL,
+              PRIMARY KEY (
+                endpoint, tenant_id, company_id, branch_id, actor_id,
+                device_id, module_id
+              ),
+              FOREIGN KEY (module_id) REFERENCES $_extensionsTable(module_id)
+                ON DELETE CASCADE
+            )
+          ''');
         },
         onUpgrade: (database, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -371,6 +391,27 @@ class LocalExtensionStore {
                 ALTER TABLE $_recordsTable ADD COLUMN conflict_data_json TEXT
               ''');
             }
+          }
+          if (oldVersion < 6) {
+            await database.execute('''
+              CREATE TABLE $_hostRecordDenialsTable (
+                endpoint TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                branch_id TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                device_id TEXT NOT NULL,
+                module_id TEXT NOT NULL,
+                reason_code TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL,
+                PRIMARY KEY (
+                  endpoint, tenant_id, company_id, branch_id, actor_id,
+                  device_id, module_id
+                ),
+                FOREIGN KEY (module_id) REFERENCES $_extensionsTable(module_id)
+                  ON DELETE CASCADE
+              )
+            ''');
           }
         },
       ),
@@ -499,6 +540,94 @@ class LocalExtensionStore {
   Future<void> clearHostProfile() async {
     _ensureOpen();
     await _database.delete(_hostProfileTable);
+  }
+
+  Future<bool> hasHostRecordReadDenial({
+    required HostConnectionProfile profile,
+    required String moduleId,
+  }) async {
+    _ensureOpen();
+    final key = _hostRecordDenialKey(profile, moduleId);
+    final rows = await _database.query(
+      _hostRecordDenialsTable,
+      where: '''endpoint = ? AND tenant_id = ? AND company_id = ?
+        AND branch_id = ? AND actor_id = ? AND device_id = ? AND module_id = ?''',
+      whereArgs: key,
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  Future<void> markHostRecordReadDenied({
+    required HostConnectionProfile profile,
+    required String moduleId,
+    required String reasonCode,
+  }) async {
+    _ensureOpen();
+    _hostRecordDenialKey(profile, moduleId);
+    if (!RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(reasonCode)) {
+      throw ArgumentError('A Host denial code is invalid.');
+    }
+    await _database.insert(_hostRecordDenialsTable, {
+      'endpoint': profile.endpoint,
+      'tenant_id': profile.tenantId,
+      'company_id': profile.companyId,
+      'branch_id': profile.branchId,
+      'actor_id': profile.actorId!,
+      'device_id': profile.deviceId!,
+      'module_id': moduleId,
+      'reason_code': reasonCode,
+      'updated_at_utc': _now(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> clearHostRecordReadDenial({
+    required HostConnectionProfile profile,
+    required String moduleId,
+  }) async {
+    _ensureOpen();
+    final key = _hostRecordDenialKey(profile, moduleId);
+    await _database.delete(
+      _hostRecordDenialsTable,
+      where: '''endpoint = ? AND tenant_id = ? AND company_id = ?
+        AND branch_id = ? AND actor_id = ? AND device_id = ? AND module_id = ?''',
+      whereArgs: key,
+    );
+  }
+
+  List<String> _hostRecordDenialKey(
+    HostConnectionProfile profile,
+    String moduleId,
+  ) {
+    final actorId = profile.actorId;
+    final deviceId = profile.deviceId;
+    final identityIds = [
+      profile.tenantId,
+      profile.companyId,
+      profile.branchId,
+      actorId,
+      deviceId,
+    ];
+    if (actorId == null ||
+        deviceId == null ||
+        profile.endpoint.trim().isEmpty ||
+        profile.endpoint.length > 2048 ||
+        identityIds.any(
+          (value) =>
+              value == null || value.trim().isEmpty || value.length > 256,
+        ) ||
+        !_moduleId.hasMatch(moduleId)) {
+      throw ArgumentError('A complete Host identity and module are required.');
+    }
+    return [
+      profile.endpoint,
+      profile.tenantId,
+      profile.companyId,
+      profile.branchId,
+      actorId,
+      deviceId,
+      moduleId,
+    ];
   }
 
   /// Produces a bounded declarative package from the persisted local draft.

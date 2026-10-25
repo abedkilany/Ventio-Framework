@@ -99,9 +99,11 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
     required super.endpoint,
     required super.credentials,
     required this.page,
+    this.queryError,
   });
 
-  final HostExtensionRecordPage page;
+  HostExtensionRecordPage page;
+  Object? queryError;
   String? queriedCompany;
   String? queriedBranch;
 
@@ -124,6 +126,8 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
   }) async {
     queriedCompany = companyId;
     queriedBranch = branchId;
+    final error = queryError;
+    if (error != null) throw error;
     return page;
   }
 }
@@ -1110,6 +1114,163 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Host read denial hides cached records until an authorized refresh succeeds',
+    (tester) async {
+      tester.view.physicalSize = const Size(1100, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const moduleId = 'com.example.denied_host_records';
+      const scope = RecordScope(
+        organizationId: 'tenant-host',
+        companyId: 'company-host',
+        branchId: 'branch-host',
+      );
+      const profile = HostConnectionProfile(
+        endpoint: 'https://host.example.test',
+        tenantId: 'tenant-host',
+        companyId: 'company-host',
+        branchId: 'branch-host',
+        actorId: 'user-host',
+        deviceId: 'device-host',
+      );
+      await store.createExtension(
+        moduleId: moduleId,
+        displayName: 'Restricted Cache',
+        description: '',
+      );
+      await store.saveDocType({
+        'name': 'Asset',
+        'moduleId': moduleId,
+        'schemaVersion': 1,
+        'kind': 'operational',
+        'fields': [
+          {
+            'name': 'name',
+            'type': 'text',
+            'required': true,
+            'label': 'Name',
+            'labelKey': 'extension.com_example_denied_host_records.asset.name',
+            'maxLength': 120,
+          },
+        ],
+        'operations': ['read', 'create', 'update'],
+        'permissions': {
+          'read': 'extension.com_example_denied_host_records.asset.read',
+          'create': 'extension.com_example_denied_host_records.asset.create',
+          'update': 'extension.com_example_denied_host_records.asset.update',
+        },
+        'ui': {
+          'listColumns': ['name'],
+          'formFields': ['name'],
+        },
+        'label': 'Asset',
+        'labelKey': 'extension.com_example_denied_host_records.asset.title',
+      });
+      await store.activate(moduleId);
+      await store.saveHostProfile(profile);
+      await store.applyHostRecord(
+        moduleId: moduleId,
+        docTypeName: 'Asset',
+        scope: scope,
+        recordId: 'restricted-cache-1',
+        revision: 4,
+        values: const {'name': 'Cached private record'},
+        updatedAtUtc: DateTime.utc(2026, 10, 25),
+      );
+      final bundle = await store.exportBundle(moduleId);
+      final digest = sha256
+          .convert(utf8.encode(canonicalJson(bundle.toJson())))
+          .toString();
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      final fakeClient = _FakeRecordQueryClient(
+        endpoint: Uri.parse(profile.endpoint),
+        credentials: vault,
+        page: HostExtensionRecordPage(
+          packageSha256: digest,
+          hasMore: false,
+          records: const [],
+        ),
+        queryError: const HostPackageTransportException(
+          'PERMISSION_DENIED',
+          statusCode: 403,
+        ),
+      );
+
+      Future<Widget> page(String key) async => MaterialApp(
+        key: ValueKey(key),
+        home: DynamicDocTypePage(
+          store: store,
+          moduleId: moduleId,
+          metadata: (await store.listDocTypes(moduleId)).single,
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: profile,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) => fakeClient,
+        ),
+      );
+
+      await tester.pumpWidget(await page('denied'));
+      await tester.pumpAndSettle();
+      expect(find.text('Host denied record access'), findsOneWidget);
+      expect(find.text('Cached private record'), findsNothing);
+      expect(
+        (await store.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Asset',
+          recordId: 'restricted-cache-1',
+          scope: scope,
+        ))?.authorityState,
+        'HOST_ACCEPTED',
+      );
+      expect(
+        await store.hasHostRecordReadDenial(
+          profile: profile,
+          moduleId: moduleId,
+        ),
+        isTrue,
+      );
+
+      fakeClient.queryError = const HostPackageTransportException(
+        'HOST_UNREACHABLE',
+        retryable: true,
+      );
+      await tester.pumpWidget(await page('offline'));
+      await tester.pumpAndSettle();
+      expect(find.text('Host denied record access'), findsOneWidget);
+      expect(find.text('Cached private record'), findsNothing);
+
+      fakeClient.queryError = null;
+      fakeClient.page = HostExtensionRecordPage(
+        packageSha256: digest,
+        hasMore: false,
+        records: [
+          HostExtensionRecord(
+            recordId: 'restricted-cache-1',
+            revision: 4,
+            updatedAtUtc: '2026-10-25T00:00:00Z',
+            values: const {'name': 'Cached private record'},
+          ),
+        ],
+      );
+      await tester.pumpWidget(await page('restored'));
+      await tester.pumpAndSettle();
+      expect(find.text('Host-authoritative records'), findsOneWidget);
+      expect(find.text('Cached private record'), findsOneWidget);
+      expect(
+        await store.hasHostRecordReadDenial(
+          profile: profile,
+          moduleId: moduleId,
+        ),
+        isFalse,
+      );
+    },
+  );
 
   testWidgets('Startup recovers a saved record missing its queued command', (
     tester,

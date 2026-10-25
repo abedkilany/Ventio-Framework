@@ -2901,6 +2901,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   int _hostOffset = 0;
   bool _hostHasMore = false;
   bool _hostQuerySucceeded = false;
+  bool _hostAccessDenied = false;
   String? _hostWarning;
 
   DocTypeDefinition get _definition =>
@@ -2945,13 +2946,23 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       _hostQuerySucceeded = false;
     });
     try {
+      final profile = widget.hostProfile;
+      _hostAccessDenied =
+          profile != null &&
+          profile.actorId != null &&
+          profile.deviceId != null &&
+          await widget.store.hasHostRecordReadDenial(
+            profile: profile,
+            moduleId: widget.moduleId,
+          );
       if (widget.queue != null) {
         await _reconcileQueuedRecords(widget.store, widget.queue!);
       }
       try {
-        await _queryHostRecords(offset: 0);
+        await _queryHostRecords(offset: 0, generation: generation);
       } catch (error) {
         _hostWarning = error.toString();
+        await _rememberHostRecordReadDenial(error, generation: generation);
       }
       final records = await widget.store.listRecords(
         moduleId: widget.moduleId,
@@ -2966,7 +2977,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       );
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
-        _records = records;
+        _records = _hostAccessDenied ? const [] : records;
         _loading = false;
       });
     } catch (error) {
@@ -2986,7 +2997,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       _hostWarning = null;
     });
     try {
-      await _queryHostRecords(offset: _hostOffset);
+      await _queryHostRecords(offset: _hostOffset, generation: generation);
       final records = await widget.store.listRecords(
         moduleId: widget.moduleId,
         docTypeName: _definition.name,
@@ -3004,15 +3015,48 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         _loading = false;
       });
     } catch (error) {
+      await _rememberHostRecordReadDenial(error, generation: generation);
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        if (_hostAccessDenied) _records = const [];
         _loading = false;
         _hostWarning = error.toString();
       });
     }
   }
 
-  Future<void> _queryHostRecords({required int offset}) async {
+  Future<void> _rememberHostRecordReadDenial(
+    Object error, {
+    required int generation,
+  }) async {
+    if (!mounted ||
+        generation != _loadGeneration ||
+        !_isHostRecordReadDenial(error)) {
+      return;
+    }
+    _hostAccessDenied = true;
+    final profile = widget.hostProfile;
+    if (profile == null ||
+        profile.actorId == null ||
+        profile.deviceId == null) {
+      return;
+    }
+    try {
+      await widget.store.markHostRecordReadDenied(
+        profile: profile,
+        moduleId: widget.moduleId,
+        reasonCode: (error as HostPackageTransportException).code,
+      );
+    } catch (storageError) {
+      _hostWarning =
+          '${error.toString()} (the local denial marker could not be saved: $storageError)';
+    }
+  }
+
+  Future<void> _queryHostRecords({
+    required int offset,
+    required int generation,
+  }) async {
     final profile = widget.hostProfile;
     final vault = widget.credentialVault;
     final version = widget.moduleVersion;
@@ -3057,6 +3101,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       );
     }
     for (final record in page.records) {
+      if (!mounted || generation != _loadGeneration) return;
       await widget.store.applyHostRecord(
         moduleId: widget.moduleId,
         docTypeName: _definition.name,
@@ -3067,6 +3112,15 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         updatedAtUtc: DateTime.parse(record.updatedAtUtc),
       );
     }
+    if (!mounted || generation != _loadGeneration) return;
+    if (profile.actorId != null && profile.deviceId != null) {
+      await widget.store.clearHostRecordReadDenial(
+        profile: profile,
+        moduleId: widget.moduleId,
+      );
+    }
+    _hostAccessDenied = false;
+    _hostWarning = null;
     _hostHasMore = page.hasMore;
     _hostOffset = offset + page.records.length;
     _hostQuerySucceeded = true;
@@ -3218,21 +3272,27 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 96),
             children: [
               _LocalOnlyNotice(
-                title: widget.previewOnly
+                title: _hostAccessDenied
+                    ? 'Host authorization required'
+                    : widget.previewOnly
                     ? 'Metadata preview'
                     : widget.hostProfile == null
                     ? 'Provisional local records'
                     : _hostQuerySucceeded
                     ? 'Host-authoritative records'
                     : 'Local records · Host unavailable',
-                body: widget.previewOnly
+                body: _hostAccessDenied
+                    ? 'The Host denied this record query. Cached records remain stored locally but are hidden until an authorized Host query succeeds.'
+                    : widget.previewOnly
                     ? 'This screen is rendered from the DocType definition. Saving is disabled until the extension is activated on this device.'
                     : widget.hostProfile == null
                     ? 'Records stay on this device as provisional work until an authenticated Host connection is configured.'
                     : _hostQuerySucceeded
                     ? 'The Host-approved package and exact company/branch scope were verified. Accepted records are cached locally; new changes remain provisional until a Host receipt arrives.'
                     : 'The selected Host scope remains authoritative. The list below contains locally saved provisional records; connect or retry before treating them as shared data.',
-                icon: widget.previewOnly
+                icon: _hostAccessDenied
+                    ? Icons.lock_outline
+                    : widget.previewOnly
                     ? Icons.visibility_outlined
                     : _hostQuerySucceeded
                     ? Icons.verified_user_outlined
@@ -3259,7 +3319,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                 Text(description),
               ],
               const SizedBox(height: 12),
-              if (!widget.previewOnly && canRead) ...[
+              if (!widget.previewOnly && canRead && !_hostAccessDenied) ...[
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
@@ -3381,6 +3441,13 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                 )
               else if (_loading)
                 const Center(child: CircularProgressIndicator())
+              else if (_hostAccessDenied)
+                _StateCard(
+                  icon: Icons.lock_outline,
+                  title: 'Host denied record access',
+                  body:
+                      'Cached rows are hidden until a Host-authorized query succeeds. Local records and pending commands have not been deleted. ${_hostWarning ?? ''}',
+                )
               else if (_error != null)
                 _StateCard(
                   icon: Icons.error_outline,
@@ -5010,6 +5077,22 @@ String _recordTitle(LocalExtensionRecord record) {
     orElse: () => record.recordId,
   );
   return first.toString();
+}
+
+bool _isHostRecordReadDenial(Object error) {
+  if (error is! HostPackageTransportException) return false;
+  if (error.statusCode == 401 ||
+      error.statusCode == 403 ||
+      error.statusCode == 404) {
+    return true;
+  }
+  return const {
+    'EXTENSION_NOT_APPROVED',
+    'EXTENSION_REVOKED',
+    'UPGRADE_REQUIRED',
+    'LOCAL_PACKAGE_DIFFERS_FROM_HOST_APPROVED_RELEASE',
+    'HOST_PACKAGE_INTEGRITY_FAILED',
+  }.contains(error.code);
 }
 
 String _dependencyVersionRange(MapEntry<String, String> dependency) {
