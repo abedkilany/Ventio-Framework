@@ -61,7 +61,11 @@ on the self-hosted runner.
 - **Windows Self-hosted Runner Smoke**: runner identity and platform dispatch
   check; it does not require Docker access.
 
-Actions install the pinned Dart, Python, Flutter, Java, and Android SDK versions
-as part of the corresponding job. The runner machine must retain Visual Studio
-Build Tools with the Windows desktop C++ workload and Windows SDK for Flutter
-desktop builds.
+Actions install the pinned Dart, Flutter, Java, and Android SDK versions as
+part of the corresponding job. The architecture-contract job uses the runner's
+machine-wide Python 3.14 at `C:\Python314\python.exe`; its JSON Schema dependency
+is installed into the run's temporary directory. This avoids changing the
+runner's PowerShell execution policy, which blocks the installer script used by
+`actions/setup-python` under the `NETWORK SERVICE` identity. The runner machine
+must retain that Python runtime and Visual Studio Build Tools with the Windows
+desktop C++ workload and Windows SDK for Flutter desktop builds.
