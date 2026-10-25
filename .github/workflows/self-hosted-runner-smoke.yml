@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - codex/windows-self-hosted-runner
+    paths:
+      - '.github/workflows/self-hosted-runner-smoke.yml'
   workflow_dispatch:
 
 permissions: {}
@@ -24,3 +26,8 @@ jobs:
           echo Runner: %RUNNER_NAME%
           echo Platform: %RUNNER_OS% %RUNNER_ARCH%
           echo Work directory: %RUNNER_WORKSPACE%
+          echo Service identity:
+          whoami
+          echo Service profile: %USERPROFILE%
+          where.exe docker
+          docker info --format "Docker={{.ServerVersion}}; OS={{.OperatingSystem}}; type={{.OSType}}"
