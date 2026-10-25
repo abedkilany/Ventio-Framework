@@ -2,6 +2,11 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $clientDirectory = Join-Path $repositoryRoot 'packages/ventio_native_client'
+$lockPath = Join-Path $clientDirectory 'pubspec.lock'
+if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+    throw 'The tracked Flutter dependency lockfile is required before generating platform runners.'
+}
+$lockfileBytes = [System.IO.File]::ReadAllBytes($lockPath)
 $existingPlatforms = @('android', 'windows') | Where-Object {
     Test-Path -LiteralPath (Join-Path $clientDirectory $_)
 }
@@ -59,5 +64,13 @@ try {
     )
 }
 finally {
-    Pop-Location
+    try {
+        # flutter create rewrites pubspec.lock even with --no-pub. Preserve the
+        # reviewed dependency graph so the following enforced resolution works.
+        [System.IO.File]::WriteAllBytes($lockPath, $lockfileBytes)
+        Write-Output 'Restored the tracked Flutter dependency lockfile after generating platform runners.'
+    }
+    finally {
+        Pop-Location
+    }
 }

@@ -63,7 +63,7 @@ jobs:
         run: C:\Python314\python.exe --version
       - name: Install isolated contract dependencies
         run: |
-          C:\Python314\python.exe -m pip install --disable-pip-version-check --target "%RUNNER_TEMP%\ventio-python-packages" "jsonschema>=4.18,<5"
+          C:\Python314\python.exe -m pip install --upgrade --disable-pip-version-check --target "%RUNNER_TEMP%\ventio-python-packages" "jsonschema>=4.18,<5"
           echo PYTHONPATH=%RUNNER_TEMP%\ventio-python-packages>>"%GITHUB_ENV%"
       - run: C:\Python314\python.exe scripts/verify_package.py
       - run: C:\Python314\python.exe spec/v1.2/scripts/validate_contracts.py

@@ -38,8 +38,8 @@ class PersistedRecord {
     required this.revision,
     required Map<String, dynamic> data,
   }) : _data = Map.unmodifiable(
-          jsonDecode(jsonEncode(data)) as Map<String, dynamic>,
-        ) {
+         jsonDecode(jsonEncode(data)) as Map<String, dynamic>,
+       ) {
     if (moduleId.trim().isEmpty ||
         docType.trim().isEmpty ||
         recordId.trim().isEmpty ||
