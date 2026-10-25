@@ -263,6 +263,32 @@ void main() {
       'A package declared a permission outside its namespace',
     );
 
+    final fieldPermissions = changed(source);
+    final fieldPermission = (((fieldPermissions['docTypes'] as List).single
+            as Map<String, dynamic>)['fields'] as List)
+        .single as Map<String, dynamic>;
+    fieldPermission['readPermission'] =
+        'extension.com_example_assets.asset.field.name.read';
+    (fieldPermissions['manifest'] as Map<String, dynamic>)['minPlatformApi'] =
+        '0.2.0';
+    checkThrows(
+      () => ExtensionBundle.fromJson(fieldPermissions),
+      'Field permissions were accepted without the enforcing platform API',
+    );
+    (fieldPermissions['manifest'] as Map<String, dynamic>)['minPlatformApi'] =
+        fieldPermissionPlatformApiVersion;
+    final securedBundle = ExtensionBundle.fromJson(fieldPermissions);
+    check(
+      securedBundle.docTypes.single.fields.single.readPermission ==
+          'extension.com_example_assets.asset.field.name.read',
+      'A valid field permission did not round-trip',
+    );
+    fieldPermission['writePermission'] = 'system.admin';
+    checkThrows(
+      () => ExtensionBundle.fromJson(fieldPermissions),
+      'A package declared a field permission outside its namespace',
+    );
+
     final injectedLabel = changed(source);
     (injectedLabel['englishCatalog']
         as Map<String, dynamic>)['core.app.title'] = 'Injected';
@@ -436,6 +462,31 @@ void main() {
         numberField(type: 'decimal', minimum: double.infinity),
       ),
       'A nonfinite numeric bound was accepted',
+    );
+  });
+
+  test(
+      'Partial updates validate supplied fields without requiring omitted ones',
+      () {
+    final definition = DocTypeDefinition.fromJson(
+      (extensionBundleJson()['docTypes'] as List).single
+          as Map<String, dynamic>,
+    );
+    check(
+      definition.validatePayload({}, partial: true).isEmpty &&
+          definition.validatePayload({}).any(
+            (issue) => issue == 'name:REQUIRED',
+          ),
+      'Partial validation must skip omitted required fields only',
+    );
+    check(
+      definition.validatePayload({'name': 4}, partial: true).any(
+            (issue) => issue == 'name:INVALID_TEXT',
+          ) &&
+          definition.validatePayload({'unknown': 'x'}, partial: true).any(
+            (issue) => issue == 'unknown:UNKNOWN_FIELD',
+          ),
+      'Partial validation must still validate supplied values and field names',
     );
   });
 
@@ -981,8 +1032,8 @@ void main() {
   test('Minimum platform API is enforced', () {
     check(
       ModuleRegistry().platformApiVersion == currentPlatformApiVersion &&
-          currentPlatformApiVersion == '0.2.0',
-      'The default platform API did not advance for generated-page metadata',
+          currentPlatformApiVersion == '0.3.0',
+      'The default platform API did not advance for field authorization',
     );
     final modules = ModuleRegistry(platformApiVersion: '0.0.1');
     modules.registerTrustedCapability(Capability.fromJson(

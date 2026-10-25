@@ -6,6 +6,8 @@ class FieldDefinition {
   final bool required;
   final String label;
   final String labelKey;
+  final String? readPermission;
+  final String? writePermission;
   final int? minLength;
   final int? maxLength;
   final num? minValue;
@@ -19,6 +21,8 @@ class FieldDefinition {
       required this.required,
       required this.label,
       required this.labelKey,
+      this.readPermission,
+      this.writePermission,
       this.minLength,
       required this.maxLength,
       this.minValue,
@@ -116,12 +120,28 @@ class FieldDefinition {
       throw const ContractError(
           'INVALID_FIELD', 'Field labelKey must be a namespaced message key');
     }
+    final readPermission = optionalString(json, 'readPermission');
+    final writePermission = optionalString(json, 'writePermission');
+    for (final entry in {
+      'readPermission': readPermission,
+      'writePermission': writePermission,
+    }.entries) {
+      final permission = entry.value;
+      if (permission != null && !_messageKey.hasMatch(permission)) {
+        throw ContractError(
+          'INVALID_FIELD',
+          '${entry.key} must be a namespaced permission key',
+        );
+      }
+    }
     return FieldDefinition(
         name: requireString(json, 'name'),
         type: type,
         required: requireBool(json, 'required'),
         label: requireString(json, 'label'),
         labelKey: labelKey,
+        readPermission: readPermission,
+        writePermission: writePermission,
         minLength: minLength as int?,
         maxLength: maxLength as int?,
         minValue: minValue as num?,
@@ -389,13 +409,17 @@ class DocTypeDefinition {
         migrations: List.unmodifiable(migrations));
   }
 
-  List<String> validatePayload(Map<String, dynamic> payload) {
+  List<String> validatePayload(
+    Map<String, dynamic> payload, {
+    bool partial = false,
+  }) {
     final issues = <String>[];
     final defined = {for (final field in fields) field.name: field};
     for (final key in payload.keys) {
       if (!defined.containsKey(key)) issues.add('$key:UNKNOWN_FIELD');
     }
     for (final field in fields) {
+      if (partial && !payload.containsKey(field.name)) continue;
       final issue = field.validate(payload[field.name]);
       if (issue != null) issues.add('${field.name}:$issue');
     }

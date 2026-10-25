@@ -34,6 +34,26 @@ replace the selected artifact.
 and current exact company/branch permission grants. The response contains no
 credential material; the Builder uses it to offer valid Host scopes.
 
+## Dynamic record field authorization
+
+An approved DocType may attach namespaced `readPermission` and
+`writePermission` keys to individual fields. These are requests for Host grants,
+not grants created by the package. The authenticated record query returns the
+values visible to that principal and explicit `readableFields`,
+`writableFields`, and `creatableFields` masks for the exact actor and scope.
+Search, filter, and sort predicates that name unreadable fields are denied, so
+these operations cannot be used as a side channel to inspect protected values.
+
+The durable command Host validates partial update patches against the approved
+DocType and the principal's operation and field grants. Updates preserve
+unmentioned fields from the locked Host record; changed protected fields are
+rejected. Creates cannot supply a protected non-null field without its write
+grant. Local SQLite caches are projected using the masks and the masks are
+scoped to the endpoint, tenant, company, branch, actor, device, module, and
+DocType. The Host remains authoritative on every query and command, including
+after an offline period. A client that has not reconnected cannot learn about a
+later grant revocation.
+
 ## Approval and recovery
 
 Shared approval is a trusted local operator action, not a permission an

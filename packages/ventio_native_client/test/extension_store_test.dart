@@ -342,6 +342,111 @@ void main() {
     },
   );
 
+  test(
+    'Host field masks scrub cached values and constrain partial edits',
+    () async {
+      final protected = _textField(name: 'secret', required: false)
+        ..['readPermission'] =
+            'extension.com_example_asset_register.asset.secret_read'
+        ..['writePermission'] =
+            'extension.com_example_asset_register.asset.secret_write';
+      await createActiveExtension(
+        docType: _docType(
+          fields: [
+            _textField(name: 'name'),
+            _textField(name: 'description', required: false),
+            protected,
+          ],
+        ),
+      );
+      final created = await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {
+          'name': 'Visible value',
+          'description': 'Preserve this value',
+          'secret': 'cached private value',
+        },
+        recordId: 'field-masked-record',
+      );
+      await store.applyHostFieldPermissions(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        readableFields: const ['name', 'description'],
+        writableFields: const ['name'],
+        creatableFields: const ['name'],
+      );
+      final masked = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+      ))!;
+      expect(masked.values, {
+        'name': 'Visible value',
+        'description': 'Preserve this value',
+      });
+      expect(masked.readableFields, {'name', 'description'});
+      expect(masked.writableFields, {'name'});
+      await expectLater(
+        store.updateRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: created.recordId,
+          scope: _scope,
+          expectedRevision: masked.revision,
+          values: const {'secret': 'forged local edit'},
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'PERMISSION_DENIED',
+          ),
+        ),
+      );
+      final updated = await store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+        expectedRevision: masked.revision,
+        values: const {'name': 'Updated visible value'},
+      );
+      expect(updated.values, {
+        'name': 'Updated visible value',
+        'description': 'Preserve this value',
+      });
+      expect(
+        await store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          search: 'cached private value',
+        ),
+        isEmpty,
+      );
+      await expectLater(
+        store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          filterField: 'secret',
+          filterContains: 'cached',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'PERMISSION_DENIED',
+          ),
+        ),
+      );
+    },
+  );
+
   test('Conflict and rejection receipts preserve the local draft', () async {
     await createActiveExtension();
     final created = await store.createRecord(
@@ -797,7 +902,7 @@ void main() {
         await oldPlatformStore.close();
       }
 
-      (source['manifest'] as Map<String, dynamic>)['minPlatformApi'] = '0.3.0';
+      (source['manifest'] as Map<String, dynamic>)['minPlatformApi'] = '0.4.0';
       final incompatible = ExtensionBundle.fromJson(source);
 
       await expectLater(
@@ -919,7 +1024,7 @@ void main() {
       await migrated.close();
       final current = await databaseFactoryFfi.openDatabase(
         legacyPath,
-        options: OpenDatabaseOptions(version: 6),
+        options: OpenDatabaseOptions(version: 9),
       );
       try {
         final columns = await current.rawQuery(
@@ -932,7 +1037,13 @@ void main() {
         )).single;
         expect(
           columns.map((column) => column['name']),
-          containsAll(['conflict_revision', 'conflict_data_json']),
+          containsAll([
+            'conflict_revision',
+            'conflict_data_json',
+            'readable_fields_json',
+            'writable_fields_json',
+            'creatable_fields_json',
+          ]),
         );
         expect(row['data_json'], jsonEncode({'name': 'Keep this record'}));
         expect(row['host_revision'], 2);

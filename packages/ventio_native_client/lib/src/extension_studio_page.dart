@@ -1300,6 +1300,9 @@ class ExtensionDetailsPage extends StatefulWidget {
     this.hostProfile,
     this.credentialVault,
     this.hostPackageClientFactory,
+    this.readableFields,
+    this.writableFields,
+    this.creatableFields,
     super.key,
   });
 
@@ -1310,6 +1313,9 @@ class ExtensionDetailsPage extends StatefulWidget {
   final HostConnectionProfile? hostProfile;
   final HostCredentialVault? credentialVault;
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
+  final Set<String>? readableFields;
+  final Set<String>? writableFields;
+  final Set<String>? creatableFields;
 
   @override
   State<ExtensionDetailsPage> createState() => _ExtensionDetailsPageState();
@@ -2710,6 +2716,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   late final TextEditingController _minValue;
   late final TextEditingController _maxValue;
   late final TextEditingController _enumValues;
+  late final TextEditingController _readPermission;
+  late final TextEditingController _writePermission;
   String _type = 'text';
   String? _referenceTo;
   bool _required = false;
@@ -2735,6 +2743,12 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _enumValues = TextEditingController(
       text: ((field?['enumValues'] as List?) ?? const []).join(', '),
     );
+    _readPermission = TextEditingController(
+      text: field?['readPermission'] as String? ?? '',
+    );
+    _writePermission = TextEditingController(
+      text: field?['writePermission'] as String? ?? '',
+    );
     _type = field?['type'] as String? ?? 'text';
     _referenceTo = field?['referenceTo'] as String?;
     _required = field?['required'] as bool? ?? false;
@@ -2749,6 +2763,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _minValue.dispose();
     _maxValue.dispose();
     _enumValues.dispose();
+    _readPermission.dispose();
+    _writePermission.dispose();
     super.dispose();
   }
 
@@ -2778,6 +2794,12 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       if (maximum != null) metadata['maxValue'] = maximum;
     }
     if (_type == 'reference') metadata['referenceTo'] = _referenceTo;
+    final readPermission = _readPermission.text.trim();
+    final writePermission = _writePermission.text.trim();
+    if (readPermission.isNotEmpty) metadata['readPermission'] = readPermission;
+    if (writePermission.isNotEmpty) {
+      metadata['writePermission'] = writePermission;
+    }
     if (_type == 'enum') {
       final values = _enumValues.text
           .split(',')
@@ -2834,6 +2856,22 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       return minimum
           ? 'Minimum length must not exceed the maximum.'
           : 'Maximum length must not be below the minimum.';
+    }
+    return null;
+  }
+
+  String? _permissionError(String? value) {
+    final permission = value?.trim() ?? '';
+    if (permission.isEmpty) return null;
+    final prefix = permissionKey(
+      widget.moduleId,
+      widget.docTypeName,
+      'read',
+    ).replaceFirst(RegExp(r'\.read$'), '.');
+    if (!permission.startsWith(prefix) ||
+        permission.length > 200 ||
+        !RegExp(r'^[a-z][a-z0-9_.-]*$').hasMatch(permission)) {
+      return 'Use a permission key under $prefix';
     }
     return null;
   }
@@ -2994,6 +3032,26 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   value: _required,
                   onChanged: (value) => setState(() => _required = value),
                 ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _readPermission,
+                  decoration: const InputDecoration(
+                    labelText: 'Read permission (optional)',
+                    helperText:
+                        'Adds a Host grant required to receive this field.',
+                  ),
+                  validator: _permissionError,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _writePermission,
+                  decoration: const InputDecoration(
+                    labelText: 'Write permission (optional)',
+                    helperText:
+                        'Adds a Host grant required to create or change this field.',
+                  ),
+                  validator: _permissionError,
+                ),
               ],
             ),
           ),
@@ -3055,6 +3113,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   bool _hostQuerySucceeded = false;
   bool _hostAccessDenied = false;
   String? _hostWarning;
+  Set<String>? _hostReadableFields;
+  Set<String>? _hostWritableFields;
+  Set<String>? _hostCreatableFields;
 
   DocTypeDefinition get _definition =>
       DocTypeDefinition.fromJson(widget.metadata);
@@ -3073,7 +3134,12 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   @override
   void initState() {
     super.initState();
-    _sortField = _definition.fields.first.name;
+    final defaultSortFields = _definition.fields
+        .where((field) => field.readPermission == null)
+        .toList(growable: false);
+    _sortField = defaultSortFields.isEmpty
+        ? null
+        : defaultSortFields.first.name;
     if (!widget.previewOnly && _definition.operations.contains('read')) {
       _loadRecords();
     }
@@ -3107,6 +3173,16 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
             profile: profile,
             moduleId: widget.moduleId,
           );
+      final cachedFieldPermissions = profile == null
+          ? null
+          : await widget.store.getHostFieldPermissions(
+              profile: profile,
+              moduleId: widget.moduleId,
+              docTypeName: _definition.name,
+            );
+      _hostReadableFields = cachedFieldPermissions?.readableFields;
+      _hostWritableFields = cachedFieldPermissions?.writableFields;
+      _hostCreatableFields = cachedFieldPermissions?.creatableFields;
       if (widget.queue != null) {
         await _reconcileQueuedRecords(widget.store, widget.queue!);
       }
@@ -3126,6 +3202,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         sortField: _sortField,
         ascending: _ascending,
         limit: 1000,
+        readableFields: _hostReadableFields,
       );
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
@@ -3160,6 +3237,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         sortField: _sortField,
         ascending: _ascending,
         limit: 1000,
+        readableFields: _hostReadableFields,
       );
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
@@ -3252,6 +3330,54 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         'LOCAL_PACKAGE_DIFFERS_FROM_HOST_APPROVED_RELEASE',
       );
     }
+    if (_definition.fields.any(
+          (field) =>
+              field.readPermission != null || field.writePermission != null,
+        ) &&
+        (page.readableFields == null ||
+            page.writableFields == null ||
+            page.creatableFields == null)) {
+      throw const HostPackageTransportException(
+        'HOST_FIELD_PERMISSIONS_MISSING',
+      );
+    }
+    _hostReadableFields = page.readableFields;
+    _hostWritableFields = page.writableFields;
+    _hostCreatableFields = page.creatableFields;
+    final readableFields = page.readableFields;
+    if (_filterField != null &&
+        readableFields != null &&
+        !readableFields.contains(_filterField)) {
+      _filterField = null;
+    }
+    if (_sortField != null &&
+        readableFields != null &&
+        !readableFields.contains(_sortField)) {
+      _sortField = readableFields.isEmpty
+          ? null
+          : (_definition.fields
+                .where((field) => readableFields.contains(field.name))
+                .toList(growable: false)
+                .first
+                .name);
+    }
+    if (readableFields != null && page.writableFields != null) {
+      final creatableFields = page.creatableFields;
+      if (creatableFields == null) {
+        throw const HostPackageTransportException(
+          'HOST_FIELD_PERMISSIONS_MISSING',
+        );
+      }
+      await widget.store.applyHostFieldPermissions(
+        moduleId: widget.moduleId,
+        docTypeName: _definition.name,
+        scope: _recordScope,
+        readableFields: readableFields,
+        writableFields: page.writableFields!,
+        creatableFields: creatableFields,
+        profile: profile,
+      );
+    }
     for (final record in page.records) {
       if (!mounted || generation != _loadGeneration) return;
       await widget.store.applyHostRecord(
@@ -3262,6 +3388,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         revision: record.revision,
         values: record.values,
         updatedAtUtc: DateTime.parse(record.updatedAtUtc),
+        readableFields: page.readableFields,
+        writableFields: page.writableFields,
+        creatableFields: page.creatableFields,
       );
     }
     if (!mounted || generation != _loadGeneration) return;
@@ -3326,6 +3455,13 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
 
   List<LocalExtensionRecord> get _visibleRecords => _records;
 
+  bool _canReadField(FieldDefinition field) =>
+      _hostReadableFields?.contains(field.name) ?? field.readPermission == null;
+
+  bool _canCreateField(FieldDefinition field) =>
+      _hostCreatableFields?.contains(field.name) ??
+      (field.writePermission == null && field.readPermission == null);
+
   Future<void> _openForm([LocalExtensionRecord? record]) async {
     if (widget.previewOnly) {
       await Navigator.of(context).push<void>(
@@ -3335,6 +3471,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
             moduleId: widget.moduleId,
             definition: _definition,
             scope: _recordScope,
+            readableFields: _hostReadableFields,
+            writableFields: _hostWritableFields,
+            creatableFields: _hostCreatableFields,
             previewOnly: true,
           ),
         ),
@@ -3354,6 +3493,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
           credentialVault: widget.credentialVault,
           hostPackageClientFactory: widget.hostPackageClientFactory,
           record: record,
+          readableFields: _hostReadableFields,
+          writableFields: _hostWritableFields,
+          creatableFields: _hostCreatableFields,
         ),
       ),
     );
@@ -3373,6 +3515,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
           hostProfile: widget.hostProfile,
           credentialVault: widget.credentialVault,
           hostPackageClientFactory: widget.hostPackageClientFactory,
+          readableFields: _hostReadableFields,
+          writableFields: _hostWritableFields,
+          creatableFields: _hostCreatableFields,
           record: record,
         ),
       ),
@@ -3385,7 +3530,14 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     final metadata = widget.metadata;
     final title = _definition.pageTitle;
     final canRead = _definition.operations.contains('read');
-    final canCreate = _definition.operations.contains('create');
+    final canCreate =
+        _definition.operations.contains('create') &&
+        _definition.fields
+            .where((field) => field.required)
+            .every(_canCreateField);
+    final readableFields = _definition.fields
+        .where(_canReadField)
+        .toList(growable: false);
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -3508,7 +3660,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                             value: null,
                             child: Text('No filter'),
                           ),
-                          for (final field in _definition.fields)
+                          for (final field in readableFields)
                             DropdownMenuItem<String?>(
                               value: field.name,
                               child: Text(field.label),
@@ -3546,7 +3698,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                             value: null,
                             child: Text('Last updated'),
                           ),
-                          for (final field in _definition.fields)
+                          for (final field in readableFields)
                             DropdownMenuItem<String?>(
                               value: field.name,
                               child: Text(field.label),
@@ -3644,6 +3796,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     final byName = {for (final field in _definition.fields) field.name: field};
     return _definition.listColumns
         .map((name) => byName[name]!)
+        .where(_canReadField)
         .toList(growable: false);
   }
 }
@@ -3661,6 +3814,9 @@ class DynamicRecordFormPage extends StatefulWidget {
     this.hostPackageClientFactory,
     this.record,
     this.initialValues,
+    this.readableFields,
+    this.writableFields,
+    this.creatableFields,
     this.previewOnly = false,
     super.key,
   });
@@ -3676,6 +3832,9 @@ class DynamicRecordFormPage extends StatefulWidget {
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final LocalExtensionRecord? record;
   final Map<String, dynamic>? initialValues;
+  final Set<String>? readableFields;
+  final Set<String>? writableFields;
+  final Set<String>? creatableFields;
   final bool previewOnly;
 
   @override
@@ -3691,12 +3850,62 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   bool _loadingReferences = false;
   bool _saving = false;
 
+  Set<String> get _effectiveReadableFields =>
+      widget.readableFields ??
+      widget.definition.fields
+          .where((field) => field.readPermission == null)
+          .map((field) => field.name)
+          .toSet();
+
+  Set<String> get _effectiveWritableFields =>
+      widget.writableFields ??
+      widget.definition.fields
+          .where((field) => field.writePermission == null)
+          .map((field) => field.name)
+          .toSet();
+
+  Set<String> get _effectiveCreatableFields =>
+      widget.creatableFields ??
+      widget.definition.fields
+          .where(
+            (field) =>
+                field.writePermission == null && field.readPermission == null,
+          )
+          .map((field) => field.name)
+          .toSet();
+
+  bool _isEditable(FieldDefinition field) => widget.record == null
+      ? _effectiveCreatableFields.contains(field.name)
+      : _effectiveWritableFields.contains(field.name);
+
+  bool get _canSaveOperation {
+    final editing = widget.record != null;
+    if (!widget.definition.operations.contains(editing ? 'update' : 'create')) {
+      return false;
+    }
+    if (editing) return _formFields.any(_isEditable);
+    final requiredFields = widget.definition.fields.where(
+      (field) => field.required,
+    );
+    return requiredFields.every(
+      (field) => _effectiveCreatableFields.contains(field.name),
+    );
+  }
+
   List<FieldDefinition> get _formFields {
     final byName = {
       for (final field in widget.definition.fields) field.name: field,
     };
     return widget.definition.formFields
         .map((name) => byName[name]!)
+        .where(
+          (field) =>
+              widget.previewOnly ||
+              (widget.record == null
+                  ? _effectiveCreatableFields.contains(field.name)
+                  : _effectiveReadableFields.contains(field.name) ||
+                        _effectiveWritableFields.contains(field.name)),
+        )
         .toList(growable: false);
   }
 
@@ -3705,8 +3914,11 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     super.initState();
     for (final field in _formFields) {
       final initialValues = widget.initialValues;
-      final value =
-          initialValues != null && initialValues.containsKey(field.name)
+      final canRead =
+          widget.previewOnly || _effectiveReadableFields.contains(field.name);
+      final value = !canRead
+          ? null
+          : initialValues != null && initialValues.containsKey(field.name)
           ? initialValues[field.name]
           : widget.record?.values[field.name];
       if (field.type == 'boolean') {
@@ -3751,10 +3963,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }
 
   Map<String, dynamic> _values() {
-    final values = Map<String, dynamic>.of(
-      widget.initialValues ?? widget.record?.values ?? const {},
-    );
+    final values = <String, dynamic>{};
     for (final field in _formFields) {
+      if (!_isEditable(field)) continue;
       if (field.type == 'boolean') {
         values[field.name] = _booleans[field.name] ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
@@ -3786,7 +3997,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
     if (!_formKey.currentState!.validate()) return;
     final values = _values();
-    final issues = widget.definition.validatePayload(values);
+    final issues = widget.definition.validatePayload(
+      values,
+      partial: widget.record != null,
+    );
     if (issues.isNotEmpty) {
       _message(issues.join('\n'));
       return;
@@ -3802,6 +4016,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           scope: widget.scope,
           values: values,
           recordId: recordId,
+          readableFields: _effectiveReadableFields,
+          writableFields: _effectiveWritableFields,
+          creatableFields: _effectiveCreatableFields,
         );
       } else {
         saved = await widget.store.updateRecord(
@@ -3811,6 +4028,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           scope: widget.scope,
           expectedRevision: widget.record!.revision,
           values: values,
+          readableFields: _effectiveReadableFields,
+          writableFields: _effectiveWritableFields,
+          creatableFields: _effectiveCreatableFields,
         );
       }
       try {
@@ -3843,9 +4063,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.record != null;
-    final canSave = widget.definition.operations.contains(
-      editing ? 'update' : 'create',
-    );
+    final canSave = _canSaveOperation;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -3879,7 +4097,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
                 ),
                 const SizedBox(height: 20),
                 for (final field in _formFields) ...[
-                  _fieldInput(field),
+                  _fieldInput(field, editable: _isEditable(field)),
                   const SizedBox(height: 14),
                 ],
                 if (_loadingReferences) const LinearProgressIndicator(),
@@ -3912,14 +4130,14 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     );
   }
 
-  Widget _fieldInput(FieldDefinition field) {
+  Widget _fieldInput(FieldDefinition field, {required bool editable}) {
     if (field.type == 'boolean') {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(field.label),
         subtitle: Text(field.required ? 'Required' : 'Optional'),
         value: _booleans[field.name] ?? false,
-        onChanged: widget.previewOnly
+        onChanged: widget.previewOnly || !editable
             ? null
             : (value) => setState(() => _booleans[field.name] = value),
       );
@@ -3944,7 +4162,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               child: Text(_enumLabel(field, value)),
             ),
         ],
-        onChanged: widget.previewOnly
+        onChanged: widget.previewOnly || !editable
             ? null
             : (value) => setState(() => _selections[field.name] = value),
         validator: (value) => field.required && value == null
@@ -3974,7 +4192,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               child: Text(_recordTitle(record)),
             ),
         ],
-        onChanged: widget.previewOnly
+        onChanged: widget.previewOnly || !editable
             ? null
             : (value) => setState(() => _selections[field.name] = value),
         validator: (value) => field.required && value == null
@@ -3992,7 +4210,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     ];
     return TextFormField(
       controller: _controllers[field.name],
-      readOnly: widget.previewOnly,
+      readOnly: widget.previewOnly || !editable,
       keyboardType: switch (field.type) {
         'integer' => TextInputType.number,
         'decimal' => const TextInputType.numberWithOptions(decimal: true),
@@ -4012,7 +4230,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       ),
       validator: (value) {
         final raw = value?.trim() ?? '';
-        if (field.required && raw.isEmpty) {
+        if (editable && field.required && raw.isEmpty) {
           return 'Enter ${field.label.toLowerCase()}.';
         }
         if (raw.isEmpty) return null;
@@ -4169,6 +4387,9 @@ class DynamicRecordDetailsPage extends StatefulWidget {
     this.hostProfile,
     this.credentialVault,
     this.hostPackageClientFactory,
+    this.readableFields,
+    this.writableFields,
+    this.creatableFields,
     required this.record,
     super.key,
   });
@@ -4182,6 +4403,9 @@ class DynamicRecordDetailsPage extends StatefulWidget {
   final HostConnectionProfile? hostProfile;
   final HostCredentialVault? credentialVault;
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
+  final Set<String>? readableFields;
+  final Set<String>? writableFields;
+  final Set<String>? creatableFields;
   final LocalExtensionRecord record;
 
   @override
@@ -4259,10 +4483,32 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
           'LOCAL_PACKAGE_DIFFERS_FROM_HOST_APPROVED_RELEASE',
         );
       }
+      if (widget.definition.fields.any(
+            (field) =>
+                field.readPermission != null || field.writePermission != null,
+          ) &&
+          (page.readableFields == null ||
+              page.writableFields == null ||
+              page.creatableFields == null)) {
+        throw const HostPackageTransportException(
+          'HOST_FIELD_PERMISSIONS_MISSING',
+        );
+      }
       if (page.records.length != 1 ||
           page.records.single.recordId != _record.recordId) {
         throw const HostPackageTransportException(
           'CONFLICT_RECORD_NOT_AVAILABLE',
+        );
+      }
+      if (page.readableFields != null && page.writableFields != null) {
+        await widget.store.applyHostFieldPermissions(
+          moduleId: widget.moduleId,
+          docTypeName: widget.definition.name,
+          scope: widget.scope,
+          readableFields: page.readableFields!,
+          writableFields: page.writableFields!,
+          creatableFields: page.creatableFields!,
+          profile: profile,
         );
       }
       final hostRecord = page.records.single;
@@ -4280,6 +4526,9 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
         revision: hostRecord.revision,
         values: hostRecord.values,
         updatedAtUtc: DateTime.parse(hostRecord.updatedAtUtc),
+        readableFields: page.readableFields,
+        writableFields: page.writableFields,
+        creatableFields: page.creatableFields,
       );
       final latest = await widget.store.getRecord(
         moduleId: widget.moduleId,
@@ -4308,6 +4557,9 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
           hostProfile: widget.hostProfile,
           credentialVault: widget.credentialVault,
           hostPackageClientFactory: widget.hostPackageClientFactory,
+          readableFields: widget.readableFields,
+          writableFields: widget.writableFields,
+          creatableFields: widget.creatableFields,
           record: _record,
           initialValues: initialValues,
         ),
@@ -4331,6 +4583,9 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
           hostProfile: widget.hostProfile,
           credentialVault: widget.credentialVault,
           hostPackageClientFactory: widget.hostPackageClientFactory,
+          readableFields: widget.readableFields,
+          writableFields: widget.writableFields,
+          creatableFields: widget.creatableFields,
           record: _record,
         ),
       ),
@@ -4347,6 +4602,11 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
         (name) =>
             widget.definition.fields.firstWhere((field) => field.name == name),
       )
+      .where(
+        (field) =>
+            widget.readableFields?.contains(field.name) ??
+            field.readPermission == null,
+      )
       .toList(growable: false);
 
   @override
@@ -4356,7 +4616,15 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     return Scaffold(
       appBar: AppBar(title: Text('${widget.definition.label} details')),
       floatingActionButton:
-          !conflicted && widget.definition.operations.contains('update')
+          !conflicted &&
+              widget.definition.operations.contains('update') &&
+              widget.definition.formFields.any((name) {
+                final field = widget.definition.fields.firstWhere(
+                  (field) => field.name == name,
+                );
+                return widget.writableFields?.contains(field.name) ??
+                    field.writePermission == null;
+              })
           ? FloatingActionButton.extended(
               onPressed: _editRecord,
               icon: const Icon(Icons.edit_outlined),
@@ -4484,6 +4752,9 @@ class DynamicRecordConflictPage extends StatefulWidget {
     this.hostProfile,
     this.credentialVault,
     this.hostPackageClientFactory,
+    this.readableFields,
+    this.writableFields,
+    this.creatableFields,
     super.key,
   });
 
@@ -4497,6 +4768,9 @@ class DynamicRecordConflictPage extends StatefulWidget {
   final HostConnectionProfile? hostProfile;
   final HostCredentialVault? credentialVault;
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
+  final Set<String>? readableFields;
+  final Set<String>? writableFields;
+  final Set<String>? creatableFields;
 
   @override
   State<DynamicRecordConflictPage> createState() =>
@@ -4535,6 +4809,9 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
       await widget.store.resolveConflictWithHostSnapshot(
         recordId: widget.record.recordId,
         scope: widget.scope,
+        readableFields: widget.readableFields,
+        writableFields: widget.writableFields,
+        creatableFields: widget.creatableFields,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
@@ -4552,7 +4829,11 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
     final hostValues = widget.record.conflictValues;
     if (hostValues == null) return;
     final merged = <String, dynamic>{};
-    for (final field in widget.definition.fields) {
+    for (final field in widget.definition.fields.where(
+      (field) =>
+          widget.readableFields?.contains(field.name) ??
+          field.readPermission == null,
+    )) {
       final chooseHost = _sources[field.name] == 'host';
       if (chooseHost && hostValues.containsKey(field.name)) {
         merged[field.name] = hostValues[field.name];
@@ -4574,6 +4855,9 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
           hostProfile: widget.hostProfile,
           credentialVault: widget.credentialVault,
           hostPackageClientFactory: widget.hostPackageClientFactory,
+          readableFields: widget.readableFields,
+          writableFields: widget.writableFields,
+          creatableFields: widget.creatableFields,
           record: widget.record,
           initialValues: merged,
         ),
@@ -4607,7 +4891,11 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
                 'Choose which value to keep for each field. Saving the merge creates a new command against Host revision ${widget.record.conflictRevision}; the Host will validate it again.',
               ),
               const SizedBox(height: 16),
-              for (final field in widget.definition.fields)
+              for (final field in widget.definition.fields.where(
+                (field) =>
+                    widget.readableFields?.contains(field.name) ??
+                    field.readPermission == null,
+              ))
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -5075,8 +5363,10 @@ class _RecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = columns.first;
-    final summary = columns.skip(1).take(3).map((field) {
+    final primary = columns.isEmpty ? null : columns.first;
+    final summary = (primary == null ? columns : columns.skip(1)).take(3).map((
+      field,
+    ) {
       return '${field.label}: ${_displayValue(field, record.values[field.name])}';
     }).toList();
     return Card(
@@ -5084,7 +5374,11 @@ class _RecordCard extends StatelessWidget {
       child: ListTile(
         onTap: onTap,
         leading: const CircleAvatar(child: Icon(Icons.description_outlined)),
-        title: Text(_displayValue(primary, record.values[primary.name])),
+        title: Text(
+          primary == null
+              ? 'Record ${record.recordId}'
+              : _displayValue(primary, record.values[primary.name]),
+        ),
         subtitle: Text(
           [
             if (summary.isNotEmpty) summary.join(' · '),

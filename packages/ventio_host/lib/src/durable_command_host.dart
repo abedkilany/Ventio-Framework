@@ -119,6 +119,8 @@ class DurableCommandHost {
           late final String moduleId;
           late final String operation;
           late final Map<String, dynamic> recordValues;
+          var valuesForStorage = <String, dynamic>{};
+          int? updateBaseRevision;
           String? releaseFailureReasonCode;
           if (extensionRequest != null) {
             final authorization = await resolveExtensionBundle?.call(
@@ -338,7 +340,112 @@ class DurableCommandHost {
               ),
             );
           }
-          if (docType.validatePayload(recordValues).isNotEmpty) {
+          if (docType
+              .validatePayload(recordValues, partial: operation == 'update')
+              .isNotEmpty) {
+            throw _RejectedCommand(
+              _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+            );
+          }
+          valuesForStorage = Map<String, dynamic>.from(recordValues);
+          if (operation == 'update') {
+            final expectedRevision = command.expectedRevision!;
+            if (expectedRevision >= 2147483647) {
+              throw _RejectedCommand(
+                _failure(
+                  command,
+                  'CONFLICT',
+                  'REVISION_LIMIT',
+                  currentRevision: expectedRevision,
+                ),
+              );
+            }
+            final currentRows = await tx.execute(
+              pg.Sql.named('''
+            SELECT revision, record_data::text AS record_json
+            FROM ventio_records
+            WHERE tenant_id = @tenant AND company_id = @company
+              AND branch_id = @branch AND module_id = @module
+              AND doc_type = @doctype AND record_id = @record
+          '''),
+              parameters: {
+                'tenant': command.tenantId,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'module': moduleId,
+                'doctype': docType.name,
+                'record': command.aggregateId,
+              },
+            );
+            if (currentRows.isEmpty) {
+              throw _RejectedCommand(
+                _failure(command, 'CONFLICT', 'RECORD_NOT_FOUND'),
+              );
+            }
+            final current = currentRows.single.toColumnMap();
+            updateBaseRevision = current['revision'] as int;
+            if (updateBaseRevision != expectedRevision) {
+              throw _RejectedCommand(
+                _failure(
+                  command,
+                  'CONFLICT',
+                  'REVISION_CONFLICT',
+                  currentRevision: updateBaseRevision,
+                ),
+              );
+            }
+            final rawCurrentValues = jsonDecode(
+              current['record_json'] as String,
+            );
+            if (rawCurrentValues is! Map) {
+              throw const FormatException('Stored record JSON is invalid.');
+            }
+            valuesForStorage = Map<String, dynamic>.from(rawCurrentValues);
+            final fieldsByName = {
+              for (final field in docType.fields) field.name: field,
+            };
+            for (final entry in recordValues.entries) {
+              final field = fieldsByName[entry.key]!;
+              final requiredPermission = field.writePermission;
+              if (requiredPermission != null &&
+                  !authenticatedPrincipal.allowsInScope(
+                    requiredPermission,
+                    command.companyId,
+                    command.branchId,
+                  )) {
+                final currentValue = valuesForStorage[field.name];
+                if (canonicalJson(currentValue) != canonicalJson(entry.value)) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'PERMISSION_DENIED'),
+                  );
+                }
+                continue;
+              }
+              valuesForStorage[entry.key] = entry.value;
+            }
+          } else {
+            final fieldsByName = {
+              for (final field in docType.fields) field.name: field,
+            };
+            for (final entry in recordValues.entries) {
+              final field = fieldsByName[entry.key]!;
+              final requiredPermission = field.writePermission;
+              if (requiredPermission != null &&
+                  !authenticatedPrincipal.allowsInScope(
+                    requiredPermission,
+                    command.companyId,
+                    command.branchId,
+                  )) {
+                if (entry.value != null) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'PERMISSION_DENIED'),
+                  );
+                }
+                valuesForStorage.remove(entry.key);
+              }
+            }
+          }
+          if (docType.validatePayload(valuesForStorage).isNotEmpty) {
             throw _RejectedCommand(
               _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
             );
@@ -346,7 +453,7 @@ class DurableCommandHost {
           for (final field in docType.fields.where(
             (field) => field.type == 'reference',
           )) {
-            final reference = recordValues[field.name];
+            final reference = valuesForStorage[field.name];
             if (reference == null) continue;
             final rows = await tx.execute(
               pg.Sql.named('''
@@ -389,49 +496,6 @@ class DurableCommandHost {
           var recordRevision = 1;
           if (operation == 'update') {
             final expectedRevision = command.expectedRevision!;
-            if (expectedRevision >= 2147483647) {
-              throw _RejectedCommand(
-                _failure(
-                  command,
-                  'CONFLICT',
-                  'REVISION_LIMIT',
-                  currentRevision: expectedRevision,
-                ),
-              );
-            }
-            final current = await tx.execute(
-              pg.Sql.named('''
-            SELECT revision FROM ventio_records
-            WHERE tenant_id = @tenant AND company_id = @company
-              AND branch_id = @branch AND module_id = @module
-              AND doc_type = @doctype
-              AND record_id = @record
-          '''),
-              parameters: {
-                'tenant': command.tenantId,
-                'company': command.companyId,
-                'branch': command.branchId,
-                'module': moduleId,
-                'doctype': docType.name,
-                'record': command.aggregateId,
-              },
-            );
-            if (current.isEmpty) {
-              throw _RejectedCommand(
-                _failure(command, 'CONFLICT', 'RECORD_NOT_FOUND'),
-              );
-            }
-            final currentRevision = current.single[0] as int;
-            if (currentRevision != expectedRevision) {
-              throw _RejectedCommand(
-                _failure(
-                  command,
-                  'CONFLICT',
-                  'REVISION_CONFLICT',
-                  currentRevision: currentRevision,
-                ),
-              );
-            }
             final updated = await tx.execute(
               pg.Sql.named('''
             UPDATE ventio_records
@@ -451,7 +515,7 @@ class DurableCommandHost {
                 'doctype': docType.name,
                 'record': command.aggregateId,
                 'expected': expectedRevision,
-                'data': jsonEncode(recordValues),
+                'data': jsonEncode(valuesForStorage),
               },
             );
             if (updated.isEmpty) {
@@ -478,7 +542,7 @@ class DurableCommandHost {
                 'module': moduleId,
                 'doctype': docType.name,
                 'record': command.aggregateId,
-                'data': jsonEncode(recordValues),
+                'data': jsonEncode(valuesForStorage),
               },
             );
             if (record.isEmpty) {

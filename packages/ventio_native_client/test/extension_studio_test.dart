@@ -640,6 +640,80 @@ void main() {
     },
   );
 
+  testWidgets('Field editor configures Host-granted field permissions', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(store: store, queue: queue),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create your first extension'));
+    await tester.pumpAndSettle();
+    var fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'com.example.field_acl_builder');
+    await tester.enterText(fields.at(1), 'Field ACL Builder');
+    await tester.enterText(fields.at(2), 'Configure Host field grants.');
+    await tester.tap(find.text('Create draft'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add DocType'));
+    await tester.pumpAndSettle();
+    fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Profile');
+    await tester.enterText(fields.at(1), 'Profile');
+    await tester.enterText(fields.at(2), 'A field protected profile.');
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    Finder permissionField(String label) => find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
+    );
+    await tester.enterText(permissionField('Field ID'), 'secret');
+    await tester.enterText(permissionField('Label'), 'Secret');
+    final readPermission =
+        'extension.com_example_field_acl_builder.profile.secret.read';
+    final writePermission =
+        'extension.com_example_field_acl_builder.profile.secret.write';
+    final readField = permissionField('Read permission (optional)');
+    await tester.ensureVisible(readField);
+    await tester.enterText(readField, readPermission);
+    final writeField = permissionField('Write permission (optional)');
+    await tester.ensureVisible(writeField);
+    await tester.enterText(writeField, writePermission);
+    await tester.ensureVisible(find.text('Save field'));
+    await tester.tap(find.text('Save field'));
+    await tester.pumpAndSettle();
+
+    final saveDocType = find.text('Save DocType');
+    for (
+      var attempt = 0;
+      attempt < 12 && saveDocType.evaluate().isEmpty;
+      attempt++
+    ) {
+      await tester.drag(find.byType(ListView).last, const Offset(0, -700));
+      await tester.pumpAndSettle();
+    }
+    expect(saveDocType, findsOneWidget);
+    await tester.ensureVisible(saveDocType);
+    await tester.pumpAndSettle();
+    await tester.tap(saveDocType);
+    await tester.pumpAndSettle();
+    final definition = (await store.listDocTypes(
+      'com.example.field_acl_builder',
+    )).single;
+    final field = (definition['fields'] as List).single as Map;
+    expect(field['readPermission'], readPermission);
+    expect(field['writePermission'], writePermission);
+    final bundle = await store.exportBundle('com.example.field_acl_builder');
+    expect(bundle.manifest.minPlatformApi, '0.3.0');
+  });
+
   testWidgets('DocType Builder authors a validated migration step', (
     tester,
   ) async {
@@ -1273,6 +1347,163 @@ void main() {
       );
     },
   );
+
+  testWidgets('Host field masks hide details and persist per identity', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const moduleId = 'com.example.field_masked_ui';
+    const prefix = 'extension.com_example_field_masked_ui.asset';
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-field-mask',
+      companyId: 'company-field-mask',
+      branchId: 'branch-field-mask',
+      actorId: 'field-user',
+      deviceId: 'field-device',
+    );
+    const scope = RecordScope(
+      organizationId: 'tenant-field-mask',
+      companyId: 'company-field-mask',
+      branchId: 'branch-field-mask',
+    );
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Field Masked UI',
+      description: '',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'label': 'Name',
+          'labelKey': '$prefix.name_value',
+          'maxLength': 120,
+        },
+        {
+          'name': 'secret',
+          'type': 'text',
+          'required': false,
+          'label': 'Secret',
+          'labelKey': '$prefix.secret_value',
+          'maxLength': 120,
+          'readPermission': '$prefix.secret_read',
+          'writePermission': '$prefix.secret_write',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$prefix.read',
+        'create': '$prefix.create',
+        'update': '$prefix.update',
+      },
+      'ui': {
+        'listColumns': ['name', 'secret'],
+        'formFields': ['name', 'secret'],
+        'detailFields': ['name', 'secret'],
+      },
+      'label': 'Asset',
+      'labelKey': '$prefix.title',
+    });
+    await store.activate(moduleId);
+    await store.saveHostProfile(profile);
+    await store.createRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: scope,
+      values: const {'name': 'Public asset', 'secret': 'SECRET SENTINEL'},
+      recordId: 'field-mask-ui-1',
+    );
+    final bundle = await store.exportBundle(moduleId);
+    final digest = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    final fakeClient = _FakeRecordQueryClient(
+      endpoint: Uri.parse(profile.endpoint),
+      credentials: vault,
+      page: HostExtensionRecordPage(
+        packageSha256: digest,
+        hasMore: false,
+        readableFields: const {'name'},
+        writableFields: const {'name'},
+        creatableFields: const {'name'},
+        records: [
+          HostExtensionRecord(
+            recordId: 'field-mask-ui-1',
+            revision: 1,
+            updatedAtUtc: '2026-10-25T00:00:00Z',
+            values: const {'name': 'Public asset'},
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicDocTypePage(
+          store: store,
+          moduleId: moduleId,
+          metadata: (await store.listDocTypes(moduleId)).single,
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: profile,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) => fakeClient,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Public asset'), findsOneWidget);
+    expect(find.text('Secret'), findsNothing);
+    expect(find.text('SECRET SENTINEL'), findsNothing);
+    final stored = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      recordId: 'field-mask-ui-1',
+      scope: scope,
+    ))!;
+    expect(stored.values, {'name': 'Public asset'});
+    expect(
+      (await store.getHostFieldPermissions(
+        profile: profile,
+        moduleId: moduleId,
+        docTypeName: 'Asset',
+      ))!.readableFields,
+      {'name'},
+    );
+    const differentUser = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-field-mask',
+      companyId: 'company-field-mask',
+      branchId: 'branch-field-mask',
+      actorId: 'another-user',
+      deviceId: 'another-device',
+    );
+    expect(
+      await store.getHostFieldPermissions(
+        profile: differentUser,
+        moduleId: moduleId,
+        docTypeName: 'Asset',
+      ),
+      isNull,
+    );
+    await tester.tap(find.text('Public asset'));
+    await tester.pumpAndSettle();
+    expect(find.text('Secret'), findsNothing);
+    expect(find.text('SECRET SENTINEL'), findsNothing);
+  });
 
   testWidgets('Startup recovers a saved record missing its queued command', (
     tester,

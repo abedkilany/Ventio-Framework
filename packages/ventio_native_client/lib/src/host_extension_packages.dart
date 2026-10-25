@@ -86,11 +86,26 @@ class HostExtensionRecordPage {
     required Iterable<HostExtensionRecord> records,
     required this.packageSha256,
     required this.hasMore,
-  }) : records = List.unmodifiable(records);
+    Iterable<String>? readableFields,
+    Iterable<String>? writableFields,
+    Iterable<String>? creatableFields,
+  }) : records = List.unmodifiable(records),
+       readableFields = readableFields == null
+           ? null
+           : Set.unmodifiable(readableFields),
+       writableFields = writableFields == null
+           ? null
+           : Set.unmodifiable(writableFields),
+       creatableFields = creatableFields == null
+           ? null
+           : Set.unmodifiable(creatableFields);
 
   final List<HostExtensionRecord> records;
   final String packageSha256;
   final bool hasMore;
+  final Set<String>? readableFields;
+  final Set<String>? writableFields;
+  final Set<String>? creatableFields;
 }
 
 class HostApprovedPackageSummary {
@@ -627,6 +642,27 @@ class HostExtensionPackageClient {
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(packageSha256)) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
     }
+    Set<String>? parseFieldSet(String key) {
+      if (!result.containsKey(key)) return null;
+      final raw = result[key];
+      if (raw is! List ||
+          raw.any(
+            (value) =>
+                value is! String ||
+                !RegExp(r'^[a-z][A-Za-z0-9_]*$').hasMatch(value),
+          )) {
+        throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+      }
+      final values = raw.cast<String>();
+      if (values.toSet().length != values.length) {
+        throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+      }
+      return values.toSet();
+    }
+
+    final readableFields = parseFieldSet('readableFields');
+    final writableFields = parseFieldSet('writableFields');
+    final creatableFields = parseFieldSet('creatableFields');
     final records = rawRecords
         .map((rawRecord) {
           if (rawRecord is! Map) {
@@ -659,6 +695,9 @@ class HostExtensionPackageClient {
       records: records,
       packageSha256: packageSha256,
       hasMore: result['hasMore'] as bool,
+      readableFields: readableFields,
+      writableFields: writableFields,
+      creatableFields: creatableFields,
     );
   }
 

@@ -627,6 +627,9 @@ void main() {
               'recordResult': {
                 'status': 'RECORDS',
                 'packageSha256': List.filled(64, 'a').join(),
+                'readableFields': ['title'],
+                'writableFields': [],
+                'creatableFields': ['title'],
                 'hasMore': true,
                 'records': [
                   {
@@ -672,6 +675,9 @@ void main() {
       expect(body['limit'], 25);
       expect(page.hasMore, isTrue);
       expect(page.packageSha256, List.filled(64, 'a').join());
+      expect(page.readableFields, {'title'});
+      expect(page.writableFields, isEmpty);
+      expect(page.creatableFields, {'title'});
       expect(page.records.single.recordId, 'item-1');
       expect(page.records.single.revision, 3);
       expect(page.records.single.values['title'], 'First item');

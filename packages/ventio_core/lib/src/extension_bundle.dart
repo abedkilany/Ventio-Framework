@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'contracts.dart';
 import 'metadata.dart';
+import 'modules.dart';
 
 /// A bounded, declarative extension package for the trusted generic engines.
 /// It carries no executable commands, scripts, SQL or custom capabilities.
@@ -180,6 +181,8 @@ class ExtensionBundle {
             'referenceTo',
             'description',
             'descriptionKey',
+            'readPermission',
+            'writePermission',
           },
           'field',
         );
@@ -200,6 +203,23 @@ class ExtensionBundle {
     }).toList(growable: false);
     final docTypes =
         docTypeJson.map(DocTypeDefinition.fromJson).toList(growable: false);
+    final hasFieldPermissions = docTypes.any(
+      (type) => type.fields.any(
+        (field) =>
+            field.readPermission != null || field.writePermission != null,
+      ),
+    );
+    if (hasFieldPermissions &&
+        compareSemver(
+              manifest.minPlatformApi,
+              fieldPermissionPlatformApiVersion,
+            ) <
+            0) {
+      throw const ContractError(
+        'INCOMPATIBLE_PLATFORM',
+        'Field permission metadata requires a platform API that enforces it.',
+      );
+    }
     final migrationStepCount = docTypes.fold<int>(
       0,
       (count, type) =>
@@ -248,6 +268,16 @@ class ExtensionBundle {
         throw ContractError(
           'PERMISSION_NAMESPACE',
           '${type.name} declares a permission outside its extension namespace.',
+        );
+      }
+      if (type.fields.any(
+        (field) => [field.readPermission, field.writePermission]
+            .whereType<String>()
+            .any((permission) => !permission.startsWith(messageNamespace)),
+      )) {
+        throw ContractError(
+          'PERMISSION_NAMESPACE',
+          '${type.name} declares a field permission outside its extension namespace.',
         );
       }
     }

@@ -8,6 +8,7 @@ const _docTypesTable = 'local_extension_doctypes';
 const _recordsTable = 'local_extension_records';
 const _hostProfileTable = 'local_host_profile';
 const _hostRecordDenialsTable = 'local_host_record_read_denials';
+const _hostFieldPermissionsTable = 'local_host_field_permissions';
 
 enum ExtensionState {
   draft('DRAFT'),
@@ -144,7 +145,18 @@ class LocalExtensionRecord {
     this.authorityState = 'LOCAL_ONLY',
     this.conflictRevision,
     this.conflictValues,
-  });
+    Iterable<String>? readableFields,
+    Iterable<String>? writableFields,
+    Iterable<String>? creatableFields,
+  }) : readableFields = readableFields == null
+           ? null
+           : Set.unmodifiable(readableFields),
+       writableFields = writableFields == null
+           ? null
+           : Set.unmodifiable(writableFields),
+       creatableFields = creatableFields == null
+           ? null
+           : Set.unmodifiable(creatableFields);
 
   final String recordId;
   final String moduleId;
@@ -159,6 +171,12 @@ class LocalExtensionRecord {
   final String authorityState;
   final int? conflictRevision;
   final Map<String, dynamic>? conflictValues;
+
+  /// Last Host-authorized field masks for this exact local scope. Null means
+  /// the record is local-only or has not yet received a Host policy snapshot.
+  final Set<String>? readableFields;
+  final Set<String>? writableFields;
+  final Set<String>? creatableFields;
 
   String get syncState => authorityState;
 
@@ -194,8 +212,29 @@ class LocalExtensionRecord {
       authorityState: row['authority_state'] as String? ?? 'LOCAL_ONLY',
       conflictRevision: row['conflict_revision'] as int?,
       conflictValues: conflictValues,
+      readableFields: _decodeFieldSet(row['readable_fields_json']),
+      writableFields: _decodeFieldSet(row['writable_fields_json']),
+      creatableFields: _decodeFieldSet(row['creatable_fields_json']),
     );
   }
+}
+
+Set<String>? _decodeFieldSet(Object? encoded) {
+  if (encoded == null) return null;
+  final decoded = jsonDecode(encoded as String);
+  if (decoded is! List ||
+      decoded.any(
+        (field) =>
+            field is! String ||
+            !RegExp(r'^[a-z][A-Za-z0-9_]*$').hasMatch(field),
+      )) {
+    throw const FormatException('Stored field permission mask is invalid.');
+  }
+  final fields = decoded.cast<String>().toSet();
+  if (fields.length != decoded.length) {
+    throw const FormatException('Stored field permission mask is invalid.');
+  }
+  return Set.unmodifiable(fields);
 }
 
 class ExtensionStoreException implements Exception {
@@ -206,6 +245,20 @@ class ExtensionStoreException implements Exception {
 
   @override
   String toString() => '$code: $message';
+}
+
+class LocalRecordFieldPermissions {
+  LocalRecordFieldPermissions({
+    required Iterable<String> readableFields,
+    required Iterable<String> writableFields,
+    required Iterable<String> creatableFields,
+  }) : readableFields = Set.unmodifiable(readableFields),
+       writableFields = Set.unmodifiable(writableFields),
+       creatableFields = Set.unmodifiable(creatableFields);
+
+  final Set<String> readableFields;
+  final Set<String> writableFields;
+  final Set<String> creatableFields;
 }
 
 /// Durable device-local extension drafts, schemas and provisional records.
@@ -228,7 +281,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 6,
+        version: 9,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -278,6 +331,9 @@ class LocalExtensionStore {
               conflict_revision INTEGER
                 CHECK (conflict_revision IS NULL OR conflict_revision > 0),
               conflict_data_json TEXT,
+              readable_fields_json TEXT,
+              writable_fields_json TEXT,
+              creatable_fields_json TEXT,
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL,
               FOREIGN KEY (module_id, doctype_name)
@@ -316,6 +372,28 @@ class LocalExtensionStore {
               PRIMARY KEY (
                 endpoint, tenant_id, company_id, branch_id, actor_id,
                 device_id, module_id
+              ),
+              FOREIGN KEY (module_id) REFERENCES $_extensionsTable(module_id)
+                ON DELETE CASCADE
+            )
+          ''');
+          await database.execute('''
+            CREATE TABLE $_hostFieldPermissionsTable (
+              endpoint TEXT NOT NULL,
+              tenant_id TEXT NOT NULL,
+              company_id TEXT NOT NULL,
+              branch_id TEXT NOT NULL,
+              actor_id TEXT NOT NULL,
+              device_id TEXT NOT NULL,
+              module_id TEXT NOT NULL,
+              doctype_name TEXT NOT NULL,
+              readable_fields_json TEXT NOT NULL,
+              writable_fields_json TEXT NOT NULL,
+              creatable_fields_json TEXT NOT NULL,
+              updated_at_utc TEXT NOT NULL,
+              PRIMARY KEY (
+                endpoint, tenant_id, company_id, branch_id, actor_id,
+                device_id, module_id, doctype_name
               ),
               FOREIGN KEY (module_id) REFERENCES $_extensionsTable(module_id)
                 ON DELETE CASCADE
@@ -407,6 +485,55 @@ class LocalExtensionStore {
                 PRIMARY KEY (
                   endpoint, tenant_id, company_id, branch_id, actor_id,
                   device_id, module_id
+                ),
+                FOREIGN KEY (module_id) REFERENCES $_extensionsTable(module_id)
+                  ON DELETE CASCADE
+              )
+            ''');
+          }
+          if (oldVersion < 7) {
+            final recordTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_recordsTable],
+            );
+            if (recordTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN readable_fields_json TEXT
+              ''');
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN writable_fields_json TEXT
+              ''');
+            }
+          }
+          if (oldVersion < 8) {
+            final recordTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_recordsTable],
+            );
+            if (recordTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN creatable_fields_json TEXT
+              ''');
+            }
+          }
+          if (oldVersion < 9) {
+            await database.execute('''
+              CREATE TABLE $_hostFieldPermissionsTable (
+                endpoint TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                branch_id TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                device_id TEXT NOT NULL,
+                module_id TEXT NOT NULL,
+                doctype_name TEXT NOT NULL,
+                readable_fields_json TEXT NOT NULL,
+                writable_fields_json TEXT NOT NULL,
+                creatable_fields_json TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL,
+                PRIMARY KEY (
+                  endpoint, tenant_id, company_id, branch_id, actor_id,
+                  device_id, module_id, doctype_name
                 ),
                 FOREIGN KEY (module_id) REFERENCES $_extensionsTable(module_id)
                   ON DELETE CASCADE
@@ -1279,6 +1406,9 @@ class LocalExtensionStore {
     required RecordScope scope,
     required Map<String, dynamic> values,
     required String recordId,
+    Iterable<String>? readableFields,
+    Iterable<String>? writableFields,
+    Iterable<String>? creatableFields,
   }) async {
     _ensureOpen();
     scope.validate();
@@ -1292,6 +1422,25 @@ class LocalExtensionStore {
       _requireOperation(definition, 'create');
       _validatePayload(definition, values);
       await _validateReferences(transaction, definition, values, scope);
+      final knownFields = definition.fields.map((field) => field.name).toSet();
+      final readMask = readableFields == null
+          ? null
+          : Set<String>.of(readableFields);
+      final writeMask = writableFields == null
+          ? null
+          : Set<String>.of(writableFields);
+      final createMask = creatableFields == null
+          ? null
+          : Set<String>.of(creatableFields);
+      if ((readMask != null && !knownFields.containsAll(readMask)) ||
+          (writeMask != null && !knownFields.containsAll(writeMask)) ||
+          (createMask != null && !knownFields.containsAll(createMask))) {
+        throw const FormatException('Host field permission mask is invalid.');
+      }
+      final storedValues = Map<String, dynamic>.of(values);
+      if (readMask != null) {
+        storedValues.removeWhere((field, _) => !readMask.contains(field));
+      }
       final now = _now();
       await transaction.insert(_recordsTable, {
         'record_id': recordId,
@@ -1300,10 +1449,19 @@ class LocalExtensionStore {
         'organization_id': scope.organizationId,
         'company_id': scope.companyId,
         'branch_id': scope.branchId,
-        'data_json': canonicalJson(values),
+        'data_json': canonicalJson(storedValues),
         'schema_version': definition.schemaVersion,
         'revision': 1,
         'sync_state': 'LOCAL_ONLY',
+        'readable_fields_json': readMask == null
+            ? null
+            : canonicalJson(readMask.toList()..sort()),
+        'writable_fields_json': writeMask == null
+            ? null
+            : canonicalJson(writeMask.toList()..sort()),
+        'creatable_fields_json': createMask == null
+            ? null
+            : canonicalJson(createMask.toList()..sort()),
         'created_at_utc': now,
         'updated_at_utc': now,
       }, conflictAlgorithm: ConflictAlgorithm.abort);
@@ -1315,9 +1473,12 @@ class LocalExtensionStore {
         schemaVersion: definition.schemaVersion,
         revision: 1,
         values: Map.unmodifiable(
-          jsonDecode(canonicalJson(values)) as Map<String, dynamic>,
+          jsonDecode(canonicalJson(storedValues)) as Map<String, dynamic>,
         ),
         updatedAtUtc: DateTime.parse(now),
+        readableFields: readMask,
+        writableFields: writeMask,
+        creatableFields: createMask,
       );
     });
   }
@@ -1329,6 +1490,9 @@ class LocalExtensionStore {
     required RecordScope scope,
     required int expectedRevision,
     required Map<String, dynamic> values,
+    Iterable<String>? readableFields,
+    Iterable<String>? writableFields,
+    Iterable<String>? creatableFields,
   }) async {
     _ensureOpen();
     scope.validate();
@@ -1378,20 +1542,55 @@ class LocalExtensionStore {
           'The record is at revision ${current.revision}; reload before saving.',
         );
       }
-      _validatePayload(definition, values);
+      final effectiveReadMask = readableFields == null
+          ? current.readableFields
+          : Set<String>.of(readableFields);
+      final effectiveWriteMask = writableFields == null
+          ? current.writableFields
+          : Set<String>.of(writableFields);
+      final effectiveCreateMask = creatableFields == null
+          ? current.creatableFields
+          : Set<String>.of(creatableFields);
+      if (effectiveWriteMask != null) {
+        if (values.keys.any((field) => !effectiveWriteMask.contains(field))) {
+          throw const ExtensionStoreException(
+            'PERMISSION_DENIED',
+            'This record contains fields that the current Host policy does not allow you to change.',
+          );
+        }
+      }
+      _validatePayload(definition, values, partial: true);
+      final mergedValues = Map<String, dynamic>.of(current.values)
+        ..addAll(values);
+      if (effectiveReadMask case final readMask?) {
+        mergedValues.removeWhere((field, _) => !readMask.contains(field));
+      }
+      _validatePayload(definition, mergedValues, partial: true);
       await _validateReferences(transaction, definition, values, scope);
       final nextRevision = current.revision + 1;
       final now = _now();
       final changed = await transaction.update(
         _recordsTable,
         {
-          'data_json': canonicalJson(values),
+          'data_json': canonicalJson(mergedValues),
           'schema_version': definition.schemaVersion,
           'revision': nextRevision,
           'pending_command_id': null,
           'authority_state': 'LOCAL_ONLY',
           'conflict_revision': null,
           'conflict_data_json': null,
+          if (effectiveReadMask != null)
+            'readable_fields_json': canonicalJson(
+              effectiveReadMask.toList()..sort(),
+            ),
+          if (effectiveWriteMask != null)
+            'writable_fields_json': canonicalJson(
+              effectiveWriteMask.toList()..sort(),
+            ),
+          if (effectiveCreateMask != null)
+            'creatable_fields_json': canonicalJson(
+              effectiveCreateMask.toList()..sort(),
+            ),
           'updated_at_utc': now,
         },
         where: '''record_id = ? AND organization_id = ? AND company_id = ?
@@ -1418,11 +1617,14 @@ class LocalExtensionStore {
         schemaVersion: definition.schemaVersion,
         revision: nextRevision,
         values: Map.unmodifiable(
-          jsonDecode(canonicalJson(values)) as Map<String, dynamic>,
+          jsonDecode(canonicalJson(mergedValues)) as Map<String, dynamic>,
         ),
         updatedAtUtc: DateTime.parse(now),
         hostRevision: current.hostRevision,
         authorityState: 'LOCAL_ONLY',
+        readableFields: effectiveReadMask,
+        writableFields: effectiveWriteMask,
+        creatableFields: effectiveCreateMask,
       );
     });
   }
@@ -1542,6 +1744,103 @@ class LocalExtensionStore {
     );
   }
 
+  /// Applies a fresh Host field policy to every cached record in the exact
+  /// local scope and removes values that this principal may no longer read.
+  Future<void> applyHostFieldPermissions({
+    required String moduleId,
+    required String docTypeName,
+    required RecordScope scope,
+    required Iterable<String> readableFields,
+    required Iterable<String> writableFields,
+    required Iterable<String> creatableFields,
+    HostConnectionProfile? profile,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    final readable = Set<String>.of(readableFields);
+    final writable = Set<String>.of(writableFields);
+    final creatable = Set<String>.of(creatableFields);
+    await _database.transaction((transaction) async {
+      final definition = DocTypeDefinition.fromJson(
+        await _loadActiveDocType(transaction, moduleId, docTypeName),
+      );
+      final knownFields = definition.fields.map((field) => field.name).toSet();
+      if (!knownFields.containsAll(readable) ||
+          !knownFields.containsAll(writable) ||
+          !knownFields.containsAll(creatable)) {
+        throw const FormatException('Host field permission mask is invalid.');
+      }
+      final rows = await transaction.query(
+        _recordsTable,
+        where: '''module_id = ? AND doctype_name = ? AND organization_id = ?
+          AND company_id = ? AND branch_id = ?''',
+        whereArgs: [
+          moduleId,
+          docTypeName,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+      );
+      final readJson = canonicalJson(readable.toList()..sort());
+      final writeJson = canonicalJson(writable.toList()..sort());
+      final createJson = canonicalJson(creatable.toList()..sort());
+      if (profile != null) {
+        if (profile.tenantId != scope.organizationId ||
+            profile.companyId != scope.companyId ||
+            profile.branchId != scope.branchId) {
+          throw const FormatException(
+            'Host field policy profile does not match the record scope.',
+          );
+        }
+        await transaction.insert(_hostFieldPermissionsTable, {
+          'endpoint': profile.endpoint,
+          'tenant_id': profile.tenantId,
+          'company_id': profile.companyId,
+          'branch_id': profile.branchId,
+          'actor_id': profile.actorId ?? '',
+          'device_id': profile.deviceId ?? '',
+          'module_id': moduleId,
+          'doctype_name': docTypeName,
+          'readable_fields_json': readJson,
+          'writable_fields_json': writeJson,
+          'creatable_fields_json': createJson,
+          'updated_at_utc': _now(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      for (final row in rows) {
+        final record = LocalExtensionRecord.fromRow(row);
+        final visibleValues = Map<String, dynamic>.of(record.values)
+          ..removeWhere((field, _) => !readable.contains(field));
+        Map<String, dynamic>? visibleConflict;
+        if (record.conflictValues != null) {
+          visibleConflict = Map<String, dynamic>.of(record.conflictValues!)
+            ..removeWhere((field, _) => !readable.contains(field));
+        }
+        await transaction.update(
+          _recordsTable,
+          {
+            'data_json': canonicalJson(visibleValues),
+            'conflict_data_json': visibleConflict == null
+                ? null
+                : canonicalJson(visibleConflict),
+            'readable_fields_json': readJson,
+            'writable_fields_json': writeJson,
+            'creatable_fields_json': createJson,
+          },
+          where:
+              'record_id = ? AND organization_id = ? AND company_id = ? AND branch_id = ?',
+          whereArgs: [
+            record.recordId,
+            scope.organizationId,
+            scope.companyId,
+            scope.branchId,
+          ],
+        );
+      }
+    });
+  }
+
   Future<void> applyHostRecord({
     required String moduleId,
     required String docTypeName,
@@ -1550,6 +1849,9 @@ class LocalExtensionStore {
     required int revision,
     required Map<String, dynamic> values,
     required DateTime updatedAtUtc,
+    Iterable<String>? readableFields,
+    Iterable<String>? writableFields,
+    Iterable<String>? creatableFields,
   }) async {
     _ensureOpen();
     scope.validate();
@@ -1561,7 +1863,41 @@ class LocalExtensionStore {
         await _loadActiveDocType(transaction, moduleId, docTypeName),
       );
       _requireOperation(definition, 'read');
-      _validatePayload(definition, values);
+      _validatePayload(definition, values, partial: true);
+      final knownFields = definition.fields.map((field) => field.name).toSet();
+      final readMask = readableFields == null
+          ? null
+          : Set<String>.of(readableFields);
+      final writeMask = writableFields == null
+          ? null
+          : Set<String>.of(writableFields);
+      final createMask = creatableFields == null
+          ? null
+          : Set<String>.of(creatableFields);
+      if (definition.fields.any(
+            (field) =>
+                field.readPermission != null || field.writePermission != null,
+          ) &&
+          (readMask == null || writeMask == null || createMask == null)) {
+        throw const FormatException(
+          'Host field permission masks are required for a protected DocType.',
+        );
+      }
+      if ((readMask != null && !knownFields.containsAll(readMask)) ||
+          (writeMask != null && !knownFields.containsAll(writeMask)) ||
+          (createMask != null && !knownFields.containsAll(createMask)) ||
+          (readMask != null && !readMask.containsAll(values.keys))) {
+        throw const FormatException('Host field permission mask is invalid.');
+      }
+      final readJson = readMask == null
+          ? null
+          : canonicalJson(readMask.toList()..sort());
+      final writeJson = writeMask == null
+          ? null
+          : canonicalJson(writeMask.toList()..sort());
+      final createJson = createMask == null
+          ? null
+          : canonicalJson(createMask.toList()..sort());
       final where = '''record_id = ? AND module_id = ? AND doctype_name = ?
         AND organization_id = ? AND company_id = ? AND branch_id = ?''';
       final whereArgs = [
@@ -1589,6 +1925,9 @@ class LocalExtensionStore {
                 'conflict_revision': revision,
                 'conflict_data_json': canonicalJson(values),
                 'host_revision': revision,
+                'readable_fields_json': readJson,
+                'writable_fields_json': writeJson,
+                'creatable_fields_json': createJson,
               },
               where: where,
               whereArgs: whereArgs,
@@ -1616,6 +1955,9 @@ class LocalExtensionStore {
             'authority_state': 'HOST_ACCEPTED',
             'conflict_revision': null,
             'conflict_data_json': null,
+            'readable_fields_json': readJson,
+            'writable_fields_json': writeJson,
+            'creatable_fields_json': createJson,
             'updated_at_utc': updatedAtUtc.toUtc().toIso8601String(),
           },
           where: where,
@@ -1638,6 +1980,9 @@ class LocalExtensionStore {
         'host_revision': revision,
         'pending_command_id': null,
         'authority_state': 'HOST_ACCEPTED',
+        'readable_fields_json': readJson,
+        'writable_fields_json': writeJson,
+        'creatable_fields_json': createJson,
         'created_at_utc': timestamp,
         'updated_at_utc': timestamp,
       }, conflictAlgorithm: ConflictAlgorithm.abort);
@@ -1649,6 +1994,9 @@ class LocalExtensionStore {
   Future<LocalExtensionRecord> resolveConflictWithHostSnapshot({
     required String recordId,
     required RecordScope scope,
+    Iterable<String>? readableFields,
+    Iterable<String>? writableFields,
+    Iterable<String>? creatableFields,
   }) async {
     _ensureOpen();
     scope.validate();
@@ -1687,18 +2035,51 @@ class LocalExtensionStore {
           current.docTypeName,
         ),
       );
-      _validatePayload(definition, values);
+      final knownFields = definition.fields.map((field) => field.name).toSet();
+      final readMask = readableFields == null
+          ? definition.fields
+                .where((field) => field.readPermission == null)
+                .map((field) => field.name)
+                .toSet()
+          : Set<String>.of(readableFields);
+      final writeMask = writableFields == null
+          ? definition.fields
+                .where((field) => field.writePermission == null)
+                .map((field) => field.name)
+                .toSet()
+          : Set<String>.of(writableFields);
+      final createMask = creatableFields == null
+          ? definition.fields
+                .where(
+                  (field) =>
+                      field.writePermission == null &&
+                      field.readPermission == null,
+                )
+                .map((field) => field.name)
+                .toSet()
+          : Set<String>.of(creatableFields);
+      if (!knownFields.containsAll(readMask) ||
+          !knownFields.containsAll(writeMask) ||
+          !knownFields.containsAll(createMask)) {
+        throw const FormatException('Host field permission mask is invalid.');
+      }
+      final visibleValues = Map<String, dynamic>.of(values)
+        ..removeWhere((field, _) => !readMask.contains(field));
+      _validatePayload(definition, visibleValues, partial: true);
       final now = _now();
       final changed = await transaction.update(
         _recordsTable,
         {
-          'data_json': canonicalJson(values),
+          'data_json': canonicalJson(visibleValues),
           'revision': hostRevision,
           'host_revision': hostRevision,
           'pending_command_id': null,
           'authority_state': 'HOST_ACCEPTED',
           'conflict_revision': null,
           'conflict_data_json': null,
+          'readable_fields_json': canonicalJson(readMask.toList()..sort()),
+          'writable_fields_json': canonicalJson(writeMask.toList()..sort()),
+          'creatable_fields_json': canonicalJson(createMask.toList()..sort()),
           'updated_at_utc': now,
         },
         where: '''record_id = ? AND organization_id = ? AND company_id = ?
@@ -1725,10 +2106,13 @@ class LocalExtensionStore {
         scope: scope,
         schemaVersion: definition.schemaVersion,
         revision: hostRevision,
-        values: Map.unmodifiable(values),
+        values: Map.unmodifiable(visibleValues),
         updatedAtUtc: DateTime.parse(now),
         hostRevision: hostRevision,
         authorityState: 'HOST_ACCEPTED',
+        readableFields: readMask,
+        writableFields: writeMask,
+        creatableFields: createMask,
       );
     });
   }
@@ -1764,6 +2148,57 @@ class LocalExtensionStore {
     return LocalExtensionRecord.fromRow(rows.single);
   }
 
+  Future<LocalRecordFieldPermissions?> getHostFieldPermissions({
+    required HostConnectionProfile profile,
+    required String moduleId,
+    required String docTypeName,
+  }) async {
+    _ensureOpen();
+    final rows = await _database.query(
+      _hostFieldPermissionsTable,
+      columns: const [
+        'readable_fields_json',
+        'writable_fields_json',
+        'creatable_fields_json',
+      ],
+      where: '''endpoint = ? AND tenant_id = ? AND company_id = ?
+        AND branch_id = ? AND actor_id = ? AND device_id = ?
+        AND module_id = ? AND doctype_name = ?''',
+      whereArgs: [
+        profile.endpoint,
+        profile.tenantId,
+        profile.companyId,
+        profile.branchId,
+        profile.actorId ?? '',
+        profile.deviceId ?? '',
+        moduleId,
+        docTypeName,
+      ],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final readable = _decodeFieldSet(rows.single['readable_fields_json']);
+    final writable = _decodeFieldSet(rows.single['writable_fields_json']);
+    final creatable = _decodeFieldSet(rows.single['creatable_fields_json']);
+    if (readable == null || writable == null || creatable == null) {
+      throw const FormatException('Stored Host field policy is incomplete.');
+    }
+    final definition = DocTypeDefinition.fromJson(
+      await _loadActiveDocType(_database, moduleId, docTypeName),
+    );
+    final knownFields = definition.fields.map((field) => field.name).toSet();
+    if (!knownFields.containsAll(readable) ||
+        !knownFields.containsAll(writable) ||
+        !knownFields.containsAll(creatable)) {
+      return null;
+    }
+    return LocalRecordFieldPermissions(
+      readableFields: readable,
+      writableFields: writable,
+      creatableFields: creatable,
+    );
+  }
+
   Future<List<LocalExtensionRecord>> listRecords({
     required String moduleId,
     required String docTypeName,
@@ -1774,6 +2209,7 @@ class LocalExtensionStore {
     String? sortField,
     bool ascending = true,
     int limit = 200,
+    Set<String>? readableFields,
   }) async {
     _ensureOpen();
     scope.validate();
@@ -1785,10 +2221,23 @@ class LocalExtensionStore {
     );
     _requireOperation(definition, 'read');
     final fieldNames = definition.fields.map((field) => field.name).toSet();
+    final accessibleFields =
+        readableFields ??
+        definition.fields
+            .where((field) => field.readPermission == null)
+            .map((field) => field.name)
+            .toSet();
     if ((filterField != null && !fieldNames.contains(filterField)) ||
         (sortField != null && !fieldNames.contains(sortField))) {
       throw ArgumentError(
         'Filter and sort fields must belong to this DocType.',
+      );
+    }
+    if ((filterField != null && !accessibleFields.contains(filterField)) ||
+        (sortField != null && !accessibleFields.contains(sortField))) {
+      throw const ExtensionStoreException(
+        'PERMISSION_DENIED',
+        'The current Host field policy does not allow filtering or sorting by this field.',
       );
     }
 
@@ -1809,13 +2258,20 @@ class LocalExtensionStore {
 
     final query = search.trim().toLowerCase();
     if (query.isNotEmpty) {
-      conditions.add(
-        '(${definition.fields.map((_) => "lower(CAST(json_extract(data_json, ?) AS TEXT)) LIKE ? ESCAPE '\\'").join(' OR ')})',
-      );
-      for (final field in definition.fields) {
-        parameters
-          ..add(jsonPath(field.name))
-          ..add(likePattern(query));
+      final searchableFields = definition.fields
+          .where((field) => accessibleFields.contains(field.name))
+          .toList(growable: false);
+      if (searchableFields.isEmpty) {
+        conditions.add('0');
+      } else {
+        conditions.add(
+          '(${searchableFields.map((_) => "lower(CAST(json_extract(data_json, ?) AS TEXT)) LIKE ? ESCAPE '\\'").join(' OR ')})',
+        );
+        for (final field in searchableFields) {
+          parameters
+            ..add(jsonPath(field.name))
+            ..add(likePattern(query));
+        }
       }
     }
     final filterValue = filterContains.trim().toLowerCase();
@@ -1838,7 +2294,36 @@ class LocalExtensionStore {
         ORDER BY $orderExpression ${ascending ? 'ASC' : 'DESC'}, record_id ASC
         LIMIT ?''', parameters);
     final records = rows
-        .map(LocalExtensionRecord.fromRow)
+        .map((row) {
+          final record = LocalExtensionRecord.fromRow(row);
+          final recordReadableFields = readableFields ?? accessibleFields;
+          final visibleValues = Map<String, dynamic>.of(record.values)
+            ..removeWhere((field, _) => !recordReadableFields.contains(field));
+          return LocalExtensionRecord(
+            recordId: record.recordId,
+            moduleId: record.moduleId,
+            docTypeName: record.docTypeName,
+            scope: record.scope,
+            schemaVersion: record.schemaVersion,
+            revision: record.revision,
+            values: Map.unmodifiable(visibleValues),
+            updatedAtUtc: record.updatedAtUtc,
+            hostRevision: record.hostRevision,
+            pendingCommandId: record.pendingCommandId,
+            authorityState: record.authorityState,
+            conflictRevision: record.conflictRevision,
+            conflictValues: record.conflictValues == null
+                ? null
+                : Map.unmodifiable(
+                    Map<String, dynamic>.of(record.conflictValues!)
+                      ..removeWhere(
+                        (field, _) => !recordReadableFields.contains(field),
+                      ),
+                  ),
+            readableFields: recordReadableFields,
+            writableFields: record.writableFields,
+          );
+        })
         .toList(growable: false);
     return List.unmodifiable(records);
   }
@@ -1968,6 +2453,16 @@ class LocalExtensionStore {
         'An extension can declare only permission names in its own namespace. A Host administrator grants permissions separately.',
       );
     }
+    if (definition.fields.any(
+      (field) => [field.readPermission, field.writePermission]
+          .whereType<String>()
+          .any((permission) => !permission.startsWith('$permissionPrefix.')),
+    )) {
+      throw const ExtensionStoreException(
+        'PERMISSION_NAMESPACE',
+        'An extension can declare field permissions only in its own namespace. A Host administrator grants them separately.',
+      );
+    }
     for (final field in definition.fields) {
       if (!_fieldName.hasMatch(field.name) || field.name.length > 80) {
         throw ExtensionStoreException(
@@ -1987,9 +2482,10 @@ class LocalExtensionStore {
 
   void _validatePayload(
     DocTypeDefinition definition,
-    Map<String, dynamic> values,
-  ) {
-    final issues = definition.validatePayload(values);
+    Map<String, dynamic> values, {
+    bool partial = false,
+  }) {
+    final issues = definition.validatePayload(values, partial: partial);
     if (issues.isNotEmpty) {
       throw ExtensionStoreException('INVALID_RECORD', issues.join(', '));
     }

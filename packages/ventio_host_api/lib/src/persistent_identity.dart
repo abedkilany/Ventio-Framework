@@ -237,6 +237,39 @@ class PostgresExtensionRecordQueryGateway
               'reasonCode': 'PERMISSION_DENIED',
             };
           }
+          bool allowsFieldPermission(String? fieldPermission) =>
+              fieldPermission == null ||
+              principal.allowsInScope(fieldPermission, companyId, branchId);
+          final readableFields = definition.fields
+              .where((field) => allowsFieldPermission(field.readPermission))
+              .map((field) => field.name)
+              .toSet();
+          final updatePermission = definition.permissions['update'];
+          final canUpdateDocType =
+              definition.operations.contains('update') &&
+              updatePermission != null &&
+              principal.allowsInScope(updatePermission, companyId, branchId);
+          final createPermission = definition.permissions['create'];
+          final canCreateDocType =
+              definition.operations.contains('create') &&
+              createPermission != null &&
+              principal.allowsInScope(createPermission, companyId, branchId);
+          final writableFields = definition.fields
+              .where(
+                (field) =>
+                    canUpdateDocType &&
+                    allowsFieldPermission(field.writePermission),
+              )
+              .map((field) => field.name)
+              .toSet();
+          final creatableFields = definition.fields
+              .where(
+                (field) =>
+                    canCreateDocType &&
+                    allowsFieldPermission(field.writePermission),
+              )
+              .map((field) => field.name)
+              .toSet();
           final fieldNames = definition.fields
               .map((field) => field.name)
               .toSet();
@@ -252,6 +285,14 @@ class PostgresExtensionRecordQueryGateway
             throw const FormatException(
               'Filter and sort fields must belong to the approved DocType.',
             );
+          }
+          if (filters.keys.any((field) => !readableFields.contains(field)) ||
+              (filterField != null && !readableFields.contains(filterField)) ||
+              (sortField != null && !readableFields.contains(sortField))) {
+            return const {
+              'status': 'REJECTED',
+              'reasonCode': 'PERMISSION_DENIED',
+            };
           }
           final parameters = <String, Object?>{
             'tenant': principal.tenantId,
@@ -269,12 +310,15 @@ class PostgresExtensionRecordQueryGateway
             parameters['recordId'] = recordId;
             conditions.add('record_id = @recordId');
           }
-          if (search.isNotEmpty && definition.fields.isNotEmpty) {
+          final readableDefinitions = definition.fields
+              .where((field) => readableFields.contains(field.name))
+              .toList(growable: false);
+          if (search.isNotEmpty && readableDefinitions.isNotEmpty) {
             parameters['search'] = search.toLowerCase();
             final searchClauses = <String>[];
-            for (var index = 0; index < definition.fields.length; index++) {
+            for (var index = 0; index < readableDefinitions.length; index++) {
               final fieldName = 'searchField$index';
-              parameters[fieldName] = definition.fields[index].name;
+              parameters[fieldName] = readableDefinitions[index].name;
               searchClauses.add(
                 "strpos(lower(coalesce(record_data ->> @$fieldName, '')), @search) > 0",
               );
@@ -356,7 +400,11 @@ class PostgresExtensionRecordQueryGateway
                   'recordId': row[0] as String,
                   'revision': row[1] as int,
                   'updatedAtUtc': row[2] as String,
-                  'values': Map<String, dynamic>.from(values),
+                  'values': {
+                    for (final fieldName in readableFields)
+                      if (values.containsKey(fieldName))
+                        fieldName: values[fieldName],
+                  },
                 };
               })
               .toList(growable: false);
@@ -365,6 +413,9 @@ class PostgresExtensionRecordQueryGateway
             'packageSha256': sha256
                 .convert(utf8.encode(canonicalJson(bundle.toJson())))
                 .toString(),
+            'readableFields': readableFields.toList()..sort(),
+            'writableFields': writableFields.toList()..sort(),
+            'creatableFields': creatableFields.toList()..sort(),
             'records': records,
             'hasMore': hasMore,
           };

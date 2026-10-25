@@ -2,7 +2,10 @@ import 'contracts.dart';
 import 'metadata.dart';
 
 /// Current minimum platform API contract understood by this Ventio build.
-const currentPlatformApiVersion = '0.2.0';
+const currentPlatformApiVersion = '0.3.0';
+
+/// Minimum API version that enforces per-field read and write permissions.
+const fieldPermissionPlatformApiVersion = '0.3.0';
 
 class ModuleRegistry {
   final String platformApiVersion;

@@ -195,14 +195,31 @@ class InMemoryHost {
     if (command.expectedRevision != null) {
       return failure('CONFLICT', 'EXPECTED_REVISION_MUST_BE_NULL', revision: 0);
     }
-    final issues = docType.validatePayload(command.payload);
+    final valuesForStorage = Map<String, dynamic>.of(command.payload);
+    for (final field in docType.fields) {
+      final requiredPermission = field.writePermission;
+      if (requiredPermission == null ||
+          authenticatedPrincipal.allowsInScope(
+            requiredPermission,
+            command.companyId,
+            command.branchId,
+          ) ||
+          !valuesForStorage.containsKey(field.name)) {
+        continue;
+      }
+      if (valuesForStorage[field.name] != null) {
+        return failure('REJECTED', 'PERMISSION_DENIED');
+      }
+      valuesForStorage.remove(field.name);
+    }
+    final issues = docType.validatePayload(valuesForStorage);
     if (issues.isNotEmpty) {
       return failure('REJECTED', 'INVALID_PAYLOAD');
     }
     for (final field in docType.fields.where(
       (field) => field.type == 'reference',
     )) {
-      final reference = command.payload[field.name];
+      final reference = valuesForStorage[field.name];
       if (reference == null) continue;
       final targetKey = '${command.tenantId}\u0000${command.companyId}\u0000'
           '${command.branchId}\u0000${module.moduleId}\u0000'
@@ -230,7 +247,7 @@ class InMemoryHost {
         branchId: command.branchId,
         docType: docType.name,
         revision: 1,
-        data: command.payload);
+        data: valuesForStorage);
     final receipt = CommandReceipt(
         commandId: command.commandId,
         status: 'ACCEPTED',
@@ -287,7 +304,29 @@ class InMemoryHost {
     if (record == null ||
         record.companyId != companyId ||
         record.branchId != branchId) return null;
-    return record;
+    final readableFields = type.fields
+        .where(
+          (field) =>
+              field.readPermission == null ||
+              principal.allowsInScope(
+                field.readPermission!,
+                companyId,
+                branchId,
+              ),
+        )
+        .map((field) => field.name)
+        .toSet();
+    final visibleValues = record.data
+      ..removeWhere((fieldName, _) => !readableFields.contains(fieldName));
+    return StoredRecord(
+      id: record.id,
+      tenantId: record.tenantId,
+      companyId: record.companyId,
+      branchId: record.branchId,
+      docType: record.docType,
+      revision: record.revision,
+      data: visibleValues,
+    );
   }
 
   int get recordCount => _state.records.length;

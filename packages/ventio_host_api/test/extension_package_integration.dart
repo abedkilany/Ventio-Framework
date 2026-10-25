@@ -164,6 +164,78 @@ Future<void> main() async {
       permissions: const ['extension.com_example_registry.item.update'],
       registerBranch: false,
     );
+    const protectedTitleRead =
+        'extension.com_example_field_policy.item.title_read';
+    const protectedTitleWrite =
+        'extension.com_example_field_policy.item.title_write';
+    final fieldReaderToken = await provision(
+      actor: 'field-reader',
+      device: 'field-reader-device',
+      credential: 'field-reader-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_field_policy.item.read',
+        protectedTitleRead,
+      ],
+      registerBranch: false,
+    );
+    final fieldBlindToken = await provision(
+      actor: 'field-blind',
+      device: 'field-blind-device',
+      credential: 'field-blind-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_field_policy.item.read',
+      ],
+      registerBranch: false,
+    );
+    final restrictedEditorToken = await provision(
+      actor: 'restricted-editor',
+      device: 'restricted-editor-device',
+      credential: 'restricted-editor-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_field_policy.item.read',
+        'extension.com_example_field_policy.item.update',
+        protectedTitleRead,
+      ],
+      registerBranch: false,
+    );
+    final fieldWriterToken = await provision(
+      actor: 'field-writer',
+      device: 'field-writer-device',
+      credential: 'field-writer-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_field_policy.item.read',
+        'extension.com_example_field_policy.item.create',
+        'extension.com_example_field_policy.item.update',
+        protectedTitleRead,
+        protectedTitleWrite,
+      ],
+      registerBranch: false,
+    );
+    final fieldNoWriteCreatorToken = await provision(
+      actor: 'field-no-write-creator',
+      device: 'field-no-write-creator-device',
+      credential: 'field-no-write-creator-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_field_policy.item.read',
+        'extension.com_example_field_policy.item.create',
+      ],
+      registerBranch: false,
+    );
     final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
     api = await HostApi.bind(
       authenticator: PersistentTokenAuthenticator(
@@ -194,6 +266,7 @@ Future<void> main() async {
       String version, {
       Map<String, String> dependencies = const {},
       String title = 'Item',
+      bool protectTitle = false,
     }) {
       final slug = moduleId.toLowerCase().replaceAll(
         RegExp(r'[^a-z0-9]+'),
@@ -208,7 +281,7 @@ Future<void> main() async {
           'manifestVersion': 0,
           'moduleId': moduleId,
           'version': version,
-          'minPlatformApi': '0.1.0',
+          'minPlatformApi': protectTitle ? '0.3.0' : '0.1.0',
           'displayName': title,
           'displayNameKey': nameKey,
           'englishCatalog': 'localization/en.test_package.json',
@@ -240,6 +313,8 @@ Future<void> main() async {
                 'label': title,
                 'labelKey': fieldKey,
                 'maxLength': 80,
+                if (protectTitle) 'readPermission': '$typeKey.title_read',
+                if (protectTitle) 'writePermission': '$typeKey.title_write',
               },
               {
                 'name': 'parent',
@@ -271,8 +346,15 @@ Future<void> main() async {
       String version, {
       Map<String, String> dependencies = const {},
       String title = 'Item',
+      bool protectTitle = false,
     }) => ExtensionBundle.fromJson(
-      bundleSource(moduleId, version, dependencies: dependencies, title: title),
+      bundleSource(
+        moduleId,
+        version,
+        dependencies: dependencies,
+        title: title,
+        protectTitle: protectTitle,
+      ),
     );
 
     Future<Reply> submitPackage(
@@ -334,6 +416,8 @@ Future<void> main() async {
       String company = primaryCompany,
       String branch = primaryBranch,
       String version = '1.0.0',
+      String moduleId = 'com.example.registry',
+      String docType = 'Item',
       String? recordId,
       String search = '',
       Map<String, dynamic> filters = const {},
@@ -350,9 +434,9 @@ Future<void> main() async {
       body: {
         'companyId': company,
         'branchId': branch,
-        'moduleId': 'com.example.registry',
+        'moduleId': moduleId,
         'version': version,
-        'docType': 'Item',
+        'docType': docType,
         if (recordId != null) 'recordId': recordId,
         'search': search,
         'filters': filters,
@@ -1578,7 +1662,7 @@ Future<void> main() async {
       'The Host refuses new records created through an approved but superseded release',
     );
     final currentVersionUpdate = ExtensionRecordCommand.update(
-      commandId: '71000000-0000-4000-8000-000000000011',
+      commandId: '73000000-0000-4000-8000-000000000001',
       tenantId: tenant,
       companyId: primaryCompany,
       branchId: primaryBranch,
@@ -1827,6 +1911,227 @@ Future<void> main() async {
           )).single[0] ==
           9,
       'Approval and revocation events remain in the operator audit ledger',
+    );
+    final fieldPackage = bundle(
+      'com.example.field_policy',
+      '1.0.0',
+      protectTitle: true,
+      title: 'Protected item',
+    );
+    expect(
+      (await submitPackage(primaryToken, fieldPackage)).status == 202,
+      'A field-protected package can be submitted with the enforcing platform API version',
+    );
+    await packageAdmin.approve(
+      moduleId: fieldPackage.moduleId,
+      version: fieldPackage.version,
+      packageSha256: hash(fieldPackage),
+    );
+    final protectedCreate = ExtensionRecordCommand.create(
+      commandId: '73000000-0000-4000-8000-000000000003',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'field-policy-item-1',
+      actorId: 'field-writer',
+      deviceId: 'field-writer-device',
+      moduleId: fieldPackage.moduleId,
+      moduleVersion: fieldPackage.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: const {'title': 'CONFIDENTIAL FIELD SENTINEL'},
+    );
+    final protectedCreateReply = await send(
+      api,
+      token: fieldWriterToken,
+      body: protectedCreate.envelope.original,
+    );
+    expect(
+      protectedCreateReply.status == 200 &&
+          protectedCreateReply.body['receipt']['status'] == 'ACCEPTED',
+      'A role with the field grant can create the protected value',
+    );
+    final blindQuery = await queryRecords(
+      fieldBlindToken,
+      moduleId: fieldPackage.moduleId,
+      search: 'CONFIDENTIAL FIELD SENTINEL',
+      sortField: null,
+    );
+    final blindResult = blindQuery.body['recordResult'] as Map<String, dynamic>;
+    expect(
+      blindQuery.status == 200 &&
+          !(blindResult['readableFields'] as List).contains('title') &&
+          (blindResult['records'] as List).isEmpty,
+      'Host field masks and search prevent an ungranted user from reading a protected value',
+    );
+    final unauthorizedCreate = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000011',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'field-policy-unwritable-create',
+      actorId: 'field-no-write-creator',
+      deviceId: 'field-no-write-creator-device',
+      moduleId: fieldPackage.moduleId,
+      moduleVersion: fieldPackage.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: const {'title': 'UNAUTHORIZED CREATE'},
+    );
+    final unauthorizedCreateReply = await send(
+      api,
+      token: fieldNoWriteCreatorToken,
+      body: unauthorizedCreate.envelope.original,
+    );
+    final unauthorizedCreateReadback = await queryRecords(
+      fieldReaderToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-unwritable-create',
+      sortField: null,
+      limit: 1,
+    );
+    expect(
+      unauthorizedCreateReply.status == 403 &&
+          unauthorizedCreateReply.body['receipt']['status'] == 'REJECTED' &&
+          unauthorizedCreateReply.body['receipt']['reasonCode'] ==
+              'PERMISSION_DENIED' &&
+          (unauthorizedCreateReadback.body['recordResult']['records'] as List)
+              .isEmpty,
+      'Host rejects an ungranted protected-field create without storing a row '
+      '(reply ${unauthorizedCreateReply.status}: '
+      '${unauthorizedCreateReply.body}; readback '
+      '${unauthorizedCreateReadback.status}: '
+      '${unauthorizedCreateReadback.body})',
+    );
+    final blindFieldFilter = await queryRecords(
+      fieldBlindToken,
+      moduleId: fieldPackage.moduleId,
+      filterField: 'title',
+      filterContains: 'CONFIDENTIAL',
+      sortField: null,
+    );
+    expect(
+      blindFieldFilter.status == 403 &&
+          blindFieldFilter.body['recordResult']['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'Host rejects filters on fields the principal cannot read',
+    );
+    final fieldReadOnly = await queryRecords(
+      fieldReaderToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-item-1',
+      sortField: null,
+      limit: 1,
+    );
+    final readOnlyResult =
+        fieldReadOnly.body['recordResult'] as Map<String, dynamic>;
+    expect(
+      fieldReadOnly.status == 200 &&
+          (readOnlyResult['records'] as List).single['values']['title'] ==
+              'CONFIDENTIAL FIELD SENTINEL' &&
+          !(readOnlyResult['writableFields'] as List).contains('title'),
+      'Host independently reports read-only field access to a field reader',
+    );
+    final forbiddenFieldUpdate = ExtensionRecordCommand.update(
+      commandId: '73000000-0000-4000-8000-000000000004',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'field-policy-item-1',
+      expectedRevision: 1,
+      actorId: 'restricted-editor',
+      deviceId: 'restricted-editor-device',
+      moduleId: fieldPackage.moduleId,
+      moduleVersion: fieldPackage.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: const {'title': 'UNAUTHORIZED CHANGE'},
+    );
+    final forbiddenReply = await send(
+      api,
+      token: restrictedEditorToken,
+      body: forbiddenFieldUpdate.envelope.original,
+    );
+    final unchangedProtectedValue = await queryRecords(
+      fieldReaderToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-item-1',
+      sortField: null,
+      limit: 1,
+    );
+    expect(
+      forbiddenReply.status == 403 &&
+          forbiddenReply.body['receipt']['status'] == 'REJECTED' &&
+          forbiddenReply.body['receipt']['reasonCode'] == 'PERMISSION_DENIED' &&
+          (unchangedProtectedValue.body['recordResult']['records'] as List)
+                  .single['values']['title'] ==
+              'CONFIDENTIAL FIELD SENTINEL',
+      'Host rejects a forged write without the field grant and preserves the value '
+      '(reply ${forbiddenReply.status}: ${forbiddenReply.body}; '
+      'readback ${unchangedProtectedValue.body})',
+    );
+    final publicFieldUpdate = ExtensionRecordCommand.update(
+      commandId: '73000000-0000-4000-8000-000000000005',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'field-policy-item-1',
+      expectedRevision: 1,
+      actorId: 'restricted-editor',
+      deviceId: 'restricted-editor-device',
+      moduleId: fieldPackage.moduleId,
+      moduleVersion: fieldPackage.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: const {'parent': 'field-policy-item-1'},
+    );
+    final publicFieldUpdateReply = await send(
+      api,
+      token: restrictedEditorToken,
+      body: publicFieldUpdate.envelope.original,
+    );
+    final preservedProtectedValue = await queryRecords(
+      fieldReaderToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-item-1',
+      sortField: null,
+      limit: 1,
+    );
+    expect(
+      publicFieldUpdateReply.status == 200 &&
+          publicFieldUpdateReply.body['receipt']['status'] == 'ACCEPTED' &&
+          (preservedProtectedValue.body['recordResult']['records'] as List)
+                  .single['values']['title'] ==
+              'CONFIDENTIAL FIELD SENTINEL' &&
+          (preservedProtectedValue.body['recordResult']['records'] as List)
+                  .single['values']['parent'] ==
+              'field-policy-item-1',
+      'A permitted partial update preserves protected fields absent from its patch',
+    );
+    final authorizedFieldUpdate = ExtensionRecordCommand.update(
+      commandId: '73000000-0000-4000-8000-000000000006',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'field-policy-item-1',
+      expectedRevision: 2,
+      actorId: 'field-writer',
+      deviceId: 'field-writer-device',
+      moduleId: fieldPackage.moduleId,
+      moduleVersion: fieldPackage.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: const {'title': 'AUTHORIZED CHANGE'},
+    );
+    final authorizedUpdateReply = await send(
+      api,
+      token: fieldWriterToken,
+      body: authorizedFieldUpdate.envelope.original,
+    );
+    expect(
+      authorizedUpdateReply.status == 200 &&
+          authorizedUpdateReply.body['receipt']['status'] == 'ACCEPTED',
+      'Host accepts the same field update from a principal with the field grant',
     );
     await observer.execute(
       pg.Sql.named(
