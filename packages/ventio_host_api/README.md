@@ -202,8 +202,9 @@ Separate suites now cover persistent authorization/revocation, least-privilege R
 and real process kills/restore. See the updates above for their limits. Remaining
 gates include production TLS/identity provider, full header/slowloris limits,
 rate limiting by identity, pool saturation telemetry and workload tuning,
-safe sync ordering, financial capabilities and offline
-client reconciliation. Do not merge to stable on this slice alone.
+safe multi-device sync ordering and offline client reconciliation. Business
+features belong in future extensions, not in the platform gate. Do not merge to
+stable on this slice alone.
 
 On Windows, also run `dart run test/private_files_windows.dart`. This creates a
 unique test directory under the current user profile, installs a constrained
