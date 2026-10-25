@@ -1,6 +1,9 @@
 name: Ventio Windows Self-hosted Runner Smoke
 
 on:
+  push:
+    branches:
+      - codex/windows-self-hosted-runner
   workflow_dispatch:
 
 permissions: {}
