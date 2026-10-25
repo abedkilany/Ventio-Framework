@@ -10,11 +10,12 @@ Host Engine v0.1 passed its bounded development engineering gate. The separate F
 
 Dynamic records now have a Host-authoritative path: authenticated clients can query an approved package's records at the selected exact tenant/company/branch scope, enqueue generic create/update commands while offline, and reconcile only Host command receipts. Local edits remain provisional until Host accepts them. The app checks that its installed declarative package digest matches the Host-approved release before displaying shared records.
 
-This is a development platform foundation, not a production multi-device deployment. The Windows Release executable and Android Release APK build locally. The Host database integration was exercised on Windows using a disposable PostgreSQL container; no persistent Host database is configured. A physical Android install and a separate LAN-device end-to-end run have not been demonstrated. See [implementation status](docs/IMPLEMENTATION_STATUS.md) for test evidence and remaining gates.
+This is a first usable development prototype, not a production multi-device deployment. Current Windows Release and Android Release artifacts were rebuilt; the Windows process passed a startup smoke and the APK installed and launched on an API 37 Android emulator. The Host database integration was exercised on Windows using a disposable PostgreSQL container; no persistent Host database is configured. A physical Android install and a separate LAN-device end-to-end run have not been demonstrated. See the [prototype delivery guide](docs/FIRST_PROTOTYPE_DELIVERY.md) for install/configuration steps and the [implementation status](docs/IMPLEMENTATION_STATUS.md) for test evidence and remaining gates.
 
 - [Final engineering audit](docs/HOST_ENGINE_V0_1_FINAL_ENGINEERING_AUDIT.md): acceptance criteria, findings, evidence and limitations.
 - [Operations and recovery](docs/HOST_ENGINE_V0_1_OPERATIONS.md): separate OS/database identities, schema compatibility, witness upgrade, startup, shutdown and restore.
 - [Current implementation status](docs/IMPLEMENTATION_STATUS.md).
+- [First prototype delivery, installation and verification](docs/FIRST_PROTOTYPE_DELIVERY.md).
 - [Native Flutter and Offline-first proof plan](docs/NATIVE_FLUTTER_OFFLINE_FIRST_PROOF_PLAN.md).
 - [Native Flutter Phase 1 implementation notes](docs/NATIVE_FLUTTER_OFFLINE_FIRST_PHASE_1.md).
 - [Extension Builder device-local foundation and remaining security gates](docs/EXTENSION_BUILDER_FOUNDATION.md).
