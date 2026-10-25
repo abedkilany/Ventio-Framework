@@ -1845,6 +1845,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   final List<Map<String, dynamic>> _fields = [];
   final List<String> _listColumns = [];
   final List<String> _formFields = [];
+  final List<String> _detailFields = [];
   final List<String> _operations = [];
   final List<Map<String, dynamic>> _migrationSteps = [];
   final List<Map<String, dynamic>> _priorMigrations = [];
@@ -1883,6 +1884,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       final ui = metadata['ui'];
       final rawListColumns = ui is Map ? ui['listColumns'] : null;
       final rawFormFields = ui is Map ? ui['formFields'] : null;
+      final rawDetailFields = ui is Map ? ui['detailFields'] : null;
       _listColumns.addAll(
         rawListColumns is List
             ? rawListColumns.whereType<String>().where(names.contains)
@@ -1891,6 +1893,11 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       _formFields.addAll(
         rawFormFields is List
             ? rawFormFields.whereType<String>().where(names.contains)
+            : names,
+      );
+      _detailFields.addAll(
+        rawDetailFields is List
+            ? rawDetailFields.whereType<String>().where(names.contains)
             : names,
       );
       for (final field in _fields.where((item) => item['required'] == true)) {
@@ -1938,6 +1945,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         _fields.add(field);
         final name = field['name']! as String;
         _formFields.add(name);
+        _detailFields.add(name);
         if (_listColumns.length < 4) _listColumns.add(name);
       } else {
         final index = _fields.indexOf(existing);
@@ -1972,6 +1980,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         final name = field['name']! as String;
         _listColumns.remove(name);
         _formFields.remove(name);
+        _detailFields.remove(name);
       });
     }
   }
@@ -2096,6 +2105,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       _message('Choose at least one generated form field.');
       return;
     }
+    if (_detailFields.isEmpty) {
+      _message('Choose at least one detail page field.');
+      return;
+    }
     final name = _nameController.text.trim();
     final label = _labelController.text.trim();
     final previousVersion = widget.existing?['schemaVersion'] as int?;
@@ -2116,6 +2129,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       'ui': {
         'listColumns': List<String>.of(_listColumns),
         'formFields': List<String>.of(_formFields),
+        'detailFields': List<String>.of(_detailFields),
       },
       'label': label,
       'labelKey': '$namespace.${name.toLowerCase()}.name',
@@ -2248,6 +2262,14 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                       'Choose and order fields shown on create and edit forms. Required fields stay visible.',
                   selected: _formFields,
                   requiredFieldsOnly: true,
+                ),
+                const SizedBox(height: 12),
+                _layoutCard(
+                  title: 'Details page fields',
+                  description:
+                      'Choose and order fields shown when a saved record is opened.',
+                  selected: _detailFields,
+                  requiredFieldsOnly: false,
                 ),
                 const SizedBox(height: 12),
                 if (editing) ...[
@@ -4101,6 +4123,13 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     }
   }
 
+  List<FieldDefinition> get _detailFields => widget.definition.detailFields
+      .map(
+        (name) =>
+            widget.definition.fields.firstWhere((field) => field.name == name),
+      )
+      .toList(growable: false);
+
   @override
   Widget build(BuildContext context) {
     final record = _record;
@@ -4198,7 +4227,7 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final field in widget.definition.fields) ...[
+                      for (final field in _detailFields) ...[
                         Text(
                           field.label,
                           style: Theme.of(context).textTheme.labelLarge,

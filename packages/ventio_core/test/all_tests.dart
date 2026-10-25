@@ -762,6 +762,7 @@ void main() {
         'deviceModel',
         'customerName',
       ],
+      'detailFields': ['customerName', 'status'],
     };
     final definition = DocTypeDefinition.fromJson(json);
     check(
@@ -773,8 +774,28 @@ void main() {
           definition.formFields.last == 'customerName',
       'Form field order was not retained',
     );
+    check(
+      definition.detailFields.join(',') == 'customerName,status',
+      'Detail field order was not retained',
+    );
+
+    final legacyUi = Map<String, dynamic>.from(json['ui'])
+      ..remove('detailFields');
+    final legacy = DocTypeDefinition.fromJson({...json, 'ui': legacyUi});
+    check(
+      legacy.detailFields.join(',') ==
+          legacy.fields.map((field) => field.name).join(','),
+      'Legacy metadata without detailFields must display every field',
+    );
+
+    json['ui']['detailFields'] = ['unknown'];
+    checkThrows(
+      () => DocTypeDefinition.fromJson(json),
+      'An unknown detail field was accepted',
+    );
 
     json['ui']['formFields'] = ['status', 'problemDescription', 'deviceModel'];
+    json['ui']['detailFields'] = ['customerName', 'status'];
     checkThrows(
       () => DocTypeDefinition.fromJson(json),
       'A required field was hidden from the generated form',

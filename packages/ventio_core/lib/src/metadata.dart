@@ -196,6 +196,7 @@ class DocTypeDefinition {
   final List<FieldDefinition> fields;
   final List<String> listColumns;
   final List<String> formFields;
+  final List<String> detailFields;
   final List<DocTypeMigration> migrations;
 
   const DocTypeDefinition(
@@ -210,6 +211,7 @@ class DocTypeDefinition {
       required this.fields,
       required this.listColumns,
       required this.formFields,
+      required this.detailFields,
       this.migrations = const []});
 
   factory DocTypeDefinition.fromJson(Map<String, dynamic> json) {
@@ -282,9 +284,13 @@ class DocTypeDefinition {
     final formFields = ui == null
         ? fields.map((field) => field.name).toList()
         : strings(requireList(ui, 'formFields'), 'ui.formFields');
+    final detailFields = ui == null || ui['detailFields'] == null
+        ? fields.map((field) => field.name).toList()
+        : strings(requireList(ui, 'detailFields'), 'ui.detailFields');
     for (final (key, names) in [
       ('listColumns', listColumns),
       ('formFields', formFields),
+      ('detailFields', detailFields),
     ]) {
       if (names.isEmpty || names.any((name) => !fieldNames.contains(name))) {
         throw ContractError(
@@ -315,6 +321,7 @@ class DocTypeDefinition {
         fields: List.unmodifiable(fields),
         listColumns: List.unmodifiable(listColumns),
         formFields: List.unmodifiable(formFields),
+        detailFields: List.unmodifiable(detailFields),
         migrations: List.unmodifiable(migrations));
   }
 

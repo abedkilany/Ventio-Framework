@@ -562,7 +562,11 @@ void main() {
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Save DocType'));
+      await tester.scrollUntilVisible(
+        find.text('Save DocType'),
+        240,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Save DocType'));
       await tester.pumpAndSettle();
 
@@ -1316,9 +1320,38 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    final moveNoteUp = find.byTooltip('Move Note up').last;
+    await tester.scrollUntilVisible(
+      find.text('Generated form fields'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final formCard = find.ancestor(
+      of: find.text('Generated form fields'),
+      matching: find.byType(Card),
+    );
+    final moveNoteUp = find.descendant(
+      of: formCard,
+      matching: find.byTooltip('Move Note up'),
+    );
     await tester.ensureVisible(moveNoteUp);
     await tester.tap(moveNoteUp);
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Details page fields'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final detailsCard = find.ancestor(
+      of: find.text('Details page fields'),
+      matching: find.byType(Card),
+    );
+    final hideNameFromDetails = find.descendant(
+      of: detailsCard,
+      matching: find.widgetWithText(CheckboxListTile, 'Name'),
+    );
+    await tester.ensureVisible(hideNameFromDetails);
+    await tester.tap(hideNameFromDetails);
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Save DocType'));
     await tester.tap(find.text('Save DocType'));
@@ -1330,8 +1363,94 @@ void main() {
     final ui = definition['ui'] as Map;
     expect(ui['listColumns'], ['note']);
     expect(ui['formFields'], ['note', 'name']);
+    expect(ui['detailFields'], ['note']);
     expect(definition['operations'], ['read']);
     expect((definition['permissions'] as Map).keys, ['read']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Generated details follow the configured detail fields', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.detail_layout';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'DetailItem',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 120,
+          'label': 'Name',
+          'labelKey': 'detail_layout.item.name',
+        },
+        {
+          'name': 'privateNote',
+          'type': 'text',
+          'required': false,
+          'maxLength': 240,
+          'label': 'Private note',
+          'labelKey': 'detail_layout.item.private_note',
+        },
+      ],
+      'permissions': {
+        'read': 'extension.com_example_detail_layout.item.read',
+        'create': 'extension.com_example_detail_layout.item.create',
+        'update': 'extension.com_example_detail_layout.item.update',
+      },
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name', 'privateNote'],
+        'detailFields': ['name'],
+      },
+      'label': 'Detail item',
+      'labelKey': 'detail_layout.item.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Detail Layout',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+    await store.createRecord(
+      moduleId: moduleId,
+      docTypeName: 'DetailItem',
+      scope: scope,
+      values: {'name': 'Visible value', 'privateNote': 'Hidden value'},
+      recordId: 'detail-record-1',
+    );
+    final record = (await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'DetailItem',
+      scope: scope,
+    )).single;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordDetailsPage(
+          store: store,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          record: record,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Name'), findsOneWidget);
+    expect(find.text('Visible value'), findsOneWidget);
+    expect(find.text('Private note'), findsNothing);
+    expect(find.text('Hidden value'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
