@@ -128,7 +128,7 @@ void main() {
   });
 
   testWidgets(
-    'Native Builder creates, activates, runs and persists a dynamic extension',
+    'Native Builder creates, configures, activates, runs and persists extensions',
     (tester) async {
       await tester.pumpWidget(
         VentioClientApp(queue: queue, extensionStore: store),
@@ -201,6 +201,17 @@ void main() {
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      await _scrollTo(tester, find.text('Details page fields'));
+      final detailsCard = find.ancestor(
+        of: find.text('Details page fields'),
+        matching: find.byType(Card),
+      );
+      final hideQuantityFromDetails = find.descendant(
+        of: detailsCard,
+        matching: find.widgetWithText(CheckboxListTile, 'Quantity'),
+      );
+      await tester.tap(hideQuantityFromDetails);
+      await tester.pumpAndSettle();
       await _scrollTo(tester, find.text('Save DocType'), delta: 300);
       await tester.tap(find.text('Save DocType'));
       await tester.pumpAndSettle();
@@ -211,6 +222,7 @@ void main() {
           (assetDefinition['fields'] as List).last as Map;
       expect(quantityDefinition['minValue'], 1);
       expect(quantityDefinition['maxValue'], 20);
+      expect((assetDefinition['ui'] as Map)['detailFields'], ['name']);
 
       await _waitForWidget(tester, find.text('Asset · operational DocType'));
       await _scrollTo(tester, find.text('Preview'));
@@ -257,7 +269,14 @@ void main() {
       await tester.tap(find.text('Save on device'));
       await tester.pumpAndSettle();
       expect(find.text('Windows device'), findsOneWidget);
+      await tester.tap(find.text('Windows device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Name'), findsOneWidget);
+      expect(find.text('Windows device'), findsOneWidget);
+      expect(find.text('Quantity'), findsNothing);
 
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       await tester.pageBack();
       await tester.pumpAndSettle();
       await _scrollToTop(tester);
