@@ -595,6 +595,7 @@ void main() {
         );
         for (final record in [reopenedWriter, reopenedReader]) {
           expect(record?.values['title'], 'Reviewed Android device merge');
+          expect(record?.schemaVersion, 2);
           expect(record?.authorityState, 'HOST_ACCEPTED');
           expect(record?.hostRevision, 3);
         }
