@@ -10,8 +10,8 @@ if (-not (Test-Path -LiteralPath $java -PathType Leaf)) {
     throw "Android Studio Java runtime not found: $java"
 }
 
-$versionOutput = (& $java -version 2>&1 | Out-String)
-if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch 'openjdk version "21\.') {
+$versionOutput = (& $java --version 2>&1 | Out-String)
+if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch '(?m)^openjdk 21\.') {
     throw "Expected Android Studio JDK 21. Received: $versionOutput"
 }
 
