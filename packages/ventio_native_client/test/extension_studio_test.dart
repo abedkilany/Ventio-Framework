@@ -520,13 +520,12 @@ void main() {
       await tester.enterText(fields.at(2), 'An asset assigned to a branch.');
       await tester.tap(find.text('Add field'));
       await tester.pumpAndSettle();
-      fields = find.byType(TextFormField);
-      await tester.enterText(fields.at(3), 'name');
-      await tester.enterText(fields.at(4), 'Name');
       final nameDialogFields = find.descendant(
         of: find.byType(AlertDialog),
         matching: find.byType(TextFormField),
       );
+      await tester.enterText(nameDialogFields.at(0), 'name');
+      await tester.enterText(nameDialogFields.at(1), 'Name');
       await tester.enterText(nameDialogFields.at(2), '3');
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
@@ -567,12 +566,15 @@ void main() {
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
+      final saveDocTypeButton = find.text('Save DocType');
       await tester.scrollUntilVisible(
-        find.text('Save DocType'),
+        saveDocTypeButton,
         240,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.text('Save DocType'));
+      await tester.ensureVisible(saveDocTypeButton);
+      await tester.pumpAndSettle();
+      await tester.tap(saveDocTypeButton);
       await tester.pumpAndSettle();
 
       final savedDefinition = (await store.listDocTypes(
@@ -1515,7 +1517,39 @@ void main() {
     await tester.ensureVisible(hideNameFromDetails);
     await tester.tap(hideNameFromDetails);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Save DocType'));
+    await tester.scrollUntilVisible(
+      find.text('Generated page settings'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final pageTitleField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField && widget.decoration?.labelText == 'Page title',
+    );
+    await tester.ensureVisible(pageTitleField);
+    await tester.enterText(pageTitleField, 'Asset overview');
+    final pageOrderField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.labelText == 'Navigation order',
+    );
+    await tester.ensureVisible(pageOrderField);
+    await tester.enterText(pageOrderField, '20');
+    final pageIconField = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Navigation icon',
+    );
+    await tester.ensureVisible(pageIconField);
+    await tester.tap(pageIconField);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('grid').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Save DocType'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Save DocType'));
     await tester.pumpAndSettle();
 
@@ -1526,8 +1560,70 @@ void main() {
     expect(ui['listColumns'], ['note']);
     expect(ui['formFields'], ['note', 'name']);
     expect(ui['detailFields'], ['note']);
+    expect(ui['pageTitle'], 'Asset overview');
+    expect(
+      ui['pageTitleKey'],
+      'extension.com_example_configured_layout.layoutrecord.page_title',
+    );
+    expect(ui['pageIcon'], 'grid');
+    expect(ui['pageOrder'], 20);
     expect(definition['operations'], ['read']);
     expect((definition['permissions'] as Map).keys, ['read']);
+    final exportedBundle = await store.exportBundle(
+      'com.example.configured_layout',
+    );
+    expect(exportedBundle.manifest.minPlatformApi, currentPlatformApiVersion);
+    expect(exportedBundle.englishCatalog[ui['pageTitleKey']], 'Asset overview');
+    expect(find.text('Asset overview'), findsOneWidget);
+    await tester.tap(find.text('Preview').last);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Asset overview'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    final earlierPage = Map<String, dynamic>.from(definition)
+      ..['name'] = 'EarlierRecord'
+      ..['schemaVersion'] = 1
+      ..['label'] = 'Earlier record'
+      ..['labelKey'] =
+          'extension.com_example_configured_layout.earlierrecord.name';
+    earlierPage['ui'] = Map<String, dynamic>.from(ui)
+      ..['pageTitle'] = 'Earlier page'
+      ..['pageTitleKey'] =
+          'extension.com_example_configured_layout.earlierrecord.page_title'
+      ..['pageOrder'] = 0;
+    await store.saveDocType(earlierPage);
+    final savedPages = await store.listDocTypes(
+      'com.example.configured_layout',
+    );
+    expect(savedPages, hasLength(2));
+    expect((savedPages.first['ui'] as Map)['pageTitle'], 'Earlier page');
+    await tester.pumpWidget(
+      MaterialApp(
+        key: const ValueKey('ordered-pages-app'),
+        home: ExtensionDetailsPage(
+          key: const ValueKey('ordered-pages'),
+          store: store,
+          moduleId: 'com.example.configured_layout',
+          scope: const RecordScope(
+            organizationId: 'local-organization',
+            companyId: 'local-company',
+            branchId: 'local-branch',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.grid_view_outlined), findsNWidgets(2));
+    await tester.scrollUntilVisible(
+      find.text('Earlier page'),
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      tester.getTopLeft(find.text('Earlier page')).dy,
+      lessThan(tester.getTopLeft(find.text('Asset overview')).dy),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -1662,15 +1758,18 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Add field'),
       120,
-      scrollable: find.byType(Scrollable).last,
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.tap(find.text('Add field'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(1), 'title');
-    await tester.enterText(fields.at(2), 'Title');
+    final phoneFieldDialog = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(phoneFieldDialog.at(0), 'title');
+    await tester.enterText(phoneFieldDialog.at(1), 'Title');
     tester.binding.focusManager.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Save field'));
@@ -1679,7 +1778,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Save DocType'),
       160,
-      scrollable: find.byType(Scrollable).last,
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.tap(find.text('Save DocType'));
     await tester.pumpAndSettle();

@@ -20,7 +20,7 @@ class ExtensionPackageAdministration {
     required this.tenantId,
     required this.operatorLabel,
     required this.authority,
-    this.platformApiVersion = '0.1.0',
+    this.platformApiVersion = currentPlatformApiVersion,
   }) {
     _identifier(tenantId);
     _identifier(operatorLabel);

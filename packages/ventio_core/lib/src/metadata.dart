@@ -197,6 +197,10 @@ class DocTypeDefinition {
   final List<String> listColumns;
   final List<String> formFields;
   final List<String> detailFields;
+  final String pageTitle;
+  final String pageTitleKey;
+  final String pageIcon;
+  final int pageOrder;
   final List<DocTypeMigration> migrations;
 
   const DocTypeDefinition(
@@ -212,7 +216,13 @@ class DocTypeDefinition {
       required this.listColumns,
       required this.formFields,
       required this.detailFields,
-      this.migrations = const []});
+      String? pageTitle,
+      String? pageTitleKey,
+      this.pageIcon = 'list',
+      this.pageOrder = 0,
+      this.migrations = const []})
+      : pageTitle = pageTitle ?? label,
+        pageTitleKey = pageTitleKey ?? labelKey;
 
   factory DocTypeDefinition.fromJson(Map<String, dynamic> json) {
     final fields = requireList(json, 'fields')
@@ -278,6 +288,14 @@ class DocTypeDefinition {
     final fieldNames = fields.map((field) => field.name).toSet();
     final uiRaw = json['ui'];
     final ui = uiRaw == null ? null : requireMap(uiRaw, 'ui');
+    final hasPageTitle = ui?.containsKey('pageTitle') ?? false;
+    final hasPageTitleKey = ui?.containsKey('pageTitleKey') ?? false;
+    if (hasPageTitle != hasPageTitleKey) {
+      throw const ContractError(
+        'INVALID_DOCTYPE',
+        'ui.pageTitle and ui.pageTitleKey must be declared together.',
+      );
+    }
     final listColumns = ui == null
         ? fields.take(4).map((field) => field.name).toList()
         : strings(requireList(ui, 'listColumns'), 'ui.listColumns');
@@ -287,6 +305,48 @@ class DocTypeDefinition {
     final detailFields = ui == null || ui['detailFields'] == null
         ? fields.map((field) => field.name).toList()
         : strings(requireList(ui, 'detailFields'), 'ui.detailFields');
+    final pageTitle = ui == null || ui['pageTitle'] == null
+        ? requireString(json, 'label')
+        : requireString(ui, 'pageTitle');
+    final pageTitleKey = ui == null || ui['pageTitleKey'] == null
+        ? labelKey
+        : requireString(ui, 'pageTitleKey');
+    final pageIcon = ui == null || ui['pageIcon'] == null
+        ? 'list'
+        : requireString(ui, 'pageIcon');
+    final pageOrder = ui == null || ui['pageOrder'] == null
+        ? 0
+        : requireInt(ui, 'pageOrder', min: 0);
+    const supportedPageIcons = {
+      'list',
+      'folder',
+      'article',
+      'location',
+      'business',
+      'tag',
+      'event',
+      'checklist',
+      'grid',
+    };
+    if (pageTitle.trim().isEmpty || pageTitle.length > 120) {
+      throw const ContractError(
+        'INVALID_DOCTYPE',
+        'ui.pageTitle must contain between 1 and 120 characters.',
+      );
+    }
+    if (pageOrder > 10000) {
+      throw const ContractError(
+        'INVALID_DOCTYPE',
+        'ui.pageOrder must be between 0 and 10000.',
+      );
+    }
+    if (!_messageKey.hasMatch(pageTitleKey)) {
+      throw const ContractError('INVALID_DOCTYPE', 'Invalid pageTitleKey');
+    }
+    if (!supportedPageIcons.contains(pageIcon)) {
+      throw const ContractError(
+          'INVALID_DOCTYPE', 'Unknown generated page icon');
+    }
     for (final (key, names) in [
       ('listColumns', listColumns),
       ('formFields', formFields),
@@ -322,6 +382,10 @@ class DocTypeDefinition {
         listColumns: List.unmodifiable(listColumns),
         formFields: List.unmodifiable(formFields),
         detailFields: List.unmodifiable(detailFields),
+        pageTitle: pageTitle,
+        pageTitleKey: pageTitleKey,
+        pageIcon: pageIcon,
+        pageOrder: pageOrder,
         migrations: List.unmodifiable(migrations));
   }
 

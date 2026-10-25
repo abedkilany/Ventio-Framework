@@ -143,7 +143,15 @@ class ExtensionBundle {
       final ui = requireMap(json['ui'], 'ui');
       _checkKeys(
         ui,
-        const {'listColumns', 'formFields', 'detailFields'},
+        const {
+          'listColumns',
+          'formFields',
+          'detailFields',
+          'pageTitle',
+          'pageTitleKey',
+          'pageIcon',
+          'pageOrder',
+        },
         'ui',
       );
       final fields = requireList(json, 'fields');
@@ -233,6 +241,7 @@ class ExtensionBundle {
         }
       }
       _requireNamespace(type.labelKey, messageNamespace);
+      _requireNamespace(type.pageTitleKey, messageNamespace);
       if (type.permissions.values.any(
         (permission) => !permission.startsWith(messageNamespace),
       )) {
@@ -298,6 +307,7 @@ class ExtensionBundle {
     for (final raw in docTypeJson) {
       final type = DocTypeDefinition.fromJson(raw);
       requiredLabels.add(type.labelKey);
+      requiredLabels.add(type.pageTitleKey);
       if (raw.containsKey('descriptionKey')) {
         final key = requireString(raw, 'descriptionKey');
         _requireNamespace(key, messageNamespace);

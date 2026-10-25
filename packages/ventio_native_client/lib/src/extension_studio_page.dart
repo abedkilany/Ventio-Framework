@@ -25,6 +25,21 @@ enum _StudioMenuAction {
   offlineProof,
 }
 
+const Map<String, IconData> _generatedPageIcons = {
+  'list': Icons.view_list_outlined,
+  'folder': Icons.folder_outlined,
+  'article': Icons.article_outlined,
+  'location': Icons.place_outlined,
+  'business': Icons.business_outlined,
+  'tag': Icons.sell_outlined,
+  'event': Icons.event_outlined,
+  'checklist': Icons.checklist,
+  'grid': Icons.grid_view_outlined,
+};
+
+IconData _generatedPageIcon(String? id) =>
+    _generatedPageIcons[id] ?? _generatedPageIcons['list']!;
+
 class ExtensionStudioPage extends StatefulWidget {
   const ExtensionStudioPage({
     required this.store,
@@ -1322,7 +1337,24 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
       if (!mounted) return;
       setState(() {
         _extension = values[0] as LocalExtension?;
-        _docTypes = values[1] as List<Map<String, dynamic>>;
+        _docTypes =
+            List<Map<String, dynamic>>.of(
+              values[1] as List<Map<String, dynamic>>,
+            )..sort((left, right) {
+              final leftUi = left['ui'];
+              final rightUi = right['ui'];
+              final leftOrder = leftUi is Map && leftUi['pageOrder'] is int
+                  ? leftUi['pageOrder'] as int
+                  : 0;
+              final rightOrder = rightUi is Map && rightUi['pageOrder'] is int
+                  ? rightUi['pageOrder'] as int
+                  : 0;
+              final byOrder = leftOrder.compareTo(rightOrder);
+              if (byOrder != 0) return byOrder;
+              return (left['name'] as String).compareTo(
+                right['name'] as String,
+              );
+            });
         _loading = false;
         _error = null;
       });
@@ -1841,6 +1873,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   final _nameController = TextEditingController();
   final _labelController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _pageTitleController = TextEditingController();
+  final _pageOrderController = TextEditingController();
+  String _pageIcon = 'list';
+  bool _pageTitleCustomized = false;
   final _formKey = GlobalKey<FormState>();
   final List<Map<String, dynamic>> _fields = [];
   final List<String> _listColumns = [];
@@ -1859,6 +1895,18 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       _nameController.text = metadata['name'] as String;
       _labelController.text = metadata['label'] as String;
       _descriptionController.text = (metadata['description'] as String?) ?? '';
+      final ui = metadata['ui'];
+      _pageTitleController.text = ui is Map && ui['pageTitle'] is String
+          ? ui['pageTitle'] as String
+          : metadata['label'] as String;
+      _pageTitleCustomized =
+          _pageTitleController.text != (metadata['label'] as String);
+      _pageOrderController.text = ui is Map && ui['pageOrder'] is int
+          ? (ui['pageOrder'] as int).toString()
+          : '0';
+      _pageIcon = ui is Map && _generatedPageIcons.containsKey(ui['pageIcon'])
+          ? ui['pageIcon'] as String
+          : 'list';
       final rawMigrations = metadata['migrations'];
       if (rawMigrations is List) {
         _priorMigrations.addAll(
@@ -1881,7 +1929,6 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         ),
       );
       final names = _fields.map((field) => field['name']! as String).toList();
-      final ui = metadata['ui'];
       final rawListColumns = ui is Map ? ui['listColumns'] : null;
       final rawFormFields = ui is Map ? ui['formFields'] : null;
       final rawDetailFields = ui is Map ? ui['detailFields'] : null;
@@ -1905,6 +1952,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         if (!_formFields.contains(name)) _formFields.add(name);
       }
     } else {
+      _pageOrderController.text = '0';
       _operations.addAll(const ['read', 'create', 'update']);
     }
   }
@@ -1914,6 +1962,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
     _nameController.dispose();
     _labelController.dispose();
     _descriptionController.dispose();
+    _pageTitleController.dispose();
+    _pageOrderController.dispose();
     super.dispose();
   }
 
@@ -2111,6 +2161,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
     }
     final name = _nameController.text.trim();
     final label = _labelController.text.trim();
+    final pageTitle = _pageTitleController.text.trim();
+    final pageOrder = int.parse(_pageOrderController.text.trim());
     final previousVersion = widget.existing?['schemaVersion'] as int?;
     final fields = List<Map<String, dynamic>>.from(_fields);
     final namespace = _messageNamespace(widget.moduleId);
@@ -2130,6 +2182,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         'listColumns': List<String>.of(_listColumns),
         'formFields': List<String>.of(_formFields),
         'detailFields': List<String>.of(_detailFields),
+        'pageTitle': pageTitle,
+        'pageTitleKey': '$namespace.${name.toLowerCase()}.page_title',
+        'pageIcon': _pageIcon,
+        'pageOrder': pageOrder,
       },
       'label': label,
       'labelKey': '$namespace.${name.toLowerCase()}.name',
@@ -2203,6 +2259,11 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                     labelText: 'Display name',
                     border: OutlineInputBorder(),
                   ),
+                  onChanged: (value) {
+                    if (!_pageTitleCustomized) {
+                      _pageTitleController.text = value;
+                    }
+                  },
                   validator: (value) =>
                       _requiredText(value, 'Enter a display name.'),
                 ),
@@ -2214,6 +2275,96 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                   decoration: const InputDecoration(
                     labelText: 'Description',
                     border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Generated page settings',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Each DocType creates a records page. These settings control its navigation label, icon and order; access still follows the DocType permissions.',
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _pageTitleController,
+                          maxLength: 120,
+                          decoration: const InputDecoration(
+                            labelText: 'Page title',
+                            helperText:
+                                'Shown in extension navigation and on the records page.',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) {
+                            _pageTitleCustomized =
+                                value.trim() != _labelController.text.trim();
+                          },
+                          validator: (value) {
+                            final trimmed = value?.trim() ?? '';
+                            if (trimmed.isEmpty) return 'Enter a page title.';
+                            if (trimmed.length > 120) {
+                              return 'Use 120 characters or fewer.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _pageOrderController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: const InputDecoration(
+                            labelText: 'Navigation order',
+                            helperText:
+                                'Lower values appear first. Values from 0 to 10000 are supported.',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            final order = int.tryParse(value?.trim() ?? '');
+                            if (order == null || order > 10000) {
+                              return 'Enter an order from 0 to 10000.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: _pageIcon,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Navigation icon',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            for (final entry in _generatedPageIcons.entries)
+                              DropdownMenuItem(
+                                value: entry.key,
+                                child: Row(
+                                  children: [
+                                    Icon(entry.value),
+                                    const SizedBox(width: 10),
+                                    Text(entry.key),
+                                  ],
+                                ),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _pageIcon = value);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -2605,13 +2756,15 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     if (!_formKey.currentState!.validate()) return;
     final fieldName = _name.text.trim();
     final label = _label.text.trim();
+    final fieldNamespace =
+        '${_messageNamespace(widget.moduleId)}.'
+        '${widget.docTypeName.toLowerCase()}.field.${fieldName.toLowerCase()}';
     final metadata = <String, dynamic>{
       'name': fieldName,
       'type': _type,
       'required': _required,
       'label': label,
-      'labelKey':
-          '${_messageNamespace(widget.moduleId)}.${widget.docTypeName.toLowerCase()}.${fieldName.toLowerCase()}',
+      'labelKey': '$fieldNamespace.label',
     };
     if (_type == 'text') {
       metadata['maxLength'] = int.parse(_maxLength.text);
@@ -2636,8 +2789,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
         for (final value in values)
           value: {
             'label': value,
-            'labelKey':
-                '${_messageNamespace(widget.moduleId)}.${widget.docTypeName.toLowerCase()}.${fieldName}_${value.toLowerCase()}',
+            'labelKey': '$fieldNamespace.enum.${value.toLowerCase()}',
           },
       };
     }
@@ -3231,7 +3383,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   @override
   Widget build(BuildContext context) {
     final metadata = widget.metadata;
-    final title = metadata['label'] as String;
+    final title = _definition.pageTitle;
     final canRead = _definition.operations.contains('read');
     final canCreate = _definition.operations.contains('create');
     return Scaffold(
@@ -4789,6 +4941,13 @@ class _DocTypeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final fields = metadata['fields'] as List;
     final label = metadata['label'] as String;
+    final ui = metadata['ui'];
+    final pageTitle = ui is Map && ui['pageTitle'] is String
+        ? ui['pageTitle'] as String
+        : label;
+    final pageIcon = ui is Map && ui['pageIcon'] is String
+        ? ui['pageIcon'] as String
+        : 'list';
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -4801,13 +4960,18 @@ class _DocTypeCard extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text(label, style: Theme.of(context).textTheme.titleMedium),
+                Icon(_generatedPageIcon(pageIcon)),
+                Text(pageTitle, style: Theme.of(context).textTheme.titleMedium),
                 _StatusPill(label: 'SCHEMA ${metadata['schemaVersion']}'),
                 Text('${fields.length} fields'),
               ],
             ),
             const SizedBox(height: 4),
             Text('${metadata['name']} · operational DocType'),
+            if (pageTitle != label) ...[
+              const SizedBox(height: 2),
+              Text('Record label: $label'),
+            ],
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,

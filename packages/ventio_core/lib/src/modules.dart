@@ -1,12 +1,15 @@
 import 'contracts.dart';
 import 'metadata.dart';
 
+/// Current minimum platform API contract understood by this Ventio build.
+const currentPlatformApiVersion = '0.2.0';
+
 class ModuleRegistry {
   final String platformApiVersion;
   final Map<String, ModuleManifest> _modules = {};
   final Map<String, Capability> _capabilities = {};
 
-  ModuleRegistry({this.platformApiVersion = '0.1.0'}) {
+  ModuleRegistry({this.platformApiVersion = currentPlatformApiVersion}) {
     semverParts(platformApiVersion);
   }
 

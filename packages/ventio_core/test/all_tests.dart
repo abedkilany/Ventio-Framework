@@ -176,12 +176,61 @@ void main() {
       canonicalJson(bundle.toJson()) == canonicalJson(source),
       'Extension bundle did not round-trip canonically',
     );
+    final generatedPage = changed(source);
+    final generatedPageType =
+        (generatedPage['docTypes'] as List).single as Map<String, dynamic>;
+    final generatedPageUi = generatedPageType['ui'] as Map<String, dynamic>;
+    generatedPageUi.addAll({
+      'pageTitle': 'Asset overview',
+      'pageTitleKey': 'extension.com_example_assets.asset.page_title',
+      'pageIcon': 'grid',
+      'pageOrder': 20,
+    });
+    (generatedPage['englishCatalog'] as Map<String, dynamic>)[
+        'extension.com_example_assets.asset.page_title'] = 'Asset overview';
+    final configuredPage = ExtensionBundle.fromJson(generatedPage);
+    check(
+      configuredPage.docTypes.single.pageTitle == 'Asset overview' &&
+          configuredPage.docTypes.single.pageIcon == 'grid' &&
+          configuredPage.docTypes.single.pageOrder == 20 &&
+          canonicalJson(configuredPage.toJson()) ==
+              canonicalJson(generatedPage),
+      'Generated page settings did not validate and round-trip',
+    );
+    final unsupportedPageIcon = changed(generatedPage);
+    (((unsupportedPageIcon['docTypes'] as List).single
+            as Map<String, dynamic>)['ui']
+        as Map<String, dynamic>)['pageIcon'] = 'run_script';
+    checkThrows(
+      () => ExtensionBundle.fromJson(unsupportedPageIcon),
+      'A generated page accepted an unsupported icon token',
+    );
+    final excessivePageOrder = changed(generatedPage);
+    (((excessivePageOrder['docTypes'] as List).single
+            as Map<String, dynamic>)['ui']
+        as Map<String, dynamic>)['pageOrder'] = 10001;
+    checkThrows(
+      () => ExtensionBundle.fromJson(excessivePageOrder),
+      'A generated page accepted an unbounded navigation order',
+    );
+    final incompletePageTitle = changed(generatedPage);
+    (((incompletePageTitle['docTypes'] as List).single
+            as Map<String, dynamic>)['ui'] as Map<String, dynamic>)
+        .remove('pageTitleKey');
+    checkThrows(
+      () => ExtensionBundle.fromJson(incompletePageTitle),
+      'A custom page title without its localization key was accepted',
+    );
     final legacy = changed(source);
     ((legacy['docTypes'] as List).single as Map<String, dynamic>)['ui']
         .remove('detailFields');
     check(
       ExtensionBundle.fromJson(legacy).docTypes.single.detailFields.single ==
-          'name',
+              'name' &&
+          ExtensionBundle.fromJson(legacy).docTypes.single.pageTitle ==
+              'Asset' &&
+          ExtensionBundle.fromJson(legacy).docTypes.single.pageIcon == 'list' &&
+          ExtensionBundle.fromJson(legacy).docTypes.single.pageOrder == 0,
       'A legacy bundle without detailFields must preserve its default detail view',
     );
     checkThrows(
@@ -775,6 +824,13 @@ void main() {
     };
     final definition = DocTypeDefinition.fromJson(json);
     check(
+      definition.pageTitle == json['label'] &&
+          definition.pageTitleKey == json['labelKey'] &&
+          definition.pageIcon == 'list' &&
+          definition.pageOrder == 0,
+      'Legacy DocTypes must retain safe generated page defaults',
+    );
+    check(
       definition.listColumns.join(',') == 'status,customerName',
       'List column order was not retained',
     );
@@ -923,6 +979,11 @@ void main() {
         () => modules.install(manifest, [doc]), 'Missing capability accepted');
   });
   test('Minimum platform API is enforced', () {
+    check(
+      ModuleRegistry().platformApiVersion == currentPlatformApiVersion &&
+          currentPlatformApiVersion == '0.2.0',
+      'The default platform API did not advance for generated-page metadata',
+    );
     final modules = ModuleRegistry(platformApiVersion: '0.0.1');
     modules.registerTrustedCapability(Capability.fromJson(
         loadJsonFile('$root/examples/maintenance_capability.json')));

@@ -571,7 +571,7 @@ void main() {
     metadata['labelKey'] = 'extension.com_example_asset_register.asset.name';
     final fields = (metadata['fields'] as List).cast<Map<String, dynamic>>();
     fields.single['labelKey'] =
-        'extension.com_example_asset_register.asset.name_value';
+        'extension.com_example_asset_register.asset.name';
     fields.add({
       'name': 'status',
       'type': 'enum',
@@ -602,6 +602,26 @@ void main() {
     final bundle = await store.exportBundle(_moduleId);
     expect(bundle.moduleId, _moduleId);
     expect(bundle.docTypes.single.name, 'Asset');
+    final exportedType = bundle.docTypeJson.single;
+    final exportedField = (exportedType['fields'] as List)
+        .cast<Map<String, dynamic>>()
+        .singleWhere((field) => field['name'] == 'name');
+    expect(
+      exportedField['labelKey'],
+      'extension.com_example_asset_register.asset.field.name.label',
+    );
+    expect(
+      bundle.englishCatalog['extension.com_example_asset_register.asset.name'],
+      'Asset',
+    );
+    expect(bundle.englishCatalog[exportedField['labelKey']], 'name');
+    final persistedType = await store.getDocType(_moduleId, 'Asset');
+    expect(
+      (persistedType!['fields'] as List)
+          .cast<Map<String, dynamic>>()
+          .singleWhere((field) => field['name'] == 'name')['labelKey'],
+      'extension.com_example_asset_register.asset.name',
+    );
     expect(bundle.manifest.commands, isEmpty);
     expect(bundle.manifest.requiredCapabilities, isEmpty);
     expect(
@@ -750,8 +770,34 @@ void main() {
       final source =
           jsonDecode(jsonEncode((await store.exportBundle(_moduleId)).toJson()))
               as Map<String, dynamic>;
+      expect(
+        ((source['manifest'] as Map<String, dynamic>)['minPlatformApi']),
+        currentPlatformApiVersion,
+      );
       await store.remove(_moduleId);
-      (source['manifest'] as Map<String, dynamic>)['minPlatformApi'] = '0.2.0';
+      final newRelease = ExtensionBundle.fromJson(source);
+      final oldPlatformStore = await LocalExtensionStore.open(
+        factory: databaseFactoryFfiNoIsolate,
+        path: '${directory.path}${Platform.pathSeparator}old_platform.sqlite3',
+        platformApiVersion: '0.1.0',
+      );
+      try {
+        await expectLater(
+          oldPlatformStore.installBundle(newRelease),
+          throwsA(
+            isA<ExtensionStoreException>().having(
+              (error) => error.code,
+              'code',
+              'INCOMPATIBLE_PLATFORM',
+            ),
+          ),
+        );
+        expect(await oldPlatformStore.getExtension(_moduleId), isNull);
+      } finally {
+        await oldPlatformStore.close();
+      }
+
+      (source['manifest'] as Map<String, dynamic>)['minPlatformApi'] = '0.3.0';
       final incompatible = ExtensionBundle.fromJson(source);
 
       await expectLater(

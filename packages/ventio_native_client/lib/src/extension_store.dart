@@ -222,7 +222,7 @@ class LocalExtensionStore {
     required DatabaseFactory factory,
     required String path,
     DateTime Function()? clock,
-    String platformApiVersion = '0.1.0',
+    String platformApiVersion = currentPlatformApiVersion,
   }) async {
     semverParts(platformApiVersion);
     final database = await factory.openDatabase(
@@ -651,6 +651,9 @@ class LocalExtensionStore {
 
     final namespace =
         'extension.${moduleId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
+    final exportDocTypes = docTypes
+        .map((type) => jsonDecode(jsonEncode(type)) as Map<String, dynamic>)
+        .toList(growable: false);
     final catalog = <String, String>{};
     void addLabel(Object? rawKey, Object? rawLabel) {
       if (rawKey is! String || rawLabel is! String) {
@@ -669,13 +672,56 @@ class LocalExtensionStore {
       catalog[rawKey] = rawLabel;
     }
 
+    String collisionSafeLabelKey({
+      required Object? key,
+      required Object? label,
+      required String fallbackKey,
+    }) {
+      if (key is! String || label is! String) {
+        throw const ExtensionStoreException(
+          'INVALID_BUNDLE_METADATA',
+          'Every exported message needs a nonempty key and English label.',
+        );
+      }
+      final existing = catalog[key];
+      return existing != null && existing != label ? fallbackKey : key;
+    }
+
     final displayNameKey = '$namespace.module.name';
     final descriptionKey = '$namespace.module.description';
     addLabel(displayNameKey, extension.displayName);
     addLabel(descriptionKey, extension.description);
-    for (final docType in docTypes) {
+    for (final docType in exportDocTypes) {
+      final rawName = docType['name'];
+      if (rawName is! String) {
+        throw const ExtensionStoreException(
+          'INVALID_BUNDLE_METADATA',
+          'A DocType needs a stable name before it can be exported.',
+        );
+      }
+      final typeNamespace = '$namespace.${rawName.toLowerCase()}';
+      docType['labelKey'] = collisionSafeLabelKey(
+        key: docType['labelKey'],
+        label: docType['label'],
+        fallbackKey: '$namespace.doctype.${rawName.toLowerCase()}.label',
+      );
       addLabel(docType['labelKey'], docType['label']);
+      final ui = docType['ui'];
+      if (ui is Map && ui['pageTitleKey'] is String) {
+        ui['pageTitleKey'] = collisionSafeLabelKey(
+          key: ui['pageTitleKey'],
+          label: ui['pageTitle'],
+          fallbackKey: '$namespace.doctype.${rawName.toLowerCase()}.page_title',
+        );
+        addLabel(ui['pageTitleKey'], ui['pageTitle']);
+      }
       if (docType.containsKey('descriptionKey')) {
+        docType['descriptionKey'] = collisionSafeLabelKey(
+          key: docType['descriptionKey'],
+          label: docType['description'],
+          fallbackKey:
+              '$namespace.doctype.${rawName.toLowerCase()}.description',
+        );
         addLabel(docType['descriptionKey'], docType['description']);
       }
       final fields = docType['fields'];
@@ -692,19 +738,45 @@ class LocalExtensionStore {
             'A field has an invalid metadata definition.',
           );
         }
+        final rawFieldName = rawField['name'];
+        if (rawFieldName is! String) {
+          throw const ExtensionStoreException(
+            'INVALID_BUNDLE_METADATA',
+            'A field needs a stable name before it can be exported.',
+          );
+        }
+        final fieldNamespace =
+            '$typeNamespace.field.${rawFieldName.toLowerCase()}';
+        rawField['labelKey'] = collisionSafeLabelKey(
+          key: rawField['labelKey'],
+          label: rawField['label'],
+          fallbackKey: '$fieldNamespace.label',
+        );
         addLabel(rawField['labelKey'], rawField['label']);
         if (rawField.containsKey('descriptionKey')) {
+          rawField['descriptionKey'] = collisionSafeLabelKey(
+            key: rawField['descriptionKey'],
+            label: rawField['description'],
+            fallbackKey: '$fieldNamespace.description',
+          );
           addLabel(rawField['descriptionKey'], rawField['description']);
         }
         final enumLabels = rawField['enumLabels'];
         if (enumLabels is Map) {
-          for (final rawLabel in enumLabels.values) {
+          for (final entry in enumLabels.entries) {
+            final rawLabel = entry.value;
             if (rawLabel is! Map) {
               throw const ExtensionStoreException(
                 'INVALID_BUNDLE_METADATA',
                 'An enum option has an invalid label definition.',
               );
             }
+            final option = entry.key.toString().toLowerCase();
+            rawLabel['labelKey'] = collisionSafeLabelKey(
+              key: rawLabel['labelKey'],
+              label: rawLabel['label'],
+              fallbackKey: '$fieldNamespace.enum.$option',
+            );
             addLabel(rawLabel['labelKey'], rawLabel['label']);
           }
         }
@@ -716,7 +788,7 @@ class LocalExtensionStore {
         'manifestVersion': 0,
         'moduleId': moduleId,
         'version': extension.version,
-        'minPlatformApi': '0.1.0',
+        'minPlatformApi': platformApiVersion,
         'displayName': extension.displayName,
         'displayNameKey': displayNameKey,
         'description': extension.description,
@@ -724,12 +796,14 @@ class LocalExtensionStore {
         'englishCatalog':
             'localization/en.${namespace.substring('extension.'.length)}.json',
         'dependencies': extension.dependencies.keys.toList()..sort(),
-        'docTypes': docTypes.map((type) => type['name'] as String).toList(),
+        'docTypes': exportDocTypes
+            .map((type) => type['name'] as String)
+            .toList(),
         'commands': <Object>[],
         'requiredCapabilities': <String>[],
         'offline': {'enabled': false, 'allowedCommands': <String>[]},
       },
-      'docTypes': docTypes,
+      'docTypes': exportDocTypes,
       'dependencyVersions': extension.dependencies,
       'englishCatalog': catalog,
     });

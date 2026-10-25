@@ -171,11 +171,15 @@ void main() {
         'An asset created through the Builder.',
       );
       await _finishTextEntry(tester);
+      await _scrollTo(tester, find.text('Add field'));
       await tester.tap(find.text('Add field'));
       await tester.pumpAndSettle();
-      fields = find.byType(TextFormField);
-      await tester.enterText(fields.at(3), 'name');
-      await tester.enterText(fields.at(4), 'Name');
+      final nameFieldDialog = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(nameFieldDialog.at(0), 'name');
+      await tester.enterText(nameFieldDialog.at(1), 'Name');
       await _finishTextEntry(tester);
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
@@ -351,11 +355,15 @@ void main() {
         'A location maintained independently.',
       );
       await _finishTextEntry(tester);
+      await _scrollTo(tester, find.text('Add field'));
       await tester.tap(find.text('Add field'));
       await tester.pumpAndSettle();
-      fields = find.byType(TextFormField);
-      await tester.enterText(fields.at(3), 'code');
-      await tester.enterText(fields.at(4), 'Site code');
+      final codeFieldDialog = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(codeFieldDialog.at(0), 'code');
+      await tester.enterText(codeFieldDialog.at(1), 'Site code');
       await _finishTextEntry(tester);
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
