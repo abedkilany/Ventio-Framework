@@ -37,8 +37,6 @@ jobs:
       GIT_CONFIG_COUNT: '1'
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: C:/flutter
-      VENTIO_FLUTTER_APPDATA: '${{ runner.temp }}\ventio-flutter-appdata-${{ github.run_id }}-${{ github.run_attempt }}'
-      VENTIO_FLUTTER_BUILD_PATH: '${{ runner.temp }}\ventio-native-build-${{ github.run_id }}-${{ github.run_attempt }}'
       JAVA_HOME: 'C:\Program Files\Android\Android Studio\jbr'
       ANDROID_HOME: C:\actions-runner\_work\_tool\ventio-android-sdk-36
       ANDROID_SDK_ROOT: C:\actions-runner\_work\_tool\ventio-android-sdk-36

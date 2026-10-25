@@ -13,18 +13,12 @@ if ($runId -notmatch '^\d+$' -or $runAttempt -notmatch '^\d+$') {
 $expectedAppData = [System.IO.Path]::GetFullPath(
     (Join-Path $runnerTemp "ventio-flutter-appdata-$runId-$runAttempt")
 )
-$appData = [System.IO.Path]::GetFullPath($env:VENTIO_FLUTTER_APPDATA)
-if (-not [string]::Equals($appData, $expectedAppData, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Flutter APPDATA must be isolated under RUNNER_TEMP: $expectedAppData"
-}
+$appData = $expectedAppData
 
 $expectedBuildPath = [System.IO.Path]::GetFullPath(
     (Join-Path $runnerTemp "ventio-native-build-$runId-$runAttempt")
 )
-$buildPath = [System.IO.Path]::GetFullPath($env:VENTIO_FLUTTER_BUILD_PATH)
-if (-not [string]::Equals($buildPath, $expectedBuildPath, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Flutter build output must be isolated under RUNNER_TEMP: $expectedBuildPath"
-}
+$buildPath = $expectedBuildPath
 
 New-Item -ItemType Directory -Path $appData -Force | Out-Null
 $env:APPDATA = $appData
@@ -69,7 +63,11 @@ finally {
 if (-not $env:GITHUB_PATH) { throw 'GitHub Actions did not provide GITHUB_PATH.' }
 [IO.File]::AppendAllText($env:GITHUB_PATH, "C:\flutter\bin`n", [Text.UTF8Encoding]::new($false))
 if (-not $env:GITHUB_ENV) { throw 'GitHub Actions did not provide GITHUB_ENV.' }
-[IO.File]::AppendAllText($env:GITHUB_ENV, "APPDATA=$appData`n", [Text.UTF8Encoding]::new($false))
+[IO.File]::AppendAllText(
+    $env:GITHUB_ENV,
+    "APPDATA=$appData`n",
+    [Text.UTF8Encoding]::new($false)
+)
 Write-Output $flutterVersion.Trim()
 Write-Output $dartVersion.Trim()
 Write-Output "Flutter build output uses the run-scoped short path: $buildPath"

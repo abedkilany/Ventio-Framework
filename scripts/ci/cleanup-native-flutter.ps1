@@ -10,18 +10,12 @@ if ($runId -notmatch '^\d+$' -or $runAttempt -notmatch '^\d+$') {
 $expectedAppData = [System.IO.Path]::GetFullPath(
     (Join-Path $runnerTemp "ventio-flutter-appdata-$runId-$runAttempt")
 )
-$appData = [System.IO.Path]::GetFullPath($env:VENTIO_FLUTTER_APPDATA)
-if (-not [string]::Equals($appData, $expectedAppData, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Refusing to remove Flutter APPDATA outside this run's directory: $expectedAppData"
-}
+$appData = $expectedAppData
 
 $expectedBuildPath = [System.IO.Path]::GetFullPath(
     (Join-Path $runnerTemp "ventio-native-build-$runId-$runAttempt")
 )
-$buildPath = [System.IO.Path]::GetFullPath($env:VENTIO_FLUTTER_BUILD_PATH)
-if (-not [string]::Equals($buildPath, $expectedBuildPath, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Refusing to remove Flutter output outside this run's directory: $expectedBuildPath"
-}
+$buildPath = $expectedBuildPath
 
 foreach ($path in @($buildPath, $appData)) {
     if (-not (Test-Path -LiteralPath $path)) { continue }
