@@ -41,19 +41,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Use the pinned Windows Flutter SDK
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $flutter = 'C:\flutter\bin\flutter.bat'
-          if (-not (Test-Path -LiteralPath $flutter -PathType Leaf)) {
-            throw "Pinned Flutter SDK not found: $flutter"
-          }
-          $versionOutput = (& $flutter --version 2>&1 | Out-String)
-          if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch '(?m)^Flutter 3\.44\.1\b') {
-            throw "Expected Flutter 3.44.1 from $flutter. Received: $versionOutput"
-          }
-          [IO.File]::AppendAllText($env:GITHUB_PATH, "C:\flutter\bin`n", [Text.UTF8Encoding]::new($false))
-          Write-Output $versionOutput.Trim()
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\verify-flutter-sdk.ps1
       - name: Set up Java for Android builds
         uses: actions/setup-java@v6
         with:
