@@ -31,7 +31,7 @@ $expectedPackageProperties = @{
     'platform-tools\source.properties' = 'Pkg.Revision=37.0.0'
     'platforms\android-36\source.properties' = 'AndroidVersion.ApiLevel=36'
     'build-tools\36.0.0\source.properties' = 'Pkg.Revision=36.0.0'
-    'ndk\28.2.13676358\source.properties' = 'Pkg.Revision=28.2.13676358'
+    'ndk\28.2.13676358\source.properties' = 'Pkg.Revision = 28.2.13676358'
 }
 foreach ($relativePath in $expectedPackageProperties.Keys) {
     $sourcePath = Join-Path $sdkRoot $relativePath
