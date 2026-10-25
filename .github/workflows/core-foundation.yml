@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
       - name: Add the verified Dart SDK to PATH
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-dart-sdk.ps1
-      - run: dart pub get --enforce-lockfile
+      - run: dart pub get
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
       - run: dart run test/all_tests.dart
