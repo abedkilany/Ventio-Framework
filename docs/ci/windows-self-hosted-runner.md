@@ -66,6 +66,17 @@ Windows Dart jobs use the verified Dart 3.13.7 SDK provisioned by
 `C:\actions-runner\_work\_tool\ventio-dart-sdk-3.13.7-x64`. The script pins the
 official archive's SHA-256 and gives the `NETWORK SERVICE` runner read/execute
 access only, so jobs do not download the large SDK or modify it.
+To provision or restore the tool cache, download the [official Dart 3.13.7
+Windows x64 SDK archive](https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-x64-release.zip)
+to `$env:TEMP` and run:
+
+```powershell
+$archive = Join-Path $env:TEMP 'dartsdk-windows-x64-release.zip'
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\install-dart-sdk.ps1 -Stage -ArchivePath $archive
+```
+
+Staging verifies the exact archive size, SHA-256, MD5, and SDK version before
+extracting it into the protected tool cache.
 
 The native Flutter job uses the machine's pinned Flutter 3.44.1 SDK at
 `C:\flutter`. Its setup step checks the exact version and adds the Windows SDK
