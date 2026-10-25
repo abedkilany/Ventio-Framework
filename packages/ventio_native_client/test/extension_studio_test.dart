@@ -192,6 +192,7 @@ void main() {
         'ui': {
           'listColumns': ['label'],
           'formFields': ['label'],
+          'detailFields': ['label'],
         },
         'label': 'Item',
         'labelKey': '$permissionPrefix.name',
@@ -1393,12 +1394,12 @@ void main() {
           'labelKey': 'detail_layout.item.name',
         },
         {
-          'name': 'privateNote',
+          'name': 'extraNote',
           'type': 'text',
           'required': false,
           'maxLength': 240,
-          'label': 'Private note',
-          'labelKey': 'detail_layout.item.private_note',
+          'label': 'Additional note',
+          'labelKey': 'detail_layout.item.additional_note',
         },
       ],
       'permissions': {
@@ -1408,7 +1409,7 @@ void main() {
       },
       'ui': {
         'listColumns': ['name'],
-        'formFields': ['name', 'privateNote'],
+        'formFields': ['name', 'extraNote'],
         'detailFields': ['name'],
       },
       'label': 'Detail item',
@@ -1425,7 +1426,7 @@ void main() {
       moduleId: moduleId,
       docTypeName: 'DetailItem',
       scope: scope,
-      values: {'name': 'Visible value', 'privateNote': 'Hidden value'},
+      values: {'name': 'Visible value', 'extraNote': 'Hidden value'},
       recordId: 'detail-record-1',
     );
     final record = (await store.listRecords(
@@ -1449,7 +1450,7 @@ void main() {
 
     expect(find.text('Name'), findsOneWidget);
     expect(find.text('Visible value'), findsOneWidget);
-    expect(find.text('Private note'), findsNothing);
+    expect(find.text('Additional note'), findsNothing);
     expect(find.text('Hidden value'), findsNothing);
     expect(tester.takeException(), isNull);
   });

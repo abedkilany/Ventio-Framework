@@ -141,7 +141,11 @@ class ExtensionBundle {
         throw const ContractError('INVALID_DOCTYPE', 'Invalid DocType name.');
       }
       final ui = requireMap(json['ui'], 'ui');
-      _checkKeys(ui, const {'listColumns', 'formFields'}, 'ui');
+      _checkKeys(
+        ui,
+        const {'listColumns', 'formFields', 'detailFields'},
+        'ui',
+      );
       final fields = requireList(json, 'fields');
       if (fields.length > maxFieldsPerDocType) {
         throw const ContractError(

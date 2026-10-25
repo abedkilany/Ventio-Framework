@@ -2267,7 +2267,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                 _layoutCard(
                   title: 'Details page fields',
                   description:
-                      'Choose and order fields shown when a saved record is opened.',
+                      'Choose and order fields shown when a saved record is opened. This affects presentation only; it does not restrict access to field values.',
                   selected: _detailFields,
                   requiredFieldsOnly: false,
                 ),

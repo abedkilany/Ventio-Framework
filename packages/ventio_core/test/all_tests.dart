@@ -82,6 +82,7 @@ Map<String, dynamic> extensionBundleJson() => {
           'ui': {
             'listColumns': ['name'],
             'formFields': ['name'],
+            'detailFields': ['name'],
           },
         },
       ],
@@ -174,6 +175,14 @@ void main() {
     check(
       canonicalJson(bundle.toJson()) == canonicalJson(source),
       'Extension bundle did not round-trip canonically',
+    );
+    final legacy = changed(source);
+    ((legacy['docTypes'] as List).single as Map<String, dynamic>)['ui']
+        .remove('detailFields');
+    check(
+      ExtensionBundle.fromJson(legacy).docTypes.single.detailFields.single ==
+          'name',
+      'A legacy bundle without detailFields must preserve its default detail view',
     );
     checkThrows(
       () => (bundle.docTypeJson.single['fields'] as List).add({'name': 'sql'}),
