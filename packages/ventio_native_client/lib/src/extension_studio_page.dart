@@ -1846,6 +1846,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   final List<String> _listColumns = [];
   final List<String> _formFields = [];
   final List<String> _operations = [];
+  final List<Map<String, dynamic>> _migrationSteps = [];
+  final List<Map<String, dynamic>> _priorMigrations = [];
   bool _saving = false;
 
   @override
@@ -1856,6 +1858,14 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       _nameController.text = metadata['name'] as String;
       _labelController.text = metadata['label'] as String;
       _descriptionController.text = (metadata['description'] as String?) ?? '';
+      final rawMigrations = metadata['migrations'];
+      if (rawMigrations is List) {
+        _priorMigrations.addAll(
+          rawMigrations.map(
+            (migration) => Map<String, dynamic>.from(migration as Map),
+          ),
+        );
+      }
       final rawOperations = metadata['operations'];
       _operations.addAll(
         rawOperations is List
@@ -1964,6 +1974,18 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         _formFields.remove(name);
       });
     }
+  }
+
+  Future<void> _addMigrationStep({required bool rename}) async {
+    final currentFields = _fields
+        .map((field) => field['name']! as String)
+        .toList(growable: false);
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) =>
+          _MigrationStepDialog(rename: rename, fields: currentFields),
+    );
+    if (result != null) setState(() => _migrationSteps.add(result));
   }
 
   void _toggleLayoutField(List<String> selected, String name, bool checked) {
@@ -2100,6 +2122,16 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       'description': _descriptionController.text.trim(),
       'descriptionKey': '$namespace.${name.toLowerCase()}.description',
     };
+    if (previousVersion != null) {
+      metadata['migrations'] = [
+        ..._priorMigrations,
+        {
+          'fromVersion': previousVersion,
+          'toVersion': previousVersion + 1,
+          'steps': List<Map<String, dynamic>>.of(_migrationSteps),
+        },
+      ];
+    }
     setState(() => _saving = true);
     try {
       DocTypeDefinition.fromJson(metadata);
@@ -2218,6 +2250,72 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                   requiredFieldsOnly: true,
                 ),
                 const SizedBox(height: 12),
+                if (editing) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Data migration',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Supported operations preserve data: rename a field, or populate a constant scalar where a field is missing or null. Type conversion and field deletion are not supported.',
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _addMigrationStep(rename: true),
+                                icon: const Icon(
+                                  Icons.drive_file_rename_outline,
+                                ),
+                                label: const Text('Add field rename'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _addMigrationStep(rename: false),
+                                icon: const Icon(Icons.data_object),
+                                label: const Text('Add default'),
+                              ),
+                            ],
+                          ),
+                          if (_migrationSteps.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Text(
+                                'No data transformations. Safe optional additions and widened constraints need no step.',
+                              ),
+                            ),
+                          for (final step in _migrationSteps)
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.transform_outlined),
+                              title: Text(
+                                step['op'] == 'renameField'
+                                    ? 'Rename ${step['from']} → ${step['to']}'
+                                    : 'Default ${step['field']} to ${jsonEncode(step['value'])}',
+                              ),
+                              trailing: IconButton(
+                                tooltip: 'Remove migration step',
+                                onPressed: () => setState(
+                                  () => _migrationSteps.remove(step),
+                                ),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -2272,6 +2370,143 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MigrationStepDialog extends StatefulWidget {
+  const _MigrationStepDialog({required this.rename, required this.fields});
+
+  final bool rename;
+  final List<String> fields;
+
+  @override
+  State<_MigrationStepDialog> createState() => _MigrationStepDialogState();
+}
+
+class _MigrationStepDialogState extends State<_MigrationStepDialog> {
+  final _fromController = TextEditingController();
+  final _toController = TextEditingController();
+  final _fieldController = TextEditingController();
+  final _valueController = TextEditingController();
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fields.isNotEmpty) _fieldController.text = widget.fields.first;
+  }
+
+  @override
+  void dispose() {
+    _fromController.dispose();
+    _toController.dispose();
+    _fieldController.dispose();
+    _valueController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    try {
+      final step = widget.rename
+          ? <String, dynamic>{
+              'op': 'renameField',
+              'from': _fromController.text.trim(),
+              'to': _toController.text.trim(),
+            }
+          : <String, dynamic>{
+              'op': 'setDefault',
+              'field': _fieldController.text,
+              'value': jsonDecode(_valueController.text),
+            };
+      DocTypeMigrationStep.fromJson(step);
+      Navigator.pop(context, step);
+    } catch (error) {
+      setState(() => _error = 'Invalid migration step: $error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final contentWidth = (MediaQuery.sizeOf(context).width - 72)
+        .clamp(220.0, 420.0)
+        .toDouble();
+    return AlertDialog(
+      title: Text(
+        widget.rename ? 'Rename a saved field' : 'Set a default value',
+      ),
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: contentWidth,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.rename) ...[
+                TextField(
+                  controller: _fromController,
+                  decoration: const InputDecoration(
+                    labelText: 'Existing field ID',
+                    helperText: 'The old value is retained under the new ID.',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _toController,
+                  decoration: const InputDecoration(
+                    labelText: 'New field ID',
+                    helperText: 'It must exist in the new schema.',
+                  ),
+                ),
+              ] else ...[
+                if (widget.fields.isEmpty)
+                  const Text('Add a field to the new schema first.')
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: widget.fields.first,
+                    decoration: const InputDecoration(
+                      labelText: 'Target field',
+                    ),
+                    items: [
+                      for (final name in widget.fields)
+                        DropdownMenuItem(value: name, child: Text(name)),
+                    ],
+                    onChanged: (value) => _fieldController.text = value ?? '',
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _valueController,
+                  decoration: const InputDecoration(
+                    labelText: 'JSON scalar value',
+                    hintText: '"Unknown", 0, or false',
+                    helperText:
+                        'Applied only when the saved value is missing or null.',
+                  ),
+                ),
+              ],
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: !widget.rename && widget.fields.isEmpty ? null : _submit,
+          child: const Text('Add step'),
+        ),
+      ],
     );
   }
 }

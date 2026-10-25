@@ -131,6 +131,7 @@ class ExtensionBundle {
           'permissions',
           'fields',
           'ui',
+          'migrations',
         },
         'DocType',
       );
@@ -187,6 +188,21 @@ class ExtensionBundle {
     }).toList(growable: false);
     final docTypes =
         docTypeJson.map(DocTypeDefinition.fromJson).toList(growable: false);
+    final migrationStepCount = docTypes.fold<int>(
+      0,
+      (count, type) =>
+          count +
+          type.migrations.fold<int>(
+            0,
+            (steps, migration) => steps + migration.steps.length,
+          ),
+    );
+    if (migrationStepCount > 128) {
+      throw const ContractError(
+        'TOO_MANY_MIGRATION_STEPS',
+        'An extension package may contain at most 128 data migration operations.',
+      );
+    }
     final names = docTypes.map((type) => type.name).toSet();
     if (names.length != docTypes.length ||
         names.length != manifest.docTypes.length ||

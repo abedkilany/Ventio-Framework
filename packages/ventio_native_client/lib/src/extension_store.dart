@@ -772,18 +772,19 @@ class LocalExtensionStore {
             'metadata_json': canonicalJson(entry.value),
           });
         } else if (canonicalJson(previous) != canonicalJson(entry.value)) {
+          final previousDefinition = DocTypeDefinition.fromJson(previous);
+          await _migrateLocalRecords(
+            transaction,
+            previousDefinition: previousDefinition,
+            nextDefinition: definition,
+            now: now,
+          );
           await transaction.update(
             _docTypesTable,
             {
               'schema_version': definition.schemaVersion,
               'metadata_json': canonicalJson(entry.value),
             },
-            where: 'module_id = ? AND doctype_name = ?',
-            whereArgs: [moduleId, entry.key],
-          );
-          await transaction.update(
-            _recordsTable,
-            {'schema_version': definition.schemaVersion, 'updated_at_utc': now},
             where: 'module_id = ? AND doctype_name = ?',
             whereArgs: [moduleId, entry.key],
           );
@@ -940,13 +941,19 @@ class LocalExtensionStore {
       if (oldRows.isNotEmpty) {
         final oldJson = _decodeMap(oldRows.single['metadata_json']);
         final previous = DocTypeDefinition.fromJson(oldJson);
-        _validateNonDestructiveUpgrade(previous, definition);
         if (definition.schemaVersion <= previous.schemaVersion) {
           throw const ExtensionStoreException(
             'SCHEMA_VERSION_REQUIRED',
             'A saved DocType update must increase its schema version.',
           );
         }
+        _validateNonDestructiveUpgrade(previous, definition);
+        await _migrateLocalRecords(
+          transaction,
+          previousDefinition: previous,
+          nextDefinition: definition,
+          now: now,
+        );
         final module = LocalExtension.fromRow(extensions.single);
         await transaction.update(
           _extensionsTable,
@@ -960,12 +967,6 @@ class LocalExtensionStore {
             'schema_version': definition.schemaVersion,
             'metadata_json': canonicalJson(normalized),
           },
-          where: 'module_id = ? AND doctype_name = ?',
-          whereArgs: [definition.moduleId, definition.name],
-        );
-        await transaction.update(
-          _recordsTable,
-          {'schema_version': definition.schemaVersion, 'updated_at_utc': now},
           where: 'module_id = ? AND doctype_name = ?',
           whereArgs: [definition.moduleId, definition.name],
         );
@@ -1795,73 +1796,84 @@ class LocalExtensionStore {
     DocTypeDefinition previous,
     DocTypeDefinition next,
   ) {
-    final oldFields = {for (final field in previous.fields) field.name: field};
-    final newFields = {for (final field in next.fields) field.name: field};
-    for (final old in previous.fields) {
-      final updated = newFields[old.name];
-      if (updated == null) {
-        throw ExtensionStoreException(
-          'DESTRUCTIVE_SCHEMA_CHANGE',
-          'Removing ${old.name} would make saved local data unavailable.',
-        );
-      }
-      if (updated.type != old.type || updated.referenceTo != old.referenceTo) {
-        throw ExtensionStoreException(
-          'DESTRUCTIVE_SCHEMA_CHANGE',
-          'Changing the type or relation of ${old.name} requires a reviewed migration.',
-        );
-      }
-      if (!updated.enumValues.toSet().containsAll(old.enumValues)) {
-        throw ExtensionStoreException(
-          'DESTRUCTIVE_SCHEMA_CHANGE',
-          'Removing a saved enum value from ${old.name} requires a reviewed migration.',
-        );
-      }
-      if (!_fieldConstraintsWidenedOrEqual(old, updated)) {
-        throw ExtensionStoreException(
-          'DESTRUCTIVE_SCHEMA_CHANGE',
-          'Tightening numeric or text-length bounds for ${old.name} may invalidate saved records and requires a reviewed data migration.',
-        );
-      }
-      if (!old.required && updated.required) {
-        throw ExtensionStoreException(
-          'DESTRUCTIVE_SCHEMA_CHANGE',
-          'Making ${old.name} required needs a default or reviewed data migration.',
-        );
-      }
-    }
-    for (final added in next.fields.where(
-      (field) => !oldFields.containsKey(field.name),
-    )) {
-      if (added.required) {
-        throw const ExtensionStoreException(
-          'DESTRUCTIVE_SCHEMA_CHANGE',
-          'New fields must be optional until a reviewed migration can populate existing records.',
-        );
-      }
+    try {
+      validateDocTypeUpgrade(previous, next);
+    } on ContractError catch (error) {
+      throw ExtensionStoreException(error.code, error.details);
     }
   }
 
-  bool _fieldConstraintsWidenedOrEqual(
-    FieldDefinition old,
-    FieldDefinition updated,
-  ) {
-    final numericMinimumWidened =
-        updated.minValue == null ||
-        (old.minValue != null && updated.minValue! <= old.minValue!);
-    final numericMaximumWidened =
-        updated.maxValue == null ||
-        (old.maxValue != null && updated.maxValue! >= old.maxValue!);
-    final lengthMinimumWidened =
-        updated.minLength == null ||
-        (old.minLength != null && updated.minLength! <= old.minLength!);
-    final lengthMaximumWidened =
-        updated.maxLength == null ||
-        (old.maxLength != null && updated.maxLength! >= old.maxLength!);
-    return numericMinimumWidened &&
-        numericMaximumWidened &&
-        lengthMinimumWidened &&
-        lengthMaximumWidened;
+  Future<void> _migrateLocalRecords(
+    DatabaseExecutor executor, {
+    required DocTypeDefinition previousDefinition,
+    required DocTypeDefinition nextDefinition,
+    required String now,
+  }) async {
+    final rows = await executor.query(
+      _recordsTable,
+      columns: const [
+        'record_id',
+        'data_json',
+        'schema_version',
+        'revision',
+        'pending_command_id',
+        'authority_state',
+      ],
+      where: 'module_id = ? AND doctype_name = ?',
+      whereArgs: [previousDefinition.moduleId, previousDefinition.name],
+    );
+    final hasTransformations = nextDefinition.migrations.any(
+      (migration) => migration.steps.isNotEmpty,
+    );
+    if (hasTransformations &&
+        rows.any(
+          (row) =>
+              row['pending_command_id'] != null ||
+              const {
+                'PENDING',
+                'CONFLICT',
+                'REJECTED',
+              }.contains(row['authority_state']),
+        )) {
+      throw const ExtensionStoreException(
+        'MIGRATION_PENDING_COMMANDS',
+        'Resolve pending, conflicted, or rejected Host commands before applying a data migration.',
+      );
+    }
+
+    for (final row in rows) {
+      final fromVersion = row['schema_version']! as int;
+      Map<String, dynamic> values;
+      try {
+        values = applyDocTypeMigrations(
+          _decodeMap(row['data_json']),
+          nextDefinition.migrations,
+          fromVersion: fromVersion,
+          toVersion: nextDefinition.schemaVersion,
+        );
+      } on ContractError catch (error) {
+        throw ExtensionStoreException(error.code, error.details);
+      }
+      _validatePayload(nextDefinition, values);
+      final transformed = canonicalJson(values) != row['data_json'];
+      await executor.update(
+        _recordsTable,
+        {
+          'data_json': canonicalJson(values),
+          'schema_version': nextDefinition.schemaVersion,
+          if (transformed) 'revision': (row['revision']! as int) + 1,
+          if (transformed && row['authority_state'] == 'HOST_ACCEPTED')
+            'authority_state': 'CONFLICT',
+          if (transformed && row['authority_state'] == 'HOST_ACCEPTED')
+            'conflict_revision': null,
+          if (transformed && row['authority_state'] == 'HOST_ACCEPTED')
+            'conflict_data_json': null,
+          'updated_at_utc': now,
+        },
+        where: 'record_id = ?',
+        whereArgs: [row['record_id']],
+      );
+    }
   }
 
   Future<void> _validateDependencyTargets(

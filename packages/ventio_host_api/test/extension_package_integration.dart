@@ -1655,7 +1655,15 @@ Future<void> main() async {
         '_',
       );
       final statusKey = 'extension.$slug.item.status';
-      (type['fields'] as List).add({
+      final displayNameKey = 'extension.$slug.item.display_name';
+      final fields = (type['fields'] as List).cast<Map<String, dynamic>>();
+      final title = fields.singleWhere((field) => field['name'] == 'title');
+      final displayName = Map<String, dynamic>.from(title)
+        ..['name'] = 'display_name'
+        ..['label'] = 'Display name'
+        ..['labelKey'] = displayNameKey;
+      fields[fields.indexOf(title)] = displayName;
+      fields.add({
         'name': 'status',
         'type': 'text',
         'required': true,
@@ -1663,19 +1671,49 @@ Future<void> main() async {
         'labelKey': statusKey,
         'maxLength': 40,
       });
-      ((type['ui'] as Map<String, dynamic>)['formFields'] as List).add(
-        'status',
-      );
+      final ui = type['ui'] as Map<String, dynamic>;
+      ui['listColumns'] = ['display_name'];
+      ui['formFields'] = ['display_name', 'status'];
+      type['migrations'] = [
+        {
+          'fromVersion': 2,
+          'toVersion': 3,
+          'steps': [
+            {'op': 'renameField', 'from': 'title', 'to': 'display_name'},
+            {'op': 'setDefault', 'field': 'status', 'value': 'Unspecified'},
+          ],
+        },
+      ];
       (source['englishCatalog'] as Map<String, dynamic>)[statusKey] = 'Status';
+      (source['englishCatalog'] as Map<String, dynamic>)[displayNameKey] =
+          'Display name';
     });
     await submitPackage(primaryToken, requiredAddition);
-    await mustFail(
-      () => packageAdmin.approve(
-        moduleId: requiredAddition.moduleId,
-        version: requiredAddition.version,
-        packageSha256: hash(requiredAddition),
-      ),
-      'Host refuses a newly required field without a data migration',
+    await packageAdmin.approve(
+      moduleId: requiredAddition.moduleId,
+      version: requiredAddition.version,
+      packageSha256: hash(requiredAddition),
+    );
+    final migratedRecord = await queryRecords(
+      primaryToken,
+      version: requiredAddition.version,
+      recordId: 'registry-item-1',
+      sortField: 'display_name',
+      limit: 1,
+    );
+    expect(
+      migratedRecord.status == 200 &&
+          migratedRecord
+                  .body['recordResult']['records']
+                  .single['values']['display_name'] ==
+              'Current schema update' &&
+          migratedRecord
+                  .body['recordResult']['records']
+                  .single['values']['status'] ==
+              'Unspecified' &&
+          !migratedRecord.body['recordResult']['records'].single['values']
+              .containsKey('title'),
+      'Host atomically renames saved fields and fills a new required field: ${migratedRecord.status} ${migratedRecord.body}',
     );
 
     final dependency = bundle('com.example.dependency', '1.0.0');
@@ -1718,9 +1756,9 @@ Future<void> main() async {
       reason: 'Integration test revocation.',
     );
     await packageAdmin.revoke(
-      moduleId: additiveSchema.moduleId,
-      version: additiveSchema.version,
-      packageSha256: hash(additiveSchema),
+      moduleId: requiredAddition.moduleId,
+      version: requiredAddition.version,
+      packageSha256: hash(requiredAddition),
       reason: 'Integration test revocation of the active release.',
     );
     final oldVersionAfterRevocation = await queryRecords(
@@ -1787,7 +1825,7 @@ Future<void> main() async {
             ),
             parameters: {'tenant': tenant},
           )).single[0] ==
-          8,
+          9,
       'Approval and revocation events remain in the operator audit ledger',
     );
     await observer.execute(

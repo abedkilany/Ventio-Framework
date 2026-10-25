@@ -558,6 +558,16 @@ CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runti
     AND module_id = current_setting('ventio.module_id',true)
     AND record_id = current_setting('ventio.aggregate_id', true)
     AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1);
+-- Reviewed schema migrations run only inside the fixed extension approval
+-- function. The owner is NOLOGIN; its record access is enabled only when that
+-- function is called by the restricted identity-administration role.
+DROP POLICY IF EXISTS extension_migration_select ON public.ventio_records;
+CREATE POLICY extension_migration_select ON public.ventio_records FOR SELECT TO ventio_owner
+  USING (pg_has_role(session_user,'ventio_identity_admin','MEMBER'));
+DROP POLICY IF EXISTS extension_migration_update ON public.ventio_records;
+CREATE POLICY extension_migration_update ON public.ventio_records FOR UPDATE TO ventio_owner
+  USING (pg_has_role(session_user,'ventio_identity_admin','MEMBER'))
+  WITH CHECK (pg_has_role(session_user,'ventio_identity_admin','MEMBER'));
 DROP POLICY IF EXISTS runtime_select ON public.ventio_command_journal;
 DROP POLICY IF EXISTS runtime_insert ON public.ventio_command_journal;
 DROP POLICY IF EXISTS runtime_update ON public.ventio_command_journal;

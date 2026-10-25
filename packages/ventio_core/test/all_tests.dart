@@ -275,6 +275,30 @@ void main() {
       'Minimum text length did not survive extension bundle parsing',
     );
 
+    final tooManyMigrationSteps = changed(source);
+    final migrationType = (tooManyMigrationSteps['docTypes'] as List).single
+        as Map<String, dynamic>;
+    migrationType['schemaVersion'] = 6;
+    migrationType['migrations'] = [
+      for (var fromVersion = 1; fromVersion <= 5; fromVersion++)
+        {
+          'fromVersion': fromVersion,
+          'toVersion': fromVersion + 1,
+          'steps': [
+            for (var step = 0; step < 32; step++)
+              {
+                'op': 'setDefault',
+                'field': 'name',
+                'value': 'Imported',
+              },
+          ],
+        },
+    ];
+    checkThrows(
+      () => ExtensionBundle.fromJson(tooManyMigrationSteps),
+      'A package exceeded the aggregate schema migration operation bound',
+    );
+
     final cyclic = extensionBundleJson();
     (cyclic['manifest'] as Map<String, dynamic>)['cycle'] = cyclic;
     checkThrows(

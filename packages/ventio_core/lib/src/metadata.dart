@@ -196,6 +196,7 @@ class DocTypeDefinition {
   final List<FieldDefinition> fields;
   final List<String> listColumns;
   final List<String> formFields;
+  final List<DocTypeMigration> migrations;
 
   const DocTypeDefinition(
       {required this.name,
@@ -208,12 +209,32 @@ class DocTypeDefinition {
       required this.permissions,
       required this.fields,
       required this.listColumns,
-      required this.formFields});
+      required this.formFields,
+      this.migrations = const []});
 
   factory DocTypeDefinition.fromJson(Map<String, dynamic> json) {
     final fields = requireList(json, 'fields')
         .map((field) => FieldDefinition.fromJson(requireMap(field, 'fields[]')))
         .toList();
+    final rawMigrations = json['migrations'];
+    final migrations = rawMigrations == null
+        ? const <DocTypeMigration>[]
+        : requireList(json, 'migrations')
+            .map((migration) => DocTypeMigration.fromJson(
+                  requireMap(migration, 'migrations[]'),
+                ))
+            .toList(growable: false);
+    if (migrations.length > 128 ||
+        migrations.map((migration) => migration.fromVersion).toSet().length !=
+            migrations.length ||
+        migrations.asMap().entries.any((entry) =>
+            entry.key > 0 &&
+            migrations[entry.key - 1].fromVersion >= entry.value.fromVersion)) {
+      throw const ContractError(
+        'INVALID_MIGRATION',
+        'Migrations must be unique, ordered, and bounded.',
+      );
+    }
     if (fields.isEmpty ||
         fields.map((field) => field.name).toSet().length != fields.length) {
       throw const ContractError(
@@ -293,7 +314,8 @@ class DocTypeDefinition {
         permissions: Map.unmodifiable(permissions),
         fields: List.unmodifiable(fields),
         listColumns: List.unmodifiable(listColumns),
-        formFields: List.unmodifiable(formFields));
+        formFields: List.unmodifiable(formFields),
+        migrations: List.unmodifiable(migrations));
   }
 
   List<String> validatePayload(Map<String, dynamic> payload) {
@@ -308,6 +330,304 @@ class DocTypeDefinition {
     }
     return issues;
   }
+}
+
+/// A non-executable, bounded schema migration supported by both SQLite and
+/// PostgreSQL. Migrations can only rename a field or populate a constant
+/// scalar default; they cannot run code, SQL, or delete data.
+class DocTypeMigration {
+  const DocTypeMigration({
+    required this.fromVersion,
+    required this.toVersion,
+    required this.steps,
+  });
+
+  final int fromVersion;
+  final int toVersion;
+  final List<DocTypeMigrationStep> steps;
+
+  factory DocTypeMigration.fromJson(Map<String, dynamic> json) {
+    if (json.keys.toSet().difference(
+      const {'fromVersion', 'toVersion', 'steps'},
+    ).isNotEmpty) {
+      throw const ContractError('INVALID_MIGRATION', 'Unknown migration key.');
+    }
+    final fromVersion = requireInt(json, 'fromVersion', min: 1);
+    final toVersion = requireInt(json, 'toVersion', min: 2);
+    if (toVersion != fromVersion + 1) {
+      throw const ContractError(
+        'INVALID_MIGRATION',
+        'A migration must advance exactly one schema version.',
+      );
+    }
+    final rawSteps = requireList(json, 'steps');
+    if (rawSteps.length > 32) {
+      throw const ContractError(
+        'INVALID_MIGRATION',
+        'A schema migration may contain at most 32 operations.',
+      );
+    }
+    return DocTypeMigration(
+      fromVersion: fromVersion,
+      toVersion: toVersion,
+      steps: List.unmodifiable(rawSteps.map(
+          (raw) => DocTypeMigrationStep.fromJson(requireMap(raw, 'steps[]')))),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'fromVersion': fromVersion,
+        'toVersion': toVersion,
+        'steps': steps.map((step) => step.toJson()).toList(growable: false),
+      };
+}
+
+class DocTypeMigrationStep {
+  const DocTypeMigrationStep.rename({required this.from, required this.to})
+      : operation = 'renameField',
+        field = null,
+        value = null;
+
+  const DocTypeMigrationStep.setDefault(
+      {required this.field, required this.value})
+      : operation = 'setDefault',
+        from = null,
+        to = null;
+
+  final String operation;
+  final String? from;
+  final String? to;
+  final String? field;
+  final Object? value;
+
+  factory DocTypeMigrationStep.fromJson(Map<String, dynamic> json) {
+    final operation = requireString(json, 'op');
+    if (operation == 'renameField') {
+      if (json.keys.toSet().difference(const {'op', 'from', 'to'}).isNotEmpty) {
+        throw const ContractError('INVALID_MIGRATION', 'Unknown rename key.');
+      }
+      final from = requireString(json, 'from');
+      final to = requireString(json, 'to');
+      if (!_fieldIdentifier.hasMatch(from) ||
+          !_fieldIdentifier.hasMatch(to) ||
+          from == to) {
+        throw const ContractError('INVALID_MIGRATION', 'Invalid field rename.');
+      }
+      return DocTypeMigrationStep.rename(from: from, to: to);
+    }
+    if (operation == 'setDefault') {
+      if (json.keys
+          .toSet()
+          .difference(const {'op', 'field', 'value'}).isNotEmpty) {
+        throw const ContractError('INVALID_MIGRATION', 'Unknown default key.');
+      }
+      final field = requireString(json, 'field');
+      final value = json['value'];
+      if (!_fieldIdentifier.hasMatch(field) ||
+          value == null ||
+          value is List ||
+          value is Map ||
+          (value is num && !value.isFinite) ||
+          !(value is String || value is num || value is bool)) {
+        throw const ContractError(
+          'INVALID_MIGRATION',
+          'A field default must be a non-null JSON scalar.',
+        );
+      }
+      return DocTypeMigrationStep.setDefault(field: field, value: value);
+    }
+    throw const ContractError(
+        'INVALID_MIGRATION', 'Unsupported migration operation.');
+  }
+
+  Map<String, dynamic> toJson() => switch (operation) {
+        'renameField' => {'op': operation, 'from': from, 'to': to},
+        'setDefault' => {'op': operation, 'field': field, 'value': value},
+        _ => throw StateError('Unsupported migration operation: $operation'),
+      };
+}
+
+final RegExp _fieldIdentifier = RegExp(r'^[a-z][a-z0-9_]{0,79}$');
+
+/// Checks that an upgrade preserves all existing values and that any newly
+/// required field can be populated by the trusted migration DSL.
+void validateDocTypeUpgrade(
+  DocTypeDefinition previous,
+  DocTypeDefinition next,
+) {
+  final path = <DocTypeMigration>[];
+  final migrationsByFrom = {
+    for (final migration in next.migrations) migration.fromVersion: migration,
+  };
+  var cursor = previous.schemaVersion;
+  while (cursor < next.schemaVersion && migrationsByFrom.containsKey(cursor)) {
+    final migration = migrationsByFrom[cursor]!;
+    path.add(migration);
+    cursor = migration.toVersion;
+  }
+  if (cursor != previous.schemaVersion && cursor != next.schemaVersion) {
+    throw const ContractError(
+      'INVALID_MIGRATION_CHAIN',
+      'Schema migrations must form a consecutive path from the installed version.',
+    );
+  }
+  if (path.isNotEmpty && cursor != next.schemaVersion) {
+    throw const ContractError(
+      'INVALID_MIGRATION_CHAIN',
+      'Schema migrations do not reach the new schema version.',
+    );
+  }
+
+  final names = previous.fields.map((field) => field.name).toSet();
+  final renamed = <String, String>{
+    for (final field in previous.fields) field.name: field.name
+  };
+  final defaults = <String, Object>{};
+  for (final migration in path) {
+    for (final step in migration.steps) {
+      if (step.operation == 'renameField') {
+        final source = step.from!;
+        final destination = step.to!;
+        if (!names.contains(source) || names.contains(destination)) {
+          throw ContractError(
+            'INVALID_MIGRATION',
+            'Cannot safely rename $source to $destination in schema version ${migration.fromVersion}.',
+          );
+        }
+        names.remove(source);
+        names.add(destination);
+        for (final original in renamed.keys.toList()) {
+          if (renamed[original] == source) renamed[original] = destination;
+        }
+      } else {
+        final field = step.field!;
+        if (!next.fields.any((definition) => definition.name == field)) {
+          throw ContractError(
+            'INVALID_MIGRATION',
+            'Default target $field is absent from the new schema.',
+          );
+        }
+        defaults[field] = step.value!;
+      }
+    }
+  }
+
+  final nextByName = {for (final field in next.fields) field.name: field};
+  final oldByName = {for (final field in previous.fields) field.name: field};
+  for (final old in previous.fields) {
+    final targetName = renamed[old.name]!;
+    final updated = nextByName[targetName];
+    if (updated == null) {
+      throw ContractError(
+        'DESTRUCTIVE_SCHEMA_CHANGE',
+        'Removing ${old.name} requires a supported rename migration.',
+      );
+    }
+    if (updated.type != old.type || updated.referenceTo != old.referenceTo) {
+      throw ContractError(
+        'DESTRUCTIVE_SCHEMA_CHANGE',
+        'Changing the type or relation of ${old.name} requires a data conversion that is not supported.',
+      );
+    }
+    if (!_constraintsWidened(old, updated)) {
+      throw ContractError(
+        'DESTRUCTIVE_SCHEMA_CHANGE',
+        'Tightening constraints for ${old.name} could invalidate saved values.',
+      );
+    }
+    if (!old.required &&
+        updated.required &&
+        !defaults.containsKey(targetName)) {
+      throw ContractError(
+        'DESTRUCTIVE_SCHEMA_CHANGE',
+        'Making ${targetName} required needs a validated setDefault migration.',
+      );
+    }
+  }
+  for (final field in next.fields) {
+    if (!names.contains(field.name) &&
+        field.required &&
+        !defaults.containsKey(field.name)) {
+      throw ContractError(
+        'DESTRUCTIVE_SCHEMA_CHANGE',
+        'New required field ${field.name} needs a validated setDefault migration.',
+      );
+    }
+    final defaultValue = defaults[field.name];
+    if (defaultValue != null && field.validate(defaultValue) != null) {
+      throw ContractError(
+        'INVALID_MIGRATION',
+        'Default value does not satisfy field ${field.name}.',
+      );
+    }
+  }
+  // Prevent accidental schema-field replacement after a rename.
+  if (nextByName.keys.toSet().difference(names).any(oldByName.containsKey)) {
+    throw const ContractError(
+        'INVALID_MIGRATION', 'Invalid field rename path.');
+  }
+}
+
+Map<String, dynamic> applyDocTypeMigrations(
+  Map<String, dynamic> values,
+  List<DocTypeMigration> migrations, {
+  required int fromVersion,
+  required int toVersion,
+}) {
+  if (fromVersion > toVersion) {
+    throw const ContractError(
+      'SCHEMA_VERSION_DOWNGRADE',
+      'Saved records cannot use a schema newer than the package definition.',
+    );
+  }
+  final current = Map<String, dynamic>.from(values);
+  final path = migrations
+      .where((migration) =>
+          migration.fromVersion >= fromVersion &&
+          migration.toVersion <= toVersion)
+      .toList()
+    ..sort((left, right) => left.fromVersion.compareTo(right.fromVersion));
+  var cursor = fromVersion;
+  for (final migration in path) {
+    if (migration.fromVersion != cursor) {
+      throw const ContractError(
+          'INVALID_MIGRATION_CHAIN', 'Migration path has a gap.');
+    }
+    for (final step in migration.steps) {
+      if (step.operation == 'renameField') {
+        if (current.containsKey(step.to) && current.containsKey(step.from)) {
+          throw ContractError(
+            'MIGRATION_CONFLICT',
+            'Record contains both ${step.from} and ${step.to}.',
+          );
+        }
+        if (current.containsKey(step.from)) {
+          current[step.to!] = current.remove(step.from);
+        }
+      } else if (!current.containsKey(step.field) ||
+          current[step.field] == null) {
+        current[step.field!] = step.value;
+      }
+    }
+    cursor = migration.toVersion;
+  }
+  if (path.isNotEmpty && cursor != toVersion) {
+    throw const ContractError(
+        'INVALID_MIGRATION_CHAIN', 'Migration path is incomplete.');
+  }
+  return current;
+}
+
+bool _constraintsWidened(FieldDefinition old, FieldDefinition updated) {
+  return (updated.minValue == null ||
+          (old.minValue != null && updated.minValue! <= old.minValue!)) &&
+      (updated.maxValue == null ||
+          (old.maxValue != null && updated.maxValue! >= old.maxValue!)) &&
+      (updated.minLength == null ||
+          (old.minLength != null && updated.minLength! <= old.minLength!)) &&
+      (updated.maxLength == null ||
+          (old.maxLength != null && updated.maxLength! >= old.maxLength!)) &&
+      updated.enumValues.toSet().containsAll(old.enumValues);
 }
 
 class DocTypeRegistry {

@@ -82,7 +82,7 @@ BEGIN
   END LOOP;
   IF (SELECT count(*) FROM pg_catalog.pg_policy pol JOIN pg_catalog.pg_class pc ON pc.oid = pol.polrelid
       JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace WHERE pn.nspname = 'public'
-      AND pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox')) <> 10 THEN
+      AND pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox')) <> 12 THEN
     RAISE EXCEPTION 'Unexpected row security policy set';
   END IF;
 END $fn$;

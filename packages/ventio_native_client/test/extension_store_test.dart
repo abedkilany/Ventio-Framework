@@ -564,6 +564,15 @@ void main() {
         updatedType['schemaVersion'] = 2;
         final updatedFields = (updatedType['fields'] as List)
             .cast<Map<String, dynamic>>();
+        final nameField = updatedFields.singleWhere(
+          (field) => field['name'] == 'name',
+        );
+        updatedFields[updatedFields.indexOf(nameField)] = {
+          ...nameField,
+          'name': 'title',
+          'label': 'Title',
+          'labelKey': 'extension.com_example_asset_register.asset.title',
+        };
         updatedFields.add({
           'name': 'serialNumber',
           'type': 'text',
@@ -573,9 +582,24 @@ void main() {
               'extension.com_example_asset_register.asset.serial_number',
           'maxLength': 80,
         });
+        updatedType['migrations'] = [
+          {
+            'fromVersion': 1,
+            'toVersion': 2,
+            'steps': [
+              {'op': 'renameField', 'from': 'name', 'to': 'title'},
+            ],
+          },
+        ];
         final ui = updatedType['ui'] as Map<String, dynamic>;
-        ui['listColumns'] = ['name', 'serialNumber'];
-        ui['formFields'] = ['name', 'serialNumber'];
+        ui['listColumns'] = ['title', 'serialNumber'];
+        ui['formFields'] = ['title', 'serialNumber'];
+        (updateJson['englishCatalog']
+                as Map<
+                  String,
+                  dynamic
+                >)['extension.com_example_asset_register.asset.title'] =
+            'Title';
         (updateJson['englishCatalog']
                 as Map<
                   String,
@@ -603,7 +627,7 @@ void main() {
           recordId: 'asset-package-1',
           scope: _scope,
         );
-        expect(preserved!.values, {'name': 'Workshop press'});
+        expect(preserved!.values, {'title': 'Workshop press'});
         expect(preserved.schemaVersion, 2);
         expect((await target.getExtension(_moduleId))!.version, '0.2.0');
       } finally {
@@ -1376,6 +1400,114 @@ void main() {
       expect(await store.countRecords(_moduleId), 1);
     },
   );
+
+  test(
+    'Reviewed rename and default migrations transform saved records',
+    () async {
+      await createActiveExtension(docType: _docType());
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: {'name': 'Workshop press'},
+        recordId: 'asset-migrated',
+      );
+      await store.applyHostRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        recordId: 'asset-host-migrated',
+        revision: 5,
+        values: const {'name': 'Host press'},
+        updatedAtUtc: DateTime.utc(2026, 10, 24),
+      );
+
+      final next =
+          _docType(
+              schemaVersion: 2,
+              fields: [
+                _textField(name: 'title'),
+                _textField(name: 'category'),
+              ],
+            )
+            ..['migrations'] = [
+              {
+                'fromVersion': 1,
+                'toVersion': 2,
+                'steps': [
+                  {'op': 'renameField', 'from': 'name', 'to': 'title'},
+                  {'op': 'setDefault', 'field': 'category', 'value': 'General'},
+                ],
+              },
+            ];
+
+      await store.saveDocType(next);
+      final saved = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: 'asset-migrated',
+        scope: _scope,
+      ))!;
+      expect(saved.values, {'title': 'Workshop press', 'category': 'General'});
+      expect(saved.schemaVersion, 2);
+      expect(saved.revision, 2);
+      final hostCopy = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: 'asset-host-migrated',
+        scope: _scope,
+      ))!;
+      expect(hostCopy.values, {'title': 'Host press', 'category': 'General'});
+      expect(hostCopy.authorityState, 'CONFLICT');
+      expect(hostCopy.hostRevision, 5);
+      expect(hostCopy.conflictValues, isNull);
+    },
+  );
+
+  test('Data migrations wait for unresolved Host commands', () async {
+    await createActiveExtension(docType: _docType());
+    final record = await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: {'name': 'Workshop press'},
+      recordId: 'asset-pending-migration',
+    );
+    await store.markRecordPending(
+      recordId: record.recordId,
+      scope: _scope,
+      commandId: 'cmd-pending-migration',
+    );
+    final next = _docType(schemaVersion: 2, fields: [_textField(name: 'title')])
+      ..['migrations'] = [
+        {
+          'fromVersion': 1,
+          'toVersion': 2,
+          'steps': [
+            {'op': 'renameField', 'from': 'name', 'to': 'title'},
+          ],
+        },
+      ];
+
+    await expectLater(
+      store.saveDocType(next),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'MIGRATION_PENDING_COMMANDS',
+        ),
+      ),
+    );
+    final unchanged = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: record.recordId,
+      scope: _scope,
+    ))!;
+    expect(unchanged.values, {'name': 'Workshop press'});
+    expect(unchanged.schemaVersion, 1);
+  });
 
   test(
     'Numeric validation and schema upgrades preserve saved records',

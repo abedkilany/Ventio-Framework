@@ -629,6 +629,105 @@ void main() {
     },
   );
 
+  testWidgets('DocType Builder authors a validated migration step', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.migration_editor';
+    final metadata = <String, dynamic>{
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'label': 'Name',
+          'labelKey': 'extension.com_example_migration_editor.asset.name',
+          'maxLength': 80,
+        },
+      ],
+      'permissions': {
+        'read': 'extension.com_example_migration_editor.asset.read',
+        'create': 'extension.com_example_migration_editor.asset.create',
+        'update': 'extension.com_example_migration_editor.asset.update',
+      },
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name'],
+      },
+      'label': 'Asset',
+      'labelKey': 'extension.com_example_migration_editor.asset.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Migration Editor',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DocTypeBuilderPage(
+          store: store,
+          moduleId: moduleId,
+          existing: metadata,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> reveal(Finder target) async {
+      final list = find.byType(ListView).first;
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final bounds = tester.getRect(target);
+        if (bounds.top >= 0 && bounds.bottom <= 800) return;
+        await tester.drag(list, Offset(0, bounds.center.dy > 800 ? -500 : 500));
+        await tester.pumpAndSettle();
+      }
+    }
+
+    await tester.scrollUntilVisible(
+      find.text('Add default'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await reveal(find.text('Add default'));
+    expect(find.text('Data migration'), findsOneWidget);
+
+    await tester.tap(find.text('Add default'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '"Unspecified"');
+    await tester.tap(find.text('Add step'));
+    await tester.pumpAndSettle();
+    expect(find.text('Default name to "Unspecified"'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Save DocType'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await reveal(find.text('Save DocType'));
+    await tester.tap(find.text('Save DocType'));
+    await tester.pumpAndSettle();
+    final saved = await store.getDocType(moduleId, 'Asset');
+    expect(saved?['schemaVersion'], 2);
+    expect(saved?['migrations'], [
+      {
+        'fromVersion': 1,
+        'toVersion': 2,
+        'steps': [
+          {'op': 'setDefault', 'field': 'name', 'value': 'Unspecified'},
+        ],
+      },
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Conflict review seeds a merge from the selected Host values', (
     tester,
   ) async {
