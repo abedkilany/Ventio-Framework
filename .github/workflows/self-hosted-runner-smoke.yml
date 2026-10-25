@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Verify runner identity and platform
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:RUNNER_NAME -ne 'Ventio-Windows-Runner') { throw "Unexpected runner name: $env:RUNNER_NAME" }
