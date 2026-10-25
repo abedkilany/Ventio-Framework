@@ -8,6 +8,7 @@ import 'authentication.dart';
 import 'host_api.dart';
 import 'identity_store.dart';
 import 'extension_records.dart';
+import 'postgres_connections.dart';
 import 'recovery_authority.dart';
 
 /// Refuses owners, superusers, bypass roles, extra memberships and excess ACLs.
@@ -24,31 +25,34 @@ Future<void> _configure(pg.Connection connection) async {
 /// Resolves an opaque token from PostgreSQL on EVERY HTTP request. There is no
 /// in-memory permission cache or development-identity fallback on DB failure.
 class PersistentTokenAuthenticator implements PersistentHostAuthenticator {
-  final Future<pg.Connection> Function() connect;
+  final Future<pg.Connection> Function()? connect;
+  final pg.Pool<dynamic>? pool;
   final RecoveryAuthority? admission;
-  const PersistentTokenAuthenticator({required this.connect, this.admission});
+  const PersistentTokenAuthenticator({this.connect, this.pool, this.admission})
+    : assert((connect == null) != (pool == null));
 
   @override
   Future<AuthenticatedSession?> authenticate(String token) async {
     if (!OpaqueToken.isValid(token)) return null;
     final digest = OpaqueToken.digest(token);
-    final connection = await connect();
-    try {
-      await _configure(connection);
-      final principal = await connection.runTx(
-        (tx) async {
-          await admission?.admit(tx);
-          return const PostgresIdentityStore().resolve(tx, digest);
-        },
-        settings: pg.TransactionSettings(
-          isolationLevel: pg.IsolationLevel.readCommitted,
-        ),
-      );
-      if (principal == null) return null;
-      return AuthenticatedSession.persistent(principal, digest);
-    } finally {
-      await connection.close();
-    }
+    return withPostgresConnection(
+      connect: connect,
+      pool: pool,
+      action: (connection) async {
+        await _configure(connection);
+        final principal = await connection.runTx(
+          (tx) async {
+            await admission?.admit(tx);
+            return const PostgresIdentityStore().resolve(tx, digest);
+          },
+          settings: pg.TransactionSettings(
+            isolationLevel: pg.IsolationLevel.readCommitted,
+          ),
+        );
+        if (principal == null) return null;
+        return AuthenticatedSession.persistent(principal, digest);
+      },
+    );
   }
 }
 
@@ -56,19 +60,22 @@ class PersistentTokenAuthenticator implements PersistentHostAuthenticator {
 /// transaction, before journal access. This closes the authentication-to-command
 /// race and applies equally to fresh commands and accepted-receipt retries.
 class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
-  final Future<pg.Connection> Function() connect;
+  final Future<pg.Connection> Function()? connect;
+  final pg.Pool<dynamic>? pool;
   final ModuleRegistry modules;
   final DocTypeRegistry docTypes;
   final List<TrustedCommandBinding> bindings;
   final RecoveryAuthority? admission;
 
   PersistentCommandExecutor({
-    required this.connect,
+    this.connect,
+    this.pool,
     required this.modules,
     required this.docTypes,
     this.admission,
     required Iterable<TrustedCommandBinding> bindings,
-  }) : bindings = List.unmodifiable(bindings);
+  }) : bindings = List.unmodifiable(bindings),
+       assert((connect == null) != (pool == null));
 
   @override
   Future<Map<String, dynamic>> execute(
@@ -83,50 +90,53 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
         reasonCode: 'AUTHENTICATION_REQUIRED',
       ).toJson();
     }
-    final connection = await connect();
-    try {
-      await _configure(connection);
-      final host = DurableCommandHost(
-        connection: connection,
-        modules: modules,
-        docTypes: docTypes,
-      );
-      for (final binding in bindings) {
-        host.registerTrustedCreateBinding(binding);
-      }
-      ExtensionBundleAuthorization? resolvedBundle;
-      return await host.executeAuthorized(
-        command,
-        (tx) async {
-          await admission?.admit(tx);
-          if (command.type == ExtensionRecordCommand.createType ||
-              command.type == ExtensionRecordCommand.updateType) {
-            final resolved = await const PostgresIdentityStore()
-                .resolveExtensionCommand(tx, digest, command);
-            if (resolved == null) return null;
-            resolvedBundle = resolved.bundle != null
-                ? ExtensionBundleAuthorization.approved(
-                    resolved.bundle!,
-                    failureReasonCode: resolved.failureReasonCode,
-                  )
-                : ExtensionBundleAuthorization.denied(
-                    resolved.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
-                  );
-            return resolved.principal;
-          }
-          return const PostgresIdentityStore().resolve(
-            tx,
-            digest,
-            command: command,
-          );
-        },
-        resolveExtensionBundle: (_, __) async =>
-            resolvedBundle ??
-            const ExtensionBundleAuthorization.denied('EXTENSION_NOT_APPROVED'),
-      );
-    } finally {
-      await connection.close();
-    }
+    return withPostgresConnection(
+      connect: connect,
+      pool: pool,
+      action: (connection) async {
+        await _configure(connection);
+        final host = DurableCommandHost(
+          connection: connection,
+          modules: modules,
+          docTypes: docTypes,
+        );
+        for (final binding in bindings) {
+          host.registerTrustedCreateBinding(binding);
+        }
+        ExtensionBundleAuthorization? resolvedBundle;
+        return host.executeAuthorized(
+          command,
+          (tx) async {
+            await admission?.admit(tx);
+            if (command.type == ExtensionRecordCommand.createType ||
+                command.type == ExtensionRecordCommand.updateType) {
+              final resolved = await const PostgresIdentityStore()
+                  .resolveExtensionCommand(tx, digest, command);
+              if (resolved == null) return null;
+              resolvedBundle = resolved.bundle != null
+                  ? ExtensionBundleAuthorization.approved(
+                      resolved.bundle!,
+                      failureReasonCode: resolved.failureReasonCode,
+                    )
+                  : ExtensionBundleAuthorization.denied(
+                      resolved.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
+                    );
+              return resolved.principal;
+            }
+            return const PostgresIdentityStore().resolve(
+              tx,
+              digest,
+              command: command,
+            );
+          },
+          resolveExtensionBundle: (_, __) async =>
+              resolvedBundle ??
+              const ExtensionBundleAuthorization.denied(
+                'EXTENSION_NOT_APPROVED',
+              ),
+        );
+      },
+    );
   }
 }
 
@@ -136,11 +146,13 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
 class PostgresExtensionRecordQueryGateway
     implements AuthoritativeExtensionRecordQueryGateway {
   const PostgresExtensionRecordQueryGateway({
-    required this.connect,
+    this.connect,
+    this.pool,
     this.admission,
-  });
+  }) : assert((connect == null) != (pool == null));
 
-  final Future<pg.Connection> Function() connect;
+  final Future<pg.Connection> Function()? connect;
+  final pg.Pool<dynamic>? pool;
   final RecoveryAuthority? admission;
 
   @override
@@ -177,185 +189,188 @@ class PostgresExtensionRecordQueryGateway
         filters.length > 10) {
       throw const FormatException('Invalid dynamic record query bounds.');
     }
-    final connection = await connect();
-    try {
-      await _configure(connection);
-      return await connection.runTx(
-        (tx) async {
-          await admission?.admit(tx);
-          final resolved = await const PostgresIdentityStore()
-              .resolveExtensionRead(
-                tx,
-                digest,
-                companyId: companyId,
-                branchId: branchId,
-                moduleId: moduleId,
-                version: version,
-                docType: docType,
-              );
-          if (resolved == null) {
-            return const {
-              'status': 'REJECTED',
-              'reasonCode': 'AUTHENTICATION_REQUIRED',
-            };
-          }
-          final bundle = resolved.bundle;
-          if (bundle == null) {
-            return {
-              'status': 'REJECTED',
-              'reasonCode':
-                  resolved.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
-            };
-          }
-          final principal = resolved.principal;
-          if (!principal.withinScope(
-            tenantId: principal.tenantId,
-            companyId: companyId,
-            branchId: branchId,
-            actorId: principal.actorId,
-            deviceId: principal.deviceId,
-          )) {
-            return const {'status': 'REJECTED', 'reasonCode': 'SCOPE_DENIED'};
-          }
-          final matches = bundle.docTypes.where(
-            (definition) =>
-                definition.moduleId == moduleId && definition.name == docType,
-          );
-          if (matches.length != 1) {
-            return const {
-              'status': 'REJECTED',
-              'reasonCode': 'EXTENSION_NOT_APPROVED',
-            };
-          }
-          final definition = matches.single;
-          final permission = definition.permissions['read'];
-          if (!definition.operations.contains('read') ||
-              permission == null ||
-              !principal.allowsInScope(permission, companyId, branchId)) {
-            return const {
-              'status': 'REJECTED',
-              'reasonCode': 'PERMISSION_DENIED',
-            };
-          }
-          bool allowsFieldPermission(String? fieldPermission) =>
-              fieldPermission == null ||
-              principal.allowsInScope(fieldPermission, companyId, branchId);
-          final readableFields = definition.fields
-              .where((field) => allowsFieldPermission(field.readPermission))
-              .map((field) => field.name)
-              .toSet();
-          final updatePermission = definition.permissions['update'];
-          final canUpdateDocType =
-              definition.operations.contains('update') &&
-              updatePermission != null &&
-              principal.allowsInScope(updatePermission, companyId, branchId);
-          final createPermission = definition.permissions['create'];
-          final canCreateDocType =
-              definition.operations.contains('create') &&
-              createPermission != null &&
-              principal.allowsInScope(createPermission, companyId, branchId);
-          final writableFields = definition.fields
-              .where(
-                (field) =>
-                    canUpdateDocType &&
-                    allowsFieldPermission(field.writePermission),
-              )
-              .map((field) => field.name)
-              .toSet();
-          final creatableFields = definition.fields
-              .where(
-                (field) =>
-                    canCreateDocType &&
-                    allowsFieldPermission(field.writePermission),
-              )
-              .map((field) => field.name)
-              .toSet();
-          final fieldNames = definition.fields
-              .map((field) => field.name)
-              .toSet();
-          if (filters.keys.any((field) => !fieldNames.contains(field)) ||
-              (filterField != null && !fieldNames.contains(filterField)) ||
-              (sortField != null && !fieldNames.contains(sortField)) ||
-              filters.values.any(
-                (value) =>
-                    value is Map ||
-                    value is List ||
-                    (value is String && value.length > 256),
-              )) {
-            throw const FormatException(
-              'Filter and sort fields must belong to the approved DocType.',
+    return withPostgresConnection(
+      connect: connect,
+      pool: pool,
+      action: (connection) async {
+        await _configure(connection);
+        return await connection.runTx(
+          (tx) async {
+            await admission?.admit(tx);
+            final resolved = await const PostgresIdentityStore()
+                .resolveExtensionRead(
+                  tx,
+                  digest,
+                  companyId: companyId,
+                  branchId: branchId,
+                  moduleId: moduleId,
+                  version: version,
+                  docType: docType,
+                );
+            if (resolved == null) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'AUTHENTICATION_REQUIRED',
+              };
+            }
+            final bundle = resolved.bundle;
+            if (bundle == null) {
+              return {
+                'status': 'REJECTED',
+                'reasonCode':
+                    resolved.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
+              };
+            }
+            final principal = resolved.principal;
+            if (!principal.withinScope(
+              tenantId: principal.tenantId,
+              companyId: companyId,
+              branchId: branchId,
+              actorId: principal.actorId,
+              deviceId: principal.deviceId,
+            )) {
+              return const {'status': 'REJECTED', 'reasonCode': 'SCOPE_DENIED'};
+            }
+            final matches = bundle.docTypes.where(
+              (definition) =>
+                  definition.moduleId == moduleId && definition.name == docType,
             );
-          }
-          if (filters.keys.any((field) => !readableFields.contains(field)) ||
-              (filterField != null && !readableFields.contains(filterField)) ||
-              (sortField != null && !readableFields.contains(sortField))) {
-            return const {
-              'status': 'REJECTED',
-              'reasonCode': 'PERMISSION_DENIED',
-            };
-          }
-          final parameters = <String, Object?>{
-            'tenant': principal.tenantId,
-            'company': companyId,
-            'branch': branchId,
-            'module': moduleId,
-            'doctype': docType,
-            'sortField': sortField ?? '',
-            'descending': descending,
-            'offset': offset,
-            'limit': limit + 1,
-          };
-          final conditions = <String>[];
-          if (recordId != null) {
-            parameters['recordId'] = recordId;
-            conditions.add('record_id = @recordId');
-          }
-          final readableDefinitions = definition.fields
-              .where((field) => readableFields.contains(field.name))
-              .toList(growable: false);
-          if (search.isNotEmpty && readableDefinitions.isNotEmpty) {
-            parameters['search'] = search.toLowerCase();
-            final searchClauses = <String>[];
-            for (var index = 0; index < readableDefinitions.length; index++) {
-              final fieldName = 'searchField$index';
-              parameters[fieldName] = readableDefinitions[index].name;
-              searchClauses.add(
-                "strpos(lower(coalesce(record_data ->> @$fieldName, '')), @search) > 0",
+            if (matches.length != 1) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'EXTENSION_NOT_APPROVED',
+              };
+            }
+            final definition = matches.single;
+            final permission = definition.permissions['read'];
+            if (!definition.operations.contains('read') ||
+                permission == null ||
+                !principal.allowsInScope(permission, companyId, branchId)) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'PERMISSION_DENIED',
+              };
+            }
+            bool allowsFieldPermission(String? fieldPermission) =>
+                fieldPermission == null ||
+                principal.allowsInScope(fieldPermission, companyId, branchId);
+            final readableFields = definition.fields
+                .where((field) => allowsFieldPermission(field.readPermission))
+                .map((field) => field.name)
+                .toSet();
+            final updatePermission = definition.permissions['update'];
+            final canUpdateDocType =
+                definition.operations.contains('update') &&
+                updatePermission != null &&
+                principal.allowsInScope(updatePermission, companyId, branchId);
+            final createPermission = definition.permissions['create'];
+            final canCreateDocType =
+                definition.operations.contains('create') &&
+                createPermission != null &&
+                principal.allowsInScope(createPermission, companyId, branchId);
+            final writableFields = definition.fields
+                .where(
+                  (field) =>
+                      canUpdateDocType &&
+                      allowsFieldPermission(field.writePermission),
+                )
+                .map((field) => field.name)
+                .toSet();
+            final creatableFields = definition.fields
+                .where(
+                  (field) =>
+                      canCreateDocType &&
+                      allowsFieldPermission(field.writePermission),
+                )
+                .map((field) => field.name)
+                .toSet();
+            final fieldNames = definition.fields
+                .map((field) => field.name)
+                .toSet();
+            if (filters.keys.any((field) => !fieldNames.contains(field)) ||
+                (filterField != null && !fieldNames.contains(filterField)) ||
+                (sortField != null && !fieldNames.contains(sortField)) ||
+                filters.values.any(
+                  (value) =>
+                      value is Map ||
+                      value is List ||
+                      (value is String && value.length > 256),
+                )) {
+              throw const FormatException(
+                'Filter and sort fields must belong to the approved DocType.',
               );
             }
-            conditions.add('(${searchClauses.join(' OR ')})');
-          } else if (search.isNotEmpty) {
-            conditions.add('false');
-          }
-          if (filterContains.isNotEmpty && filterField != null) {
-            parameters['filterContainsField'] = filterField;
-            parameters['filterContains'] = filterContains.toLowerCase();
-            conditions.add(
-              "strpos(lower(coalesce(record_data ->> @filterContainsField, '')), @filterContains) > 0",
-            );
-          }
-          final sortedFilters = filters.keys.toList()..sort();
-          for (var index = 0; index < sortedFilters.length; index++) {
-            final fieldName = 'filterField$index';
-            final valueName = 'filterValue$index';
-            parameters[fieldName] = sortedFilters[index];
-            parameters[valueName] = canonicalJson(
-              filters[sortedFilters[index]],
-            );
-            conditions.add(
-              'record_data @> jsonb_build_object('
-              'CAST(@$fieldName AS text), CAST(@$valueName AS jsonb))',
-            );
-          }
-          final clause = conditions.isEmpty
-              ? ''
-              : 'AND ${conditions.join(' AND ')}';
-          // Bound serialized page bytes in PostgreSQL before transferring the
-          // values to the Host process. The final HTTP limit remains a second
-          // line of defense against JSON encoding overhead.
-          parameters['maxRecordBytes'] = 512 * 1024;
-          final rows = await tx.execute(
-            pg.Sql.named('''
+            if (filters.keys.any((field) => !readableFields.contains(field)) ||
+                (filterField != null &&
+                    !readableFields.contains(filterField)) ||
+                (sortField != null && !readableFields.contains(sortField))) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'PERMISSION_DENIED',
+              };
+            }
+            final parameters = <String, Object?>{
+              'tenant': principal.tenantId,
+              'company': companyId,
+              'branch': branchId,
+              'module': moduleId,
+              'doctype': docType,
+              'sortField': sortField ?? '',
+              'descending': descending,
+              'offset': offset,
+              'limit': limit + 1,
+            };
+            final conditions = <String>[];
+            if (recordId != null) {
+              parameters['recordId'] = recordId;
+              conditions.add('record_id = @recordId');
+            }
+            final readableDefinitions = definition.fields
+                .where((field) => readableFields.contains(field.name))
+                .toList(growable: false);
+            if (search.isNotEmpty && readableDefinitions.isNotEmpty) {
+              parameters['search'] = search.toLowerCase();
+              final searchClauses = <String>[];
+              for (var index = 0; index < readableDefinitions.length; index++) {
+                final fieldName = 'searchField$index';
+                parameters[fieldName] = readableDefinitions[index].name;
+                searchClauses.add(
+                  "strpos(lower(coalesce(record_data ->> @$fieldName, '')), @search) > 0",
+                );
+              }
+              conditions.add('(${searchClauses.join(' OR ')})');
+            } else if (search.isNotEmpty) {
+              conditions.add('false');
+            }
+            if (filterContains.isNotEmpty && filterField != null) {
+              parameters['filterContainsField'] = filterField;
+              parameters['filterContains'] = filterContains.toLowerCase();
+              conditions.add(
+                "strpos(lower(coalesce(record_data ->> @filterContainsField, '')), @filterContains) > 0",
+              );
+            }
+            final sortedFilters = filters.keys.toList()..sort();
+            for (var index = 0; index < sortedFilters.length; index++) {
+              final fieldName = 'filterField$index';
+              final valueName = 'filterValue$index';
+              parameters[fieldName] = sortedFilters[index];
+              parameters[valueName] = canonicalJson(
+                filters[sortedFilters[index]],
+              );
+              conditions.add(
+                'record_data @> jsonb_build_object('
+                'CAST(@$fieldName AS text), CAST(@$valueName AS jsonb))',
+              );
+            }
+            final clause = conditions.isEmpty
+                ? ''
+                : 'AND ${conditions.join(' AND ')}';
+            // Bound serialized page bytes in PostgreSQL before transferring the
+            // values to the Host process. The final HTTP limit remains a second
+            // line of defense against JSON encoding overhead.
+            parameters['maxRecordBytes'] = 512 * 1024;
+            final rows = await tx.execute(
+              pg.Sql.named('''
             WITH page AS (
               SELECT record_id, revision, updated_at, record_data
               FROM ventio_records
@@ -380,52 +395,53 @@ class PostgresExtensionRecordQueryGateway
                 THEN record_json ELSE NULL END AS record_json
             FROM bounded_page
           '''),
-            parameters: parameters,
-          );
-          if (rows.isNotEmpty && (rows.first[3] as int) > 512 * 1024) {
-            return const {
-              'status': 'REJECTED',
-              'reasonCode': 'RECORD_PAGE_TOO_LARGE',
+              parameters: parameters,
+            );
+            if (rows.isNotEmpty && (rows.first[3] as int) > 512 * 1024) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'RECORD_PAGE_TOO_LARGE',
+              };
+            }
+            final hasMore = rows.length > limit;
+            final records = rows
+                .take(limit)
+                .map((row) {
+                  final values = jsonDecode(row[4] as String);
+                  if (values is! Map) {
+                    throw const FormatException(
+                      'Stored record JSON is invalid.',
+                    );
+                  }
+                  return {
+                    'recordId': row[0] as String,
+                    'revision': row[1] as int,
+                    'updatedAtUtc': row[2] as String,
+                    'values': {
+                      for (final fieldName in readableFields)
+                        if (values.containsKey(fieldName))
+                          fieldName: values[fieldName],
+                    },
+                  };
+                })
+                .toList(growable: false);
+            return {
+              'status': 'RECORDS',
+              'packageSha256': sha256
+                  .convert(utf8.encode(canonicalJson(bundle.toJson())))
+                  .toString(),
+              'readableFields': readableFields.toList()..sort(),
+              'writableFields': writableFields.toList()..sort(),
+              'creatableFields': creatableFields.toList()..sort(),
+              'records': records,
+              'hasMore': hasMore,
             };
-          }
-          final hasMore = rows.length > limit;
-          final records = rows
-              .take(limit)
-              .map((row) {
-                final values = jsonDecode(row[4] as String);
-                if (values is! Map) {
-                  throw const FormatException('Stored record JSON is invalid.');
-                }
-                return {
-                  'recordId': row[0] as String,
-                  'revision': row[1] as int,
-                  'updatedAtUtc': row[2] as String,
-                  'values': {
-                    for (final fieldName in readableFields)
-                      if (values.containsKey(fieldName))
-                        fieldName: values[fieldName],
-                  },
-                };
-              })
-              .toList(growable: false);
-          return {
-            'status': 'RECORDS',
-            'packageSha256': sha256
-                .convert(utf8.encode(canonicalJson(bundle.toJson())))
-                .toString(),
-            'readableFields': readableFields.toList()..sort(),
-            'writableFields': writableFields.toList()..sort(),
-            'creatableFields': creatableFields.toList()..sort(),
-            'records': records,
-            'hasMore': hasMore,
-          };
-        },
-        settings: pg.TransactionSettings(
-          isolationLevel: pg.IsolationLevel.readCommitted,
-        ),
-      );
-    } finally {
-      await connection.close();
-    }
+          },
+          settings: pg.TransactionSettings(
+            isolationLevel: pg.IsolationLevel.readCommitted,
+          ),
+        );
+      },
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:postgres/postgres.dart' as pg;
 
 import 'authentication.dart';
+import 'postgres_connections.dart';
 import 'recovery_authority.dart';
 
 abstract interface class IdentityRoleAdministrationGateway {
@@ -30,13 +31,18 @@ abstract interface class AuthoritativeIdentityRoleAdministrationGateway
 class PostgresIdentityRoleAdministrationGateway
     implements AuthoritativeIdentityRoleAdministrationGateway {
   const PostgresIdentityRoleAdministrationGateway({
-    required this.connectRuntime,
-    required this.connectAdministration,
+    this.connectRuntime,
+    this.runtimePool,
+    this.connectAdministration,
+    this.administrationPool,
     required this.admission,
-  });
+  }) : assert((connectRuntime == null) != (runtimePool == null)),
+       assert((connectAdministration == null) != (administrationPool == null));
 
-  final Future<pg.Connection> Function() connectRuntime;
-  final Future<pg.Connection> Function() connectAdministration;
+  final Future<pg.Connection> Function()? connectRuntime;
+  final pg.Pool<dynamic>? runtimePool;
+  final Future<pg.Connection> Function()? connectAdministration;
+  final pg.Pool<dynamic>? administrationPool;
   final RecoveryAuthority admission;
 
   @override
@@ -46,45 +52,48 @@ class PostgresIdentityRoleAdministrationGateway
     required String branchId,
   }) async {
     final digest = _authorizeSnapshot(session, companyId, branchId);
-    final connection = await connectRuntime();
-    try {
-      await _configureRuntime(connection);
-      return await connection.runTx((tx) async {
-        await admission.admit(tx);
-        final rows = await tx.execute(
-          pg.Sql.named('''
+    return withPostgresConnection(
+      connect: connectRuntime,
+      pool: runtimePool,
+      action: (connection) async {
+        await _configureRuntime(connection);
+        return await connection.runTx((tx) async {
+          await admission.admit(tx);
+          final rows = await tx.execute(
+            pg.Sql.named('''
             SELECT ventio_security.identity_roles_snapshot(
               @digest,@company,@branch)::text
           '''),
-          parameters: {
-            'digest': digest,
-            'company': companyId,
-            'branch': branchId,
-          },
-        );
-        final raw = rows.single[0];
-        if (raw is! String) {
-          throw const IdentityRoleAdministrationException(
-            'PERMISSION_DENIED',
-            statusCode: 403,
+            parameters: {
+              'digest': digest,
+              'company': companyId,
+              'branch': branchId,
+            },
           );
-        }
-        final decoded = jsonDecode(raw);
-        if (decoded is! Map) {
-          throw StateError('Host returned an invalid identity-role response.');
-        }
-        final result = Map<String, dynamic>.from(decoded);
-        if (result['tenantId'] != session.principal.tenantId ||
-            result['companyId'] != companyId ||
-            result['branchId'] != branchId ||
-            result['roles'] is! List) {
-          throw StateError('Host returned an invalid identity-role scope.');
-        }
-        return result;
-      });
-    } finally {
-      await connection.close();
-    }
+          final raw = rows.single[0];
+          if (raw is! String) {
+            throw const IdentityRoleAdministrationException(
+              'PERMISSION_DENIED',
+              statusCode: 403,
+            );
+          }
+          final decoded = jsonDecode(raw);
+          if (decoded is! Map) {
+            throw StateError(
+              'Host returned an invalid identity-role response.',
+            );
+          }
+          final result = Map<String, dynamic>.from(decoded);
+          if (result['tenantId'] != session.principal.tenantId ||
+              result['companyId'] != companyId ||
+              result['branchId'] != branchId ||
+              result['roles'] is! List) {
+            throw StateError('Host returned an invalid identity-role scope.');
+          }
+          return result;
+        });
+      },
+    );
   }
 
   @override
@@ -95,65 +104,68 @@ class PostgresIdentityRoleAdministrationGateway
     required Map<String, Object?> change,
   }) async {
     final digest = _authorizeSnapshot(session, companyId, branchId);
-    final connection = await connectAdministration();
-    try {
-      await verifyIdentityAdministrationConnection(connection);
-      await connection.execute("SET statement_timeout = '15s'");
-      await connection.execute("SET lock_timeout = '5s'");
-      await admission.change(connection, (tx) async {
-        await tx.execute(
-          pg.Sql.named('''
+    return withPostgresConnection(
+      connect: connectAdministration,
+      pool: administrationPool,
+      action: (connection) async {
+        try {
+          await verifyIdentityAdministrationConnection(connection);
+          await connection.execute("SET statement_timeout = '15s'");
+          await connection.execute("SET lock_timeout = '5s'");
+          await admission.change(connection, (tx) async {
+            await tx.execute(
+              pg.Sql.named('''
             SELECT ventio_security.scoped_admin_change(
               @digest,@company,@branch,CAST(@change AS jsonb))
           '''),
-          parameters: {
-            'digest': digest,
-            'company': companyId,
-            'branch': branchId,
-            'change': jsonEncode(change),
-          },
-        );
-      }, requireAdmissionProof: true);
-    } on pg.ServerException catch (error) {
-      switch (error.code) {
-        case '42501':
-          throw const IdentityRoleAdministrationException(
-            'PERMISSION_DENIED',
-            statusCode: 403,
-          );
-        case 'P0002':
-          throw const IdentityRoleAdministrationException(
-            'ROLE_NOT_FOUND',
-            statusCode: 404,
-          );
-        case '23505':
-          throw const IdentityRoleAdministrationException(
-            'ROLE_ALREADY_EXISTS',
-            statusCode: 409,
-          );
-        case '23503':
-          throw const IdentityRoleAdministrationException(
-            'ROLE_HAS_ASSIGNMENTS',
-            statusCode: 409,
-          );
-        case 'P0001':
-          throw const IdentityRoleAdministrationException(
-            'ROLE_CHANGE_REJECTED',
-            statusCode: 409,
-          );
-        case '22023':
-        case '23514':
-        case '54000':
-          throw const IdentityRoleAdministrationException(
-            'INVALID_ROLE_CHANGE',
-            statusCode: 422,
-          );
-        default:
-          rethrow;
-      }
-    } finally {
-      await connection.close();
-    }
+              parameters: {
+                'digest': digest,
+                'company': companyId,
+                'branch': branchId,
+                'change': jsonEncode(change),
+              },
+            );
+          }, requireAdmissionProof: true);
+        } on pg.ServerException catch (error) {
+          switch (error.code) {
+            case '42501':
+              throw const IdentityRoleAdministrationException(
+                'PERMISSION_DENIED',
+                statusCode: 403,
+              );
+            case 'P0002':
+              throw const IdentityRoleAdministrationException(
+                'ROLE_NOT_FOUND',
+                statusCode: 404,
+              );
+            case '23505':
+              throw const IdentityRoleAdministrationException(
+                'ROLE_ALREADY_EXISTS',
+                statusCode: 409,
+              );
+            case '23503':
+              throw const IdentityRoleAdministrationException(
+                'ROLE_HAS_ASSIGNMENTS',
+                statusCode: 409,
+              );
+            case 'P0001':
+              throw const IdentityRoleAdministrationException(
+                'ROLE_CHANGE_REJECTED',
+                statusCode: 409,
+              );
+            case '22023':
+            case '23514':
+            case '54000':
+              throw const IdentityRoleAdministrationException(
+                'INVALID_ROLE_CHANGE',
+                statusCode: 422,
+              );
+            default:
+              rethrow;
+          }
+        }
+      },
+    );
   }
 }
 

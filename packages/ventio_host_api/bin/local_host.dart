@@ -13,7 +13,9 @@ Future<void> main() async {
     exitCode = 2;
     return;
   }
-  HostApi api;
+  HostApi? api;
+  pg.Pool<dynamic>? runtimePool;
+  pg.Pool<dynamic>? identityAdminPool;
   try {
     final url = Platform.environment['VENTIO_HOST_DATABASE_URL'];
     if (url == null || url.isEmpty)
@@ -70,49 +72,28 @@ Future<void> main() async {
       allowHostMutations: hostWritesAuthority,
     );
     final parsed = Uri.parse(url);
-    final boundedUrl = parsed
-        .replace(
-          queryParameters: {
-            ...parsed.queryParameters,
-            'connect_timeout': '5',
-            'query_timeout': '20',
-          },
-        )
-        .toString();
-    Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
+    final boundedUrl = _poolUrl(parsed, maxConnections: 16);
+    final runtime = pg.Pool<dynamic>.withUrl(boundedUrl);
+    runtimePool = runtime;
     PostgresIdentityRoleAdministrationGateway? roleAdministration;
     if (identityAdminUrl != null && identityAdminUrl.isNotEmpty) {
       final parsedAdminUrl = Uri.parse(identityAdminUrl);
-      final boundedAdminUrl = parsedAdminUrl
-          .replace(
-            queryParameters: {
-              ...parsedAdminUrl.queryParameters,
-              'connect_timeout': '5',
-              'query_timeout': '20',
-            },
-          )
-          .toString();
-      Future<pg.Connection> connectAdministration() =>
-          pg.Connection.openFromUrl(boundedAdminUrl);
-      final adminProbe = await connectAdministration();
-      try {
-        await verifyIdentityAdministrationConnection(adminProbe);
-      } finally {
-        await adminProbe.close();
-      }
+      final boundedAdminUrl = _poolUrl(parsedAdminUrl, maxConnections: 4);
+      final administration = pg.Pool<dynamic>.withUrl(boundedAdminUrl);
+      identityAdminPool = administration;
+      await administration.withConnection(
+        verifyIdentityAdministrationConnection,
+      );
       roleAdministration = PostgresIdentityRoleAdministrationGateway(
-        connectRuntime: connect,
-        connectAdministration: connectAdministration,
+        runtimePool: runtime,
+        administrationPool: administration,
         admission: admission,
       );
     }
-    final probe = await connect();
-    try {
+    await runtime.withConnection((probe) async {
       await verifyRuntimeConnection(probe);
       await probe.runTx((tx) => admission.admit(tx));
-    } finally {
-      await probe.close();
-    }
+    });
     final addressText =
         Platform.environment['VENTIO_HOST_BIND_ADDRESS'] ?? '127.0.0.1';
     final address = InternetAddress.tryParse(addressText);
@@ -140,20 +121,20 @@ Future<void> main() async {
       listenAddress: address,
       tlsContext: tlsContext,
       authenticator: PersistentTokenAuthenticator(
-        connect: connect,
+        pool: runtime,
         admission: admission,
       ),
       extensionPackages: PostgresExtensionPackageGateway(
-        connect: connect,
+        pool: runtime,
         admission: admission,
       ),
       extensionRecordQueries: PostgresExtensionRecordQueryGateway(
-        connect: connect,
+        pool: runtime,
         admission: admission,
       ),
       identityRoleAdministration: roleAdministration,
       executor: PersistentCommandExecutor(
-        connect: connect,
+        pool: runtime,
         admission: admission,
         // The production Host is an extension platform. Business command
         // bindings are supplied only by trusted platform deployments; this
@@ -168,6 +149,11 @@ Future<void> main() async {
       'Persistent Host listening on $scheme://$addressText:${api.port}',
     );
   } catch (_) {
+    try {
+      await _closePools(identityAdminPool, runtimePool);
+    } catch (_) {
+      // Startup remains fail-closed and never exposes driver error details.
+    }
     stderr.writeln(
       'Local Host startup failed. Check private server configuration.',
     );
@@ -187,8 +173,40 @@ Future<void> main() async {
     );
   }
   await shutdown.future;
-  await api.close();
-  for (final subscription in subscriptions) {
-    await subscription.cancel();
+  try {
+    await api.close();
+  } finally {
+    try {
+      await _closePools(identityAdminPool, runtimePool);
+    } finally {
+      for (final subscription in subscriptions) {
+        await subscription.cancel();
+      }
+    }
   }
+}
+
+/// Applies fixed production caps independently of any oversized URL settings.
+String _poolUrl(Uri source, {required int maxConnections}) => source
+    .replace(
+      queryParameters: {
+        ...source.queryParameters,
+        'connect_timeout': '5',
+        'query_timeout': '20',
+        'max_connection_count': '$maxConnections',
+        'max_connection_age': '1800',
+        'max_session_use': '300',
+        'max_query_count': '5000',
+      },
+    )
+    .toString();
+
+Future<void> _closePools(
+  pg.Pool<dynamic>? identityAdminPool,
+  pg.Pool<dynamic>? runtimePool,
+) async {
+  await Future.wait([
+    if (identityAdminPool != null) identityAdminPool.close(),
+    if (runtimePool != null) runtimePool.close(),
+  ]);
 }

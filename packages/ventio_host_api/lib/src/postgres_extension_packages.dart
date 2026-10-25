@@ -6,19 +6,22 @@ import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
 import 'extension_packages.dart';
+import 'postgres_connections.dart';
 import 'recovery_authority.dart';
 
 /// Persistent package transfer backed by Host-owned security-definer functions.
 /// Shared approval is intentionally a separate operator action.
 class PostgresExtensionPackageGateway
     implements AuthoritativeExtensionPackageGateway {
-  final Future<pg.Connection> Function() connect;
+  final Future<pg.Connection> Function()? connect;
+  final pg.Pool<dynamic>? pool;
   final RecoveryAuthority admission;
 
   const PostgresExtensionPackageGateway({
-    required this.connect,
+    this.connect,
+    this.pool,
     required this.admission,
-  });
+  }) : assert((connect == null) != (pool == null));
 
   @override
   Future<Map<String, dynamic>> submit({
@@ -42,34 +45,35 @@ class PostgresExtensionPackageGateway
       );
     }
     final hash = sha256.convert(utf8.encode(source)).toString();
-    final connection = await connect();
-    try {
-      await _configure(connection);
-      final response = await connection.runTx((tx) async {
-        await admission.admit(tx);
-        final rows = await tx.execute(
-          pg.Sql.named('''
+    return withPostgresConnection(
+      connect: connect,
+      pool: pool,
+      action: (connection) async {
+        await _configure(connection);
+        final response = await connection.runTx((tx) async {
+          await admission.admit(tx);
+          final rows = await tx.execute(
+            pg.Sql.named('''
           SELECT ventio_security.submit_extension_package(
             @digest,@tenant,@company,@branch,@module,@version,@sha256,
             CAST(@package AS jsonb))::text
         '''),
-          parameters: {
-            'digest': digest,
-            'tenant': session.principal.tenantId,
-            'company': companyId,
-            'branch': branchId,
-            'module': bundle.moduleId,
-            'version': bundle.version,
-            'sha256': hash,
-            'package': jsonEncode(package),
-          },
-        );
-        return _decodeFunctionResult(rows.single[0], 'package submission');
-      });
-      return response;
-    } finally {
-      await connection.close();
-    }
+            parameters: {
+              'digest': digest,
+              'tenant': session.principal.tenantId,
+              'company': companyId,
+              'branch': branchId,
+              'module': bundle.moduleId,
+              'version': bundle.version,
+              'sha256': hash,
+              'package': jsonEncode(package),
+            },
+          );
+          return _decodeFunctionResult(rows.single[0], 'package submission');
+        });
+        return response;
+      },
+    );
   }
 
   @override
@@ -87,48 +91,49 @@ class PostgresExtensionPackageGateway
       'extension.package.read',
     );
     semverParts(version);
-    final connection = await connect();
-    try {
-      await _configure(connection);
-      return await connection.runTx((tx) async {
-        await admission.admit(tx);
-        final rows = await tx.execute(
-          pg.Sql.named('''
+    return withPostgresConnection(
+      connect: connect,
+      pool: pool,
+      action: (connection) async {
+        await _configure(connection);
+        return await connection.runTx((tx) async {
+          await admission.admit(tx);
+          final rows = await tx.execute(
+            pg.Sql.named('''
           SELECT ventio_security.read_approved_extension_package(
             @digest,@tenant,@company,@branch,@module,@version)::text
         '''),
-          parameters: {
-            'digest': digest,
-            'tenant': session.principal.tenantId,
-            'company': companyId,
-            'branch': branchId,
-            'module': moduleId,
-            'version': version,
-          },
-        );
-        final result = _decodeFunctionResult(rows.single[0], 'package read');
-        if (result['status'] == 'APPROVED') {
-          final json = result['package'];
-          if (json is! Map) {
-            throw StateError('Approved extension metadata is unavailable.');
-          }
-          final bundle = ExtensionBundle.fromJson(
-            Map<String, dynamic>.from(json),
+            parameters: {
+              'digest': digest,
+              'tenant': session.principal.tenantId,
+              'company': companyId,
+              'branch': branchId,
+              'module': moduleId,
+              'version': version,
+            },
           );
-          final source = canonicalJson(bundle.toJson());
-          final actualHash = sha256.convert(utf8.encode(source)).toString();
-          if (bundle.moduleId != moduleId ||
-              bundle.version != version ||
-              result['packageSha256'] != actualHash) {
-            throw StateError('Approved extension integrity check failed.');
+          final result = _decodeFunctionResult(rows.single[0], 'package read');
+          if (result['status'] == 'APPROVED') {
+            final json = result['package'];
+            if (json is! Map) {
+              throw StateError('Approved extension metadata is unavailable.');
+            }
+            final bundle = ExtensionBundle.fromJson(
+              Map<String, dynamic>.from(json),
+            );
+            final source = canonicalJson(bundle.toJson());
+            final actualHash = sha256.convert(utf8.encode(source)).toString();
+            if (bundle.moduleId != moduleId ||
+                bundle.version != version ||
+                result['packageSha256'] != actualHash) {
+              throw StateError('Approved extension integrity check failed.');
+            }
+            result['package'] = bundle.toJson();
           }
-          result['package'] = bundle.toJson();
-        }
-        return result;
-      });
-    } finally {
-      await connection.close();
-    }
+          return result;
+        });
+      },
+    );
   }
 
   @override
@@ -151,31 +156,32 @@ class PostgresExtensionPackageGateway
         (afterModuleId == null) != (afterVersion == null)) {
       throw const ContractError('INVALID_PAGE', 'Invalid package page cursor.');
     }
-    final connection = await connect();
-    try {
-      await _configure(connection);
-      return await connection.runTx((tx) async {
-        await admission.admit(tx);
-        final rows = await tx.execute(
-          pg.Sql.named('''
+    return withPostgresConnection(
+      connect: connect,
+      pool: pool,
+      action: (connection) async {
+        await _configure(connection);
+        return await connection.runTx((tx) async {
+          await admission.admit(tx);
+          final rows = await tx.execute(
+            pg.Sql.named('''
           SELECT ventio_security.list_approved_extension_packages(
             @digest,@tenant,@company,@branch,@after_module,@after_version,@limit)::text
         '''),
-          parameters: {
-            'digest': digest,
-            'tenant': session.principal.tenantId,
-            'company': companyId,
-            'branch': branchId,
-            'after_module': afterModuleId,
-            'after_version': afterVersion,
-            'limit': limit,
-          },
-        );
-        return _decodeFunctionResult(rows.single[0], 'package registry read');
-      });
-    } finally {
-      await connection.close();
-    }
+            parameters: {
+              'digest': digest,
+              'tenant': session.principal.tenantId,
+              'company': companyId,
+              'branch': branchId,
+              'after_module': afterModuleId,
+              'after_version': afterVersion,
+              'limit': limit,
+            },
+          );
+          return _decodeFunctionResult(rows.single[0], 'package registry read');
+        });
+      },
+    );
   }
 }
 

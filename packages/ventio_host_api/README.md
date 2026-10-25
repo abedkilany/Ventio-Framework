@@ -159,14 +159,23 @@ witness. `revoke-extension` removes a version from future package reads and also
 advances the witness. Existing installed copies are not remotely erased; clients
 must implement explicit revocation/update policy before claiming that behavior.
 
-## Connection ownership and failures
+## Connection leases and failures
 
-`PostgresCommandExecutor` owns and closes a new connection per command. Routing
-limits bound concurrent connections; pooling is intentionally deferred. Server-side
-statement and lock limits are 15 and 5 seconds. Configure connection and driver
-query timeouts in the server-owned URL. No HTTP timeout cancels a running command
-and then pretends it failed to commit. An execution exception always returns 503,
-with an unknown-outcome warning: retry the **identical ID and envelope**.
+The persistent `bin/local_host.dart` launcher uses bounded PostgreSQL pools. The
+restricted runtime pool allows 16 concurrent connections, matching the HTTP
+admission limit; the separately credentialed identity-administration pool allows
+4. Connections are retired after 30 minutes, 5 minutes of session use, or 5,000
+queries. Connect and driver query timeouts are 5 and 20 seconds; each operation
+also sets PostgreSQL statement and lock limits to 15 and 5 seconds. Pool leases
+end when the authentication, command, record, package, or role operation returns.
+Identity, recovery admission, and scope checks still run for every operation; the
+pool does not cache authorization. Shutdown stops and drains HTTP requests before
+closing either pool. The development `PostgresCommandExecutor` keeps its owned
+connection-per-command path.
+
+No HTTP timeout cancels a running command and then pretends it failed to commit.
+An execution exception always returns 503, with an unknown-outcome warning: retry
+the **identical ID and envelope**.
 
 The record, accepted journal receipt, audit and outbox still commit in one
 transaction in `ventio_host`; no duplicate journal or alternative command engine
@@ -192,7 +201,7 @@ not hard in-transaction process-kill or infrastructure failure proofs.
 Separate suites now cover persistent authorization/revocation, least-privilege RLS,
 and real process kills/restore. See the updates above for their limits. Remaining
 gates include production TLS/identity provider, full header/slowloris limits,
-rate limiting by identity, pooling, telemetry,
+rate limiting by identity, pool saturation telemetry and workload tuning,
 safe sync ordering, financial capabilities and offline
 client reconciliation. Do not merge to stable on this slice alone.
 
