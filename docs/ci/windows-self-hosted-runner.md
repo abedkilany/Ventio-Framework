@@ -77,7 +77,10 @@ installed path and is compatible with the job's Gradle 9.1 wrapper. The Android
 SDK action installs packages into a dedicated
 `C:\actions-runner\_work\_tool\ventio-android-sdk-36` directory. A setup step
 creates it with a protected ACL for `NETWORK SERVICE`, SYSTEM, and
-Administrators; the user's Android SDK is not shared with the runner.
+Administrators. The workflow seeds only the pinned command-line tools, API 36,
+Build Tools 36.0.0, platform-tools, and licenses from a read-only staging copy;
+the SDK action then validates/installs the requested packages. The user's SDK,
+emulator images, and other Android data are not shared with the runner.
 
 The architecture-contract job uses the runner's machine-wide Python 3.14 at
 `C:\Python314\python.exe`; its JSON Schema dependency is installed into the
