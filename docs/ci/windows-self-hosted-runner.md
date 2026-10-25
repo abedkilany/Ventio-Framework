@@ -74,13 +74,19 @@ installed on this Windows host. Flutter 3.44.1 satisfies the client package's
 Dart SDK constraint. Its Git ownership check uses an exact `safe.directory`
 entry scoped to this job. The Android Studio JDK 21 is verified from its
 installed path and is compatible with the job's Gradle 9.1 wrapper. The Android
-SDK action installs packages into a dedicated
+SDK packages live in a dedicated
 `C:\actions-runner\_work\_tool\ventio-android-sdk-36` directory. A setup step
 creates it with a protected ACL for `NETWORK SERVICE`, SYSTEM, and
 Administrators. The workflow seeds only the pinned command-line tools, API 36,
 Build Tools 36.0.0, platform-tools, and licenses from a read-only staging copy;
-the SDK action then validates/installs the requested packages. The user's SDK,
-emulator images, and other Android data are not shared with the runner.
+`scripts/ci/stage-android-sdk.ps1` creates the persistent staging copy at
+`C:\actions-runner\_work\_tool\ventio-android-sdk-seed` with runner read-only
+access. The source SDK remains in the signed-in user's profile.
+`scripts/ci/verify-android-sdk.ps1` checks the package revisions and required
+files and adds the SDK tools to the job PATH. It avoids the Android setup
+action's Windows behavior of downloading command-line tools instead of using
+the staged `sdkmanager.bat`. The user's SDK, emulator images, and other Android
+data are not shared with the runner.
 
 The architecture-contract job uses the runner's machine-wide Python 3.14 at
 `C:\Python314\python.exe`; its JSON Schema dependency is installed into the

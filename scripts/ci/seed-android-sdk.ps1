@@ -19,7 +19,7 @@ if (@($requiredFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $s
     exit 0
 }
 
-$stageRoot = Join-Path ([IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')) 'ventio-android-sdk-seed'
+$stageRoot = Join-Path ([IO.Path]::GetFullPath($toolCacheRoot).TrimEnd('\')) 'ventio-android-sdk-seed'
 if (-not (Test-Path -LiteralPath $stageRoot -PathType Container)) {
     throw "Required isolated Android SDK packages are missing and no verified seed is available: $stageRoot"
 }
@@ -39,8 +39,20 @@ $networkServiceCanRead = @($stageRules | Where-Object {
     $_.Sid -eq $networkServiceSid.Value -and
     ($_.Rights -band [Security.AccessControl.FileSystemRights]::ReadAndExecute) -eq [Security.AccessControl.FileSystemRights]::ReadAndExecute
 }).Count -gt 0
+$writeRights = [Security.AccessControl.FileSystemRights]::WriteData -bor
+    [Security.AccessControl.FileSystemRights]::AppendData -bor
+    [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+    [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+    [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+    [Security.AccessControl.FileSystemRights]::Delete -bor
+    [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+    [Security.AccessControl.FileSystemRights]::TakeOwnership
+$networkServiceCanWrite = @($stageRules | Where-Object {
+    $_.Sid -eq $networkServiceSid.Value -and
+    ($_.Rights -band $writeRights) -ne 0
+}).Count -gt 0
 $broadAccess = @($stageRules | Where-Object { $_.Sid -in @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545') })
-if (-not $networkServiceCanRead -or $broadAccess.Count -gt 0) {
+if (-not $networkServiceCanRead -or $networkServiceCanWrite -or $broadAccess.Count -gt 0) {
     throw "Refusing to read an Android SDK seed without a narrow read-only ACL: $stageRoot"
 }
 
