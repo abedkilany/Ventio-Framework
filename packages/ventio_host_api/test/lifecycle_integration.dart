@@ -8,7 +8,15 @@ import 'package:ventio_host_api/ventio_host_api.dart';
 import 'recovery/database_fixture.dart';
 import 'recovery/commit_proxy.dart';
 import 'recovery/support.dart';
-import 'test_support.dart' show check, command, assertions;
+import 'test_support.dart'
+    show
+        check,
+        command,
+        assertions,
+        hasPrivateTestFilePermissions,
+        hasForcedTerminationExitCode,
+        makeTestFileReadableByEveryone,
+        createPrivateTestDirectory;
 
 Future<void> main() async {
   final env = Platform.environment;
@@ -16,8 +24,7 @@ Future<void> main() async {
   final runtimeUrl = env['VENTIO_TEST_RUNTIME_DATABASE_URL']!;
   final adminUrl = env['VENTIO_TEST_ADMIN_DATABASE_URL']!;
   final fixture = await DatabaseFixture.guarded(ownerUrl);
-  final directory = await Directory.systemTemp.createTemp('ventio-lifecycle-');
-  await Process.run('chmod', ['700', directory.path]);
+  final directory = await createPrivateTestDirectory('ventio-lifecycle-');
   final authority = RecoveryAuthority('${directory.path}/authority.json');
   final db = await pg.Connection.openFromUrl(ownerUrl);
   final administration = await pg.Connection.openFromUrl(adminUrl);
@@ -245,14 +252,11 @@ Future<void> main() async {
       (await request(host, original, crossTenant)).status == 403,
       'Credential cannot assert a different tenant',
     );
-    final originalMode = await Process.run('stat', [
-      '-c',
-      '%a',
-      path('original'),
-    ]);
     check(
-      (originalMode.stdout as String).trim() == '600',
-      'Delivery artifact is created with mode 0600',
+      await hasPrivateTestFilePermissions(path('original')),
+      Platform.isWindows
+          ? 'Delivery artifact is created with a protected owner/system/administrators ACL'
+          : 'Delivery artifact is created with mode 0600',
     );
     final malformedRequest = await cli('unsupported', 'unsupported', {
       'secretMustNotLeak': original,
@@ -266,7 +270,7 @@ Future<void> main() async {
     );
     final unsafe = path('unsafe');
     await File(unsafe).writeAsString('unchanged');
-    await Process.run('chmod', ['644', unsafe]);
+    await makeTestFileReadableByEveryone(unsafe);
     await refused(
       () => PrivateFiles.read(unsafe).then((_) {}),
       'World-readable credential input is refused',
@@ -680,10 +684,10 @@ Future<void> main() async {
         );
         check(
           process.kill(ProcessSignal.sigkill),
-          'Administration process receives SIGKILL',
+          'Administration process receives an immediate forced termination',
         );
         check(
-          await process.exitCode == -9,
+          hasForcedTerminationExitCode(await process.exitCode),
           'Administration process terminated without cleanup',
         );
         await waitFor(
@@ -832,12 +836,14 @@ Future<void> main() async {
       administration,
       'unknown-commit-safe-reenrollment',
     );
-    final serverLogs = await Process.run('docker', ['logs', fixture.source]);
+    final serverLogs = fixture.serverLog == null
+        ? await Process.run('docker', ['logs', fixture.source])
+        : await fixture.serverLog!.readAsString();
+    final serverLogText = serverLogs is ProcessResult
+        ? '${serverLogs.stdout}${serverLogs.stderr}'
+        : serverLogs as String;
     check(
-      tokens.every(
-        (token) =>
-            !('${serverLogs.stdout}${serverLogs.stderr}').contains(token),
-      ),
+      tokens.every((token) => !serverLogText.contains(token)),
       'PostgreSQL/container logs contain no raw provisioned credential',
     );
     final audit =

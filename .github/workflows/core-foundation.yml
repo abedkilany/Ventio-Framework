@@ -1,23 +1,48 @@
 name: Ventio Core Foundation
+
 on:
   push:
+    branches: [main]
+    paths:
+      - '.github/workflows/core-foundation.yml'
+      - 'packages/ventio_core/**'
+      - 'spec/**'
+      - 'scripts/verify_package.py'
+      - 'tests/**'
   pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/core-foundation.yml'
+      - 'packages/ventio_core/**'
+      - 'spec/**'
+      - 'scripts/verify_package.py'
+      - 'tests/**'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+
 jobs:
   dart-core:
-    runs-on: ubuntu-latest
+    if: github.actor == 'abedkilany' && (github.event_name != 'pull_request' || (github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository)) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/codex/windows-self-hosted-runner')
+    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: packages/ventio_core
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.13.7
-      - run: dart pub get
+      - run: dart pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
       - run: dart run test/all_tests.dart
@@ -25,9 +50,16 @@ jobs:
       - run: dart run bin/two_module_demo.dart
 
   architecture-contracts:
-    runs-on: ubuntu-latest
+    if: github.actor == 'abedkilany' && (github.event_name != 'pull_request' || (github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository)) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/codex/windows-self-hosted-runner')
+    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -36,4 +68,3 @@ jobs:
       - run: python spec/v1.2/scripts/validate_contracts.py
       - run: python -m unittest discover -s spec/v1.2/tests -v
       - run: python -m unittest discover -s tests -v
-

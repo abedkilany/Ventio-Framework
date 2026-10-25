@@ -1,12 +1,43 @@
 name: Ventio Host Engineering Gate
 on:
   push:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-engineering-gate.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/lib/src/**'
+      - 'packages/ventio_host_api/test/engineering_audit.dart'
+      - 'packages/ventio_host_api/test/recovery/**'
+      - 'packages/ventio_host_api/test/test_support.dart'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'spec/v1.2/examples/**'
   pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-engineering-gate.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/lib/src/**'
+      - 'packages/ventio_host_api/test/engineering_audit.dart'
+      - 'packages/ventio_host_api/test/recovery/**'
+      - 'packages/ventio_host_api/test/test_support.dart'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'spec/v1.2/examples/**'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   recovery:
+    if: github.actor == 'abedkilany'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -28,6 +59,8 @@ jobs:
         working-directory: packages/ventio_host_api
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.13.7
@@ -54,7 +87,8 @@ jobs:
       - name: Audit OS separation, migration compatibility, recovery boundary and bounded performance
         env:
           VENTIO_ALLOW_DATABASE_TESTS: 'yes'
-          VENTIO_ALLOW_POSTGRES_CONTAINER_KILL: 'yes'
+          VENTIO_ALLOW_POSTGRES_CRASH_TEST: 'yes'
+          VENTIO_CI_RUN_LABEL: ${{ github.run_id }}-${{ github.run_attempt }}
           VENTIO_TEST_POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
           VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=2&query_timeout=20
           VENTIO_TEST_RUNTIME_DATABASE_URL: postgresql://ventio_runtime_test:runtime_test_only@localhost:5432/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20

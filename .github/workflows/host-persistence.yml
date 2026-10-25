@@ -1,42 +1,58 @@
 name: Ventio Host Persistence
+
 on:
   push:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-persistence.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'scripts/ci/**'
   pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-persistence.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'scripts/ci/**'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+
 jobs:
   postgres-adapter:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: ventio
-          POSTGRES_PASSWORD: ventio_test_only
-          POSTGRES_DB: ventio_host_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+    if: github.actor == 'abedkilany' && (github.event_name != 'pull_request' || (github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository)) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/codex/windows-self-hosted-runner')
+    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: packages/ventio_postgres
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.13.7
       - run: dart pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
+      - name: Install verified PostgreSQL 16 test tools
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-postgres-tools.ps1
+      - name: Start private PostgreSQL 16 test instance
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\start-postgres-test-instance.ps1
       - name: PostgreSQL integration tests
-        env:
-          VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@localhost:5432/ventio_host_test?sslmode=disable
-          VENTIO_ALLOW_DATABASE_TESTS: 'yes'
         run: dart run test/postgres_integration.dart
-
+      - name: Remove disposable PostgreSQL test instance
+        if: always()
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\stop-postgres-test-instance.ps1

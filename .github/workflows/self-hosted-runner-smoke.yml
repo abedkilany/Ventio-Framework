@@ -10,6 +10,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   runner-smoke:
     if: github.ref == 'refs/heads/codex/windows-self-hosted-runner' && github.actor == 'abedkilany'
@@ -29,5 +33,3 @@ jobs:
           echo Service identity:
           whoami
           echo Service profile: %USERPROFILE%
-          where.exe docker
-          docker info --format "Docker={{.ServerVersion}}; OS={{.OperatingSystem}}; type={{.OSType}}"

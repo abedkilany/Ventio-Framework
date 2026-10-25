@@ -61,6 +61,77 @@ Future<Directory> createPrivateTestDirectory(String prefix) async {
   }
 }
 
+Future<bool> hasPrivateTestFilePermissions(String path) async {
+  if (Platform.isLinux) {
+    final result = await Process.run('stat', ['-c', '%a', path]);
+    return result.exitCode == 0 && (result.stdout as String).trim() == '600';
+  }
+  if (!Platform.isWindows) {
+    throw UnsupportedError(
+      'Private test-file permission checks need Linux or Windows.',
+    );
+  }
+
+  const script = r'''
+$path = $env:VENTIO_TEST_PRIVATE_ACL_PATH
+$item = if ([System.IO.Directory]::Exists($path)) {
+  [System.IO.DirectoryInfo]::new($path)
+} else {
+  [System.IO.FileInfo]::new($path)
+}
+$acl = $item.GetAccessControl()
+$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$ownerSid = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+$expected = @($currentSid, 'S-1-5-18', 'S-1-5-32-544')
+$rules = $acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])
+if (-not $acl.AreAccessRulesProtected -or $ownerSid -ne $currentSid -or $rules.Count -ne 3) { exit 1 }
+foreach ($rule in $rules) {
+  if ($expected -notcontains $rule.IdentityReference.Value -or
+      $rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or
+      [int]$rule.FileSystemRights -ne [int][System.Security.AccessControl.FileSystemRights]::FullControl -or
+      $rule.IsInherited) { exit 1 }
+}
+exit 0
+''';
+  final systemRoot = Platform.environment['SystemRoot'];
+  if (systemRoot == null) {
+    throw StateError('Windows system directory is unavailable');
+  }
+  final powershell =
+      '$systemRoot${Platform.pathSeparator}System32${Platform.pathSeparator}'
+      'WindowsPowerShell${Platform.pathSeparator}v1.0${Platform.pathSeparator}'
+      'powershell.exe';
+  final result = await Process.run(
+    powershell,
+    [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      script,
+    ],
+    environment: {'VENTIO_TEST_PRIVATE_ACL_PATH': path},
+  );
+  return result.exitCode == 0;
+}
+
+Future<void> makeTestFileReadableByEveryone(String path) async {
+  final result = Platform.isWindows
+      ? await Process.run('icacls.exe', [path, '/grant', '*S-1-1-0:(R)'])
+      : await Process.run('chmod', ['644', path]);
+  if (result.exitCode != 0) {
+    throw StateError(
+      'Could not make the disposable test file readable by Everyone.',
+    );
+  }
+}
+
+bool hasForcedTerminationExitCode(int exitCode) => Platform.isWindows
+    ? exitCode != 0
+    : exitCode == -ProcessSignal.sigkill.signalNumber;
+
 // Deterministic disposable test credentials. Never use outside this test suite.
 final validToken = List.filled(43, 'a').join();
 final deniedToken = List.filled(43, 'b').join();

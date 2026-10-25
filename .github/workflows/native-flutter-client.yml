@@ -2,41 +2,65 @@ name: Native Flutter Client and Extension Builder
 
 on:
   push:
-    branches:
-      - feature/native-flutter-offline-proof
-      - 'codex/**'
+    branches: [main]
     paths:
       - '.github/workflows/native-flutter-client.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_native_client/**'
-      - 'scripts/prepare_native_client_platforms.*'
+      - 'scripts/prepare_native_client_platforms.ps1'
+      - 'scripts/ci/**'
       - 'spec/v1.2/examples/**'
   pull_request:
+    branches: [main]
     paths:
       - '.github/workflows/native-flutter-client.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_native_client/**'
-      - 'scripts/prepare_native_client_platforms.*'
+      - 'scripts/prepare_native_client_platforms.ps1'
+      - 'scripts/ci/**'
       - 'spec/v1.2/examples/**'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  client-tests:
-    runs-on: ubuntu-latest
+  native-client-windows-android:
+    if: github.actor == 'abedkilany' && (github.event_name != 'pull_request' || (github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository)) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/codex/windows-self-hosted-runner')
+    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+        with:
+          persist-credentials: false
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.0'
           channel: stable
+          cache: true
+          pub-cache: true
+      - name: Set up Java for Android builds
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Generate native runner scaffolding
-        run: ./scripts/prepare_native_client_platforms.sh
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\prepare_native_client_platforms.ps1
       - name: Resolve dependencies
         working-directory: packages/ventio_native_client
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
       - name: Check formatting and static analysis
         working-directory: packages/ventio_native_client
         run: |
@@ -45,21 +69,6 @@ jobs:
       - name: Test Extension Builder, local data engine and command queue
         working-directory: packages/ventio_native_client
         run: flutter test --reporter expanded
-
-  windows-build:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.0'
-          channel: stable
-      - name: Generate native runner scaffolding
-        shell: pwsh
-        run: ./scripts/prepare_native_client_platforms.ps1
-      - name: Resolve dependencies
-        working-directory: packages/ventio_native_client
-        run: flutter pub get
       - name: Run native Windows Extension Builder acceptance
         working-directory: packages/ventio_native_client
         run: flutter test integration_test/extension_builder_app_test.dart -d windows --no-pub --reporter expanded
@@ -69,20 +78,6 @@ jobs:
       - name: Build Windows release app
         working-directory: packages/ventio_native_client
         run: flutter build windows --release
-
-  android-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.0'
-          channel: stable
-      - name: Generate native runner scaffolding
-        run: ./scripts/prepare_native_client_platforms.sh
-      - name: Resolve dependencies
-        working-directory: packages/ventio_native_client
-        run: flutter pub get
       - name: Build Android debug APK
         working-directory: packages/ventio_native_client
         run: flutter build apk --debug

@@ -4,11 +4,15 @@ import 'dart:io';
 
 import 'package:postgres/postgres.dart' as pg;
 
+import '../test_support.dart' show hasForcedTerminationExitCode;
+
 class TestHost {
   final Process process;
   final List<Map<String, dynamic>> _events = [];
+  int? _exitCode;
   late final int port;
   TestHost._(this.process) {
+    process.exitCode.then((code) => _exitCode = code);
     process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
@@ -83,6 +87,10 @@ class TestHost {
       for (final e in _events) {
         if (e['event'] == name) return e;
       }
+      final exitCode = _exitCode;
+      if (exitCode != null) {
+        throw StateError('Host exited with status $exitCode before $name');
+      }
       if (DateTime.now().isAfter(deadline))
         throw StateError('Host event timed out: $name');
       // A short bounded poll avoids losing a signal between inspection/listen.
@@ -93,9 +101,12 @@ class TestHost {
   Future<void> kill() async {
     if (!process.kill(ProcessSignal.sigkill))
       throw StateError('Host SIGKILL was not delivered');
-    if (await process.exitCode.timeout(const Duration(seconds: 10)) !=
-        -ProcessSignal.sigkill.signalNumber)
-      throw StateError('Host was not terminated by SIGKILL');
+    final exitCode = await process.exitCode.timeout(
+      const Duration(seconds: 10),
+    );
+    if (!hasForcedTerminationExitCode(exitCode)) {
+      throw StateError('Host was not terminated forcefully');
+    }
   }
 
   void resume() => process.stdin.writeln('resume');
