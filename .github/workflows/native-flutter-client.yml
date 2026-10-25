@@ -33,6 +33,10 @@ jobs:
     if: github.actor == 'abedkilany' && (github.event_name != 'pull_request' || (github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository)) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/codex/windows-self-hosted-runner')
     runs-on: [self-hosted, Windows, X64, ventio-windows]
     timeout-minutes: 90
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: C:/flutter
     defaults:
       run:
         shell: cmd

@@ -61,11 +61,24 @@ on the self-hosted runner.
 - **Windows Self-hosted Runner Smoke**: runner identity and platform dispatch
   check; it does not require Docker access.
 
-Actions install the pinned Dart, Flutter, Java, and Android SDK versions as
-part of the corresponding job. The architecture-contract job uses the runner's
-machine-wide Python 3.14 at `C:\Python314\python.exe`; its JSON Schema dependency
-is installed into the run's temporary directory. This avoids changing the
-runner's PowerShell execution policy, which blocks the installer script used by
+Windows Dart jobs use the verified Dart 3.13.7 SDK provisioned by
+`scripts/ci/install-dart-sdk.ps1` at
+`C:\actions-runner\_work\_tool\ventio-dart-sdk-3.13.7-x64`. The script pins the
+official archive's SHA-256 and gives the `NETWORK SERVICE` runner read/execute
+access only, so jobs do not download the large SDK or modify it.
+
+The native Flutter job uses the machine's pinned Flutter 3.44.1 SDK at
+`C:\flutter`. Its setup step checks the exact version and adds the Windows SDK
+to `PATH`; the Flutter composite action invokes Bash through WSL, which is not
+installed on this Windows host. Flutter 3.44.1 satisfies the client package's
+Dart SDK constraint. Its Git ownership check uses an exact `safe.directory`
+entry scoped to this job. The Android SDK and Java 17 are provisioned by their
+Windows-compatible setup actions.
+
+The architecture-contract job uses the runner's machine-wide Python 3.14 at
+`C:\Python314\python.exe`; its JSON Schema dependency is installed into the
+run's temporary directory. This avoids changing the runner's PowerShell
+execution policy, which blocks the installer script used by
 `actions/setup-python` under the `NETWORK SERVICE` identity. The runner machine
 must retain that Python runtime and Visual Studio Build Tools with the Windows
 desktop C++ workload and Windows SDK for Flutter desktop builds.
