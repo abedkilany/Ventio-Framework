@@ -72,8 +72,12 @@ The native Flutter job uses the machine's pinned Flutter 3.44.1 SDK at
 to `PATH`; the Flutter composite action invokes Bash through WSL, which is not
 installed on this Windows host. Flutter 3.44.1 satisfies the client package's
 Dart SDK constraint. Its Git ownership check uses an exact `safe.directory`
-entry scoped to this job. The Android SDK and Java 17 are provisioned by their
-Windows-compatible setup actions.
+entry scoped to this job. The Android Studio JDK 21 is verified from its
+installed path and is compatible with the job's Gradle 9.1 wrapper. The Android
+SDK action installs packages into a dedicated
+`C:\actions-runner\_work\_tool\ventio-android-sdk-36` directory. A setup step
+creates it with a protected ACL for `NETWORK SERVICE`, SYSTEM, and
+Administrators; the user's Android SDK is not shared with the runner.
 
 The architecture-contract job uses the runner's machine-wide Python 3.14 at
 `C:\Python314\python.exe`; its JSON Schema dependency is installed into the
