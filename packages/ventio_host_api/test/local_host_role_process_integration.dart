@@ -50,7 +50,11 @@ Future<void> main() async {
     updatePermission,
     'maintenance.create',
   ];
-  const readerPermissions = ['extension.package.read', readPermission];
+  const readerPermissions = [
+    'extension.package.read',
+    readPermission,
+    updatePermission,
+  ];
   final authority = RecoveryAuthority(witnessPath, readerSid: sid);
   final administrationConnection = await pg.Connection.openFromUrl(
     administrationUrl,

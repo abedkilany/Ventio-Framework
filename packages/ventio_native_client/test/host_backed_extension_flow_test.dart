@@ -56,10 +56,13 @@ void main() {
           '${firstDirectory.path}${Platform.pathSeparator}queue.sqlite3';
       final secondDatabasePath =
           '${secondDirectory.path}${Platform.pathSeparator}client.sqlite3';
+      final secondQueuePath =
+          '${secondDirectory.path}${Platform.pathSeparator}queue.sqlite3';
 
       LocalExtensionStore? firstStore;
       LocalExtensionStore? secondStore;
       LocalCommandQueue? firstQueue;
+      LocalCommandQueue? secondQueue;
       try {
         final HttpClient Function()? trustedClientFactory =
             trustedCertificate == null
@@ -160,6 +163,10 @@ void main() {
         secondStore = await LocalExtensionStore.open(
           factory: databaseFactoryFfi,
           path: secondDatabasePath,
+        );
+        secondQueue = await LocalCommandQueue.open(
+          factory: databaseFactoryFfi,
+          path: secondQueuePath,
         );
         await secondStore.installBundle(secondBundle);
         await secondStore.activate(moduleId);
@@ -333,12 +340,280 @@ void main() {
           expect(record?.hostRevision, 1);
         }
 
+        final firstDeviceEdit = await firstStore.updateRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          recordId: recordId,
+          scope: scope,
+          expectedRevision: 1,
+          values: const {'title': 'First device update'},
+        );
+        final firstDeviceUpdateId = createCommandId();
+        final firstDeviceUpdate = ExtensionRecordCommand.update(
+          commandId: firstDeviceUpdateId,
+          tenantId: firstSession.tenantId,
+          companyId: companyId,
+          branchId: branchId,
+          recordId: recordId,
+          expectedRevision: 1,
+          actorId: firstSession.actorId,
+          deviceId: firstSession.deviceId,
+          moduleId: moduleId,
+          moduleVersion: upgradedVersion,
+          docType: docType,
+          schemaVersion: upgradedBundle.docTypes.single.schemaVersion,
+          values: firstDeviceEdit.values,
+        );
+        await firstQueue.enqueue(firstDeviceUpdate.envelope);
+        await firstStore.markRecordPending(
+          recordId: recordId,
+          scope: scope,
+          commandId: firstDeviceUpdateId,
+        );
+        final firstDeviceSync = await HostSyncService(
+          queue: firstQueue,
+          identity: HostSyncIdentity(
+            tenantId: firstSession.tenantId,
+            companyId: companyId,
+            branchId: branchId,
+            actorId: firstSession.actorId,
+            deviceId: firstSession.deviceId,
+          ),
+          transport: HttpHostCommandTransport(
+            endpoint: endpoint,
+            credentials: firstVault,
+            clientFactory: trustedClientFactory,
+          ),
+        ).syncPending();
+        final firstDeviceReceipt = (await firstQueue.list())
+            .singleWhere(
+              (entry) => entry.envelope.commandId == firstDeviceUpdateId,
+            )
+            .hostReceipt!;
+        expect(firstDeviceSync, 1);
+        expect(firstDeviceReceipt.status, 'ACCEPTED');
+        expect(firstDeviceReceipt.hostRevision, 2);
+        await firstStore.applyHostReceipt(
+          recordId: recordId,
+          scope: scope,
+          commandId: firstDeviceUpdateId,
+          receipt: firstDeviceReceipt,
+        );
+
+        final secondDeviceEdit = await secondStore.updateRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          recordId: recordId,
+          scope: scope,
+          expectedRevision: 1,
+          values: const {'title': 'Second device draft'},
+        );
+        final secondDeviceUpdateId = createCommandId();
+        final secondDeviceUpdate = ExtensionRecordCommand.update(
+          commandId: secondDeviceUpdateId,
+          tenantId: secondSession.tenantId,
+          companyId: companyId,
+          branchId: branchId,
+          recordId: recordId,
+          expectedRevision: 1,
+          actorId: secondSession.actorId,
+          deviceId: secondSession.deviceId,
+          moduleId: moduleId,
+          moduleVersion: upgradedVersion,
+          docType: docType,
+          schemaVersion: upgradedBundle.docTypes.single.schemaVersion,
+          values: secondDeviceEdit.values,
+        );
+        await secondQueue.enqueue(secondDeviceUpdate.envelope);
+        await secondStore.markRecordPending(
+          recordId: recordId,
+          scope: scope,
+          commandId: secondDeviceUpdateId,
+        );
+        final secondDeviceSync = await HostSyncService(
+          queue: secondQueue,
+          identity: HostSyncIdentity(
+            tenantId: secondSession.tenantId,
+            companyId: companyId,
+            branchId: branchId,
+            actorId: secondSession.actorId,
+            deviceId: secondSession.deviceId,
+          ),
+          transport: HttpHostCommandTransport(
+            endpoint: endpoint,
+            credentials: secondVault,
+            clientFactory: trustedClientFactory,
+          ),
+        ).syncPending();
+        final secondDeviceReceipt =
+            (await secondQueue.list()).single.hostReceipt!;
+        expect(secondDeviceSync, 1);
+        expect(secondDeviceReceipt.status, 'CONFLICT');
+        expect(secondDeviceReceipt.currentRevision, 2);
+        await secondStore.applyHostReceipt(
+          recordId: recordId,
+          scope: scope,
+          commandId: secondDeviceUpdateId,
+          receipt: secondDeviceReceipt,
+        );
+        var conflictedCopy = (await secondStore.getRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          recordId: recordId,
+          scope: scope,
+        ))!;
+        expect(conflictedCopy.authorityState, 'CONFLICT');
+        expect(conflictedCopy.values['title'], 'Second device draft');
+        expect(conflictedCopy.hostRevision, 2);
+        expect(conflictedCopy.conflictValues, isNull);
+
+        final conflictSnapshot = await secondPackageClient.queryRecords(
+          companyId: companyId,
+          branchId: branchId,
+          moduleId: moduleId,
+          version: upgradedVersion,
+          docType: docType,
+          recordId: recordId,
+          limit: 1,
+        );
+        final latestHostRecord = conflictSnapshot.records.single;
+        await secondStore.applyHostRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          scope: scope,
+          recordId: latestHostRecord.recordId,
+          revision: latestHostRecord.revision,
+          values: latestHostRecord.values,
+          updatedAtUtc: DateTime.parse(latestHostRecord.updatedAtUtc),
+          readableFields: conflictSnapshot.readableFields,
+          writableFields: conflictSnapshot.writableFields,
+          creatableFields: conflictSnapshot.creatableFields,
+        );
+        conflictedCopy = (await secondStore.getRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          recordId: recordId,
+          scope: scope,
+        ))!;
+        expect(conflictedCopy.conflictRevision, 2);
+        expect(conflictedCopy.conflictValues?['title'], 'First device update');
+        expect(conflictedCopy.values['title'], 'Second device draft');
+
+        final reviewedEdit = await secondStore.updateRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          recordId: recordId,
+          scope: scope,
+          expectedRevision: conflictedCopy.revision,
+          values: const {'title': 'Reviewed second device merge'},
+        );
+        final reviewedCommandId = createCommandId();
+        final reviewedCommand = ExtensionRecordCommand.update(
+          commandId: reviewedCommandId,
+          tenantId: secondSession.tenantId,
+          companyId: companyId,
+          branchId: branchId,
+          recordId: recordId,
+          expectedRevision: conflictedCopy.conflictRevision!,
+          actorId: secondSession.actorId,
+          deviceId: secondSession.deviceId,
+          moduleId: moduleId,
+          moduleVersion: upgradedVersion,
+          docType: docType,
+          schemaVersion: upgradedBundle.docTypes.single.schemaVersion,
+          values: reviewedEdit.values,
+        );
+        await secondQueue.enqueue(reviewedCommand.envelope);
+        await secondStore.markRecordPending(
+          recordId: recordId,
+          scope: scope,
+          commandId: reviewedCommandId,
+        );
+        final reviewedSync = await HostSyncService(
+          queue: secondQueue,
+          identity: HostSyncIdentity(
+            tenantId: secondSession.tenantId,
+            companyId: companyId,
+            branchId: branchId,
+            actorId: secondSession.actorId,
+            deviceId: secondSession.deviceId,
+          ),
+          transport: HttpHostCommandTransport(
+            endpoint: endpoint,
+            credentials: secondVault,
+            clientFactory: trustedClientFactory,
+          ),
+        ).syncPending();
+        final reviewedReceipt = (await secondQueue.list())
+            .singleWhere(
+              (entry) => entry.envelope.commandId == reviewedCommandId,
+            )
+            .hostReceipt!;
+        expect(reviewedSync, 1);
+        expect(
+          reviewedReceipt.status,
+          'ACCEPTED',
+          reason:
+              'Reviewed command expected Host revision ${conflictedCopy.conflictRevision}: ${reviewedReceipt.toJson()}',
+        );
+        expect(reviewedReceipt.hostRevision, 3);
+        await secondStore.applyHostReceipt(
+          recordId: recordId,
+          scope: scope,
+          commandId: reviewedCommandId,
+          receipt: reviewedReceipt,
+        );
+
+        final finalHostPage = await firstPackageClient.queryRecords(
+          companyId: companyId,
+          branchId: branchId,
+          moduleId: moduleId,
+          version: upgradedVersion,
+          docType: docType,
+          recordId: recordId,
+          limit: 1,
+        );
+        final finalHostRecord = finalHostPage.records.single;
+        expect(finalHostRecord.revision, 3);
+        expect(finalHostRecord.values['title'], 'Reviewed second device merge');
+        final reviewedLocalCopy = await secondStore.getRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          recordId: recordId,
+          scope: scope,
+        );
+        expect(reviewedLocalCopy?.authorityState, 'HOST_ACCEPTED');
+        expect(reviewedLocalCopy?.hostRevision, 3);
+        expect(
+          reviewedLocalCopy?.values['title'],
+          'Reviewed second device merge',
+        );
+        await firstStore.applyHostRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          scope: scope,
+          recordId: finalHostRecord.recordId,
+          revision: finalHostRecord.revision,
+          values: finalHostRecord.values,
+          updatedAtUtc: DateTime.parse(finalHostRecord.updatedAtUtc),
+          readableFields: finalHostPage.readableFields,
+          writableFields: finalHostPage.writableFields,
+          creatableFields: finalHostPage.creatableFields,
+        );
+
         await firstQueue.close();
         firstQueue = null;
+        await secondQueue.close();
+        secondQueue = null;
         await firstStore.close();
         firstStore = await LocalExtensionStore.open(
           factory: databaseFactoryFfi,
           path: firstDatabasePath,
+        );
+        await secondStore.close();
+        secondStore = await LocalExtensionStore.open(
+          factory: databaseFactoryFfi,
+          path: secondDatabasePath,
         );
         final reopenedExtension = await firstStore.getExtension(moduleId);
         final reopenedRecord = await firstStore.getRecord(
@@ -349,10 +624,25 @@ void main() {
         );
         expect(reopenedExtension?.version, upgradedVersion);
         expect(reopenedRecord?.schemaVersion, 2);
-        expect(reopenedRecord?.values['title'], 'Created while offline');
+        expect(reopenedRecord?.values['title'], 'Reviewed second device merge');
         expect(reopenedRecord?.authorityState, 'HOST_ACCEPTED');
+        expect(reopenedRecord?.hostRevision, 3);
+        final reopenedSecondDeviceRecord = await secondStore.getRecord(
+          moduleId: moduleId,
+          docTypeName: docType,
+          recordId: recordId,
+          scope: scope,
+        );
+        expect(reopenedSecondDeviceRecord?.schemaVersion, 2);
+        expect(
+          reopenedSecondDeviceRecord?.values['title'],
+          'Reviewed second device merge',
+        );
+        expect(reopenedSecondDeviceRecord?.authorityState, 'HOST_ACCEPTED');
+        expect(reopenedSecondDeviceRecord?.hostRevision, 3);
       } finally {
         await firstQueue?.close();
+        await secondQueue?.close();
         await firstStore?.close();
         await secondStore?.close();
         await firstDirectory.delete(recursive: true);
