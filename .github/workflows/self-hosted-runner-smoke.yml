@@ -15,12 +15,12 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Verify runner identity and platform
-        shell: powershell
+        shell: cmd
         run: |
-          $ErrorActionPreference = 'Stop'
-          if ($env:RUNNER_NAME -ne 'Ventio-Windows-Runner') { throw "Unexpected runner name: $env:RUNNER_NAME" }
-          if ($env:RUNNER_OS -ne 'Windows') { throw "Unexpected runner OS: $env:RUNNER_OS" }
-          if ($env:RUNNER_ARCH -ne 'X64') { throw "Unexpected runner architecture: $env:RUNNER_ARCH" }
-          Write-Host "Runner: $env:RUNNER_NAME"
-          Write-Host "Platform: $env:RUNNER_OS $env:RUNNER_ARCH"
-          Write-Host "Work directory: $env:RUNNER_WORKSPACE"
+          @echo off
+          if /I not "%RUNNER_NAME%"=="Ventio-Windows-Runner" exit /b 1
+          if /I not "%RUNNER_OS%"=="Windows" exit /b 1
+          if /I not "%RUNNER_ARCH%"=="X64" exit /b 1
+          echo Runner: %RUNNER_NAME%
+          echo Platform: %RUNNER_OS% %RUNNER_ARCH%
+          echo Work directory: %RUNNER_WORKSPACE%
