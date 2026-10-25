@@ -93,6 +93,14 @@ Build Tools 36.0.0, platform-tools, and licenses from a read-only staging copy;
 `scripts/ci/stage-android-sdk.ps1` creates the persistent staging copy at
 `C:\actions-runner\_work\_tool\ventio-android-sdk-seed` with runner read-only
 access. The source SDK remains in the signed-in user's profile.
+The same protected stage also holds Android NDK 28.2.13676358. The workflow
+copies that pinned NDK into each isolated job SDK before Gradle runs, avoiding
+an uncontrolled large NDK download during the job. To refresh the staged NDK
+from the installed Android SDK, run
+`scripts/ci_android/seed-android-ndk.ps1 -Stage` in PowerShell; the script
+checks the exact package revision and required Windows toolchain files before
+staging it. `scripts/ci/verify-android-sdk.ps1` verifies the NDK revision and
+compiler in the isolated SDK along with the other pinned Android packages.
 `scripts/ci/verify-android-sdk.ps1` checks the package revisions and required
 files and adds the SDK tools to the job PATH. It avoids the Android setup
 action's Windows behavior of downloading command-line tools instead of using
