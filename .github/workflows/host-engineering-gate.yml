@@ -83,7 +83,7 @@ jobs:
           psql -X -h localhost -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -f ../../security/postgres/test_logins.sql
       - name: Compile audited launcher
         run: |
-          dart compile exe bin/local_host.dart -o /tmp/ventio-audit-host
+          dart compile exe test/support/audited_local_host.dart -o /tmp/ventio-audit-host
           chmod 0755 /tmp/ventio-audit-host
           mkdir -p /tmp/ventio-audit-assembly/packages/ventio_host_api
           cp -R ../../spec /tmp/ventio-audit-assembly/spec

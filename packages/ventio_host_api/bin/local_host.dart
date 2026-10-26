@@ -7,7 +7,15 @@ import 'package:ventio_host_api/ventio_host_api.dart';
 
 /// Persistent identity launcher. No development identity file or bypass.
 /// Cleartext remains loopback-only; external listeners require TLS files.
-Future<void> main() async {
+Future<void> main() => runLocalHost();
+
+/// Starts the persistent Host with capabilities selected by trusted code.
+/// Package metadata never supplies executable handlers or bindings.
+Future<void> runLocalHost({
+  ModuleRegistry? modules,
+  DocTypeRegistry? docTypes,
+  Iterable<TrustedCommandBinding> bindings = const [],
+}) async {
   if (Platform.environment['VENTIO_ENABLE_LOCAL_HOST'] != 'yes') {
     stderr.writeln('Local Host requires explicit opt-in.');
     exitCode = 2;
@@ -139,9 +147,9 @@ Future<void> main() async {
         // The production Host is an extension platform. Business command
         // bindings are supplied only by trusted platform deployments; this
         // launcher starts with the generic metadata-backed record engine.
-        modules: ModuleRegistry(),
-        docTypes: DocTypeRegistry(),
-        bindings: const [],
+        modules: modules ?? ModuleRegistry(),
+        docTypes: docTypes ?? DocTypeRegistry(),
+        bindings: bindings,
       ),
     );
     final scheme = tlsContext == null ? 'http' : 'https';
