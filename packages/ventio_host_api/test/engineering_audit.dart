@@ -149,9 +149,13 @@ Future<void> main() async {
     Map<String, dynamic> body,
   ) async {
     final result = await request(host, token, body);
+    final receipt = result.body?['receipt'];
+    final receiptStatus = receipt is Map ? receipt['status'] : null;
+    final reasonCode = receipt is Map ? receipt['reasonCode'] : null;
     check(
-      result.status == 200 && result.body?['receipt']?['status'] == 'ACCEPTED',
-      'Audited launcher accepts a scoped durable command',
+      result.status == 200 && receiptStatus == 'ACCEPTED',
+      'Audited launcher accepts a scoped durable command '
+      '(http=${result.status}, receipt=$receiptStatus, reason=$reasonCode)',
     );
     return result;
   }
