@@ -155,9 +155,12 @@ Future<void> main() async {
       // Startup remains fail-closed and never exposes driver error details.
     }
     if (Platform.environment['VENTIO_HOST_TEST_DIAGNOSTICS'] == 'yes') {
-      final diagnostic = error is StateError
-          ? '${error.runtimeType}: ${error.message}'
-          : error.runtimeType.toString();
+      final diagnostic = switch (error) {
+        pg.ServerException(:final code) =>
+          'ServerException sqlstate=${code ?? 'unknown'}',
+        StateError() => '${error.runtimeType}: ${error.message}',
+        _ => error.runtimeType.toString(),
+      };
       stderr.writeln('VENTIO_HOST_TEST_DIAGNOSTIC: $diagnostic');
     }
     stderr.writeln(
