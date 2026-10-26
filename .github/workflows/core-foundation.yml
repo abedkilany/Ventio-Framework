@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   dart-core:
-    if: github.actor == 'abedkilany' && (github.event_name != 'pull_request' || (github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository)) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/codex/windows-self-hosted-runner')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.actor == 'abedkilany' && github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'workflow_dispatch' && github.actor == 'abedkilany' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/windows-self-hosted-runner'))
     runs-on: [self-hosted, Windows, X64, ventio-windows]
     timeout-minutes: 20
     defaults:
@@ -49,7 +49,7 @@ jobs:
       - run: dart run bin/two_module_demo.dart
 
   architecture-contracts:
-    if: github.actor == 'abedkilany' && (github.event_name != 'pull_request' || (github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository)) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/codex/windows-self-hosted-runner')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.actor == 'abedkilany' && github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'workflow_dispatch' && github.actor == 'abedkilany' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/windows-self-hosted-runner'))
     runs-on: [self-hosted, Windows, X64, ventio-windows]
     timeout-minutes: 15
     defaults:

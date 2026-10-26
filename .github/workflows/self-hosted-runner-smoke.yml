@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   runner-smoke:
-    if: github.ref == 'refs/heads/codex/windows-self-hosted-runner' && github.actor == 'abedkilany'
+    if: github.actor == 'abedkilany' && (github.ref == 'refs/heads/codex/windows-self-hosted-runner' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: [self-hosted, Windows, X64, ventio-windows]
     timeout-minutes: 3
     steps:
