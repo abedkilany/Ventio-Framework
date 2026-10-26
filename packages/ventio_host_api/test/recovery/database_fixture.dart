@@ -447,7 +447,7 @@ class DatabaseFixture {
       ], restoreScript);
     } else {
       await capturePipe(
-        ['exec', '-i', restored!, 'pg_restore', '--create', '--file=-', '-'],
+        ['exec', '-i', restored!, 'pg_restore', '--create', '--file=-'],
         dump,
         restoreScript,
       );
