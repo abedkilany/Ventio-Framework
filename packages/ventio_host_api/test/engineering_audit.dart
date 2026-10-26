@@ -61,23 +61,29 @@ Future<void> main() async {
     'VENTIO_RECOVERY_AUTHORITY_FILE': file,
     'VENTIO_RECOVERY_AUTHORITY_OWNER_UID': owner ?? '$uid',
   };
-  // CI sudo permits root rather than arbitrary run-as/environment preservation.
-  // This fixed fixture drops all groups/UID before exec. Secrets cross stdin.
+  // The runner's root-owned helper accepts only the audit's commands, then
+  // drops all root privileges before executing them. Secrets cross stdin.
   Future<Process> isolatedStart(
     List<String> command, {
     Map<String, String>? configuration,
   }) async {
+    final privilegeHelper = env['VENTIO_AUDIT_PRIVILEGE_HELPER'];
+    if (privilegeHelper == null ||
+        !privilegeHelper.startsWith('/usr/local/libexec/')) {
+      throw StateError(
+        'VENTIO_AUDIT_PRIVILEGE_HELPER must name the installed CI helper',
+      );
+    }
     final process = await Process.start('sudo', [
       '-n',
       '--',
-      '/usr/bin/python3',
-      '-c',
-      r"import os,sys,json; env=json.loads(sys.stdin.readline()); gid=int(sys.argv[1]); os.setgroups([gid]); os.setgid(gid); os.setuid(65534); os.execvpe(sys.argv[2],sys.argv[2:],env)",
-      '$gid',
-      ...command,
+      privilegeHelper,
     ], workingDirectory: env['VENTIO_AUDIT_HOST_WORKDIR']);
     process.stdin.writeln(
-      jsonEncode(configuration ?? {'PATH': '/usr/bin:/bin'}),
+      jsonEncode({
+        'command': command,
+        'environment': configuration ?? {'PATH': '/usr/bin:/bin'},
+      }),
     );
     await process.stdin.close();
     return process;
