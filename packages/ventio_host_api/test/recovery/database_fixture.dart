@@ -207,17 +207,39 @@ class DatabaseFixture {
     File output,
   ) async {
     final process = await Process.start('docker', arguments);
-    final errors = process.stderr.drain<void>();
+    final errors = process.stderr.transform(utf8.decoder).join();
     final stdoutDone = process.stdout.pipe(output.openWrite());
     await process.stdin.addStream(input.openRead());
     await process.stdin.close();
     final exitCode = await process.exitCode.timeout(const Duration(minutes: 5));
     await stdoutDone;
+    final diagnostic = await errors;
     if (exitCode != 0) {
-      await errors;
-      throw StateError('PostgreSQL restore-script export failed');
+      throw StateError(
+        'PostgreSQL restore-script export failed '
+        '(exit=$exitCode; diagnostic=${_safeDiagnostic(diagnostic)})',
+      );
     }
-    await errors;
+  }
+
+  String _safeDiagnostic(String value) {
+    final sanitized = value
+        .replaceAll(
+          RegExp(r'postgres(?:ql)?://\S+', caseSensitive: false),
+          'postgresql://[redacted]',
+        )
+        .replaceAll(
+          RegExp(
+            r'(password|token|secret)\s*[=:]\s*[^\s,;]+',
+            caseSensitive: false,
+          ),
+          '[redacted]',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return sanitized.length <= 512
+        ? sanitized
+        : '${sanitized.substring(0, 512)}…';
   }
 
   Future<void> restartAfterKill() async {
