@@ -133,7 +133,9 @@ class TestHost {
 class HttpOutcome {
   final int? status;
   final Map<String, dynamic>? body;
-  HttpOutcome(this.status, this.body);
+  final String? failureType;
+  final int? hostExitCode;
+  HttpOutcome(this.status, this.body, {this.failureType, this.hostExitCode});
 }
 
 Future<HttpOutcome> request(
@@ -155,12 +157,27 @@ Future<HttpOutcome> request(
       jsonDecode(await utf8.decoder.bind(response).join())
           as Map<String, dynamic>,
     );
-  } on SocketException {
-    return HttpOutcome(null, null);
-  } on HttpException {
-    return HttpOutcome(null, null);
-  } on TimeoutException {
-    return HttpOutcome(null, null);
+  } on SocketException catch (error) {
+    return HttpOutcome(
+      null,
+      null,
+      failureType: error.runtimeType.toString(),
+      hostExitCode: host.process.exitCode,
+    );
+  } on HttpException catch (error) {
+    return HttpOutcome(
+      null,
+      null,
+      failureType: error.runtimeType.toString(),
+      hostExitCode: host.process.exitCode,
+    );
+  } on TimeoutException catch (error) {
+    return HttpOutcome(
+      null,
+      null,
+      failureType: error.runtimeType.toString(),
+      hostExitCode: host.process.exitCode,
+    );
   } finally {
     client.close(force: true);
   }

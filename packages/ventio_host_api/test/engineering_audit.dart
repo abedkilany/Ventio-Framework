@@ -308,7 +308,10 @@ print(json.dumps(checks))
     check(
       changedManifestResponse.status == 503,
       'Changed migration manifest quarantines a running Host '
-      '(http=${changedManifestResponse.status}, error=${changedManifestError is Map ? changedManifestError['code'] : null})',
+      '(http=${changedManifestResponse.status}, '
+      'error=${changedManifestError is Map ? changedManifestError['code'] : null}, '
+      'failure=${changedManifestResponse.failureType}, '
+      'hostExit=${changedManifestResponse.hostExitCode})',
     );
     await deleteUnknownMigrationLedgerEntry();
     final initial = next();
