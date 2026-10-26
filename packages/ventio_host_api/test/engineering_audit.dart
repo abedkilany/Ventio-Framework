@@ -303,9 +303,12 @@ print(json.dumps(checks))
     );
     final host = await start();
     await insertUnknownMigrationLedgerEntry();
+    final changedManifestResponse = await request(host, token, next());
+    final changedManifestError = changedManifestResponse.body?['error'];
     check(
-      (await request(host, token, next())).status == 503,
-      'Changed migration manifest quarantines a running Host',
+      changedManifestResponse.status == 503,
+      'Changed migration manifest quarantines a running Host '
+      '(http=${changedManifestResponse.status}, error=${changedManifestError is Map ? changedManifestError['code'] : null})',
     );
     await deleteUnknownMigrationLedgerEntry();
     final initial = next();
