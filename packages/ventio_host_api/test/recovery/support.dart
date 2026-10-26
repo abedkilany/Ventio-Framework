@@ -11,6 +11,7 @@ class TestHost {
   final List<Map<String, dynamic>> _events = [];
   final List<String> _safeDiagnostics = [];
   int? _exitCode;
+  int? get exitCode => _exitCode;
   late final int port;
   TestHost._(this.process) {
     process.exitCode.then((code) => _exitCode = code);
@@ -162,21 +163,21 @@ Future<HttpOutcome> request(
       null,
       null,
       failureType: error.runtimeType.toString(),
-      hostExitCode: host.process.exitCode,
+      hostExitCode: host.exitCode,
     );
   } on HttpException catch (error) {
     return HttpOutcome(
       null,
       null,
       failureType: error.runtimeType.toString(),
-      hostExitCode: host.process.exitCode,
+      hostExitCode: host.exitCode,
     );
   } on TimeoutException catch (error) {
     return HttpOutcome(
       null,
       null,
       failureType: error.runtimeType.toString(),
-      hostExitCode: host.process.exitCode,
+      hostExitCode: host.exitCode,
     );
   } finally {
     client.close(force: true);
