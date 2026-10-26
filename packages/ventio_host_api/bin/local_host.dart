@@ -156,8 +156,8 @@ Future<void> main() async {
     }
     if (Platform.environment['VENTIO_HOST_TEST_DIAGNOSTICS'] == 'yes') {
       final diagnostic = switch (error) {
-        pg.ServerException(:final code) =>
-          'ServerException sqlstate=${code ?? 'unknown'}',
+        pg.ServerException(:final code, :final message) =>
+          'ServerException sqlstate=${code ?? 'unknown'}: ${_redactTestDiagnostic(message)}',
         StateError() => '${error.runtimeType}: ${error.message}',
         _ => error.runtimeType.toString(),
       };
@@ -194,6 +194,19 @@ Future<void> main() async {
     }
   }
 }
+
+String _redactTestDiagnostic(String value) => value
+    .replaceAll(
+      RegExp(r'postgres(?:ql)?://\S+', caseSensitive: false),
+      'postgresql://[redacted]',
+    )
+    .replaceAll(
+      RegExp(
+        r'(password|token|secret)\s*[=:]\s*[^\s,;]+',
+        caseSensitive: false,
+      ),
+      '[redacted]',
+    );
 
 /// Applies fixed production caps independently of any oversized URL settings.
 String _poolUrl(Uri source, {required int maxConnections}) => source
