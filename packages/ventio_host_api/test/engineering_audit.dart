@@ -99,10 +99,8 @@ Future<void> main() async {
   Future<TestHost> start({String? database, String? file}) async {
     final process = await isolatedStart(
       [binary],
-      configuration: environment(
-        database ?? runtimeUrl,
-        file ?? authority.path,
-      ),
+      configuration: environment(database ?? runtimeUrl, file ?? authority.path)
+        ..['VENTIO_HOST_TEST_DIAGNOSTICS'] = 'yes',
     );
     final host = await TestHost.attach(process);
     active.add(host);

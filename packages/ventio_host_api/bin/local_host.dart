@@ -148,11 +148,17 @@ Future<void> main() async {
     stdout.writeln(
       'Persistent Host listening on $scheme://$addressText:${api.port}',
     );
-  } catch (_) {
+  } catch (error) {
     try {
       await _closePools(identityAdminPool, runtimePool);
     } catch (_) {
       // Startup remains fail-closed and never exposes driver error details.
+    }
+    if (Platform.environment['VENTIO_HOST_TEST_DIAGNOSTICS'] == 'yes') {
+      final diagnostic = error is StateError
+          ? '${error.runtimeType}: ${error.message}'
+          : error.runtimeType.toString();
+      stderr.writeln('VENTIO_HOST_TEST_DIAGNOSTIC: $diagnostic');
     }
     stderr.writeln(
       'Local Host startup failed. Check private server configuration.',

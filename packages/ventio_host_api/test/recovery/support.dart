@@ -9,6 +9,7 @@ import '../test_support.dart' show hasForcedTerminationExitCode;
 class TestHost {
   final Process process;
   final List<Map<String, dynamic>> _events = [];
+  final List<String> _safeDiagnostics = [];
   int? _exitCode;
   late final int port;
   TestHost._(this.process) {
@@ -31,8 +32,16 @@ class TestHost {
             }
           }
         }, onDone: () {});
-    // Capture neither credentials nor database diagnostics in shared test logs.
-    process.stderr.drain<void>();
+    // Only retain the launcher's explicitly sanitized test diagnostic line.
+    process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          const marker = 'VENTIO_HOST_TEST_DIAGNOSTIC:';
+          if (line.startsWith(marker) && _safeDiagnostics.length < 3) {
+            _safeDiagnostics.add(line.substring(marker.length).trim());
+          }
+        }, onError: (Object _) {});
   }
   static Future<TestHost> attach(Process process) async {
     final host = TestHost._(process);
@@ -89,7 +98,12 @@ class TestHost {
       }
       final exitCode = _exitCode;
       if (exitCode != null) {
-        throw StateError('Host exited with status $exitCode before $name');
+        final diagnostic = _safeDiagnostics.isEmpty
+            ? ''
+            : ' (${_safeDiagnostics.join('; ')})';
+        throw StateError(
+          'Host exited with status $exitCode before $name$diagnostic',
+        );
       }
       if (DateTime.now().isAfter(deadline))
         throw StateError('Host event timed out: $name');
