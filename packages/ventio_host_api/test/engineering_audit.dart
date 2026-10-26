@@ -156,6 +156,23 @@ Future<void> main() async {
     return result;
   }
 
+  Future<bool> recoveryWitnessMatchesDatabase() async {
+    final witness =
+        jsonDecode(
+              await PrivateFiles.readAuthorityAsOwner(
+                authority.path,
+                trustedOwnerUid: uid,
+                readerGroupId: gid,
+              ),
+            )
+            as Map<String, dynamic>;
+    final authorityRow = await observer.execute(
+      'SELECT authority_id FROM ventio_security.recovery_state WHERE singleton',
+    );
+    return witness['authorityId'] == authorityRow.single[0] &&
+        witness['fingerprint'] == await RecoveryAuthority.snapshot(observer);
+  }
+
   try {
     final runtimeIdentity = await collect(await isolatedStart(['id', '-u']));
     check(
@@ -192,6 +209,10 @@ Future<void> main() async {
         },
       ],
       outputPath: delivery,
+    );
+    check(
+      await recoveryWitnessMatchesDatabase(),
+      'Recovery witness matches database after initial identity setup',
     );
     final token =
         (jsonDecode(await PrivateFiles.read(delivery)) as Map)['token']
@@ -256,6 +277,10 @@ print(json.dumps(checks))
     await startupDenied('Unknown migration ledger entry blocks startup');
     await db.execute(
       "DELETE FROM ventio_schema_migrations WHERE name='999_unknown.sql'",
+    );
+    check(
+      await recoveryWitnessMatchesDatabase(),
+      'Recovery witness matches database after migration test cleanup',
     );
     final host = await start();
     await db.execute(
