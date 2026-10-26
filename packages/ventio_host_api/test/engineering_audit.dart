@@ -173,6 +173,21 @@ Future<void> main() async {
         witness['fingerprint'] == await RecoveryAuthority.snapshot(observer);
   }
 
+  Future<void> insertUnknownMigrationLedgerEntry() =>
+      authority.change(db, (tx) async {
+        await tx.execute(
+          "INSERT INTO ventio_schema_migrations(name,sha256) "
+          "VALUES ('999_unknown.sql','unsupported')",
+        );
+      });
+
+  Future<void> deleteUnknownMigrationLedgerEntry() =>
+      authority.change(db, (tx) async {
+        await tx.execute(
+          "DELETE FROM ventio_schema_migrations WHERE name='999_unknown.sql'",
+        );
+      });
+
   try {
     final runtimeIdentity = await collect(await isolatedStart(['id', '-u']));
     check(
@@ -271,28 +286,24 @@ print(json.dumps(checks))
           (jsonDecode(denied.stdout as String) as List).every((v) => v == true),
       'Host OS account cannot overwrite, unlink, rename witness or read admin connection secrets',
     );
-    await db.execute(
-      "INSERT INTO ventio_schema_migrations(name,sha256) VALUES ('999_unknown.sql','unsupported')",
+    await insertUnknownMigrationLedgerEntry();
+    check(
+      await recoveryWitnessMatchesDatabase(),
+      'Recovery witness tracks the temporary unknown migration',
     );
     await startupDenied('Unknown migration ledger entry blocks startup');
-    await db.execute(
-      "DELETE FROM ventio_schema_migrations WHERE name='999_unknown.sql'",
-    );
+    await deleteUnknownMigrationLedgerEntry();
     check(
       await recoveryWitnessMatchesDatabase(),
       'Recovery witness matches database after migration test cleanup',
     );
     final host = await start();
-    await db.execute(
-      "INSERT INTO ventio_schema_migrations(name,sha256) VALUES ('999_unknown.sql','unsupported')",
-    );
+    await insertUnknownMigrationLedgerEntry();
     check(
       (await request(host, token, next())).status == 503,
       'Changed migration manifest quarantines a running Host',
     );
-    await db.execute(
-      "DELETE FROM ventio_schema_migrations WHERE name='999_unknown.sql'",
-    );
+    await deleteUnknownMigrationLedgerEntry();
     final initial = next();
     await accepted(host, token, initial);
     final healthClient = HttpClient();
