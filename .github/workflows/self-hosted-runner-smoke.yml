@@ -1,0 +1,35 @@
+name: Ventio Windows Self-hosted Runner Smoke
+
+on:
+  push:
+    branches:
+      - codex/windows-self-hosted-runner
+    paths:
+      - '.github/workflows/self-hosted-runner-smoke.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runner-smoke:
+    if: github.actor == 'abedkilany' && (github.ref == 'refs/heads/codex/windows-self-hosted-runner' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    timeout-minutes: 3
+    steps:
+      - name: Verify runner identity and platform
+        shell: cmd
+        run: |
+          @echo off
+          if /I not "%RUNNER_NAME%"=="Ventio-Windows-Runner" exit /b 1
+          if /I not "%RUNNER_OS%"=="Windows" exit /b 1
+          if /I not "%RUNNER_ARCH%"=="X64" exit /b 1
+          echo Runner: %RUNNER_NAME%
+          echo Platform: %RUNNER_OS% %RUNNER_ARCH%
+          echo Work directory: %RUNNER_WORKSPACE%
+          echo Service identity:
+          whoami
+          echo Service profile: %USERPROFILE%

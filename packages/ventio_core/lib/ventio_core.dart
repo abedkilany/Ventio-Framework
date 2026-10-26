@@ -5,6 +5,8 @@ library;
 
 export 'src/contracts.dart';
 export 'src/metadata.dart';
+export 'src/extension_bundle.dart';
+export 'src/extension_commands.dart';
 export 'src/modules.dart';
 export 'src/permissions.dart';
 export 'src/localization.dart';

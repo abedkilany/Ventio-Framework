@@ -1,0 +1,49 @@
+-- Approved migration manifest. Regenerate when adding a reviewed migration.
+CREATE OR REPLACE FUNCTION ventio_security.assert_schema()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_extension e
+      JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
+      JOIN pg_catalog.pg_roles r ON r.oid=e.extowner
+    WHERE e.extname='pgcrypto' AND n.nspname='ventio_crypto'
+      AND r.rolname='ventio_owner'
+      AND pg_catalog.to_regprocedure('ventio_crypto.hmac(bytea,bytea,text)') IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Unsupported private recovery proof profile' USING ERRCODE='55000';
+  END IF;
+  IF has_schema_privilege('ventio_runtime','ventio_crypto','USAGE') OR
+      has_schema_privilege('ventio_identity_admin','ventio_crypto','USAGE') THEN
+    RAISE EXCEPTION 'Recovery HMAC schema is exposed to an operational role' USING ERRCODE='55000';
+  END IF;
+  IF EXISTS (
+    WITH expected(name,sha256) AS (VALUES
+    ('001_records.sql','736d63fd6f013cac931a123064dd8e7a391609132175a15853bd6acca8a00d2b'),
+    ('002_command_journal.sql','8888d684aa63ab10c8bc9874aca6b402be4b4099c3774115309fa85f4983210a'),
+    ('003_audit.sql','b1565095ec74e58b0a42591bd1ed0b5b50b84bf922871a5fb8500755274009ad'),
+    ('004_outbox.sql','718e8fb1171512d46e3445625352e15594ddcd351a8b7b5f8d57ba6bf4f8784f'),
+    ('005_outbox_index.sql','33a3e6db19db32504a7ab312ec8286bc3c03e11a5dc42ea35d67281854bb154a'),
+    ('006_identity_users.sql','69a4e68bde95a61d5acdba9fdcc6ece38736081e9538d8b45d23292ffaa68563'),
+    ('007_identity_devices.sql','0ab66284bdec5a9d3f6abbe61807c81faa8e2141598c6d9d0d9fb709f73da876'),
+    ('008_identity_credentials.sql','1466d2718e759fe30d1c5c3d62f9f69a3b9f4848450600dee24aadffb0fff801'),
+    ('009_identity_branches.sql','bbeab3db3acfc185b109219cfe520b3b561d36e15355aa041ba1b0647a06e1af'),
+    ('010_identity_grants.sql','cb6c1204a66c63291aae46f339d8023a2bf00d0f459241e5bd3a09e9f65f714c'),
+    ('011_identity_audit.sql','07729fcf2d65b0fc2a8489ec797239d88a0d3c70a74969d709e4480eb41cfe5a'),
+    ('012_credential_scopes.sql','9f1bd3caa7689b1bfce9bfbb927012cfc69ca8449b4c8d53d77370ccfa5ffa3f'),
+    ('013_extension_packages.sql','022108cf3b76cdd76ca30e73fefa179e63f1184e3f1d6275ce41a11ab34ace62'),
+    ('014_extension_package_events.sql','825151c5e2da7bc8627a46e09cfe9e3cde72d93048990ee7e699363c423c5b04'),
+    ('015_scope_cursor_index.sql','538b674ee6c3d95b2a91ccc7d64c1410dc68bd56a2c635ade9dcf5a40fd339a9'),
+    ('016_module_scoped_records.sql','2b8647c77d86302de77de972f24ed764ebd50893254edb8d2f725968bf508467'),
+    ('017_identity_roles.sql','b76d8cd46b430341682a294321e9f89903a2b7a846df7b51c331022797b40171'),
+    ('018_identity_role_permissions.sql','2c118263c8787f6173a59130cec890d5d75a6266515caecb83f8e4ee0d655192'),
+    ('019_identity_role_assignments.sql','011c2e61e247513113391354da08c7dfced6fc7c6fc37886381fe4eb450dc767'),
+    ('020_approved_extension_registry.sql','1912702210d1b699acd1672a0c61bae03384c1aabbf6d861b162faf7616c3ace'),
+    ('021_extension_update_compatibility.sql','2044a1974db26f0cb61b24b248249d04689bf767ab55377389dff51902324a9e'),
+    ('022_record_data_gin_index.sql','adf1f0791da08c757552d9eb2b306e0e6c15f0c363c08c265434234dec944872'))
+    SELECT FROM expected e FULL JOIN public.ventio_schema_migrations m USING(name)
+    WHERE e.sha256 IS DISTINCT FROM m.sha256
+  ) THEN
+    RAISE EXCEPTION 'Unsupported Host schema manifest' USING ERRCODE='55000';
+  END IF;
+END $fn$;

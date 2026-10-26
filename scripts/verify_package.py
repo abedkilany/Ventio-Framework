@@ -105,4 +105,5 @@ for dart_file in PKG.rglob('*.dart'):
       candidate = dart_file.parent/path
     assert candidate.is_file(), f'Import does not exist: {candidate}'
 print(f'PASS: {len(required)} required files, {len(files)} text files, two modules, JSON V1.2 schema and English checks')
-print('LIMIT: Static validation only. Dart execution and compilation remain unverified.')
+print('LIMIT: Static validation only. Dart execution and compilation are not performed by this script.')
+

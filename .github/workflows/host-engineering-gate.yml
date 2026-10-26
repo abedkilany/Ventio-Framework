@@ -1,0 +1,144 @@
+name: Ventio Host Engineering Gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-engineering-gate.yml'
+      - 'scripts/ci/**'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/lib/src/**'
+      - 'packages/ventio_host_api/test/engineering_audit.dart'
+      - 'packages/ventio_host_api/test/recovery/**'
+      - 'packages/ventio_host_api/test/test_support.dart'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'spec/v1.2/examples/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-engineering-gate.yml'
+      - 'scripts/ci/**'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/lib/src/**'
+      - 'packages/ventio_host_api/test/engineering_audit.dart'
+      - 'packages/ventio_host_api/test/recovery/**'
+      - 'packages/ventio_host_api/test/test_support.dart'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'spec/v1.2/examples/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  recovery:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.actor == 'abedkilany' && github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'workflow_dispatch' && github.actor == 'abedkilany' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/windows-self-hosted-runner'))
+    runs-on: [self-hosted, Linux, X64, ventio-linux]
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ventio
+          POSTGRES_PASSWORD: ventio_test_only
+          POSTGRES_DB: ventio_host_test
+        ports:
+          - "127.0.0.1::5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: packages/ventio_host_api
+    steps:
+      - name: Verify PostgreSQL is published only on loopback
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          POSTGRES_HOST_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          set -euo pipefail
+          mapping="$(docker port "$POSTGRES_CONTAINER_ID" 5432/tcp)"
+          if [[ ! "$mapping" =~ ^127\.0\.0\.1:[0-9]+$ ]]; then
+            echo "PostgreSQL is not bound exclusively to IPv4 loopback: $mapping" >&2
+            exit 1
+          fi
+          mapped_port="${mapping##*:}"
+          if [[ "$mapped_port" != "$POSTGRES_HOST_PORT" ]]; then
+            echo "GitHub's service port context does not match Docker: $POSTGRES_HOST_PORT != $mapped_port" >&2
+            exit 1
+          fi
+          python3 - "$mapped_port" <<'PY'
+          import socket
+          import subprocess
+          import sys
+
+          port = int(sys.argv[1])
+          addresses = subprocess.check_output(
+              ["ip", "-o", "-4", "addr", "show", "scope", "global"], text=True
+          ).splitlines()
+          external = [line.split()[3].split("/")[0] for line in addresses]
+          for address in external:
+              with socket.socket() as probe:
+                  probe.settimeout(2)
+                  if probe.connect_ex((address, port)) == 0:
+                      raise SystemExit(f"PostgreSQL unexpectedly accepts host-interface traffic on {address}:{port}")
+          print(f"PostgreSQL loopback-only mapping verified on 127.0.0.1:{port}; external host-interface probes were refused.")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate the restricted Linux privilege helper
+        run: python3 -m unittest discover -s ../../scripts/ci -p test_ventio_ci_drop_to_nobody.py
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.7
+      - run: python3 ../../scripts/check_schema_profile.py
+      - run: dart pub get --enforce-lockfile
+      - run: dart format --output=none --set-exit-if-changed lib bin test
+      - run: dart analyze .
+      - name: Prepare disposable least-privilege database
+        env:
+          VENTIO_DATABASE_URL: postgresql://ventio:ventio_test_only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/ventio_host_test?sslmode=disable
+          VENTIO_MIGRATIONS_DIR: ../../migrations/postgres
+          PGPASSWORD: ventio_test_only
+        run: |
+          dart run ../ventio_postgres/bin/migrate.dart
+          psql -X -h 127.0.0.1 -p "${{ job.services.postgres.ports['5432'] }}" -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ../../security/postgres/bootstrap.sql
+          psql -X -h 127.0.0.1 -p "${{ job.services.postgres.ports['5432'] }}" -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -f ../../security/postgres/test_logins.sql
+      - name: Compile audited launcher
+        run: |
+          dart compile exe test/support/audited_local_host.dart -o /tmp/ventio-audit-host
+          chmod 0755 /tmp/ventio-audit-host
+          mkdir -p /tmp/ventio-audit-assembly/packages/ventio_host_api
+          cp -R ../../spec /tmp/ventio-audit-assembly/spec
+          chmod -R a+rX,go-w /tmp/ventio-audit-assembly
+      - name: Audit OS separation, migration compatibility, recovery boundary and bounded performance
+        env:
+          VENTIO_ALLOW_DATABASE_TESTS: 'yes'
+          VENTIO_ALLOW_POSTGRES_CRASH_TEST: 'yes'
+          VENTIO_CI_RUN_LABEL: ${{ github.run_id }}-${{ github.run_attempt }}
+          VENTIO_TEST_POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          VENTIO_TEST_DATABASE_URL: postgresql://ventio:ventio_test_only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/ventio_host_test?sslmode=disable&connect_timeout=2&query_timeout=20
+          VENTIO_TEST_RUNTIME_DATABASE_URL: postgresql://ventio_runtime_test:runtime_test_only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
+          VENTIO_TEST_ADMIN_DATABASE_URL: postgresql://ventio_admin_test:admin_test_only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/ventio_host_test?sslmode=disable&connect_timeout=5&query_timeout=20
+          VENTIO_AUDIT_HOST_WORKDIR: /tmp/ventio-audit-assembly/packages/ventio_host_api
+          VENTIO_AUDIT_HOST_BINARY: /tmp/ventio-audit-host
+          VENTIO_AUDIT_RESULTS_FILE: /tmp/ventio-host-audit-results.json
+          VENTIO_AUDIT_PRIVILEGE_HELPER: /usr/local/libexec/ventio-ci-drop-to-nobody
+        run: dart run test/engineering_audit.dart
+      - name: Retain sanitized benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-engineering-benchmark
+          path: /tmp/ventio-host-audit-results.json
+          if-no-files-found: warn

@@ -16,6 +16,40 @@ class TrustedCommandBinding {
       this.commandType, this.commandVersion, this.docTypeName);
 }
 
+/// Shared binding contract for the in-memory proof and durable SQL engine.
+/// Each engine retains its own execution/transaction implementation.
+DocTypeDefinition validateTrustedCreateBinding(ModuleRegistry modules,
+    DocTypeRegistry docTypes, TrustedCommandBinding binding) {
+  final module =
+      modules.moduleForCommand(binding.commandType, binding.commandVersion);
+  final docType = docTypes.get(binding.docTypeName);
+  final declaration = module == null
+      ? null
+      : modules.getCommand(
+          module.moduleId, binding.commandType, binding.commandVersion);
+  final capability = declaration == null
+      ? null
+      : modules.getCapability(declaration.capabilityId);
+  if (module == null ||
+      docType == null ||
+      declaration == null ||
+      capability == null ||
+      !module.docTypes.contains(docType.name) ||
+      docType.moduleId != module.moduleId ||
+      docType.kind != 'operational' ||
+      capability.executor != 'host' ||
+      capability.executionKind != 'trusted_builtin' ||
+      capability.transactionMode != 'required' ||
+      !capability.effects.toSet().containsAll({'records', 'audit', 'outbox'}) ||
+      !capability.requiredPermissions.contains(declaration.permission) ||
+      docType.permissions['create'] != declaration.permission ||
+      docType.fields.any((field) => field.type == 'decimal')) {
+    throw const ContractError('INVALID_BINDING',
+        'Trusted binding requires an installed operational DocType and transactional create capability');
+  }
+  return docType;
+}
+
 class StoredRecord {
   final String id;
   final String tenantId;
@@ -83,36 +117,7 @@ class InMemoryHost {
   static String _bindingKey(String type, int version) => '$type@$version';
 
   void registerTrustedCreateBinding(TrustedCommandBinding binding) {
-    final module =
-        modules.moduleForCommand(binding.commandType, binding.commandVersion);
-    final docType = docTypes.get(binding.docTypeName);
-    if (module == null ||
-        docType == null ||
-        !module.docTypes.contains(docType.name) ||
-        docType.moduleId != module.moduleId ||
-        docType.kind != 'operational') {
-      throw const ContractError('INVALID_BINDING',
-          'Trusted binding must target an installed operational DocType');
-    }
-    final command = modules.getCommand(
-        module.moduleId, binding.commandType, binding.commandVersion)!;
-    final capability = modules.getCapability(command.capabilityId);
-    if (docType.fields.any((field) => field.type == 'decimal')) {
-      throw const ContractError('INVALID_BINDING',
-          'Generic record creation cannot handle precision-sensitive decimal fields');
-    }
-    if (capability == null ||
-        capability.executor != 'host' ||
-        capability.executionKind != 'trusted_builtin' ||
-        capability.transactionMode != 'required' ||
-        !capability.effects.contains('records') ||
-        !capability.effects.contains('audit') ||
-        !capability.effects.contains('outbox') ||
-        !capability.requiredPermissions.contains(command.permission) ||
-        docType.permissions['create'] != command.permission) {
-      throw const ContractError('INVALID_BINDING',
-          'Capability, permission, or effects do not satisfy the binding');
-    }
+    validateTrustedCreateBinding(modules, docTypes, binding);
     final key = _bindingKey(binding.commandType, binding.commandVersion);
     if (_bindings.containsKey(key))
       throw ContractError('DUPLICATE_BINDING', key);
@@ -150,10 +155,19 @@ class InMemoryHost {
     final capability = modules.getCapability(declaration.capabilityId);
     final docType = docTypes.get(binding.docTypeName)!;
     // Re-check authorization on every request, including idempotent retries.
-    if (!authenticatedPrincipal.allows(declaration.permission) ||
+    if (!authenticatedPrincipal.allowsInScope(
+          declaration.permission,
+          command.companyId,
+          command.branchId,
+        ) ||
         capability == null ||
-        capability.requiredPermissions
-            .any((p) => !authenticatedPrincipal.allows(p))) {
+        capability.requiredPermissions.any(
+          (permission) => !authenticatedPrincipal.allowsInScope(
+            permission,
+            command.companyId,
+            command.branchId,
+          ),
+        )) {
       return failure('REJECTED', 'PERMISSION_DENIED');
     }
     final journalKey = '${command.tenantId}\u0000${command.commandId}';
@@ -181,13 +195,42 @@ class InMemoryHost {
     if (command.expectedRevision != null) {
       return failure('CONFLICT', 'EXPECTED_REVISION_MUST_BE_NULL', revision: 0);
     }
-    final issues = docType.validatePayload(command.payload);
+    final valuesForStorage = Map<String, dynamic>.of(command.payload);
+    for (final field in docType.fields) {
+      final requiredPermission = field.writePermission;
+      if (requiredPermission == null ||
+          authenticatedPrincipal.allowsInScope(
+            requiredPermission,
+            command.companyId,
+            command.branchId,
+          ) ||
+          !valuesForStorage.containsKey(field.name)) {
+        continue;
+      }
+      if (valuesForStorage[field.name] != null) {
+        return failure('REJECTED', 'PERMISSION_DENIED');
+      }
+      valuesForStorage.remove(field.name);
+    }
+    final issues = docType.validatePayload(valuesForStorage);
     if (issues.isNotEmpty) {
       return failure('REJECTED', 'INVALID_PAYLOAD');
     }
+    for (final field in docType.fields.where(
+      (field) => field.type == 'reference',
+    )) {
+      final reference = valuesForStorage[field.name];
+      if (reference == null) continue;
+      final targetKey = '${command.tenantId}\u0000${command.companyId}\u0000'
+          '${command.branchId}\u0000${module.moduleId}\u0000'
+          '${field.referenceTo}\u0000$reference';
+      if (!_state.records.containsKey(targetKey)) {
+        return failure('REJECTED', 'INVALID_REFERENCE');
+      }
+    }
 
     final recordKey =
-        '${command.tenantId}\u0000${command.companyId}\u0000${command.branchId}\u0000${docType.name}\u0000${command.aggregateId}';
+        '${command.tenantId}\u0000${command.companyId}\u0000${command.branchId}\u0000${module.moduleId}\u0000${docType.name}\u0000${command.aggregateId}';
     final existing = _state.records[recordKey];
     if (existing != null) {
       return failure('CONFLICT', 'RECORD_ALREADY_EXISTS',
@@ -204,7 +247,7 @@ class InMemoryHost {
         branchId: command.branchId,
         docType: docType.name,
         revision: 1,
-        data: command.payload);
+        data: valuesForStorage);
     final receipt = CommandReceipt(
         commandId: command.commandId,
         status: 'ACCEPTED',
@@ -248,17 +291,42 @@ class InMemoryHost {
   StoredRecord? readRecord(
       String docType, String aggregateId, Principal principal,
       {required String companyId, required String branchId}) {
-    if (!principal.companyIds.contains(companyId) ||
-        !principal.branchIds.contains(branchId)) return null;
+    if (!principal.hasScope(companyId, branchId)) return null;
     final type = docTypes.get(docType);
-    if (type == null || !principal.allows(type.permissions['read'] ?? ''))
-      return null;
+    if (type == null ||
+        !principal.allowsInScope(
+          type.permissions['read'] ?? '',
+          companyId,
+          branchId,
+        )) return null;
     final record = _state.records[
-        '${principal.tenantId}\u0000$companyId\u0000$branchId\u0000$docType\u0000$aggregateId'];
+        '${principal.tenantId}\u0000$companyId\u0000$branchId\u0000${type.moduleId}\u0000$docType\u0000$aggregateId'];
     if (record == null ||
         record.companyId != companyId ||
         record.branchId != branchId) return null;
-    return record;
+    final readableFields = type.fields
+        .where(
+          (field) =>
+              field.readPermission == null ||
+              principal.allowsInScope(
+                field.readPermission!,
+                companyId,
+                branchId,
+              ),
+        )
+        .map((field) => field.name)
+        .toSet();
+    final visibleValues = record.data
+      ..removeWhere((fieldName, _) => !readableFields.contains(fieldName));
+    return StoredRecord(
+      id: record.id,
+      tenantId: record.tenantId,
+      companyId: record.companyId,
+      branchId: record.branchId,
+      docType: record.docType,
+      revision: record.revision,
+      data: visibleValues,
+    );
   }
 
   int get recordCount => _state.records.length;

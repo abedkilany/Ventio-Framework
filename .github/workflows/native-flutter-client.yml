@@ -1,0 +1,94 @@
+name: Native Flutter Client and Extension Builder
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/native-flutter-client.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_native_client/**'
+      - 'scripts/prepare_native_client_platforms.ps1'
+      - 'scripts/ci/**'
+      - 'scripts/ci_android/**'
+      - 'spec/v1.2/examples/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/native-flutter-client.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_native_client/**'
+      - 'scripts/prepare_native_client_platforms.ps1'
+      - 'scripts/ci/**'
+      - 'scripts/ci_android/**'
+      - 'spec/v1.2/examples/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  native-client-windows-android:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.actor == 'abedkilany' && github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'workflow_dispatch' && github.actor == 'abedkilany' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/windows-self-hosted-runner'))
+    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    timeout-minutes: 90
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: C:/flutter
+      JAVA_HOME: 'C:\Program Files\Android\Android Studio\jbr'
+      ANDROID_HOME: C:\actions-runner\_work\_tool\ventio-android-sdk-36
+      ANDROID_SDK_ROOT: C:\actions-runner\_work\_tool\ventio-android-sdk-36
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Use the pinned Windows Flutter SDK
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\verify-flutter-sdk.ps1
+      - name: Verify the installed Android Studio JDK
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\verify-android-java.ps1
+      - name: Prepare an isolated Android SDK home for the runner
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\prepare-android-sdk.ps1
+      - name: Seed the isolated SDK with verified local packages
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\seed-android-sdk.ps1
+      - name: Seed the pinned NDK into the isolated Android SDK
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci_android\seed-android-ndk.ps1
+      - name: Verify isolated Android SDK and configure job PATH
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\verify-android-sdk.ps1
+      - name: Generate native runner scaffolding
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\prepare_native_client_platforms.ps1
+      - name: Resolve dependencies
+        working-directory: packages/ventio_native_client
+        run: flutter pub get --enforce-lockfile
+      - name: Check formatting and static analysis
+        working-directory: packages/ventio_native_client
+        run: |
+          dart format --output=none --set-exit-if-changed lib test integration_test
+          flutter analyze
+      - name: Test Extension Builder, local data engine and command queue
+        working-directory: packages/ventio_native_client
+        run: flutter test --reporter expanded
+      - name: Run native Windows Extension Builder acceptance
+        working-directory: packages/ventio_native_client
+        run: flutter test integration_test/extension_builder_app_test.dart -d windows --no-pub --reporter expanded
+      - name: Build Windows desktop app
+        working-directory: packages/ventio_native_client
+        run: flutter build windows --debug
+      - name: Build Windows release app
+        working-directory: packages/ventio_native_client
+        run: flutter build windows --release
+      - name: Build Android debug APK
+        working-directory: packages/ventio_native_client
+        run: flutter build apk --debug
+      - name: Build Android release APK
+        working-directory: packages/ventio_native_client
+        run: flutter build apk --release
+      - name: Remove run-scoped Flutter settings and build output
+        if: always()
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\cleanup-native-flutter.ps1

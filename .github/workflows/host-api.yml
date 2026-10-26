@@ -1,0 +1,81 @@
+name: Ventio Host API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-api.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/**'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'spec/v1.2/examples/**'
+      - 'scripts/ci/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/host-api.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/**'
+      - 'packages/ventio_postgres/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'spec/v1.2/examples/**'
+      - 'scripts/ci/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  host-api:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.actor == 'abedkilany' && github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'workflow_dispatch' && github.actor == 'abedkilany' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/windows-self-hosted-runner'))
+    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: packages/ventio_host_api
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Add the verified Dart SDK to PATH
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-dart-sdk.ps1
+      - run: dart pub get --enforce-lockfile
+      - run: dart format --output=none --set-exit-if-changed lib bin test
+      - run: dart analyze .
+      - name: Install verified PostgreSQL 16 test tools
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-postgres-tools.ps1
+      - name: Start private PostgreSQL 16 test instance
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\start-postgres-test-instance.ps1
+      - run: dart run test/api_tests.dart
+      - name: Install database security profile in disposable PostgreSQL
+        env:
+          VENTIO_MIGRATIONS_DIR: ../../migrations/postgres
+          PGPASSWORD: ventio_test_only
+        run: |
+          dart run ../ventio_postgres/bin/migrate.dart
+          psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
+          psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
+          psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -f ..\..\security\postgres\test_logins.sql
+      - name: Run isolated HTTP and PostgreSQL integration tests
+        run: dart run test/api_integration.dart
+      - name: Run persistent identity and revocation integration tests
+        run: dart run test/identity_integration.dart
+      - name: Run direct SQL, least-privilege and RLS isolation tests
+        run: dart run test/database_security_integration.dart
+      - name: Run scoped role administration tests
+        run: dart run test/role_administration_integration.dart
+      - name: Run extension package approval, scope and recovery integration tests
+        run: dart run test/extension_package_integration.dart
+      - name: Remove disposable PostgreSQL test instance
+        if: always()
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\stop-postgres-test-instance.ps1

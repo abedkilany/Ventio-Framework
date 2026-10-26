@@ -109,6 +109,22 @@ String canonicalJson(Object? value) {
   return jsonEncode(value);
 }
 
+/// Detached, recursively immutable JSON for command fingerprints and receipts.
+/// Top-level Map.unmodifiable alone leaves nested maps/lists mutable.
+Object? immutableJson(Object? value) {
+  if (value is Map) {
+    return Map<String, dynamic>.unmodifiable(requireMap(value, 'json')
+        .map((key, item) => MapEntry(key, immutableJson(item))));
+  }
+  if (value is List)
+    return List<dynamic>.unmodifiable(value.map(immutableJson));
+  if (value == null ||
+      value is String ||
+      value is bool ||
+      (value is num && value.isFinite)) return value;
+  throw const ContractError('INVALID_CONTRACT', 'Value is not finite JSON');
+}
+
 class CommandDefinition {
   final String type;
   final int version;
@@ -302,7 +318,7 @@ class CommandEnvelope {
   final int docTypeVersion;
   final Map<String, dynamic> original;
 
-  const CommandEnvelope(
+  const CommandEnvelope._(
       {required this.commandId,
       required this.type,
       required this.typeVersion,
@@ -344,7 +360,7 @@ class CommandEnvelope {
       throw const ContractError('INVALID_CONTRACT',
           'expectedRevision must be null or a nonnegative integer');
     }
-    return CommandEnvelope(
+    return CommandEnvelope._(
       commandId: commandId,
       type: requireString(json, 'type'),
       typeVersion: requireInt(json, 'typeVersion', min: 1),
@@ -354,15 +370,13 @@ class CommandEnvelope {
       aggregateId: requireString(json, 'aggregateId'),
       expectedRevision: rawRev as int?,
       dependsOn: dependent,
-      payload: Map.unmodifiable(
-          jsonDecode(jsonEncode(requireMap(json['payload'], 'payload')))
-              as Map<String, dynamic>),
+      payload: immutableJson(requireMap(json['payload'], 'payload'))
+          as Map<String, dynamic>,
       deviceId: requireString(ctx, 'deviceId'),
       actorId: requireString(ctx, 'actorId'),
       moduleVersion: moduleVersion,
       docTypeVersion: requireInt(ctx, 'docTypeVersion', min: 1),
-      original: Map.unmodifiable(
-          jsonDecode(jsonEncode(json)) as Map<String, dynamic>),
+      original: immutableJson(json) as Map<String, dynamic>,
     );
   }
 }
@@ -373,21 +387,148 @@ class CommandReceipt {
   final String status;
   final String? reasonCode;
   final String? messageKey;
+  final String? officialNumber;
+  final String? publicMessage;
   final int? hostRevision;
   final String? scopeCursor;
   final int? currentRevision;
   final Map<String, dynamic>? output;
+  final Map<String, dynamic>? messageParams;
 
   CommandReceipt(
       {required this.commandId,
       required this.status,
+      String? serverTimestamp,
       this.reasonCode,
       this.messageKey,
+      this.officialNumber,
+      this.publicMessage,
       this.hostRevision,
       this.scopeCursor,
       this.currentRevision,
-      this.output})
-      : serverTimestamp = DateTime.now().toUtc().toIso8601String();
+      Map<String, dynamic>? output,
+      Map<String, dynamic>? messageParams})
+      : output = output == null
+            ? null
+            : immutableJson(output) as Map<String, dynamic>,
+        messageParams = messageParams == null
+            ? null
+            : immutableJson(messageParams) as Map<String, dynamic>,
+        serverTimestamp =
+            serverTimestamp ?? DateTime.now().toUtc().toIso8601String();
+
+  /// Reads a Host receipt using the shared v0 wire contract.
+  ///
+  /// The API wrapper (`apiVersion` / `receipt`) is transport specific and must
+  /// be removed before this parser is called.
+  factory CommandReceipt.fromJson(Map<String, dynamic> json) {
+    const allowed = {
+      'protocolVersion',
+      'commandId',
+      'status',
+      'serverTimestamp',
+      'retryable',
+      'hostRevision',
+      'scopeCursor',
+      'officialNumber',
+      'output',
+      'reasonCode',
+      'publicMessage',
+      'currentRevision',
+      'messageParams',
+      'messageKey',
+    };
+    void invalid(String details) =>
+        throw ContractError('INVALID_RECEIPT', details);
+
+    if (json.keys.any((key) => !allowed.contains(key))) {
+      invalid('Receipt contains an unsupported field');
+    }
+    if (requireInt(json, 'protocolVersion') != 0) {
+      throw const ContractError(
+          'UNSUPPORTED_VERSION', 'Only protocolVersion 0 is supported');
+    }
+    final commandId = requireString(json, 'commandId');
+    if (!_uuid.hasMatch(commandId)) invalid('commandId must be a UUID');
+
+    final status = requireString(json, 'status');
+    const statuses = {'ACCEPTED', 'REJECTED', 'CONFLICT', 'RETRY_LATER'};
+    if (!statuses.contains(status)) invalid('Unsupported receipt status');
+
+    final serverTimestamp = requireString(json, 'serverTimestamp');
+    if (!serverTimestamp.contains('T') ||
+        DateTime.tryParse(serverTimestamp) == null) {
+      invalid('serverTimestamp must be an ISO-8601 date-time');
+    }
+    final retryable = requireBool(json, 'retryable');
+    if (retryable != (status == 'RETRY_LATER')) {
+      invalid('retryable does not match receipt status');
+    }
+
+    int? optionalRevision(String name) {
+      if (!json.containsKey(name)) return null;
+      return requireInt(json, name);
+    }
+
+    Map<String, dynamic>? objectField(String name) {
+      if (!json.containsKey(name)) return null;
+      return requireMap(json[name], name);
+    }
+
+    final hostRevision = optionalRevision('hostRevision');
+    final currentRevision = optionalRevision('currentRevision');
+    final scopeCursor = optionalString(json, 'scopeCursor');
+    final reasonCode = optionalString(json, 'reasonCode');
+    final messageKey = optionalString(json, 'messageKey');
+    final officialNumber = optionalString(json, 'officialNumber');
+    final publicMessage = optionalString(json, 'publicMessage');
+    if (status == 'ACCEPTED' && (hostRevision == null || scopeCursor == null)) {
+      invalid('Accepted receipts require hostRevision and scopeCursor');
+    }
+    if (status != 'ACCEPTED' && reasonCode == null) {
+      invalid('Non-accepted receipts require reasonCode');
+    }
+    if (reasonCode != null && !RegExp(r'^[A-Z0-9_]+$').hasMatch(reasonCode)) {
+      invalid('reasonCode has an invalid format');
+    }
+    if (messageKey != null &&
+        !RegExp(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$')
+            .hasMatch(messageKey)) {
+      invalid('messageKey has an invalid format');
+    }
+    if (publicMessage != null && publicMessage.length > 500) {
+      invalid('publicMessage is too long');
+    }
+
+    final output = objectField('output');
+    final messageParams = objectField('messageParams');
+    if (messageParams != null &&
+        (messageParams.length > 20 ||
+            messageParams.keys
+                .any((key) => !RegExp(r'^[a-z][A-Za-z0-9_]*$').hasMatch(key)) ||
+            messageParams.values.any((value) =>
+                value != null &&
+                value is! String &&
+                value is! bool &&
+                (value is! num || !value.isFinite)))) {
+      invalid('messageParams has an invalid shape');
+    }
+
+    return CommandReceipt(
+      commandId: commandId,
+      status: status,
+      serverTimestamp: serverTimestamp,
+      reasonCode: reasonCode,
+      messageKey: messageKey,
+      officialNumber: officialNumber,
+      publicMessage: publicMessage,
+      hostRevision: hostRevision,
+      scopeCursor: scopeCursor,
+      currentRevision: currentRevision,
+      output: output,
+      messageParams: messageParams,
+    );
+  }
 
   bool get accepted => status == 'ACCEPTED';
 
@@ -399,8 +540,11 @@ class CommandReceipt {
         'retryable': status == 'RETRY_LATER',
         if (hostRevision != null) 'hostRevision': hostRevision,
         if (scopeCursor != null) 'scopeCursor': scopeCursor,
+        if (officialNumber != null) 'officialNumber': officialNumber,
         if (reasonCode != null) 'reasonCode': reasonCode,
         if (messageKey != null) 'messageKey': messageKey,
+        if (messageParams != null) 'messageParams': messageParams,
+        if (publicMessage != null) 'publicMessage': publicMessage,
         if (currentRevision != null) 'currentRevision': currentRevision,
         if (output != null) 'output': output,
       };

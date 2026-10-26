@@ -1,4 +1,4 @@
-﻿**/.dart_tool/
+**/.dart_tool/
 **/build/
 **/.pub/
 **/.packages
@@ -9,3 +9,5 @@ packages/ventio_core/pubspec.lock
 *.zip
 .env
 .env.*
+__pycache__/
+*.pyc

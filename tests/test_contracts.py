@@ -8,7 +8,12 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from validate_contracts import cross_check, validate_schema_pair  # noqa: E402
+from validate_contracts import (  # noqa: E402
+    cross_check,
+    validate_length_bounds,
+    validate_numeric_bounds,
+    validate_schema_pair,
+)
 
 
 def read(folder, name):
@@ -35,6 +40,48 @@ class ContractDraftTests(unittest.TestCase):
         example = read('examples', 'maintenance_manifest.json')
         example['runDart'] = 'print(123)'
         self.assertFalse(self._is_valid(schema, example))
+
+    def test_numeric_field_bounds_are_typed_and_ordered(self):
+        schema = read('contracts', 'doctype.schema.json')
+        doctype = read('examples', 'maintenance_doctype.json')
+        field = doctype['fields'][0]
+        field['type'] = 'integer'
+        field.pop('maxLength')
+        field['minValue'] = 1
+        field['maxValue'] = 10
+        self.assertTrue(self._is_valid(schema, doctype))
+        validate_numeric_bounds(doctype)
+
+        field['minValue'] = 1.5
+        self.assertFalse(self._is_valid(schema, doctype))
+
+        field['type'] = 'text'
+        field['minValue'] = 1
+        self.assertFalse(self._is_valid(schema, doctype))
+
+        field['type'] = 'decimal'
+        field['minValue'] = 11
+        field['maxValue'] = 10
+        self.assertTrue(self._is_valid(schema, doctype))
+        with self.assertRaises(ValueError):
+            validate_numeric_bounds(doctype)
+
+    def test_text_length_bounds_are_typed_and_ordered(self):
+        schema = read('contracts', 'doctype.schema.json')
+        doctype = read('examples', 'maintenance_doctype.json')
+        field = doctype['fields'][0]
+        field['minLength'] = 2
+        field['maxLength'] = 12
+        self.assertTrue(self._is_valid(schema, doctype))
+        validate_length_bounds(doctype)
+
+        field['type'] = 'integer'
+        self.assertFalse(self._is_valid(schema, doctype))
+
+        field['type'] = 'text'
+        field['minLength'] = 13
+        with self.assertRaises(ValueError):
+            validate_length_bounds(doctype)
 
     def test_invalid_command_id(self):
         schema = read('contracts', 'command_envelope.schema.json')

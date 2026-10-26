@@ -1,0 +1,867 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:ventio_core/ventio_core.dart';
+
+import 'authentication.dart';
+import 'extension_packages.dart';
+import 'extension_records.dart';
+import 'role_administration.dart';
+
+abstract interface class CommandExecutor {
+  Future<Map<String, dynamic>> execute(
+    CommandEnvelope command,
+    AuthenticatedSession session,
+  );
+}
+
+/// Executor whose accepted effects use the authoritative durable Host store.
+abstract interface class AuthoritativeCommandExecutor
+    implements CommandExecutor {}
+
+/// Versioned HTTP routing, validation, and authenticated command dispatch.
+/// Cleartext is limited to loopback. Any external listener requires TLS and
+/// persistent Host identity resolution.
+class HostApi {
+  final HttpServer _server;
+  final HostAuthenticator _authenticator;
+  final CommandExecutor _executor;
+  final ExtensionPackageGateway? _extensionPackages;
+  final ExtensionRecordQueryGateway? _extensionRecordQueries;
+  final IdentityRoleAdministrationGateway? _identityRoleAdministration;
+  final int maxBodyBytes;
+  final int maxConcurrentRequests;
+  final Duration bodyTimeout;
+  final Set<Future<void>> _active = {};
+  bool _closing = false;
+  Future<void>? _closeFuture;
+
+  HostApi._(
+    this._server,
+    this._authenticator,
+    this._executor,
+    this._extensionPackages,
+    this._extensionRecordQueries,
+    this._identityRoleAdministration,
+    this.maxBodyBytes,
+    this.maxConcurrentRequests,
+    this.bodyTimeout,
+  ) {
+    _server.serverHeader = null;
+    _server.idleTimeout = const Duration(seconds: 5);
+    _server.listen((request) {
+      // Register synchronously before yielding so shutdown sees every request.
+      late final Future<void> pending;
+      pending = _handleSafely(
+        request,
+      ).whenComplete(() => _active.remove(pending));
+      _active.add(pending);
+    });
+  }
+
+  static Future<HostApi> bind({
+    required HostAuthenticator authenticator,
+    required CommandExecutor executor,
+    ExtensionPackageGateway? extensionPackages,
+    ExtensionRecordQueryGateway? extensionRecordQueries,
+    IdentityRoleAdministrationGateway? identityRoleAdministration,
+    InternetAddress? listenAddress,
+    SecurityContext? tlsContext,
+    int port = 0,
+    int maxBodyBytes = 65536,
+    int maxConcurrentRequests = 16,
+    Duration bodyTimeout = const Duration(seconds: 10),
+  }) async {
+    if (maxBodyBytes < 1 ||
+        maxConcurrentRequests < 1 ||
+        bodyTimeout <= Duration.zero) {
+      throw ArgumentError('Resource limits must be positive');
+    }
+    final address = listenAddress ?? InternetAddress.loopbackIPv4;
+    if (!address.isLoopback &&
+        (tlsContext == null ||
+            authenticator is! PersistentHostAuthenticator ||
+            executor is! AuthoritativeCommandExecutor ||
+            (extensionPackages != null &&
+                extensionPackages is! AuthoritativeExtensionPackageGateway) ||
+            (extensionRecordQueries != null &&
+                extensionRecordQueries
+                    is! AuthoritativeExtensionRecordQueryGateway) ||
+            (identityRoleAdministration != null &&
+                identityRoleAdministration
+                    is! AuthoritativeIdentityRoleAdministrationGateway))) {
+      throw ArgumentError(
+        'External Host listeners require TLS and authoritative Host services.',
+      );
+    }
+    final server = tlsContext == null
+        ? await HttpServer.bind(address, port)
+        : await HttpServer.bindSecure(address, port, tlsContext);
+    return HostApi._(
+      server,
+      authenticator,
+      executor,
+      extensionPackages,
+      extensionRecordQueries,
+      identityRoleAdministration,
+      maxBodyBytes,
+      maxConcurrentRequests,
+      bodyTimeout,
+    );
+  }
+
+  int get port => _server.port;
+
+  /// Stop admission and drain in-flight work before the caller closes resources.
+  /// Does not cancel a database transaction on an arbitrary HTTP timeout.
+  Future<void> close() => _closeFuture ??= _close();
+
+  Future<void> _close() async {
+    _closing = true;
+    final stopped = _server.close();
+    while (_active.isNotEmpty) {
+      await Future.wait(_active.toList());
+    }
+    await stopped;
+  }
+
+  Future<void> _handleSafely(HttpRequest request) async {
+    // Subscribe immediately so dart:io does not implicitly drain an unbounded
+    // unauthenticated body before sending an early error response.
+    final iterator = StreamIterator<List<int>>(request);
+    final firstChunk = iterator.moveNext();
+    // Early rejection may never await the first chunk; consume its error too.
+    unawaited(firstChunk.then<void>((_) {}, onError: (Object _) {}));
+    try {
+      await _handle(request, iterator, firstChunk);
+    } on _ApiError catch (error) {
+      await _error(
+        request,
+        error.status,
+        error.code,
+        retryable: error.retryable,
+      );
+    } on HttpException {
+      await _error(request, 400, 'INVALID_REQUEST');
+    } on FormatException {
+      await _error(request, 400, 'INVALID_REQUEST');
+    } on ContractError {
+      await _error(request, 400, 'INVALID_COMMAND');
+    } on IdentityRoleAdministrationException catch (error) {
+      await _error(request, error.statusCode, error.code);
+    } catch (_) {
+      // Never return exception text, database details, tokens, or request bodies.
+      // Any execution exception may have an ambiguous commit outcome.
+      await _error(request, 503, 'HOST_UNAVAILABLE', retryable: true);
+    } finally {
+      try {
+        await request.response.close();
+      } catch (_) {
+        /* Peer disconnected. */
+      }
+      // Flush the response before cancellation; early cancellation truncates
+      // error responses for incomplete uploads on dart:io.
+      unawaited(iterator.cancel().catchError((Object _) {}));
+    }
+  }
+
+  Future<void> _handle(
+    HttpRequest request,
+    StreamIterator<List<int>> iterator,
+    Future<bool> firstChunk,
+  ) async {
+    request.response.headers
+      ..set(HttpHeaders.cacheControlHeader, 'no-store')
+      ..set('X-Content-Type-Options', 'nosniff');
+    // Do not drain untrusted, possibly infinite request bodies on keep-alive.
+    request.response.persistentConnection = false;
+    if (_closing || _active.length >= maxConcurrentRequests) {
+      throw const _ApiError(503, 'HOST_BUSY', retryable: true);
+    }
+    if (request.uri.hasQuery) throw const _ApiError(400, 'INVALID_REQUEST');
+    if (request.uri.path == '/healthz') {
+      if (request.method != 'GET') {
+        request.response.headers.set(HttpHeaders.allowHeader, 'GET');
+        throw const _ApiError(405, 'METHOD_NOT_ALLOWED');
+      }
+      _json(request, 200, {'apiVersion': 1, 'status': 'alive'});
+      return;
+    }
+    final packageRoute = switch (request.uri.path) {
+      '/api/v1/extensions/submit' => 'submit',
+      '/api/v1/extensions/read' => 'read',
+      '/api/v1/extensions/approved' => 'list',
+      _ => null,
+    };
+    final recordQueryRoute =
+        request.uri.path == '/api/v1/extensions/records/query';
+    final identityRoleRoute = _identityRoleAction(request.uri.path);
+    final sessionRoute = request.uri.path == '/api/v1/session';
+    if (request.uri.path != '/api/v1/commands' &&
+        packageRoute == null &&
+        !recordQueryRoute &&
+        identityRoleRoute == null &&
+        !sessionRoute) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    final requiredMethod = sessionRoute ? 'GET' : 'POST';
+    if (request.method != requiredMethod) {
+      request.response.headers.set(HttpHeaders.allowHeader, requiredMethod);
+      throw const _ApiError(405, 'METHOD_NOT_ALLOWED');
+    }
+    final headers = request.headers[HttpHeaders.authorizationHeader];
+    if (headers == null ||
+        headers.length != 1 ||
+        !RegExp(
+          r'^Bearer [A-Za-z0-9_-]{43,128}$',
+          caseSensitive: false,
+        ).hasMatch(headers.single)) {
+      throw const _ApiError(401, 'UNAUTHENTICATED');
+    }
+    final session = await _authenticator.authenticate(
+      headers.single.substring(7),
+    );
+    if (session == null) throw const _ApiError(401, 'UNAUTHENTICATED');
+    final principal = session.principal;
+    if (sessionRoute) {
+      if (request.contentLength > 0 ||
+          request.headers.value(HttpHeaders.transferEncodingHeader) != null) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final scopes =
+          principal.scopeGrants
+              .map(
+                (scope) => {
+                  'companyId': scope.companyId,
+                  'branchId': scope.branchId,
+                  'permissions': scope.permissions.toList()..sort(),
+                },
+              )
+              .toList()
+            ..sort((left, right) {
+              final company = (left['companyId'] as String).compareTo(
+                right['companyId'] as String,
+              );
+              return company != 0
+                  ? company
+                  : (left['branchId'] as String).compareTo(
+                      right['branchId'] as String,
+                    );
+            });
+      _json(request, 200, {
+        'apiVersion': 1,
+        'identity': {
+          'tenantId': principal.tenantId,
+          'actorId': principal.actorId,
+          'deviceId': principal.deviceId,
+          'persistent': session.credentialDigest != null,
+          'roleAdministrationAvailable': _identityRoleAdministration != null,
+          'scopes': scopes,
+        },
+      });
+      return;
+    }
+    if (packageRoute != null && _extensionPackages == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if (recordQueryRoute && _extensionRecordQueries == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if ((packageRoute != null ||
+            recordQueryRoute ||
+            identityRoleRoute != null) &&
+        session.credentialDigest == null) {
+      throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
+    }
+    if (identityRoleRoute != null && _identityRoleAdministration == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    final contentType = request.headers.contentType;
+    if (contentType?.mimeType.toLowerCase() != 'application/json' ||
+        (contentType?.charset != null &&
+            contentType!.charset!.toLowerCase() != 'utf-8') ||
+        request.headers.value(HttpHeaders.contentEncodingHeader) != null) {
+      throw const _ApiError(415, 'UNSUPPORTED_MEDIA_TYPE');
+    }
+    final bodyLimit = packageRoute == 'submit'
+        ? ExtensionBundle.maxEncodedBytes + 8192
+        : maxBodyBytes;
+    if (request.contentLength > bodyLimit) {
+      throw const _ApiError(413, 'BODY_TOO_LARGE');
+    }
+    final bytes = BytesBuilder(copy: false);
+    // Stream.timeout alone measures inactivity, not total upload time.
+    final watch = Stopwatch()..start();
+    var nextChunk = firstChunk;
+    try {
+      while (true) {
+        final remaining = bodyTimeout - watch.elapsed;
+        if (remaining <= Duration.zero)
+          throw const _ApiError(408, 'BODY_TIMEOUT');
+        if (!await nextChunk.timeout(remaining)) break;
+        if (bytes.length + iterator.current.length > bodyLimit) {
+          throw const _ApiError(413, 'BODY_TOO_LARGE');
+        }
+        bytes.add(iterator.current);
+        nextChunk = iterator.moveNext();
+      }
+    } on TimeoutException {
+      throw const _ApiError(408, 'BODY_TIMEOUT');
+    }
+    final text = utf8.decode(bytes.takeBytes());
+    _validateNesting(text);
+    final json = requireMap(jsonDecode(text), 'command');
+    if (identityRoleRoute != null) {
+      await _handleIdentityRoleAdministration(
+        request,
+        identityRoleRoute,
+        json,
+        session,
+      );
+      return;
+    }
+    if (packageRoute != null) {
+      await _handleExtensionPackage(request, packageRoute, json, session);
+      return;
+    }
+    if (recordQueryRoute) {
+      await _handleExtensionRecordQuery(request, json, session);
+      return;
+    }
+    _validateWireShape(json);
+    final command = CommandEnvelope.fromJson(json);
+    // Persistent scope/permissions are resolved inside the execution transaction.
+    // Only identity claims are checked against the authenticated snapshot here.
+    if (session.credentialDigest != null &&
+        (principal.tenantId != command.tenantId ||
+            principal.actorId != command.actorId ||
+            principal.deviceId != command.deviceId)) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    if (session.credentialDigest == null &&
+        !principal.withinScope(
+          tenantId: command.tenantId,
+          companyId: command.companyId,
+          branchId: command.branchId,
+          actorId: command.actorId,
+          deviceId: command.deviceId,
+        )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    final receipt = await _executor.execute(command, session);
+    if (receipt['reasonCode'] == 'AUTHENTICATION_REQUIRED') {
+      throw const _ApiError(401, 'UNAUTHENTICATED');
+    }
+    final status = switch (receipt['status']) {
+      'ACCEPTED' => 200,
+      'CONFLICT' => 409,
+      'RETRY_LATER' => 409,
+      _ => switch (receipt['reasonCode']) {
+        'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
+        'COMMAND_ID_REUSED' => 409,
+        _ => 422,
+      },
+    };
+    _json(request, status, {'apiVersion': 1, 'receipt': receipt});
+  }
+
+  Future<void> _handleExtensionPackage(
+    HttpRequest request,
+    String operation,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    final gateway = _extensionPackages!;
+    final requiredKeys = switch (operation) {
+      'submit' => const {'companyId', 'branchId', 'package'},
+      'read' => const {'companyId', 'branchId', 'moduleId', 'version'},
+      _ => const {'companyId', 'branchId', 'limit'},
+    };
+    final optionalKeys = operation == 'list'
+        ? const {'afterModuleId', 'afterVersion'}
+        : const <String>{};
+    if (json.keys.any(
+          (key) => !requiredKeys.contains(key) && !optionalKeys.contains(key),
+        ) ||
+        !requiredKeys.every(json.containsKey) ||
+        (json.containsKey('afterModuleId') !=
+            json.containsKey('afterVersion'))) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final requiredPermission = operation == 'submit'
+        ? 'extension.package.submit'
+        : 'extension.package.read';
+    if (!session.principal.allowsInScope(
+      requiredPermission,
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+    final Map<String, dynamic> result;
+    if (operation == 'submit') {
+      final raw = json['package'];
+      if (raw is! Map) throw const _ApiError(400, 'INVALID_REQUEST');
+      final bundle = ExtensionBundle.fromJson(Map<String, dynamic>.from(raw));
+      result = await gateway.submit(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        bundle: bundle,
+      );
+    } else if (operation == 'read') {
+      final moduleId = _boundedIdentifier(json, 'moduleId');
+      if (!RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
+          moduleId.length > 128) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      result = await gateway.readApproved(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        moduleId: moduleId,
+        version: _boundedIdentifier(json, 'version'),
+      );
+    } else {
+      final limit = json['limit'];
+      if (limit is! int || limit < 1 || limit > 50) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final afterModuleId = json['afterModuleId'];
+      final afterVersion = json['afterVersion'];
+      if ((afterModuleId != null && afterModuleId is! String) ||
+          (afterVersion != null && afterVersion is! String)) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      result = await gateway.listApproved(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        limit: limit,
+        afterModuleId: afterModuleId as String?,
+        afterVersion: afterVersion as String?,
+      );
+    }
+    final resultStatus = result['status'];
+    final statusCode = switch (resultStatus) {
+      'SUBMITTED' => 202,
+      'APPROVED' => 200,
+      'CONFLICT' => 409,
+      'REJECTED' => switch (result['reasonCode']) {
+        'PERMISSION_DENIED' => 403,
+        'PACKAGE_NOT_APPROVED' || 'PACKAGE_UNAVAILABLE' => 404,
+        'INVALID_PAGE' => 400,
+        _ => 422,
+      },
+      _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
+    };
+    _json(request, statusCode, {'apiVersion': 1, 'packageResult': result});
+  }
+
+  Future<void> _handleIdentityRoleAdministration(
+    HttpRequest request,
+    String action,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    final requiredKeys = switch (action) {
+      'list' => const {'companyId', 'branchId'},
+      'create' ||
+      'rename' => const {'companyId', 'branchId', 'roleId', 'displayName'},
+      'delete' => const {'companyId', 'branchId', 'roleId'},
+      'grant-permission' || 'revoke-permission' => const {
+        'companyId',
+        'branchId',
+        'roleId',
+        'permission',
+      },
+      'assign' ||
+      'unassign' => const {'companyId', 'branchId', 'roleId', 'actorId'},
+      _ => throw const _ApiError(404, 'NOT_FOUND'),
+    };
+    if (json.keys.toSet().length != requiredKeys.length ||
+        !json.keys.toSet().containsAll(requiredKeys)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    if (!session.principal.allowsInScope(
+      'identity.roles.manage',
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+    final gateway = _identityRoleAdministration!;
+    if (action == 'list') {
+      final roles = await gateway.list(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+      );
+      if (utf8.encode(jsonEncode(roles)).length > 1024 * 1024) {
+        throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+      }
+      _json(request, 200, {'apiVersion': 1, 'identityRoles': roles});
+      return;
+    }
+
+    final roleId = _boundedIdentifier(json, 'roleId');
+    if (!RegExp(r'^[a-z][a-z0-9_.-]*$').hasMatch(roleId)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final change = <String, Object?>{
+      'action': switch (action) {
+        'create' => 'ROLE_CREATED',
+        'rename' => 'ROLE_RENAMED',
+        'delete' => 'ROLE_DELETED',
+        'grant-permission' => 'ROLE_PERMISSION_GRANTED',
+        'revoke-permission' => 'ROLE_PERMISSION_REVOKED',
+        'assign' => 'ROLE_ASSIGNED',
+        'unassign' => 'ROLE_UNASSIGNED',
+        _ => throw const _ApiError(404, 'NOT_FOUND'),
+      },
+      'roleId': roleId,
+    };
+    if (action == 'create' || action == 'rename') {
+      final displayName = requireString(json, 'displayName');
+      if (displayName.trim().isEmpty || displayName.length > 120) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      change['displayName'] = displayName;
+    } else if (action == 'grant-permission' || action == 'revoke-permission') {
+      final permission = _boundedIdentifier(json, 'permission');
+      if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission)) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      change['permission'] = permission;
+    } else if (action == 'assign' || action == 'unassign') {
+      change
+        ..['actorId'] = _boundedIdentifier(json, 'actorId')
+        ..['companyId'] = companyId
+        ..['branchId'] = branchId;
+    }
+    await gateway.change(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      change: change,
+    );
+    _json(request, 200, {
+      'apiVersion': 1,
+      'identityRoleResult': {'status': 'APPLIED'},
+    });
+  }
+
+  String? _identityRoleAction(String path) => switch (path) {
+    '/api/v1/identity/roles/list' => 'list',
+    '/api/v1/identity/roles/create' => 'create',
+    '/api/v1/identity/roles/rename' => 'rename',
+    '/api/v1/identity/roles/delete' => 'delete',
+    '/api/v1/identity/roles/grant-permission' => 'grant-permission',
+    '/api/v1/identity/roles/revoke-permission' => 'revoke-permission',
+    '/api/v1/identity/roles/assign' => 'assign',
+    '/api/v1/identity/roles/unassign' => 'unassign',
+    _ => null,
+  };
+
+  Future<void> _handleExtensionRecordQuery(
+    HttpRequest request,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    const allowedKeys = {
+      'companyId',
+      'branchId',
+      'moduleId',
+      'version',
+      'docType',
+      'recordId',
+      'search',
+      'filters',
+      'filterField',
+      'filterContains',
+      'sortField',
+      'descending',
+      'offset',
+      'limit',
+    };
+    const requiredKeys = {
+      'companyId',
+      'branchId',
+      'moduleId',
+      'version',
+      'docType',
+      'search',
+      'filters',
+      'filterField',
+      'filterContains',
+      'sortField',
+      'descending',
+      'offset',
+      'limit',
+    };
+    if (json.keys.any((key) => !allowedKeys.contains(key)) ||
+        !json.keys.toSet().containsAll(requiredKeys)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final moduleId = _boundedIdentifier(json, 'moduleId');
+    final version = _boundedIdentifier(json, 'version');
+    final docType = _boundedIdentifier(json, 'docType');
+    final recordIdValue = json['recordId'];
+    if (recordIdValue != null &&
+        (recordIdValue is! String ||
+            recordIdValue.isEmpty ||
+            recordIdValue.length > 128)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    if (!RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
+        moduleId.length > 128 ||
+        !RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(docType) ||
+        docType.length > 80) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    try {
+      semverParts(version);
+    } on ContractError {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final search = requireString(json, 'search', nonEmpty: false);
+    if (search.length > 256) throw const _ApiError(400, 'INVALID_REQUEST');
+    final rawFilters = requireMap(json['filters'], 'filters');
+    if (rawFilters.length > 10 ||
+        rawFilters.entries.any(
+          (entry) =>
+              entry.key.length > 80 ||
+              entry.value is Map ||
+              entry.value is List ||
+              (entry.value is String && (entry.value as String).length > 256),
+        )) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final filterFieldValue = json['filterField'];
+    final filterContains = requireString(
+      json,
+      'filterContains',
+      nonEmpty: false,
+    );
+    if ((filterFieldValue != null &&
+            (filterFieldValue is! String ||
+                filterFieldValue.isEmpty ||
+                filterFieldValue.length > 80)) ||
+        filterContains.length > 256 ||
+        (filterFieldValue == null && filterContains.isNotEmpty)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final sortFieldValue = json['sortField'];
+    if (sortFieldValue != null &&
+        (sortFieldValue is! String ||
+            sortFieldValue.isEmpty ||
+            sortFieldValue.length > 80)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final descending = json['descending'];
+    if (descending is! bool) throw const _ApiError(400, 'INVALID_REQUEST');
+    final offset = requireInt(json, 'offset');
+    final limit = requireInt(json, 'limit', min: 1);
+    if (offset > 1000000 || limit > 50) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    if (recordIdValue != null &&
+        (offset != 0 ||
+            limit != 1 ||
+            search.isNotEmpty ||
+            rawFilters.isNotEmpty ||
+            filterFieldValue != null ||
+            filterContains.isNotEmpty)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final principal = session.principal;
+    if (!principal.withinScope(
+      tenantId: principal.tenantId,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: principal.actorId,
+      deviceId: principal.deviceId,
+    )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    final result = await _extensionRecordQueries!.query(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      moduleId: moduleId,
+      version: version,
+      docType: docType,
+      recordId: recordIdValue as String?,
+      search: search,
+      filters: rawFilters,
+      filterField: filterFieldValue as String?,
+      filterContains: filterContains,
+      sortField: sortFieldValue as String?,
+      descending: descending,
+      offset: offset,
+      limit: limit,
+    );
+    final statusCode = switch (result['status']) {
+      'RECORDS' => 200,
+      'REJECTED' => switch (result['reasonCode']) {
+        'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
+        'EXTENSION_NOT_APPROVED' => 404,
+        'RECORD_PAGE_TOO_LARGE' => 413,
+        _ => 422,
+      },
+      _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
+    };
+    if (utf8.encode(jsonEncode(result)).length > 4 * 1024 * 1024) {
+      throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+    }
+    _json(request, statusCode, {'apiVersion': 1, 'recordResult': result});
+  }
+
+  String _boundedIdentifier(Map<String, dynamic> json, String key) {
+    final value = requireString(json, key);
+    if (value.trim().isEmpty || value.length > 256) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    return value;
+  }
+
+  Future<void> _error(
+    HttpRequest request,
+    int status,
+    String code, {
+    bool retryable = false,
+  }) async {
+    try {
+      if (status == 401)
+        request.response.headers.set(
+          HttpHeaders.wwwAuthenticateHeader,
+          'Bearer',
+        );
+      if (retryable)
+        request.response.headers.set(HttpHeaders.retryAfterHeader, '1');
+      _json(request, status, {
+        'apiVersion': 1,
+        'error': {
+          'code': code,
+          'messageKey': 'host_api.error.${code.toLowerCase()}',
+          'message': switch (code) {
+            'UNAUTHENTICATED' => 'Valid credentials are required.',
+            'SCOPE_DENIED' => 'The requested identity or scope is not allowed.',
+            'PERMISSION_DENIED' => 'The requested operation is not permitted.',
+            'PERSISTENT_IDENTITY_REQUIRED' =>
+              'A persistent Host identity is required.',
+            'HOST_UNAVAILABLE' =>
+              'Outcome may be unknown. Retry the identical command.',
+            _ => 'The request could not be processed.',
+          },
+          'retryable': retryable,
+        },
+      });
+    } catch (_) {
+      /* Peer disconnected before error delivery. */
+    }
+  }
+
+  void _json(HttpRequest request, int status, Map<String, dynamic> body) {
+    request.response.statusCode = status;
+    request.response.headers.contentType = ContentType.json;
+    final bytes = utf8.encode(jsonEncode(body));
+    request.response.contentLength = bytes.length;
+    request.response.add(bytes);
+  }
+}
+
+void _validateWireShape(Map<String, dynamic> json) {
+  const allowed = {
+    'protocolVersion',
+    'commandId',
+    'type',
+    'typeVersion',
+    'tenantId',
+    'companyId',
+    'branchId',
+    'aggregateId',
+    'expectedRevision',
+    'dependsOn',
+    'payload',
+    'clientContext',
+  };
+  final context = requireMap(json['clientContext'], 'clientContext');
+  if (json.keys.any((key) => !allowed.contains(key)) ||
+      context.keys.any(
+        (key) => !{
+          'deviceId',
+          'actorId',
+          'moduleVersion',
+          'docTypeVersion',
+          'clientTimestamp',
+        }.contains(key),
+      ) ||
+      !RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(requireString(json, 'type'))) {
+    throw const _ApiError(400, 'INVALID_COMMAND');
+  }
+  if (context.containsKey('clientTimestamp') &&
+      (context['clientTimestamp'] is! String ||
+          !RegExp(
+            r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$',
+          ).hasMatch(context['clientTimestamp'] as String) ||
+          DateTime.tryParse(context['clientTimestamp'] as String) == null)) {
+    throw const _ApiError(400, 'INVALID_COMMAND');
+  }
+  for (final key in [
+    'tenantId',
+    'companyId',
+    'branchId',
+    'aggregateId',
+    'type',
+  ]) {
+    if (requireString(json, key).length > 256)
+      throw const _ApiError(400, 'INVALID_COMMAND');
+  }
+  for (final key in ['actorId', 'deviceId']) {
+    if (requireString(context, key).length > 256)
+      throw const _ApiError(400, 'INVALID_COMMAND');
+  }
+  if (json['dependsOn'] is List && (json['dependsOn'] as List).length > 128) {
+    throw const _ApiError(400, 'INVALID_COMMAND');
+  }
+}
+
+/// Bound parser recursion before decoding adversarial nested JSON.
+void _validateNesting(String text) {
+  var depth = 0;
+  var quoted = false;
+  var escaped = false;
+  for (final unit in text.codeUnits) {
+    if (quoted) {
+      if (escaped) {
+        escaped = false;
+      } else if (unit == 92) {
+        escaped = true;
+      } else if (unit == 34) {
+        quoted = false;
+      }
+    } else if (unit == 34) {
+      quoted = true;
+    } else if (unit == 123 || unit == 91) {
+      if (++depth > 32) throw const _ApiError(400, 'INVALID_REQUEST');
+    } else if (unit == 125 || unit == 93) {
+      depth--;
+    }
+  }
+}
+
+class _ApiError implements Exception {
+  final int status;
+  final String code;
+  final bool retryable;
+  const _ApiError(this.status, this.code, {this.retryable = false});
+}

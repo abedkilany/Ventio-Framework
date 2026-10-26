@@ -1,0 +1,15 @@
+name: ventio_host_api
+description: Loopback-only authenticated HTTP prototype for the durable Ventio Host.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.9.0 <4.0.0'
+dependencies:
+  ventio_core:
+    path: ../ventio_core
+  ventio_host:
+    path: ../ventio_host
+  ventio_postgres:
+    path: ../ventio_postgres
+  postgres: ^3.5.20
+  crypto: ^3.0.6
