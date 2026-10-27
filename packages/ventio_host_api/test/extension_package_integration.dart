@@ -1964,6 +1964,21 @@ Future<void> main() async {
           (blindResult['records'] as List).isEmpty,
       'Host field masks and search prevent an ungranted user from reading a protected value',
     );
+    final redactedFieldQuery = await queryRecords(
+      fieldBlindToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-item-1',
+      sortField: null,
+      limit: 1,
+    );
+    final redactedFieldRecord =
+        (redactedFieldQuery.body['recordResult']['records'] as List).single
+            as Map<String, dynamic>;
+    expect(
+      redactedFieldQuery.status == 200 &&
+          !(redactedFieldRecord['values'] as Map).containsKey('title'),
+      'Host omits protected values from direct record reads',
+    );
     final unauthorizedCreate = ExtensionRecordCommand.create(
       commandId: '71000000-0000-4000-8000-000000000011',
       tenantId: tenant,
@@ -2015,6 +2030,17 @@ Future<void> main() async {
           blindFieldFilter.body['recordResult']['reasonCode'] ==
               'PERMISSION_DENIED',
       'Host rejects filters on fields the principal cannot read',
+    );
+    final blindFieldSort = await queryRecords(
+      fieldBlindToken,
+      moduleId: fieldPackage.moduleId,
+      sortField: 'title',
+    );
+    expect(
+      blindFieldSort.status == 403 &&
+          blindFieldSort.body['recordResult']['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'Host rejects sorting on fields the principal cannot read',
     );
     final fieldReadOnly = await queryRecords(
       fieldReaderToken,
