@@ -132,6 +132,7 @@ class ExtensionBundle {
           'permissions',
           'fields',
           'naming',
+          'businessOperations',
           'ui',
           'migrations',
         },
@@ -322,6 +323,14 @@ class ExtensionBundle {
         throw ContractError(
           'PERMISSION_NAMESPACE',
           '${type.name} declares a permission outside its extension namespace.',
+        );
+      }
+      if (type.businessOperations.any(
+        (operation) => !operation.permission.startsWith(messageNamespace),
+      )) {
+        throw ContractError(
+          'PERMISSION_NAMESPACE',
+          '${type.name} declares an operation permission outside its extension namespace.',
         );
       }
       if (type.fields.any(

@@ -1,4 +1,5 @@
 import 'contracts.dart';
+import 'business_operations.dart';
 
 final RegExp _docTypeIdentifier = RegExp(r'^[A-Z][A-Za-z0-9_]*$');
 final RegExp _docFieldIdentifier = RegExp(r'^[a-z][A-Za-z0-9_]*$');
@@ -539,6 +540,7 @@ class DocTypeDefinition {
   final int pageOrder;
   final List<DocTypeMigration> migrations;
   final DocumentNamingSeries? namingSeries;
+  final List<BusinessOperationDefinition> businessOperations;
 
   const DocTypeDefinition(
       {required this.name,
@@ -558,7 +560,8 @@ class DocTypeDefinition {
       this.pageIcon = 'list',
       this.pageOrder = 0,
       this.migrations = const [],
-      this.namingSeries})
+      this.namingSeries,
+      this.businessOperations = const []})
       : pageTitle = pageTitle ?? label,
         pageTitleKey = pageTitleKey ?? labelKey;
 
@@ -590,6 +593,21 @@ class DocTypeDefinition {
         : DocumentNamingSeries.fromJson(
             requireMap(json['naming'], 'naming'),
           );
+    final businessOperations = json['businessOperations'] == null
+        ? const <BusinessOperationDefinition>[]
+        : requireList(json, 'businessOperations')
+            .map((operation) => BusinessOperationDefinition.fromJson(
+                  requireMap(operation, 'businessOperations[]'),
+                ))
+            .toList(growable: false);
+    if (businessOperations.length > 32 ||
+        businessOperations.map((item) => item.id).toSet().length !=
+            businessOperations.length) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Business operation IDs must be unique and at most 32 may be declared.',
+      );
+    }
     final rawMigrations = json['migrations'];
     final migrations = rawMigrations == null
         ? const <DocTypeMigration>[]
@@ -762,7 +780,8 @@ class DocTypeDefinition {
         pageIcon: pageIcon,
         pageOrder: pageOrder,
         migrations: List.unmodifiable(migrations),
-        namingSeries: namingSeries);
+        namingSeries: namingSeries,
+        businessOperations: List.unmodifiable(businessOperations));
   }
 
   List<String> validatePayload(

@@ -115,6 +115,49 @@ Principal actor(
 MaintenancePrototype fresh() => bootstrapMaintenancePrototype(root);
 
 void main() {
+  test('Business operation contracts are bounded and data-only', () {
+    final source = extensionBundleJson();
+    final type = (source['docTypes'] as List).single as Map<String, dynamic>;
+    type['businessOperations'] = [
+      {
+        'id': 'inventory.submit',
+        'version': 1,
+        'permission': 'extension.com_example_assets.inventory.submit',
+        'inputs': {
+          'reason': {'type': 'text', 'required': false, 'maxLength': 120},
+        },
+        'outputs': {
+          'number': {'type': 'text', 'required': true, 'maxLength': 80},
+        },
+        'effects': ['document.allocate_number', 'document.transition'],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    final operation = bundle.docTypes.single.businessOperations.single;
+    check(
+      operation.id == 'inventory.submit' &&
+          operation.version == 1 &&
+          operation.inputs['reason']!.maxLength == 120 &&
+          operation.effects.length == 2,
+      'Business operation contract did not parse',
+    );
+    check(
+      canonicalJson(bundle.toJson()) == canonicalJson(source),
+      'Operation metadata was not preserved in the approved package',
+    );
+
+    final executable = changed(source);
+    final executableType =
+        (executable['docTypes'] as List).single as Map<String, dynamic>;
+    (executableType['businessOperations'] as List).single['effects'] = [
+      'arbitrary.dart'
+    ];
+    checkThrows(
+      () => ExtensionBundle.fromJson(executable),
+      'An extension-defined executable effect was accepted',
+    );
+  });
+
   test('Principal grants stay bound to exact company and branch pairs', () {
     final principal = Principal(
       actorId: 'user',
