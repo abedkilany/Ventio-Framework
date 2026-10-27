@@ -52,7 +52,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint: `78b3d89` — B03 PostgreSQL durable validation and atomicity acceptance evidence, pushed to `codex/extension-platform`.
+- Latest checkpoint: `11b3f3b` — ADR-010 resolves governed CRUD operation and document-state architecture before B01 implementation.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -76,4 +76,4 @@ ative_english_messages.dart`; stable IDs and user-entered business values remain
 - Both root CI and V1.2 DocType schemas now carry the same A03 field types and A04 property constraints.
 - D04 accepted and strengthened: PostgreSQL Host integration passed 87/87, directly checking unreadable-field omission and filter/sort denial, plus protected writes and partial-update preservation. SQLite cache scrubbing and Extension Studio identity-scoped mask tests passed 1/1 each. [Evidence](D04_FIELD_PERMISSION_ACCEPTANCE.md).
 - D03 accepted: Core operation contract checks passed in the 69/69 harness. PostgreSQL Host extension integration passed 87/87, including read-only denial of create/update with no record or revision effects. Prior persistent identity integration confirms revoked permission blocks retries and saved-receipt replay without side effects. A repeat-run benchmark fixture collision and a noisy microbenchmark threshold were fixed so the Host integration now completes reliably. [Evidence](D03_OPERATION_PERMISSION_ACCEPTANCE.md). Wave 1 is **11/23 accepted**, overall progress **49.25%**, and B01 is next.
-- The final reference extension remains unstarted.
+- ADR-010 now fixes one declarative governed-operation pipeline, Host-owned document status, and safe delete tombstones before B01 implementation. The final reference extension remains unstarted.
