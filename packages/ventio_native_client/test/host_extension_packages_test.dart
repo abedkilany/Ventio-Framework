@@ -770,6 +770,7 @@ void main() {
     final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
     final vault = HostCredentialVault(_MemoryCredentialBackend());
     await vault.save(endpoint, token);
+    final cursor = List.filled(4096, 'c').join();
     final page =
         await HostExtensionPackageClient(
           endpoint: endpoint,
@@ -782,11 +783,11 @@ void main() {
           docType: 'Item',
           search: 'first',
           sortField: 'title',
-          cursor: 'c29tZS1jdXJzb3I',
+          cursor: cursor,
           limit: 25,
         );
     final body = await seen.future;
-    expect(body['cursor'], 'c29tZS1jdXJzb3I');
+    expect(body['cursor'], cursor);
     expect(body['offset'], 0);
     expect(page.nextCursor, isNull);
   });

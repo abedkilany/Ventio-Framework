@@ -585,7 +585,7 @@ class HostExtensionPackageClient {
     if (search.length > 256 ||
         (recordId != null && (recordId.isEmpty || recordId.length > 128)) ||
         filterContains.length > 256 ||
-        (cursor != null && (cursor.isEmpty || cursor.length > 2048)) ||
+        (cursor != null && (cursor.isEmpty || cursor.length > 1024 * 1024)) ||
         (filterField == null && filterContains.isNotEmpty) ||
         filters.length > 10 ||
         (recordId != null && cursor != null) ||
@@ -649,7 +649,7 @@ class HostExtensionPackageClient {
         (nextCursor != null &&
             (nextCursor is! String ||
                 nextCursor.isEmpty ||
-                nextCursor.length > 2048 ||
+                nextCursor.length > 1024 * 1024 ||
                 !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(nextCursor))) ||
         packageSha256 is! String ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(packageSha256)) {

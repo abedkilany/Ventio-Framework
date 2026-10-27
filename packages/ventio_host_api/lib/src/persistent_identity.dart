@@ -64,7 +64,7 @@ Map<String, dynamic> _decodeRecordQueryCursor(
 ) {
   try {
     if (cursor.isEmpty ||
-        cursor.length > 2048 ||
+        cursor.length > 1024 * 1024 ||
         !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cursor)) {
       throw const FormatException();
     }
@@ -79,11 +79,19 @@ Map<String, dynamic> _decodeRecordQueryCursor(
         value.length != 4 ||
         value['version'] != 1 ||
         value['fingerprint'] != fingerprint ||
-        (value['sortValue'] != null && value['sortValue'] is! String) ||
+        (value['sortValue'] != null &&
+            (value['sortValue'] is! String ||
+                ((value['sortValue'] as String).isNotEmpty &&
+                    !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value['sortValue'])))) ||
         value['recordId'] is! String ||
         (value['recordId'] as String).isEmpty ||
         (value['recordId'] as String).length > 128) {
       throw const FormatException();
+    }
+    if (value['sortValue'] is String) {
+      value['sortValue'] = utf8.decode(
+        base64Url.decode(value['sortValue'] as String),
+      );
     }
     return value;
   } on Object {
@@ -101,7 +109,9 @@ String _encodeRecordQueryCursor({
         canonicalJson({
           'version': 1,
           'fingerprint': fingerprint,
-          'sortValue': sortValue,
+          'sortValue': sortValue == null
+              ? null
+              : base64Url.encode(utf8.encode(sortValue)).replaceAll('=', ''),
           'recordId': recordId,
         }),
       ),
@@ -274,7 +284,8 @@ class PostgresExtensionRecordQueryGateway
         offset > 1000000 ||
         limit < 1 ||
         limit > 50 ||
-        (cursor != null && (cursor.isEmpty || offset != 0)) ||
+        (cursor != null &&
+            (cursor.isEmpty || cursor.length > 1024 * 1024 || offset != 0)) ||
         filters.length > 10) {
       throw const FormatException('Invalid dynamic record query bounds.');
     }

@@ -1723,6 +1723,25 @@ void main() {
           moduleId: _moduleId,
           docTypeName: 'Asset',
           scope: _scope,
+          search: List.filled(257, 'x').join(),
+        ),
+        throwsArgumentError,
+      );
+      await expectLater(
+        store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          filterField: 'name',
+          filterContains: List.filled(257, 'x').join(),
+        ),
+        throwsArgumentError,
+      );
+      await expectLater(
+        store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
           sortField: 'name; DROP TABLE local_extension_records',
         ),
         throwsArgumentError,

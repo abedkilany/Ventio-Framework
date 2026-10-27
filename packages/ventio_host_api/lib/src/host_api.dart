@@ -677,7 +677,7 @@ class HostApi {
         (cursorValue != null &&
             (cursorValue is! String ||
                 cursorValue.isEmpty ||
-                cursorValue.length > 2048 ||
+                cursorValue.length > 1024 * 1024 ||
                 offset != 0 ||
                 recordIdValue != null))) {
       throw const _ApiError(400, 'INVALID_REQUEST');
