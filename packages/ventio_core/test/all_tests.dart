@@ -91,6 +91,7 @@ Map<String, dynamic> extensionBundleJson() => {
         'extension.com_example_assets.module.name': 'Assets',
         'extension.com_example_assets.asset.name': 'Asset',
         'extension.com_example_assets.asset.name_value': 'Name',
+      'extension.com_example_assets.asset.document_number': 'Document Number',
       },
     };
 
@@ -118,6 +119,24 @@ void main() {
   test('Business operation contracts are bounded and data-only', () {
     final source = extensionBundleJson();
     final type = (source['docTypes'] as List).single as Map<String, dynamic>;
+    type['naming'] = {
+      'seriesId': 'asset-number',
+      'field': 'documentNumber',
+      'prefix': 'AS-',
+      'padding': 4,
+    };
+    (type['fields'] as List).add({
+      'name': 'documentNumber',
+      'type': 'text',
+      'required': false,
+      'readOnly': true,
+      'maxLength': 128,
+      'label': 'Document Number',
+      'labelKey': 'extension.com_example_assets.asset.document_number',
+    });
+    (type['ui'] as Map)['formFields'] = ['name', 'documentNumber'];
+    (type['ui'] as Map)['listColumns'] = ['name', 'documentNumber'];
+    (type['ui'] as Map)['detailFields'] = ['name', 'documentNumber'];
     type['businessOperations'] = [
       {
         'id': 'inventory.submit',
@@ -129,7 +148,10 @@ void main() {
         'outputs': {
           'number': {'type': 'text', 'required': true, 'maxLength': 80},
         },
-        'effects': ['document.allocate_number', 'document.transition'],
+        'effects': [
+          {'type': 'document.allocate_number', 'field': 'documentNumber'},
+          {'type': 'document.transition', 'targetStatus': 1},
+        ],
       },
     ];
     final bundle = ExtensionBundle.fromJson(source);
@@ -150,7 +172,7 @@ void main() {
     final executableType =
         (executable['docTypes'] as List).single as Map<String, dynamic>;
     (executableType['businessOperations'] as List).single['effects'] = [
-      'arbitrary.dart'
+      {'type': 'arbitrary.dart'},
     ];
     checkThrows(
       () => ExtensionBundle.fromJson(executable),

@@ -343,6 +343,30 @@ class ExtensionBundle {
           '${type.name} declares a field permission outside its extension namespace.',
         );
       }
+      for (final operation in type.businessOperations) {
+        for (final effect in operation.effects
+            .where((effect) => effect.type == 'record.increment')) {
+          final targetType = docTypes.where(
+            (candidate) => candidate.name == effect.targetDocType,
+          );
+          final targetField = targetType.isEmpty
+              ? null
+              : targetType.single.fields.where(
+                  (field) => field.name == effect.field,
+                );
+          final targetInput = operation.inputs[effect.targetIdInput];
+          if (!doctypeNames.contains(effect.targetDocType) ||
+              targetInput?.referenceTo != effect.targetDocType ||
+              targetField == null ||
+              targetField.isEmpty ||
+              !{'integer', 'decimal'}.contains(targetField.single.type)) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} has an invalid numeric record target.',
+            );
+          }
+        }
+      }
     }
 
     final rawVersions =

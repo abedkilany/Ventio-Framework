@@ -484,7 +484,8 @@ class DocumentNamingSeries {
   String provisionalName(String recordId) => 'LOCAL-$recordId';
 
   String formatNumber(int number) {
-    if (number < 1) throw RangeError.value(number, 'number', 'Must be positive');
+    if (number < 1)
+      throw RangeError.value(number, 'number', 'Must be positive');
     return '$prefix${number.toString().padLeft(padding, '0')}';
   }
 
@@ -606,6 +607,14 @@ class DocTypeDefinition {
       throw const ContractError(
         'INVALID_OPERATION',
         'Business operation IDs must be unique and at most 32 may be declared.',
+      );
+    }
+    if (businessOperations.any((operation) => operation.effects.any((effect) =>
+        effect.type == 'document.allocate_number' &&
+        (namingSeries == null || effect.field != namingSeries.field)))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Number allocation effects must target the declared naming series field.',
       );
     }
     final rawMigrations = json['migrations'];

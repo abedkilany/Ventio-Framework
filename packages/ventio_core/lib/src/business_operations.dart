@@ -35,9 +35,23 @@ class BusinessOperationDefinition {
   final String permission;
   final Map<String, OperationValueDefinition> inputs;
   final Map<String, OperationValueDefinition> outputs;
-  final List<String> effects;
+  final List<OperationEffectDefinition> effects;
 
   factory BusinessOperationDefinition.fromJson(Map<String, dynamic> json) {
+    const allowed = {
+      'id',
+      'version',
+      'permission',
+      'inputs',
+      'outputs',
+      'effects',
+    };
+    if (json.keys.toSet().difference(allowed).isNotEmpty) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Unknown business operation property.',
+      );
+    }
     final id = requireString(json, 'id');
     final version = requireInt(json, 'version', min: 1);
     if (version > 255) {
@@ -68,23 +82,118 @@ class BusinessOperationDefinition {
       });
     }
 
-    final effects = strings(requireList(json, 'effects'), 'effects');
-    if (effects.isEmpty ||
-        effects.length > 8 ||
-        effects.toSet().length != effects.length ||
-        effects.any((effect) => !supportedEffects.contains(effect))) {
+    final effects = requireList(json, 'effects')
+        .map((effect) => OperationEffectDefinition.fromJson(
+              requireMap(effect, 'effects[]'),
+            ))
+        .toList(growable: false);
+    final inputs = values('inputs');
+    for (final effect
+        in effects.where((item) => item.type == 'record.increment')) {
+      final target = inputs[effect.targetIdInput];
+      final amount = inputs[effect.amountInput];
+      if (target == null ||
+          target.type != 'reference' ||
+          amount == null ||
+          !{'integer', 'decimal'}.contains(amount.type)) {
+        throw const ContractError(
+          'INVALID_OPERATION',
+          'Record increment effects must bind declared reference and numeric inputs.',
+        );
+      }
+    }
+    if (effects.isEmpty || effects.length > 8) {
       throw const ContractError(
         'INVALID_OPERATION',
-        'Operation effects must be unique supported Host effects (at most 8).',
+        'An operation must declare between one and eight Host effects.',
       );
     }
     return BusinessOperationDefinition(
       id: id,
       version: version,
       permission: permission,
-      inputs: values('inputs'),
+      inputs: inputs,
       outputs: values('outputs'),
       effects: List.unmodifiable(effects),
+    );
+  }
+}
+
+/// Parameters for one supported, non-executable Core effect.
+class OperationEffectDefinition {
+  const OperationEffectDefinition({
+    required this.type,
+    this.field,
+    this.targetDocType,
+    this.targetIdInput,
+    this.amountInput,
+    this.targetStatus,
+  });
+
+  final String type;
+  final String? field;
+  final String? targetDocType;
+  final String? targetIdInput;
+  final String? amountInput;
+  final int? targetStatus;
+
+  factory OperationEffectDefinition.fromJson(Map<String, dynamic> json) {
+    final type = requireString(json, 'type');
+    final allowed = switch (type) {
+      'document.allocate_number' => {'type', 'field'},
+      'document.transition' => {'type', 'targetStatus'},
+      'record.increment' => {
+          'type',
+          'targetDocType',
+          'targetIdInput',
+          'amountInput',
+          'field',
+        },
+      _ => <String>{},
+    };
+    if (allowed.isEmpty || json.keys.toSet().difference(allowed).isNotEmpty) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Unknown or unsupported Host effect declaration.',
+      );
+    }
+    final field = optionalString(json, 'field');
+    final targetDocType = optionalString(json, 'targetDocType');
+    final targetIdInput = optionalString(json, 'targetIdInput');
+    final amountInput = optionalString(json, 'amountInput');
+    final status = json['targetStatus'];
+    if (type == 'document.allocate_number' &&
+        (field == null || !_fieldName.hasMatch(field))) {
+      throw const ContractError('INVALID_OPERATION', 'Invalid number field.');
+    }
+    if (type == 'document.transition' &&
+        (status is! int || (status != 1 && status != 2))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Document transition status must be submitted (1) or cancelled (2).',
+      );
+    }
+    if (type == 'record.increment' &&
+        (targetDocType == null ||
+            !_docTypeName.hasMatch(targetDocType) ||
+            field == null ||
+            !_fieldName.hasMatch(field) ||
+            targetIdInput == null ||
+            !_inputName.hasMatch(targetIdInput) ||
+            amountInput == null ||
+            !_inputName.hasMatch(amountInput))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Invalid numeric record increment target or input binding.',
+      );
+    }
+    return OperationEffectDefinition(
+      type: type,
+      field: field,
+      targetDocType: targetDocType,
+      targetIdInput: targetIdInput,
+      amountInput: amountInput,
+      targetStatus: status as int?,
     );
   }
 }
@@ -96,15 +205,23 @@ class OperationValueDefinition {
     required this.required,
     this.maxLength,
     this.precision,
+    this.referenceTo,
   });
 
   final String type;
   final bool required;
   final int? maxLength;
   final int? precision;
+  final String? referenceTo;
 
   factory OperationValueDefinition.fromJson(Map<String, dynamic> json) {
-    const allowed = {'type', 'required', 'maxLength', 'precision'};
+    const allowed = {
+      'type',
+      'required',
+      'maxLength',
+      'precision',
+      'referenceTo',
+    };
     if (json.keys.toSet().difference(allowed).isNotEmpty) {
       throw const ContractError(
         'INVALID_OPERATION',
@@ -120,6 +237,7 @@ class OperationValueDefinition {
     }
     final maxLength = json['maxLength'];
     final precision = json['precision'];
+    final referenceTo = optionalString(json, 'referenceTo');
     if (maxLength != null &&
         (type != 'text' ||
             maxLength is! int ||
@@ -135,11 +253,23 @@ class OperationValueDefinition {
       throw const ContractError(
           'INVALID_OPERATION', 'Invalid decimal precision.');
     }
+    if ((type == 'reference') != (referenceTo != null) ||
+        (referenceTo != null && !_docTypeName.hasMatch(referenceTo))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Reference operation inputs must declare one valid target DocType.',
+      );
+    }
     return OperationValueDefinition(
       type: type,
       required: requireBool(json, 'required'),
       maxLength: maxLength as int?,
       precision: precision as int?,
+      referenceTo: referenceTo,
     );
   }
 }
+
+final _fieldName = RegExp(r'^[a-z][A-Za-z0-9_]{0,79}$');
+final _inputName = RegExp(r'^[a-z][A-Za-z0-9_]{0,79}$');
+final _docTypeName = RegExp(r'^[A-Z][A-Za-z0-9_]{0,79}$');
