@@ -12,10 +12,10 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Live checkpoint
 
-- Current task: B04 — review lifecycle transitions, Amend semantics, and current Host/SQLite reconciliation before implementation.
+- Current task: B04 — enforce submitted/cancelled immutability, then add the governed amendment effect and local durable-copy/reconciliation flow.
 - Last completed capability: K06 — Governed business operations engine (19/23 accepted).
-- Next action: finish the B04 read-only architecture review, then implement Amend through the same governed operation pipeline.
-- Blockers: none. K06's prior test setup issue was corrected by using the restricted admin login; the final PostgreSQL run passed. The temporary cluster is stopped.
+- Next action: implement the Host/RLS immutability gate and generic `document.amend` path from [the architecture review](B04_ARCHITECTURE_REVIEW.md), then add SQLite/Studio queue and reconciliation coverage.
+- Blockers: none. The read-only review found the submitted-update immutability gap and documented the governed Amend transaction and acceptance cases before implementation. K06's temporary PostgreSQL cluster is stopped.
 - Latest implementation checkpoint: `04f1007`. PostgreSQL 17.11 extension integration **119/119**, A10 allocator **6/6**, Core **73/73**, ExtensionStore **37/37**, Extension Studio **27/27**, targeted analysis, and stopped-cluster confirmation support K06 acceptance. See [K06 evidence](K06_GOVERNED_OPERATIONS_ACCEPTANCE.md).
 - Since the previous dashboard update: implemented generic bounded `record.increment_rows` effects over persisted Child Table rows, including RLS target binding and fixed-point decimal aggregation; verified rollback, exact-scope denial, concurrent Submit/idempotency, Cancel reversal, and offline queue/reconciliation. K06 is now accepted and the progress total is **72.00%**.
 
@@ -46,7 +46,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 17 | C03 | Editable child-row Grid View | Missing | Newly Implemented | 5 | COMPLETED | Extension Studio suite 24/24; targeted queue restart 1/1; targeted analysis clean and localization gate passes. Tests cover row add/edit/remove/reorder, required and decimal precision validation, atomic parent write/queued payload, and restart recovery. [Acceptance evidence](C03_EDITABLE_CHILD_GRID_ACCEPTANCE.md); checkpoint `b796ab8`. |
 | 18 | A10 | Safe document naming and numbering series | Missing | Newly Implemented | 3 | COMPLETED | [Acceptance evidence](A10_DOCUMENT_NUMBERING_ACCEPTANCE.md). Disposable Windows PostgreSQL 17.11: allocator integration **6/6** (transaction rollback, concurrent sequence allocation, immutable configuration, branch partition); full PostgreSQL extension integration **119/119** including governed Submit/Cancel, atomic official number assignment, effect rollback, identical retries and single cancellation reversal. ExtensionStore **37/37** proves local receipt reconciliation; Extension Studio **27/27** proves ordinary Builder numbering/lifecycle authoring and operation queue recovery; targeted Flutter analysis clean. Checkpoints `7b6aaf6`, `0cb5019`, `78b23ac`, `747bcd0`, `04f1007`. |
 | 19 | K06 | Governed business operations engine | Missing | Newly Implemented | 8 | COMPLETED | [K06 acceptance evidence](K06_GOVERNED_OPERATIONS_ACCEPTANCE.md) and [A10 integration evidence](A10_DOCUMENT_NUMBERING_ACCEPTANCE.md). Core 73/73 validates data-only bounded declarations and typed Child Table bindings. Host executes `record.increment_rows` from persisted parent rows with exact fixed-point decimal aggregation, target scope/field permissions and RLS binding. Disposable PostgreSQL 17.11 extension integration **119/119** proves exact operation denial, no-side-effect rejection, rollback, concurrent identical Submit/one receipt/one number, multi-row effects, retry, Cancel reversal and idempotency. A10 allocator **6/6**; ExtensionStore **37/37**; Extension Studio **27/27**; targeted analysis clean. Checkpoint `04f1007`. |
-| 20 | B04 | Draft / Submit / Cancel / Amend lifecycle | Missing | Pending | 7 | NOT_STARTED | — |
+| 20 | B04 | Draft / Submit / Cancel / Amend lifecycle | Missing | Verifying | 7 | IN_PROGRESS | [Architecture review](B04_ARCHITECTURE_REVIEW.md) identified the missing Amend path and a submitted-record update gap in Host/RLS. K06 transitions and operation queue are accepted; B04 implementation and runtime evidence remain outstanding. |
 | 21 | F02 | Aggregations and calculated totals | Missing | Pending | 4 | NOT_STARTED | — |
 | 22 | F01 | Declarative Report Builder | Missing | Pending | 5 | NOT_STARTED | — |
 | 23 | G01 | Standard printable document formats | Missing | Pending | 4 | NOT_STARTED | — |
@@ -55,13 +55,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: B04 — read-only review of Host and SQLite lifecycle transitions, Amend semantics, and existing command/recovery paths.
+- Current task: B04 — implement submitted/cancelled immutability and governed Amend after the read-only architecture review.
 - Last successfully completed capability: K06 — Governed business operations engine.
-- Next task: complete B04 architecture review, then implement and verify Draft/Submit/Cancel/Amend behavior using the governed Host operation pipeline.
-- Blockers: none.
+- Next task: add the generic Host/RLS amendment path, then client provisional-copy queue/reconciliation and lifecycle runtime coverage.
+- Blockers: none. B04 implementation has not been accepted.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest implementation checkpoint: `04f1007` — K06's bounded child-row operation effects and RLS binding passed the disposable PostgreSQL 17.11 integration (119/119), Core (73/73), A10 allocator (6/6), ExtensionStore (37/37), Extension Studio (27/27), and targeted analysis. Dashboard is 19/23 accepted at 72.00%; K06 is complete and B04 is next.
+- Latest implementation checkpoint: `04f1007` — K06's bounded child-row operation effects and RLS binding passed the disposable PostgreSQL 17.11 integration (119/119), Core (73/73), A10 allocator (6/6), ExtensionStore (37/37), Extension Studio (27/27), and targeted analysis. Dashboard is 19/23 accepted at 72.00%; K06 is complete and B04 implementation is in progress.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
