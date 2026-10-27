@@ -131,6 +131,7 @@ class ExtensionBundle {
           'operations',
           'permissions',
           'fields',
+          'naming',
           'ui',
           'migrations',
         },

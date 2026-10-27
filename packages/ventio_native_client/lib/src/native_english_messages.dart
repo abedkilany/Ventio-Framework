@@ -509,4 +509,23 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.write_permission_optional': 'Write permission (optional)',
   'native.ui.yes_no': 'Yes / no',
   'native.ui.your_extensions': 'Your extensions',
+  'native.ui.enable_document_numbering': 'Enable document numbering',
+  'native.ui.document_numbers_are_provisional_offline_and_assigned_by_the_host_on_submit':
+      'Names shown offline are provisional. The Host assigns the official number when the document is submitted.',
+  'native.ui.numbering_series_id': 'Numbering series ID',
+  'native.ui.stable_series_id_lowercase_letters_numbers_hyphens_or_underscores':
+      'Use a stable ID with lowercase letters, numbers, hyphens or underscores.',
+  'native.ui.enter_a_valid_numbering_series_id':
+      'Enter a valid numbering series ID.',
+  'native.ui.official_number_field': 'Official number field',
+  'native.ui.choose_an_optional_read_only_text_field_with_room_for_a_provisional_name':
+      'Choose an optional, read-only text field with room for a provisional name.',
+  'native.ui.choose_a_valid_number_field':
+      'Choose a valid read-only text field for the number.',
+  'native.ui.number_prefix': 'Number prefix',
+  'native.ui.enter_a_literal_number_prefix':
+      'Use a literal prefix with uppercase letters, numbers, dots, slashes or hyphens.',
+  'native.ui.number_zero_padding': 'Number zero-padding width',
+  'native.ui.choose_a_width_between_1_and_12':
+      'Choose a width from 1 to 12.',
 };

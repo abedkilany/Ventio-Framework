@@ -163,6 +163,11 @@ try {
         throw 'PostgreSQL least-privilege and RLS integration failed.'
       }
 
+      dart run test/document_number_allocator_integration.dart
+      if ($LASTEXITCODE -ne 0) {
+        throw 'Transactional document numbering integration failed.'
+      }
+
       dart run test/role_administration_integration.dart
       if ($LASTEXITCODE -ne 0) {
         throw 'Scoped role administration integration failed.'

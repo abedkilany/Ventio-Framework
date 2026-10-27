@@ -41,7 +41,8 @@ BEGIN
     ('020_approved_extension_registry.sql','1912702210d1b699acd1672a0c61bae03384c1aabbf6d861b162faf7616c3ace'),
     ('021_extension_update_compatibility.sql','2044a1974db26f0cb61b24b248249d04689bf767ab55377389dff51902324a9e'),
     ('022_record_data_gin_index.sql','adf1f0791da08c757552d9eb2b306e0e6c15f0c363c08c265434234dec944872'),
-    ('023_governed_document_state.sql','8c130e7c9071f3a862be3331dad96a3823c3688164419bc9bd9502575ce60e89'))
+    ('023_governed_document_state.sql','8c130e7c9071f3a862be3331dad96a3823c3688164419bc9bd9502575ce60e89'),
+    ('024_document_number_series.sql','3b07f8e0638e0148bf24500eb026a3ad10f80be0bd576217205a3a2fb965f26a'))
     SELECT FROM expected e FULL JOIN public.ventio_schema_migrations m USING(name)
     WHERE e.sha256 IS DISTINCT FROM m.sha256
   ) THEN

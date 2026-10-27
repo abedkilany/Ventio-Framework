@@ -2003,6 +2003,11 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   final _descriptionController = TextEditingController();
   final _pageTitleController = TextEditingController();
   final _pageOrderController = TextEditingController();
+  final _seriesIdController = TextEditingController();
+  final _seriesPrefixController = TextEditingController();
+  final _seriesPaddingController = TextEditingController(text: '6');
+  String? _seriesField;
+  bool _namingEnabled = false;
   String _pageIcon = 'list';
   bool _pageTitleCustomized = false;
   final _formKey = GlobalKey<FormState>();
@@ -2035,6 +2040,15 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       _pageIcon = ui is Map && _generatedPageIcons.containsKey(ui['pageIcon'])
           ? ui['pageIcon'] as String
           : 'list';
+      final rawNaming = metadata['naming'];
+      if (rawNaming is Map) {
+        _namingEnabled = true;
+        _seriesIdController.text = rawNaming['seriesId'] as String? ?? '';
+        _seriesPrefixController.text = rawNaming['prefix'] as String? ?? '';
+        _seriesPaddingController.text =
+            (rawNaming['padding'] as int? ?? 6).toString();
+        _seriesField = rawNaming['field'] as String?;
+      }
       final rawMigrations = metadata['migrations'];
       if (rawMigrations is List) {
         _priorMigrations.addAll(
@@ -2092,6 +2106,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
     _descriptionController.dispose();
     _pageTitleController.dispose();
     _pageOrderController.dispose();
+    _seriesIdController.dispose();
+    _seriesPrefixController.dispose();
+    _seriesPaddingController.dispose();
     super.dispose();
   }
 
@@ -2196,6 +2213,17 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       selected.insert(destination, field);
     });
   }
+
+  List<Map<String, dynamic>> get _namingFieldCandidates => _fields
+      .where(
+        (field) =>
+            field['type'] == 'text' &&
+            field['readOnly'] == true &&
+            field['required'] != true &&
+            field['default'] == null &&
+            (field['maxLength'] == null || (field['maxLength'] as int) >= 42),
+      )
+      .toList(growable: false);
 
   Widget _layoutCard({
     required String title,
@@ -2331,6 +2359,19 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       'description': _descriptionController.text.trim(),
       'descriptionKey': '$namespace.${name.toLowerCase()}.description',
     };
+    if (_namingEnabled) {
+      final field = _seriesField;
+      if (field == null) {
+        _message(context.ventioText('native.ui.choose_a_valid_number_field'));
+        return;
+      }
+      metadata['naming'] = {
+        'seriesId': _seriesIdController.text.trim(),
+        'field': field,
+        'prefix': _seriesPrefixController.text.trim(),
+        'padding': int.tryParse(_seriesPaddingController.text.trim()),
+      };
+    }
     if (previousVersion != null) {
       metadata['migrations'] = [
         ..._priorMigrations,
@@ -2559,6 +2600,138 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                       onEdit: () => _addField(field),
                       onDelete: () => _removeField(field),
                     ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const VentioText(
+                            'native.ui.enable_document_numbering',
+                          ),
+                          value: _namingEnabled,
+                          onChanged: (enabled) => setState(
+                            () => _namingEnabled = enabled ?? false,
+                          ),
+                        ),
+                        const VentioText(
+                          'native.ui.document_numbers_are_provisional_offline_and_assigned_by_the_host_on_submit',
+                        ),
+                        if (_namingEnabled) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _seriesIdController,
+                            decoration: InputDecoration(
+                              labelText: context.ventioText(
+                                'native.ui.numbering_series_id',
+                              ),
+                              helperText: context.ventioText(
+                                'native.ui.stable_series_id_lowercase_letters_numbers_hyphens_or_underscores',
+                              ),
+                            ),
+                            validator: (value) {
+                              if (!_namingEnabled) return null;
+                              return RegExp(r'^[a-z][a-z0-9_-]{0,63}$')
+                                      .hasMatch(value?.trim() ?? '')
+                                  ? null
+                                  : context.ventioText(
+                                      'native.ui.enter_a_valid_numbering_series_id',
+                                    );
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            initialValue: _seriesField != null &&
+                                    _namingFieldCandidates.any(
+                                      (field) =>
+                                          field['name'] == _seriesField,
+                                    )
+                                ? _seriesField
+                                : null,
+                            decoration: InputDecoration(
+                              labelText: context.ventioText(
+                                'native.ui.official_number_field',
+                              ),
+                              helperText: context.ventioText(
+                                'native.ui.choose_an_optional_read_only_text_field_with_room_for_a_provisional_name',
+                              ),
+                            ),
+                            items: [
+                              for (final field in _namingFieldCandidates)
+                                DropdownMenuItem<String>(
+                                  value: field['name']! as String,
+                                  child: Text(field['label']! as String),
+                                ),
+                            ],
+                            onChanged: (field) =>
+                                setState(() => _seriesField = field),
+                            validator: (value) => !_namingEnabled ||
+                                    (value != null &&
+                                        _namingFieldCandidates.any(
+                                          (field) => field['name'] == value,
+                                        ))
+                                ? null
+                                : context.ventioText(
+                                    'native.ui.choose_a_valid_number_field',
+                                  ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _seriesPrefixController,
+                            maxLength: 24,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[A-Z0-9._/-]'),
+                              ),
+                            ],
+                            decoration: InputDecoration(
+                              labelText: context.ventioText(
+                                'native.ui.number_prefix',
+                              ),
+                            ),
+                            validator: (value) => !_namingEnabled ||
+                                    RegExp(r'^[A-Z0-9._/-]{0,24}$')
+                                        .hasMatch(value?.trim() ?? '')
+                                ? null
+                                : context.ventioText(
+                                    'native.ui.enter_a_literal_number_prefix',
+                                  ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _seriesPaddingController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: InputDecoration(
+                              labelText: context.ventioText(
+                                'native.ui.number_zero_padding',
+                              ),
+                              helperText: context.ventioText(
+                                'native.ui.choose_a_width_between_1_and_12',
+                              ),
+                            ),
+                            validator: (value) {
+                              if (!_namingEnabled) return null;
+                              final padding = int.tryParse(value?.trim() ?? '');
+                              return padding != null &&
+                                      padding >= 1 &&
+                                      padding <= 12
+                                  ? null
+                                  : context.ventioText(
+                                      'native.ui.choose_a_width_between_1_and_12',
+                                    );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 _layoutCard(
                   title: context.ventioText('native.ui.list_page_columns'),
@@ -5582,6 +5755,11 @@ Future<void> _queueDynamicRecordCommand({
   if (actorId == null || deviceId == null || moduleVersion == null) {
     throw StateError('Reconnect to Host to refresh the persistent identity.');
   }
+  final hostValues = Map<String, dynamic>.of(values);
+  final provisionalNameField = definition.namingSeries?.field;
+  if (provisionalNameField != null) {
+    hostValues.remove(provisionalNameField);
+  }
   final commandId = createCommandId();
   final command = record.hostRevision == null
       ? ExtensionRecordCommand.create(
@@ -5596,7 +5774,7 @@ Future<void> _queueDynamicRecordCommand({
           moduleVersion: moduleVersion,
           docType: definition.name,
           schemaVersion: definition.schemaVersion,
-          values: values,
+          values: hostValues,
         )
       : ExtensionRecordCommand.update(
           commandId: commandId,
@@ -5611,7 +5789,7 @@ Future<void> _queueDynamicRecordCommand({
           moduleVersion: moduleVersion,
           docType: definition.name,
           schemaVersion: definition.schemaVersion,
-          values: values,
+          values: hostValues,
         );
   await queue.enqueue(command.envelope);
   await store.markRecordPending(

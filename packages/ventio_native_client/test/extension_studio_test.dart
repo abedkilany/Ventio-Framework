@@ -1430,6 +1430,104 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('DocType Builder saves declarative numbering settings', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.numbered_asset';
+    const permission = 'extension.com_example_numbered_asset.asset';
+    final metadata = <String, dynamic>{
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 80,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'documentNumber',
+          'type': 'text',
+          'required': false,
+          'readOnly': true,
+          'maxLength': 64,
+          'label': 'Document Number',
+          'labelKey': '$permission.document_number',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['documentNumber', 'name'],
+        'formFields': ['name', 'documentNumber'],
+        'detailFields': ['documentNumber', 'name'],
+      },
+      'naming': {
+        'seriesId': 'asset',
+        'field': 'documentNumber',
+        'prefix': 'AST-',
+        'padding': 4,
+      },
+      'label': 'Asset',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Numbered Asset',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DocTypeBuilderPage(
+          store: store,
+          moduleId: moduleId,
+          existing: metadata,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Enable document numbering'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Enable document numbering'), findsOneWidget);
+    final prefix = tester.widget<TextField>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Number prefix',
+      ),
+    );
+    expect(prefix.controller!.text, 'AST-');
+    final save = find.text('Save DocType');
+    await tester.scrollUntilVisible(
+      save,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final saved = await store.getDocType(moduleId, 'Asset');
+    expect(saved?['naming'], metadata['naming']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('DocType Builder authors a typed child DocType', (tester) async {
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1;
@@ -2249,6 +2347,15 @@ void main() {
           'labelKey': '$permissionPrefix.name',
           'maxLength': 120,
         },
+        {
+          'name': 'documentNumber',
+          'type': 'text',
+          'required': false,
+          'readOnly': true,
+          'maxLength': 64,
+          'label': 'Document Number',
+          'labelKey': '$permissionPrefix.document_number',
+        },
       ],
       'operations': ['read', 'create', 'update'],
       'permissions': {
@@ -2257,8 +2364,15 @@ void main() {
         'update': '$permissionPrefix.update',
       },
       'ui': {
-        'listColumns': ['name'],
-        'formFields': ['name'],
+        'listColumns': ['documentNumber', 'name'],
+        'formFields': ['name', 'documentNumber'],
+        'detailFields': ['documentNumber', 'name'],
+      },
+      'naming': {
+        'seriesId': 'asset',
+        'field': 'documentNumber',
+        'prefix': 'AST-',
+        'padding': 6,
       },
       'label': 'Asset',
       'labelKey': '$permissionPrefix.title',
@@ -2319,6 +2433,14 @@ void main() {
     expect(
       entries.single.envelope.payload['values']['name'],
       'Recovered after restart',
+    );
+    expect(
+      entries.single.envelope.payload['values'].containsKey('documentNumber'),
+      isFalse,
+    );
+    expect(
+      localRecord.values['documentNumber'],
+      'LOCAL-${localRecord.recordId}',
     );
     final recovered = await store.getRecord(
       moduleId: moduleId,
@@ -2392,6 +2514,13 @@ void main() {
 
     await tester.tap(find.text('Add DocType'));
     await tester.pumpAndSettle();
+    final builderScroll = find.descendant(
+      of: find.byType(DocTypeBuilderPage),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    ).first;
     fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'LayoutRecord');
     await tester.enterText(fields.at(1), 'Layout Record');
@@ -2438,7 +2567,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Generated form fields'),
       240,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScroll,
     );
     final formCard = find.ancestor(
       of: find.text('Generated form fields'),
@@ -2455,7 +2584,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Details page fields'),
       240,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScroll,
     );
     final detailsCard = find.ancestor(
       of: find.text('Details page fields'),
@@ -2468,11 +2597,10 @@ void main() {
     await tester.ensureVisible(hideNameFromDetails);
     await tester.tap(hideNameFromDetails);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('Generated page settings'),
-      240,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.drag(builderScroll, const Offset(0, 700));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Generated page settings'));
+    await tester.pumpAndSettle();
     final pageTitleField = find.byWidgetPredicate(
       (widget) =>
           widget is TextField && widget.decoration?.labelText == 'Page title',
@@ -2499,8 +2627,10 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Save DocType'),
       200,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScroll,
     );
+    await tester.ensureVisible(find.text('Save DocType'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save DocType'));
     await tester.pumpAndSettle();
 
@@ -2731,6 +2861,8 @@ void main() {
       160,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(find.text('Save DocType'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save DocType'));
     await tester.pumpAndSettle();
 

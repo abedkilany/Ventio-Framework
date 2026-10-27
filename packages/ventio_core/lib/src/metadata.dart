@@ -482,6 +482,11 @@ class DocumentNamingSeries {
 
   String provisionalName(String recordId) => 'LOCAL-$recordId';
 
+  String formatNumber(int number) {
+    if (number < 1) throw RangeError.value(number, 'number', 'Must be positive');
+    return '$prefix${number.toString().padLeft(padding, '0')}';
+  }
+
   factory DocumentNamingSeries.fromJson(Map<String, dynamic> json) {
     const keys = {'seriesId', 'field', 'prefix', 'padding'};
     final seriesId = requireString(json, 'seriesId');

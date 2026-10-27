@@ -58,7 +58,8 @@ BEGIN
     'ventio_identity_users','ventio_identity_devices','ventio_identity_credentials','ventio_identity_branches',
     'ventio_identity_grants','ventio_identity_roles','ventio_identity_role_permissions',
     'ventio_identity_role_assignments','ventio_identity_audit','ventio_extension_packages',
-    'ventio_extension_package_events','ventio_schema_migrations'] LOOP
+    'ventio_extension_package_events','ventio_document_number_series',
+    'ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
   END LOOP;
 END $ownership$;
@@ -112,7 +113,8 @@ BEGIN
     'public.ventio_identity_roles','public.ventio_identity_role_permissions',
     'public.ventio_identity_role_assignments',
     'public.ventio_identity_audit','public.ventio_extension_packages',
-    'public.ventio_extension_package_events','public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
+    'public.ventio_extension_package_events','public.ventio_document_number_series',
+    'public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS owner_access ON %s', t);
@@ -503,6 +505,10 @@ BEGIN
     IF p_mode='record_update' THEN
       RETURN dynamic_operation IN ('update','delete') AND can_create AND p_subject=dynamic_name;
     END IF;
+    IF p_mode='series_allocate' THEN
+      RETURN dynamic_operation='submit' AND can_create AND p_subject=dynamic_name
+        AND jsonb_typeof(dynamic_doc_type->'naming')='object';
+    END IF;
     IF p_mode='journal_read' THEN RETURN can_create; END IF;
     IF p_mode IN ('journal_write','audit_write','outbox_write') THEN
       RETURN can_create AND p_subject=nullif(current_setting('ventio.command_id',true),'')
@@ -556,6 +562,8 @@ ALTER TABLE public.ventio_audit_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ventio_audit_entries FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.ventio_outbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ventio_outbox FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.ventio_document_number_series ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ventio_document_number_series FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS runtime_select ON public.ventio_records;
 DROP POLICY IF EXISTS runtime_insert ON public.ventio_records;
 CREATE POLICY runtime_select ON public.ventio_records FOR SELECT TO ventio_runtime
@@ -582,6 +590,31 @@ CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runti
     AND ((current_setting('ventio.operation',true)='update' AND deleted_at IS NULL)
       OR (current_setting('ventio.operation',true)='delete'
         AND deleted_at IS NOT NULL AND document_status=0)));
+DROP POLICY IF EXISTS runtime_series_select ON public.ventio_document_number_series;
+CREATE POLICY runtime_series_select ON public.ventio_document_number_series
+  FOR SELECT TO ventio_runtime
+  USING (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true));
+DROP POLICY IF EXISTS runtime_series_insert ON public.ventio_document_number_series;
+CREATE POLICY runtime_series_insert ON public.ventio_document_number_series
+  FOR INSERT TO ventio_runtime
+  WITH CHECK (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true));
+DROP POLICY IF EXISTS runtime_series_update ON public.ventio_document_number_series;
+CREATE POLICY runtime_series_update ON public.ventio_document_number_series
+  FOR UPDATE TO ventio_runtime
+  USING (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true))
+  WITH CHECK (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true));
 -- Reviewed schema migrations run only inside the fixed extension approval
 -- function. The owner is NOLOGIN; its record access is enabled only when that
 -- function is called by the restricted identity-administration role.
@@ -618,6 +651,8 @@ GRANT SELECT, INSERT ON public.ventio_records, public.ventio_command_journal,
   public.ventio_audit_entries, public.ventio_outbox TO ventio_runtime;
 GRANT UPDATE (revision, record_data, updated_at, deleted_at) ON public.ventio_records TO ventio_runtime;
 GRANT UPDATE (receipt, scope_cursor) ON public.ventio_command_journal TO ventio_runtime;
+GRANT SELECT, INSERT ON public.ventio_document_number_series TO ventio_runtime;
+GRANT UPDATE (next_number) ON public.ventio_document_number_series TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
 \ir schema_profile.sql

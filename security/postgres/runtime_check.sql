@@ -61,7 +61,8 @@ BEGIN
       RAISE EXCEPTION 'Runtime has access to private security metadata';
     END IF;
   END LOOP;
-  FOREACH t IN ARRAY ARRAY['ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox'] LOOP
+  FOREACH t IN ARRAY ARRAY['ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox',
+      'ventio_document_number_series'] LOOP
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_class pc JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace
         JOIN pg_catalog.pg_roles pr ON pr.oid = pc.relowner WHERE pn.nspname = 'public' AND pc.relname = t
         AND pc.relrowsecurity AND pc.relforcerowsecurity AND pr.rolname = 'ventio_owner') THEN
@@ -74,7 +75,8 @@ BEGIN
       IF NOT ((t = 'ventio_command_journal' AND
           c.column_name IN ('receipt', 'scope_cursor')) OR
           (t = 'ventio_records' AND
-          c.column_name IN ('revision', 'record_data', 'updated_at', 'deleted_at'))) AND
+          c.column_name IN ('revision', 'record_data', 'updated_at', 'deleted_at')) OR
+          (t = 'ventio_document_number_series' AND c.column_name='next_number')) AND
           has_column_privilege(current_user, 'public.' || t, c.column_name, 'UPDATE') THEN
         RAISE EXCEPTION 'Unexpected runtime UPDATE privilege';
       END IF;
@@ -82,7 +84,8 @@ BEGIN
   END LOOP;
   IF (SELECT count(*) FROM pg_catalog.pg_policy pol JOIN pg_catalog.pg_class pc ON pc.oid = pol.polrelid
       JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace WHERE pn.nspname = 'public'
-      AND pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox')) <> 12 THEN
+      AND pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox',
+        'ventio_document_number_series')) <> 16 THEN
     RAISE EXCEPTION 'Unexpected row security policy set';
   END IF;
 END $fn$;

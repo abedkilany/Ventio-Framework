@@ -132,6 +132,27 @@ Future<void> main() async {
   try {
     await verifyRuntimeConnection(runtime);
     check(true, 'Restricted runtime login passes the security profile');
+    final unavailableSeries = await runtime.runTx(
+      (tx) => tx.execute(
+        'SELECT series_id FROM public.ventio_document_number_series',
+      ),
+    );
+    check(
+      unavailableSeries.isEmpty,
+      'Number series are hidden without an authorized governed submit context',
+    );
+    await denied(
+      () => runtime.runTx(
+        (tx) => tx.execute('''
+          INSERT INTO public.ventio_document_number_series
+            (tenant_id,company_id,branch_id,module_id,doc_type,series_id,
+             prefix,padding,next_number)
+          VALUES ('forged-tenant','company-001','branch-001',
+             'com.example.numbering','NumberedDocument','main','DOC-',6,2)
+        '''),
+      ),
+      'Number series cannot be initialized without authorized governed submit',
+    );
     await rejectsProfile(
       owner,
       'Superuser connection is rejected for Host operation',

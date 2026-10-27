@@ -1325,6 +1325,15 @@ void main() {
           '{seriesId: maintenance-request, field: documentNumber, prefix: MR-, padding: 6}',
       'A valid naming series was not retained as declarative metadata',
     );
+    check(
+      definition.namingSeries!.formatNumber(1) == 'MR-000001' &&
+          definition.namingSeries!.formatNumber(1000000) == 'MR-1000000',
+      'Official number formatting did not pad without truncating',
+    );
+    checkThrows(
+      () => definition.namingSeries!.formatNumber(0),
+      'Zero or negative series values were accepted',
+    );
 
     final invalidPrefix = loadJsonFile('$root/examples/maintenance_doctype.json')
       ..['naming'] = {
