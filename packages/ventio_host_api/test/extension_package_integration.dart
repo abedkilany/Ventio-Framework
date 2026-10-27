@@ -1315,6 +1315,11 @@ Future<void> main() async {
       cursor: cursorToken as String?,
       limit: 1,
     );
+    if (cursorSecond.body['recordResult'] is! Map<String, dynamic>) {
+      throw StateError(
+        'Keyset continuation failed: ${cursorSecond.status} ${cursorSecond.body}',
+      );
+    }
     final cursorSecondResult =
         cursorSecond.body['recordResult'] as Map<String, dynamic>;
     expect(
