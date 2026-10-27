@@ -25,6 +25,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.applied_only_when_the_saved_value_is_missing_or_null':
       'Applied only when the saved value is missing or null.',
   'native.ui.approved_extensions': 'Approved extensions',
+  'native.ui.ascending': 'Ascending',
   'native.ui.asset': 'Asset',
   'native.ui.assign_role': 'Assign role',
   'native.ui.assign_user': 'Assign user',
@@ -38,6 +39,8 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.choose_and_order_fields_shown_when_a_saved_record_is_opened_this_affects':
       'Choose and order fields shown when a saved record is opened. This affects presentation only; it does not restrict access to field values.',
   'native.ui.choose_host_scope': 'Choose Host scope',
+  'native.ui.cached_records_hidden_until_authorized':
+      'Cached rows are hidden until a Host-authorized query succeeds. Local records and pending commands have not been deleted.',
   'native.ui.choose_visible_columns_and_their_order_in_generated_lists':
       'Choose visible columns and their order in generated lists.',
   'native.ui.choose_which_local_record_operations_this_doctype_supports_permission_ke':
@@ -231,6 +234,16 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.filter_field': 'Filter field',
   'native.ui.generated_form_fields': 'Generated form fields',
   'native.ui.generated_list_view': 'Generated list view',
+  'native.ui.generated_list_preview_summary':
+      'The list shows {count} configured {columns} and will support search and local filters when activated.',
+  'native.ui.host_authorization_required': 'Host authorization required',
+  'native.ui.host_authoritative_records': 'Host-authoritative records',
+  'native.ui.host_denied_list_query_body':
+      'The Host denied this record query. Cached records remain stored locally but are hidden until an authorized Host query succeeds.',
+  'native.ui.host_records_list_verified_scope':
+      'The Host-approved package and exact company/branch scope were verified. Accepted records are cached locally; new changes remain provisional until a Host receipt arrives.',
+  'native.ui.host_record_refresh_failed_body':
+      'The Host query did not complete. Retry to refresh records; cached records remain subject to Host authorization.',
   'native.ui.generated_page_settings': 'Generated page settings',
   'native.ui.host_approved_package': 'Host-approved package',
   'native.ui.host_denied_record_access': 'Host denied record access',
@@ -263,6 +276,15 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.local_installation_only': 'Local installation only',
   'native.ui.local_only': 'LOCAL ONLY',
   'native.ui.local_only_demonstration': 'Local-only demonstration',
+  'native.ui.local_records_host_scope_unavailable':
+      'The selected Host scope remains authoritative. The list below contains locally saved provisional records; connect or retry before treating them as shared data.',
+  'native.ui.local_records_host_unavailable':
+      'Local records · Host unavailable',
+  'native.ui.local_records_need_host_connection':
+      'Records stay on this device as provisional work until an authenticated Host connection is configured.',
+  'native.ui.list_preview_activation_body':
+      'This screen is rendered from the DocType definition. Saving is disabled until the extension is activated on this device.',
+  'native.ui.metadata_preview': 'Metadata preview',
   'native.ui.lower_values_appear_first_values_from_0_to_10000_are_supported':
       'Lower values appear first. Values from 0 to 10000 are supported.',
   'native.ui.maintenance_requests': 'Maintenance Requests',
@@ -275,6 +297,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.navigation_icon': 'Navigation icon',
   'native.ui.navigation_order': 'Navigation order',
   'native.ui.new_extension': 'New extension',
+  'native.ui.new_record': 'New record',
   'native.ui.new_field_id': 'New field ID',
   'native.ui.new_request': 'New request',
   'native.ui.no_approved_extensions_are_available_for_this_host_scope':
@@ -308,8 +331,14 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.permissions': 'Permissions',
   'native.ui.permissions_and_operations': 'Permissions and operations',
   'native.ui.preview': 'Preview',
+  'native.ui.preview_form': 'Preview form',
   'native.ui.problem_description': 'Problem description',
+  'native.ui.provisional_local_records': 'Provisional local records',
   'native.ui.read_operation_is_not_declared': 'Read operation is not declared',
+  'native.ui.record_id_fallback': 'Record {recordId}',
+  'native.ui.record_list_load_failed_body':
+      'The records could not be loaded from this device. Try again.',
+  'native.ui.record_revision_local_only': 'Revision {revision} · local only',
   'native.ui.read_permission_optional': 'Read permission (optional)',
   'native.ui.records_could_not_be_loaded': 'Records could not be loaded',
   'native.ui.refresh_approved_extensions': 'Refresh approved extensions',
@@ -355,6 +384,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.shown_in_extension_navigation_and_on_the_records_page':
       'Shown in extension navigation and on the records page.',
   'native.ui.sort_by': 'Sort by',
+  'native.ui.descending': 'Descending',
   'native.ui.stable_identifier_use_letters_numbers_and_underscores':
       'Stable identifier. Use letters, numbers and underscores.',
   'native.ui.stable_namespaced_id_it_cannot_be_changed_later':

@@ -3998,7 +3998,11 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
               icon: Icon(
                 widget.previewOnly ? Icons.preview_outlined : Icons.add,
               ),
-              label: Text(widget.previewOnly ? 'Preview form' : 'New record'),
+              label: VentioText(
+                widget.previewOnly
+                    ? 'native.ui.preview_form'
+                    : 'native.ui.new_record',
+              ),
             )
           : null,
       body: Center(
@@ -4009,23 +4013,37 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
             children: [
               _LocalOnlyNotice(
                 title: _hostAccessDenied
-                    ? 'Host authorization required'
+                    ? context.ventioText(
+                        'native.ui.host_authorization_required',
+                      )
                     : widget.previewOnly
-                    ? 'Metadata preview'
+                    ? context.ventioText('native.ui.metadata_preview')
                     : widget.hostProfile == null
-                    ? 'Provisional local records'
+                    ? context.ventioText('native.ui.provisional_local_records')
                     : _hostQuerySucceeded
-                    ? 'Host-authoritative records'
-                    : 'Local records · Host unavailable',
+                    ? context.ventioText('native.ui.host_authoritative_records')
+                    : context.ventioText(
+                        'native.ui.local_records_host_unavailable',
+                      ),
                 body: _hostAccessDenied
-                    ? 'The Host denied this record query. Cached records remain stored locally but are hidden until an authorized Host query succeeds.'
+                    ? context.ventioText(
+                        'native.ui.host_denied_list_query_body',
+                      )
                     : widget.previewOnly
-                    ? 'This screen is rendered from the DocType definition. Saving is disabled until the extension is activated on this device.'
+                    ? context.ventioText(
+                        'native.ui.list_preview_activation_body',
+                      )
                     : widget.hostProfile == null
-                    ? 'Records stay on this device as provisional work until an authenticated Host connection is configured.'
+                    ? context.ventioText(
+                        'native.ui.local_records_need_host_connection',
+                      )
                     : _hostQuerySucceeded
-                    ? 'The Host-approved package and exact company/branch scope were verified. Accepted records are cached locally; new changes remain provisional until a Host receipt arrives.'
-                    : 'The selected Host scope remains authoritative. The list below contains locally saved provisional records; connect or retry before treating them as shared data.',
+                    ? context.ventioText(
+                        'native.ui.host_records_list_verified_scope',
+                      )
+                    : context.ventioText(
+                        'native.ui.local_records_host_scope_unavailable',
+                      ),
                 icon: _hostAccessDenied
                     ? Icons.lock_outline
                     : widget.previewOnly
@@ -4041,7 +4059,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                   title: context.ventioText(
                     'native.ui.host_records_were_not_refreshed',
                   ),
-                  body: _hostWarning!,
+                  body: context.ventioText(
+                    'native.ui.host_record_refresh_failed_body',
+                  ),
                   action: TextButton.icon(
                     onPressed: _loadRecords,
                     icon: const Icon(Icons.refresh),
@@ -4157,7 +4177,11 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                       ),
                     ),
                     IconButton(
-                      tooltip: _ascending ? 'Ascending' : 'Descending',
+                      tooltip: context.ventioText(
+                        _ascending
+                            ? 'native.ui.ascending'
+                            : 'native.ui.descending',
+                      ),
                       onPressed: () {
                         setState(() => _ascending = !_ascending);
                         _loadRecords();
@@ -4174,8 +4198,15 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                 _StateCard(
                   icon: Icons.view_list_outlined,
                   title: context.ventioText('native.ui.generated_list_view'),
-                  body:
-                      'The list shows ${_definition.listColumns.length} configured column${_definition.listColumns.length == 1 ? '' : 's'} and will support search and local filters when activated.',
+                  body: context.ventioText(
+                    'native.ui.generated_list_preview_summary',
+                    params: {
+                      'count': _definition.listColumns.length,
+                      'columns': _definition.listColumns.length == 1
+                          ? 'column'
+                          : 'columns',
+                    },
+                  ),
                   action: OutlinedButton.icon(
                     onPressed: () => _openForm(),
                     icon: const Icon(Icons.open_in_new),
@@ -4200,8 +4231,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                   title: context.ventioText(
                     'native.ui.host_denied_record_access',
                   ),
-                  body:
-                      'Cached rows are hidden until a Host-authorized query succeeds. Local records and pending commands have not been deleted. ${_hostWarning ?? ''}',
+                  body: context.ventioText(
+                    'native.ui.cached_records_hidden_until_authorized',
+                  ),
                 )
               else if (_error != null)
                 _StateCard(
@@ -4209,7 +4241,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                   title: context.ventioText(
                     'native.ui.records_could_not_be_loaded',
                   ),
-                  body: _error!,
+                  body: context.ventioText(
+                    'native.ui.record_list_load_failed_body',
+                  ),
                   action: TextButton.icon(
                     onPressed: _loadRecords,
                     icon: const Icon(Icons.refresh),
@@ -6163,13 +6197,19 @@ class _RecordCard extends StatelessWidget {
         leading: const CircleAvatar(child: Icon(Icons.description_outlined)),
         title: Text(
           primary == null
-              ? 'Record ${record.recordId}'
+              ? context.ventioText(
+                  'native.ui.record_id_fallback',
+                  params: {'recordId': record.recordId},
+                )
               : _displayValue(context, primary, record.values[primary.name]),
         ),
         subtitle: Text(
           [
             if (summary.isNotEmpty) summary.join(' · '),
-            'Revision ${record.revision} · local only',
+            context.ventioText(
+              'native.ui.record_revision_local_only',
+              params: {'revision': record.revision},
+            ),
           ].join(' · '),
         ),
         trailing: const Icon(Icons.chevron_right),
