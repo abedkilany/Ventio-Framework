@@ -480,6 +480,22 @@ BEGIN
       END IF;
       RETURN identity->'permissions' ? read_permission;
     END IF;
+    IF p_mode='record_reference_guard' THEN
+      IF dynamic_operation <> 'delete' OR p_subject=dynamic_name THEN
+        RETURN false;
+      END IF;
+      target_doc_type := policy->p_subject;
+      IF target_doc_type->>'moduleId' IS DISTINCT FROM dynamic_module OR
+          NOT (identity->'permissions' ? operation_permission) THEN
+        RETURN false;
+      END IF;
+      RETURN EXISTS (
+        SELECT 1 FROM jsonb_array_elements(
+          coalesce(target_doc_type->'fields','[]'::jsonb)) AS fields(item)
+        WHERE item->>'type'='reference'
+          AND item->>'referenceTo'=dynamic_name
+      );
+    END IF;
     IF p_mode='record_insert' THEN
       RETURN dynamic_operation='create' AND can_create AND p_subject=dynamic_name
         AND nullif(current_setting('ventio.aggregate_id',true),'') IS NOT NULL;
@@ -543,7 +559,8 @@ ALTER TABLE public.ventio_outbox FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS runtime_select ON public.ventio_records;
 DROP POLICY IF EXISTS runtime_insert ON public.ventio_records;
 CREATE POLICY runtime_select ON public.ventio_records FOR SELECT TO ventio_runtime
-  USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_read', doc_type)
+  USING ((ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_read', doc_type)
+      OR ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_reference_guard', doc_type))
     AND module_id = current_setting('ventio.module_id',true)
     AND (deleted_at IS NULL OR
       (current_setting('ventio.operation',true)='delete'
