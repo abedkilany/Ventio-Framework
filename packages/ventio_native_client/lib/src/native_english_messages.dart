@@ -195,6 +195,15 @@ const ventioNativeEnglishMessages = <String, String>{
       'Enter a JSON array of flat row objects (up to 500 rows).',
   'native.ui.table_json_error':
       'Enter a valid JSON array of non-empty row objects, with no nested values and no more than 500 rows.',
+  'native.ui.add_child_row': 'Add row',
+  'native.ui.child_row_count': '{count} rows',
+  'native.ui.no_child_rows': 'No rows yet.',
+  'native.ui.row_number': '#',
+  'native.ui.row_actions': 'Row actions',
+  'native.ui.move_row_up': 'Move row up',
+  'native.ui.move_row_down': 'Move row down',
+  'native.ui.remove_child_row': 'Remove row',
+  'native.ui.child_row_field_invalid': 'Check the value for {label}.',
   'native.ui.field_description': 'Field description',
   'native.ui.description_too_long':
       'Keep the description under 500 characters.',

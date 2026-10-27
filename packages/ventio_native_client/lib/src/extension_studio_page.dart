@@ -4612,6 +4612,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   final Map<String, bool> _booleans = {};
   final Map<String, String?> _selections = {};
   final Map<String, List<LocalExtensionRecord>> _references = {};
+  final Map<String, List<Map<String, dynamic>>> _childRows = {};
+  final Map<String, List<Object>> _childRowKeys = {};
   bool _loadingReferences = false;
   bool _saving = false;
 
@@ -4692,6 +4694,21 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         _booleans[field.name] = value as bool? ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
         _selections[field.name] = value as String?;
+      } else if (field.type == 'table' && field.childDocType != null) {
+        final child = field.childDocType!;
+        final sourceRows = value is List ? value.whereType<Map>().toList() : [];
+        _childRows[field.name] = [
+          for (final row in sourceRows)
+            {
+              for (final childField in child.fields)
+                if (row.containsKey(childField.name))
+                  childField.name: row[childField.name],
+            },
+        ];
+        _childRowKeys[field.name] = List<Object>.generate(
+          sourceRows.length,
+          (_) => Object(),
+        );
       } else if (field.type == 'table') {
         _controllers[field.name] = TextEditingController(
           text: value == null ? '[]' : jsonEncode(value),
@@ -4714,14 +4731,30 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }
 
   Future<void> _loadReferences() async {
-    final fields = _formFields.where((field) => field.type == 'reference');
-    if (fields.isEmpty) return;
+    final references = <({String key, String docType})>[];
+    for (final field in _formFields) {
+      if (field.type == 'reference') {
+        references.add((key: field.name, docType: field.referenceTo!));
+      }
+      if (field.type == 'table') {
+        for (final childField in field.childDocType?.fields ??
+            const <FieldDefinition>[]) {
+          if (childField.type == 'reference') {
+            references.add((
+              key: '${field.name}.${childField.name}',
+              docType: childField.referenceTo!,
+            ));
+          }
+        }
+      }
+    }
+    if (references.isEmpty) return;
     setState(() => _loadingReferences = true);
     try {
-      for (final field in fields) {
-        _references[field.name] = await widget.store.listRecords(
+      for (final reference in references) {
+        _references[reference.key] = await widget.store.listRecords(
           moduleId: widget.moduleId,
-          docTypeName: field.referenceTo!,
+          docTypeName: reference.docType,
           scope: widget.scope,
           limit: 500,
         );
@@ -4737,6 +4770,13 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     final values = <String, dynamic>{};
     for (final field in _formFields) {
       if (!_isEditable(field)) continue;
+      if (field.type == 'table' && field.childDocType != null) {
+        values[field.name] = [
+          for (final row in _childRows[field.name] ?? const [])
+            Map<String, dynamic>.of(row),
+        ];
+        continue;
+      }
       if (field.type == 'boolean') {
         values[field.name] = _booleans[field.name] ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
@@ -4934,7 +4974,314 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     );
   }
 
+  String _childReferenceKey(FieldDefinition tableField, FieldDefinition field) =>
+      '${tableField.name}.${field.name}';
+
+  void _addChildRow(FieldDefinition tableField) {
+    final child = tableField.childDocType!;
+    final rows = _childRows[tableField.name] ??= [];
+    if (rows.length >= 500) return;
+    setState(() {
+      rows.add({
+        for (final field in child.fields)
+          if (field.defaultValue != null) field.name: field.defaultValue,
+      });
+      (_childRowKeys[tableField.name] ??= []).add(Object());
+    });
+  }
+
+  void _moveChildRow(FieldDefinition tableField, int index, int delta) {
+    final rows = _childRows[tableField.name]!;
+    final destination = index + delta;
+    if (destination < 0 || destination >= rows.length) return;
+    setState(() {
+      final row = rows.removeAt(index);
+      rows.insert(destination, row);
+      final keys = _childRowKeys[tableField.name]!;
+      keys.insert(destination, keys.removeAt(index));
+    });
+  }
+
+  void _removeChildRow(FieldDefinition tableField, int index) {
+    setState(() {
+      _childRows[tableField.name]!.removeAt(index);
+      _childRowKeys[tableField.name]!.removeAt(index);
+    });
+  }
+
+  void _setChildValue(
+    FieldDefinition tableField,
+    int rowIndex,
+    FieldDefinition childField,
+    dynamic value,
+  ) {
+    _childRows[tableField.name]![rowIndex][childField.name] = value;
+  }
+
+  dynamic _parseChildValue(FieldDefinition field, String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    return switch (field.type) {
+      'integer' => int.tryParse(value) ?? value,
+      'decimal' => num.tryParse(value) ?? value,
+      _ => value,
+    };
+  }
+
+  String? _validateChildValue(FieldDefinition field, dynamic value) {
+    if (value == null || (value is String && value.trim().isEmpty)) {
+      if (!field.required) return null;
+      return context.ventioText(
+        'native.ui.enter_field',
+        params: {
+          'label': context
+              .extensionMetadataText(field.labelKey, field.label)
+              .toLowerCase(),
+        },
+      );
+    }
+    if (field.validate(value) != null) {
+      return context.ventioText(
+        'native.ui.child_row_field_invalid',
+        params: {
+          'label': context.extensionMetadataText(field.labelKey, field.label),
+        },
+      );
+    }
+    return null;
+  }
+
+  Widget _childRowsGrid(FieldDefinition tableField, {required bool editable}) {
+    final child = tableField.childDocType!;
+    final rows = _childRows[tableField.name] ?? const [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.extensionMetadataText(
+                  child.labelKey,
+                  child.label,
+                ),
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            Text(
+              context.ventioText(
+                'native.ui.child_row_count',
+                params: {'count': rows.length},
+              ),
+            ),
+            if (editable && !widget.previewOnly)
+              IconButton(
+                tooltip: context.ventioText('native.ui.add_child_row'),
+                onPressed: rows.length >= 500
+                    ? null
+                    : () => _addChildRow(tableField),
+                icon: const Icon(Icons.add),
+              ),
+          ],
+        ),
+        if (rows.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(context.ventioText('native.ui.no_child_rows')),
+          )
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: [
+                DataColumn(label: Text(context.ventioText('native.ui.row_number'))),
+                for (final field in child.fields)
+                  DataColumn(
+                    label: Text(
+                      context.extensionMetadataText(
+                        field.labelKey,
+                        field.label,
+                      ),
+                    ),
+                  ),
+                if (editable && !widget.previewOnly)
+                  DataColumn(
+                    label: Text(context.ventioText('native.ui.row_actions')),
+                  ),
+              ],
+              rows: [
+                for (var rowIndex = 0; rowIndex < rows.length; rowIndex++)
+                  DataRow(
+                    key: ValueKey<Object>(
+                      _childRowKeys[tableField.name]![rowIndex],
+                    ),
+                    cells: [
+                      DataCell(Text('${rowIndex + 1}')),
+                      for (final childField in child.fields)
+                        DataCell(
+                          SizedBox(
+                            width: 176,
+                            child: _childCell(
+                              tableField,
+                              childField,
+                              rowIndex,
+                              editable: editable && !widget.previewOnly,
+                            ),
+                          ),
+                        ),
+                      if (editable && !widget.previewOnly)
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: context.ventioText(
+                                  'native.ui.move_row_up',
+                                ),
+                                onPressed: rowIndex == 0
+                                    ? null
+                                    : () => _moveChildRow(
+                                        tableField,
+                                        rowIndex,
+                                        -1,
+                                      ),
+                                icon: const Icon(Icons.arrow_upward),
+                              ),
+                              IconButton(
+                                tooltip: context.ventioText(
+                                  'native.ui.move_row_down',
+                                ),
+                                onPressed: rowIndex == rows.length - 1
+                                    ? null
+                                    : () => _moveChildRow(
+                                        tableField,
+                                        rowIndex,
+                                        1,
+                                      ),
+                                icon: const Icon(Icons.arrow_downward),
+                              ),
+                              IconButton(
+                                tooltip: context.ventioText(
+                                  'native.ui.remove_child_row',
+                                ),
+                                onPressed: () =>
+                                    _removeChildRow(tableField, rowIndex),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _childCell(
+    FieldDefinition tableField,
+    FieldDefinition field,
+    int rowIndex, {
+    required bool editable,
+  }) {
+    final value = _childRows[tableField.name]![rowIndex][field.name];
+    final rowKey = _childRowKeys[tableField.name]![rowIndex];
+    if (field.type == 'boolean') {
+      return Checkbox(
+        value: value as bool? ?? false,
+        onChanged: editable
+            ? (next) => setState(
+                () => _setChildValue(tableField, rowIndex, field, next),
+              )
+            : null,
+      );
+    }
+    if (field.type == 'enum' || field.type == 'reference') {
+      final records = field.type == 'reference'
+          ? _references[_childReferenceKey(tableField, field)] ??
+                const <LocalExtensionRecord>[]
+          : const <LocalExtensionRecord>[];
+      final options = field.type == 'enum'
+          ? field.enumValues
+          : records.map((record) => record.recordId).toList();
+      return DropdownButtonFormField<String?>(
+        key: ValueKey<String>(
+          '${rowKey.hashCode}:${field.name}:${field.enumValues.join(',')}',
+        ),
+        initialValue: value as String?,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: context.extensionMetadataText(field.labelKey, field.label),
+          border: const OutlineInputBorder(),
+        ),
+        items: [
+          if (!field.required)
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: VentioText('native.ui.not_set'),
+            ),
+          for (final option in options)
+            DropdownMenuItem<String?>(
+              value: option,
+              child: Text(
+                field.type == 'enum'
+                    ? _enumLabel(context, field, option)
+                    : _recordTitle(records.firstWhere(
+                        (record) => record.recordId == option,
+                      )),
+              ),
+            ),
+          if (value is String && !options.contains(value))
+            DropdownMenuItem<String?>(
+              value: value,
+              child: Text(value),
+            ),
+        ],
+        onChanged: editable
+            ? (next) => setState(
+                () => _setChildValue(tableField, rowIndex, field, next),
+              )
+            : null,
+        validator: (next) => _validateChildValue(field, next),
+      );
+    }
+    final raw = value?.toString() ?? '';
+    return TextFormField(
+      key: ValueKey<String>(
+        '${rowKey.hashCode}:${field.name}:text',
+      ),
+      initialValue: raw,
+      readOnly: !editable,
+      keyboardType: switch (field.type) {
+        'integer' => TextInputType.number,
+        'decimal' => const TextInputType.numberWithOptions(decimal: true),
+        _ => TextInputType.text,
+      },
+      decoration: InputDecoration(
+        labelText: context.extensionMetadataText(field.labelKey, field.label),
+        border: const OutlineInputBorder(),
+      ),
+      onChanged: editable
+          ? (next) => _setChildValue(
+              tableField,
+              rowIndex,
+              field,
+              _parseChildValue(field, next),
+            )
+          : null,
+      validator: (next) => _validateChildValue(
+        field,
+        _parseChildValue(field, next ?? ''),
+      ),
+    );
+  }
+
   Widget _fieldInput(FieldDefinition field, {required bool editable}) {
+    if (field.type == 'table' && field.childDocType != null) {
+      return _childRowsGrid(field, editable: editable);
+    }
     if (field.type == 'boolean') {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
