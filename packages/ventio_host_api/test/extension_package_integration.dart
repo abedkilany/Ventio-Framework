@@ -2872,6 +2872,21 @@ Future<void> main() async {
       ],
       registerBranch: false,
     );
+    final missingSubmitPermissionToken = await provision(
+      actor: 'operation-user-without-submit',
+      device: 'operation-device-without-submit',
+      credential: 'operation-credential-without-submit',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_inventory.product.read',
+        'extension.com_example_inventory.product.update',
+        'extension.com_example_inventory.movement.read',
+        'extension.com_example_inventory.movement.update',
+      ],
+      registerBranch: false,
+    );
     final operationPackage = ExtensionBundle.fromJson({
       'manifest': {
         'manifestVersion': 0,
@@ -3096,6 +3111,62 @@ Future<void> main() async {
           'ACCEPTED',
       'Governed operation fixture creates a draft movement',
     );
+    final unauthorizedSubmit = ExtensionBusinessOperationCommand.execute(
+      commandId: '75000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 1,
+      actorId: 'operation-user-without-submit',
+      deviceId: 'operation-device-without-submit',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: {'product': 'inventory-product-1', 'amount': 20},
+    );
+    final unauthorizedSubmitReply = await send(
+      api,
+      token: missingSubmitPermissionToken,
+      body: unauthorizedSubmit.envelope.original,
+    );
+    final unauthorizedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision,
+          (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision,m.document_status,
+          m.record_data->>'documentNumber' AS document_number,
+          (SELECT count(*) FROM ventio_document_number_series
+            WHERE tenant_id=@tenant AND module_id=@module) AS series_count
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      unauthorizedSubmitReply.status == 403 &&
+          unauthorizedSubmitReply.body['receipt']?['status'] == 'REJECTED' &&
+          unauthorizedSubmitReply.body['receipt']?['reasonCode'] ==
+              'PERMISSION_DENIED' &&
+          unauthorizedState.single.toColumnMap()['product_revision'] == 1 &&
+          unauthorizedState.single.toColumnMap()['quantity'] == 90 &&
+          unauthorizedState.single.toColumnMap()['movement_revision'] == 1 &&
+          unauthorizedState.single.toColumnMap()['document_status'] == 0 &&
+          unauthorizedState.single.toColumnMap()['document_number'] == null &&
+          unauthorizedState.single.toColumnMap()['series_count'] == 0,
+      'Host denies governed Submit without its operation permission and persists no effects',
+    );
     final submitMovement = ExtensionBusinessOperationCommand.execute(
       commandId: '74000000-0000-4000-8000-000000000003',
       tenantId: tenant,
@@ -3175,16 +3246,24 @@ Future<void> main() async {
           'ACCEPTED',
       'Ordinary generic record update can prepare a valid retry',
     );
-    final acceptedSubmit = await send(
-      api,
-      token: operationToken,
-      body: submitMovement.envelope.original,
-    );
+    final concurrentSubmitReplies = await Future.wait([
+      send(api, token: operationToken, body: submitMovement.envelope.original),
+      send(api, token: operationToken, body: submitMovement.envelope.original),
+    ]);
+    final acceptedSubmit = concurrentSubmitReplies.first;
     final acceptedSubmitReceipt = acceptedSubmit.body['receipt'];
     expect(
-      acceptedSubmitReceipt['status'] == 'ACCEPTED' &&
+      concurrentSubmitReplies.length == 2 &&
+          concurrentSubmitReplies.every(
+            (reply) =>
+                reply.status == 200 &&
+                reply.body['receipt']?['status'] == 'ACCEPTED' &&
+                canonicalJson(reply.body['receipt']) ==
+                    canonicalJson(acceptedSubmitReceipt),
+          ) &&
+          acceptedSubmitReceipt['status'] == 'ACCEPTED' &&
           acceptedSubmitReceipt['output']['number'] == 'INV-000001',
-      'The same operation command retry allocates the first official number and commits its effects',
+      'Concurrent identical Submit commands share one receipt and allocate the first official number once',
     );
     final submittedState = await observer.execute(
       pg.Sql.named('''
