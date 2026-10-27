@@ -4608,6 +4608,7 @@ class DynamicRecordFormPage extends StatefulWidget {
 
 class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   final _formKey = GlobalKey<FormState>();
+  String? _newRecordId;
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, bool> _booleans = {};
   final Map<String, String?> _selections = {};
@@ -4681,6 +4682,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.record == null && widget.definition.namingSeries != null) {
+      _newRecordId = createCommandId();
+    }
     for (final field in _formFields) {
       final initialValues = widget.initialValues;
       final canRead =
@@ -4690,13 +4694,20 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           : initialValues != null && initialValues.containsKey(field.name)
           ? initialValues[field.name]
           : widget.record?.values[field.name] ?? field.defaultValue;
+      final displayValue = value == null &&
+              !widget.previewOnly &&
+              widget.record == null &&
+              widget.definition.namingSeries?.field == field.name
+          ? widget.definition.namingSeries!.provisionalName(_newRecordId!)
+          : value;
       if (field.type == 'boolean') {
-        _booleans[field.name] = value as bool? ?? false;
+        _booleans[field.name] = displayValue as bool? ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
-        _selections[field.name] = value as String?;
+        _selections[field.name] = displayValue as String?;
       } else if (field.type == 'table' && field.childDocType != null) {
         final child = field.childDocType!;
-        final sourceRows = value is List ? value.whereType<Map>().toList() : [];
+        final sourceRows =
+            displayValue is List ? displayValue.whereType<Map>().toList() : [];
         _childRows[field.name] = [
           for (final row in sourceRows)
             {
@@ -4711,11 +4722,11 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         );
       } else if (field.type == 'table') {
         _controllers[field.name] = TextEditingController(
-          text: value == null ? '[]' : jsonEncode(value),
+          text: displayValue == null ? '[]' : jsonEncode(displayValue),
         );
       } else {
         _controllers[field.name] = TextEditingController(
-          text: value?.toString() ?? '',
+          text: displayValue?.toString() ?? '',
         );
       }
     }
@@ -4824,7 +4835,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     try {
       late final LocalExtensionRecord saved;
       if (widget.record == null) {
-        final recordId = createCommandId();
+        final recordId = _newRecordId ?? createCommandId();
         saved = await widget.store.createRecord(
           moduleId: widget.moduleId,
           docTypeName: widget.definition.name,

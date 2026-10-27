@@ -480,6 +480,8 @@ class DocumentNamingSeries {
   final String prefix;
   final int padding;
 
+  String provisionalName(String recordId) => 'LOCAL-$recordId';
+
   factory DocumentNamingSeries.fromJson(Map<String, dynamic> json) {
     const keys = {'seriesId', 'field', 'prefix', 'padding'};
     final seriesId = requireString(json, 'seriesId');
@@ -614,13 +616,13 @@ class DocTypeDefinition {
       if (kind != 'operational' ||
           target == null ||
           target.type != 'text' ||
-          !target.required ||
+          target.required ||
           !target.readOnly ||
           target.defaultValue != null ||
           (target.maxLength != null && target.maxLength! < 42)) {
         throw const ContractError(
           'INVALID_NAMING_SERIES',
-          'A naming series requires an operational DocType and a required, read-only text field without a default and with room for a provisional local name.',
+          'A naming series requires an operational DocType and an optional, read-only text field without a default and with room for a provisional local name.',
         );
       }
     }

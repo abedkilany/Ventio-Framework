@@ -580,6 +580,64 @@ void main() {
     },
   );
 
+  test('Naming series drafts use a provisional label without client input', () async {
+    final definition = _docType(
+      fields: [
+        _textField(),
+        {
+          'name': 'documentNumber',
+          'type': 'text',
+          'required': false,
+          'readOnly': true,
+          'maxLength': 64,
+          'label': 'Document Number',
+          'labelKey': 'asset_register.asset.document_number',
+        },
+      ],
+    )
+      ..['naming'] = {
+        'seriesId': 'asset-series',
+        'field': 'documentNumber',
+        'prefix': 'AST-',
+        'padding': 6,
+      };
+    await createActiveExtension(docType: definition);
+    const recordId = 'a1000000-0000-4000-8000-000000000001';
+    final created = await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: const {'name': 'Pump'},
+      recordId: recordId,
+    );
+    expect(created.values['documentNumber'], 'LOCAL-$recordId');
+    await expectLater(
+      store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Forged', 'documentNumber': 'AST-000001'},
+        recordId: 'a1000000-0000-4000-8000-000000000002',
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'READ_ONLY_FIELD',
+        ),
+      ),
+    );
+    await store.close();
+    await openStore();
+    final restored = await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: recordId,
+      scope: _scope,
+    );
+    expect(restored!.values['documentNumber'], 'LOCAL-$recordId');
+  });
+
   test('Host scope profile persists across a database reopen', () async {
     const profile = HostConnectionProfile(
       endpoint: 'https://host.example.test:8443',

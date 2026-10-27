@@ -592,6 +592,121 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Generated form shows and queues provisional document names', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.named_assets';
+    const permission = 'extension.com_example_named_assets.asset';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 80,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'documentNumber',
+          'type': 'text',
+          'required': false,
+          'readOnly': true,
+          'maxLength': 64,
+          'label': 'Document Number',
+          'labelKey': '$permission.document_number',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['documentNumber', 'name'],
+        'formFields': ['name', 'documentNumber'],
+        'detailFields': ['documentNumber', 'name'],
+      },
+      'naming': {
+        'seriesId': 'asset-series',
+        'field': 'documentNumber',
+        'prefix': 'AST-',
+        'padding': 6,
+      },
+      'label': 'Asset',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Named Assets',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: const HostConnectionProfile(
+            endpoint: 'http://127.0.0.1:8080',
+            tenantId: 'tenant-1',
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            actorId: 'operator-1',
+            deviceId: 'desktop-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final provisionalNumber = tester.widget<TextField>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Document Number',
+      ),
+    );
+    expect(provisionalNumber.controller!.text, startsWith('LOCAL-'));
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.decoration?.labelText == 'Name',
+      ),
+      'Pump',
+    );
+    final save = find.text('Save on device');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final record = (await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: scope,
+    )).single;
+    expect(record.values['documentNumber'], 'LOCAL-${record.recordId}');
+    final pending = (await queue.list()).single;
+    final commandValues =
+        (pending.envelope.payload['values'] as Map<String, dynamic>);
+    expect(commandValues.containsKey('documentNumber'), isFalse);
+    expect(commandValues['name'], 'Pump');
+  });
+
   testWidgets('Generated form applies defaults and enforces field precision', (
     tester,
   ) async {

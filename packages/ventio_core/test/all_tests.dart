@@ -1305,7 +1305,7 @@ void main() {
     (valid['fields'] as List).add({
       'name': 'documentNumber',
       'type': 'text',
-      'required': true,
+      'required': false,
       'readOnly': true,
       'maxLength': 64,
       'label': 'Document Number',

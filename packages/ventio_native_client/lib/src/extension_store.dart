@@ -1529,6 +1529,11 @@ class LocalExtensionStore {
           'A read-only field cannot be set by a record creator.',
         );
       }
+      final namingSeries = definition.namingSeries;
+      if (namingSeries != null) {
+        storedValues[namingSeries.field] =
+            namingSeries.provisionalName(recordId);
+      }
       _validatePayload(definition, storedValues);
       await _validateReferences(transaction, definition, storedValues, scope);
       final knownFields = definition.fields.map((field) => field.name).toSet();
