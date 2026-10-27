@@ -248,6 +248,66 @@ void main() {
     },
   );
 
+  testWidgets('Removal is blocked by unresolved extension commands', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.pending_removal';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Pending Removal',
+      description: '',
+    );
+    final command = ExtensionRecordCommand.create(
+      commandId: '00000000-0000-4000-8000-000000000002',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      recordId: 'inventory-move-2',
+      actorId: 'operator-1',
+      deviceId: 'desktop-1',
+      moduleId: moduleId,
+      moduleVersion: '0.1.0',
+      docType: 'InventoryMove',
+      schemaVersion: 1,
+      values: const {'reference': 'MOVE-0002'},
+    );
+    await queue.enqueue(command.envelope);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          scope: const RecordScope(
+            organizationId: 'tenant-1',
+            companyId: 'company-1',
+            branchId: 'branch-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Remove'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+
+    expect(await store.getExtension(moduleId), isNotNull);
+    expect(
+      find.text(
+        'Resolve this extension’s queued Host commands before removing it.',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Builder verifies Host and saves an exact granted scope', (
     tester,
   ) async {

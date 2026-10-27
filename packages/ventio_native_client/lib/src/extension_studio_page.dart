@@ -1637,7 +1637,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
       builder: (context) => AlertDialog(
         title: const VentioText('native.ui.remove_this_local_extension'),
         content: const VentioText(
-          'native.ui.removal_is_allowed_only_when_the_extension_has_no_local_records_this_act',
+          'native.ui.removal_requires_no_data_or_pending_commands',
         ),
         actions: [
           TextButton(
@@ -1653,6 +1653,16 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     );
     if (approved != true) return;
     try {
+      final hasUnresolvedCommands =
+          await widget.queue?.hasUnresolvedCommandsForModule(widget.moduleId) ??
+          false;
+      if (!mounted) return;
+      if (hasUnresolvedCommands) {
+        _message(
+          context.ventioText('native.ui.remove_blocked_pending_commands'),
+        );
+        return;
+      }
       await widget.store.remove(widget.moduleId);
       if (mounted) Navigator.pop(context);
     } catch (error) {

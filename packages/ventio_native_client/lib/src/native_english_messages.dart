@@ -116,6 +116,10 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.move_field_up': 'Move {label} up',
   'native.ui.move_field_down': 'Move {label} down',
   'native.ui.extension_module_version': '{moduleId} · v{version}',
+  'native.ui.removal_requires_no_data_or_pending_commands':
+      'Removal requires no local records or unresolved Host commands. Other extensions must not depend on this module.',
+  'native.ui.remove_blocked_pending_commands':
+      'Resolve this extension’s queued Host commands before removing it.',
   'native.ui.command_id': 'Command {commandId}',
   'native.ui.saved_count': '{count} saved',
   'native.ui.host_resolved_commands':

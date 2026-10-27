@@ -114,6 +114,33 @@ void main() {
     );
   });
 
+  test('Unresolved extension commands block removal of their module', () async {
+    final command = ExtensionRecordCommand.create(
+      commandId: '00000000-0000-4000-8000-000000000001',
+      tenantId: 'tenant-west',
+      companyId: 'company-west',
+      branchId: 'branch-7',
+      recordId: 'inventory-move-1',
+      actorId: 'operator-1',
+      deviceId: 'desktop-1',
+      moduleId: 'com.example.inventory',
+      moduleVersion: '1.0.0',
+      docType: 'InventoryMove',
+      schemaVersion: 1,
+      values: const {'reference': 'MOVE-0001'},
+    );
+    await queue.enqueue(command.envelope);
+
+    expect(
+      await queue.hasUnresolvedCommandsForModule('com.example.inventory'),
+      isTrue,
+    );
+    expect(
+      await queue.hasUnresolvedCommandsForModule('com.example.catalog'),
+      isFalse,
+    );
+  });
+
   test('Restart after an interrupted send keeps the command pending', () async {
     final envelope = await maintenanceEnvelope();
     await queue.enqueue(envelope);
