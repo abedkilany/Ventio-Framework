@@ -4,10 +4,10 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**29.10%** `█████▊░░░░░░░░░░░░░░` (20% Stage 0 + 9.10% accepted Wave 1)
+**31.70%** `██████▎░░░░░░░░░░░░░` (20% Stage 0 + 11.70% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **4 / 23 accepted** — A04 `IN_PROGRESS` (65% overall)
+- Stage 1 Wave 1: **5 / 23 accepted** — A05 `NOT_STARTED` (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -22,7 +22,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 02 | K02 | Extension installation, activation, disabling, and safe removal | 3 | COMPLETED | ExtensionStore 31 tests cover atomic package install/upgrade, restart persistence, activation/disable, dependencies, data preservation/removal refusal. Added queue scan and Extension Studio UI test proving unresolved commands block removal. |
 | 03 | A01 | Metadata-driven DocType creation | 3 | COMPLETED | Added Core boundary validation for stable DocType and field IDs; Core 67 checks and ExtensionStore/Extension Studio 51 tests pass. Existing tests cover persistent metadata, package export/import, registry installation, and generated records. |
 | 04 | A03 | Field types required by business documents | 5 | COMPLETED | Added `long_text` and bounded flat-row `table` types across Core metadata, JSON Schema, generated editors and SQLite records. Core 68 checks, ExtensionStore 32 tests and Extension Studio 21 tests pass; field type and record value export/restart round-trips verified. Child DocType row schema/linkage remains A07 scope. |
-| 05 | A04 | Field properties, constraints, and validation | 4 | IN_PROGRESS | Added decimal scale, typed defaults, read-only enforcement, and localized field descriptions through Core, SQLite, generated forms, and both Host paths. Reviewing persisted Host behavior and final contract coverage before acceptance. |
+| 05 | A04 | Field properties, constraints, and validation | 4 | COMPLETED | Core/SQLite/Host coverage plus PostgreSQL 17.11 durable integration: defaults, decimal precision rejection, read-only override rejection, and invalid payload persistence rejection. Full durable Host integration 35/35 passed; [acceptance evidence](A04_POSTGRESQL_ACCEPTANCE.md); checkpoint `cac747e`. |
 | 06 | A05 | Record references and relationships | 4 | NOT_STARTED | — |
 | 07 | D01 | User identity and authentication | 5 | NOT_STARTED | — |
 | 08 | D02 | Roles and scoped role assignments | 4 | NOT_STARTED | — |
@@ -46,13 +46,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: A04 — verify precision/default/read-only/presentation enforcement across client, SQLite, Core Host, and PostgreSQL Host.
-- Last successfully completed capability: A03 — field types required by business documents.
-- Next task: Finish the A04 property matrix and Host checks; then save acceptance evidence or resolve any remaining gaps.
-- Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no Wave 1 acceptance depends on that subprocess case. The A04 PostgreSQL integration scenario is authored but not run because `VENTIO_TEST_DATABASE_URL` is unset and `VENTIO_ALLOW_DATABASE_TESTS=yes` is not configured. Rechecked this turn: no local PostgreSQL service/binary or listener is available; Docker Desktop's service is stopped and cannot be opened from this account. PostgreSQL runtime evidence remains open pending database/service availability.
+- Current task: A05 — record references and relationships; inspect existing metadata and Host scope enforcement, then close concrete gaps.
+- Last successfully completed capability: A04 — field properties, constraints, and validation.
+- Next task: A05 — validate reference targets, cross-scope rejection, and deletion behavior.
+- Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: `68b60b4` — catalog-backed validator and role administration messages, expanded localization gate, and focused Windows integration (1/1); pending dashboard push to `codex/extension-platform`.
+- Latest checkpoint commit: `cac747e` — A04 PostgreSQL 17.11 durable Host integration acceptance evidence, pushed with this dashboard update to `codex/extension-platform`.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -68,5 +68,6 @@ Total Wave 1 effort points: **100**.
 - A04 implementation checkpoint: Core enforces decimal scale (0–9 places) and field defaults, and treats omitted defaults consistently during complete client/Host validation. SQLite and both Host paths apply defaults and reject client changes to read-only fields. Decimal precision cannot be tightened over saved records. Extension Studio authors defaults, scale, read-only, and localized field descriptions; generated forms show defaults/descriptions and validate decimal scale. Added contract schema edge checks and PostgreSQL integration scenarios. Core analysis + 69 checks, ExtensionStore 33 tests, Extension Studio 22 tests, Windows integration 1/1, Host analysis, 9 contract tests, localization gate and schema profile pass. PostgreSQL runtime evidence remains unverified in this environment; A04 is still in progress.
 - A04 environment recheck: `VENTIO_TEST_DATABASE_URL` and the explicit database-test opt-in are absent, TCP port 5432 has no listener, and no PostgreSQL service or installation is present. Starting the installed Docker Desktop service was denied by Windows service access. This confirms the outstanding PostgreSQL runtime check needs an enabled/accessible PostgreSQL service; it does not change accepted progress.
 - Localization/A04 hardening checkpoint: a source review found hardcoded user-facing validation sentences in generated forms and role administration that the previous localization gate did not detect. Replaced those messages with stable English catalog keys; extended the CI scanner to reject hardcoded sentence returns from field validators and added a regression test. Localization gate and its 6 tests pass, Flutter analysis has no issues, Extension Studio 22/22 and role administration 1/1 tests pass, and the Windows builder integration passes 1/1. Stage 0 remains accepted; A04 remains in progress until PostgreSQL Host runtime evidence is available.
+- A04 accepted: ran `dart run test/durable_integration.dart` against a temporary, isolated PostgreSQL 17.11 `ventio_host_test` database: 35 passed, 0 failed. The durable Host applied omitted defaults, rejected decimals beyond declared precision and client overrides of read-only fields, and rejected invalid DocType payloads without persisting records. The integration also exercised retry idempotency, receipt replay, scope/tenant permissions, transaction rollback and concurrency. Evidence is in [A04_POSTGRESQL_ACCEPTANCE.md](A04_POSTGRESQL_ACCEPTANCE.md); the temporary server was stopped. Wave 1 is now **5/23 accepted** and overall progress is **31.70%**; A05 is next.
 - Both root CI and V1.2 DocType schemas now carry the same A03 field types and A04 property constraints.
-- The final reference extension remains unstarted; Wave 1 capability acceptance is **4/23**.
+- The final reference extension remains unstarted; Wave 1 capability acceptance is **5/23**.
