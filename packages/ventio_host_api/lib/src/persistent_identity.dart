@@ -62,13 +62,20 @@ Map<String, dynamic> _decodeRecordQueryCursor(
   String cursor,
   String fingerprint,
 ) {
+  String decodeBase64Url(String value) {
+    final remainder = value.length % 4;
+    if (remainder == 1) throw const FormatException();
+    final padded = '$value${'=' * ((4 - remainder) % 4)}';
+    return utf8.decode(base64Url.decode(padded));
+  }
+
   try {
     if (cursor.isEmpty ||
         cursor.length > 1024 * 1024 ||
         !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cursor)) {
       throw const FormatException();
     }
-    final decoded = jsonDecode(utf8.decode(base64Url.decode(cursor))) as Map;
+    final decoded = jsonDecode(decodeBase64Url(cursor)) as Map;
     final value = Map<String, dynamic>.from(decoded);
     if (value.keys.toSet().difference(const {
           'version',
@@ -82,16 +89,16 @@ Map<String, dynamic> _decodeRecordQueryCursor(
         (value['sortValue'] != null &&
             (value['sortValue'] is! String ||
                 ((value['sortValue'] as String).isNotEmpty &&
-                    !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value['sortValue'])))) ||
+                    !RegExp(
+                      r'^[A-Za-z0-9_-]+$',
+                    ).hasMatch(value['sortValue'])))) ||
         value['recordId'] is! String ||
         (value['recordId'] as String).isEmpty ||
         (value['recordId'] as String).length > 128) {
       throw const FormatException();
     }
     if (value['sortValue'] is String) {
-      value['sortValue'] = utf8.decode(
-        base64Url.decode(value['sortValue'] as String),
-      );
+      value['sortValue'] = decodeBase64Url(value['sortValue'] as String);
     }
     return value;
   } on Object {

@@ -4,10 +4,10 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**51.85%** `██████████░░░░░░░░░░` (20% Stage 0 + 31.85% accepted Wave 1)
+**54.45%** `███████████░░░░░░░░░` (20% Stage 0 + 34.45% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **12 / 23 accepted** — B05 is next (65% overall)
+- Stage 1 Wave 1: **13 / 23 accepted** — C01 is next (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -30,7 +30,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 10 | D03 | Operation-level permissions | Partial | Verified | 4 | COMPLETED | Core 69/69; PostgreSQL Host extension integration 87/87. `read`-only identity denied create/update with no record or revision effects; identity integration confirms permission revocation blocks saved-receipt replay. [Evidence](D03_OPERATION_PERMISSION_ACCEPTANCE.md); checkpoint `2066399`. |
 | 11 | B03 | Document validation and lifecycle foundations | Partial | Verified | 5 | COMPLETED | Core 69/69; PostgreSQL 17.11 durable Host integration 43/43; extension integration 87/87; Host analysis clean. Invalid writes/references rejected, pre-commit fault rolls back record/journal/audit/outbox/cursor, same-ID retry and concurrency verified. [Evidence](B03_DOCUMENT_VALIDATION_ACCEPTANCE.md); checkpoint `78b3d89`. |
 | 12 | B01 | CRUD with safe deletion semantics | Partial | Completed Gaps | 4 | COMPLETED | PostgreSQL 17.11 extension integration **98/98**; Core **69/69**; ExtensionStore **34/34**; durable delete-queue restart **1/1**; Host API and durable Host analyzers clean; localization gate passes. Covers permission, submitted/reference refusal, retained tombstone/revision, hidden reads, retry with exactly one journal/audit/outbox, ID reservation, local pending/rejection recovery and RLS. [Acceptance evidence](B01_SAFE_DELETE_ACCEPTANCE.md); implementation checkpoint `90e415d`. |
-| 13 | B05 | Record search, filtering, sorting, and pagination | Existing | Verifying | 4 | IN_PROGRESS | Existing Host/SQLite review found bounded metadata-validated search, filters, stable sorting, scope enforcement and local filtering; Host pagination was offset-only despite the fixed keyset acceptance criterion. Added bounded query cursors with stable sort-value/record-ID continuation, client transport and Studio continuation. Flutter Host client, Studio and SQLite suites pass 67/67. The final PostgreSQL rerun reached keyset continuation but the second-page response was not a `recordResult`; added response diagnostics and will fix the continuation failure before acceptance. Provisional classification. |
+| 13 | B05 | Record search, filtering, sorting, and pagination | Existing | Hardened | 4 | COMPLETED | Existing SQLite query behavior verified; added Host keyset continuation bound to query parameters, stable sort-value/record-ID ordering, client transport and Studio continuation. Flutter Host client, Studio and SQLite suites **67/67**; isolated PostgreSQL 17.11 extension integration **102/102**, including insertion before cursor, mismatch rejection, bounded queries, permission-aware filters/sorts and exact-scope isolation. Fixed unpadded base64url decoding for longer cursor payloads. [Acceptance evidence](B05_RECORD_QUERY_ACCEPTANCE.md); checkpoint `PENDING_COMMIT`. |
 | 14 | C01 | Generated List View | Existing | Pending | 3 | NOT_STARTED | — |
 | 15 | C02 | Generated Form View | Existing | Pending | 3 | NOT_STARTED | — |
 | 16 | A07 | Child / Table DocTypes | Missing | Pending | 5 | NOT_STARTED | — |
@@ -46,13 +46,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: B05 — validate Host keyset continuation, query bounds, field permissions, and scope against PostgreSQL.
-- Last successfully completed capability: B01 — CRUD with safe deletion semantics.
-- Next task: B05 — record search, filtering, sorting, and pagination.
+- Current task: C01 — verify generated List View against the accepted criteria and implement only proven gaps.
+- Last successfully completed capability: B05 — record search, filtering, sorting, and pagination.
+- Next task: C01 — generated List View.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest implementation checkpoint: `2f5e91f` — B05 keyset pagination and client/Studio continuation were pushed. The Host integration passed 102/102 before cursor sort-value encoding was hardened for larger field values; the final rerun then exposed a second-page response failure. Added response diagnostics to capture the exact Host error. Flutter Host client, Studio and SQLite suites pass 67/67; B05 remains IN_PROGRESS.
+- Latest implementation checkpoint: `PENDING_COMMIT` — B05 accepted after fixing base64url padding restoration during cursor decoding. PostgreSQL extension integration passed 102/102, including stable continuation after insertion before the cursor and query-mismatch rejection; Flutter Host client, Studio and SQLite suites pass 67/67.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -91,3 +91,4 @@ ative_english_messages.dart`; stable IDs and user-entered business values remain
 - PostgreSQL reruns passed all B01 delete cases and the corrected three-page pagination check, then exposed that `FOR UPDATE` causes RLS to hide rows whose current revision differs from the command's expected revision. The Host already takes an exact tenant/company/branch advisory transaction lock before reading/writing; removed `FOR UPDATE` so stale commands can report the current revision while retaining serialized deletion/reference safety. The expanded PostgreSQL integration must pass before accepting B01.
 - B01 accepted: the full isolated PostgreSQL 17.11 extension integration passed **98/98**. Core harness **69/69**, ExtensionStore **34/34**, durable queue restart **1/1**, Host API/durable Host analysis, and localization gate passed. Evidence: [B01_SAFE_DELETE_ACCEPTANCE.md](B01_SAFE_DELETE_ACCEPTANCE.md). Wave 1 is now **12/23 accepted**, overall progress **51.85%**, and B05 is next.
 - B05 checkpoint: existing local/Host search and filters remain permission-aware and bound to the requested scope. Host extension queries support a keyset continuation cursor bound to the query parameters, ordered by permitted sort value and stable record ID; dynamic UI follows the returned cursor. Bounded offset remains for compatibility. The earlier PostgreSQL integration passed **102/102**, including insertion stability, scope/field checks, and cursor mismatch refusal. After hardening cursor sort-value encoding, the final rerun reached the second page but returned an unexpected response; the test now emits its exact status/body for diagnosis. No B05 acceptance yet.
+- B05 accepted: final isolated PostgreSQL 17.11 extension integration passed **102/102** after fixing URL-safe base64 padding restoration for cursor decoding. The acceptance includes stable cursor continuation despite insertion before the cursor, rejection when query parameters differ, and all existing exact-scope, field-permission, bounded query, idempotent-write and recovery checks. Flutter Host client, Studio and SQLite focused suites pass **67/67**. [Evidence](B05_RECORD_QUERY_ACCEPTANCE.md). Wave 1 is now **13/23 accepted**; weighted overall progress is **54.45%**; C01 is next.
