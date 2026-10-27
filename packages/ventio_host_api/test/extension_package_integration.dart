@@ -2852,19 +2852,6 @@ Future<void> main() async {
           authorizedUpdateReply.body['receipt']['status'] == 'ACCEPTED',
       'Host accepts the same field update from a principal with the field grant',
     );
-    await observer.execute(
-      pg.Sql.named(
-        'UPDATE public.ventio_identity_role_permissions '
-        'SET permission=@nextPermission '
-        'WHERE tenant_id=@tenant AND role_id=@role AND permission=@permission',
-      ),
-      parameters: {
-        'nextPermission': 'extension.package.submit',
-        'tenant': tenant,
-        'role': 'recovery-witness-role',
-        'permission': 'extension.package.read',
-      },
-    );
     final operationToken = await provision(
       actor: 'operation-user',
       device: 'operation-device',
@@ -3064,7 +3051,7 @@ Future<void> main() async {
       packageSha256: hash(operationPackage),
     );
     final productCreate = ExtensionRecordCommand.create(
-      commandId: '72000000-0000-4000-8000-000000000001',
+      commandId: '74000000-0000-4000-8000-000000000001',
       tenantId: tenant,
       companyId: primaryCompany,
       branchId: primaryBranch,
@@ -3087,7 +3074,7 @@ Future<void> main() async {
       'Governed operation fixture creates a scoped product record',
     );
     final movementCreate = ExtensionRecordCommand.create(
-      commandId: '72000000-0000-4000-8000-000000000002',
+      commandId: '74000000-0000-4000-8000-000000000002',
       tenantId: tenant,
       companyId: primaryCompany,
       branchId: primaryBranch,
@@ -3110,7 +3097,7 @@ Future<void> main() async {
       'Governed operation fixture creates a draft movement',
     );
     final submitMovement = ExtensionBusinessOperationCommand.execute(
-      commandId: '72000000-0000-4000-8000-000000000003',
+      commandId: '74000000-0000-4000-8000-000000000003',
       tenantId: tenant,
       companyId: primaryCompany,
       branchId: primaryBranch,
@@ -3165,7 +3152,7 @@ Future<void> main() async {
       'A rejected effect rolls back target updates, movement state, number allocation, and the journal transaction',
     );
     final reduceProduct = ExtensionRecordCommand.update(
-      commandId: '72000000-0000-4000-8000-000000000004',
+      commandId: '74000000-0000-4000-8000-000000000004',
       tenantId: tenant,
       companyId: primaryCompany,
       branchId: primaryBranch,
@@ -3241,7 +3228,7 @@ Future<void> main() async {
       'An identical accepted operation retry returns its original receipt without repeating effects',
     );
     final cancelMovement = ExtensionBusinessOperationCommand.execute(
-      commandId: '72000000-0000-4000-8000-000000000005',
+      commandId: '74000000-0000-4000-8000-000000000005',
       tenantId: tenant,
       companyId: primaryCompany,
       branchId: primaryBranch,
@@ -3313,6 +3300,19 @@ Future<void> main() async {
       cancelReplayState.single.toColumnMap()['revision'] == 4 &&
           cancelReplayState.single.toColumnMap()['quantity'] == 80,
       'An identical accepted cancel retry does not duplicate the reversal',
+    );
+    await observer.execute(
+      pg.Sql.named(
+        'UPDATE public.ventio_identity_role_permissions '
+        'SET permission=@nextPermission '
+        'WHERE tenant_id=@tenant AND role_id=@role AND permission=@permission',
+      ),
+      parameters: {
+        'nextPermission': 'extension.package.submit',
+        'tenant': tenant,
+        'role': 'recovery-witness-role',
+        'permission': 'extension.package.read',
+      },
     );
     var staleWitnessDenied = false;
     try {

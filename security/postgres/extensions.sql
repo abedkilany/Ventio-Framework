@@ -299,14 +299,14 @@ BEGIN
          p_expected_revision IS NULL OR p_expected_revision < 1 OR
          p_expected_revision >= 2147483647 OR
          jsonb_typeof(p_operation_inputs) IS DISTINCT FROM 'object' OR
-         jsonb_object_length(p_operation_inputs)>32)) OR
+         (SELECT count(*) FROM jsonb_object_keys(p_operation_inputs))>32)) OR
       (p_operation = 'create' AND p_expected_revision IS NOT NULL) OR
       p_operation IS NULL THEN
     RETURN NULL;
   END IF;
   IF p_type<>'extension.operation.execute' AND
       (jsonb_typeof(p_operation_inputs) IS DISTINCT FROM 'object' OR
-       jsonb_object_length(p_operation_inputs)<>0) THEN
+       (SELECT count(*) FROM jsonb_object_keys(p_operation_inputs))<>0) THEN
     RETURN NULL;
   END IF;
   identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
