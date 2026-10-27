@@ -52,7 +52,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: None. Plan source supplied by project owner; reviewed baseline ancestry verified.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: Pending the Stage 0 acceptance commit and dashboard checkpoint.
+- Latest checkpoint commit: `b9969ba` — Stage 0 localization gate implementation and evidence, pushed to `codex/extension-platform`.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
