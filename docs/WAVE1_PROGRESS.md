@@ -16,7 +16,7 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 - Last completed capability: F02 — Aggregations and calculated totals (21/23 accepted).
 - Next action: define and implement the minimal report metadata, authorized aggregation, and saved report workflow for F01.
 - Blockers: none. Disposable PostgreSQL 17.11 Host integration passed **130/130** after correcting overlapping test command IDs; F02 is accepted. The isolated cluster remains available for Wave 1 runtime checks.
-- Latest implementation checkpoint: `PENDING_COMMIT` (F02 calculation implementation and acceptance); design is in [ADR-012](ADR-012_DECLARATIVE_EXACT_DECIMAL_CALCULATIONS.md), with runtime evidence in [F02_CALCULATIONS_ACCEPTANCE.md](F02_CALCULATIONS_ACCEPTANCE.md). Stage 0 remains 7/7 PASS; Wave 1 is 21/23 at 79.15%.
+- Latest implementation checkpoint: `08069dd` (F02 calculation implementation and acceptance); design is in [ADR-012](ADR-012_DECLARATIVE_EXACT_DECIMAL_CALCULATIONS.md), with runtime evidence in [F02_CALCULATIONS_ACCEPTANCE.md](F02_CALCULATIONS_ACCEPTANCE.md). Stage 0 remains 7/7 PASS; Wave 1 is 21/23 at 79.15%.
 - Since the previous dashboard update: Core, SQLite, Studio, and Host now share a bounded declarative exact-decimal calculation contract. Focused Core **75/75**, SQLite calculated child/parent persistence **1/1**, Studio calculated grid **1/1** and builder **1/1**, analysis, contract/schema checks, and localization gate passed. The disposable Windows PostgreSQL 17.11 extension integration passed **130/130**, including exact recomputation, forged-total side-effect rejection, K06 rollback, idempotency, numbering, and Amend concurrency. Evidence is recorded in [F02_CALCULATIONS_ACCEPTANCE.md](F02_CALCULATIONS_ACCEPTANCE.md). Overall accepted progress is **79.15%**.
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -61,7 +61,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: none. Stage 0 PASS; Wave 1 accepted 21/23; final extension NOT_STARTED.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest GitHub checkpoint: `PENDING_COMMIT` — F02 accepted; 21/23 capabilities accepted and 79.15%. F01 is next in the fixed execution order.
+- Latest GitHub checkpoint: `08069dd` — F02 accepted; 21/23 capabilities accepted and 79.15%. F01 is next in the fixed execution order.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
