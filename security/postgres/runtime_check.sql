@@ -75,7 +75,7 @@ BEGIN
       IF NOT ((t = 'ventio_command_journal' AND
           c.column_name IN ('receipt', 'scope_cursor')) OR
           (t = 'ventio_records' AND
-          c.column_name IN ('revision', 'record_data', 'updated_at', 'deleted_at')) OR
+          c.column_name IN ('revision', 'record_data', 'updated_at', 'deleted_at', 'document_status')) OR
           (t = 'ventio_document_number_series' AND c.column_name='next_number')) AND
           has_column_privilege(current_user, 'public.' || t, c.column_name, 'UPDATE') THEN
         RAISE EXCEPTION 'Unexpected runtime UPDATE privilege';

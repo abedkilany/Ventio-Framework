@@ -112,6 +112,56 @@ class DurableCommandHost {
     currentRevision: currentRevision,
   ).toJson();
 
+  String? _operationInputFailure(
+    BusinessOperationDefinition definition,
+    Map<String, dynamic> values,
+  ) {
+    if (values.keys.any((key) => !definition.inputs.containsKey(key))) {
+      return 'INVALID_PAYLOAD';
+    }
+    for (final entry in definition.inputs.entries) {
+      final spec = entry.value;
+      if (!values.containsKey(entry.key)) {
+        if (spec.required) return 'INVALID_PAYLOAD';
+        continue;
+      }
+      final value = values[entry.key];
+      if (value == null) {
+        if (spec.required) return 'INVALID_PAYLOAD';
+        continue;
+      }
+      final valid = switch (spec.type) {
+        'text' =>
+          value is String &&
+              (spec.maxLength == null || value.length <= spec.maxLength!),
+        'integer' => value is int,
+        'decimal' => value is num && value.isFinite,
+        'boolean' => value is bool,
+        'date' => value is String && DateTime.tryParse(value) != null,
+        'reference' =>
+          value is String && value.isNotEmpty && value.length <= 128,
+        _ => false,
+      };
+      if (!valid) return 'INVALID_PAYLOAD';
+      if (spec.type == 'decimal' && spec.precision != null) {
+        final decimal = value.toString().toLowerCase();
+        final exponent = decimal.indexOf('e');
+        final mantissa = exponent < 0
+            ? decimal
+            : decimal.substring(0, exponent);
+        final mantissaScale = mantissa.contains('.')
+            ? mantissa.length - mantissa.indexOf('.') - 1
+            : 0;
+        final exponentValue = exponent < 0
+            ? 0
+            : int.tryParse(decimal.substring(exponent + 1)) ?? 0;
+        final scale = (mantissaScale - exponentValue).clamp(0, 1000);
+        if (scale > spec.precision!) return 'INVALID_PAYLOAD';
+      }
+    }
+    return null;
+  }
+
   /// Runs the whole accepted effect, receipt, audit and outbox atomically.
   ///
   /// A fresh *authenticated Host principal* is mandatory for every call.
@@ -132,16 +182,24 @@ class DurableCommandHost {
     Future<Principal?> Function(pg.TxSession tx) resolvePrincipal, {
     Future<ExtensionBundleAuthorization> Function(
       pg.TxSession tx,
-      ExtensionRecordCommand command,
+      CommandEnvelope command,
     )?
     resolveExtensionBundle,
   }) async {
     ExtensionRecordCommand? extensionCommand;
+    ExtensionBusinessOperationCommand? businessOperationCommand;
     if (command.type == ExtensionRecordCommand.createType ||
         command.type == ExtensionRecordCommand.updateType ||
         command.type == ExtensionRecordCommand.deleteType) {
       try {
         extensionCommand = ExtensionRecordCommand.fromEnvelope(command);
+      } on ContractError {
+        return _failure(command, 'REJECTED', 'INVALID_COMMAND');
+      }
+    } else if (command.type == ExtensionBusinessOperationCommand.commandType) {
+      try {
+        businessOperationCommand =
+            ExtensionBusinessOperationCommand.fromEnvelope(command);
       } on ContractError {
         return _failure(command, 'REJECTED', 'INVALID_COMMAND');
       }
@@ -155,6 +213,8 @@ class DurableCommandHost {
       final result = await connection.runTx(
         (tx) async {
           final extensionRequest = extensionCommand;
+          final operationRequest = businessOperationCommand;
+          final isBusinessOperation = operationRequest != null;
           final authenticatedPrincipal = await resolvePrincipal(tx);
           if (authenticatedPrincipal == null) {
             return _failure(command, 'REJECTED', 'AUTHENTICATION_REQUIRED');
@@ -173,14 +233,18 @@ class DurableCommandHost {
           late final String moduleId;
           late final String operation;
           late final Map<String, dynamic> recordValues;
+          BusinessOperationDefinition? businessOperation;
           var valuesForStorage = <String, dynamic>{};
           int? updateBaseRevision;
+          int? currentDocumentStatus;
+          int? nextDocumentStatus;
+          final operationOutputs = <String, dynamic>{};
           String? releaseFailureReasonCode;
           ExtensionBundle? authorizedBundle;
-          if (extensionRequest != null) {
+          if (extensionRequest != null || operationRequest != null) {
             final authorization = await resolveExtensionBundle?.call(
               tx,
-              extensionRequest,
+              command,
             );
             final bundle = authorization?.bundle;
             if (bundle == null) {
@@ -191,13 +255,17 @@ class DurableCommandHost {
               );
             }
             authorizedBundle = bundle;
-            if (bundle.moduleId != extensionRequest.moduleId ||
+            final requestedModule =
+                extensionRequest?.moduleId ?? operationRequest!.moduleId;
+            final requestedDocType =
+                extensionRequest?.docType ?? operationRequest!.docType;
+            if (bundle.moduleId != requestedModule ||
                 bundle.version != command.moduleVersion) {
               return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
             }
             releaseFailureReasonCode = authorization?.failureReasonCode;
             final matches = bundle.docTypes.where(
-              (type) => type.name == extensionRequest.docType,
+              (type) => type.name == requestedDocType,
             );
             if (matches.length != 1) {
               return _failure(command, 'REJECTED', 'INVALID_EXTENSION');
@@ -205,15 +273,39 @@ class DurableCommandHost {
             docType = matches.single;
             moduleVersion = bundle.version;
             moduleId = bundle.moduleId;
-            operation = extensionRequest.operation;
-            recordValues = extensionRequest.values;
+            if (extensionRequest != null) {
+              operation = extensionRequest.operation;
+              recordValues = extensionRequest.values;
+            } else {
+              final operationMatches = docType.businessOperations.where(
+                (item) =>
+                    item.id == operationRequest!.operationId &&
+                    item.version == operationRequest.operationVersion,
+              );
+              if (operationMatches.length != 1) {
+                return _failure(command, 'REJECTED', 'INVALID_EXTENSION');
+              }
+              businessOperation = operationMatches.single;
+              final inputFailure = _operationInputFailure(
+                businessOperation,
+                operationRequest!.inputs,
+              );
+              if (inputFailure != null) {
+                return _failure(command, 'REJECTED', inputFailure);
+              }
+              operation =
+                  '${businessOperation.id}@${businessOperation.version}';
+              recordValues = const {};
+            }
             if (docType.moduleId != bundle.moduleId ||
                 docType.schemaVersion != command.docTypeVersion) {
               return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
             }
-            final permission = docType.permissions[operation];
+            final permission =
+                businessOperation?.permission ?? docType.permissions[operation];
             final readPermission = docType.permissions['read'];
-            if (!docType.operations.contains(operation) ||
+            if ((businessOperation == null &&
+                    !docType.operations.contains(operation)) ||
                 permission == null ||
                 !authenticatedPrincipal.allowsInScope(
                   permission,
@@ -386,7 +478,9 @@ class DurableCommandHost {
               );
             }
           }
-          if (extensionRequest == null && command.expectedRevision != null) {
+          if (extensionRequest == null &&
+              !isBusinessOperation &&
+              command.expectedRevision != null) {
             throw _RejectedCommand(
               _failure(
                 command,
@@ -404,7 +498,9 @@ class DurableCommandHost {
             );
           }
           valuesForStorage = Map<String, dynamic>.from(recordValues);
-          if (operation == 'update' || operation == 'delete') {
+          if (operation == 'update' ||
+              operation == 'delete' ||
+              isBusinessOperation) {
             final expectedRevision = command.expectedRevision!;
             if (expectedRevision >= 2147483647) {
               throw _RejectedCommand(
@@ -446,6 +542,7 @@ class DurableCommandHost {
             }
             final current = currentRows.single.toColumnMap();
             updateBaseRevision = current['revision'] as int;
+            currentDocumentStatus = current['document_status'] as int;
             if (updateBaseRevision != expectedRevision) {
               throw _RejectedCommand(
                 _failure(
@@ -543,6 +640,203 @@ class DurableCommandHost {
               }
             }
           }
+          if (businessOperation != null) {
+            final transitions = businessOperation.effects
+                .where((effect) => effect.type == 'document.transition')
+                .toList(growable: false);
+            if (transitions.length > 1) {
+              throw _RejectedCommand(
+                _failure(command, 'REJECTED', 'INVALID_EXTENSION'),
+              );
+            }
+            final transition = transitions.isEmpty ? null : transitions.single;
+            if (transition == null && currentDocumentStatus != 0) {
+              throw _RejectedCommand(
+                _failure(command, 'REJECTED', 'DOCUMENT_NOT_DRAFT'),
+              );
+            }
+            if (transition != null) {
+              final validTransition =
+                  (transition.targetStatus == 1 &&
+                      currentDocumentStatus == 0) ||
+                  (transition.targetStatus == 2 && currentDocumentStatus == 1);
+              if (!validTransition) {
+                throw _RejectedCommand(
+                  _failure(command, 'REJECTED', 'INVALID_DOCUMENT_TRANSITION'),
+                );
+              }
+              nextDocumentStatus = transition.targetStatus;
+              if (businessOperation.outputs.containsKey('status')) {
+                operationOutputs['status'] = nextDocumentStatus;
+              }
+            }
+            for (final effect in businessOperation.effects) {
+              if (effect.type == 'document.allocate_number') {
+                final naming = docType.namingSeries;
+                if (naming == null || naming.field != effect.field) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'INVALID_EXTENSION'),
+                  );
+                }
+                final allocated = await tx.execute(
+                  pg.Sql.named('''
+                    INSERT INTO public.ventio_document_number_series
+                      (tenant_id,company_id,branch_id,module_id,doc_type,series_id,
+                       prefix,padding,next_number)
+                    VALUES (@tenant,@company,@branch,@module,@doctype,@series,
+                            @prefix,@padding,2)
+                    ON CONFLICT
+                      (tenant_id,company_id,branch_id,module_id,doc_type,series_id)
+                    DO UPDATE SET next_number=public.ventio_document_number_series.next_number+1
+                    WHERE public.ventio_document_number_series.prefix=EXCLUDED.prefix
+                      AND public.ventio_document_number_series.padding=EXCLUDED.padding
+                    RETURNING next_number-1
+                  '''),
+                  parameters: {
+                    'tenant': command.tenantId,
+                    'company': command.companyId,
+                    'branch': command.branchId,
+                    'module': moduleId,
+                    'doctype': docType.name,
+                    'series': naming.seriesId,
+                    'prefix': naming.prefix,
+                    'padding': naming.padding,
+                  },
+                );
+                if (allocated.length != 1 || allocated.single[0] is! int) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'NUMBER_SERIES_CHANGED'),
+                  );
+                }
+                final officialNumber = naming.formatNumber(
+                  allocated.single[0] as int,
+                );
+                valuesForStorage[effect.field!] = officialNumber;
+                operationOutputs[effect.output!] = officialNumber;
+              } else if (effect.type == 'record.increment') {
+                final targetDefinition = authorizedBundle!.docTypes.singleWhere(
+                  (definition) => definition.name == effect.targetDocType,
+                );
+                final targetField = targetDefinition.fields.singleWhere(
+                  (field) => field.name == effect.field,
+                );
+                final targetId = operationRequest!.inputs[effect.targetIdInput];
+                final amount = operationRequest.inputs[effect.amountInput];
+                final updatePermission = targetDefinition.permissions['update'];
+                final readPermission = targetDefinition.permissions['read'];
+                final fieldPermissions = [
+                  targetField.readPermission,
+                  targetField.writePermission,
+                ].whereType<String>();
+                if (targetId is! String ||
+                    !targetDefinition.operations.contains('read') ||
+                    !targetDefinition.operations.contains('update') ||
+                    updatePermission == null ||
+                    readPermission == null ||
+                    !authenticatedPrincipal.allowsInScope(
+                      updatePermission,
+                      command.companyId,
+                      command.branchId,
+                    ) ||
+                    !authenticatedPrincipal.allowsInScope(
+                      readPermission,
+                      command.companyId,
+                      command.branchId,
+                    ) ||
+                    fieldPermissions.any(
+                      (permission) => !authenticatedPrincipal.allowsInScope(
+                        permission,
+                        command.companyId,
+                        command.branchId,
+                      ),
+                    ) ||
+                    amount is! num ||
+                    !amount.isFinite) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'PERMISSION_DENIED'),
+                  );
+                }
+                final targetRows = await tx.execute(
+                  pg.Sql.named('''
+                    SELECT revision, record_data::text AS record_json
+                    FROM public.ventio_records
+                    WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+                      AND module_id=@module AND doc_type=@doctype AND record_id=@record
+                      AND deleted_at IS NULL AND document_status=0
+                  '''),
+                  parameters: {
+                    'tenant': command.tenantId,
+                    'company': command.companyId,
+                    'branch': command.branchId,
+                    'module': moduleId,
+                    'doctype': targetDefinition.name,
+                    'record': targetId,
+                  },
+                );
+                if (targetRows.isEmpty) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'INVALID_REFERENCE'),
+                  );
+                }
+                final target = targetRows.single.toColumnMap();
+                final targetData = jsonDecode(target['record_json'] as String);
+                if (targetData is! Map || targetData[effect.field] is! num) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                  );
+                }
+                final updatedTarget = await tx.execute(
+                  pg.Sql.named('''
+                    UPDATE public.ventio_records
+                    SET revision=revision+1,
+                        record_data=jsonb_set(record_data,ARRAY[@field],
+                          to_jsonb((record_data->>@field)::numeric + @amount::numeric),true),
+                        updated_at=clock_timestamp()
+                    WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+                      AND module_id=@module AND doc_type=@doctype AND record_id=@record
+                      AND revision=@revision AND deleted_at IS NULL AND document_status=0
+                    RETURNING revision, record_data::text AS record_json
+                  '''),
+                  parameters: {
+                    'field': effect.field,
+                    'amount': amount.toString(),
+                    'tenant': command.tenantId,
+                    'company': command.companyId,
+                    'branch': command.branchId,
+                    'module': moduleId,
+                    'doctype': targetDefinition.name,
+                    'record': targetId,
+                    'revision': target['revision'],
+                  },
+                );
+                if (updatedTarget.isEmpty) {
+                  throw _RejectedCommand(
+                    _failure(command, 'CONFLICT', 'REVISION_CONFLICT'),
+                  );
+                }
+                final newTarget =
+                    jsonDecode(
+                          updatedTarget.single.toColumnMap()['record_json']
+                              as String,
+                        )
+                        as Map<String, dynamic>;
+                if (targetField.validate(newTarget[targetField.name]) != null) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                  );
+                }
+                await testFaultInjector?.call('after_business_effect');
+              }
+            }
+            for (final output in businessOperation.outputs.entries) {
+              if (output.value.required &&
+                  !operationOutputs.containsKey(output.key)) {
+                throw _RejectedCommand(
+                  _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                );
+              }
+            }
+          }
           if (operation != 'delete') {
             valuesForStorage = docType.applyDefaults(valuesForStorage);
           }
@@ -624,13 +918,14 @@ class DurableCommandHost {
               );
             }
             recordRevision = deleted.single[0] as int;
-          } else if (operation == 'update') {
+          } else if (operation == 'update' || isBusinessOperation) {
             final expectedRevision = command.expectedRevision!;
             final updated = await tx.execute(
               pg.Sql.named('''
             UPDATE ventio_records
             SET revision = revision + 1, record_data = CAST(@data AS jsonb),
-                updated_at = clock_timestamp()
+                updated_at = clock_timestamp(),
+                document_status = coalesce(@document_status, document_status)
             WHERE tenant_id = @tenant AND company_id = @company
               AND branch_id = @branch AND module_id = @module
               AND doc_type = @doctype
@@ -646,6 +941,7 @@ class DurableCommandHost {
                 'record': command.aggregateId,
                 'expected': expectedRevision,
                 'data': jsonEncode(valuesForStorage),
+                'document_status': nextDocumentStatus,
               },
             );
             if (updated.isEmpty) {
@@ -738,14 +1034,14 @@ class DurableCommandHost {
             'companyId': command.companyId,
             'branchId': command.branchId,
             'commandId': command.commandId,
-            'type': extensionRequest == null
+            'type': extensionRequest == null && !isBusinessOperation
                 ? '${docType.name}.created'
                 : 'extension.record.changed',
             'aggregateId': command.aggregateId,
             'recordRevision': recordRevision,
-            if (extensionRequest != null) ...{
-              'moduleId': extensionRequest.moduleId,
-              'docType': extensionRequest.docType,
+            if (extensionRequest != null || isBusinessOperation) ...{
+              'moduleId': extensionRequest?.moduleId ?? moduleId,
+              'docType': extensionRequest?.docType ?? docType.name,
               'operation': operation,
             },
           };
@@ -771,7 +1067,10 @@ class DurableCommandHost {
             status: 'ACCEPTED',
             hostRevision: recordRevision,
             scopeCursor: scopeCursor,
-            output: {'serverRecordId': command.aggregateId},
+            output: {
+              'serverRecordId': command.aggregateId,
+              if (isBusinessOperation) ...operationOutputs,
+            },
           ).toJson();
           await tx.execute(
             pg.Sql.named('''

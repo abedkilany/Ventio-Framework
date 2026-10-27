@@ -355,14 +355,31 @@ class ExtensionBundle {
                   (field) => field.name == effect.field,
                 );
           final targetInput = operation.inputs[effect.targetIdInput];
+          final amountInput = operation.inputs[effect.amountInput];
           if (!doctypeNames.contains(effect.targetDocType) ||
               targetInput?.referenceTo != effect.targetDocType ||
               targetField == null ||
               targetField.isEmpty ||
-              !{'integer', 'decimal'}.contains(targetField.single.type)) {
+              targetField.single.readOnly ||
+              !{'integer', 'decimal'}.contains(targetField.single.type) ||
+              amountInput == null ||
+              (targetField.single.type == 'integer' &&
+                  amountInput.type != 'integer') ||
+              (targetField.single.type == 'decimal' &&
+                  (targetField.single.precision == null ||
+                      (amountInput.type == 'decimal' &&
+                          (amountInput.precision == null ||
+                              amountInput.precision! >
+                                  targetField.single.precision!))))) {
             throw ContractError(
               'INVALID_OPERATION',
               '${operation.id} has an invalid numeric record target.',
+            );
+          }
+          if (!targetType.single.operations.contains('update')) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} targets a DocType that does not enable updates.',
             );
           }
         }

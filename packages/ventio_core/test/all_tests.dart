@@ -91,7 +91,7 @@ Map<String, dynamic> extensionBundleJson() => {
         'extension.com_example_assets.module.name': 'Assets',
         'extension.com_example_assets.asset.name': 'Asset',
         'extension.com_example_assets.asset.name_value': 'Name',
-      'extension.com_example_assets.asset.document_number': 'Document Number',
+        'extension.com_example_assets.asset.document_number': 'Document Number',
       },
     };
 
@@ -149,7 +149,11 @@ void main() {
           'number': {'type': 'text', 'required': true, 'maxLength': 80},
         },
         'effects': [
-          {'type': 'document.allocate_number', 'field': 'documentNumber'},
+          {
+            'type': 'document.allocate_number',
+            'field': 'documentNumber',
+            'output': 'number',
+          },
           {'type': 'document.transition', 'targetStatus': 1},
         ],
       },
@@ -177,6 +181,51 @@ void main() {
     checkThrows(
       () => ExtensionBundle.fromJson(executable),
       'An extension-defined executable effect was accepted',
+    );
+
+    final unproducedOutput = changed(source);
+    final unproducedType =
+        (unproducedOutput['docTypes'] as List).single as Map<String, dynamic>;
+    (unproducedType['businessOperations'] as List).single['outputs'] = {
+      'unproduced': {'type': 'text', 'required': true},
+    };
+    checkThrows(
+      () => ExtensionBundle.fromJson(unproducedOutput),
+      'An output without a matching Host effect was accepted',
+    );
+
+    final duplicateAllocation = changed(source);
+    final duplicateType = (duplicateAllocation['docTypes'] as List).single
+        as Map<String, dynamic>;
+    final duplicateOperation =
+        (duplicateType['businessOperations'] as List).single as Map;
+    (duplicateOperation['outputs'] as Map)['number_copy'] = {
+      'type': 'text',
+      'required': true,
+    };
+    (duplicateOperation['effects'] as List).insert(1, {
+      'type': 'document.allocate_number',
+      'field': 'documentNumber',
+      'output': 'number_copy',
+    });
+    checkThrows(
+      () => ExtensionBundle.fromJson(duplicateAllocation),
+      'Multiple number allocations in one operation were accepted',
+    );
+
+    final missingSubmit = changed(source);
+    final missingSubmitType =
+        (missingSubmit['docTypes'] as List).single as Map<String, dynamic>;
+    (missingSubmitType['businessOperations'] as List).single['effects'] = [
+      {
+        'type': 'document.allocate_number',
+        'field': 'documentNumber',
+        'output': 'number'
+      },
+    ];
+    checkThrows(
+      () => ExtensionBundle.fromJson(missingSubmit),
+      'Number allocation outside a submit transition was accepted',
     );
   });
 
@@ -1439,13 +1488,14 @@ void main() {
       'Zero or negative series values were accepted',
     );
 
-    final invalidPrefix = loadJsonFile('$root/examples/maintenance_doctype.json')
-      ..['naming'] = {
-        'seriesId': 'maintenance-request',
-        'field': 'documentNumber',
-        'prefix': 'MR-{{sql}}',
-        'padding': 6,
-      };
+    final invalidPrefix =
+        loadJsonFile('$root/examples/maintenance_doctype.json')
+          ..['naming'] = {
+            'seriesId': 'maintenance-request',
+            'field': 'documentNumber',
+            'prefix': 'MR-{{sql}}',
+            'padding': 6,
+          };
     (invalidPrefix['fields'] as List).add((valid['fields'] as List).last);
     invalidPrefix['ui']['formFields'].add('documentNumber');
     checkThrows(
@@ -1453,8 +1503,9 @@ void main() {
       'A template or executable expression was accepted as a series prefix',
     );
 
-    final writableField = loadJsonFile('$root/examples/maintenance_doctype.json')
-      ..['naming'] = valid['naming'];
+    final writableField =
+        loadJsonFile('$root/examples/maintenance_doctype.json')
+          ..['naming'] = valid['naming'];
     (writableField['fields'] as List).add({
       ...(valid['fields'] as List).last as Map<String, dynamic>,
       'readOnly': false,

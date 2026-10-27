@@ -167,8 +167,8 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "field"],
-          "properties": { "type": { "const": "document.allocate_number" }, "field": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" } }
+          "required": ["type", "field", "output"],
+          "properties": { "type": { "const": "document.allocate_number" }, "field": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" }, "output": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" } }
         },
         {
           "type": "object",

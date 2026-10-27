@@ -88,13 +88,60 @@ class BusinessOperationDefinition {
             ))
         .toList(growable: false);
     final inputs = values('inputs');
+    final outputs = values('outputs');
+    if (effects.where((item) => item.type == 'document.transition').length >
+            1 ||
+        effects
+                .where((item) => item.type == 'document.allocate_number')
+                .length >
+            1) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'An operation may contain at most one transition and one number allocation.',
+      );
+    }
+    final producedOutputs = <String>{
+      for (final effect
+          in effects.where((item) => item.type == 'document.allocate_number'))
+        effect.output!,
+      if (effects.any((item) => item.type == 'document.transition')) 'status',
+    };
+    final statusOutput = outputs['status'];
+    if (outputs.keys.any((name) => !producedOutputs.contains(name)) ||
+        (statusOutput != null &&
+            (statusOutput.type != 'integer' || !statusOutput.required))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Operation outputs must bind to a declared Host effect result.',
+      );
+    }
+    for (final effect
+        in effects.where((item) => item.type == 'document.allocate_number')) {
+      final output = outputs[effect.output];
+      if (output == null || output.type != 'text' || !output.required) {
+        throw const ContractError(
+          'INVALID_OPERATION',
+          'Number allocation outputs must bind to a required text output.',
+        );
+      }
+    }
+    if (effects.any((item) => item.type == 'document.allocate_number') &&
+        !effects.any((item) =>
+            item.type == 'document.transition' && item.targetStatus == 1)) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Official number allocation must be part of a submit transition.',
+      );
+    }
     for (final effect
         in effects.where((item) => item.type == 'record.increment')) {
       final target = inputs[effect.targetIdInput];
       final amount = inputs[effect.amountInput];
       if (target == null ||
           target.type != 'reference' ||
+          !target.required ||
           amount == null ||
+          !amount.required ||
           !{'integer', 'decimal'}.contains(amount.type)) {
         throw const ContractError(
           'INVALID_OPERATION',
@@ -113,7 +160,7 @@ class BusinessOperationDefinition {
       version: version,
       permission: permission,
       inputs: inputs,
-      outputs: values('outputs'),
+      outputs: outputs,
       effects: List.unmodifiable(effects),
     );
   }
@@ -128,6 +175,7 @@ class OperationEffectDefinition {
     this.targetIdInput,
     this.amountInput,
     this.targetStatus,
+    this.output,
   });
 
   final String type;
@@ -136,11 +184,12 @@ class OperationEffectDefinition {
   final String? targetIdInput;
   final String? amountInput;
   final int? targetStatus;
+  final String? output;
 
   factory OperationEffectDefinition.fromJson(Map<String, dynamic> json) {
     final type = requireString(json, 'type');
     final allowed = switch (type) {
-      'document.allocate_number' => {'type', 'field'},
+      'document.allocate_number' => {'type', 'field', 'output'},
       'document.transition' => {'type', 'targetStatus'},
       'record.increment' => {
           'type',
@@ -162,9 +211,16 @@ class OperationEffectDefinition {
     final targetIdInput = optionalString(json, 'targetIdInput');
     final amountInput = optionalString(json, 'amountInput');
     final status = json['targetStatus'];
+    final output = optionalString(json, 'output');
     if (type == 'document.allocate_number' &&
-        (field == null || !_fieldName.hasMatch(field))) {
-      throw const ContractError('INVALID_OPERATION', 'Invalid number field.');
+        (field == null ||
+            !_fieldName.hasMatch(field) ||
+            output == null ||
+            !_inputName.hasMatch(output))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Number allocation requires a field and declared output name.',
+      );
     }
     if (type == 'document.transition' &&
         (status is! int || (status != 1 && status != 2))) {
@@ -194,6 +250,7 @@ class OperationEffectDefinition {
       targetIdInput: targetIdInput,
       amountInput: amountInput,
       targetStatus: status as int?,
+      output: output,
     );
   }
 }

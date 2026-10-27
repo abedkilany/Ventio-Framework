@@ -52,12 +52,29 @@ class PostgresIdentityStore {
     String digest,
     CommandEnvelope envelope,
   ) async {
-    final command = ExtensionRecordCommand.fromEnvelope(envelope);
+    late final String moduleId;
+    late final String docType;
+    late final String operation;
+    late final Map<String, dynamic> operationInputs;
+    if (envelope.type == ExtensionBusinessOperationCommand.commandType) {
+      final command = ExtensionBusinessOperationCommand.fromEnvelope(envelope);
+      moduleId = command.moduleId;
+      docType = command.docType;
+      operation = '${command.operationId}@${command.operationVersion}';
+      operationInputs = command.inputs;
+    } else {
+      final command = ExtensionRecordCommand.fromEnvelope(envelope);
+      moduleId = command.moduleId;
+      docType = command.docType;
+      operation = command.operation;
+      operationInputs = const {};
+    }
     final rows = await tx.execute(
       pg.Sql.named('''
       SELECT ventio_security.resolve_extension_identity(
         @digest,@company,@branch,@type,@version,@command,@aggregate,
-        @module,@module_version,@doc_type,@operation,@expected_revision)::text
+        @module,@module_version,@doc_type,@operation,@expected_revision,
+        CAST(@operation_inputs AS jsonb))::text
     '''),
       parameters: {
         'digest': digest,
@@ -67,11 +84,12 @@ class PostgresIdentityStore {
         'version': envelope.typeVersion,
         'command': envelope.commandId,
         'aggregate': envelope.aggregateId,
-        'module': command.moduleId,
+        'module': moduleId,
         'module_version': envelope.moduleVersion,
-        'doc_type': command.docType,
-        'operation': command.operation,
+        'doc_type': docType,
+        'operation': operation,
         'expected_revision': envelope.expectedRevision,
+        'operation_inputs': jsonEncode(operationInputs),
       },
     );
     final raw = rows.single[0];
@@ -93,7 +111,7 @@ class PostgresIdentityStore {
     );
     final source = canonicalJson(bundle.toJson());
     final hash = sha256.convert(utf8.encode(source)).toString();
-    if (bundle.moduleId != command.moduleId ||
+    if (bundle.moduleId != moduleId ||
         bundle.version != envelope.moduleVersion ||
         result['packageSha256'] != hash) {
       throw StateError('Approved extension integrity check failed.');

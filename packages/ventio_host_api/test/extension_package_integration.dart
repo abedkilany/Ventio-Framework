@@ -2865,6 +2865,455 @@ Future<void> main() async {
         'permission': 'extension.package.read',
       },
     );
+    final operationToken = await provision(
+      actor: 'operation-user',
+      device: 'operation-device',
+      credential: 'operation-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.submit',
+        'extension.package.read',
+        'extension.com_example_inventory.product.read',
+        'extension.com_example_inventory.product.create',
+        'extension.com_example_inventory.product.update',
+        'extension.com_example_inventory.movement.read',
+        'extension.com_example_inventory.movement.create',
+        'extension.com_example_inventory.movement.update',
+        'extension.com_example_inventory.movement.submit',
+        'extension.com_example_inventory.movement.cancel',
+      ],
+      registerBranch: false,
+    );
+    final operationPackage = ExtensionBundle.fromJson({
+      'manifest': {
+        'manifestVersion': 0,
+        'moduleId': 'com.example.inventory',
+        'version': '1.0.0',
+        'minPlatformApi': '0.1.0',
+        'displayName': 'Inventory',
+        'displayNameKey': 'extension.com_example_inventory.name',
+        'englishCatalog': 'localization/en.inventory.json',
+        'dependencies': <String>[],
+        'docTypes': ['Product', 'Movement'],
+        'commands': <Object>[],
+        'requiredCapabilities': <String>[],
+        'offline': {'enabled': false, 'allowedCommands': <String>[]},
+      },
+      'docTypes': [
+        {
+          'name': 'Product',
+          'moduleId': 'com.example.inventory',
+          'schemaVersion': 1,
+          'kind': 'operational',
+          'label': 'Product',
+          'labelKey': 'extension.com_example_inventory.product.name',
+          'operations': ['read', 'create', 'update'],
+          'permissions': {
+            'read': 'extension.com_example_inventory.product.read',
+            'create': 'extension.com_example_inventory.product.create',
+            'update': 'extension.com_example_inventory.product.update',
+          },
+          'fields': [
+            {
+              'name': 'quantity',
+              'type': 'decimal',
+              'required': true,
+              'precision': 2,
+              'minValue': 0,
+              'maxValue': 100,
+              'default': 0,
+              'label': 'Quantity',
+              'labelKey': 'extension.com_example_inventory.product.quantity',
+            },
+          ],
+          'ui': {
+            'listColumns': ['quantity'],
+            'formFields': ['quantity'],
+            'detailFields': ['quantity'],
+          },
+        },
+        {
+          'name': 'Movement',
+          'moduleId': 'com.example.inventory',
+          'schemaVersion': 1,
+          'kind': 'operational',
+          'label': 'Movement',
+          'labelKey': 'extension.com_example_inventory.movement.name',
+          'operations': ['read', 'create', 'update'],
+          'permissions': {
+            'read': 'extension.com_example_inventory.movement.read',
+            'create': 'extension.com_example_inventory.movement.create',
+            'update': 'extension.com_example_inventory.movement.update',
+          },
+          'naming': {
+            'seriesId': 'inventory-movement',
+            'field': 'documentNumber',
+            'prefix': 'INV-',
+            'padding': 6,
+          },
+          'fields': [
+            {
+              'name': 'product',
+              'type': 'reference',
+              'referenceTo': 'Product',
+              'required': true,
+              'label': 'Product',
+              'labelKey': 'extension.com_example_inventory.movement.product',
+            },
+            {
+              'name': 'amount',
+              'type': 'decimal',
+              'required': true,
+              'precision': 2,
+              'label': 'Amount',
+              'labelKey': 'extension.com_example_inventory.movement.amount',
+            },
+            {
+              'name': 'documentNumber',
+              'type': 'text',
+              'required': false,
+              'readOnly': true,
+              'maxLength': 128,
+              'label': 'Document Number',
+              'labelKey': 'extension.com_example_inventory.movement.number',
+            },
+          ],
+          'businessOperations': [
+            {
+              'id': 'inventory.submit',
+              'version': 1,
+              'permission': 'extension.com_example_inventory.movement.submit',
+              'inputs': {
+                'product': {
+                  'type': 'reference',
+                  'required': true,
+                  'referenceTo': 'Product',
+                },
+                'amount': {'type': 'decimal', 'required': true, 'precision': 2},
+              },
+              'outputs': {
+                'number': {'type': 'text', 'required': true, 'maxLength': 128},
+              },
+              'effects': [
+                {
+                  'type': 'document.allocate_number',
+                  'field': 'documentNumber',
+                  'output': 'number',
+                },
+                {
+                  'type': 'record.increment',
+                  'targetDocType': 'Product',
+                  'targetIdInput': 'product',
+                  'amountInput': 'amount',
+                  'field': 'quantity',
+                },
+                {'type': 'document.transition', 'targetStatus': 1},
+              ],
+            },
+            {
+              'id': 'inventory.cancel',
+              'version': 1,
+              'permission': 'extension.com_example_inventory.movement.cancel',
+              'inputs': {
+                'product': {
+                  'type': 'reference',
+                  'required': true,
+                  'referenceTo': 'Product',
+                },
+                'amount': {'type': 'decimal', 'required': true, 'precision': 2},
+              },
+              'outputs': {},
+              'effects': [
+                {
+                  'type': 'record.increment',
+                  'targetDocType': 'Product',
+                  'targetIdInput': 'product',
+                  'amountInput': 'amount',
+                  'field': 'quantity',
+                },
+                {'type': 'document.transition', 'targetStatus': 2},
+              ],
+            },
+          ],
+          'ui': {
+            'listColumns': ['product', 'amount', 'documentNumber'],
+            'formFields': ['product', 'amount', 'documentNumber'],
+            'detailFields': ['product', 'amount', 'documentNumber'],
+          },
+        },
+      ],
+      'dependencyVersions': <String, String>{},
+      'englishCatalog': {
+        'extension.com_example_inventory.name': 'Inventory',
+        'extension.com_example_inventory.product.name': 'Product',
+        'extension.com_example_inventory.product.quantity': 'Quantity',
+        'extension.com_example_inventory.movement.name': 'Movement',
+        'extension.com_example_inventory.movement.product': 'Product',
+        'extension.com_example_inventory.movement.amount': 'Amount',
+        'extension.com_example_inventory.movement.number': 'Document Number',
+      },
+    });
+    expect(
+      (await submitPackage(operationToken, operationPackage)).status == 202,
+      'Declarative governed operations can be submitted by an ordinary extension creator',
+    );
+    await packageAdmin.approve(
+      moduleId: operationPackage.moduleId,
+      version: operationPackage.version,
+      packageSha256: hash(operationPackage),
+    );
+    final productCreate = ExtensionRecordCommand.create(
+      commandId: '72000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-product-1',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Product',
+      schemaVersion: 1,
+      values: {'quantity': 90},
+    );
+    expect(
+      (await send(
+            api,
+            token: operationToken,
+            body: productCreate.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'Governed operation fixture creates a scoped product record',
+    );
+    final movementCreate = ExtensionRecordCommand.create(
+      commandId: '72000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {'product': 'inventory-product-1', 'amount': 20},
+    );
+    expect(
+      (await send(
+            api,
+            token: operationToken,
+            body: movementCreate.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'Governed operation fixture creates a draft movement',
+    );
+    final submitMovement = ExtensionBusinessOperationCommand.execute(
+      commandId: '72000000-0000-4000-8000-000000000003',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 1,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: {'product': 'inventory-product-1', 'amount': 20},
+    );
+    final failedSubmit = await send(
+      api,
+      token: operationToken,
+      body: submitMovement.envelope.original,
+    );
+    expect(
+      failedSubmit.body['receipt']?['status'] == 'REJECTED',
+      'A failed governed effect rejects without accepting the operation command',
+    );
+    final rejectedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision, (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision, m.document_status,
+          m.record_data->>'documentNumber' AS document_number,
+          (SELECT count(*) FROM ventio_document_number_series
+            WHERE tenant_id=@tenant AND module_id=@module) AS series_count
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      rejectedState.single.toColumnMap()['product_revision'] == 1 &&
+          rejectedState.single.toColumnMap()['quantity'] == 90 &&
+          rejectedState.single.toColumnMap()['movement_revision'] == 1 &&
+          rejectedState.single.toColumnMap()['document_status'] == 0 &&
+          rejectedState.single.toColumnMap()['document_number'] == null &&
+          rejectedState.single.toColumnMap()['series_count'] == 0,
+      'A rejected effect rolls back target updates, movement state, number allocation, and the journal transaction',
+    );
+    final reduceProduct = ExtensionRecordCommand.update(
+      commandId: '72000000-0000-4000-8000-000000000004',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-product-1',
+      expectedRevision: 1,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Product',
+      schemaVersion: 1,
+      values: {'quantity': 80},
+    );
+    expect(
+      (await send(
+            api,
+            token: operationToken,
+            body: reduceProduct.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'Ordinary generic record update can prepare a valid retry',
+    );
+    final acceptedSubmit = await send(
+      api,
+      token: operationToken,
+      body: submitMovement.envelope.original,
+    );
+    final acceptedSubmitReceipt = acceptedSubmit.body['receipt'];
+    expect(
+      acceptedSubmitReceipt['status'] == 'ACCEPTED' &&
+          acceptedSubmitReceipt['output']['number'] == 'INV-000001',
+      'The same operation command retry allocates the first official number and commits its effects',
+    );
+    final submittedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision, (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision, m.document_status,
+          m.record_data->>'documentNumber' AS document_number,
+          (SELECT next_number FROM ventio_document_number_series
+            WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+              AND module_id=@module AND doc_type='Movement' AND series_id='inventory-movement') AS next_number
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      submittedState.single.toColumnMap()['product_revision'] == 3 &&
+          submittedState.single.toColumnMap()['quantity'] == 100 &&
+          submittedState.single.toColumnMap()['movement_revision'] == 2 &&
+          submittedState.single.toColumnMap()['document_status'] == 1 &&
+          submittedState.single.toColumnMap()['document_number'] ==
+              'INV-000001' &&
+          submittedState.single.toColumnMap()['next_number'] == 2,
+      'Submit atomically updates stock, status, document number and revisions after a failed attempt',
+    );
+    final submitReplay = await send(
+      api,
+      token: operationToken,
+      body: submitMovement.envelope.original,
+    );
+    expect(
+      canonicalJson(submitReplay.body['receipt']) ==
+          canonicalJson(acceptedSubmitReceipt),
+      'An identical accepted operation retry returns its original receipt without repeating effects',
+    );
+    final cancelMovement = ExtensionBusinessOperationCommand.execute(
+      commandId: '72000000-0000-4000-8000-000000000005',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.cancel',
+      operationVersion: 1,
+      inputs: {'product': 'inventory-product-1', 'amount': -20},
+    );
+    final cancelled = await send(
+      api,
+      token: operationToken,
+      body: cancelMovement.envelope.original,
+    );
+    final cancelledState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision, (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision, m.document_status,
+          m.record_data->>'documentNumber' AS document_number
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      cancelled.body['receipt']['status'] == 'ACCEPTED' &&
+          cancelledState.single.toColumnMap()['product_revision'] == 4 &&
+          cancelledState.single.toColumnMap()['quantity'] == 80 &&
+          cancelledState.single.toColumnMap()['movement_revision'] == 3 &&
+          cancelledState.single.toColumnMap()['document_status'] == 2 &&
+          cancelledState.single.toColumnMap()['document_number'] ==
+              'INV-000001',
+      'The ordinary cancel operation reverses stock once and preserves the official number',
+    );
+    await send(
+      api,
+      token: operationToken,
+      body: cancelMovement.envelope.original,
+    );
+    final cancelReplayState = await observer.execute(
+      pg.Sql.named('''
+        SELECT revision, (record_data->>'quantity')::integer AS quantity
+        FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+          AND branch_id=@branch AND module_id=@module AND doc_type='Product'
+          AND record_id='inventory-product-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      cancelReplayState.single.toColumnMap()['revision'] == 4 &&
+          cancelReplayState.single.toColumnMap()['quantity'] == 80,
+      'An identical accepted cancel retry does not duplicate the reversal',
+    );
     var staleWitnessDenied = false;
     try {
       await runtimeConnection.runTx(authority.admit);
@@ -2902,6 +3351,7 @@ Future<void> main() async {
       recoveryTruncateDenied,
       'The recovery authority state cannot be truncated',
     );
+
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     await api?.close();

@@ -219,8 +219,19 @@ CREATE OR REPLACE FUNCTION ventio_security.extension_policy(p_package jsonb, p_m
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
   SELECT coalesce(jsonb_object_agg(item->>'name', jsonb_build_object(
-    'moduleId',item->>'moduleId','operations',item->'operations',
-    'permissions',item->'permissions')), '{}'::jsonb)
+    'moduleId',item->>'moduleId',
+    'operations',coalesce(item->'operations','[]'::jsonb) || coalesce((
+      SELECT jsonb_agg((operation->>'id') || '@' || (operation->>'version'))
+      FROM jsonb_array_elements(coalesce(item->'businessOperations','[]'::jsonb)) AS declared(operation)
+    ),'[]'::jsonb),
+    'permissions',coalesce(item->'permissions','{}'::jsonb) || coalesce((
+      SELECT jsonb_object_agg((operation->>'id') || '@' || (operation->>'version'),
+        operation->'permission')
+      FROM jsonb_array_elements(coalesce(item->'businessOperations','[]'::jsonb)) AS declared(operation)
+    ),'{}'::jsonb),
+    'businessOperations',coalesce(item->'businessOperations','[]'::jsonb),
+    'fields',coalesce(item->'fields','[]'::jsonb),
+    'naming',item->'naming')), '{}'::jsonb)
   FROM jsonb_array_elements(p_package->'docTypes') AS rows(item)
   WHERE item->>'moduleId'=p_module
 $fn$;
@@ -242,6 +253,7 @@ SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
     nullif(current_setting('ventio.doc_type',true),''),
     nullif(current_setting('ventio.operation',true),''),
     nullif(current_setting('ventio.expected_revision',true),''),
+    nullif(current_setting('ventio.operation_inputs',true),''),
     p_identity, p_policy
   )::text
 $fn$;
@@ -408,7 +420,7 @@ BEGIN
   IF p_company IS DISTINCT FROM nullif(current_setting('ventio.company_id', true), '') OR
      p_branch IS DISTINCT FROM nullif(current_setting('ventio.branch_id', true), '') THEN RETURN false; END IF;
   command_type := current_setting('ventio.command_type', true);
-  IF command_type IN ('extension.record.create','extension.record.update','extension.record.delete','extension.record.query') THEN
+  IF command_type IN ('extension.record.create','extension.record.update','extension.record.delete','extension.record.query','extension.operation.execute') THEN
     dynamic_operation := nullif(current_setting('ventio.operation',true),'');
     dynamic_module := nullif(current_setting('ventio.module_id',true),'');
     dynamic_version := nullif(current_setting('ventio.module_version',true),'');
@@ -417,7 +429,9 @@ BEGIN
         (command_type='extension.record.create' AND dynamic_operation IS DISTINCT FROM 'create') OR
         (command_type='extension.record.update' AND dynamic_operation IS DISTINCT FROM 'update') OR
         (command_type='extension.record.delete' AND dynamic_operation IS DISTINCT FROM 'delete') OR
-        (command_type='extension.record.query' AND dynamic_operation IS DISTINCT FROM 'read') THEN
+        (command_type='extension.record.query' AND dynamic_operation IS DISTINCT FROM 'read') OR
+        (command_type='extension.operation.execute' AND
+          (dynamic_operation IS NULL OR dynamic_operation !~ '^[a-z][a-z0-9]*(\.[a-z0-9]+|_[a-z0-9]+|-[a-z0-9]+)*@[1-9][0-9]{0,2}$')) THEN
       RETURN false;
     END IF;
     cached_context := ventio_security.cached_extension_authorization(
@@ -503,11 +517,58 @@ BEGIN
         AND nullif(current_setting('ventio.aggregate_id',true),'') IS NOT NULL;
     END IF;
     IF p_mode='record_update' THEN
-      RETURN dynamic_operation IN ('update','delete') AND can_create AND p_subject=dynamic_name;
+      RETURN (dynamic_operation IN ('update','delete') AND can_create AND p_subject=dynamic_name) OR
+        (dynamic_operation ~ '@[1-9][0-9]{0,2}$' AND can_create AND
+          EXISTS (SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+            CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+            WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+              AND effects.effect->>'type' IN ('document.allocate_number','document.transition','record.increment')
+              AND p_subject=dynamic_name));
+    END IF;
+    IF p_mode='record_effect_update' THEN
+      IF dynamic_operation !~ '@[1-9][0-9]{0,2}$' OR NOT can_create THEN RETURN false; END IF;
+      RETURN EXISTS (
+        SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+        CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+        WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+          AND effects.effect->>'type'='record.increment'
+          AND effects.effect->>'targetDocType'=p_subject
+          AND p_actor=((nullif(current_setting('ventio.operation_inputs',true),'')::jsonb)
+            ->>(effects.effect->>'targetIdInput'))
+          AND identity->'permissions' ? ((policy->p_subject)->'permissions'->>'read')
+          AND identity->'permissions' ? ((policy->p_subject)->'permissions'->>'update')
+          AND EXISTS (
+            SELECT FROM jsonb_array_elements(coalesce((policy->p_subject)->'fields','[]'::jsonb)) AS fields(field)
+            WHERE fields.field->>'name'=effects.effect->>'field'
+              AND (fields.field->>'readPermission' IS NULL OR
+                   identity->'permissions' ? (fields.field->>'readPermission'))
+              AND (fields.field->>'writePermission' IS NULL OR
+                   identity->'permissions' ? (fields.field->>'writePermission'))
+          )
+      );
     END IF;
     IF p_mode='series_allocate' THEN
-      RETURN dynamic_operation='submit' AND can_create AND p_subject=dynamic_name
-        AND jsonb_typeof(dynamic_doc_type->'naming')='object';
+      RETURN can_create AND p_subject=dynamic_name
+        AND jsonb_typeof(dynamic_doc_type->'naming')='object'
+        AND EXISTS (SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+          CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+          WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+            AND effects.effect->>'type'='document.allocate_number'
+            AND effects.effect->>'field'=dynamic_doc_type->'naming'->>'field');
+    END IF;
+    IF p_mode IN ('record_transition_source','record_transition_target') THEN
+      IF NOT can_create OR dynamic_operation !~ '@[1-9][0-9]{0,2}$' THEN RETURN false; END IF;
+      RETURN EXISTS (
+        SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+        CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+        WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+          AND effects.effect->>'type'='document.transition'
+          AND p_subject=dynamic_name
+          AND (p_mode<>'record_transition_target' OR effects.effect->>'targetStatus'=p_actor)
+          AND (p_mode<>'record_transition_source' OR
+            (effects.effect->>'targetStatus'='1' AND p_actor='0') OR
+            (effects.effect->>'targetStatus'='2' AND p_actor='1'))
+      );
     END IF;
     IF p_mode='journal_read' THEN RETURN can_create; END IF;
     IF p_mode IN ('journal_write','audit_write','outbox_write') THEN
@@ -579,17 +640,31 @@ CREATE POLICY runtime_insert ON public.ventio_records FOR INSERT TO ventio_runti
     AND record_id = current_setting('ventio.aggregate_id', true));
 DROP POLICY IF EXISTS runtime_update ON public.ventio_records;
 CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runtime
-  USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
+  USING ((ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
     AND module_id = current_setting('ventio.module_id',true)
     AND record_id = current_setting('ventio.aggregate_id', true)
     AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer)
-  WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
-    AND module_id = current_setting('ventio.module_id',true)
-    AND record_id = current_setting('ventio.aggregate_id', true)
-    AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1
-    AND ((current_setting('ventio.operation',true)='update' AND deleted_at IS NULL)
-      OR (current_setting('ventio.operation',true)='delete'
-        AND deleted_at IS NOT NULL AND document_status=0)));
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_transition_source', doc_type, document_status::text)
+      AND module_id = current_setting('ventio.module_id',true)
+      AND record_id = current_setting('ventio.aggregate_id', true)
+      AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer)
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_effect_update', doc_type, record_id)
+      AND module_id = current_setting('ventio.module_id',true)))
+  WITH CHECK (
+    (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
+      AND module_id = current_setting('ventio.module_id',true)
+      AND record_id = current_setting('ventio.aggregate_id', true)
+      AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1
+      AND ((current_setting('ventio.operation',true)='update' AND deleted_at IS NULL)
+        OR (current_setting('ventio.command_type',true)='extension.operation.execute' AND deleted_at IS NULL AND document_status=0)
+        OR (current_setting('ventio.operation',true)='delete'
+          AND deleted_at IS NOT NULL AND document_status=0)))
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_effect_update', doc_type, record_id)
+      AND module_id = current_setting('ventio.module_id',true))
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_transition_target', doc_type, document_status::text)
+      AND module_id = current_setting('ventio.module_id',true)
+      AND record_id = current_setting('ventio.aggregate_id', true)
+      AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1));
 DROP POLICY IF EXISTS runtime_series_select ON public.ventio_document_number_series;
 CREATE POLICY runtime_series_select ON public.ventio_document_number_series
   FOR SELECT TO ventio_runtime
@@ -649,7 +724,7 @@ CREATE POLICY runtime_insert ON public.ventio_outbox FOR INSERT TO ventio_runtim
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'outbox_write', command_id));
 GRANT SELECT, INSERT ON public.ventio_records, public.ventio_command_journal,
   public.ventio_audit_entries, public.ventio_outbox TO ventio_runtime;
-GRANT UPDATE (revision, record_data, updated_at, deleted_at) ON public.ventio_records TO ventio_runtime;
+GRANT UPDATE (revision, record_data, updated_at, deleted_at, document_status) ON public.ventio_records TO ventio_runtime;
 GRANT UPDATE (receipt, scope_cursor) ON public.ventio_command_journal TO ventio_runtime;
 GRANT SELECT, INSERT ON public.ventio_document_number_series TO ventio_runtime;
 GRANT UPDATE (next_number) ON public.ventio_document_number_series TO ventio_runtime;
@@ -663,7 +738,7 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
   ventio_security.admit_recovery(text,text),
   ventio_security.resolve_extension_read_identity(text,text,text,text,text,text),
-  ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint),
+  ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint,jsonb),
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
   ventio_security.read_approved_extension_package(text,text,text,text,text,text),
   ventio_security.list_approved_extension_packages(text,text,text,text,text,text,integer),
