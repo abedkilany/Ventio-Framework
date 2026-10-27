@@ -553,6 +553,11 @@ class DurableCommandHost {
                 ),
               );
             }
+            if (operation == 'update' && currentDocumentStatus != 0) {
+              throw _RejectedCommand(
+                _failure(command, 'REJECTED', 'DOCUMENT_NOT_DRAFT'),
+              );
+            }
             if (operation == 'delete') {
               if ((current['document_status'] as int) != 0) {
                 throw _RejectedCommand(

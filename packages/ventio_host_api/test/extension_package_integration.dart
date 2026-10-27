@@ -3309,6 +3309,60 @@ Future<void> main() async {
           submittedState.single.toColumnMap()['next_number'] == 2,
       'Submit atomically updates stock, status, document number and revisions after a failed attempt',
     );
+    final updateSubmittedMovement = ExtensionRecordCommand.update(
+      commandId: '74000000-0000-4000-8000-000000000006',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {
+        'lines': [
+          {'product': 'inventory-product-1', 'amount': 9},
+          {'product': 'inventory-product-1', 'amount': 12},
+        ],
+      },
+    );
+    final immutableReply = await send(
+      api,
+      token: operationToken,
+      body: updateSubmittedMovement.envelope.original,
+    );
+    final immutableState = await observer.execute(
+      pg.Sql.named('''
+        SELECT revision,document_status,record_data::text AS record_json
+        FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Movement'
+          AND record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final immutableRecord =
+        jsonDecode(immutableState.single.toColumnMap()['record_json'] as String)
+            as Map<String, dynamic>;
+    expect(
+      immutableReply.body['receipt']?['reasonCode'] == 'DOCUMENT_NOT_DRAFT' &&
+          immutableState.single.toColumnMap()['revision'] == 2 &&
+          immutableState.single.toColumnMap()['document_status'] == 1 &&
+          canonicalJson(immutableRecord['lines']) ==
+              canonicalJson([
+                {'product': 'inventory-product-1', 'amount': 8},
+                {'product': 'inventory-product-1', 'amount': 12},
+              ]),
+      'Host rejects generic edits to a submitted document without changing rows or revision',
+    );
     final submitReplay = await send(
       api,
       token: operationToken,

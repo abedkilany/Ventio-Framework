@@ -657,7 +657,7 @@ CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runti
       AND module_id = current_setting('ventio.module_id',true)
       AND record_id = current_setting('ventio.aggregate_id', true)
       AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1
-      AND ((current_setting('ventio.operation',true)='update' AND deleted_at IS NULL)
+      AND ((current_setting('ventio.operation',true)='update' AND deleted_at IS NULL AND document_status=0)
         OR (current_setting('ventio.command_type',true)='extension.operation.execute' AND deleted_at IS NULL AND document_status=0)
         OR (current_setting('ventio.operation',true)='delete'
           AND deleted_at IS NOT NULL AND document_status=0)))
