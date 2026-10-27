@@ -12,9 +12,9 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Live checkpoint
 
-- Current task: F01 — review the existing bounded Host query and design the authorized declarative report path.
+- Current task: F01 — implement bounded declarative report metadata, persistence, and Host query execution.
 - Last completed capability: F02 — Aggregations and calculated totals (21/23 accepted).
-- Next action: define and implement the minimal report metadata, authorized aggregation, and saved report workflow for F01.
+- Next action: add Core report contracts and SQLite draft persistence, then integrate the ordinary Studio builder and Host query path.
 - Blockers: none. Disposable PostgreSQL 17.11 Host integration passed **130/130** after correcting overlapping test command IDs; F02 is accepted. The isolated cluster remains available for Wave 1 runtime checks.
 - Latest implementation checkpoint: `08069dd` (F02 calculation implementation and acceptance); design is in [ADR-012](ADR-012_DECLARATIVE_EXACT_DECIMAL_CALCULATIONS.md), with runtime evidence in [F02_CALCULATIONS_ACCEPTANCE.md](F02_CALCULATIONS_ACCEPTANCE.md). Stage 0 remains 7/7 PASS; Wave 1 is 21/23 at 79.15%.
 - Since the previous dashboard update: Core, SQLite, Studio, and Host now share a bounded declarative exact-decimal calculation contract. Focused Core **75/75**, SQLite calculated child/parent persistence **1/1**, Studio calculated grid **1/1** and builder **1/1**, analysis, contract/schema checks, and localization gate passed. The disposable Windows PostgreSQL 17.11 extension integration passed **130/130**, including exact recomputation, forged-total side-effect rejection, K06 rollback, idempotency, numbering, and Amend concurrency. Evidence is recorded in [F02_CALCULATIONS_ACCEPTANCE.md](F02_CALCULATIONS_ACCEPTANCE.md). Overall accepted progress is **79.15%**.
@@ -48,20 +48,20 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 19 | K06 | Governed business operations engine | Missing | Newly Implemented | 8 | COMPLETED | [K06 acceptance evidence](K06_GOVERNED_OPERATIONS_ACCEPTANCE.md) and [A10 integration evidence](A10_DOCUMENT_NUMBERING_ACCEPTANCE.md). Core 73/73 validates data-only bounded declarations and typed Child Table bindings. Host executes `record.increment_rows` from persisted parent rows with exact fixed-point decimal aggregation, target scope/field permissions and RLS binding. Disposable PostgreSQL 17.11 extension integration **119/119** proves exact operation denial, no-side-effect rejection, rollback, concurrent identical Submit/one receipt/one number, multi-row effects, retry, Cancel reversal and idempotency. A10 allocator **6/6**; ExtensionStore **37/37**; Extension Studio **27/27**; targeted analysis clean. Checkpoint `04f1007`. |
 | 20 | B04 | Draft / Submit / Cancel / Amend lifecycle | Missing | Newly Implemented | 7 | COMPLETED | PostgreSQL 17.11 Host integration **128/128**; A10 allocator **6/6**; Core **74/74**; SQLite Store **38/38**; focused Studio Amend and lifecycle builder tests **1/1** each; Dart analysis and localization gate pass. Covers authorization, legal transitions, immutable submitted/cancelled records, numbering, rollback, amendment concurrency/idempotency, child-row copy, and accepted/rejected offline reconciliation. [Acceptance evidence](B04_LIFECYCLE_ACCEPTANCE.md); architecture review [here](B04_ARCHITECTURE_REVIEW.md). |
 | 21 | F02 | Aggregations and calculated totals | Missing | Newly Implemented | 4 | COMPLETED | Core **75/75**; SQLite calculated child/parent persistence **1/1**; Studio grid **1/1** and calculation builder **1/1**; Dart analysis, contract/schema checks, and localization gate pass. Disposable Windows PostgreSQL 17.11 extension integration **130/130** verifies exact line/parent totals, forged-total rejection without record/journal/audit/outbox/cursor effects, plus K06 lifecycle, rollback, idempotency, numbering, and concurrency regressions. Design: [ADR-012](ADR-012_DECLARATIVE_EXACT_DECIMAL_CALCULATIONS.md); [acceptance evidence](F02_CALCULATIONS_ACCEPTANCE.md). |
-| 22 | F01 | Declarative Report Builder | Missing | Pending | 5 | NOT_STARTED | — |
+| 22 | F01 | Declarative Report Builder | Missing | Pending | 5 | IN_PROGRESS | F01 source review found existing authorized record query APIs but no report definition, grouping, or aggregation contract. Design is fixed in [ADR-013](ADR-013_DECLARATIVE_REPORTS.md); implementation and acceptance evidence remain pending. |
 | 23 | G01 | Standard printable document formats | Missing | Pending | 4 | NOT_STARTED | — |
 
 Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: F01 — review current Host queries and prepare the declarative report design.
+- Current task: F01 — implement bounded declarative report metadata and authorized report execution.
 - Last successfully completed capability: F02 — Aggregations and calculated totals.
-- Next task: implement the authorized report definition and bounded count/sum execution path.
+- Next task: implement Core report validation and local draft persistence from the ADR-013 contract.
 - Blockers: none. Stage 0 PASS; Wave 1 accepted 21/23; final extension NOT_STARTED.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest GitHub checkpoint: `08069dd` — F02 accepted; 21/23 capabilities accepted and 79.15%. F01 is next in the fixed execution order.
+- Latest GitHub checkpoint: `PENDING_COMMIT` — F01 architecture checkpoint; F02 implementation `08069dd` is accepted. Wave 1 is 21/23 at 79.15%.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -119,6 +119,7 @@ Total Wave 1 effort points: **100**.
 - K06 accepted: added the bounded `record.increment_rows` declaration, Core validation against the parent Child Table and target DocType, atomic Host execution over persisted rows, fixed-point decimal aggregation, and PostgreSQL RLS binding for each Host-selected target. The ordinary extension integration passed **119/119** on disposable Windows PostgreSQL 17.11 after reapplying the guarded security bootstrap twice; A10 allocation passed **6/6**; Core **73/73**; ExtensionStore **37/37**; Extension Studio **27/27**; targeted analysis clean. PostgreSQL was stopped after checks. [Evidence](K06_GOVERNED_OPERATIONS_ACCEPTANCE.md). K06 is **COMPLETED / Newly Implemented**; Wave 1 is **19/23**, overall accepted progress **72.00%**. Checkpoint `04f1007`.
 - B04 accepted: after reviewing [A04](A04_POSTGRESQL_ACCEPTANCE.md) and [D01](D01_IDENTITY_ACCEPTANCE.md), the disposable Windows PostgreSQL 17.11 cluster passed the expanded Host integration **128/128** and A10 allocator integration **6/6**. Migration `024_document_number_series.sql` and the guarded security bootstrap were applied; bootstrap reapplication was idempotent. Coverage includes lifecycle permissions, rollback, numbering, cancellation reversal, Amend validation, linked draft creation, concurrent identical retries, and distinct Amend races. Core **74/74**, SQLite Store **38/38**, focused Studio Amend and builder **1/1** each, Dart analysis, and localization gate passed. The cluster was stopped. Evidence: [B04_LIFECYCLE_ACCEPTANCE.md](B04_LIFECYCLE_ACCEPTANCE.md). Wave 1 is **20/23 accepted**, overall **76.55%**; F02 is next.
 - F02 accepted: added exact decimal parsing and bounded multiply/sum calculation metadata across Core, SQLite persistence, Studio forms/grids, and PostgreSQL Host validation. Core **75/75**, SQLite calculated child/parent persistence **1/1**, Studio calculated grid **1/1**, builder **1/1**, Dart analysis, contract/schema validation, and localization gate passed. The disposable Windows PostgreSQL 17.11 extension integration completed with exit code 0 and **130 passed, 0 failed**, including exact `0.1 × 0.2 = 0.02`, parent aggregate `0.32`, forged-total rejection without side effects, and K06/B04 transactional regressions. The first attempt exposed overlapping test command IDs; those F02 fixture IDs were isolated and the complete integration rerun passed. Evidence: [F02_CALCULATIONS_ACCEPTANCE.md](F02_CALCULATIONS_ACCEPTANCE.md). Wave 1 is **21/23 accepted**, overall **79.15%**; F01 is next.
+- F01 architecture checkpoint: fixed report definitions as bounded extension-package data with local drafts in the ordinary authoring flow; Host resolves approved metadata and identity, enforces exact tenant/company/branch and field permissions, applies exact `numeric` count/sum/grouping, and rejects over-limit results rather than returning partial aggregates. The initial bounded contract is in [ADR-013](ADR-013_DECLARATIVE_REPORTS.md). F01 is IN_PROGRESS; accepted progress remains **79.15%** and F01 `Work Performed` stays provisional.
 
 
 
