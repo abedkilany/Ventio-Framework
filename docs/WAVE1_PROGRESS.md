@@ -46,7 +46,7 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: B03 — document validation and lifecycle foundations; verify transactional validation, legal state transitions, and rollback on invalid requests.
+- Current task: B03 — document validation and lifecycle foundations; verify approved schema/operation validation, exact-scope references, revision checks, and all-or-nothing PostgreSQL effects.
 - Last successfully completed capability: D03 — operation-level permissions.
 - Next task: B03 — document validation and lifecycle foundations.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
