@@ -202,6 +202,281 @@ void main() {
     },
   );
 
+  test('Amend stores and reconciles a durable local draft copy', () async {
+    final definition =
+        _docType(
+            name: 'Movement',
+            fields: [
+              _textField(),
+              {
+                ..._textField(
+                  name: 'documentNumber',
+                  required: false,
+                  maxLength: 64,
+                ),
+                'readOnly': true,
+              },
+              {
+                'name': 'amendedFrom',
+                'type': 'reference',
+                'referenceTo': 'Movement',
+                'required': false,
+                'readOnly': true,
+                'label': 'Amended From',
+                'labelKey': 'asset_register.movement.amended_from',
+              },
+              {
+                'name': 'lines',
+                'type': 'table',
+                'required': true,
+                'label': 'Lines',
+                'labelKey': 'asset_register.movement.lines',
+                'childDocType': {
+                  'name': 'MovementLine',
+                  'label': 'Movement line',
+                  'labelKey': 'asset_register.movement.line',
+                  'fields': [
+                    {
+                      'name': 'description',
+                      'type': 'text',
+                      'required': true,
+                      'label': 'Description',
+                      'labelKey': 'asset_register.movement.description',
+                    },
+                  ],
+                },
+              },
+            ],
+          )
+          ..['naming'] = {
+            'seriesId': 'movement',
+            'field': 'documentNumber',
+            'prefix': 'MOV-',
+            'padding': 4,
+          };
+    await createActiveExtension(docType: definition);
+    final source = await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      scope: _scope,
+      values: const {
+        'name': 'Original movement',
+        'lines': [
+          {'description': 'First line'},
+          {'description': 'Second line'},
+        ],
+      },
+      recordId: 'movement-source',
+    );
+    await store.applyHostRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      scope: _scope,
+      recordId: source.recordId,
+      revision: 1,
+      values: const {
+        'name': 'Original movement',
+        'documentNumber': 'MOV-0001',
+        'lines': [
+          {'description': 'First line'},
+          {'description': 'Second line'},
+        ],
+      },
+      updatedAtUtc: DateTime.utc(2026, 10, 24),
+    );
+    await store.markRecordPending(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'submit-source',
+    );
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'submit-source',
+      receipt: CommandReceipt(
+        commandId: 'submit-source',
+        status: 'ACCEPTED',
+        hostRevision: 2,
+      ),
+      documentStatus: 1,
+    );
+    await expectLater(
+      store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Movement',
+        recordId: source.recordId,
+        scope: _scope,
+        expectedRevision: 1,
+        values: const {'name': 'Must remain immutable'},
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'DOCUMENT_NOT_DRAFT',
+        ),
+      ),
+    );
+    await store.markRecordPending(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'cancel-source',
+    );
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'cancel-source',
+      receipt: CommandReceipt(
+        commandId: 'cancel-source',
+        status: 'ACCEPTED',
+        hostRevision: 3,
+      ),
+      documentStatus: 2,
+    );
+
+    final amendment = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: 'amend-local-copy',
+      linkField: 'amendedFrom',
+    );
+    expect(amendment.recordId, 'amend-local-copy');
+    expect(amendment.documentStatus, 0);
+    expect(amendment.authorityState, 'PENDING');
+    expect(amendment.pendingCommandId, 'amend-local-copy');
+    expect(amendment.values['amendedFrom'], source.recordId);
+    expect(amendment.values['documentNumber'], 'LOCAL-amend-local-copy');
+    expect(amendment.values['lines'], source.values['lines']);
+    await expectLater(
+      store.createAmendmentDraft(
+        moduleId: _moduleId,
+        docTypeName: 'Movement',
+        sourceRecordId: source.recordId,
+        scope: _scope,
+        expectedSourceRevision: 3,
+        commandId: 'another-local-amendment',
+        linkField: 'amendedFrom',
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'AMENDMENT_ALREADY_ACTIVE',
+        ),
+      ),
+    );
+
+    await store.close();
+    await openStore();
+    final persisted = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: amendment.recordId,
+      scope: _scope,
+    ))!;
+    expect(persisted.values['lines'], amendment.values['lines']);
+    expect(persisted.pendingCommandId, amendment.pendingCommandId);
+    expect(persisted.documentStatus, 0);
+
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: amendment.recordId,
+      receipt: CommandReceipt(
+        commandId: amendment.recordId,
+        status: 'ACCEPTED',
+        hostRevision: 3,
+      ),
+    );
+    await store.applyHostReceipt(
+      recordId: amendment.recordId,
+      scope: _scope,
+      commandId: amendment.recordId,
+      receipt: CommandReceipt(
+        commandId: amendment.recordId,
+        status: 'ACCEPTED',
+        hostRevision: 1,
+        output: const {'amendedRecordId': 'amend-local-copy'},
+      ),
+      operation: 'amend',
+      documentStatus: 0,
+    );
+    final acceptedSource = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: source.recordId,
+      scope: _scope,
+    ))!;
+    final acceptedAmendment = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: amendment.recordId,
+      scope: _scope,
+    ))!;
+    expect(acceptedSource.documentStatus, 2);
+    expect(acceptedSource.hostRevision, 3);
+    expect(acceptedSource.pendingCommandId, isNull);
+    expect(acceptedAmendment.authorityState, 'HOST_ACCEPTED');
+    expect(acceptedAmendment.hostRevision, 1);
+    expect(acceptedAmendment.documentStatus, 0);
+
+    await store.markRecordPending(
+      recordId: amendment.recordId,
+      scope: _scope,
+      commandId: 'cancel-amendment-copy',
+    );
+    await store.applyHostReceipt(
+      recordId: amendment.recordId,
+      scope: _scope,
+      commandId: 'cancel-amendment-copy',
+      receipt: CommandReceipt(
+        commandId: 'cancel-amendment-copy',
+        status: 'ACCEPTED',
+        hostRevision: 2,
+      ),
+      documentStatus: 2,
+    );
+    final rejectedDraft = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: 'amend-rejected-copy',
+      linkField: 'amendedFrom',
+    );
+    final rejectedReceipt = CommandReceipt(
+      commandId: 'amend-rejected-copy',
+      status: 'REJECTED',
+      reasonCode: 'PERMISSION_DENIED',
+    );
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'amend-rejected-copy',
+      receipt: rejectedReceipt,
+    );
+    await store.applyHostReceipt(
+      recordId: rejectedDraft.recordId,
+      scope: _scope,
+      commandId: 'amend-rejected-copy',
+      receipt: rejectedReceipt,
+      operation: 'amend',
+    );
+    final rejectedAmendment = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: rejectedDraft.recordId,
+      scope: _scope,
+    ))!;
+    expect(rejectedAmendment.authorityState, 'REJECTED');
+    expect(rejectedAmendment.hostRevision, isNull);
+    expect(rejectedAmendment.values['lines'], amendment.values['lines']);
+  });
+
   test(
     'Draft delete tombstones are hidden and rejected pending deletes restore',
     () async {

@@ -116,6 +116,66 @@ Principal actor(
 MaintenancePrototype fresh() => bootstrapMaintenancePrototype(root);
 
 void main() {
+  test('Business amend effects require a Host-owned self-reference', () {
+    final source = extensionBundleJson();
+    final type = (source['docTypes'] as List).single as Map<String, dynamic>;
+    (type['fields'] as List).add({
+      'name': 'amendedFrom',
+      'type': 'reference',
+      'referenceTo': 'Asset',
+      'required': false,
+      'readOnly': true,
+      'label': 'Amended From',
+      'labelKey': 'extension.com_example_assets.asset.amended_from',
+    });
+    (source['englishCatalog'] as Map<String, dynamic>)[
+        'extension.com_example_assets.asset.amended_from'] = 'Amended From';
+    type['businessOperations'] = [
+      {
+        'id': 'document.amend',
+        'version': 1,
+        'permission': 'extension.com_example_assets.asset.amend',
+        'inputs': <String, dynamic>{},
+        'outputs': {
+          'amendedRecordId': {'type': 'text', 'required': true},
+        },
+        'effects': [
+          {
+            'type': 'document.amend',
+            'linkField': 'amendedFrom',
+            'output': 'amendedRecordId',
+          },
+        ],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    check(
+      bundle.docTypes.single.businessOperations.single.effects.single.type ==
+              'document.amend' &&
+          canonicalJson(bundle.toJson()) == canonicalJson(source),
+      'A valid amend operation did not parse and round-trip',
+    );
+
+    final clientWritableLink = changed(source);
+    final link = ((clientWritableLink['docTypes'] as List).single
+        as Map<String, dynamic>)['fields'] as List;
+    (link.last as Map<String, dynamic>)['readOnly'] = false;
+    checkThrows(
+      () => ExtensionBundle.fromJson(clientWritableLink),
+      'An amendment link controlled by clients was accepted',
+    );
+
+    final mixedEffects = changed(source);
+    final mixedOperation = ((mixedEffects['docTypes'] as List).single
+        as Map<String, dynamic>)['businessOperations'] as List;
+    (((mixedOperation.single as Map<String, dynamic>)['effects'] as List)
+        .add({'type': 'document.transition', 'targetStatus': 1}));
+    checkThrows(
+      () => ExtensionBundle.fromJson(mixedEffects),
+      'An amend effect combined with another effect was accepted',
+    );
+  });
+
   test('Business operation contracts are bounded and data-only', () {
     final source = extensionBundleJson();
     final type = (source['docTypes'] as List).single as Map<String, dynamic>;

@@ -646,6 +646,9 @@ class DurableCommandHost {
             }
           }
           if (businessOperation != null) {
+            final amendments = businessOperation.effects
+                .where((effect) => effect.type == 'document.amend')
+                .toList(growable: false);
             final transitions = businessOperation.effects
                 .where((effect) => effect.type == 'document.transition')
                 .toList(growable: false);
@@ -655,7 +658,20 @@ class DurableCommandHost {
               );
             }
             final transition = transitions.isEmpty ? null : transitions.single;
-            if (transition == null && currentDocumentStatus != 0) {
+            if (amendments.length > 1 ||
+                (amendments.isNotEmpty && transition != null)) {
+              throw _RejectedCommand(
+                _failure(command, 'REJECTED', 'INVALID_EXTENSION'),
+              );
+            }
+            if (amendments.isNotEmpty && currentDocumentStatus != 2) {
+              throw _RejectedCommand(
+                _failure(command, 'REJECTED', 'INVALID_DOCUMENT_TRANSITION'),
+              );
+            }
+            if (amendments.isEmpty &&
+                transition == null &&
+                currentDocumentStatus != 0) {
               throw _RejectedCommand(
                 _failure(command, 'REJECTED', 'DOCUMENT_NOT_DRAFT'),
               );
@@ -676,7 +692,124 @@ class DurableCommandHost {
               }
             }
             for (final effect in businessOperation.effects) {
-              if (effect.type == 'document.allocate_number') {
+              if (effect.type == 'document.amend') {
+                final createPermission = docType.permissions['create'];
+                final linkField = docType.fields.singleWhere(
+                  (field) => field.name == effect.linkField,
+                );
+                if (!docType.operations.contains('create') ||
+                    createPermission == null ||
+                    !authenticatedPrincipal.allowsInScope(
+                      createPermission,
+                      command.companyId,
+                      command.branchId,
+                    ) ||
+                    (linkField.writePermission != null &&
+                        !authenticatedPrincipal.allowsInScope(
+                          linkField.writePermission!,
+                          command.companyId,
+                          command.branchId,
+                        ))) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'PERMISSION_DENIED'),
+                  );
+                }
+                final existingAmendments = await tx.execute(
+                  pg.Sql.named('''
+                    SELECT 1 FROM public.ventio_records
+                    WHERE tenant_id=@tenant AND company_id=@company
+                      AND branch_id=@branch AND module_id=@module
+                      AND doc_type=@doctype AND deleted_at IS NULL
+                      AND document_status<>2
+                      AND record_data->>@link_field=@source
+                    LIMIT 1
+                  '''),
+                  parameters: {
+                    'tenant': command.tenantId,
+                    'company': command.companyId,
+                    'branch': command.branchId,
+                    'module': moduleId,
+                    'doctype': docType.name,
+                    'link_field': effect.linkField,
+                    'source': command.aggregateId,
+                  },
+                );
+                if (existingAmendments.isNotEmpty) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'AMENDMENT_ALREADY_ACTIVE'),
+                  );
+                }
+                final amendmentValues = Map<String, dynamic>.from(
+                  valuesForStorage,
+                );
+                final namingField = docType.namingSeries?.field;
+                if (namingField != null) amendmentValues.remove(namingField);
+                amendmentValues[effect.linkField!] = command.aggregateId;
+                final normalizedAmendment = docType.applyDefaults(
+                  amendmentValues,
+                );
+                if (docType.validatePayload(normalizedAmendment).isNotEmpty) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                  );
+                }
+                for (final reference in docType.referencesIn(
+                  normalizedAmendment,
+                )) {
+                  final foundReference = await tx.execute(
+                    pg.Sql.named('''
+                      SELECT 1 FROM public.ventio_records
+                      WHERE tenant_id=@tenant AND company_id=@company
+                        AND branch_id=@branch AND module_id=@module
+                        AND doc_type=@doctype AND record_id=@record
+                        AND deleted_at IS NULL
+                      LIMIT 1
+                    '''),
+                    parameters: {
+                      'tenant': command.tenantId,
+                      'company': command.companyId,
+                      'branch': command.branchId,
+                      'module': moduleId,
+                      'doctype': reference.targetDocType,
+                      'record': reference.recordId,
+                    },
+                  );
+                  if (foundReference.isEmpty) {
+                    throw _RejectedCommand(
+                      _failure(command, 'REJECTED', 'INVALID_REFERENCE'),
+                    );
+                  }
+                }
+                final createdAmendment = await tx.execute(
+                  pg.Sql.named('''
+                    INSERT INTO public.ventio_records
+                      (tenant_id,company_id,branch_id,module_id,doc_type,
+                       record_id,revision,record_data,document_status)
+                    VALUES (@tenant,@company,@branch,@module,@doctype,
+                            @record,1,CAST(@data AS jsonb),0)
+                    ON CONFLICT
+                      (tenant_id,company_id,branch_id,module_id,doc_type,record_id)
+                    DO NOTHING
+                    RETURNING record_id
+                  '''),
+                  parameters: {
+                    'tenant': command.tenantId,
+                    'company': command.companyId,
+                    'branch': command.branchId,
+                    'module': moduleId,
+                    'doctype': docType.name,
+                    'record': command.commandId,
+                    'data': jsonEncode(normalizedAmendment),
+                  },
+                );
+                if (createdAmendment.isEmpty) {
+                  throw _RejectedCommand(
+                    _failure(command, 'CONFLICT', 'RECORD_ALREADY_EXISTS'),
+                  );
+                }
+                operationOutputs[effect.output!] = command.commandId;
+                await testFaultInjector?.call('after_business_effect');
+              } else if (effect.type == 'document.allocate_number') {
                 final naming = docType.namingSeries;
                 if (naming == null || naming.field != effect.field) {
                   throw _RejectedCommand(
@@ -1084,8 +1217,18 @@ class DurableCommandHost {
             recordRevision = deleted.single[0] as int;
           } else if (operation == 'update' || isBusinessOperation) {
             final expectedRevision = command.expectedRevision!;
-            final updated = await tx.execute(
-              pg.Sql.named('''
+            final isAmendment =
+                businessOperation?.effects.any(
+                  (effect) => effect.type == 'document.amend',
+                ) ??
+                false;
+            if (isAmendment) {
+              // Amend creates a new draft while leaving the cancelled source
+              // and its revision untouched.
+              recordRevision = updateBaseRevision!;
+            } else {
+              final updated = await tx.execute(
+                pg.Sql.named('''
             UPDATE ventio_records
             SET revision = revision + 1, record_data = CAST(@data AS jsonb),
                 updated_at = clock_timestamp(),
@@ -1096,24 +1239,25 @@ class DurableCommandHost {
               AND record_id = @record AND revision = @expected
             RETURNING revision
           '''),
-              parameters: {
-                'tenant': command.tenantId,
-                'company': command.companyId,
-                'branch': command.branchId,
-                'module': moduleId,
-                'doctype': docType.name,
-                'record': command.aggregateId,
-                'expected': expectedRevision,
-                'data': jsonEncode(valuesForStorage),
-                'document_status': nextDocumentStatus,
-              },
-            );
-            if (updated.isEmpty) {
-              throw _RejectedCommand(
-                _failure(command, 'CONFLICT', 'REVISION_CONFLICT'),
+                parameters: {
+                  'tenant': command.tenantId,
+                  'company': command.companyId,
+                  'branch': command.branchId,
+                  'module': moduleId,
+                  'doctype': docType.name,
+                  'record': command.aggregateId,
+                  'expected': expectedRevision,
+                  'data': jsonEncode(valuesForStorage),
+                  'document_status': nextDocumentStatus,
+                },
               );
+              if (updated.isEmpty) {
+                throw _RejectedCommand(
+                  _failure(command, 'CONFLICT', 'REVISION_CONFLICT'),
+                );
+              }
+              recordRevision = updated.single[0] as int;
             }
-            recordRevision = updated.single[0] as int;
           } else {
             final record = await tx.execute(
               pg.Sql.named('''

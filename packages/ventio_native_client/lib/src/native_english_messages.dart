@@ -511,11 +511,14 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.your_extensions': 'Your extensions',
   'native.ui.enable_document_numbering': 'Enable document numbering',
   'native.ui.enable_governed_document_lifecycle':
-      'Enable governed Submit and Cancel actions',
+      'Enable governed document lifecycle',
   'native.ui.governed_document_lifecycle_help':
-      'The Host applies these declared status transitions atomically. If numbering is enabled, it assigns the official number during Submit.',
+      'The Host applies Submit, Cancel and Amend atomically. If numbering is enabled, it assigns the official number during Submit.',
   'native.ui.submit_document': 'Submit document',
   'native.ui.cancel_document': 'Cancel document',
+  'native.ui.amend_document': 'Amend document',
+  'native.ui.amendment_field_conflict':
+      'The amended-from field must be an optional read-only reference to this DocType.',
   'native.ui.business_operation_inputs_unavailable':
       'This operation requires inputs that are not supported by this form yet.',
   'native.ui.business_operation_queue_failed':

@@ -29,6 +29,7 @@ class BusinessOperationDefinition {
     'document.transition',
     'record.increment',
     'record.increment_rows',
+    'document.amend',
   };
 
   final String id;
@@ -106,6 +107,9 @@ class BusinessOperationDefinition {
           in effects.where((item) => item.type == 'document.allocate_number'))
         effect.output!,
       if (effects.any((item) => item.type == 'document.transition')) 'status',
+      for (final effect
+          in effects.where((item) => item.type == 'document.amend'))
+        effect.output!,
     };
     final statusOutput = outputs['status'];
     if (outputs.keys.any((name) => !producedOutputs.contains(name)) ||
@@ -123,6 +127,22 @@ class BusinessOperationDefinition {
         throw const ContractError(
           'INVALID_OPERATION',
           'Number allocation outputs must bind to a required text output.',
+        );
+      }
+    }
+    for (final effect
+        in effects.where((item) => item.type == 'document.amend')) {
+      final output = outputs[effect.output];
+      if (output == null || output.type != 'text' || !output.required) {
+        throw const ContractError(
+          'INVALID_OPERATION',
+          'Amend effects must bind a required text record-ID output.',
+        );
+      }
+      if (effects.length != 1) {
+        throw const ContractError(
+          'INVALID_OPERATION',
+          'An amend operation cannot be combined with other effects.',
         );
       }
     }
@@ -181,6 +201,7 @@ class OperationEffectDefinition {
     this.targetIdField,
     this.amountField,
     this.amountMultiplier,
+    this.linkField,
   });
 
   final String type;
@@ -194,6 +215,7 @@ class OperationEffectDefinition {
   final String? targetIdField;
   final String? amountField;
   final int? amountMultiplier;
+  final String? linkField;
 
   factory OperationEffectDefinition.fromJson(Map<String, dynamic> json) {
     final type = requireString(json, 'type');
@@ -216,6 +238,7 @@ class OperationEffectDefinition {
           'field',
           'amountMultiplier',
         },
+      'document.amend' => {'type', 'linkField', 'output'},
       _ => <String>{},
     };
     if (allowed.isEmpty || json.keys.toSet().difference(allowed).isNotEmpty) {
@@ -234,6 +257,7 @@ class OperationEffectDefinition {
     final targetIdField = optionalString(json, 'targetIdField');
     final amountField = optionalString(json, 'amountField');
     final amountMultiplier = json['amountMultiplier'];
+    final linkField = optionalString(json, 'linkField');
     if (type == 'document.allocate_number' &&
         (field == null ||
             !_fieldName.hasMatch(field) ||
@@ -283,6 +307,16 @@ class OperationEffectDefinition {
         'Invalid child row increment target or field binding.',
       );
     }
+    if (type == 'document.amend' &&
+        (linkField == null ||
+            !_fieldName.hasMatch(linkField) ||
+            output == null ||
+            !_inputName.hasMatch(output))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Amend effects require a self-reference field and output name.',
+      );
+    }
     return OperationEffectDefinition(
       type: type,
       field: field,
@@ -295,6 +329,7 @@ class OperationEffectDefinition {
       targetIdField: targetIdField,
       amountField: amountField,
       amountMultiplier: amountMultiplier as int?,
+      linkField: linkField,
     );
   }
 }

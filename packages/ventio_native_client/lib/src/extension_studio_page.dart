@@ -15,6 +15,7 @@ import 'host_sync_service.dart';
 import 'host_transport.dart';
 import 'local_command_queue.dart';
 import 'maintenance_request_page.dart';
+import 'queued_record_reconciliation.dart';
 import 'role_administration_page.dart';
 import 'transport_fixture.dart';
 
@@ -102,7 +103,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         _queueRecoveryWarning = null;
       });
       unawaited(_refreshHostIdentity());
-      await _reconcileQueuedRecords(widget.store, widget.queue);
+      await reconcileQueuedRecords(widget.store, widget.queue);
       await _enqueueOrphanedHostRecords();
     } catch (error) {
       if (!mounted) return;
@@ -478,11 +479,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           credentials: vault,
         ),
       ).syncPending();
-      await _reconcileQueuedRecords(widget.store, widget.queue);
+      await reconcileQueuedRecords(widget.store, widget.queue);
       await _load();
       if (mounted) _message('Host resolved $resolved queued command(s).');
     } catch (error) {
-      await _reconcileQueuedRecords(widget.store, widget.queue);
+      await reconcileQueuedRecords(widget.store, widget.queue);
       if (mounted) {
         _message(
           'Host sync stopped; unresolved commands remain queued: $error',
@@ -2059,7 +2060,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
             }
             return (operation['effects'] as List).any(
               (effect) =>
-                  effect is Map && effect['type'] == 'document.transition',
+                  effect is Map &&
+                  (effect['type'] == 'document.transition' ||
+                      effect['type'] == 'document.amend'),
             );
           });
       final rawMigrations = metadata['migrations'];
@@ -2353,6 +2356,34 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       for (final operation in _operations)
         operation: permissionKey(widget.moduleId, name, operation),
     };
+    if (_governedLifecycleEnabled) {
+      final amendedFromIndex = fields.indexWhere(
+        (field) => field['name'] == 'amendedFrom',
+      );
+      if (amendedFromIndex == -1) {
+        fields.add({
+          'name': 'amendedFrom',
+          'type': 'reference',
+          'label': 'Amended From',
+          'labelKey': '$namespace.${name.toLowerCase()}.amended_from',
+          'referenceTo': name,
+          'required': false,
+          'readOnly': true,
+        });
+        if (!_detailFields.contains('amendedFrom')) {
+          _detailFields.add('amendedFrom');
+        }
+      } else {
+        final existingLink = fields[amendedFromIndex];
+        if (existingLink['type'] != 'reference' ||
+            existingLink['referenceTo'] != name ||
+            existingLink['required'] == true ||
+            existingLink['readOnly'] != true) {
+          _message('native.ui.amendment_field_conflict');
+          return;
+        }
+      }
+    }
     final priorBusinessOperations =
         (widget.existing?['businessOperations'] as List? ?? const [])
             .whereType<Map>()
@@ -2361,11 +2392,29 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
               (operation) => !const {
                 'document.submit',
                 'document.cancel',
+                'document.amend',
               }.contains(operation['id']),
             )
             .toList(growable: true);
     final businessOperations = <Map<String, dynamic>>[
       ...priorBusinessOperations,
+      if (_governedLifecycleEnabled)
+        {
+          'id': 'document.amend',
+          'version': 1,
+          'permission': permissionKey(widget.moduleId, name, 'amend'),
+          'inputs': <String, dynamic>{},
+          'outputs': <String, dynamic>{
+            'amendedRecordId': {'type': 'text', 'required': true},
+          },
+          'effects': [
+            {
+              'type': 'document.amend',
+              'linkField': 'amendedFrom',
+              'output': 'amendedRecordId',
+            },
+          ],
+        },
       if (_governedLifecycleEnabled)
         {
           'id': 'document.submit',
@@ -4139,7 +4188,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       _hostWritableFields = cachedFieldPermissions?.writableFields;
       _hostCreatableFields = cachedFieldPermissions?.creatableFields;
       if (widget.queue != null) {
-        await _reconcileQueuedRecords(widget.store, widget.queue!);
+        await reconcileQueuedRecords(widget.store, widget.queue!);
       }
       try {
         await _queryHostRecords(offset: 0, generation: generation);
@@ -4393,7 +4442,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
           credentials: vault,
         ),
       ).syncPending();
-      await _reconcileQueuedRecords(widget.store, queue);
+      await reconcileQueuedRecords(widget.store, queue);
       await _loadRecords();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4406,7 +4455,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         );
       }
     } catch (error) {
-      await _reconcileQueuedRecords(widget.store, queue);
+      await reconcileQueuedRecords(widget.store, queue);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -5890,108 +5939,6 @@ Future<void> _queueDynamicRecordCommand({
   );
 }
 
-Future<void> _reconcileQueuedRecords(
-  LocalExtensionStore store,
-  LocalCommandQueue queue,
-) async {
-  final entries = await queue.list(limit: 1000);
-  for (final entry in entries.reversed) {
-    final envelope = entry.envelope;
-    final isRecordCommand =
-        envelope.type == ExtensionRecordCommand.createType ||
-        envelope.type == ExtensionRecordCommand.updateType ||
-        envelope.type == ExtensionRecordCommand.deleteType;
-    final isBusinessOperation =
-        envelope.type == ExtensionBusinessOperationCommand.commandType;
-    if (!isRecordCommand && !isBusinessOperation) {
-      continue;
-    }
-    final command = isRecordCommand
-        ? ExtensionRecordCommand.fromEnvelope(envelope)
-        : null;
-    final operationCommand = isBusinessOperation
-        ? ExtensionBusinessOperationCommand.fromEnvelope(envelope)
-        : null;
-    BusinessOperationDefinition? operationDefinition;
-    if (operationCommand != null) {
-      final localMetadata = await store.getDocType(
-        operationCommand.moduleId,
-        operationCommand.docType,
-      );
-      if (localMetadata == null) continue;
-      final localDefinition = DocTypeDefinition.fromJson(localMetadata);
-      if (localDefinition.schemaVersion != envelope.docTypeVersion ||
-          localDefinition.moduleId != operationCommand.moduleId) {
-        continue;
-      }
-      final matches = localDefinition.businessOperations.where(
-        (item) =>
-            item.id == operationCommand.operationId &&
-            item.version == operationCommand.operationVersion,
-      );
-      if (matches.length != 1) continue;
-      operationDefinition = matches.single;
-    }
-    final scope = RecordScope(
-      organizationId: envelope.tenantId,
-      companyId: envelope.companyId,
-      branchId: envelope.branchId,
-    );
-    final receipt = entry.hostReceipt;
-    if (receipt != null && receipt.status != 'RETRY_LATER') {
-      final operationOutputs = <String, dynamic>{};
-      int? documentStatus;
-      if (operationDefinition != null && receipt.status == 'ACCEPTED') {
-        for (final effect in operationDefinition.effects) {
-          if (effect.type == 'document.transition') {
-            documentStatus = effect.targetStatus;
-            final reportedStatus = receipt.output?['status'];
-            if (reportedStatus != null && reportedStatus != documentStatus) {
-              throw const FormatException(
-                'Host operation status output does not match its declaration.',
-              );
-            }
-          } else if (effect.type == 'document.allocate_number') {
-            final officialNumber = receipt.output?[effect.output];
-            if (officialNumber is! String) {
-              throw const FormatException(
-                'Host operation receipt omitted its allocated number.',
-              );
-            }
-            operationOutputs[effect.field!] = officialNumber;
-          }
-        }
-      }
-      await store.applyHostReceipt(
-        recordId: envelope.aggregateId,
-        scope: scope,
-        commandId: envelope.commandId,
-        receipt: receipt,
-        operation: command?.operation ?? 'update',
-        documentStatus: documentStatus,
-        valueUpdates: operationOutputs,
-      );
-    } else if (entry.isPending) {
-      try {
-        await store.markRecordPending(
-          recordId: envelope.aggregateId,
-          scope: scope,
-          commandId: envelope.commandId,
-          operation: command?.operation ?? 'update',
-        );
-      } on ExtensionStoreException catch (error) {
-        if (error.code != 'RECORD_SYNC_STATE_CHANGED') rethrow;
-      }
-    }
-    // Validate the queue payload against the same trusted generic contract
-    // before applying any record state derived from its receipt.
-    if ((command?.moduleId ?? operationCommand?.moduleId) !=
-        envelope.payload['moduleId']) {
-      throw const FormatException('Queued extension record identity mismatch.');
-    }
-  }
-}
-
 class DynamicRecordDetailsPage extends StatefulWidget {
   const DynamicRecordDetailsPage({
     required this.store,
@@ -6274,6 +6221,10 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     final transitions = operation.effects
         .where((effect) => effect.type == 'document.transition')
         .toList(growable: false);
+    final amendments = operation.effects
+        .where((effect) => effect.type == 'document.amend')
+        .toList(growable: false);
+    final isAmendment = amendments.length == 1 && transitions.isEmpty;
     if (queue == null ||
         profile == null ||
         moduleVersion == null ||
@@ -6282,14 +6233,18 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
         _record.hostRevision == null ||
         _record.pendingCommandId != null ||
         _record.authorityState != 'HOST_ACCEPTED' ||
-        transitions.length != 1 ||
-        transitions.single.targetStatus == null) {
+        (isAmendment
+            ? _record.documentStatus != 2
+            : transitions.length != 1 ||
+                  transitions.single.targetStatus == null)) {
       return;
     }
-    final transition = transitions.single;
-    if ((transition.targetStatus == 1 && _record.documentStatus != 0) ||
-        (transition.targetStatus == 2 && _record.documentStatus != 1)) {
-      return;
+    if (!isAmendment) {
+      final transition = transitions.single;
+      if ((transition.targetStatus == 1 && _record.documentStatus != 0) ||
+          (transition.targetStatus == 2 && _record.documentStatus != 1)) {
+        return;
+      }
     }
     if (operation.inputs.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -6321,11 +6276,23 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     );
     try {
       await queue.enqueue(command.envelope);
-      await widget.store.markRecordPending(
-        recordId: _record.recordId,
-        scope: widget.scope,
-        commandId: commandId,
-      );
+      if (isAmendment) {
+        await widget.store.createAmendmentDraft(
+          moduleId: widget.moduleId,
+          docTypeName: widget.definition.name,
+          sourceRecordId: _record.recordId,
+          scope: widget.scope,
+          expectedSourceRevision: _record.hostRevision!,
+          commandId: commandId,
+          linkField: amendments.single.linkField!,
+        );
+      } else {
+        await widget.store.markRecordPending(
+          recordId: _record.recordId,
+          scope: widget.scope,
+          commandId: commandId,
+        );
+      }
       await _loadRecord();
     } catch (_) {
       if (mounted) {
@@ -6408,6 +6375,7 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
       ),
       floatingActionButton:
           !conflicted &&
+              record.documentStatus == 0 &&
               widget.definition.operations.contains('update') &&
               widget.definition.formFields.any((name) {
                 final field = widget.definition.fields.firstWhere(
@@ -6453,14 +6421,16 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                     : Icons.info_outline,
               ),
               for (final operation in widget.definition.businessOperations)
-                if (operation.effects.any(
-                  (effect) =>
-                      effect.type == 'document.transition' &&
+                if (operation.effects.any((effect) {
+                  if (effect.type == 'document.amend') {
+                    return record.documentStatus == 2;
+                  }
+                  return effect.type == 'document.transition' &&
                       ((effect.targetStatus == 1 &&
                               record.documentStatus == 0) ||
                           (effect.targetStatus == 2 &&
-                              record.documentStatus == 1)),
-                )) ...[
+                              record.documentStatus == 1));
+                })) ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed:
@@ -6475,6 +6445,10 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                                 effect.targetStatus == 1,
                           )
                           ? Icons.task_alt
+                          : operation.effects.any(
+                              (effect) => effect.type == 'document.amend',
+                            )
+                          ? Icons.copy_outlined
                           : Icons.cancel_outlined,
                     ),
                     label: VentioText(
@@ -6484,6 +6458,10 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                                 effect.targetStatus == 1,
                           )
                           ? 'native.ui.submit_document'
+                          : operation.effects.any(
+                              (effect) => effect.type == 'document.amend',
+                            )
+                          ? 'native.ui.amend_document'
                           : 'native.ui.cancel_document',
                     ),
                   ),

@@ -11,6 +11,8 @@ import 'package:ventio_native_client/src/extension_studio_page.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
 import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
+import 'package:ventio_native_client/src/queued_record_reconciliation.dart';
+import 'package:ventio_native_client/src/transport_fixture.dart';
 
 class _MemoryCredentialBackend implements HostCredentialBackend {
   final values = <String, String>{};
@@ -1507,12 +1509,12 @@ void main() {
     );
     expect(find.text('Enable document numbering'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Enable governed Submit and Cancel actions'),
+      find.text('Enable governed document lifecycle'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     final lifecycleSwitch = find.ancestor(
-      of: find.text('Enable governed Submit and Cancel actions'),
+      of: find.text('Enable governed document lifecycle'),
       matching: find.byType(SwitchListTile),
     );
     await tester.ensureVisible(lifecycleSwitch);
@@ -1544,11 +1546,23 @@ void main() {
       reason: 'Builder failed to save metadata.',
     );
     expect(saved?['naming'], metadata['naming']);
-    expect(saved?['businessOperations'], hasLength(2));
+    expect(saved?['businessOperations'], hasLength(3));
+    expect(
+      (saved?['fields'] as List).cast<Map>().any(
+        (field) =>
+            field['name'] == 'amendedFrom' &&
+            field['type'] == 'reference' &&
+            field['referenceTo'] == 'Asset' &&
+            field['readOnly'] == true &&
+            field['required'] == false,
+      ),
+      isTrue,
+    );
+    expect(saved?['ui']['detailFields'], contains('amendedFrom'));
     final savedDefinition = DocTypeDefinition.fromJson(saved!);
     expect(
       savedDefinition.businessOperations.map((operation) => operation.id),
-      containsAll(['document.submit', 'document.cancel']),
+      containsAll(['document.submit', 'document.cancel', 'document.amend']),
     );
     final submit = savedDefinition.businessOperations.singleWhere(
       (operation) => operation.id == 'document.submit',
@@ -1561,6 +1575,11 @@ void main() {
       'document.allocate_number',
       'document.transition',
     ]);
+    final amend = savedDefinition.businessOperations.singleWhere(
+      (operation) => operation.id == 'document.amend',
+    );
+    expect(amend.effects.single.type, 'document.amend');
+    expect(amend.effects.single.linkField, 'amendedFrom');
 
     expect(tester.takeException(), isNull);
   });
@@ -2876,6 +2895,275 @@ void main() {
     expect(find.text('Visible value'), findsOneWidget);
     expect(find.text('Additional note'), findsNothing);
     expect(find.text('Hidden value'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Amend queues a local draft copy for a cancelled document', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.amendable_records';
+    const scope = RecordScope(
+      organizationId: 'tenant-amend',
+      companyId: 'company-amend',
+      branchId: 'branch-amend',
+    );
+    const permission = 'extension.com_example_amendable_records.movement';
+    final metadata = <String, dynamic>{
+      'name': 'Movement',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 120,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'amendedFrom',
+          'type': 'reference',
+          'referenceTo': 'Movement',
+          'required': false,
+          'readOnly': true,
+          'label': 'Amended From',
+          'labelKey': '$permission.amended_from',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'businessOperations': [
+        {
+          'id': 'document.amend',
+          'version': 1,
+          'permission': '$permission.amend',
+          'inputs': <String, dynamic>{},
+          'outputs': {
+            'amendedRecordId': {'type': 'text', 'required': true},
+          },
+          'effects': [
+            {
+              'type': 'document.amend',
+              'linkField': 'amendedFrom',
+              'output': 'amendedRecordId',
+            },
+          ],
+        },
+      ],
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name'],
+        'detailFields': ['name', 'amendedFrom'],
+      },
+      'label': 'Movement',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Amendable Records',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+    await store.createRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      scope: scope,
+      values: const {'name': 'Cancelled source'},
+      recordId: 'movement-cancelled-source',
+    );
+    await store.markRecordPending(
+      recordId: 'movement-cancelled-source',
+      scope: scope,
+      commandId: 'cancel-movement-source',
+    );
+    await store.applyHostReceipt(
+      recordId: 'movement-cancelled-source',
+      scope: scope,
+      commandId: 'cancel-movement-source',
+      receipt: CommandReceipt(
+        commandId: 'cancel-movement-source',
+        status: 'ACCEPTED',
+        hostRevision: 3,
+      ),
+      documentStatus: 2,
+    );
+    final source = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: 'movement-cancelled-source',
+      scope: scope,
+    ))!;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: const HostConnectionProfile(
+            endpoint: 'https://host.example.test',
+            tenantId: 'tenant-amend',
+            companyId: 'company-amend',
+            branchId: 'branch-amend',
+            actorId: 'amend-actor',
+            deviceId: 'amend-device',
+          ),
+          record: source,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Amend document'), findsOneWidget);
+    await tester.tap(find.text('Amend document'));
+    await tester.pumpAndSettle();
+
+    final queued = await queue.list(limit: 10);
+    expect(queued, hasLength(1));
+    final operation = ExtensionBusinessOperationCommand.fromEnvelope(
+      queued.single.envelope,
+    );
+    expect(operation.operationId, 'document.amend');
+    expect(queued.single.isPending, isTrue);
+    final amendment = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: queued.single.envelope.commandId,
+      scope: scope,
+    ))!;
+    expect(amendment.values['amendedFrom'], source.recordId);
+    expect(amendment.documentStatus, 0);
+    expect(amendment.authorityState, 'PENDING');
+    expect(
+      (await store.getRecord(
+        moduleId: moduleId,
+        docTypeName: 'Movement',
+        recordId: source.recordId,
+        scope: scope,
+      ))!.pendingCommandId,
+      queued.single.envelope.commandId,
+    );
+
+    await queue.recordAttempt(queued.single.envelope.commandId);
+    await queue.recordHostReceipt(
+      queued.single.envelope.commandId,
+      TransportResponse(
+        apiVersion: hostApiVersion,
+        source: TransportSource.host,
+        receipt: CommandReceipt(
+          commandId: queued.single.envelope.commandId,
+          status: 'ACCEPTED',
+          hostRevision: 3,
+          scopeCursor: 'scope-v1-1',
+          output: {'amendedRecordId': queued.single.envelope.commandId},
+        ).toJson(),
+      ),
+    );
+    await reconcileQueuedRecords(store, queue);
+    final acceptedSource = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: source.recordId,
+      scope: scope,
+    ))!;
+    final acceptedAmendment = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: queued.single.envelope.commandId,
+      scope: scope,
+    ))!;
+    expect(acceptedSource.documentStatus, 2);
+    expect(acceptedSource.authorityState, 'HOST_ACCEPTED');
+    expect(acceptedSource.pendingCommandId, isNull);
+    expect(acceptedAmendment.documentStatus, 0);
+    expect(acceptedAmendment.authorityState, 'HOST_ACCEPTED');
+    expect(acceptedAmendment.hostRevision, 1);
+    expect(acceptedAmendment.pendingCommandId, isNull);
+
+    await store.markRecordPending(
+      recordId: acceptedAmendment.recordId,
+      scope: scope,
+      commandId: 'cancel-amended-draft',
+    );
+    await store.applyHostReceipt(
+      recordId: acceptedAmendment.recordId,
+      scope: scope,
+      commandId: 'cancel-amended-draft',
+      receipt: CommandReceipt(
+        commandId: 'cancel-amended-draft',
+        status: 'ACCEPTED',
+        hostRevision: 2,
+      ),
+      documentStatus: 2,
+    );
+    final rejectedCommand = ExtensionBusinessOperationCommand.execute(
+      commandId: '00000000-0000-4000-8000-000000000701',
+      tenantId: scope.organizationId,
+      companyId: scope.companyId,
+      branchId: scope.branchId,
+      recordId: source.recordId,
+      expectedRevision: 3,
+      actorId: 'amend-actor',
+      deviceId: 'amend-device',
+      moduleId: moduleId,
+      moduleVersion: '0.1.0',
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    await queue.enqueue(rejectedCommand.envelope);
+    final rejectedLocalDraft = await store.createAmendmentDraft(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: scope,
+      expectedSourceRevision: 3,
+      commandId: rejectedCommand.envelope.commandId,
+      linkField: 'amendedFrom',
+    );
+    await queue.recordAttempt(rejectedCommand.envelope.commandId);
+    await queue.recordHostReceipt(
+      rejectedCommand.envelope.commandId,
+      TransportResponse(
+        apiVersion: hostApiVersion,
+        source: TransportSource.host,
+        receipt: CommandReceipt(
+          commandId: rejectedCommand.envelope.commandId,
+          status: 'REJECTED',
+          reasonCode: 'PERMISSION_DENIED',
+        ).toJson(),
+      ),
+    );
+    await reconcileQueuedRecords(store, queue);
+    final rejectedSource = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: source.recordId,
+      scope: scope,
+    ))!;
+    final reconciledRejectedDraft = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: rejectedLocalDraft.recordId,
+      scope: scope,
+    ))!;
+    expect(rejectedSource.authorityState, 'REJECTED');
+    expect(rejectedSource.pendingCommandId, isNull);
+    expect(reconciledRejectedDraft.authorityState, 'REJECTED');
+    expect(reconciledRejectedDraft.hostRevision, isNull);
+    expect(reconciledRejectedDraft.values['amendedFrom'], source.recordId);
+
     expect(tester.takeException(), isNull);
   });
 

@@ -345,6 +345,25 @@ class ExtensionBundle {
       }
       for (final operation in type.businessOperations) {
         for (final effect in operation.effects
+            .where((effect) => effect.type == 'document.amend')) {
+          final linkFields = type.fields.where(
+            (field) => field.name == effect.linkField,
+          );
+          if (!type.operations.contains('create') ||
+              type.permissions['create'] == null ||
+              linkFields.length != 1 ||
+              linkFields.single.type != 'reference' ||
+              linkFields.single.referenceTo != type.name ||
+              !linkFields.single.readOnly ||
+              linkFields.single.required ||
+              linkFields.single.defaultValue != null) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} requires an optional, Host-owned self-reference field and create permission.',
+            );
+          }
+        }
+        for (final effect in operation.effects
             .where((effect) => effect.type == 'record.increment')) {
           final targetType = docTypes.where(
             (candidate) => candidate.name == effect.targetDocType,

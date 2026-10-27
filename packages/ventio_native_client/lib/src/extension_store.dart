@@ -1643,6 +1643,12 @@ class LocalExtensionStore {
           'Wait for the current Host command to resolve before editing this record again.',
         );
       }
+      if (current.documentStatus != 0) {
+        throw const ExtensionStoreException(
+          'DOCUMENT_NOT_DRAFT',
+          'Only draft documents can be edited.',
+        );
+      }
       if (current.authorityState == 'CONFLICT' &&
           (current.conflictValues == null ||
               current.conflictRevision == null ||
@@ -1797,6 +1803,219 @@ class LocalExtensionStore {
     }
   }
 
+  /// Persists the offline copy for a governed Amend command and marks its
+  /// cancelled source pending in the same SQLite transaction. The copy uses
+  /// the command ID as its provisional record ID, matching the Host receipt.
+  Future<LocalExtensionRecord> createAmendmentDraft({
+    required String moduleId,
+    required String docTypeName,
+    required String sourceRecordId,
+    required RecordScope scope,
+    required int expectedSourceRevision,
+    required String commandId,
+    required String linkField,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    if (expectedSourceRevision < 1 ||
+        commandId.isEmpty ||
+        commandId.length > 80) {
+      throw ArgumentError('Amendment revision and command ID are required.');
+    }
+    return _database.transaction((transaction) async {
+      final definition = DocTypeDefinition.fromJson(
+        await _loadActiveDocType(transaction, moduleId, docTypeName),
+      );
+      _requireOperation(definition, 'create');
+      final link = definition.fields.where((field) => field.name == linkField);
+      if (link.length != 1 ||
+          link.single.type != 'reference' ||
+          link.single.referenceTo != docTypeName ||
+          !link.single.readOnly ||
+          link.single.required) {
+        throw const ExtensionStoreException(
+          'INVALID_AMENDMENT_FIELD',
+          'Amendment requires an optional read-only self-reference field.',
+        );
+      }
+      final sourceRows = await transaction.query(
+        _recordsTable,
+        where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+          AND organization_id = ? AND company_id = ? AND branch_id = ?
+          AND is_deleted = 0''',
+        whereArgs: [
+          sourceRecordId,
+          moduleId,
+          docTypeName,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+        limit: 1,
+      );
+      if (sourceRows.isEmpty) {
+        throw const ExtensionStoreException(
+          'AMENDMENT_SOURCE_UNAVAILABLE',
+          'The cancelled source is not available in this scope.',
+        );
+      }
+      final source = LocalExtensionRecord.fromRow(sourceRows.single);
+      if (source.hostRevision != expectedSourceRevision ||
+          source.documentStatus != 2) {
+        throw const ExtensionStoreException(
+          'AMENDMENT_SOURCE_CHANGED',
+          'Amend requires the current Host-accepted cancelled revision.',
+        );
+      }
+
+      final existingCopy = await transaction.query(
+        _recordsTable,
+        where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+          AND organization_id = ? AND company_id = ? AND branch_id = ?''',
+        whereArgs: [
+          commandId,
+          moduleId,
+          docTypeName,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+        limit: 1,
+      );
+      if (existingCopy.isNotEmpty) {
+        final copy = LocalExtensionRecord.fromRow(existingCopy.single);
+        if (copy.values[linkField] != sourceRecordId ||
+            (copy.pendingCommandId != commandId &&
+                !{
+                  'HOST_ACCEPTED',
+                  'REJECTED',
+                  'CONFLICT',
+                }.contains(copy.authorityState))) {
+          throw const ExtensionStoreException(
+            'AMENDMENT_COPY_MISMATCH',
+            'The provisional amendment ID is already used by another record.',
+          );
+        }
+        return copy;
+      }
+
+      final candidateRows = await transaction.query(
+        _recordsTable,
+        where: '''module_id = ? AND doctype_name = ? AND organization_id = ?
+          AND company_id = ? AND branch_id = ? AND is_deleted = 0''',
+        whereArgs: [
+          moduleId,
+          docTypeName,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+      );
+      for (final row in candidateRows) {
+        if (row['document_status'] == 2) continue;
+        final data = jsonDecode(row['data_json']! as String);
+        if (data is Map && data[linkField] == sourceRecordId) {
+          throw const ExtensionStoreException(
+            'AMENDMENT_ALREADY_ACTIVE',
+            'An active local amendment already exists for this source.',
+          );
+        }
+      }
+      if ((source.pendingCommandId != null &&
+              source.pendingCommandId != commandId) ||
+          (source.authorityState != 'HOST_ACCEPTED' &&
+              !(source.authorityState == 'PENDING' &&
+                  source.pendingCommandId == commandId) &&
+              !(source.pendingCommandId == null &&
+                  {'REJECTED', 'CONFLICT'}.contains(source.authorityState)))) {
+        throw const ExtensionStoreException(
+          'RECORD_COMMAND_PENDING',
+          'Resolve the source record command before amending it.',
+        );
+      }
+
+      final namingSeries = definition.namingSeries;
+      final amendedValues = Map<String, dynamic>.of(source.values)
+        ..remove(namingSeries?.field)
+        ..[linkField] = sourceRecordId;
+      final storedValues = definition.applyDefaults(amendedValues);
+      if (namingSeries != null) {
+        storedValues[namingSeries.field] = namingSeries.provisionalName(
+          commandId,
+        );
+      }
+      _validatePayload(definition, storedValues);
+      await _validateReferences(transaction, definition, storedValues, scope);
+      if (source.readableFields case final readMask?) {
+        storedValues.removeWhere((field, _) => !readMask.contains(field));
+      }
+      final now = _now();
+      await transaction.insert(_recordsTable, {
+        'record_id': commandId,
+        'module_id': moduleId,
+        'doctype_name': docTypeName,
+        'organization_id': scope.organizationId,
+        'company_id': scope.companyId,
+        'branch_id': scope.branchId,
+        'data_json': canonicalJson(storedValues),
+        'schema_version': definition.schemaVersion,
+        'revision': 1,
+        'document_status': 0,
+        'is_deleted': 0,
+        'sync_state': 'LOCAL_ONLY',
+        'pending_command_id': commandId,
+        'authority_state': 'PENDING',
+        'readable_fields_json': source.readableFields == null
+            ? null
+            : canonicalJson(source.readableFields!.toList()..sort()),
+        'writable_fields_json': source.writableFields == null
+            ? null
+            : canonicalJson(source.writableFields!.toList()..sort()),
+        'creatable_fields_json': source.creatableFields == null
+            ? null
+            : canonicalJson(source.creatableFields!.toList()..sort()),
+        'created_at_utc': now,
+        'updated_at_utc': now,
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
+      final changed = await transaction.update(
+        _recordsTable,
+        {'pending_command_id': commandId, 'authority_state': 'PENDING'},
+        where: '''record_id = ? AND organization_id = ? AND company_id = ?
+          AND branch_id = ? AND revision = ?
+          AND (pending_command_id IS NULL OR pending_command_id = ?)''',
+        whereArgs: [
+          sourceRecordId,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+          source.revision,
+          commandId,
+        ],
+      );
+      if (changed != 1) {
+        throw const ExtensionStoreException(
+          'RECORD_SYNC_STATE_CHANGED',
+          'The source changed while its amendment was being saved.',
+        );
+      }
+      return LocalExtensionRecord(
+        recordId: commandId,
+        moduleId: moduleId,
+        docTypeName: docTypeName,
+        scope: scope,
+        schemaVersion: definition.schemaVersion,
+        revision: 1,
+        values: Map.unmodifiable(storedValues),
+        updatedAtUtc: DateTime.parse(now),
+        pendingCommandId: commandId,
+        authorityState: 'PENDING',
+        readableFields: source.readableFields,
+        writableFields: source.writableFields,
+        creatableFields: source.creatableFields,
+      );
+    });
+  }
+
   Future<void> deleteLocalRecord({
     required String moduleId,
     required String docTypeName,
@@ -1923,7 +2142,7 @@ class LocalExtensionStore {
         'is_deleted': 0,
         'conflict_revision': null,
         'conflict_data_json': null,
-        if (hostRevision != null && hostRevision > 0)
+        if (hostRevision != null && hostRevision > 0 && operation != 'amend')
           'host_revision': hostRevision,
       },
       where: '''record_id = ? AND organization_id = ? AND company_id = ?

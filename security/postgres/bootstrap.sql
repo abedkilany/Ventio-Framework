@@ -516,13 +516,25 @@ BEGIN
       RETURN dynamic_operation='create' AND can_create AND p_subject=dynamic_name
         AND nullif(current_setting('ventio.aggregate_id',true),'') IS NOT NULL;
     END IF;
+    IF p_mode='record_amend_insert' THEN
+      RETURN dynamic_operation ~ '@[1-9][0-9]{0,2}$' AND can_create
+        AND p_subject=dynamic_name
+        AND p_actor=nullif(current_setting('ventio.command_id',true),'')
+        AND identity->'permissions' ? (dynamic_doc_type->'permissions'->>'create')
+        AND EXISTS (
+          SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+          CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+          WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+            AND effects.effect->>'type'='document.amend'
+        );
+    END IF;
     IF p_mode='record_update' THEN
       RETURN (dynamic_operation IN ('update','delete') AND can_create AND p_subject=dynamic_name) OR
         (dynamic_operation ~ '@[1-9][0-9]{0,2}$' AND can_create AND
           EXISTS (SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
             CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
             WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
-              AND effects.effect->>'type' IN ('document.allocate_number','document.transition','record.increment','record.increment_rows')
+      AND effects.effect->>'type' IN ('document.allocate_number','document.transition','record.increment','record.increment_rows','document.amend')
               AND p_subject=dynamic_name));
     END IF;
     IF p_mode='record_effect_update' THEN
@@ -637,9 +649,12 @@ CREATE POLICY runtime_select ON public.ventio_records FOR SELECT TO ventio_runti
       (current_setting('ventio.operation',true)='delete'
         AND record_id=current_setting('ventio.aggregate_id',true))));
 CREATE POLICY runtime_insert ON public.ventio_records FOR INSERT TO ventio_runtime
-  WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_insert', doc_type)
-    AND module_id = current_setting('ventio.module_id',true)
-    AND record_id = current_setting('ventio.aggregate_id', true));
+  WITH CHECK (module_id = current_setting('ventio.module_id',true)
+    AND ((ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_insert', doc_type)
+      AND record_id = current_setting('ventio.aggregate_id', true))
+      OR (ventio_security.scope_allows(tenant_id, company_id, branch_id,
+          'record_amend_insert', doc_type, record_id)
+        AND record_id = current_setting('ventio.command_id', true))));
 DROP POLICY IF EXISTS runtime_update ON public.ventio_records;
 CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runtime
   USING ((ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)

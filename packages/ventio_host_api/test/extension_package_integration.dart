@@ -2869,6 +2869,7 @@ Future<void> main() async {
         'extension.com_example_inventory.movement.update',
         'extension.com_example_inventory.movement.submit',
         'extension.com_example_inventory.movement.cancel',
+        'extension.com_example_inventory.movement.amend',
       ],
       registerBranch: false,
     );
@@ -2996,6 +2997,16 @@ Future<void> main() async {
               'label': 'Document Number',
               'labelKey': 'extension.com_example_inventory.movement.number',
             },
+            {
+              'name': 'amendedFrom',
+              'type': 'reference',
+              'referenceTo': 'Movement',
+              'required': false,
+              'readOnly': true,
+              'label': 'Amended From',
+              'labelKey':
+                  'extension.com_example_inventory.movement.amended_from',
+            },
           ],
           'businessOperations': [
             {
@@ -3043,6 +3054,26 @@ Future<void> main() async {
                 {'type': 'document.transition', 'targetStatus': 2},
               ],
             },
+            {
+              'id': 'document.amend',
+              'version': 1,
+              'permission': 'extension.com_example_inventory.movement.amend',
+              'inputs': <String, Object>{},
+              'outputs': {
+                'amendedRecordId': {
+                  'type': 'text',
+                  'required': true,
+                  'maxLength': 128,
+                },
+              },
+              'effects': [
+                {
+                  'type': 'document.amend',
+                  'linkField': 'amendedFrom',
+                  'output': 'amendedRecordId',
+                },
+              ],
+            },
           ],
           'ui': {
             'listColumns': ['lines', 'documentNumber'],
@@ -3062,6 +3093,7 @@ Future<void> main() async {
         'extension.com_example_inventory.movement.line': 'Movement Line',
         'extension.com_example_inventory.movement.amount': 'Amount',
         'extension.com_example_inventory.movement.number': 'Document Number',
+        'extension.com_example_inventory.movement.amended_from': 'Amended From',
       },
     });
     expect(
@@ -3446,6 +3478,339 @@ Future<void> main() async {
       cancelReplayState.single.toColumnMap()['revision'] == 4 &&
           cancelReplayState.single.toColumnMap()['quantity'] == 80,
       'An identical accepted cancel retry does not duplicate the reversal',
+    );
+    final unauthorizedAmend = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000007',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 3,
+      actorId: 'operation-user-without-submit',
+      deviceId: 'operation-device-without-submit',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final unauthorizedAmendReply = await send(
+      api,
+      token: missingSubmitPermissionToken,
+      body: unauthorizedAmend.envelope.original,
+    );
+    expect(
+      unauthorizedAmendReply.status == 403 &&
+          unauthorizedAmendReply.body['receipt']?['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'Amend requires its exact scoped operation and create permissions',
+    );
+    final staleAmend = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000008',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final staleAmendReply = await send(
+      api,
+      token: operationToken,
+      body: staleAmend.envelope.original,
+    );
+    expect(
+      staleAmendReply.body['receipt']?['status'] == 'CONFLICT' &&
+          staleAmendReply.body['receipt']?['reasonCode'] == 'REVISION_CONFLICT',
+      'Amend refuses a stale cancelled-source revision',
+    );
+    final amendMovement = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000009',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 3,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final amendedReply = await send(
+      api,
+      token: operationToken,
+      body: amendMovement.envelope.original,
+    );
+    final amendmentState = await observer.execute(
+      pg.Sql.named('''
+        SELECT source.revision AS source_revision,
+          source.document_status AS source_status,
+          amended.revision AS amended_revision,
+          amended.document_status AS amended_status,
+          amended.record_data::text AS amended_json,
+          (SELECT quantity FROM (
+            SELECT (record_data->>'quantity')::integer AS quantity
+            FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+              AND branch_id=@branch AND module_id=@module AND doc_type='Product'
+              AND record_id='inventory-product-1') AS p) AS product_quantity
+        FROM ventio_records source JOIN ventio_records amended
+          ON amended.tenant_id=source.tenant_id
+          AND amended.company_id=source.company_id
+          AND amended.branch_id=source.branch_id
+        WHERE source.tenant_id=@tenant AND source.company_id=@company
+          AND source.branch_id=@branch AND source.module_id=@module
+          AND source.doc_type='Movement' AND source.record_id='inventory-movement-1'
+          AND amended.module_id=@module AND amended.doc_type='Movement'
+          AND amended.record_id=@amended_id
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+        'amended_id': amendMovement.envelope.commandId,
+      },
+    );
+    final amendedValues =
+        jsonDecode(
+              amendmentState.single.toColumnMap()['amended_json'] as String,
+            )
+            as Map<String, dynamic>;
+    expect(
+      amendedReply.body['receipt']?['status'] == 'ACCEPTED' &&
+          amendedReply.body['receipt']?['output']?['amendedRecordId'] ==
+              amendMovement.envelope.commandId &&
+          amendmentState.single.toColumnMap()['source_revision'] == 3 &&
+          amendmentState.single.toColumnMap()['source_status'] == 2 &&
+          amendmentState.single.toColumnMap()['amended_revision'] == 1 &&
+          amendmentState.single.toColumnMap()['amended_status'] == 0 &&
+          amendmentState.single.toColumnMap()['product_quantity'] == 80 &&
+          amendedValues['amendedFrom'] == 'inventory-movement-1' &&
+          amendedValues['documentNumber'] == null &&
+          canonicalJson(amendedValues['lines']) ==
+              canonicalJson([
+                {'product': 'inventory-product-1', 'amount': 8},
+                {'product': 'inventory-product-1', 'amount': 12},
+              ]),
+      'Amend creates a linked draft with copied rows but no effects or official number',
+    );
+    final concurrentAmendRetries = await Future.wait([
+      send(api, token: operationToken, body: amendMovement.envelope.original),
+      send(api, token: operationToken, body: amendMovement.envelope.original),
+    ]);
+    expect(
+      concurrentAmendRetries.length == 2 &&
+          concurrentAmendRetries.every(
+            (reply) =>
+                reply.body['receipt']?['status'] == 'ACCEPTED' &&
+                canonicalJson(reply.body['receipt']) ==
+                    canonicalJson(amendedReply.body['receipt']),
+          ) &&
+          (await observer.execute(
+                pg.Sql.named('''
+                  SELECT count(*) FROM ventio_records
+                  WHERE tenant_id=@tenant AND company_id=@company
+                    AND branch_id=@branch AND module_id=@module
+                    AND doc_type='Movement' AND record_data->>'amendedFrom'=@source
+                    AND document_status<>2 AND deleted_at IS NULL
+                '''),
+                parameters: {
+                  'tenant': tenant,
+                  'company': primaryCompany,
+                  'branch': primaryBranch,
+                  'module': operationPackage.moduleId,
+                  'source': 'inventory-movement-1',
+                },
+              )).single[0] ==
+              1,
+      'Concurrent identical Amend retries return one receipt and create one active draft',
+    );
+    final duplicateAmend = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000010',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 3,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final duplicateAmendReply = await send(
+      api,
+      token: operationToken,
+      body: duplicateAmend.envelope.original,
+    );
+    expect(
+      duplicateAmendReply.body['receipt']?['reasonCode'] ==
+          'AMENDMENT_ALREADY_ACTIVE',
+      'A second independent amendment cannot create another active draft',
+    );
+    final submitAmendment = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000011',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: amendMovement.envelope.commandId,
+      expectedRevision: 1,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final amendedSubmitReply = await send(
+      api,
+      token: operationToken,
+      body: submitAmendment.envelope.original,
+    );
+    expect(
+      amendedSubmitReply.body['receipt']?['status'] == 'ACCEPTED' &&
+          amendedSubmitReply.body['receipt']?['output']?['number'] ==
+              'INV-000002' &&
+          (await observer.execute(
+                pg.Sql.named('''
+                  SELECT quantity FROM (
+                    SELECT (record_data->>'quantity')::integer AS quantity
+                    FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+                      AND branch_id=@branch AND module_id=@module
+                      AND doc_type='Product' AND record_id='inventory-product-1') AS p
+                '''),
+                parameters: {
+                  'tenant': tenant,
+                  'company': primaryCompany,
+                  'branch': primaryBranch,
+                  'module': operationPackage.moduleId,
+                },
+              )).single[0] ==
+              100,
+      'Submitting the amendment allocates a new number and applies its saved rows once',
+    );
+    final cancelAmendment = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000012',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: amendMovement.envelope.commandId,
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.cancel',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final amendedCancelReply = await send(
+      api,
+      token: operationToken,
+      body: cancelAmendment.envelope.original,
+    );
+    final finalAmendedQuantity = await observer.execute(
+      pg.Sql.named('''
+        SELECT (record_data->>'quantity')::integer FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Product'
+          AND record_id='inventory-product-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      amendedCancelReply.body['receipt']?['status'] == 'ACCEPTED' &&
+          finalAmendedQuantity.single[0] == 80,
+      'Cancelling the amendment reverses only its own effect',
+    );
+    final competingAmendments = await Future.wait([
+      for (final commandId in [
+        '74000000-0000-4000-8000-000000000013',
+        '74000000-0000-4000-8000-000000000014',
+      ])
+        send(
+          api,
+          token: operationToken,
+          body: ExtensionBusinessOperationCommand.execute(
+            commandId: commandId,
+            tenantId: tenant,
+            companyId: primaryCompany,
+            branchId: primaryBranch,
+            recordId: 'inventory-movement-1',
+            expectedRevision: 3,
+            actorId: 'operation-user',
+            deviceId: 'operation-device',
+            moduleId: operationPackage.moduleId,
+            moduleVersion: operationPackage.version,
+            docType: 'Movement',
+            schemaVersion: 1,
+            operationId: 'document.amend',
+            operationVersion: 1,
+            inputs: const {},
+          ).envelope.original,
+        ),
+    ]);
+    final competingAmendReceipts = competingAmendments
+        .map((reply) => reply.body['receipt'] as Map<String, dynamic>)
+        .toList(growable: false);
+    final activeAmendments = await observer.execute(
+      pg.Sql.named('''
+        SELECT count(*) FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Movement'
+          AND record_data->>'amendedFrom'='inventory-movement-1'
+          AND document_status<>2 AND deleted_at IS NULL
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      competingAmendReceipts
+                  .where((receipt) => receipt['status'] == 'ACCEPTED')
+                  .length ==
+              1 &&
+          competingAmendReceipts
+                  .where(
+                    (receipt) =>
+                        receipt['reasonCode'] == 'AMENDMENT_ALREADY_ACTIVE',
+                  )
+                  .length ==
+              1 &&
+          activeAmendments.single[0] == 1,
+      'Distinct concurrent Amend commands create at most one active draft',
     );
     await observer.execute(
       pg.Sql.named(
