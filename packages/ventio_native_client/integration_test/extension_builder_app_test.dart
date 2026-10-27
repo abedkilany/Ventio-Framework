@@ -188,19 +188,18 @@ void main() {
 
       await tester.tap(find.text('Add field'));
       await tester.pumpAndSettle();
-      final quantityDialog = find.byType(AlertDialog);
-      final quantityFields = find.descendant(
-        of: quantityDialog,
-        matching: find.byType(TextFormField),
+      Finder fieldInput(String label) => find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == label,
       );
-      await tester.enterText(quantityFields.at(0), 'quantity');
-      await tester.enterText(quantityFields.at(1), 'Quantity');
+      await tester.enterText(fieldInput('Field ID'), 'quantity');
+      await tester.enterText(fieldInput('Label'), 'Quantity');
       await tester.tap(find.byType(DropdownButtonFormField<String>).last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Whole number').last);
       await tester.pumpAndSettle();
-      await tester.enterText(quantityFields.at(2), '1');
-      await tester.enterText(quantityFields.at(3), '20');
+      await tester.enterText(fieldInput('Minimum value'), '1');
+      await tester.enterText(fieldInput('Maximum value'), '20');
       await _scrollTo(tester, find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
