@@ -47,32 +47,44 @@ class DurableCommandHost {
     for (final source in bundle.docTypes.where(
       (item) => item.moduleId == moduleId,
     )) {
-      for (final field in source.fields.where(
-        (item) => item.type == 'reference' && item.referenceTo == target.name,
-      )) {
-        final rows = await tx.execute(
-          pg.Sql.named('''
+      for (final field in source.fields) {
+        final candidates = <({FieldDefinition field, String? tableField})>[
+          if (field.type == 'reference' && field.referenceTo == target.name)
+            (field: field, tableField: null),
+          if (field.childDocType case final child?)
+            for (final childField in child.fields)
+              if (childField.type == 'reference' &&
+                  childField.referenceTo == target.name)
+                (field: childField, tableField: field.name),
+        ];
+        for (final candidate in candidates) {
+          final isChild = candidate.tableField != null;
+          final rows = await tx.execute(
+            pg.Sql.named('''
           SELECT 1 FROM ventio_records
           WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
             AND module_id=@module AND doc_type=@doctype
             AND (doc_type<>@target_doctype OR record_id<>@target_record)
             AND deleted_at IS NULL
-            AND record_data->>@field=@target_value
+            AND ${isChild ? "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(record_data->@parent_field)='array' THEN record_data->@parent_field ELSE '[]'::jsonb END) AS child_rows(value) WHERE child_rows.value->>@field=@target_value)" : 'record_data->>@field=@target_value'}
           LIMIT 1
         '''),
-          parameters: {
-            'tenant': command.tenantId,
-            'company': command.companyId,
-            'branch': command.branchId,
-            'module': moduleId,
-            'doctype': source.name,
-            'target_doctype': target.name,
-            'target_record': command.aggregateId,
-            'field': field.name,
-            'target_value': command.aggregateId,
-          },
-        );
-        if (rows.isNotEmpty) return true;
+            parameters: {
+              'tenant': command.tenantId,
+              'company': command.companyId,
+              'branch': command.branchId,
+              'module': moduleId,
+              'doctype': source.name,
+              'target_doctype': target.name,
+              'target_record': command.aggregateId,
+              'field': candidate.field.name,
+              if (candidate.tableField != null)
+                'parent_field': candidate.tableField,
+              'target_value': command.aggregateId,
+            },
+          );
+          if (rows.isNotEmpty) return true;
+        }
       }
     }
     return false;
@@ -540,13 +552,10 @@ class DurableCommandHost {
               _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
             );
           }
-          for (final field
-              in (operation == 'delete'
-                      ? const <FieldDefinition>[]
-                      : docType.fields)
-                  .where((field) => field.type == 'reference')) {
-            final reference = valuesForStorage[field.name];
-            if (reference == null) continue;
+          for (final reference
+              in operation == 'delete'
+                  ? const <DocTypeReferenceValue>[]
+                  : docType.referencesIn(valuesForStorage)) {
             final rows = await tx.execute(
               pg.Sql.named('''
             SELECT record_id FROM ventio_records
@@ -561,8 +570,8 @@ class DurableCommandHost {
                 'company': command.companyId,
                 'branch': command.branchId,
                 'module': moduleId,
-                'doctype': field.referenceTo,
-                'record': reference,
+                'doctype': reference.targetDocType,
+                'record': reference.recordId,
               },
             );
             if (rows.isEmpty) {

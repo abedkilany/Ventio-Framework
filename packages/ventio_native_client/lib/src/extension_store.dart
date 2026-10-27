@@ -932,6 +932,78 @@ class LocalExtensionStore {
             addLabel(rawLabel['labelKey'], rawLabel['label']);
           }
         }
+        if (rawField['childDocType'] case final Map<String, dynamic> child) {
+          final childName = child['name'];
+          final childLabel = child['label'];
+          if (childName is! String || childLabel is! String) {
+            throw const ExtensionStoreException(
+              'INVALID_BUNDLE_METADATA',
+              'A child DocType needs a stable name and label before export.',
+            );
+          }
+          final childNamespace =
+              '$fieldNamespace.child.${childName.toLowerCase()}';
+          child['labelKey'] = collisionSafeLabelKey(
+            key: child['labelKey'],
+            label: childLabel,
+            fallbackKey: '$childNamespace.label',
+          );
+          addLabel(child['labelKey'], childLabel);
+          final childFields = child['fields'];
+          if (childFields is! List) {
+            throw const ExtensionStoreException(
+              'INVALID_BUNDLE_METADATA',
+              'A child DocType has an invalid fields definition.',
+            );
+          }
+          for (final rawChildField in childFields) {
+            if (rawChildField is! Map<String, dynamic> ||
+                rawChildField['name'] is! String) {
+              throw const ExtensionStoreException(
+                'INVALID_BUNDLE_METADATA',
+                'A child field needs a stable name before it can be exported.',
+              );
+            }
+            final childFieldNamespace =
+                '$childNamespace.field.${(rawChildField['name'] as String).toLowerCase()}';
+            rawChildField['labelKey'] = collisionSafeLabelKey(
+              key: rawChildField['labelKey'],
+              label: rawChildField['label'],
+              fallbackKey: '$childFieldNamespace.label',
+            );
+            addLabel(rawChildField['labelKey'], rawChildField['label']);
+            if (rawChildField.containsKey('descriptionKey')) {
+              rawChildField['descriptionKey'] = collisionSafeLabelKey(
+                key: rawChildField['descriptionKey'],
+                label: rawChildField['description'],
+                fallbackKey: '$childFieldNamespace.description',
+              );
+              addLabel(
+                rawChildField['descriptionKey'],
+                rawChildField['description'],
+              );
+            }
+            final childEnumLabels = rawChildField['enumLabels'];
+            if (childEnumLabels is Map) {
+              for (final entry in childEnumLabels.entries) {
+                final rawLabel = entry.value;
+                if (rawLabel is! Map) {
+                  throw const ExtensionStoreException(
+                    'INVALID_BUNDLE_METADATA',
+                    'A child enum option has an invalid label definition.',
+                  );
+                }
+                final option = entry.key.toString().toLowerCase();
+                rawLabel['labelKey'] = collisionSafeLabelKey(
+                  key: rawLabel['labelKey'],
+                  label: rawLabel['label'],
+                  fallbackKey: '$childFieldNamespace.enum.$option',
+                );
+                addLabel(rawLabel['labelKey'], rawLabel['label']);
+              }
+            }
+          }
+        }
       }
     }
 
@@ -1108,7 +1180,7 @@ class LocalExtensionStore {
       for (final entry in incomingByName.entries) {
         final definition = DocTypeDefinition.fromJson(entry.value);
         _validateDefinition(definition);
-        if (definition.fields.any(
+        if (definition.allFields.any(
           (field) =>
               field.type == 'reference' &&
               !knownNames.contains(field.referenceTo),
@@ -1283,7 +1355,7 @@ class LocalExtensionStore {
       final knownNames =
           existingNames.map((row) => row['doctype_name']! as String).toSet()
             ..add(definition.name);
-      for (final field in definition.fields.where(
+      for (final field in definition.allFields.where(
         (item) => item.type == 'reference',
       )) {
         if (!knownNames.contains(field.referenceTo)) {
@@ -2503,20 +2575,16 @@ class LocalExtensionStore {
     Map<String, dynamic> values,
     RecordScope scope,
   ) async {
-    for (final field in definition.fields.where(
-      (item) => item.type == 'reference',
-    )) {
-      final value = values[field.name];
-      if (value == null) continue;
+    for (final reference in definition.referencesIn(values)) {
       final targets = await transaction.query(
         _recordsTable,
         columns: const ['record_id'],
         where: '''record_id = ? AND module_id = ? AND doctype_name = ?
           AND organization_id = ? AND company_id = ? AND branch_id = ?''',
         whereArgs: [
-          value,
+          reference.recordId,
           definition.moduleId,
-          field.referenceTo,
+          reference.targetDocType,
           scope.organizationId,
           scope.companyId,
           scope.branchId,
@@ -2526,7 +2594,7 @@ class LocalExtensionStore {
       if (targets.isEmpty) {
         throw ExtensionStoreException(
           'INVALID_REFERENCE',
-          '${field.name} must reference a record of ${field.referenceTo} in the same organization, company and branch.',
+          '${reference.fieldPath} must reference a record of ${reference.targetDocType} in the same organization, company and branch.',
         );
       }
     }
@@ -2565,7 +2633,7 @@ class LocalExtensionStore {
         'An extension can declare field permissions only in its own namespace. A Host administrator grants them separately.',
       );
     }
-    for (final field in definition.fields) {
+    for (final field in definition.allFields) {
       if (!_fieldName.hasMatch(field.name) || field.name.length > 80) {
         throw ExtensionStoreException(
           'INVALID_FIELD_NAME',

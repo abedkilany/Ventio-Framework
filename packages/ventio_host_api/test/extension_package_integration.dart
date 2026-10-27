@@ -340,6 +340,38 @@ Future<void> main() async {
                 'label': 'Parent item',
                 'labelKey': '$typeKey.parent',
               },
+              {
+                'name': 'lines',
+                'type': 'table',
+                'required': false,
+                'label': 'Lines',
+                'labelKey': '$typeKey.lines',
+                'childDocType': {
+                  'name': 'ItemLine',
+                  'label': 'Item line',
+                  'labelKey': '$typeKey.item_line',
+                  'fields': [
+                    {
+                      'name': 'item',
+                      'type': 'reference',
+                      'referenceTo': 'Item',
+                      'required': true,
+                      'label': 'Item',
+                      'labelKey': '$typeKey.line_item',
+                    },
+                    {
+                      'name': 'quantity',
+                      'type': 'decimal',
+                      'required': true,
+                      'precision': 2,
+                      'default': 1.0,
+                      'minValue': 0,
+                      'label': 'Quantity',
+                      'labelKey': '$typeKey.line_quantity',
+                    },
+                  ],
+                },
+              },
             ],
             'ui': {
               'listColumns': ['title'],
@@ -353,6 +385,10 @@ Future<void> main() async {
           typeKey: 'Item',
           fieldKey: title,
           '$typeKey.parent': 'Parent item',
+          '$typeKey.lines': 'Lines',
+          '$typeKey.item_line': 'Item line',
+          '$typeKey.line_item': 'Item',
+          '$typeKey.line_quantity': 'Quantity',
         },
       };
     }
@@ -687,6 +723,217 @@ Future<void> main() async {
       secondRecordReply.status == 200 &&
           (secondRecordReply.body['receipt'] as Map?)?['status'] == 'ACCEPTED',
       'A second generic record is accepted under the same approved DocType',
+    );
+    final childRowsRecord = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-lines-parent',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {
+        'title': 'Child rows sample',
+        'lines': [
+          {'item': 'registry-item-1'},
+        ],
+      },
+    );
+    final childRowsReply = await send(
+      api,
+      token: primaryToken,
+      body: childRowsRecord.envelope.original,
+    );
+    final childRowsStored = await observer.execute(
+      pg.Sql.named('''
+        SELECT record_data->'lines' AS lines FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item' AND record_id=@record
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+        'record': 'registry-lines-parent',
+      },
+    );
+    expect(
+      childRowsReply.status == 200 &&
+          childRowsReply.body['receipt']['status'] == 'ACCEPTED' &&
+          canonicalJson(childRowsStored.single.toColumnMap()['lines']) ==
+              canonicalJson([
+                {'item': 'registry-item-1', 'quantity': 1.0},
+              ]),
+      'Host validates child DocType fields, applies defaults, and stores rows with the parent',
+    );
+    final invalidChildRows = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-invalid-lines',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {
+        'title': 'Invalid child row',
+        'lines': [
+          {'item': 'registry-item-1', 'quantity': 1.234},
+        ],
+      },
+    );
+    final invalidChildReply = await send(
+      api,
+      token: primaryToken,
+      body: invalidChildRows.envelope.original,
+    );
+    final invalidChildEffects = await observer.execute(
+      pg.Sql.named('''
+        SELECT count(*) FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item'
+            AND record_id='registry-item-invalid-lines'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+      },
+    );
+    expect(
+      invalidChildReply.body['receipt']['reasonCode'] == 'INVALID_PAYLOAD' &&
+          invalidChildEffects.single[0] == 0,
+      'Host rejects an invalid child row before storing the parent',
+    );
+    final removeChildRows = ExtensionRecordCommand.delete(
+      commandId: '79000000-0000-4000-8000-000000000007',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-lines-parent',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final removeChildRowsReply = await send(
+      api,
+      token: primaryToken,
+      body: removeChildRows.envelope.original,
+    );
+    expect(
+      removeChildRowsReply.body['receipt']['status'] == 'ACCEPTED',
+      'A parent with embedded child rows can be safely tombstoned',
+    );
+    final childTarget = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000003',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-target',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Child reference target'},
+    );
+    final childTargetReply = await send(
+      api,
+      token: primaryToken,
+      body: childTarget.envelope.original,
+    );
+    final childSource = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000004',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-source',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {
+        'title': 'Child reference source',
+        'lines': [
+          {'item': 'registry-child-target'},
+        ],
+      },
+    );
+    final childSourceReply = await send(
+      api,
+      token: primaryToken,
+      body: childSource.envelope.original,
+    );
+    final deleteChildTarget = ExtensionRecordCommand.delete(
+      commandId: '79000000-0000-4000-8000-000000000005',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-target',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final childTargetDeleteReply = await send(
+      api,
+      token: primaryToken,
+      body: deleteChildTarget.envelope.original,
+    );
+    expect(
+      childTargetReply.body['receipt']['status'] == 'ACCEPTED' &&
+          childSourceReply.body['receipt']['status'] == 'ACCEPTED' &&
+          childTargetDeleteReply.body['receipt']['reasonCode'] ==
+              'RECORD_IN_USE',
+      'Host exact-scope child references prevent deletion of their target',
+    );
+    final deleteChildSource = ExtensionRecordCommand.delete(
+      commandId: '79000000-0000-4000-8000-000000000006',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-source',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final childSourceDeleteReply = await send(
+      api,
+      token: primaryToken,
+      body: deleteChildSource.envelope.original,
+    );
+    final childTargetDeleteAfter = await send(
+      api,
+      token: primaryToken,
+      body: deleteChildTarget.envelope.original,
+    );
+    expect(
+      childSourceDeleteReply.body['receipt']['status'] == 'ACCEPTED' &&
+          childTargetDeleteAfter.body['receipt']['status'] == 'ACCEPTED',
+      'Child reference restriction clears only after its parent is safely removed',
     );
     final unauthorizedDelete = ExtensionRecordCommand.delete(
       commandId: '71000000-0000-4000-8000-000000000032',

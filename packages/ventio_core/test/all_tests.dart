@@ -601,6 +601,130 @@ void main() {
     );
   });
 
+  test('Child DocType rows validate defaults, fields, references and bounds',
+      () {
+    final raw = changed(
+      (extensionBundleJson()['docTypes'] as List).single
+          as Map<String, dynamic>,
+    );
+    final fields = raw['fields'] as List;
+    fields.add({
+      'name': 'lines',
+      'type': 'table',
+      'required': true,
+      'label': 'Lines',
+      'labelKey': 'extension.com_example_assets.asset.lines',
+      'childDocType': {
+        'name': 'AssetLine',
+        'label': 'Asset line',
+        'labelKey': 'extension.com_example_assets.asset.line',
+        'fields': [
+          {
+            'name': 'asset',
+            'type': 'reference',
+            'referenceTo': 'Asset',
+            'required': true,
+            'label': 'Asset',
+            'labelKey': 'extension.com_example_assets.asset.line_asset',
+          },
+          {
+            'name': 'quantity',
+            'type': 'decimal',
+            'required': true,
+            'default': 1.25,
+            'precision': 2,
+            'label': 'Quantity',
+            'labelKey': 'extension.com_example_assets.asset.line_quantity',
+          },
+        ],
+      },
+    });
+    ((raw['ui'] as Map<String, dynamic>)['formFields'] as List).add('lines');
+    final definition = DocTypeDefinition.fromJson(raw);
+    final normalized = definition.applyDefaults({
+      'name': 'Grouped asset',
+      'lines': [
+        {'asset': 'asset-1'},
+      ],
+    });
+    check(
+      definition.validatePayload(normalized).isEmpty &&
+          ((normalized['lines'] as List).single as Map)['quantity'] == 1.25,
+      'Child row defaults were not applied and validated',
+    );
+    check(
+      definition.referencesIn(normalized).single.recordId == 'asset-1' &&
+          definition.referencesIn(normalized).single.targetDocType == 'Asset',
+      'Nested child references were not discoverable for scoped validation',
+    );
+    final package = extensionBundleJson();
+    final packageDocType =
+        (package['docTypes'] as List).single as Map<String, dynamic>;
+    (packageDocType['fields'] as List).add(fields.last);
+    ((packageDocType['ui'] as Map<String, dynamic>)['formFields'] as List)
+        .add('lines');
+    (package['englishCatalog'] as Map<String, String>).addAll({
+      'extension.com_example_assets.asset.lines': 'Lines',
+      'extension.com_example_assets.asset.line': 'Asset line',
+      'extension.com_example_assets.asset.line_asset': 'Asset',
+      'extension.com_example_assets.asset.line_quantity': 'Quantity',
+    });
+    final packageRoundTrip = ExtensionBundle.fromJson(
+      ExtensionBundle.fromJson(package).toJson(),
+    );
+    check(
+      packageRoundTrip.docTypes.single.fields.last.childDocType?.name ==
+              'AssetLine' &&
+          packageRoundTrip.docTypes.single.fields.last.childDocType!.fields.last
+                  .precision ==
+              2,
+      'Extension package did not retain nested child schema metadata',
+    );
+    check(
+      definition.validatePayload({
+        'name': 'Invalid child',
+        'lines': [
+          {'asset': 'asset-1', 'quantity': 1.234},
+        ],
+      }).isNotEmpty,
+      'Child decimal precision was not enforced',
+    );
+    check(
+      definition.validatePayload({
+        'name': 'Unknown child key',
+        'lines': [
+          {'asset': 'asset-1', 'extra': 'not declared'},
+        ],
+      }).isNotEmpty,
+      'Unknown child fields were accepted',
+    );
+    check(
+      definition.validatePayload({
+        'name': 'Too many rows',
+        'lines': List.generate(501, (_) => {'asset': 'asset-1'}),
+      }).isNotEmpty,
+      'The child row count exceeded the bounded table contract',
+    );
+    final invalidNested = changed(raw);
+    final child = (((invalidNested['fields'] as List).last
+        as Map)['childDocType'] as Map<String, dynamic>);
+    ((child['fields'] as List).last as Map<String, dynamic>)['type'] = 'table';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidNested),
+      'Nested child tables were accepted',
+    );
+    final invalidPermission = changed(raw);
+    final permissionChild = (((invalidPermission['fields'] as List).last
+        as Map)['childDocType'] as Map<String, dynamic>);
+    ((permissionChild['fields'] as List).first
+            as Map<String, dynamic>)['readPermission'] =
+        'extension.com_example_assets.asset.secret.read';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidPermission),
+      'A child field escaped the parent table permission boundary',
+    );
+  });
+
   test('Field precision, defaults, read-only and descriptions are enforced',
       () {
     final amount = FieldDefinition.fromJson({

@@ -359,6 +359,156 @@ void main() {
   });
 
   test(
+    'Typed child rows validate references and survive SQLite restart',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: '',
+      );
+      final product = _docType(name: 'Product');
+      product['labelKey'] =
+          'extension.com_example_asset_register.product.label';
+      (product['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.product.name';
+      await store.saveDocType(product);
+
+      final order = _docType(
+        name: 'Order',
+        fields: [
+          _textField(),
+          {
+            'name': 'lines',
+            'type': 'table',
+            'required': true,
+            'label': 'Lines',
+            'labelKey': 'extension.com_example_asset_register.order.lines',
+            'childDocType': {
+              'name': 'OrderLine',
+              'label': 'Order line',
+              'labelKey':
+                  'extension.com_example_asset_register.order.order_line',
+              'fields': [
+                {
+                  'name': 'product',
+                  'type': 'reference',
+                  'referenceTo': 'Product',
+                  'required': true,
+                  'label': 'Product',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.line_product',
+                },
+                {
+                  'name': 'quantity',
+                  'type': 'integer',
+                  'required': true,
+                  'default': 1,
+                  'minValue': 1,
+                  'label': 'Quantity',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.line_quantity',
+                },
+              ],
+            },
+          },
+        ],
+      );
+      order['labelKey'] = 'extension.com_example_asset_register.order.label';
+      (order['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.order.name';
+      await store.saveDocType(order);
+      await store.activate(_moduleId);
+      final childBundle = await store.exportBundle(_moduleId);
+      final childRoundTrip = ExtensionBundle.fromJson(
+        ExtensionBundle.fromJson(childBundle.toJson()).toJson(),
+      );
+      expect(
+        childRoundTrip.docTypes
+            .singleWhere((docType) => docType.name == 'Order')
+            .fields
+            .singleWhere((field) => field.name == 'lines')
+            .childDocType
+            ?.fields
+            .singleWhere((field) => field.name == 'product')
+            .labelKey,
+        'extension.com_example_asset_register.order.line_product',
+      );
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Product',
+        scope: _scope,
+        recordId: 'product-1',
+        values: {'name': 'Gear'},
+      );
+      final values = {
+        'name': 'Order A',
+        'lines': [
+          {'product': 'product-1'},
+        ],
+      };
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Order',
+        scope: _scope,
+        recordId: 'order-1',
+        values: values,
+      );
+      final restoredValue = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Order',
+        scope: _scope,
+        recordId: 'order-1',
+      ))!.values;
+      expect(restoredValue['lines'], [
+        {'product': 'product-1', 'quantity': 1},
+      ]);
+
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Order',
+          scope: _scope,
+          recordId: 'order-bad-reference',
+          values: {
+            'name': 'Invalid',
+            'lines': [
+              {'product': 'missing-product'},
+            ],
+          },
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'INVALID_REFERENCE',
+          ),
+        ),
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Order',
+          scope: _scope,
+          recordId: 'order-bad-reference',
+        ),
+        isNull,
+      );
+
+      await store.close();
+      await openStore();
+      expect(
+        (await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Order',
+          scope: _scope,
+          recordId: 'order-1',
+        ))!.values,
+        restoredValue,
+      );
+    },
+  );
+
+  test(
     'Field defaults persist and read-only fields reject client changes',
     () async {
       final definition = _docType(

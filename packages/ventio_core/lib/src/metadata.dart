@@ -25,6 +25,7 @@ class FieldDefinition {
   final Map<String, String> enumLabels;
   final Map<String, String> enumLabelKeys;
   final String? referenceTo;
+  final ChildDocTypeDefinition? childDocType;
 
   const FieldDefinition(
       {required this.name,
@@ -46,14 +47,24 @@ class FieldDefinition {
       required this.enumValues,
       this.enumLabels = const {},
       this.enumLabelKeys = const {},
-      required this.referenceTo});
+      required this.referenceTo,
+      this.childDocType});
 
-  factory FieldDefinition.fromJson(Map<String, dynamic> json) {
+  factory FieldDefinition.fromJson(
+    Map<String, dynamic> json, {
+    bool childField = false,
+  }) {
     final name = requireString(json, 'name');
     if (!_docFieldIdentifier.hasMatch(name) || name.length > 80) {
       throw const ContractError('INVALID_FIELD', 'Invalid field name.');
     }
     final type = requireString(json, 'type');
+    if (childField && type == 'table') {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child tables cannot be nested.',
+      );
+    }
     if (![
       'text',
       'long_text',
@@ -208,6 +219,24 @@ class FieldDefinition {
     }
     final readPermission = optionalString(json, 'readPermission');
     final writePermission = optionalString(json, 'writePermission');
+    if (childField &&
+        (readOnly || readPermission != null || writePermission != null)) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child fields inherit parent table permissions and cannot be read-only.',
+      );
+    }
+    final childDocType = json['childDocType'] == null
+        ? null
+        : ChildDocTypeDefinition.fromJson(
+            requireMap(json['childDocType'], 'childDocType'),
+          );
+    if (childDocType != null && type != 'table') {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'A child DocType may only be declared on a table field.',
+      );
+    }
     for (final entry in {
       'readPermission': readPermission,
       'writePermission': writePermission,
@@ -240,7 +269,8 @@ class FieldDefinition {
         enumValues: List.unmodifiable(options),
         enumLabels: Map.unmodifiable(enumLabels),
         enumLabelKeys: Map.unmodifiable(enumLabelKeys),
-        referenceTo: referenceTo);
+        referenceTo: referenceTo,
+        childDocType: childDocType);
     if (rawDefault != null && field.validate(rawDefault) != null) {
       throw const ContractError(
         'INVALID_FIELD',
@@ -288,6 +318,24 @@ class FieldDefinition {
                         cell is! num),
               )) {
             return 'INVALID_TABLE';
+          }
+          final child = childDocType;
+          if (child != null) {
+            final childValues = Map<String, dynamic>.from(row);
+            if (childValues.keys
+                .toSet()
+                .difference(child.fieldNames)
+                .isNotEmpty) {
+              return 'INVALID_TABLE';
+            }
+            for (final childField in child.fields) {
+              final childValue = childValues.containsKey(childField.name)
+                  ? childValues[childField.name]
+                  : childField.defaultValue;
+              if (childField.validate(childValue) != null) {
+                return 'INVALID_TABLE';
+              }
+            }
           }
         }
         return null;
@@ -339,6 +387,77 @@ class FieldDefinition {
     final decimalPlaces = significantFraction.length - exponent;
     return decimalPlaces <= allowed;
   }
+}
+
+class ChildDocTypeDefinition {
+  const ChildDocTypeDefinition({
+    required this.name,
+    required this.label,
+    required this.labelKey,
+    required this.fields,
+  });
+
+  final String name;
+  final String label;
+  final String labelKey;
+  final List<FieldDefinition> fields;
+
+  Set<String> get fieldNames => fields.map((field) => field.name).toSet();
+
+  factory ChildDocTypeDefinition.fromJson(Map<String, dynamic> json) {
+    final name = requireString(json, 'name');
+    final label = requireString(json, 'label');
+    final labelKey = requireString(json, 'labelKey');
+    if (!_docTypeIdentifier.hasMatch(name) ||
+        name.length > 80 ||
+        label.trim().isEmpty ||
+        label.length > 120 ||
+        !_messageKey.hasMatch(labelKey)) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child DocType identity and label must be valid.',
+      );
+    }
+    final rawFields = requireList(json, 'fields');
+    if (rawFields.isEmpty || rawFields.length > 50) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'A child DocType must define between 1 and 50 fields.',
+      );
+    }
+    final fields = rawFields
+        .map(
+          (raw) => FieldDefinition.fromJson(
+            requireMap(raw, 'childDocType.fields[]'),
+            childField: true,
+          ),
+        )
+        .toList(growable: false);
+    if (fields.map((field) => field.name).toSet().length != fields.length) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child DocType field names must be unique.',
+      );
+    }
+    return ChildDocTypeDefinition(
+      name: name,
+      label: label,
+      labelKey: labelKey,
+      fields: List.unmodifiable(fields),
+    );
+  }
+}
+
+class DocTypeReferenceValue {
+  const DocTypeReferenceValue({
+    required this.fieldPath,
+    required this.targetDocType,
+    required this.recordId,
+  });
+
+  final String fieldPath;
+  final String targetDocType;
+  final String recordId;
 }
 
 final RegExp _messageKey = RegExp(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$');
@@ -583,14 +702,74 @@ class DocTypeDefinition {
     return issues;
   }
 
+  Iterable<FieldDefinition> get allFields sync* {
+    for (final field in fields) {
+      yield field;
+      if (field.childDocType case final child?) yield* child.fields;
+    }
+  }
+
   Map<String, dynamic> applyDefaults(Map<String, dynamic> payload) {
     final values = Map<String, dynamic>.of(payload);
     for (final field in fields) {
       if (!values.containsKey(field.name) && field.defaultValue != null) {
         values[field.name] = field.defaultValue;
       }
+      final child = field.childDocType;
+      final rows = values[field.name];
+      if (child != null && rows is List) {
+        values[field.name] = [
+          for (final rawRow in rows)
+            if (rawRow is Map) _applyChildDefaults(rawRow, child) else rawRow,
+        ];
+      }
     }
     return values;
+  }
+
+  Map<String, dynamic> _applyChildDefaults(
+    Map rawRow,
+    ChildDocTypeDefinition child,
+  ) {
+    final row = Map<String, dynamic>.from(rawRow);
+    for (final field in child.fields) {
+      if (!row.containsKey(field.name) && field.defaultValue != null) {
+        row[field.name] = field.defaultValue;
+      }
+    }
+    return row;
+  }
+
+  Iterable<DocTypeReferenceValue> referencesIn(
+    Map<String, dynamic> values,
+  ) sync* {
+    for (final field in fields) {
+      final value = values[field.name];
+      if (field.type == 'reference' && value is String) {
+        yield DocTypeReferenceValue(
+          fieldPath: field.name,
+          targetDocType: field.referenceTo!,
+          recordId: value,
+        );
+      }
+      final child = field.childDocType;
+      if (child != null && value is List) {
+        for (var index = 0; index < value.length; index++) {
+          final row = value[index];
+          if (row is! Map) continue;
+          for (final childField in child.fields) {
+            final childValue = row[childField.name];
+            if (childField.type == 'reference' && childValue is String) {
+              yield DocTypeReferenceValue(
+                fieldPath: '${field.name}[$index].${childField.name}',
+                targetDocType: childField.referenceTo!,
+                recordId: childValue,
+              );
+            }
+          }
+        }
+      }
+    }
   }
 }
 

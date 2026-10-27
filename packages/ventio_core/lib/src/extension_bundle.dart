@@ -186,6 +186,7 @@ class ExtensionBundle {
             'descriptionKey',
             'readPermission',
             'writePermission',
+            'childDocType',
           },
           'field',
         );
@@ -199,6 +200,55 @@ class ExtensionBundle {
           for (final entry in values.entries) {
             final option = requireMap(entry.value, 'enumLabels[]');
             _checkKeys(option, const {'label', 'labelKey'}, 'enum label');
+          }
+        }
+        if (field['childDocType'] case final childValue?) {
+          final child = requireMap(childValue, 'childDocType');
+          _checkKeys(
+            child,
+            const {'name', 'label', 'labelKey', 'fields'},
+            'childDocType',
+          );
+          for (final rawChildField in requireList(child, 'fields')) {
+            final childField = requireMap(
+              rawChildField,
+              'childDocType.fields[]',
+            );
+            _checkKeys(
+              childField,
+              const {
+                'name',
+                'type',
+                'required',
+                'label',
+                'labelKey',
+                'minLength',
+                'maxLength',
+                'minValue',
+                'maxValue',
+                'precision',
+                'default',
+                'readOnly',
+                'enumValues',
+                'enumLabels',
+                'referenceTo',
+                'description',
+                'descriptionKey',
+              },
+              'child field',
+            );
+            if (childField['enumLabels'] case final childLabels?) {
+              for (final rawLabel in requireMap(
+                childLabels,
+                'child field.enumLabels',
+              ).values) {
+                _checkKeys(
+                  requireMap(rawLabel, 'child enum label'),
+                  const {'label', 'labelKey'},
+                  'child enum label',
+                );
+              }
+            }
           }
         }
       }
@@ -254,7 +304,7 @@ class ExtensionBundle {
 
     final doctypeNames = docTypes.map((type) => type.name).toSet();
     for (final type in docTypes) {
-      for (final field in type.fields) {
+      for (final field in type.allFields) {
         if (field.type == 'reference' &&
             !doctypeNames.contains(field.referenceTo)) {
           throw ContractError(
@@ -365,6 +415,36 @@ class ExtensionBundle {
             );
             _requireNamespace(key, messageNamespace);
             requiredLabels.add(key);
+          }
+        }
+        if (field.childDocType case final child?) {
+          _requireNamespace(child.labelKey, messageNamespace);
+          requiredLabels.add(child.labelKey);
+          final rawChild = requireMap(
+            fieldJson['childDocType'],
+            'childDocType',
+          );
+          for (final rawChildField in requireList(rawChild, 'fields')) {
+            final childFieldJson = requireMap(
+              rawChildField,
+              'childDocType.fields[]',
+            );
+            final childField = FieldDefinition.fromJson(
+              childFieldJson,
+              childField: true,
+            );
+            _requireNamespace(childField.labelKey, messageNamespace);
+            requiredLabels.add(childField.labelKey);
+            if (childField.descriptionKey case final key?) {
+              _requireNamespace(key, messageNamespace);
+              requiredLabels.add(key);
+            }
+            if (childField.type == 'enum') {
+              for (final option in childField.enumLabelKeys.values) {
+                _requireNamespace(option, messageNamespace);
+                requiredLabels.add(option);
+              }
+            }
           }
         }
       }

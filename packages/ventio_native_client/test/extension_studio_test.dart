@@ -1136,6 +1136,104 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('DocType Builder authors a typed child DocType', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.child_builder';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Child Builder',
+      description: '',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DocTypeBuilderPage(store: store, moduleId: moduleId),
+      ),
+    );
+    await tester.pumpAndSettle();
+    var inputs = find.byType(TextFormField);
+    await tester.enterText(inputs.at(0), 'Order');
+    await tester.enterText(inputs.at(1), 'Order');
+    await tester.enterText(inputs.at(2), 'A parent with typed child rows.');
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+
+    Finder fieldInput(String label) => find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == label,
+      ),
+    );
+    Future<void> invokeDialogAction(String label) async {
+      final action = find.ancestor(
+        of: find.text(label),
+        matching: find.byType(FilledButton),
+      ).last;
+      tester.widget<FilledButton>(action).onPressed!.call();
+      await tester.pumpAndSettle();
+    }
+    await tester.enterText(fieldInput('Field ID'), 'lines');
+    await tester.enterText(fieldInput('Label'), 'Lines');
+    final fieldType = find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byType(DropdownButtonFormField<String>),
+    );
+    await tester.ensureVisible(fieldType);
+    await tester.pumpAndSettle();
+    await tester.tap(fieldType);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Child table').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Configure child DocType'));
+    await tester.pumpAndSettle();
+
+    inputs = find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(inputs.at(0), 'OrderLine');
+    await tester.enterText(inputs.at(1), 'Order line');
+    await tester.tap(find.text('Add child field'));
+    await tester.pumpAndSettle();
+    inputs = find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(fieldInput('Field ID'), 'itemCode');
+    await tester.enterText(fieldInput('Label'), 'Item code');
+    await invokeDialogAction('Save field');
+    expect(find.text('itemCode · text'), findsOneWidget);
+    await invokeDialogAction('Save child DocType');
+    expect(find.text('Edit child DocType · OrderLine'), findsOneWidget);
+    await invokeDialogAction('Save field');
+
+    final saveDocType = find.text('Save DocType');
+    await tester.scrollUntilVisible(
+      saveDocType,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await invokeDialogAction('Save DocType');
+    final saved = await store.getDocType(moduleId, 'Order');
+    final table = (saved!['fields'] as List).cast<Map>().single;
+    expect(table['childDocType']['name'], 'OrderLine');
+    expect(
+      (table['childDocType']['fields'] as List).single['name'],
+      'itemCode',
+    );
+    final bundle = await store.exportBundle(moduleId);
+    expect(
+      bundle.englishCatalog.containsKey(
+        'extension.com_example_child_builder.order.child.orderline.label',
+      ),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Conflict review seeds a merge from the selected Host values', (
     tester,
   ) async {

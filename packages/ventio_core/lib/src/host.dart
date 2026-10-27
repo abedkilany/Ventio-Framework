@@ -227,14 +227,10 @@ class InMemoryHost {
     if (issues.isNotEmpty) {
       return failure('REJECTED', 'INVALID_PAYLOAD');
     }
-    for (final field in docType.fields.where(
-      (field) => field.type == 'reference',
-    )) {
-      final reference = normalizedValues[field.name];
-      if (reference == null) continue;
+    for (final reference in docType.referencesIn(normalizedValues)) {
       final targetKey = '${command.tenantId}\u0000${command.companyId}\u0000'
           '${command.branchId}\u0000${module.moduleId}\u0000'
-          '${field.referenceTo}\u0000$reference';
+          '${reference.targetDocType}\u0000${reference.recordId}';
       if (!_state.records.containsKey(targetKey)) {
         return failure('REJECTED', 'INVALID_REFERENCE');
       }

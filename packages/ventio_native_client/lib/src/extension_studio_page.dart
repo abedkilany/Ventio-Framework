@@ -2870,12 +2870,14 @@ class _FieldEditorDialog extends StatefulWidget {
     required this.moduleId,
     required this.docTypeName,
     required this.relationTargets,
+    this.childField = false,
     this.existing,
   });
 
   final String moduleId;
   final String docTypeName;
   final List<String> relationTargets;
+  final bool childField;
   final Map<String, dynamic>? existing;
 
   @override
@@ -2898,6 +2900,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   late final TextEditingController _writePermission;
   String _type = 'text';
   String? _referenceTo;
+  Map<String, dynamic>? _childDocType;
   bool _required = false;
   bool _readOnly = false;
 
@@ -2941,6 +2944,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     );
     _type = field?['type'] as String? ?? 'text';
     _referenceTo = field?['referenceTo'] as String?;
+    _childDocType = field?['childDocType'] is Map
+        ? Map<String, dynamic>.from(field!['childDocType'] as Map)
+        : null;
     _required = field?['required'] as bool? ?? false;
     _readOnly = field?['readOnly'] as bool? ?? false;
   }
@@ -3006,6 +3012,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       metadata['descriptionKey'] = '$fieldNamespace.description';
     }
     if (_type == 'reference') metadata['referenceTo'] = _referenceTo;
+    if (_type == 'table' && _childDocType != null) {
+      metadata['childDocType'] = _childDocType;
+    }
     final readPermission = _readPermission.text.trim();
     final writePermission = _writePermission.text.trim();
     if (readPermission.isNotEmpty) metadata['readPermission'] = readPermission;
@@ -3028,6 +3037,19 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       };
     }
     Navigator.pop(context, metadata);
+  }
+
+  Future<void> _configureChildDocType() async {
+    final child = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _ChildDocTypeEditorDialog(
+        moduleId: widget.moduleId,
+        parentDocTypeName: widget.docTypeName,
+        relationTargets: widget.relationTargets,
+        existing: _childDocType,
+      ),
+    );
+    if (child != null && mounted) setState(() => _childDocType = child);
   }
 
   num? _parseBound(String value) {
@@ -3232,13 +3254,14 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                       ? context.ventioText('native.ui.description_too_long')
                       : null,
                 ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: VentioText('native.ui.read_only'),
-                  value: _readOnly,
-                  onChanged: (value) =>
-                      setState(() => _readOnly = value ?? false),
-                ),
+                if (!widget.childField)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: VentioText('native.ui.read_only'),
+                    value: _readOnly,
+                    onChanged: (value) =>
+                        setState(() => _readOnly = value ?? false),
+                  ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: _type,
@@ -3246,7 +3269,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   decoration: InputDecoration(
                     labelText: context.ventioText('native.ui.data_type'),
                   ),
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                       value: 'text',
                       child: VentioText('native.ui.text'),
@@ -3255,10 +3278,11 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                       value: 'long_text',
                       child: VentioText('native.ui.long_text'),
                     ),
-                    DropdownMenuItem(
-                      value: 'table',
-                      child: VentioText('native.ui.child_table'),
-                    ),
+                    if (!widget.childField)
+                      const DropdownMenuItem(
+                        value: 'table',
+                        child: VentioText('native.ui.child_table'),
+                      ),
                     DropdownMenuItem(
                       value: 'integer',
                       child: VentioText('native.ui.whole_number'),
@@ -3299,6 +3323,33 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                     _type = value ?? 'text';
                   }),
                 ),
+                if (widget.childField)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      context.ventioText(
+                        'native.ui.child_field_uses_parent_table_access',
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                if (_type == 'table') ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _configureChildDocType,
+                    icon: const Icon(Icons.table_rows_outlined),
+                    label: Text(
+                      _childDocType == null
+                          ? context.ventioText(
+                              'native.ui.configure_child_doctype',
+                            )
+                          : context.ventioText(
+                              'native.ui.edit_child_doctype',
+                              params: {'name': _childDocType!['name']},
+                            ),
+                    ),
+                  ),
+                ],
                 if (_type == 'text' || _type == 'long_text') ...[
                   const SizedBox(height: 8),
                   TextFormField(
@@ -3422,8 +3473,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                         DropdownMenuItem(value: target, child: Text(target)),
                     ],
                     onChanged: (value) => setState(() => _referenceTo = value),
-                    validator: (value) =>
-                        value == null ? 'Select a DocType.' : null,
+                    validator: (value) => value == null
+                        ? context.ventioText('native.ui.select_a_doctype')
+                        : null,
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -3434,31 +3486,33 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   onChanged: (value) => setState(() => _required = value),
                 ),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _readPermission,
-                  decoration: InputDecoration(
-                    labelText: context.ventioText(
-                      'native.ui.read_permission_optional',
+                if (!widget.childField)
+                  TextFormField(
+                    controller: _readPermission,
+                    decoration: InputDecoration(
+                      labelText: context.ventioText(
+                        'native.ui.read_permission_optional',
+                      ),
+                      helperText: context.ventioText(
+                        'native.ui.adds_a_host_grant_required_to_receive_this_field',
+                      ),
                     ),
-                    helperText: context.ventioText(
-                      'native.ui.adds_a_host_grant_required_to_receive_this_field',
-                    ),
+                    validator: _permissionError,
                   ),
-                  validator: _permissionError,
-                ),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _writePermission,
-                  decoration: InputDecoration(
-                    labelText: context.ventioText(
-                      'native.ui.write_permission_optional',
+                if (!widget.childField)
+                  TextFormField(
+                    controller: _writePermission,
+                    decoration: InputDecoration(
+                      labelText: context.ventioText(
+                        'native.ui.write_permission_optional',
+                      ),
+                      helperText: context.ventioText(
+                        'native.ui.adds_a_host_grant_required_to_create_or_change_this_field',
+                      ),
                     ),
-                    helperText: context.ventioText(
-                      'native.ui.adds_a_host_grant_required_to_create_or_change_this_field',
-                    ),
+                    validator: _permissionError,
                   ),
-                  validator: _permissionError,
-                ),
               ],
             ),
           ),
@@ -3476,6 +3530,229 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       ],
     );
   }
+}
+
+class _ChildDocTypeEditorDialog extends StatefulWidget {
+  const _ChildDocTypeEditorDialog({
+    required this.moduleId,
+    required this.parentDocTypeName,
+    required this.relationTargets,
+    this.existing,
+  });
+
+  final String moduleId;
+  final String parentDocTypeName;
+  final List<String> relationTargets;
+  final Map<String, dynamic>? existing;
+
+  @override
+  State<_ChildDocTypeEditorDialog> createState() =>
+      _ChildDocTypeEditorDialogState();
+}
+
+class _ChildDocTypeEditorDialogState extends State<_ChildDocTypeEditorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _label;
+  final List<Map<String, dynamic>> _fields = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _name = TextEditingController(text: existing?['name'] as String? ?? '');
+    _label = TextEditingController(text: existing?['label'] as String? ?? '');
+    final rawFields = existing?['fields'];
+    if (rawFields is List) {
+      _fields.addAll(
+        rawFields.map((field) => Map<String, dynamic>.from(field as Map)),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _label.dispose();
+    super.dispose();
+  }
+
+  Future<void> _editField([Map<String, dynamic>? existing]) async {
+    final childName = _name.text.trim();
+    if (!RegExp(r'^[A-Z][A-Za-z0-9_]{0,79}$').hasMatch(childName)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: VentioText('native.ui.enter_child_doctype_name_first'),
+        ),
+      );
+      return;
+    }
+    if (existing == null && _fields.length >= 50) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: VentioText('native.ui.child_doctype_field_limit')),
+      );
+      return;
+    }
+    final field = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _FieldEditorDialog(
+        moduleId: widget.moduleId,
+        docTypeName: childName,
+        relationTargets: widget.relationTargets,
+        childField: true,
+        existing: existing,
+      ),
+    );
+    if (field == null || !mounted) return;
+    field
+      ..remove('readPermission')
+      ..remove('writePermission')
+      ..remove('readOnly');
+    try {
+      FieldDefinition.fromJson(field, childField: true);
+      final duplicate = _fields.any(
+        (item) => item['name'] == field['name'] && !identical(item, existing),
+      );
+      if (duplicate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: VentioText('native.ui.child_field_ids_unique')),
+        );
+        return;
+      }
+      setState(() {
+        if (existing == null) {
+          _fields.add(field);
+        } else {
+          final index = _fields.indexOf(existing);
+          if (index >= 0) _fields[index] = field;
+        }
+      });
+    } on ContractError {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: VentioText('native.ui.invalid_child_field_schema')),
+      );
+    }
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    if (_fields.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: VentioText('native.ui.add_child_doctype_field')),
+      );
+      return;
+    }
+    final name = _name.text.trim();
+    final namespace =
+        '${_messageNamespace(widget.moduleId)}.'
+        '${widget.parentDocTypeName.toLowerCase()}.child.${name.toLowerCase()}';
+    final child = <String, dynamic>{
+      'name': name,
+      'label': _label.text.trim(),
+      'labelKey': '$namespace.label',
+      'fields': List<Map<String, dynamic>>.of(_fields),
+    };
+    try {
+      ChildDocTypeDefinition.fromJson(child);
+    } on ContractError {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: VentioText('native.ui.invalid_child_doctype')),
+      );
+      return;
+    }
+    Navigator.pop(context, child);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const VentioText('native.ui.child_doctype'),
+    content: SizedBox(
+      width: 560,
+      child: Form(
+        key: _formKey,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            TextFormField(
+              controller: _name,
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.child_doctype_id'),
+              ),
+              validator: (value) {
+                final raw = value?.trim() ?? '';
+                if (!RegExp(r'^[A-Z][A-Za-z0-9_]{0,79}$').hasMatch(raw)) {
+                  return context.ventioText(
+                    'native.ui.invalid_child_doctype_id',
+                  );
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _label,
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.child_doctype_label'),
+              ),
+              validator: (value) => (value?.trim().isNotEmpty ?? false)
+                  ? null
+                  : context.ventioText('native.ui.enter_child_doctype_label'),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              context.ventioText(
+                'native.ui.child_fields_inherit_parent_table_access',
+              ),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            for (final field in _fields)
+              ListTile(
+                title: Text(field['label'] as String),
+                subtitle: Text(
+                  '${field['name']} · ${field['type']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (action) {
+                    if (action == 'edit') _editField(field);
+                    if (action == 'remove') {
+                      setState(() => _fields.remove(field));
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: VentioText('native.ui.edit_field'),
+                    ),
+                    PopupMenuItem(
+                      value: 'remove',
+                      child: VentioText('native.ui.remove_field'),
+                    ),
+                  ],
+                ),
+              ),
+            OutlinedButton.icon(
+              onPressed: () => _editField(),
+              icon: const Icon(Icons.add),
+              label: const VentioText('native.ui.add_child_field'),
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const VentioText('native.ui.cancel'),
+      ),
+      FilledButton(
+        onPressed: _save,
+        child: const VentioText('native.ui.save_child_doctype'),
+      ),
+    ],
+  );
 }
 
 class DynamicDocTypePage extends StatefulWidget {

@@ -165,6 +165,32 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.extension_module_version': '{moduleId} · v{version}',
   'native.ui.long_text': 'Long text',
   'native.ui.child_table': 'Child table',
+  'native.ui.child_doctype': 'Child DocType',
+  'native.ui.child_doctype_id': 'Child DocType ID',
+  'native.ui.child_doctype_label': 'Child DocType label',
+  'native.ui.add_child_field': 'Add child field',
+  'native.ui.save_child_doctype': 'Save child DocType',
+  'native.ui.configure_child_doctype': 'Configure child DocType',
+  'native.ui.edit_child_doctype': 'Edit child DocType · {name}',
+  'native.ui.child_field_uses_parent_table_access':
+      'This field inherits the parent table field’s permissions and scope.',
+  'native.ui.child_fields_inherit_parent_table_access':
+      'Child fields inherit the parent table field’s permissions and scope. Nested tables are not supported.',
+  'native.ui.enter_child_doctype_name_first':
+      'Enter a valid child DocType ID before adding fields.',
+  'native.ui.child_doctype_field_limit':
+      'A child DocType can contain at most 50 fields.',
+  'native.ui.child_field_ids_unique': 'Child field IDs must be unique.',
+  'native.ui.invalid_child_field_schema':
+      'The child field definition is invalid. Check its type and constraints.',
+  'native.ui.add_child_doctype_field':
+      'Add at least one field to the child DocType.',
+  'native.ui.invalid_child_doctype':
+      'The child DocType definition is invalid. Review its fields.',
+  'native.ui.invalid_child_doctype_id':
+      'Use a stable ID starting with a capital letter.',
+  'native.ui.enter_child_doctype_label': 'Enter a child DocType label.',
+  'native.ui.select_a_doctype': 'Select a DocType.',
   'native.ui.table_json_help':
       'Enter a JSON array of flat row objects (up to 500 rows).',
   'native.ui.table_json_error':
