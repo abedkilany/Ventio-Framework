@@ -4,10 +4,10 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**61.60%** `████████████░░░░░░░░` (20% Stage 0 + 41.60% accepted Wave 1)
+**64.85%** `█████████████░░░░░░░` (20% Stage 0 + 44.85% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **16 / 23 accepted** — C03 is next (65% overall)
+- Stage 1 Wave 1: **17 / 23 accepted** — A10 is next (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -34,7 +34,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 14 | C01 | Generated List View | Existing | Hardened | 3 | COMPLETED | Metadata-driven columns; search and filters/sort are limited to Host-readable fields; stable empty/loading/error and authorization-denial states; Host keyset paging. Localized all list-specific first-party copy and replaced raw technical query errors with catalog-backed user messages. Extension Studio widget suite **22/22** including Host scope/paging, denied-cache hiding, empty state and phone viewport; localization gate and its six negative/positive tests pass. [Acceptance evidence](C01_GENERATED_LIST_ACCEPTANCE.md); checkpoint `PENDING_COMMIT`. |
 | 15 | C02 | Generated Form View | Existing | Hardened | 3 | COMPLETED | Generated forms follow configured DocType field order/types, apply defaults/constraints, show field permissions, validate values and relationships, preserve hidden values on partial updates, and save local provisional records durably. Replaced first-party form notice, control, constraint-summary and save-failure copy with catalog-backed English messages; payload validation and unknown persistence failures show stable localized guidance. Extension Studio widget suite **22/22** (typed fields/tables, defaults/precision, Host permissions, offline queue, partial-edit preservation, phone viewport); localization gate passes. [Acceptance evidence](C02_GENERATED_FORM_ACCEPTANCE.md); checkpoint `PENDING_COMMIT`. |
 | 16 | A07 | Child / Table DocTypes | Missing | Newly Implemented | 5 | COMPLETED | Core 70/70; ExtensionStore 35/35; Extension Studio 23/23 including child-schema authoring/package export; isolated PostgreSQL 17.11 Host integration 107/107 covering defaults, precision rejection, parent tombstones, exact-scope child references and delete restriction. [Acceptance evidence](A07_CHILD_DOCTYPE_ACCEPTANCE.md); architecture [ADR-011](../decisions/ADR-011_EMBEDDED_CHILD_DOCTYPES.md); checkpoint `5ec4837`. |
-| 17 | C03 | Editable child-row Grid View | Missing | Verifying | 5 | IN_PROGRESS | Existing typed-table JSON editor reviewed. Implementing an editable typed child-row grid with row add/edit/remove/reorder and parent-level validation/save; acceptance remains provisional. |
+| 17 | C03 | Editable child-row Grid View | Missing | Newly Implemented | 5 | COMPLETED | Extension Studio suite 24/24; targeted queue restart 1/1; targeted analysis clean and localization gate passes. Tests cover row add/edit/remove/reorder, required and decimal precision validation, atomic parent write/queued payload, and restart recovery. [Acceptance evidence](C03_EDITABLE_CHILD_GRID_ACCEPTANCE.md); checkpoint `b796ab8`. |
 | 18 | A10 | Safe document naming and numbering series | Missing | Pending | 3 | NOT_STARTED | — |
 | 19 | K06 | Governed business operations engine | Missing | Pending | 8 | NOT_STARTED | — |
 | 20 | B04 | Draft / Submit / Cancel / Amend lifecycle | Missing | Pending | 7 | NOT_STARTED | — |
@@ -46,9 +46,9 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: C03 — implement and verify editable child-row Grid View using the accepted A07 embedded child schema and parent-level authorization/lifecycle contract.
-- Last successfully completed capability: A07 — Child / Table DocTypes.
-- Next task: C03 — inspect existing table rendering and complete the declarative child-row editing flow.
+- Current task: A10 — inspect and verify safe document naming and numbering series; implement only demonstrated gaps.
+- Last successfully completed capability: C03 — Editable child-row Grid View.
+- Next task: A10 — review metadata naming, numbering allocation, and offline/Host retry behavior.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
@@ -97,3 +97,4 @@ ative_english_messages.dart`; stable IDs and user-entered business values remain
 - A07 architecture checkpoint: `table` values are currently bounded but untyped JSON scalar maps. Before A07 implementation, the plan fixes a nested declarative child schema in one parent table field, rows embedded and ordered inside the parent record, inherited parent scope/authorization/lifecycle, same-scope child references, no nested tables, and no independent child records or commands. This aligns the later K06 generic operation path and ADR-010's parent-owned status with atomic recovery. No A07 implementation or acceptance is claimed yet.
 - A07 accepted: implemented the ADR-011 embedded child schema across Core, SQLite, Studio package authoring/export, and PostgreSQL Host validation/reference restriction. Core 70/70, ExtensionStore 35/35, Extension Studio 23/23, PostgreSQL Host extension integration 107/107, targeted analysis clean, and localization gate plus six tests passed. Evidence: [A07_CHILD_DOCTYPE_ACCEPTANCE.md](A07_CHILD_DOCTYPE_ACCEPTANCE.md). Wave 1 is now **16/23 accepted**; weighted overall progress is **61.60%**; C03 is next.
 - C03 implementation started: typed child tables now have an in-progress editable grid path with stable row keys and localized row actions; legacy untyped tables retain their JSON editor. Acceptance and weighted progress remain unchanged while reference editing, validation, focused UI checks, and parent queue/recovery evidence are completed.
+- C03 accepted: generated typed child grids support row add/edit/remove/reorder with per-cell constraints, and invalid rows block save. Parent records and durable queued commands retain the exact ordered child rows across restart. Extension Studio suite **24/24**, focused queue restart **1/1**, targeted analysis clean, and localization gate pass. One unrelated queue subprocess-recovery test in the broader queue file continues to fail before its body on a Dart FFI compiler transformer exit 252; the specific child-row persistence/restart acceptance passes. [Evidence](C03_EDITABLE_CHILD_GRID_ACCEPTANCE.md); checkpoint `b796ab8`. Wave 1 is now **17/23 accepted**, weighted overall progress **64.85%**, and A10 is next.
