@@ -549,7 +549,6 @@ class DurableCommandHost {
               AND doc_type = @doctype
               AND record_id = @record
               AND deleted_at IS NULL
-            FOR SHARE
           '''),
               parameters: {
                 'tenant': command.tenantId,
