@@ -1404,6 +1404,7 @@ Future<void> main() async {
       token: primaryToken,
       body: staleRecord.envelope.original,
     );
+    stderr.writeln('DEBUG: stale-write response ${stale.status} ${stale.body}');
     expect(
       stale.status == 409 &&
           stale.body['receipt']['reasonCode'] == 'REVISION_CONFLICT' &&
