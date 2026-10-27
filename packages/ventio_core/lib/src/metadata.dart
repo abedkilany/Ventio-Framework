@@ -13,6 +13,8 @@ class FieldDefinition {
   final num? minValue;
   final num? maxValue;
   final List<String> enumValues;
+  final Map<String, String> enumLabels;
+  final Map<String, String> enumLabelKeys;
   final String? referenceTo;
 
   const FieldDefinition(
@@ -28,6 +30,8 @@ class FieldDefinition {
       this.minValue,
       this.maxValue,
       required this.enumValues,
+      this.enumLabels = const {},
+      this.enumLabelKeys = const {},
       required this.referenceTo});
 
   factory FieldDefinition.fromJson(Map<String, dynamic> json) {
@@ -95,6 +99,8 @@ class FieldDefinition {
     final options = json['enumValues'] == null
         ? <String>[]
         : strings(requireList(json, 'enumValues'), 'enumValues');
+    final enumLabels = <String, String>{};
+    final enumLabelKeys = <String, String>{};
     final referenceTo = optionalString(json, 'referenceTo');
     if (type == 'enum') {
       if (options.isEmpty)
@@ -109,6 +115,18 @@ class FieldDefinition {
         final item = requireMap(label, 'enumLabels[]');
         requireString(item, 'label');
         requireString(item, 'labelKey');
+      }
+      for (final entry in labels.entries) {
+        final item = requireMap(entry.value, 'enumLabels[]');
+        enumLabels[entry.key] = requireString(item, 'label');
+        final key = requireString(item, 'labelKey');
+        if (!_messageKey.hasMatch(key)) {
+          throw const ContractError(
+            'INVALID_FIELD',
+            'Enum label keys must be namespaced message keys',
+          );
+        }
+        enumLabelKeys[entry.key] = key;
       }
     }
     if (type == 'reference' && (referenceTo == null || referenceTo.isEmpty)) {
@@ -147,6 +165,8 @@ class FieldDefinition {
         minValue: minValue as num?,
         maxValue: maxValue as num?,
         enumValues: List.unmodifiable(options),
+        enumLabels: Map.unmodifiable(enumLabels),
+        enumLabelKeys: Map.unmodifiable(enumLabelKeys),
         referenceTo: referenceTo);
   }
 

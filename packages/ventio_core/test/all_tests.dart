@@ -963,6 +963,18 @@ void main() {
             'Maintenance Requests',
         'Fallback failed');
   });
+  test('Enum metadata preserves stable label keys and English fallbacks', () {
+    final json = loadJsonFile('$root/examples/maintenance_doctype.json');
+    final definition = DocTypeDefinition.fromJson(json);
+    final status =
+        definition.fields.singleWhere((field) => field.name == 'status');
+    check(
+      status.enumLabels['new'] == 'New' &&
+          status.enumLabelKeys['new'] == 'maintenance.request.status.new',
+      'Enum display label metadata was not preserved',
+    );
+    check(status.enumValues.contains('new'), 'Stable enum ID changed');
+  });
   test('English catalog supports interpolation', () {
     check(
         fresh().english.text('core.error.validation_required_field',
@@ -975,6 +987,55 @@ void main() {
     en.registerCatalog({'demo.screen.title': 'Title'});
     checkThrows(() => en.registerCatalog({'demo.screen.title': 'Other'}),
         'Duplicate allowed');
+  });
+  test('Optional display catalogs preserve English fallbacks and placeholders',
+      () {
+    final catalog = EnglishCatalog()
+      ..registerCatalog({'demo.message.greeting': 'Hello {name}'})
+      ..registerFallback('extension.demo.item.label', 'Inventory item');
+    catalog.registerTranslationCatalog('en-XA', {
+      'demo.message.greeting': '[Hëllö {name}]',
+      'extension.demo.item.label': '[Ínvëntöry ítëm]',
+    });
+    check(
+      catalog.text('demo.message.greeting', locale: 'en-XA', params: {
+            'name': 'Sam',
+          }) ==
+          '[Hëllö Sam]',
+      'Pseudo-localized message or interpolation failed',
+    );
+    check(
+      catalog.text('demo.message.greeting', params: {'name': 'Sam'}) ==
+          'Hello Sam',
+      'English was not retained as the default',
+    );
+    check(
+      catalog.text('demo.message.greeting', locale: 'fr') == 'Hello {name}',
+      'Missing locale did not fall back to English',
+    );
+    catalog.removeTranslationCatalog('en-XA');
+    check(
+      catalog.text('extension.demo.item.label', locale: 'en-XA') ==
+          'Inventory item',
+      'Removing the optional catalog did not restore English',
+    );
+  });
+  test('Optional display catalogs reject unknown keys and changed placeholders',
+      () {
+    final catalog = EnglishCatalog()
+      ..registerCatalog({'demo.message.greeting': 'Hello {name}'});
+    checkThrows(
+      () => catalog.registerTranslationCatalog('en-XA', {
+        'other.module.label': 'Unexpected',
+      }),
+      'Unknown translation key was accepted',
+    );
+    checkThrows(
+      () => catalog.registerTranslationCatalog('en-XA', {
+        'demo.message.greeting': 'Hello {person}',
+      }),
+      'Changed interpolation placeholder was accepted',
+    );
   });
   test('Module manifest parses V1.2 declarations', () {
     final manifest = ModuleManifest.fromJson(

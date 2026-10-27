@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ventio_core/ventio_core.dart';
 
+import 'app_localization.dart';
 import 'command_id.dart';
 import 'extension_store.dart';
 import 'host_credentials.dart';
@@ -3528,7 +3529,10 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   @override
   Widget build(BuildContext context) {
     final metadata = widget.metadata;
-    final title = _definition.pageTitle;
+    final title = context.extensionMetadataText(
+      _definition.pageTitleKey,
+      _definition.pageTitle,
+    );
     final canRead = _definition.operations.contains('read');
     final canCreate =
         _definition.operations.contains('create') &&
@@ -3663,7 +3667,12 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                           for (final field in readableFields)
                             DropdownMenuItem<String?>(
                               value: field.name,
-                              child: Text(field.label),
+                              child: Text(
+                                context.extensionMetadataText(
+                                  field.labelKey,
+                                  field.label,
+                                ),
+                              ),
                             ),
                         ],
                         onChanged: (value) {
@@ -3701,7 +3710,12 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                           for (final field in readableFields)
                             DropdownMenuItem<String?>(
                               value: field.name,
-                              child: Text(field.label),
+                              child: Text(
+                                context.extensionMetadataText(
+                                  field.labelKey,
+                                  field.label,
+                                ),
+                              ),
                             ),
                         ],
                         onChanged: (value) {
@@ -4068,8 +4082,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       appBar: AppBar(
         title: Text(
           editing
-              ? 'Edit ${widget.definition.label}'
-              : 'New ${widget.definition.label}',
+              ? 'Edit ${context.extensionMetadataText(widget.definition.labelKey, widget.definition.label)}'
+              : 'New ${context.extensionMetadataText(widget.definition.labelKey, widget.definition.label)}',
         ),
       ),
       body: Center(
@@ -4134,7 +4148,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     if (field.type == 'boolean') {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text(field.label),
+        title: Text(context.extensionMetadataText(field.labelKey, field.label)),
         subtitle: Text(field.required ? 'Required' : 'Optional'),
         value: _booleans[field.name] ?? false,
         onChanged: widget.previewOnly || !editable
@@ -4147,7 +4161,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         initialValue: _selections[field.name],
         isExpanded: true,
         decoration: InputDecoration(
-          labelText: field.label,
+          labelText: context.extensionMetadataText(field.labelKey, field.label),
           border: const OutlineInputBorder(),
         ),
         items: [
@@ -4159,14 +4173,14 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           for (final value in field.enumValues)
             DropdownMenuItem<String?>(
               value: value,
-              child: Text(_enumLabel(field, value)),
+              child: Text(_enumLabel(context, field, value)),
             ),
         ],
         onChanged: widget.previewOnly || !editable
             ? null
             : (value) => setState(() => _selections[field.name] = value),
         validator: (value) => field.required && value == null
-            ? 'Select ${field.label.toLowerCase()}.'
+            ? 'Select ${context.extensionMetadataText(field.labelKey, field.label).toLowerCase()}.'
             : null,
       );
     }
@@ -4176,7 +4190,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         initialValue: _selections[field.name],
         isExpanded: true,
         decoration: InputDecoration(
-          labelText: field.label,
+          labelText: context.extensionMetadataText(field.labelKey, field.label),
           helperText: 'Related ${field.referenceTo} in the current local scope',
           border: const OutlineInputBorder(),
         ),
@@ -4219,7 +4233,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       maxLength: field.type == 'text' ? field.maxLength : null,
       maxLines: field.type == 'text' && (field.maxLength ?? 0) > 500 ? 4 : 1,
       decoration: InputDecoration(
-        labelText: field.label,
+        labelText: context.extensionMetadataText(field.labelKey, field.label),
         helperText: [
           field.type,
           field.required ? 'required' : 'optional',
@@ -4231,7 +4245,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       validator: (value) {
         final raw = value?.trim() ?? '';
         if (editable && field.required && raw.isEmpty) {
-          return 'Enter ${field.label.toLowerCase()}.';
+          return 'Enter ${context.extensionMetadataText(field.labelKey, field.label).toLowerCase()}.';
         }
         if (raw.isEmpty) return null;
         if (field.type == 'text') {
@@ -4614,7 +4628,11 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     final record = _record;
     final conflicted = record.authorityState == 'CONFLICT';
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.definition.label} details')),
+      appBar: AppBar(
+        title: Text(
+          '${context.extensionMetadataText(widget.definition.labelKey, widget.definition.label)} details',
+        ),
+      ),
       floatingActionButton:
           !conflicted &&
               widget.definition.operations.contains('update') &&
@@ -4716,12 +4734,19 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                     children: [
                       for (final field in _detailFields) ...[
                         Text(
-                          field.label,
+                          context.extensionMetadataText(
+                            field.labelKey,
+                            field.label,
+                          ),
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                         const SizedBox(height: 4),
                         SelectableText(
-                          _displayValue(field, record.values[field.name]),
+                          _displayValue(
+                            context,
+                            field,
+                            record.values[field.name],
+                          ),
                         ),
                         const Divider(height: 24),
                       ],
@@ -4903,15 +4928,18 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          field.label,
+                          context.extensionMetadataText(
+                            field.labelKey,
+                            field.label,
+                          ),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Local · ${_displayValue(field, widget.record.values[field.name])}',
+                          'Local · ${_displayValue(context, field, widget.record.values[field.name])}',
                         ),
                         Text(
-                          'Host · ${_displayValue(field, hostValues[field.name])}',
+                          'Host · ${_displayValue(context, field, hostValues[field.name])}',
                         ),
                         const SizedBox(height: 8),
                         Wrap(
@@ -5367,7 +5395,7 @@ class _RecordCard extends StatelessWidget {
     final summary = (primary == null ? columns : columns.skip(1)).take(3).map((
       field,
     ) {
-      return '${field.label}: ${_displayValue(field, record.values[field.name])}';
+      return '${context.extensionMetadataText(field.labelKey, field.label)}: ${_displayValue(context, field, record.values[field.name])}';
     }).toList();
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -5377,7 +5405,7 @@ class _RecordCard extends StatelessWidget {
         title: Text(
           primary == null
               ? 'Record ${record.recordId}'
-              : _displayValue(primary, record.values[primary.name]),
+              : _displayValue(context, primary, record.values[primary.name]),
         ),
         subtitle: Text(
           [
@@ -5510,22 +5538,32 @@ String? _docTypeIdentifierError(String? value) => _identifierError(
   'Use an identifier such as Asset or AssetAssignment.',
 );
 
-String _enumLabel(FieldDefinition field, String value) {
+String _enumLabel(BuildContext context, FieldDefinition field, String value) {
   final raw = field.enumValues;
   if (!raw.contains(value)) return value;
-  return value
-      .replaceAll('_', ' ')
-      .split(' ')
-      .map((part) {
-        if (part.isEmpty) return part;
-        return '${part[0].toUpperCase()}${part.substring(1)}';
-      })
-      .join(' ');
+  final fallback =
+      field.enumLabels[value] ??
+      value
+          .replaceAll('_', ' ')
+          .split(' ')
+          .map((part) {
+            if (part.isEmpty) return part;
+            return '${part[0].toUpperCase()}${part.substring(1)}';
+          })
+          .join(' ');
+  final key =
+      field.enumLabelKeys[value] ??
+      '${field.labelKey.substring(0, field.labelKey.lastIndexOf('.label'))}.enum.$value';
+  return context.extensionMetadataText(key, fallback);
 }
 
-String _displayValue(FieldDefinition field, Object? value) {
+String _displayValue(
+  BuildContext context,
+  FieldDefinition field,
+  Object? value,
+) {
   if (value == null || value == '') return '—';
-  if (field.type == 'enum') return _enumLabel(field, value.toString());
+  if (field.type == 'enum') return _enumLabel(context, field, value.toString());
   return value.toString();
 }
 
