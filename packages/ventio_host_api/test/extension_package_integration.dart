@@ -1230,14 +1230,26 @@ Future<void> main() async {
     );
     final nextPageResult =
         nextPage.body['recordResult'] as Map<String, dynamic>;
+    final finalPage = await queryRecords(
+      primaryToken,
+      search: 'item',
+      offset: 2,
+      limit: 1,
+    );
+    final finalPageResult =
+        finalPage.body['recordResult'] as Map<String, dynamic>;
     expect(
       firstPage.status == 200 &&
           firstPageResult['hasMore'] == true &&
           (firstPageResult['records'] as List).single['recordId'] ==
               'registry-item-1' &&
           nextPage.status == 200 &&
-          nextPageResult['hasMore'] == false &&
+          nextPageResult['hasMore'] == true &&
           (nextPageResult['records'] as List).single['recordId'] ==
+              'registry-item-submitted' &&
+          finalPage.status == 200 &&
+          finalPageResult['hasMore'] == false &&
+          (finalPageResult['records'] as List).single['recordId'] ==
               'registry-item-3',
       'Host dynamic record queries apply bounded ordering and offset paging',
     );
