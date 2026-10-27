@@ -106,6 +106,7 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
   Object? queryError;
   String? queriedCompany;
   String? queriedBranch;
+  String? queriedCursor;
 
   @override
   Future<HostExtensionRecordPage> queryRecords({
@@ -121,11 +122,13 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
     String filterContains = '',
     String? sortField,
     bool descending = false,
+    String? cursor,
     int offset = 0,
     int limit = 50,
   }) async {
     queriedCompany = companyId;
     queriedBranch = branchId;
+    queriedCursor = cursor;
     final error = queryError;
     if (error != null) throw error;
     return page;
@@ -1319,7 +1322,8 @@ void main() {
       credentials: vault,
       page: HostExtensionRecordPage(
         packageSha256: digest,
-        hasMore: false,
+        hasMore: true,
+        nextCursor: 'host-record-page-2',
         records: [
           HostExtensionRecord(
             recordId: 'host-asset-1',
@@ -1352,6 +1356,10 @@ void main() {
     expect(find.text('Host record'), findsOneWidget);
     expect(fakeClient.queriedCompany, profile.companyId);
     expect(fakeClient.queriedBranch, profile.branchId);
+    expect(find.text('Load more Host records'), findsOneWidget);
+    await tester.tap(find.text('Load more Host records'));
+    await tester.pumpAndSettle();
+    expect(fakeClient.queriedCursor, 'host-record-page-2');
     final imported = await store.getRecord(
       moduleId: moduleId,
       docTypeName: 'Asset',

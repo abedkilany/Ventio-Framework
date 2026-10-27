@@ -86,6 +86,7 @@ class HostExtensionRecordPage {
     required Iterable<HostExtensionRecord> records,
     required this.packageSha256,
     required this.hasMore,
+    this.nextCursor,
     Iterable<String>? readableFields,
     Iterable<String>? writableFields,
     Iterable<String>? creatableFields,
@@ -103,6 +104,7 @@ class HostExtensionRecordPage {
   final List<HostExtensionRecord> records;
   final String packageSha256;
   final bool hasMore;
+  final String? nextCursor;
   final Set<String>? readableFields;
   final Set<String>? writableFields;
   final Set<String>? creatableFields;
@@ -576,16 +578,20 @@ class HostExtensionPackageClient {
     String filterContains = '',
     String? sortField,
     bool descending = false,
+    String? cursor,
     int offset = 0,
     int limit = 50,
   }) async {
     if (search.length > 256 ||
         (recordId != null && (recordId.isEmpty || recordId.length > 128)) ||
         filterContains.length > 256 ||
+        (cursor != null && (cursor.isEmpty || cursor.length > 2048)) ||
         (filterField == null && filterContains.isNotEmpty) ||
         filters.length > 10 ||
+        (recordId != null && cursor != null) ||
         offset < 0 ||
         offset > 1000000 ||
+        (cursor != null && offset != 0) ||
         limit < 1 ||
         limit > 50 ||
         (recordId != null &&
@@ -612,6 +618,7 @@ class HostExtensionPackageClient {
       'offset': offset,
       'limit': limit,
     };
+    if (cursor != null) query['cursor'] = cursor;
     if (recordId != null) query['recordId'] = recordId;
     final response = await _request(
       'POST',
@@ -636,8 +643,14 @@ class HostExtensionPackageClient {
     }
     final rawRecords = result['records'];
     final packageSha256 = result['packageSha256'];
+    final nextCursor = result['nextCursor'];
     if (rawRecords is! List ||
         result['hasMore'] is! bool ||
+        (nextCursor != null &&
+            (nextCursor is! String ||
+                nextCursor.isEmpty ||
+                nextCursor.length > 2048 ||
+                !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(nextCursor))) ||
         packageSha256 is! String ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(packageSha256)) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
@@ -695,6 +708,7 @@ class HostExtensionPackageClient {
       records: records,
       packageSha256: packageSha256,
       hasMore: result['hasMore'] as bool,
+      nextCursor: nextCursor as String?,
       readableFields: readableFields,
       writableFields: writableFields,
       creatableFields: creatableFields,

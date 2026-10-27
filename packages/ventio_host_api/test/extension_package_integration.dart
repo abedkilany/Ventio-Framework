@@ -441,6 +441,7 @@ Future<void> main() async {
       String filterContains = '',
       String? sortField = 'title',
       bool descending = false,
+      String? cursor,
       int offset = 0,
       int limit = 10,
     }) => send(
@@ -460,6 +461,7 @@ Future<void> main() async {
         'filterContains': filterContains,
         'sortField': sortField,
         'descending': descending,
+        if (cursor != null) 'cursor': cursor,
         'offset': offset,
         'limit': limit,
       },
@@ -1244,6 +1246,101 @@ Future<void> main() async {
           (finalPageResult['records'] as List).single['recordId'] ==
               'registry-item-3',
       'Host dynamic record queries apply bounded ordering and offset paging',
+    );
+    final cursorFixture = <String, String>{
+      '71000000-0000-4000-8000-000000000037': 'registry-cursor-alpha',
+      '71000000-0000-4000-8000-000000000038': 'registry-cursor-beta',
+    };
+    for (final entry in cursorFixture.entries) {
+      final record = ExtensionRecordCommand.create(
+        commandId: entry.key,
+        tenantId: tenant,
+        companyId: primaryCompany,
+        branchId: primaryBranch,
+        recordId: entry.value,
+        actorId: 'publisher',
+        deviceId: 'publisher-device',
+        moduleId: package.moduleId,
+        moduleVersion: package.version,
+        docType: 'Item',
+        schemaVersion: 1,
+        values: {
+          'title': entry.value.endsWith('alpha')
+              ? 'Cursor Alpha'
+              : 'Cursor Beta',
+        },
+      );
+      expect(
+        (await send(
+              api,
+              token: primaryToken,
+              body: record.envelope.original,
+            )).body['receipt']['status'] ==
+            'ACCEPTED',
+        'Host accepts a keyset pagination fixture',
+      );
+    }
+    final cursorFirst = await queryRecords(
+      primaryToken,
+      search: 'cursor',
+      sortField: 'title',
+      limit: 1,
+    );
+    final cursorFirstResult =
+        cursorFirst.body['recordResult'] as Map<String, dynamic>;
+    final insertBeforeCursor = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000039',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-cursor-00',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Cursor 00'},
+    );
+    final cursorInsertReply = await send(
+      api,
+      token: primaryToken,
+      body: insertBeforeCursor.envelope.original,
+    );
+    final cursorToken = cursorFirstResult['nextCursor'];
+    final cursorSecond = await queryRecords(
+      primaryToken,
+      search: 'cursor',
+      sortField: 'title',
+      cursor: cursorToken as String?,
+      limit: 1,
+    );
+    final cursorSecondResult =
+        cursorSecond.body['recordResult'] as Map<String, dynamic>;
+    expect(
+      cursorFirst.status == 200 &&
+          cursorFirstResult['hasMore'] == true &&
+          cursorToken is String &&
+          (cursorFirstResult['records'] as List).single['recordId'] ==
+              'registry-cursor-alpha' &&
+          cursorInsertReply.body['receipt']['status'] == 'ACCEPTED' &&
+          cursorSecond.status == 200 &&
+          cursorSecondResult['hasMore'] == false &&
+          cursorSecondResult['nextCursor'] == null &&
+          (cursorSecondResult['records'] as List).single['recordId'] ==
+              'registry-cursor-beta',
+      'Host keyset pagination remains stable when new rows arrive before the cursor',
+    );
+    final mismatchedCursor = await queryRecords(
+      primaryToken,
+      search: 'different query',
+      sortField: 'title',
+      cursor: cursorToken,
+      limit: 1,
+    );
+    expect(
+      mismatchedCursor.status == 400,
+      'Host rejects a cursor reused with different search parameters',
     );
     await observer.execute(
       pg.Sql.named('''

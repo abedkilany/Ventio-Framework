@@ -631,6 +631,7 @@ void main() {
                 'writableFields': [],
                 'creatableFields': ['title'],
                 'hasMore': true,
+                'nextCursor': 'c29tZS1jdXJzb3I',
                 'records': [
                   {
                     'recordId': 'item-1',
@@ -674,6 +675,7 @@ void main() {
       expect(body['offset'], 50);
       expect(body['limit'], 25);
       expect(page.hasMore, isTrue);
+      expect(page.nextCursor, 'c29tZS1jdXJzb3I');
       expect(page.packageSha256, List.filled(64, 'a').join());
       expect(page.readableFields, {'title'});
       expect(page.writableFields, isEmpty);
@@ -739,5 +741,53 @@ void main() {
     expect(body['limit'], 1);
     expect(page.records.single.recordId, 'record-1');
     expect(page.records.single.values['title'], 'Host value');
+  });
+
+  test('Record query sends a keyset continuation cursor', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final seen = Completer<Map<String, dynamic>>();
+    server.listen((request) async {
+      final raw = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+      seen.complete(Map<String, dynamic>.from(raw));
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            'recordResult': {
+              'status': 'RECORDS',
+              'packageSha256': List.filled(64, 'a').join(),
+              'hasMore': false,
+              'nextCursor': null,
+              'records': <Object>[],
+            },
+          }),
+        );
+      await request.response.close();
+    });
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(endpoint, token);
+    final page =
+        await HostExtensionPackageClient(
+          endpoint: endpoint,
+          credentials: vault,
+        ).queryRecords(
+          companyId: 'company-1',
+          branchId: 'branch-1',
+          moduleId: 'com.example.host_package',
+          version: '1.0.0',
+          docType: 'Item',
+          search: 'first',
+          sortField: 'title',
+          cursor: 'c29tZS1jdXJzb3I',
+          limit: 25,
+        );
+    final body = await seen.future;
+    expect(body['cursor'], 'c29tZS1jdXJzb3I');
+    expect(body['offset'], 0);
+    expect(page.nextCursor, isNull);
   });
 }

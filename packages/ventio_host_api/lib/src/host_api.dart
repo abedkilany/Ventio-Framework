@@ -589,6 +589,7 @@ class HostApi {
       'descending',
       'offset',
       'limit',
+      'cursor',
     };
     const requiredKeys = {
       'companyId',
@@ -670,7 +671,15 @@ class HostApi {
     if (descending is! bool) throw const _ApiError(400, 'INVALID_REQUEST');
     final offset = requireInt(json, 'offset');
     final limit = requireInt(json, 'limit', min: 1);
-    if (offset > 1000000 || limit > 50) {
+    final cursorValue = json['cursor'];
+    if (offset > 1000000 ||
+        limit > 50 ||
+        (cursorValue != null &&
+            (cursorValue is! String ||
+                cursorValue.isEmpty ||
+                cursorValue.length > 2048 ||
+                offset != 0 ||
+                recordIdValue != null))) {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
     if (recordIdValue != null &&
@@ -706,6 +715,7 @@ class HostApi {
       filterContains: filterContains,
       sortField: sortFieldValue as String?,
       descending: descending,
+      cursor: cursorValue as String?,
       offset: offset,
       limit: limit,
     );

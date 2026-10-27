@@ -2314,6 +2314,9 @@ class LocalExtensionStore {
     if (limit < 1 || limit > 1000) {
       throw ArgumentError.value(limit, 'limit', 'Must be between 1 and 1000');
     }
+    if (search.length > 256 || filterContains.length > 256) {
+      throw ArgumentError('Record search input exceeds the supported bound.');
+    }
     final definition = DocTypeDefinition.fromJson(
       await _loadActiveDocType(_database, moduleId, docTypeName),
     );

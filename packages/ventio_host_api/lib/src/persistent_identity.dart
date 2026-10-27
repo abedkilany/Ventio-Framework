@@ -22,6 +22,92 @@ Future<void> _configure(pg.Connection connection) async {
   await connection.execute("SET lock_timeout = '5s'");
 }
 
+String _recordQueryFingerprint({
+  required String tenantId,
+  required String companyId,
+  required String branchId,
+  required String moduleId,
+  required String version,
+  required String docType,
+  required String search,
+  required Map<String, dynamic> filters,
+  required String? filterField,
+  required String filterContains,
+  required String? sortField,
+  required bool descending,
+  required int limit,
+}) => sha256
+    .convert(
+      utf8.encode(
+        canonicalJson({
+          'tenantId': tenantId,
+          'companyId': companyId,
+          'branchId': branchId,
+          'moduleId': moduleId,
+          'version': version,
+          'docType': docType,
+          'search': search,
+          'filters': filters,
+          'filterField': filterField,
+          'filterContains': filterContains,
+          'sortField': sortField,
+          'descending': descending,
+          'limit': limit,
+        }),
+      ),
+    )
+    .toString();
+
+Map<String, dynamic> _decodeRecordQueryCursor(
+  String cursor,
+  String fingerprint,
+) {
+  try {
+    if (cursor.isEmpty ||
+        cursor.length > 2048 ||
+        !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cursor)) {
+      throw const FormatException();
+    }
+    final decoded = jsonDecode(utf8.decode(base64Url.decode(cursor))) as Map;
+    final value = Map<String, dynamic>.from(decoded);
+    if (value.keys.toSet().difference(const {
+          'version',
+          'fingerprint',
+          'sortValue',
+          'recordId',
+        }).isNotEmpty ||
+        value.length != 4 ||
+        value['version'] != 1 ||
+        value['fingerprint'] != fingerprint ||
+        (value['sortValue'] != null && value['sortValue'] is! String) ||
+        value['recordId'] is! String ||
+        (value['recordId'] as String).isEmpty ||
+        (value['recordId'] as String).length > 128) {
+      throw const FormatException();
+    }
+    return value;
+  } on Object {
+    throw const FormatException('Invalid or mismatched record cursor.');
+  }
+}
+
+String _encodeRecordQueryCursor({
+  required String fingerprint,
+  required String? sortValue,
+  required String recordId,
+}) => base64Url
+    .encode(
+      utf8.encode(
+        canonicalJson({
+          'version': 1,
+          'fingerprint': fingerprint,
+          'sortValue': sortValue,
+          'recordId': recordId,
+        }),
+      ),
+    )
+    .replaceAll('=', '');
+
 /// Resolves an opaque token from PostgreSQL on EVERY HTTP request. There is no
 /// in-memory permission cache or development-identity fallback on DB failure.
 class PersistentTokenAuthenticator implements PersistentHostAuthenticator {
@@ -171,6 +257,7 @@ class PostgresExtensionRecordQueryGateway
     required String filterContains,
     required String? sortField,
     required bool descending,
+    String? cursor,
     required int offset,
     required int limit,
   }) async {
@@ -187,6 +274,7 @@ class PostgresExtensionRecordQueryGateway
         offset > 1000000 ||
         limit < 1 ||
         limit > 50 ||
+        (cursor != null && (cursor.isEmpty || offset != 0)) ||
         filters.length > 10) {
       throw const FormatException('Invalid dynamic record query bounds.');
     }
@@ -310,6 +398,24 @@ class PostgresExtensionRecordQueryGateway
                 'reasonCode': 'PERMISSION_DENIED',
               };
             }
+            final queryFingerprint = _recordQueryFingerprint(
+              tenantId: principal.tenantId,
+              companyId: companyId,
+              branchId: branchId,
+              moduleId: moduleId,
+              version: version,
+              docType: docType,
+              search: search,
+              filters: filters,
+              filterField: filterField,
+              filterContains: filterContains,
+              sortField: sortField,
+              descending: descending,
+              limit: limit,
+            );
+            final cursorPosition = cursor == null
+                ? null
+                : _decodeRecordQueryCursor(cursor, queryFingerprint);
             final parameters = <String, Object?>{
               'tenant': principal.tenantId,
               'company': companyId,
@@ -363,7 +469,26 @@ class PostgresExtensionRecordQueryGateway
                 'CAST(@$fieldName AS text), CAST(@$valueName AS jsonb))',
               );
             }
-            final clause = conditions.isEmpty
+            if (cursorPosition != null) {
+              final cursorSortValue = cursorPosition['sortValue'] as String?;
+              parameters['cursorRecordId'] =
+                  cursorPosition['recordId'] as String;
+              if (cursorSortValue == null) {
+                conditions.add(
+                  "record_data ->> @sortField IS NULL AND record_id > @cursorRecordId",
+                );
+              } else {
+                parameters['cursorSortValue'] = cursorSortValue;
+                conditions.add('''
+                  ((record_data ->> @sortField IS NULL)
+                   OR (record_data ->> @sortField = @cursorSortValue
+                       AND record_id > @cursorRecordId)
+                   OR (NOT @descending AND record_data ->> @sortField > @cursorSortValue)
+                   OR (@descending AND record_data ->> @sortField < @cursorSortValue))
+                ''');
+              }
+            }
+            final queryClause = conditions.isEmpty
                 ? ''
                 : 'AND ${conditions.join(' AND ')}';
             // Bound serialized page bytes in PostgreSQL before transferring the
@@ -373,18 +498,19 @@ class PostgresExtensionRecordQueryGateway
             final rows = await tx.execute(
               pg.Sql.named('''
             WITH page AS (
-              SELECT record_id, revision, updated_at, record_data
+              SELECT record_id, revision, updated_at, record_data,
+                     record_data ->> @sortField AS sort_value
               FROM ventio_records
               WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
-                AND module_id=@module AND doc_type=@doctype $clause
+                AND module_id=@module AND doc_type=@doctype $queryClause
               ORDER BY
-                CASE WHEN @descending THEN record_data ->> @sortField END DESC,
-                CASE WHEN NOT @descending THEN record_data ->> @sortField END ASC,
+                CASE WHEN @descending THEN record_data ->> @sortField END DESC NULLS LAST,
+                CASE WHEN NOT @descending THEN record_data ->> @sortField END ASC NULLS LAST,
                 record_id ASC
               OFFSET @offset LIMIT @limit
             ), serialized_page AS (
               SELECT record_id, revision, updated_at,
-                record_data::text AS record_json
+                record_data::text AS record_json, sort_value
               FROM page
             ), bounded_page AS (
               SELECT *, sum(octet_length(record_json)) OVER () AS page_bytes
@@ -393,7 +519,8 @@ class PostgresExtensionRecordQueryGateway
             SELECT record_id, revision, updated_at::text AS updated_at,
               page_bytes,
               CASE WHEN page_bytes <= @maxRecordBytes
-                THEN record_json ELSE NULL END AS record_json
+                THEN record_json ELSE NULL END AS record_json,
+              sort_value
             FROM bounded_page
           '''),
               parameters: parameters,
@@ -405,6 +532,7 @@ class PostgresExtensionRecordQueryGateway
               };
             }
             final hasMore = rows.length > limit;
+            final pageRows = rows.take(limit).toList(growable: false);
             final records = rows
                 .take(limit)
                 .map((row) {
@@ -426,6 +554,13 @@ class PostgresExtensionRecordQueryGateway
                   };
                 })
                 .toList(growable: false);
+            final nextCursor = hasMore && pageRows.isNotEmpty
+                ? _encodeRecordQueryCursor(
+                    fingerprint: queryFingerprint,
+                    sortValue: pageRows.last[5] as String?,
+                    recordId: pageRows.last[0] as String,
+                  )
+                : null;
             return {
               'status': 'RECORDS',
               'packageSha256': sha256
@@ -436,6 +571,7 @@ class PostgresExtensionRecordQueryGateway
               'creatableFields': creatableFields.toList()..sort(),
               'records': records,
               'hasMore': hasMore,
+              'nextCursor': nextCursor,
             };
           },
           settings: pg.TransactionSettings(

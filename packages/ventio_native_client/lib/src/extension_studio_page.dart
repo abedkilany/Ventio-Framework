@@ -3519,6 +3519,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   bool _ascending = true;
   int _loadGeneration = 0;
   int _hostOffset = 0;
+  String? _hostCursor;
   bool _hostHasMore = false;
   bool _hostQuerySucceeded = false;
   bool _hostAccessDenied = false;
@@ -3566,6 +3567,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     if (!_definition.operations.contains('read')) return;
     final generation = ++_loadGeneration;
     _hostOffset = 0;
+    _hostCursor = null;
     _hostHasMore = false;
     setState(() {
       _loading = true;
@@ -3636,7 +3638,11 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       _hostWarning = null;
     });
     try {
-      await _queryHostRecords(offset: _hostOffset, generation: generation);
+      await _queryHostRecords(
+        cursor: _hostCursor,
+        offset: _hostCursor == null ? _hostOffset : 0,
+        generation: generation,
+      );
       final records = await widget.store.listRecords(
         moduleId: widget.moduleId,
         docTypeName: _definition.name,
@@ -3694,7 +3700,8 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   }
 
   Future<void> _queryHostRecords({
-    required int offset,
+    int offset = 0,
+    String? cursor,
     required int generation,
   }) async {
     final profile = widget.hostProfile;
@@ -3732,6 +3739,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       filterContains: _filterController.text,
       sortField: _sortField,
       descending: !_ascending,
+      cursor: cursor,
       offset: offset,
       limit: 50,
     );
@@ -3814,6 +3822,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     _hostWarning = null;
     _hostHasMore = page.hasMore;
     _hostOffset = offset + page.records.length;
+    _hostCursor = page.nextCursor;
     _hostQuerySucceeded = true;
   }
 

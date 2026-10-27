@@ -17,6 +17,7 @@ abstract interface class ExtensionRecordQueryGateway {
     required String filterContains,
     required String? sortField,
     required bool descending,
+    String? cursor,
     required int offset,
     required int limit,
   });
