@@ -462,6 +462,57 @@ class DocTypeReferenceValue {
 
 final RegExp _messageKey = RegExp(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$');
 
+/// Bounded declarative configuration for a Host-assigned official number.
+/// Number allocation is a governed Host effect, never extension code.
+class DocumentNamingSeries {
+  static final RegExp _idPattern = RegExp(r'^[a-z][a-z0-9_-]{0,63}$');
+  static final RegExp _prefixPattern = RegExp(r'^[A-Z0-9._/-]{0,24}$');
+
+  const DocumentNamingSeries({
+    required this.seriesId,
+    required this.field,
+    required this.prefix,
+    required this.padding,
+  });
+
+  final String seriesId;
+  final String field;
+  final String prefix;
+  final int padding;
+
+  factory DocumentNamingSeries.fromJson(Map<String, dynamic> json) {
+    const keys = {'seriesId', 'field', 'prefix', 'padding'};
+    final seriesId = requireString(json, 'seriesId');
+    final field = requireString(json, 'field');
+    final prefix = requireString(json, 'prefix');
+    final padding = requireInt(json, 'padding', min: 1);
+    if (json.keys.toSet().difference(keys).isNotEmpty ||
+        keys.difference(json.keys.toSet()).isNotEmpty ||
+        !_idPattern.hasMatch(seriesId) ||
+        !_docFieldIdentifier.hasMatch(field) ||
+        !_prefixPattern.hasMatch(prefix) ||
+        padding > 12) {
+      throw const ContractError(
+        'INVALID_NAMING_SERIES',
+        'Naming series must use a stable ID, known field name, literal safe prefix, and padding from one to twelve.',
+      );
+    }
+    return DocumentNamingSeries(
+      seriesId: seriesId,
+      field: field,
+      prefix: prefix,
+      padding: padding,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'seriesId': seriesId,
+        'field': field,
+        'prefix': prefix,
+        'padding': padding,
+      };
+}
+
 class DocTypeDefinition {
   final String name;
   final String moduleId;
@@ -480,6 +531,7 @@ class DocTypeDefinition {
   final String pageIcon;
   final int pageOrder;
   final List<DocTypeMigration> migrations;
+  final DocumentNamingSeries? namingSeries;
 
   const DocTypeDefinition(
       {required this.name,
@@ -498,7 +550,8 @@ class DocTypeDefinition {
       String? pageTitleKey,
       this.pageIcon = 'list',
       this.pageOrder = 0,
-      this.migrations = const []})
+      this.migrations = const [],
+      this.namingSeries})
       : pageTitle = pageTitle ?? label,
         pageTitleKey = pageTitleKey ?? labelKey;
 
@@ -521,6 +574,15 @@ class DocTypeDefinition {
     final fields = rawFields
         .map((field) => FieldDefinition.fromJson(requireMap(field, 'fields[]')))
         .toList();
+    final kind = requireString(json, 'kind');
+    if (!['operational', 'sensitive'].contains(kind)) {
+      throw const ContractError('INVALID_DOCTYPE', 'Unknown DocType kind');
+    }
+    final namingSeries = json['naming'] == null
+        ? null
+        : DocumentNamingSeries.fromJson(
+            requireMap(json['naming'], 'naming'),
+          );
     final rawMigrations = json['migrations'];
     final migrations = rawMigrations == null
         ? const <DocTypeMigration>[]
@@ -544,6 +606,23 @@ class DocTypeDefinition {
         fields.map((field) => field.name).toSet().length != fields.length) {
       throw const ContractError(
           'INVALID_DOCTYPE', 'Fields must be unique and nonempty');
+    }
+    if (namingSeries != null) {
+      final targetFields =
+          fields.where((field) => field.name == namingSeries.field);
+      final target = targetFields.isEmpty ? null : targetFields.first;
+      if (kind != 'operational' ||
+          target == null ||
+          target.type != 'text' ||
+          !target.required ||
+          !target.readOnly ||
+          target.defaultValue != null ||
+          (target.maxLength != null && target.maxLength! < 42)) {
+        throw const ContractError(
+          'INVALID_NAMING_SERIES',
+          'A naming series requires an operational DocType and a required, read-only text field without a default and with room for a provisional local name.',
+        );
+      }
     }
     final operationsRaw = json['operations'];
     final operations = operationsRaw == null
@@ -570,10 +649,6 @@ class DocTypeDefinition {
       for (final operation in operations)
         operation: requireString(permissionsRaw, operation),
     };
-    final kind = requireString(json, 'kind');
-    if (!['operational', 'sensitive'].contains(kind)) {
-      throw const ContractError('INVALID_DOCTYPE', 'Unknown DocType kind');
-    }
     final labelKey = requireString(json, 'labelKey');
     if (!_messageKey.hasMatch(labelKey)) {
       throw const ContractError('INVALID_DOCTYPE', 'Invalid labelKey');
@@ -679,7 +754,8 @@ class DocTypeDefinition {
         pageTitleKey: pageTitleKey,
         pageIcon: pageIcon,
         pageOrder: pageOrder,
-        migrations: List.unmodifiable(migrations));
+        migrations: List.unmodifiable(migrations),
+        namingSeries: namingSeries);
   }
 
   List<String> validatePayload(

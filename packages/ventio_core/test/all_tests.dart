@@ -1300,6 +1300,58 @@ void main() {
       'Core accepted an invalid field identifier',
     );
   });
+  test('Document naming series metadata is bounded and protected', () {
+    final valid = loadJsonFile('$root/examples/maintenance_doctype.json');
+    (valid['fields'] as List).add({
+      'name': 'documentNumber',
+      'type': 'text',
+      'required': true,
+      'readOnly': true,
+      'maxLength': 64,
+      'label': 'Document Number',
+      'labelKey': 'maintenance.request.document_number',
+    });
+    valid['ui']['formFields'].add('documentNumber');
+    valid['ui']['listColumns'].add('documentNumber');
+    valid['naming'] = {
+      'seriesId': 'maintenance-request',
+      'field': 'documentNumber',
+      'prefix': 'MR-',
+      'padding': 6,
+    };
+    final definition = DocTypeDefinition.fromJson(valid);
+    check(
+      definition.namingSeries?.toJson().toString() ==
+          '{seriesId: maintenance-request, field: documentNumber, prefix: MR-, padding: 6}',
+      'A valid naming series was not retained as declarative metadata',
+    );
+
+    final invalidPrefix = loadJsonFile('$root/examples/maintenance_doctype.json')
+      ..['naming'] = {
+        'seriesId': 'maintenance-request',
+        'field': 'documentNumber',
+        'prefix': 'MR-{{sql}}',
+        'padding': 6,
+      };
+    (invalidPrefix['fields'] as List).add((valid['fields'] as List).last);
+    invalidPrefix['ui']['formFields'].add('documentNumber');
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidPrefix),
+      'A template or executable expression was accepted as a series prefix',
+    );
+
+    final writableField = loadJsonFile('$root/examples/maintenance_doctype.json')
+      ..['naming'] = valid['naming'];
+    (writableField['fields'] as List).add({
+      ...(valid['fields'] as List).last as Map<String, dynamic>,
+      'readOnly': false,
+    });
+    writableField['ui']['formFields'].add('documentNumber');
+    checkThrows(
+      () => DocTypeDefinition.fromJson(writableField),
+      'A client-writable field was accepted as the official document number',
+    );
+  });
   test('DocTypes default operations and can restrict their declared surface',
       () {
     final json = loadJsonFile('$root/examples/maintenance_doctype.json');
