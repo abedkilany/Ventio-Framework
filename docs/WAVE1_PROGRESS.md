@@ -52,7 +52,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest implementation checkpoint: `15cfd1c` — Host acceptance now also covers missing delete permission, submitted-document refusal, one-time journal/audit/outbox effects, tombstoned ID reservation, and local delete-intent restart recovery. PostgreSQL rerun is required for these cases.
+- Latest implementation checkpoint: pending the expanded PostgreSQL rerun. The delete authorization assertion now follows the Host API contract (HTTP 403 with `PERMISSION_DENIED`); its initial 200 expectation was a test error, not an implementation result. The fixture also keeps a separate live record for subsequent query/pagination cases after tombstoning `registry-item-2`.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -86,3 +86,4 @@ ative_english_messages.dart`; stable IDs and user-entered business values remain
 - Hardened cross-DocType inbound-reference matching so unrelated records with the same record ID cannot be skipped; Host analysis passes. Checkpoint: `a6be24f`.
 - PostgreSQL Host integration proved draft deletion commits a retained tombstone at revision 2. The initial query visibility check used an invalid single-record page size; fixed it to `limit=1`. Direct Runtime RLS query returns no deleted record. Checkpoint: `dd14bb4`; full Host API integration is rerunning.
 - Added remaining B01 acceptance cases for exact delete permission, submitted-document rejection, journal/audit/outbox idempotency, deleted-ID reservation, and durable local delete queue restart. The focused queue restart test passes 1/1; PostgreSQL integration must rerun against the expanded assertions. Checkpoint: `15cfd1c`.
+- The PostgreSQL integration reached the new authorization case and exposed an incorrect expected HTTP status in that assertion; corrected it to the Host's established `403 PERMISSION_DENIED` contract. Added a third live fixture record so tombstone visibility checks do not invalidate later exact-read and paging assertions. The full Host integration is rerunning; B01 remains IN_PROGRESS.

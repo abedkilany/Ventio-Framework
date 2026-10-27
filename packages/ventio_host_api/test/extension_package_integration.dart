@@ -47,7 +47,9 @@ Future<void> main() async {
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
   final runtimeConnection = await pg.Connection.openFromUrl(runtimeUrl);
   final observer = await pg.Connection.openFromUrl(databaseUrl);
+  stderr.writeln('SETUP: PostgreSQL connections opened');
   final temporary = await createPrivateTestDirectory('ventio-package-');
+  stderr.writeln('SETUP: private test directory protected');
   final authority = RecoveryAuthority(temporary.path + '/authority.json');
   final tenant =
       'extension-' + DateTime.now().toUtc().microsecondsSinceEpoch.toString();
@@ -58,6 +60,7 @@ Future<void> main() async {
   HostApi? api;
   try {
     await authority.resetForReenrollment(adminConnection, 'package-test-reset');
+    stderr.writeln('SETUP: recovery authority reset');
     final identityAdmin = IdentityAdministration(
       connection: adminConnection,
       tenantId: tenant,
@@ -83,11 +86,15 @@ Future<void> main() async {
       bool registerBranch = true,
     }) async {
       await identityAdmin.createUser(actor);
+      stderr.writeln('SETUP: user $actor created');
       if (registerBranch) await identityAdmin.registerBranch(company, branch);
+      stderr.writeln('SETUP: branch $branch registered');
       await identityAdmin.registerDevice(actor, device);
+      stderr.writeln('SETUP: device $device registered');
       for (final permission in permissions) {
         await identityAdmin.grant(actor, company, branch, permission);
       }
+      stderr.writeln('SETUP: permissions granted for $actor');
       final output = temporary.path + '/' + credential + '.json';
       await identityAdmin.provisionToFile(
         actorId: actor,
@@ -103,6 +110,7 @@ Future<void> main() async {
         ],
         outputPath: output,
       );
+      stderr.writeln('SETUP: credential provisioned for $actor');
       return (jsonDecode(await PrivateFiles.read(output)) as Map)['token']
           as String;
     }
@@ -706,7 +714,7 @@ Future<void> main() async {
       body: unauthorizedDelete.envelope.original,
     );
     expect(
-      unauthorizedDeleteReply.status == 200 &&
+      unauthorizedDeleteReply.status == 403 &&
           unauthorizedDeleteReply.body['receipt']['reasonCode'] ==
               'PERMISSION_DENIED',
       'A scoped identity without delete permission cannot delete a record',
@@ -793,6 +801,29 @@ Future<void> main() async {
           )).body['receipt']['reasonCode'] ==
           'RECORD_IN_USE',
       'Deletion refuses a record that has a live inbound reference',
+    );
+    final thirdRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000036',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-3',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Third item'},
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: thirdRecord.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'An additional live record remains available after a tombstone',
     );
     final deleteChild = ExtensionRecordCommand.delete(
       commandId: '71000000-0000-4000-8000-000000000030',
@@ -1160,7 +1191,7 @@ Future<void> main() async {
     );
     final exactRecord = await queryRecords(
       primaryToken,
-      recordId: 'registry-item-2',
+      recordId: 'registry-item-3',
       limit: 1,
       sortField: null,
     );
@@ -1171,12 +1202,12 @@ Future<void> main() async {
           exactResult['hasMore'] == false &&
           (exactResult['records'] as List).length == 1 &&
           (exactResult['records'] as List).single['recordId'] ==
-              'registry-item-2',
+              'registry-item-3',
       'Host can securely return one exact record for conflict review',
     );
     final invalidExactRecordQuery = await queryRecords(
       primaryToken,
-      recordId: 'registry-item-2',
+      recordId: 'registry-item-3',
       search: 'item',
       limit: 1,
     );
@@ -1207,7 +1238,7 @@ Future<void> main() async {
           nextPage.status == 200 &&
           nextPageResult['hasMore'] == false &&
           (nextPageResult['records'] as List).single['recordId'] ==
-              'registry-item-2',
+              'registry-item-3',
       'Host dynamic record queries apply bounded ordering and offset paging',
     );
     await observer.execute(
