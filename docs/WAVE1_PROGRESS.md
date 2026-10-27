@@ -6,7 +6,7 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 **0%** `░░░░░░░░░░░░░░░░░░░░` (0 / 100)
 
-- Stage 0 Localization Foundation: **0% accepted** — `IN_PROGRESS` (20% overall)
+- Stage 0 Localization Foundation: **0% accepted** — `IN_PROGRESS`, **3/7 implementation steps complete** (20% overall)
 - Stage 1 Wave 1: **0 / 23 accepted** — `NOT_STARTED` (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
@@ -46,15 +46,19 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: Stage 0 localization foundation — auditing and replacing hardcoded Flutter UI copy.
+- Current task: Stage 0 localization foundation — localize remaining Flutter UI copy and build the CI gate.
 - Last successfully completed capability: None.
 - Next task: Stage 0 localization foundation implementation and gate evidence.
 - Blockers: None. Plan source supplied by project owner; reviewed baseline ancestry verified.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: `1c7bfd7` — plan and initial dashboard committed and pushed.
+- Latest checkpoint commit: `ed8c570` — shared resolver foundation; committed and pushed.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
 
-- Initial authoritative execution scope and complexity weights recorded, committed, and pushed; Stage 0 implementation has started. No acceptance gate is yet claimed.
+- `EnglishCatalog` now retains English fallbacks, accepts validated optional catalogs, rejects unknown keys and mismatched placeholders, and supports safe removal.
+- Flutter now has a shared localization controller/scope, dynamic locale rebuilds, and direction selection. Generated extension labels and enum labels resolve through the same catalog; stable enum values remain unchanged.
+- Added pseudo-locale restore/rebuild/RTL tests and enum metadata coverage. Core analysis and all 65 Core harness checks passed; Flutter analysis, the focused localization tests, and all 19 Extension Studio tests passed.
+- Stage 0 checklist: (1) English-only built-in/default — complete; (2) reuse ADR-009/Core localization contracts — complete; (3) shared resolver fully wired — in progress; (4) replace all hardcoded UI messages — not started; (5) preserve stable IDs and business data — complete; (6) pseudo-locale rebuild/restore and RTL readiness — in progress; (7) automatic CI localization gate — not started. These implementation steps are not the Stage 0 acceptance gate; the gate remains unpassed.
+- No Wave 1 capability or final-extension acceptance is claimed.
