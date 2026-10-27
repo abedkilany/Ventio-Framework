@@ -119,6 +119,7 @@ Future<void> main() async {
         'extension.com_example_registry.item.read',
         'extension.com_example_registry.item.create',
         'extension.com_example_registry.item.update',
+        'extension.com_example_registry.item.delete',
       ],
     );
     final readerToken = await provision(
@@ -299,11 +300,12 @@ Future<void> main() async {
             'kind': 'operational',
             'label': 'Item',
             'labelKey': typeKey,
-            'operations': ['read', 'create', 'update'],
+            'operations': ['read', 'create', 'update', 'delete'],
             'permissions': {
               'read': '$typeKey.read',
               'create': '$typeKey.create',
               'update': '$typeKey.update',
+              'delete': '$typeKey.delete',
             },
             'fields': [
               {
@@ -668,6 +670,97 @@ Future<void> main() async {
           )).body['receipt']['status'] ==
           'ACCEPTED',
       'A second generic record is accepted under the same approved DocType',
+    );
+    final deleteChild = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000030',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-2',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final deleteReply = await send(
+      api,
+      token: primaryToken,
+      body: deleteChild.envelope.original,
+    );
+    expect(
+      deleteReply.status == 200 &&
+          deleteReply.body['receipt']['status'] == 'ACCEPTED' &&
+          deleteReply.body['receipt']['hostRevision'] == 2,
+      'Generic draft deletion commits as a versioned tombstone',
+    );
+    final tombstone = await observer.execute(
+      pg.Sql.named('''
+        SELECT revision, record_data->>'title' AS title, deleted_at
+        FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+          AND branch_id=@branch AND module_id=@module AND doc_type='Item'
+          AND record_id='registry-item-2'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+      },
+    );
+    expect(
+      tombstone.single.toColumnMap()['revision'] == 2 &&
+          tombstone.single.toColumnMap()['title'] == 'Second item' &&
+          tombstone.single.toColumnMap()['deleted_at'] != null,
+      'A tombstone retains identity and data while advancing its revision',
+    );
+    final deletedReadback = await queryRecords(
+      primaryToken,
+      recordId: 'registry-item-2',
+    );
+    expect(
+      deletedReadback.status == 200 &&
+          ((deletedReadback.body['recordResult']
+                      as Map<String, dynamic>)['records']
+                  as List)
+              .isEmpty,
+      'Deleted records are hidden from approved dynamic record queries',
+    );
+    final deleteRetry = await send(
+      api,
+      token: primaryToken,
+      body: deleteChild.envelope.original,
+    );
+    expect(
+      deleteRetry.body['receipt']['status'] == 'ACCEPTED' &&
+          deleteRetry.body['receipt']['scopeCursor'] ==
+              deleteReply.body['receipt']['scopeCursor'],
+      'An identical delete retry returns its saved receipt without another effect',
+    );
+    final deleteReferencedParent = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000031',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: deleteReferencedParent.envelope.original,
+          )).body['receipt']['reasonCode'] ==
+          'RECORD_IN_USE',
+      'Deletion refuses a record that has a live inbound reference',
     );
     final missingReference = ExtensionRecordCommand.create(
       commandId: '71000000-0000-4000-8000-000000000008',

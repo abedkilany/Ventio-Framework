@@ -274,7 +274,7 @@ BEGIN
       'ventio.extension_context_proof'] LOOP
     PERFORM set_config(expected_type, '', true);
   END LOOP;
-  IF p_type IS NULL OR p_type NOT IN ('extension.record.create','extension.record.update') OR
+  IF p_type IS NULL OR p_type NOT IN ('extension.record.create','extension.record.update','extension.record.delete') OR
       p_version IS DISTINCT FROM 1 OR
       p_module IS NULL OR p_module_version IS NULL OR p_doc_type IS NULL OR
       p_command IS NULL OR p_aggregate IS NULL OR
@@ -282,6 +282,10 @@ BEGIN
         (p_operation IS DISTINCT FROM 'create' OR p_expected_revision IS NOT NULL)) OR
       (p_type = 'extension.record.update' AND
         (p_operation IS DISTINCT FROM 'update' OR
+         p_expected_revision IS NULL OR p_expected_revision < 1 OR
+         p_expected_revision >= 2147483647)) OR
+      (p_type = 'extension.record.delete' AND
+        (p_operation IS DISTINCT FROM 'delete' OR
          p_expected_revision IS NULL OR p_expected_revision < 1 OR
          p_expected_revision >= 2147483647)) OR
       (p_operation = 'create' AND p_expected_revision IS NOT NULL) OR
@@ -323,7 +327,7 @@ BEGIN
       'reasonCode','EXTENSION_NOT_APPROVED');
   END IF;
   permission := doc_type->'permissions'->>p_operation;
-  IF p_operation='update' THEN
+  IF p_operation IN ('update','delete') THEN
     IF doc_type->'permissions'->>'read' IS NULL OR
         doc_type->'permissions'->>'read' NOT LIKE
           'extension.' || regexp_replace(p_module,'[^a-z0-9]+','_','g') || '.%' THEN
@@ -340,7 +344,7 @@ BEGIN
       SELECT FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
       WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
         AND item->>'permission'=permission
-    ) OR (p_operation='update' AND NOT EXISTS (
+    ) OR (p_operation IN ('update','delete') AND NOT EXISTS (
       SELECT FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
       WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
         AND item->>'permission'=doc_type->'permissions'->>'read'

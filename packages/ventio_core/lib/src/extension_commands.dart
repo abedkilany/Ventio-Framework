@@ -13,6 +13,7 @@ class ExtensionRecordCommand {
 
   static const createType = 'extension.record.create';
   static const updateType = 'extension.record.update';
+  static const deleteType = 'extension.record.delete';
   static const commandVersion = 1;
 
   final CommandEnvelope envelope;
@@ -20,7 +21,13 @@ class ExtensionRecordCommand {
   final String docType;
   final Map<String, dynamic> values;
 
-  String get operation => envelope.type == createType ? 'create' : 'update';
+  String get operation => switch (envelope.type) {
+        createType => 'create',
+        updateType => 'update',
+        deleteType => 'delete',
+        _ => throw const ContractError(
+            'UNKNOWN_COMMAND', 'Unknown record command.'),
+      };
 
   factory ExtensionRecordCommand.create({
     required String commandId,
@@ -88,6 +95,39 @@ class ExtensionRecordCommand {
         dependsOn: dependsOn,
       );
 
+  factory ExtensionRecordCommand.delete({
+    required String commandId,
+    required String tenantId,
+    required String companyId,
+    required String branchId,
+    required String recordId,
+    required int expectedRevision,
+    required String actorId,
+    required String deviceId,
+    required String moduleId,
+    required String moduleVersion,
+    required String docType,
+    required int schemaVersion,
+    List<String> dependsOn = const [],
+  }) =>
+      _build(
+        type: deleteType,
+        commandId: commandId,
+        tenantId: tenantId,
+        companyId: companyId,
+        branchId: branchId,
+        recordId: recordId,
+        expectedRevision: expectedRevision,
+        actorId: actorId,
+        deviceId: deviceId,
+        moduleId: moduleId,
+        moduleVersion: moduleVersion,
+        docType: docType,
+        schemaVersion: schemaVersion,
+        values: const {},
+        dependsOn: dependsOn,
+      );
+
   factory ExtensionRecordCommand.fromEnvelope(CommandEnvelope envelope) {
     if (envelope.typeVersion != commandVersion) {
       throw const ContractError(
@@ -98,6 +138,7 @@ class ExtensionRecordCommand {
     final operation = switch (envelope.type) {
       createType => 'create',
       updateType => 'update',
+      deleteType => 'delete',
       _ => throw const ContractError(
           'UNKNOWN_COMMAND',
           'Unsupported generic extension record command.',
@@ -105,11 +146,11 @@ class ExtensionRecordCommand {
     };
     final expectedRevision = envelope.expectedRevision;
     if ((operation == 'create' && expectedRevision != null) ||
-        (operation == 'update' &&
+        (operation != 'create' &&
             (expectedRevision == null || expectedRevision < 1))) {
       throw const ContractError(
         'INVALID_CONTRACT',
-        'Create commands have no expected revision; updates require a positive revision.',
+        'Create commands have no expected revision; updates and deletes require a positive revision.',
       );
     }
     final payload = envelope.payload;
@@ -126,6 +167,13 @@ class ExtensionRecordCommand {
     }
     final moduleId = requireString(payload, 'moduleId');
     final docType = requireString(payload, 'docType');
+    final values = requireMap(payload['values'], 'values');
+    if (operation == 'delete' && values.isNotEmpty) {
+      throw const ContractError(
+        'INVALID_CONTRACT',
+        'Delete commands cannot include business field values.',
+      );
+    }
     if (moduleId.length > 128 || !_moduleIdPattern.hasMatch(moduleId)) {
       throw const ContractError('INVALID_MODULE_ID', 'Invalid extension ID.');
     }
@@ -136,7 +184,7 @@ class ExtensionRecordCommand {
       envelope,
       moduleId,
       docType,
-      requireMap(payload['values'], 'values'),
+      values,
     );
   }
 

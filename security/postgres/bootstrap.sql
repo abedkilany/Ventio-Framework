@@ -406,7 +406,7 @@ BEGIN
   IF p_company IS DISTINCT FROM nullif(current_setting('ventio.company_id', true), '') OR
      p_branch IS DISTINCT FROM nullif(current_setting('ventio.branch_id', true), '') THEN RETURN false; END IF;
   command_type := current_setting('ventio.command_type', true);
-  IF command_type IN ('extension.record.create','extension.record.update','extension.record.query') THEN
+  IF command_type IN ('extension.record.create','extension.record.update','extension.record.delete','extension.record.query') THEN
     dynamic_operation := nullif(current_setting('ventio.operation',true),'');
     dynamic_module := nullif(current_setting('ventio.module_id',true),'');
     dynamic_version := nullif(current_setting('ventio.module_version',true),'');
@@ -414,6 +414,7 @@ BEGIN
     IF dynamic_module IS NULL OR dynamic_version IS NULL OR dynamic_name IS NULL OR
         (command_type='extension.record.create' AND dynamic_operation IS DISTINCT FROM 'create') OR
         (command_type='extension.record.update' AND dynamic_operation IS DISTINCT FROM 'update') OR
+        (command_type='extension.record.delete' AND dynamic_operation IS DISTINCT FROM 'delete') OR
         (command_type='extension.record.query' AND dynamic_operation IS DISTINCT FROM 'read') THEN
       RETURN false;
     END IF;
@@ -484,7 +485,7 @@ BEGIN
         AND nullif(current_setting('ventio.aggregate_id',true),'') IS NOT NULL;
     END IF;
     IF p_mode='record_update' THEN
-      RETURN dynamic_operation='update' AND can_create AND p_subject=dynamic_name;
+      RETURN dynamic_operation IN ('update','delete') AND can_create AND p_subject=dynamic_name;
     END IF;
     IF p_mode='journal_read' THEN RETURN can_create; END IF;
     IF p_mode IN ('journal_write','audit_write','outbox_write') THEN
@@ -543,7 +544,10 @@ DROP POLICY IF EXISTS runtime_select ON public.ventio_records;
 DROP POLICY IF EXISTS runtime_insert ON public.ventio_records;
 CREATE POLICY runtime_select ON public.ventio_records FOR SELECT TO ventio_runtime
   USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_read', doc_type)
-    AND module_id = current_setting('ventio.module_id',true));
+    AND module_id = current_setting('ventio.module_id',true)
+    AND (deleted_at IS NULL OR
+      (current_setting('ventio.operation',true)='delete'
+        AND record_id=current_setting('ventio.aggregate_id',true))));
 CREATE POLICY runtime_insert ON public.ventio_records FOR INSERT TO ventio_runtime
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_insert', doc_type)
     AND module_id = current_setting('ventio.module_id',true)
@@ -557,7 +561,10 @@ CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runti
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
     AND module_id = current_setting('ventio.module_id',true)
     AND record_id = current_setting('ventio.aggregate_id', true)
-    AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1);
+    AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1
+    AND ((current_setting('ventio.operation',true)='update' AND deleted_at IS NULL)
+      OR (current_setting('ventio.operation',true)='delete'
+        AND deleted_at IS NOT NULL AND document_status=0)));
 -- Reviewed schema migrations run only inside the fixed extension approval
 -- function. The owner is NOLOGIN; its record access is enabled only when that
 -- function is called by the restricted identity-administration role.
@@ -592,7 +599,7 @@ CREATE POLICY runtime_insert ON public.ventio_outbox FOR INSERT TO ventio_runtim
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'outbox_write', command_id));
 GRANT SELECT, INSERT ON public.ventio_records, public.ventio_command_journal,
   public.ventio_audit_entries, public.ventio_outbox TO ventio_runtime;
-GRANT UPDATE (revision, record_data, updated_at) ON public.ventio_records TO ventio_runtime;
+GRANT UPDATE (revision, record_data, updated_at, deleted_at) ON public.ventio_records TO ventio_runtime;
 GRANT UPDATE (receipt, scope_cursor) ON public.ventio_command_journal TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql

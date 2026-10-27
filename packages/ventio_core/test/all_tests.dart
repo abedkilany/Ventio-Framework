@@ -1038,6 +1038,26 @@ void main() {
       update.operation == 'update' && update.envelope.expectedRevision == 3,
       'Generic update command lost its optimistic revision',
     );
+    final deletion = ExtensionRecordCommand.delete(
+      commandId: uuid(904),
+      tenantId: 'tenant',
+      companyId: 'company',
+      branchId: 'branch',
+      recordId: 'asset-1',
+      expectedRevision: 3,
+      actorId: 'actor',
+      deviceId: 'device',
+      moduleId: 'com.example.assets',
+      moduleVersion: '0.1.0',
+      docType: 'Asset',
+      schemaVersion: 1,
+    );
+    check(
+      deletion.operation == 'delete' &&
+          deletion.envelope.expectedRevision == 3 &&
+          deletion.values.isEmpty,
+      'Generic delete command carries only its record identity and revision',
+    );
     checkThrows(
       () => ExtensionRecordCommand.update(
         commandId: uuid(903),
@@ -1178,9 +1198,10 @@ void main() {
       'read': 'maintenance.read',
       'delete': 'maintenance.delete',
     };
-    checkThrows(
-      () => DocTypeDefinition.fromJson(json),
-      'Unsupported operation was accepted',
+    final deletable = DocTypeDefinition.fromJson(json);
+    check(
+      deletable.operations.join(',') == 'read,delete',
+      'A declared safe-delete operation was not retained',
     );
 
     json['operations'] = ['read'];

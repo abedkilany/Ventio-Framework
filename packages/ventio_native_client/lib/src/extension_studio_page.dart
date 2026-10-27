@@ -4905,7 +4905,8 @@ Future<void> _reconcileQueuedRecords(
   for (final entry in entries.reversed) {
     final envelope = entry.envelope;
     if (envelope.type != ExtensionRecordCommand.createType &&
-        envelope.type != ExtensionRecordCommand.updateType) {
+        envelope.type != ExtensionRecordCommand.updateType &&
+        envelope.type != ExtensionRecordCommand.deleteType) {
       continue;
     }
     final command = ExtensionRecordCommand.fromEnvelope(envelope);
@@ -4921,6 +4922,7 @@ Future<void> _reconcileQueuedRecords(
         scope: scope,
         commandId: envelope.commandId,
         receipt: receipt,
+        operation: command.operation,
       );
     } else if (entry.isPending) {
       try {
@@ -4928,6 +4930,7 @@ Future<void> _reconcileQueuedRecords(
           recordId: envelope.aggregateId,
           scope: scope,
           commandId: envelope.commandId,
+          operation: command.operation,
         );
       } on ExtensionStoreException catch (error) {
         if (error.code != 'RECORD_SYNC_STATE_CHANGED') rethrow;
@@ -5135,6 +5138,83 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     if (mounted) Navigator.pop(context, true);
   }
 
+  Future<void> _deleteRecord() async {
+    if (_record.pendingCommandId != null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const VentioText('native.ui.delete_record'),
+        content: const VentioText('native.ui.confirm_delete_record'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const VentioText('native.ui.cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const VentioText('native.ui.delete_record'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      if (_record.hostRevision == null) {
+        await widget.store.deleteLocalRecord(
+          moduleId: widget.moduleId,
+          docTypeName: widget.definition.name,
+          recordId: _record.recordId,
+          scope: widget.scope,
+        );
+      } else {
+        final profile = widget.hostProfile;
+        final queue = widget.queue;
+        final version = widget.moduleVersion;
+        final actor = profile?.actorId;
+        final device = profile?.deviceId;
+        if (profile == null ||
+            queue == null ||
+            version == null ||
+            actor == null ||
+            device == null) {
+          throw const ExtensionStoreException(
+            'HOST_COMMAND_QUEUE_UNAVAILABLE',
+            'The Host identity and durable command queue are required to delete a shared record.',
+          );
+        }
+        final commandId = createCommandId();
+        final command = ExtensionRecordCommand.delete(
+          commandId: commandId,
+          tenantId: profile.tenantId,
+          companyId: profile.companyId,
+          branchId: profile.branchId,
+          recordId: _record.recordId,
+          expectedRevision: _record.hostRevision!,
+          actorId: actor,
+          deviceId: device,
+          moduleId: widget.moduleId,
+          moduleVersion: version,
+          docType: widget.definition.name,
+          schemaVersion: widget.definition.schemaVersion,
+        );
+        await queue.enqueue(command.envelope);
+        await widget.store.markRecordPending(
+          recordId: _record.recordId,
+          scope: widget.scope,
+          commandId: commandId,
+          operation: 'delete',
+        );
+      }
+      if (mounted) Navigator.pop(context, true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: VentioText('native.ui.delete_record_failed')),
+        );
+      }
+    }
+  }
+
   Future<void> _reviewConflict() async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
@@ -5191,6 +5271,17 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
             },
           ),
         ),
+        actions: widget.definition.operations.contains('delete')
+            ? [
+                IconButton(
+                  tooltip: context.ventioText('native.ui.delete_record'),
+                  onPressed: record.pendingCommandId == null
+                      ? _deleteRecord
+                      : null,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ]
+            : null,
       ),
       floatingActionButton:
           !conflicted &&

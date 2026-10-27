@@ -202,6 +202,11 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.role_access_summary':
       '{roleId} · {permissionCount} permissions · {userCount} users in this branch',
   'native.ui.details_for_doctype': '{label} details',
+  'native.ui.delete_record': 'Delete record',
+  'native.ui.confirm_delete_record':
+      'This record will be removed from lists. Shared records are sent to the Host for safe deletion.',
+  'native.ui.delete_record_failed':
+      'The record could not be queued for deletion. Try again after resolving pending changes.',
   'native.ui.choose_conflict_values':
       'Choose which value to keep for each field. Saving the merge creates a new command against Host revision {revision}; the Host will validate it again.',
   'native.ui.extension': 'Extension',

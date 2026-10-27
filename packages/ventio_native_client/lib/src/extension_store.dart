@@ -143,6 +143,8 @@ class LocalExtensionRecord {
     this.hostRevision,
     this.pendingCommandId,
     this.authorityState = 'LOCAL_ONLY',
+    this.documentStatus = 0,
+    this.isDeleted = false,
     this.conflictRevision,
     this.conflictValues,
     Iterable<String>? readableFields,
@@ -169,6 +171,8 @@ class LocalExtensionRecord {
   final int? hostRevision;
   final String? pendingCommandId;
   final String authorityState;
+  final int documentStatus;
+  final bool isDeleted;
   final int? conflictRevision;
   final Map<String, dynamic>? conflictValues;
 
@@ -210,6 +214,8 @@ class LocalExtensionRecord {
       hostRevision: row['host_revision'] as int?,
       pendingCommandId: row['pending_command_id'] as String?,
       authorityState: row['authority_state'] as String? ?? 'LOCAL_ONLY',
+      documentStatus: row['document_status'] as int? ?? 0,
+      isDeleted: (row['is_deleted'] as int? ?? 0) == 1,
       conflictRevision: row['conflict_revision'] as int?,
       conflictValues: conflictValues,
       readableFields: _decodeFieldSet(row['readable_fields_json']),
@@ -281,7 +287,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 9,
+        version: 10,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -328,6 +334,9 @@ class LocalExtensionStore {
               pending_command_id TEXT,
               authority_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY'
                 CHECK (authority_state IN ('LOCAL_ONLY', 'PENDING', 'HOST_ACCEPTED', 'CONFLICT', 'REJECTED')),
+              document_status INTEGER NOT NULL DEFAULT 0
+                CHECK (document_status IN (0, 1, 2)),
+              is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
               conflict_revision INTEGER
                 CHECK (conflict_revision IS NULL OR conflict_revision > 0),
               conflict_data_json TEXT,
@@ -539,6 +548,22 @@ class LocalExtensionStore {
                   ON DELETE CASCADE
               )
             ''');
+          }
+          if (oldVersion < 10) {
+            final recordTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_recordsTable],
+            );
+            if (recordTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN document_status INTEGER
+                  NOT NULL DEFAULT 0 CHECK (document_status IN (0, 1, 2))
+              ''');
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN is_deleted INTEGER
+                  NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1))
+              ''');
+            }
           }
         },
       ),
@@ -1463,6 +1488,8 @@ class LocalExtensionStore {
         'data_json': canonicalJson(storedValues),
         'schema_version': definition.schemaVersion,
         'revision': 1,
+        'document_status': 0,
+        'is_deleted': 0,
         'sync_state': 'LOCAL_ONLY',
         'readable_fields_json': readMask == null
             ? null
@@ -1517,7 +1544,7 @@ class LocalExtensionStore {
         _recordsTable,
         where: '''record_id = ? AND module_id = ? AND doctype_name = ?
           AND organization_id = ? AND company_id = ?
-          AND branch_id = ?''',
+          AND branch_id = ? AND is_deleted = 0''',
         whereArgs: [
           recordId,
           moduleId,
@@ -1655,15 +1682,25 @@ class LocalExtensionStore {
     required String recordId,
     required RecordScope scope,
     required String commandId,
+    String operation = 'update',
   }) async {
     _ensureOpen();
     scope.validate();
     if (commandId.isEmpty || commandId.length > 80) {
       throw ArgumentError.value(commandId, 'commandId');
     }
+    if (operation != 'create' &&
+        operation != 'update' &&
+        operation != 'delete') {
+      throw ArgumentError.value(operation, 'operation');
+    }
     final changed = await _database.update(
       _recordsTable,
-      {'pending_command_id': commandId, 'authority_state': 'PENDING'},
+      {
+        'pending_command_id': commandId,
+        'authority_state': 'PENDING',
+        if (operation == 'delete') 'is_deleted': 1,
+      },
       where: '''record_id = ? AND organization_id = ? AND company_id = ?
         AND branch_id = ? AND (pending_command_id IS NULL OR pending_command_id = ?)''',
       whereArgs: [
@@ -1682,11 +1719,48 @@ class LocalExtensionStore {
     }
   }
 
+  Future<void> deleteLocalRecord({
+    required String moduleId,
+    required String docTypeName,
+    required String recordId,
+    required RecordScope scope,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    final definition = DocTypeDefinition.fromJson(
+      await _loadActiveDocType(_database, moduleId, docTypeName),
+    );
+    _requireOperation(definition, 'delete');
+    final changed = await _database.update(
+      _recordsTable,
+      {'is_deleted': 1, 'updated_at_utc': _now()},
+      where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+        AND organization_id = ? AND company_id = ? AND branch_id = ?
+        AND host_revision IS NULL AND pending_command_id IS NULL
+        AND is_deleted = 0''',
+      whereArgs: [
+        recordId,
+        moduleId,
+        docTypeName,
+        scope.organizationId,
+        scope.companyId,
+        scope.branchId,
+      ],
+    );
+    if (changed != 1) {
+      throw const ExtensionStoreException(
+        'RECORD_SYNC_STATE_CHANGED',
+        'Only an unshared local record with no pending command can be removed locally.',
+      );
+    }
+  }
+
   Future<void> applyHostReceipt({
     required String recordId,
     required RecordScope scope,
     required String commandId,
     required CommandReceipt receipt,
+    String operation = 'update',
   }) async {
     _ensureOpen();
     scope.validate();
@@ -1725,6 +1799,7 @@ class LocalExtensionStore {
           'host_revision': hostRevision,
           if (!hasNewerPending) 'pending_command_id': null,
           'authority_state': hasNewerPending ? 'PENDING' : 'HOST_ACCEPTED',
+          if (!hasNewerPending) 'is_deleted': operation == 'delete' ? 1 : 0,
         },
         where: '''record_id = ? AND organization_id = ? AND company_id = ?
           AND branch_id = ?''',
@@ -1750,6 +1825,7 @@ class LocalExtensionStore {
       {
         'pending_command_id': null,
         'authority_state': receipt.status,
+        'is_deleted': 0,
         'conflict_revision': null,
         'conflict_data_json': null,
         if (hostRevision != null && hostRevision > 0)
@@ -2155,7 +2231,7 @@ class LocalExtensionStore {
       _recordsTable,
       where: '''record_id = ? AND module_id = ? AND doctype_name = ?
         AND organization_id = ? AND company_id = ?
-        AND branch_id = ?''',
+        AND branch_id = ? AND is_deleted = 0''',
       whereArgs: [
         recordId,
         moduleId,
@@ -2265,7 +2341,7 @@ class LocalExtensionStore {
 
     final conditions = <String>[
       'module_id = ? AND doctype_name = ? AND organization_id = ? '
-          'AND company_id = ? AND branch_id = ?',
+          'AND company_id = ? AND branch_id = ? AND is_deleted = 0',
     ];
     final parameters = <Object?>[
       moduleId,
@@ -2362,7 +2438,8 @@ class LocalExtensionStore {
     final rows = await _database.query(
       _recordsTable,
       where: '''organization_id = ? AND company_id = ? AND branch_id = ?
-        AND authority_state = 'LOCAL_ONLY' AND pending_command_id IS NULL''',
+        AND authority_state = 'LOCAL_ONLY' AND pending_command_id IS NULL
+        AND is_deleted = 0''',
       whereArgs: [scope.organizationId, scope.companyId, scope.branchId],
       orderBy: 'updated_at_utc ASC, record_id ASC',
       limit: limit,

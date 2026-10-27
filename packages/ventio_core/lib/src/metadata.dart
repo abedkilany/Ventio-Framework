@@ -430,7 +430,7 @@ class DocTypeDefinition {
     final operations = operationsRaw == null
         ? const ['read', 'create', 'update']
         : strings(requireList(json, 'operations'), 'operations');
-    const supportedOperations = {'read', 'create', 'update'};
+    const supportedOperations = {'read', 'create', 'update', 'delete'};
     if (operations.toSet().length != operations.length ||
         operations
             .any((operation) => !supportedOperations.contains(operation))) {

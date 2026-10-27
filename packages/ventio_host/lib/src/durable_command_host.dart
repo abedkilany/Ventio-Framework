@@ -37,6 +37,44 @@ class DurableCommandHost {
 
   String _key(String type, int version) => '$type@$version';
 
+  Future<bool> _hasInboundReference(
+    pg.TxSession tx,
+    CommandEnvelope command,
+    String moduleId,
+    DocTypeDefinition target, {
+    required ExtensionBundle bundle,
+  }) async {
+    for (final source in bundle.docTypes.where(
+      (item) => item.moduleId == moduleId,
+    )) {
+      for (final field in source.fields.where(
+        (item) => item.type == 'reference' && item.referenceTo == target.name,
+      )) {
+        final rows = await tx.execute(
+          pg.Sql.named('''
+          SELECT 1 FROM ventio_records
+          WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+            AND module_id=@module AND doc_type=@doctype
+            AND record_id<>@target AND deleted_at IS NULL
+            AND record_data->>@field=@target
+          LIMIT 1
+        '''),
+          parameters: {
+            'tenant': command.tenantId,
+            'company': command.companyId,
+            'branch': command.branchId,
+            'module': moduleId,
+            'doctype': source.name,
+            'field': field.name,
+            'target': command.aggregateId,
+          },
+        );
+        if (rows.isNotEmpty) return true;
+      }
+    }
+    return false;
+  }
+
   void registerTrustedCreateBinding(TrustedCommandBinding binding) {
     validateTrustedCreateBinding(modules, docTypes, binding);
     final key = _key(binding.commandType, binding.commandVersion);
@@ -85,7 +123,8 @@ class DurableCommandHost {
   }) async {
     ExtensionRecordCommand? extensionCommand;
     if (command.type == ExtensionRecordCommand.createType ||
-        command.type == ExtensionRecordCommand.updateType) {
+        command.type == ExtensionRecordCommand.updateType ||
+        command.type == ExtensionRecordCommand.deleteType) {
       try {
         extensionCommand = ExtensionRecordCommand.fromEnvelope(command);
       } on ContractError {
@@ -122,6 +161,7 @@ class DurableCommandHost {
           var valuesForStorage = <String, dynamic>{};
           int? updateBaseRevision;
           String? releaseFailureReasonCode;
+          ExtensionBundle? authorizedBundle;
           if (extensionRequest != null) {
             final authorization = await resolveExtensionBundle?.call(
               tx,
@@ -135,6 +175,7 @@ class DurableCommandHost {
                 authorization?.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
               );
             }
+            authorizedBundle = bundle;
             if (bundle.moduleId != extensionRequest.moduleId ||
                 bundle.version != command.moduleVersion) {
               return _failure(command, 'REJECTED', 'UPGRADE_REQUIRED');
@@ -164,7 +205,7 @@ class DurableCommandHost {
                   command.companyId,
                   command.branchId,
                 ) ||
-                (operation == 'update' &&
+                (operation != 'create' &&
                     (readPermission == null ||
                         !authenticatedPrincipal.allowsInScope(
                           readPermission,
@@ -341,14 +382,14 @@ class DurableCommandHost {
             );
           }
           if (docType
-              .validatePayload(recordValues, partial: operation == 'update')
+              .validatePayload(recordValues, partial: operation != 'create')
               .isNotEmpty) {
             throw _RejectedCommand(
               _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
             );
           }
           valuesForStorage = Map<String, dynamic>.from(recordValues);
-          if (operation == 'update') {
+          if (operation == 'update' || operation == 'delete') {
             final expectedRevision = command.expectedRevision!;
             if (expectedRevision >= 2147483647) {
               throw _RejectedCommand(
@@ -362,11 +403,14 @@ class DurableCommandHost {
             }
             final currentRows = await tx.execute(
               pg.Sql.named('''
-            SELECT revision, record_data::text AS record_json
+              SELECT revision, record_data::text AS record_json,
+                     document_status, deleted_at
             FROM ventio_records
             WHERE tenant_id = @tenant AND company_id = @company
               AND branch_id = @branch AND module_id = @module
               AND doc_type = @doctype AND record_id = @record
+              AND deleted_at IS NULL
+            FOR UPDATE
           '''),
               parameters: {
                 'tenant': command.tenantId,
@@ -394,6 +438,25 @@ class DurableCommandHost {
                 ),
               );
             }
+            if (operation == 'delete') {
+              if ((current['document_status'] as int) != 0) {
+                throw _RejectedCommand(
+                  _failure(command, 'REJECTED', 'DOCUMENT_NOT_DRAFT'),
+                );
+              }
+              if (await _hasInboundReference(
+                tx,
+                command,
+                moduleId,
+                docType,
+                bundle: authorizedBundle!,
+              )) {
+                throw _RejectedCommand(
+                  _failure(command, 'REJECTED', 'RECORD_IN_USE'),
+                );
+              }
+              valuesForStorage = <String, dynamic>{};
+            }
             final rawCurrentValues = jsonDecode(
               current['record_json'] as String,
             );
@@ -404,7 +467,10 @@ class DurableCommandHost {
             final fieldsByName = {
               for (final field in docType.fields) field.name: field,
             };
-            for (final entry in recordValues.entries) {
+            for (final entry
+                in operation == 'delete'
+                    ? const <MapEntry<String, dynamic>>[]
+                    : recordValues.entries) {
               final field = fieldsByName[entry.key]!;
               if (field.readOnly &&
                   canonicalJson(valuesForStorage[field.name]) !=
@@ -459,15 +525,20 @@ class DurableCommandHost {
               }
             }
           }
-          valuesForStorage = docType.applyDefaults(valuesForStorage);
-          if (docType.validatePayload(valuesForStorage).isNotEmpty) {
+          if (operation != 'delete') {
+            valuesForStorage = docType.applyDefaults(valuesForStorage);
+          }
+          if (operation != 'delete' &&
+              docType.validatePayload(valuesForStorage).isNotEmpty) {
             throw _RejectedCommand(
               _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
             );
           }
-          for (final field in docType.fields.where(
-            (field) => field.type == 'reference',
-          )) {
+          for (final field
+              in (operation == 'delete'
+                      ? const <FieldDefinition>[]
+                      : docType.fields)
+                  .where((field) => field.type == 'reference')) {
             final reference = valuesForStorage[field.name];
             if (reference == null) continue;
             final rows = await tx.execute(
@@ -477,6 +548,8 @@ class DurableCommandHost {
               AND branch_id = @branch AND module_id = @module
               AND doc_type = @doctype
               AND record_id = @record
+              AND deleted_at IS NULL
+            FOR SHARE
           '''),
               parameters: {
                 'tenant': command.tenantId,
@@ -509,7 +582,35 @@ class DurableCommandHost {
           final cursorValue = cursorRows.single[0] as String;
           final scopeCursor = 'scope-v1-$cursorValue';
           var recordRevision = 1;
-          if (operation == 'update') {
+          if (operation == 'delete') {
+            final deleted = await tx.execute(
+              pg.Sql.named('''
+            UPDATE ventio_records
+            SET revision = revision + 1, deleted_at = clock_timestamp(),
+                updated_at = clock_timestamp()
+            WHERE tenant_id = @tenant AND company_id = @company
+              AND branch_id = @branch AND module_id = @module
+              AND doc_type = @doctype AND record_id = @record
+              AND revision = @expected AND deleted_at IS NULL
+            RETURNING revision
+          '''),
+              parameters: {
+                'tenant': command.tenantId,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'module': moduleId,
+                'doctype': docType.name,
+                'record': command.aggregateId,
+                'expected': command.expectedRevision,
+              },
+            );
+            if (deleted.isEmpty) {
+              throw _RejectedCommand(
+                _failure(command, 'CONFLICT', 'REVISION_CONFLICT'),
+              );
+            }
+            recordRevision = deleted.single[0] as int;
+          } else if (operation == 'update') {
             final expectedRevision = command.expectedRevision!;
             final updated = await tx.execute(
               pg.Sql.named('''

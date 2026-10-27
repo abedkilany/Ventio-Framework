@@ -109,7 +109,8 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
           (tx) async {
             await admission?.admit(tx);
             if (command.type == ExtensionRecordCommand.createType ||
-                command.type == ExtensionRecordCommand.updateType) {
+                command.type == ExtensionRecordCommand.updateType ||
+                command.type == ExtensionRecordCommand.deleteType) {
               final resolved = await const PostgresIdentityStore()
                   .resolveExtensionCommand(tx, digest, command);
               if (resolved == null) return null;

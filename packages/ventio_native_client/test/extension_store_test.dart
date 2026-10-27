@@ -131,6 +131,127 @@ void main() {
   });
 
   test(
+    'Draft delete tombstones are hidden and rejected pending deletes restore',
+    () async {
+      final definition = _docType();
+      definition['operations'] = ['read', 'create', 'update', 'delete'];
+      (definition['permissions'] as Map<String, dynamic>)['delete'] =
+          'extension.com_example_asset_register.asset.delete';
+      await createActiveExtension(docType: definition);
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Pump'},
+        recordId: 'asset-delete-queued',
+      );
+      await store.markRecordPending(
+        recordId: 'asset-delete-queued',
+        scope: _scope,
+        commandId: 'delete-command-1',
+        operation: 'delete',
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-queued',
+          scope: _scope,
+        ),
+        isNull,
+      );
+      await store.applyHostReceipt(
+        recordId: 'asset-delete-queued',
+        scope: _scope,
+        commandId: 'delete-command-1',
+        operation: 'delete',
+        receipt: CommandReceipt(
+          commandId: 'delete-command-1',
+          status: 'REJECTED',
+          reasonCode: 'PERMISSION_DENIED',
+        ),
+      );
+      expect(
+        (await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-queued',
+          scope: _scope,
+        ))?.values['name'],
+        'Pump',
+      );
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Valve'},
+        recordId: 'asset-delete-stale-receipt',
+      );
+      await store.markRecordPending(
+        recordId: 'asset-delete-stale-receipt',
+        scope: _scope,
+        commandId: 'delete-command-2',
+        operation: 'delete',
+      );
+      await store.applyHostReceipt(
+        recordId: 'asset-delete-stale-receipt',
+        scope: _scope,
+        commandId: 'older-update-command',
+        receipt: CommandReceipt(
+          commandId: 'older-update-command',
+          status: 'ACCEPTED',
+          hostRevision: 2,
+          scopeCursor: 'scope-v1-2',
+        ),
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-stale-receipt',
+          scope: _scope,
+        ),
+        isNull,
+      );
+      await store.applyHostReceipt(
+        recordId: 'asset-delete-stale-receipt',
+        scope: _scope,
+        commandId: 'delete-command-2',
+        operation: 'delete',
+        receipt: CommandReceipt(
+          commandId: 'delete-command-2',
+          status: 'REJECTED',
+          reasonCode: 'PERMISSION_DENIED',
+        ),
+      );
+      expect(
+        (await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-stale-receipt',
+          scope: _scope,
+        ))?.values['name'],
+        'Valve',
+      );
+      await store.deleteLocalRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: 'asset-delete-queued',
+        scope: _scope,
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-queued',
+          scope: _scope,
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test(
     'Module identifiers are validated and duplicate installs fail closed',
     () async {
       await expectLater(
