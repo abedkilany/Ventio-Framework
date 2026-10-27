@@ -517,14 +517,14 @@ void main() {
     await tester.pumpAndSettle();
 
     Finder childInput(String label) => find.byWidgetPredicate(
-      (widget) =>
-          widget is TextField && widget.decoration?.labelText == label,
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
     );
     final save = find.text('Save on device');
     Future<void> saveForm() async {
       await tester.tap(save);
       await tester.pumpAndSettle();
     }
+
     final itemCodes = childInput('Item code');
     await tester.enterText(itemCodes.at(0), 'A-1');
     await tester.enterText(itemCodes.at(1), 'B-2');
@@ -684,7 +684,8 @@ void main() {
     expect(provisionalNumber.controller!.text, startsWith('LOCAL-'));
     await tester.enterText(
       find.byWidgetPredicate(
-        (widget) => widget is TextField && widget.decoration?.labelText == 'Name',
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == 'Name',
       ),
       'Pump',
     );
@@ -1505,6 +1506,19 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Enable document numbering'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Enable governed Submit and Cancel actions'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final lifecycleSwitch = find.ancestor(
+      of: find.text('Enable governed Submit and Cancel actions'),
+      matching: find.byType(SwitchListTile),
+    );
+    await tester.ensureVisible(lifecycleSwitch);
+    await tester.tap(lifecycleSwitch);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(lifecycleSwitch).value, isTrue);
     final prefix = tester.widget<TextField>(
       find.byWidgetPredicate(
         (widget) =>
@@ -1524,9 +1538,69 @@ void main() {
     await tester.pumpAndSettle();
 
     final saved = await store.getDocType(moduleId, 'Asset');
+    expect(
+      saved?['schemaVersion'],
+      2,
+      reason: 'Builder failed to save metadata.',
+    );
     expect(saved?['naming'], metadata['naming']);
+    expect(saved?['businessOperations'], hasLength(2));
+    final savedDefinition = DocTypeDefinition.fromJson(saved!);
+    expect(
+      savedDefinition.businessOperations.map((operation) => operation.id),
+      containsAll(['document.submit', 'document.cancel']),
+    );
+    final submit = savedDefinition.businessOperations.singleWhere(
+      (operation) => operation.id == 'document.submit',
+    );
+    expect(
+      submit.permission,
+      'extension.com_example_numbered_asset.asset.submit',
+    );
+    expect(submit.effects.map((effect) => effect.type), [
+      'document.allocate_number',
+      'document.transition',
+    ]);
+
     expect(tester.takeException(), isNull);
   });
+
+  test(
+    'Governed operation commands persist and recover from the local queue',
+    () async {
+      final command = ExtensionBusinessOperationCommand.execute(
+        commandId: '00000000-0000-4000-8000-000000000201',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        recordId: '00000000-0000-4000-8000-000000000202',
+        expectedRevision: 4,
+        actorId: 'actor-1',
+        deviceId: 'device-1',
+        moduleId: 'com.example.numbered_asset',
+        moduleVersion: '0.1.0',
+        docType: 'Asset',
+        schemaVersion: 2,
+        operationId: 'document.submit',
+        operationVersion: 1,
+        inputs: const {},
+      );
+      await queue.enqueue(command.envelope);
+      await queue.close();
+      queue = await LocalCommandQueue.open(
+        factory: databaseFactoryFfiNoIsolate,
+        path: '${directory.path}${Platform.pathSeparator}commands.sqlite3',
+      );
+      final recovered = await queue.list(limit: 10);
+      expect(recovered, hasLength(1));
+      final parsed = ExtensionBusinessOperationCommand.fromEnvelope(
+        recovered.single.envelope,
+      );
+      expect(parsed.operationId, 'document.submit');
+      expect(parsed.envelope.expectedRevision, 4);
+      expect(recovered.single.isPending, isTrue);
+    },
+  );
 
   testWidgets('DocType Builder authors a typed child DocType', (tester) async {
     tester.view.physicalSize = const Size(1200, 2400);
@@ -1560,13 +1634,13 @@ void main() {
       ),
     );
     Future<void> invokeDialogAction(String label) async {
-      final action = find.ancestor(
-        of: find.text(label),
-        matching: find.byType(FilledButton),
-      ).last;
+      final action = find
+          .ancestor(of: find.text(label), matching: find.byType(FilledButton))
+          .last;
       tester.widget<FilledButton>(action).onPressed!.call();
       await tester.pumpAndSettle();
     }
+
     await tester.enterText(fieldInput('Field ID'), 'lines');
     await tester.enterText(fieldInput('Label'), 'Lines');
     final fieldType = find.descendant(
@@ -2514,13 +2588,16 @@ void main() {
 
     await tester.tap(find.text('Add DocType'));
     await tester.pumpAndSettle();
-    final builderScroll = find.descendant(
-      of: find.byType(DocTypeBuilderPage),
-      matching: find.byWidgetPredicate(
-        (widget) =>
-            widget is Scrollable && widget.axisDirection == AxisDirection.down,
-      ),
-    ).first;
+    final builderScroll = find
+        .descendant(
+          of: find.byType(DocTypeBuilderPage),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Scrollable &&
+                widget.axisDirection == AxisDirection.down,
+          ),
+        )
+        .first;
     fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'LayoutRecord');
     await tester.enterText(fields.at(1), 'Layout Record');
@@ -2559,7 +2636,16 @@ void main() {
 
     for (final operation in ['create', 'update']) {
       final operationToggle = find.widgetWithText(CheckboxListTile, operation);
+      await tester.scrollUntilVisible(
+        operationToggle,
+        180,
+        scrollable: builderScroll,
+      );
       await tester.ensureVisible(operationToggle);
+      // scrollUntilVisible stops as soon as any part of the tile enters the
+      // viewport. The tap center can remain just below the test viewport.
+      await tester.drag(builderScroll, const Offset(0, -160));
+      await tester.pumpAndSettle();
       await tester.tap(operationToggle);
       await tester.pumpAndSettle();
     }

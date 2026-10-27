@@ -2008,6 +2008,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
   final _seriesPaddingController = TextEditingController(text: '6');
   String? _seriesField;
   bool _namingEnabled = false;
+  bool _governedLifecycleEnabled = false;
   String _pageIcon = 'list';
   bool _pageTitleCustomized = false;
   final _formKey = GlobalKey<FormState>();
@@ -2045,10 +2046,22 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         _namingEnabled = true;
         _seriesIdController.text = rawNaming['seriesId'] as String? ?? '';
         _seriesPrefixController.text = rawNaming['prefix'] as String? ?? '';
-        _seriesPaddingController.text =
-            (rawNaming['padding'] as int? ?? 6).toString();
+        _seriesPaddingController.text = (rawNaming['padding'] as int? ?? 6)
+            .toString();
         _seriesField = rawNaming['field'] as String?;
       }
+      final rawBusinessOperations = metadata['businessOperations'];
+      _governedLifecycleEnabled =
+          rawBusinessOperations is List &&
+          rawBusinessOperations.any((operation) {
+            if (operation is! Map || operation['effects'] is! List) {
+              return false;
+            }
+            return (operation['effects'] as List).any(
+              (effect) =>
+                  effect is Map && effect['type'] == 'document.transition',
+            );
+          });
       final rawMigrations = metadata['migrations'];
       if (rawMigrations is List) {
         _priorMigrations.addAll(
@@ -2333,10 +2346,61 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
     final previousVersion = widget.existing?['schemaVersion'] as int?;
     final fields = List<Map<String, dynamic>>.from(_fields);
     final namespace = _messageNamespace(widget.moduleId);
-    final permissions = {
+    final labelKey =
+        widget.existing?['labelKey'] as String? ??
+        '$namespace.doctype.${name.toLowerCase()}.label';
+    final permissions = <String, String>{
       for (final operation in _operations)
         operation: permissionKey(widget.moduleId, name, operation),
     };
+    final priorBusinessOperations =
+        (widget.existing?['businessOperations'] as List? ?? const [])
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .where(
+              (operation) => !const {
+                'document.submit',
+                'document.cancel',
+              }.contains(operation['id']),
+            )
+            .toList(growable: true);
+    final businessOperations = <Map<String, dynamic>>[
+      ...priorBusinessOperations,
+      if (_governedLifecycleEnabled)
+        {
+          'id': 'document.submit',
+          'version': 1,
+          'permission': permissionKey(widget.moduleId, name, 'submit'),
+          'inputs': <String, dynamic>{},
+          'outputs': <String, dynamic>{
+            'status': {'type': 'integer', 'required': true},
+            if (_namingEnabled)
+              'officialNumber': {'type': 'text', 'required': true},
+          },
+          'effects': [
+            if (_namingEnabled)
+              {
+                'type': 'document.allocate_number',
+                'field': _seriesField,
+                'output': 'officialNumber',
+              },
+            {'type': 'document.transition', 'targetStatus': 1},
+          ],
+        },
+      if (_governedLifecycleEnabled)
+        {
+          'id': 'document.cancel',
+          'version': 1,
+          'permission': permissionKey(widget.moduleId, name, 'cancel'),
+          'inputs': <String, dynamic>{},
+          'outputs': <String, dynamic>{
+            'status': {'type': 'integer', 'required': true},
+          },
+          'effects': [
+            {'type': 'document.transition', 'targetStatus': 2},
+          ],
+        },
+    ];
     final metadata = <String, dynamic>{
       'name': name,
       'moduleId': widget.moduleId,
@@ -2345,6 +2409,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
       'fields': fields,
       'operations': List<String>.of(_operations),
       'permissions': permissions,
+      if (businessOperations.isNotEmpty)
+        'businessOperations': businessOperations,
       'ui': {
         'listColumns': List<String>.of(_listColumns),
         'formFields': List<String>.of(_formFields),
@@ -2355,7 +2421,7 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         'pageOrder': pageOrder,
       },
       'label': label,
-      'labelKey': '$namespace.${name.toLowerCase()}.name',
+      'labelKey': labelKey,
       'description': _descriptionController.text.trim(),
       'descriptionKey': '$namespace.${name.toLowerCase()}.description',
     };
@@ -2565,6 +2631,30 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const VentioText(
+                            'native.ui.enable_governed_document_lifecycle',
+                          ),
+                          value: _governedLifecycleEnabled,
+                          onChanged: (enabled) => setState(
+                            () => _governedLifecycleEnabled = enabled,
+                          ),
+                        ),
+                        const VentioText(
+                          'native.ui.governed_document_lifecycle_help',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 Row(
                   children: [
@@ -2613,9 +2703,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                             'native.ui.enable_document_numbering',
                           ),
                           value: _namingEnabled,
-                          onChanged: (enabled) => setState(
-                            () => _namingEnabled = enabled ?? false,
-                          ),
+                          onChanged: (enabled) =>
+                              setState(() => _namingEnabled = enabled ?? false),
                         ),
                         const VentioText(
                           'native.ui.document_numbers_are_provisional_offline_and_assigned_by_the_host_on_submit',
@@ -2634,8 +2723,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                             ),
                             validator: (value) {
                               if (!_namingEnabled) return null;
-                              return RegExp(r'^[a-z][a-z0-9_-]{0,63}$')
-                                      .hasMatch(value?.trim() ?? '')
+                              return RegExp(
+                                    r'^[a-z][a-z0-9_-]{0,63}$',
+                                  ).hasMatch(value?.trim() ?? '')
                                   ? null
                                   : context.ventioText(
                                       'native.ui.enter_a_valid_numbering_series_id',
@@ -2644,10 +2734,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            initialValue: _seriesField != null &&
+                            initialValue:
+                                _seriesField != null &&
                                     _namingFieldCandidates.any(
-                                      (field) =>
-                                          field['name'] == _seriesField,
+                                      (field) => field['name'] == _seriesField,
                                     )
                                 ? _seriesField
                                 : null,
@@ -2668,7 +2758,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                             ],
                             onChanged: (field) =>
                                 setState(() => _seriesField = field),
-                            validator: (value) => !_namingEnabled ||
+                            validator: (value) =>
+                                !_namingEnabled ||
                                     (value != null &&
                                         _namingFieldCandidates.any(
                                           (field) => field['name'] == value,
@@ -2692,9 +2783,11 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                                 'native.ui.number_prefix',
                               ),
                             ),
-                            validator: (value) => !_namingEnabled ||
-                                    RegExp(r'^[A-Z0-9._/-]{0,24}$')
-                                        .hasMatch(value?.trim() ?? '')
+                            validator: (value) =>
+                                !_namingEnabled ||
+                                    RegExp(
+                                      r'^[A-Z0-9._/-]{0,24}$',
+                                    ).hasMatch(value?.trim() ?? '')
                                 ? null
                                 : context.ventioText(
                                     'native.ui.enter_a_literal_number_prefix',
@@ -4867,7 +4960,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           : initialValues != null && initialValues.containsKey(field.name)
           ? initialValues[field.name]
           : widget.record?.values[field.name] ?? field.defaultValue;
-      final displayValue = value == null &&
+      final displayValue =
+          value == null &&
               !widget.previewOnly &&
               widget.record == null &&
               widget.definition.namingSeries?.field == field.name
@@ -4879,8 +4973,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         _selections[field.name] = displayValue as String?;
       } else if (field.type == 'table' && field.childDocType != null) {
         final child = field.childDocType!;
-        final sourceRows =
-            displayValue is List ? displayValue.whereType<Map>().toList() : [];
+        final sourceRows = displayValue is List
+            ? displayValue.whereType<Map>().toList()
+            : [];
         _childRows[field.name] = [
           for (final row in sourceRows)
             {
@@ -4921,8 +5016,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         references.add((key: field.name, docType: field.referenceTo!));
       }
       if (field.type == 'table') {
-        for (final childField in field.childDocType?.fields ??
-            const <FieldDefinition>[]) {
+        for (final childField
+            in field.childDocType?.fields ?? const <FieldDefinition>[]) {
           if (childField.type == 'reference') {
             references.add((
               key: '${field.name}.${childField.name}',
@@ -5158,8 +5253,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     );
   }
 
-  String _childReferenceKey(FieldDefinition tableField, FieldDefinition field) =>
-      '${tableField.name}.${field.name}';
+  String _childReferenceKey(
+    FieldDefinition tableField,
+    FieldDefinition field,
+  ) => '${tableField.name}.${field.name}';
 
   void _addChildRow(FieldDefinition tableField) {
     final child = tableField.childDocType!;
@@ -5245,10 +5342,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           children: [
             Expanded(
               child: Text(
-                context.extensionMetadataText(
-                  child.labelKey,
-                  child.label,
-                ),
+                context.extensionMetadataText(child.labelKey, child.label),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
@@ -5278,7 +5372,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
             scrollDirection: Axis.horizontal,
             child: DataTable(
               columns: [
-                DataColumn(label: Text(context.ventioText('native.ui.row_number'))),
+                DataColumn(
+                  label: Text(context.ventioText('native.ui.row_number')),
+                ),
                 for (final field in child.fields)
                   DataColumn(
                     label: Text(
@@ -5412,16 +5508,15 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               child: Text(
                 field.type == 'enum'
                     ? _enumLabel(context, field, option)
-                    : _recordTitle(records.firstWhere(
-                        (record) => record.recordId == option,
-                      )),
+                    : _recordTitle(
+                        records.firstWhere(
+                          (record) => record.recordId == option,
+                        ),
+                      ),
               ),
             ),
           if (value is String && !options.contains(value))
-            DropdownMenuItem<String?>(
-              value: value,
-              child: Text(value),
-            ),
+            DropdownMenuItem<String?>(value: value, child: Text(value)),
         ],
         onChanged: editable
             ? (next) => setState(
@@ -5433,9 +5528,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
     final raw = value?.toString() ?? '';
     return TextFormField(
-      key: ValueKey<String>(
-        '${rowKey.hashCode}:${field.name}:text',
-      ),
+      key: ValueKey<String>('${rowKey.hashCode}:${field.name}:text'),
       initialValue: raw,
       readOnly: !editable,
       keyboardType: switch (field.type) {
@@ -5455,10 +5548,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               _parseChildValue(field, next),
             )
           : null,
-      validator: (next) => _validateChildValue(
-        field,
-        _parseChildValue(field, next ?? ''),
-      ),
+      validator: (next) =>
+          _validateChildValue(field, _parseChildValue(field, next ?? '')),
     );
   }
 
@@ -5806,12 +5897,41 @@ Future<void> _reconcileQueuedRecords(
   final entries = await queue.list(limit: 1000);
   for (final entry in entries.reversed) {
     final envelope = entry.envelope;
-    if (envelope.type != ExtensionRecordCommand.createType &&
-        envelope.type != ExtensionRecordCommand.updateType &&
-        envelope.type != ExtensionRecordCommand.deleteType) {
+    final isRecordCommand =
+        envelope.type == ExtensionRecordCommand.createType ||
+        envelope.type == ExtensionRecordCommand.updateType ||
+        envelope.type == ExtensionRecordCommand.deleteType;
+    final isBusinessOperation =
+        envelope.type == ExtensionBusinessOperationCommand.commandType;
+    if (!isRecordCommand && !isBusinessOperation) {
       continue;
     }
-    final command = ExtensionRecordCommand.fromEnvelope(envelope);
+    final command = isRecordCommand
+        ? ExtensionRecordCommand.fromEnvelope(envelope)
+        : null;
+    final operationCommand = isBusinessOperation
+        ? ExtensionBusinessOperationCommand.fromEnvelope(envelope)
+        : null;
+    BusinessOperationDefinition? operationDefinition;
+    if (operationCommand != null) {
+      final localMetadata = await store.getDocType(
+        operationCommand.moduleId,
+        operationCommand.docType,
+      );
+      if (localMetadata == null) continue;
+      final localDefinition = DocTypeDefinition.fromJson(localMetadata);
+      if (localDefinition.schemaVersion != envelope.docTypeVersion ||
+          localDefinition.moduleId != operationCommand.moduleId) {
+        continue;
+      }
+      final matches = localDefinition.businessOperations.where(
+        (item) =>
+            item.id == operationCommand.operationId &&
+            item.version == operationCommand.operationVersion,
+      );
+      if (matches.length != 1) continue;
+      operationDefinition = matches.single;
+    }
     final scope = RecordScope(
       organizationId: envelope.tenantId,
       companyId: envelope.companyId,
@@ -5819,12 +5939,37 @@ Future<void> _reconcileQueuedRecords(
     );
     final receipt = entry.hostReceipt;
     if (receipt != null && receipt.status != 'RETRY_LATER') {
+      final operationOutputs = <String, dynamic>{};
+      int? documentStatus;
+      if (operationDefinition != null && receipt.status == 'ACCEPTED') {
+        for (final effect in operationDefinition.effects) {
+          if (effect.type == 'document.transition') {
+            documentStatus = effect.targetStatus;
+            final reportedStatus = receipt.output?['status'];
+            if (reportedStatus != null && reportedStatus != documentStatus) {
+              throw const FormatException(
+                'Host operation status output does not match its declaration.',
+              );
+            }
+          } else if (effect.type == 'document.allocate_number') {
+            final officialNumber = receipt.output?[effect.output];
+            if (officialNumber is! String) {
+              throw const FormatException(
+                'Host operation receipt omitted its allocated number.',
+              );
+            }
+            operationOutputs[effect.field!] = officialNumber;
+          }
+        }
+      }
       await store.applyHostReceipt(
         recordId: envelope.aggregateId,
         scope: scope,
         commandId: envelope.commandId,
         receipt: receipt,
-        operation: command.operation,
+        operation: command?.operation ?? 'update',
+        documentStatus: documentStatus,
+        valueUpdates: operationOutputs,
       );
     } else if (entry.isPending) {
       try {
@@ -5832,7 +5977,7 @@ Future<void> _reconcileQueuedRecords(
           recordId: envelope.aggregateId,
           scope: scope,
           commandId: envelope.commandId,
-          operation: command.operation,
+          operation: command?.operation ?? 'update',
         );
       } on ExtensionStoreException catch (error) {
         if (error.code != 'RECORD_SYNC_STATE_CHANGED') rethrow;
@@ -5840,7 +5985,8 @@ Future<void> _reconcileQueuedRecords(
     }
     // Validate the queue payload against the same trusted generic contract
     // before applying any record state derived from its receipt.
-    if (command.moduleId != envelope.payload['moduleId']) {
+    if ((command?.moduleId ?? operationCommand?.moduleId) !=
+        envelope.payload['moduleId']) {
       throw const FormatException('Queued extension record identity mismatch.');
     }
   }
@@ -6117,6 +6263,81 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     }
   }
 
+  Future<void> _executeBusinessOperation(
+    BusinessOperationDefinition operation,
+  ) async {
+    final queue = widget.queue;
+    final profile = widget.hostProfile;
+    final moduleVersion = widget.moduleVersion;
+    final actor = profile?.actorId;
+    final device = profile?.deviceId;
+    final transitions = operation.effects
+        .where((effect) => effect.type == 'document.transition')
+        .toList(growable: false);
+    if (queue == null ||
+        profile == null ||
+        moduleVersion == null ||
+        actor == null ||
+        device == null ||
+        _record.hostRevision == null ||
+        _record.pendingCommandId != null ||
+        _record.authorityState != 'HOST_ACCEPTED' ||
+        transitions.length != 1 ||
+        transitions.single.targetStatus == null) {
+      return;
+    }
+    final transition = transitions.single;
+    if ((transition.targetStatus == 1 && _record.documentStatus != 0) ||
+        (transition.targetStatus == 2 && _record.documentStatus != 1)) {
+      return;
+    }
+    if (operation.inputs.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: VentioText(
+            'native.ui.business_operation_inputs_unavailable',
+          ),
+        ),
+      );
+      return;
+    }
+    final commandId = createCommandId();
+    final command = ExtensionBusinessOperationCommand.execute(
+      commandId: commandId,
+      tenantId: profile.tenantId,
+      companyId: profile.companyId,
+      branchId: profile.branchId,
+      recordId: _record.recordId,
+      expectedRevision: _record.hostRevision!,
+      actorId: actor,
+      deviceId: device,
+      moduleId: widget.moduleId,
+      moduleVersion: moduleVersion,
+      docType: widget.definition.name,
+      schemaVersion: widget.definition.schemaVersion,
+      operationId: operation.id,
+      operationVersion: operation.version,
+      inputs: const {},
+    );
+    try {
+      await queue.enqueue(command.envelope);
+      await widget.store.markRecordPending(
+        recordId: _record.recordId,
+        scope: widget.scope,
+        commandId: commandId,
+      );
+      await _loadRecord();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: VentioText('native.ui.business_operation_queue_failed'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _reviewConflict() async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
@@ -6231,6 +6452,42 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                     ? Icons.verified_user_outlined
                     : Icons.info_outline,
               ),
+              for (final operation in widget.definition.businessOperations)
+                if (operation.effects.any(
+                  (effect) =>
+                      effect.type == 'document.transition' &&
+                      ((effect.targetStatus == 1 &&
+                              record.documentStatus == 0) ||
+                          (effect.targetStatus == 2 &&
+                              record.documentStatus == 1)),
+                )) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed:
+                        record.authorityState == 'HOST_ACCEPTED' &&
+                            record.pendingCommandId == null
+                        ? () => _executeBusinessOperation(operation)
+                        : null,
+                    icon: Icon(
+                      operation.effects.any(
+                            (effect) =>
+                                effect.type == 'document.transition' &&
+                                effect.targetStatus == 1,
+                          )
+                          ? Icons.task_alt
+                          : Icons.cancel_outlined,
+                    ),
+                    label: VentioText(
+                      operation.effects.any(
+                            (effect) =>
+                                effect.type == 'document.transition' &&
+                                effect.targetStatus == 1,
+                          )
+                          ? 'native.ui.submit_document'
+                          : 'native.ui.cancel_document',
+                    ),
+                  ),
+                ],
               if (conflicted) ...[
                 const SizedBox(height: 12),
                 if (_conflictRefreshError != null)

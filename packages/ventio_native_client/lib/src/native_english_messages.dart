@@ -510,6 +510,16 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.yes_no': 'Yes / no',
   'native.ui.your_extensions': 'Your extensions',
   'native.ui.enable_document_numbering': 'Enable document numbering',
+  'native.ui.enable_governed_document_lifecycle':
+      'Enable governed Submit and Cancel actions',
+  'native.ui.governed_document_lifecycle_help':
+      'The Host applies these declared status transitions atomically. If numbering is enabled, it assigns the official number during Submit.',
+  'native.ui.submit_document': 'Submit document',
+  'native.ui.cancel_document': 'Cancel document',
+  'native.ui.business_operation_inputs_unavailable':
+      'This operation requires inputs that are not supported by this form yet.',
+  'native.ui.business_operation_queue_failed':
+      'The operation could not be saved to the durable Host queue.',
   'native.ui.document_numbers_are_provisional_offline_and_assigned_by_the_host_on_submit':
       'Names shown offline are provisional. The Host assigns the official number when the document is submitted.',
   'native.ui.numbering_series_id': 'Numbering series ID',
@@ -526,6 +536,5 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.enter_a_literal_number_prefix':
       'Use a literal prefix with uppercase letters, numbers, dots, slashes or hyphens.',
   'native.ui.number_zero_padding': 'Number zero-padding width',
-  'native.ui.choose_a_width_between_1_and_12':
-      'Choose a width from 1 to 12.',
+  'native.ui.choose_a_width_between_1_and_12': 'Choose a width from 1 to 12.',
 };

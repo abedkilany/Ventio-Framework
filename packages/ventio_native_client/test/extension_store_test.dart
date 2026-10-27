@@ -131,6 +131,78 @@ void main() {
   });
 
   test(
+    'Accepted governed operation receipt reconciles status and official number',
+    () async {
+      final definition =
+          _docType(
+              fields: [
+                _textField(),
+                {
+                  ..._textField(
+                    name: 'documentNumber',
+                    required: false,
+                    maxLength: 64,
+                  ),
+                  'readOnly': true,
+                },
+              ],
+            )
+            ..['naming'] = {
+              'seriesId': 'asset',
+              'field': 'documentNumber',
+              'prefix': 'AST-',
+              'padding': 4,
+            };
+      await createActiveExtension(docType: definition);
+      final local = await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Pump'},
+        recordId: 'operation-result-record',
+      );
+      await store.applyHostRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        recordId: local.recordId,
+        revision: 1,
+        values: const {'name': 'Pump', 'documentNumber': 'LOCAL-PUMP'},
+        updatedAtUtc: DateTime.utc(2026, 10, 24),
+      );
+      await store.markRecordPending(
+        recordId: local.recordId,
+        scope: _scope,
+        commandId: 'submit-command',
+      );
+      await store.applyHostReceipt(
+        recordId: local.recordId,
+        scope: _scope,
+        commandId: 'submit-command',
+        receipt: CommandReceipt(
+          commandId: 'submit-command',
+          status: 'ACCEPTED',
+          hostRevision: 2,
+          scopeCursor: 'scope-v1-2',
+        ),
+        documentStatus: 1,
+        valueUpdates: const {'documentNumber': 'AST-0001'},
+      );
+      final reconciled = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: local.recordId,
+        scope: _scope,
+      ))!;
+      expect(reconciled.documentStatus, 1);
+      expect(reconciled.values['documentNumber'], 'AST-0001');
+      expect(reconciled.hostRevision, 2);
+      expect(reconciled.pendingCommandId, isNull);
+      expect(reconciled.authorityState, 'HOST_ACCEPTED');
+    },
+  );
+
+  test(
     'Draft delete tombstones are hidden and rejected pending deletes restore',
     () async {
       final definition = _docType();
@@ -580,63 +652,67 @@ void main() {
     },
   );
 
-  test('Naming series drafts use a provisional label without client input', () async {
-    final definition = _docType(
-      fields: [
-        _textField(),
-        {
-          'name': 'documentNumber',
-          'type': 'text',
-          'required': false,
-          'readOnly': true,
-          'maxLength': 64,
-          'label': 'Document Number',
-          'labelKey': 'asset_register.asset.document_number',
-        },
-      ],
-    )
-      ..['naming'] = {
-        'seriesId': 'asset-series',
-        'field': 'documentNumber',
-        'prefix': 'AST-',
-        'padding': 6,
-      };
-    await createActiveExtension(docType: definition);
-    const recordId = 'a1000000-0000-4000-8000-000000000001';
-    final created = await store.createRecord(
-      moduleId: _moduleId,
-      docTypeName: 'Asset',
-      scope: _scope,
-      values: const {'name': 'Pump'},
-      recordId: recordId,
-    );
-    expect(created.values['documentNumber'], 'LOCAL-$recordId');
-    await expectLater(
-      store.createRecord(
+  test(
+    'Naming series drafts use a provisional label without client input',
+    () async {
+      final definition =
+          _docType(
+              fields: [
+                _textField(),
+                {
+                  'name': 'documentNumber',
+                  'type': 'text',
+                  'required': false,
+                  'readOnly': true,
+                  'maxLength': 64,
+                  'label': 'Document Number',
+                  'labelKey': 'asset_register.asset.document_number',
+                },
+              ],
+            )
+            ..['naming'] = {
+              'seriesId': 'asset-series',
+              'field': 'documentNumber',
+              'prefix': 'AST-',
+              'padding': 6,
+            };
+      await createActiveExtension(docType: definition);
+      const recordId = 'a1000000-0000-4000-8000-000000000001';
+      final created = await store.createRecord(
         moduleId: _moduleId,
         docTypeName: 'Asset',
         scope: _scope,
-        values: const {'name': 'Forged', 'documentNumber': 'AST-000001'},
-        recordId: 'a1000000-0000-4000-8000-000000000002',
-      ),
-      throwsA(
-        isA<ExtensionStoreException>().having(
-          (error) => error.code,
-          'code',
-          'READ_ONLY_FIELD',
+        values: const {'name': 'Pump'},
+        recordId: recordId,
+      );
+      expect(created.values['documentNumber'], 'LOCAL-$recordId');
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: const {'name': 'Forged', 'documentNumber': 'AST-000001'},
+          recordId: 'a1000000-0000-4000-8000-000000000002',
         ),
-      ),
-    );
-    await store.close();
-    await openStore();
-    final restored = await store.getRecord(
-      moduleId: _moduleId,
-      docTypeName: 'Asset',
-      recordId: recordId,
-      scope: _scope,
-    );
-    expect(restored!.values['documentNumber'], 'LOCAL-$recordId');
-  });
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'READ_ONLY_FIELD',
+          ),
+        ),
+      );
+      await store.close();
+      await openStore();
+      final restored = await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: recordId,
+        scope: _scope,
+      );
+      expect(restored!.values['documentNumber'], 'LOCAL-$recordId');
+    },
+  );
 
   test('Host scope profile persists across a database reopen', () async {
     const profile = HostConnectionProfile(

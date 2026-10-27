@@ -1531,8 +1531,9 @@ class LocalExtensionStore {
       }
       final namingSeries = definition.namingSeries;
       if (namingSeries != null) {
-        storedValues[namingSeries.field] =
-            namingSeries.provisionalName(recordId);
+        storedValues[namingSeries.field] = namingSeries.provisionalName(
+          recordId,
+        );
       }
       _validatePayload(definition, storedValues);
       await _validateReferences(transaction, definition, storedValues, scope);
@@ -1838,11 +1839,16 @@ class LocalExtensionStore {
     required String commandId,
     required CommandReceipt receipt,
     String operation = 'update',
+    int? documentStatus,
+    Map<String, dynamic> valueUpdates = const {},
   }) async {
     _ensureOpen();
     scope.validate();
     if (receipt.commandId != commandId) {
       throw const FormatException('Host receipt command ID mismatch.');
+    }
+    if (documentStatus != null && (documentStatus < 0 || documentStatus > 2)) {
+      throw const FormatException('Host document status is invalid.');
     }
     final rows = await _database.query(
       _recordsTable,
@@ -1870,6 +1876,14 @@ class LocalExtensionStore {
       final hasNewerPending =
           current.pendingCommandId != null &&
           current.pendingCommandId != commandId;
+      final authorizedUpdates = Map<String, dynamic>.of(valueUpdates)
+        ..removeWhere(
+          (field, _) =>
+              current.readableFields != null &&
+              !current.readableFields!.contains(field),
+        );
+      final mergedValues = Map<String, dynamic>.of(current.values)
+        ..addAll(authorizedUpdates);
       await _database.update(
         _recordsTable,
         {
@@ -1877,6 +1891,10 @@ class LocalExtensionStore {
           if (!hasNewerPending) 'pending_command_id': null,
           'authority_state': hasNewerPending ? 'PENDING' : 'HOST_ACCEPTED',
           if (!hasNewerPending) 'is_deleted': operation == 'delete' ? 1 : 0,
+          if (!hasNewerPending && documentStatus != null)
+            'document_status': documentStatus,
+          if (!hasNewerPending && authorizedUpdates.isNotEmpty)
+            'data_json': canonicalJson(mergedValues),
         },
         where: '''record_id = ? AND organization_id = ? AND company_id = ?
           AND branch_id = ?''',
