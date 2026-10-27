@@ -4,10 +4,10 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**49.25%** `██████████░░░░░░░░░░` (20% Stage 0 + 29.25% accepted Wave 1)
+**51.85%** `██████████░░░░░░░░░░` (20% Stage 0 + 31.85% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **11 / 23 accepted** — B01 `IN_PROGRESS` (65% overall)
+- Stage 1 Wave 1: **12 / 23 accepted** — B05 is next (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -29,7 +29,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 09 | D04 | Field-level permissions | Existing | Verified | 5 | COMPLETED | PostgreSQL Host integration 87/87; protected-field create, direct read-mask, filter/sort, and write checks; partial-update preservation. SQLite cache scrubbing 1/1; Studio identity-scoped masks 1/1. [Evidence](D04_FIELD_PERMISSION_ACCEPTANCE.md); checkpoint `2066399`. |
 | 10 | D03 | Operation-level permissions | Partial | Verified | 4 | COMPLETED | Core 69/69; PostgreSQL Host extension integration 87/87. `read`-only identity denied create/update with no record or revision effects; identity integration confirms permission revocation blocks saved-receipt replay. [Evidence](D03_OPERATION_PERMISSION_ACCEPTANCE.md); checkpoint `2066399`. |
 | 11 | B03 | Document validation and lifecycle foundations | Partial | Verified | 5 | COMPLETED | Core 69/69; PostgreSQL 17.11 durable Host integration 43/43; extension integration 87/87; Host analysis clean. Invalid writes/references rejected, pre-commit fault rolls back record/journal/audit/outbox/cursor, same-ID retry and concurrency verified. [Evidence](B03_DOCUMENT_VALIDATION_ACCEPTANCE.md); checkpoint `78b3d89`. |
-| 12 | B01 | CRUD with safe deletion semantics | Partial | Verifying | 4 | IN_PROGRESS | ADR-010 implementation checkpoints `72c42cd`, `e331087`, `8920b50`, `3cf6bfd`, and `a6be24f`; Host integration cases checkpoints `1d9d25b`, `dd14bb4`, and `15cfd1c`: Core delete command/metadata, Host draft-only tombstone with revision and inbound-reference checks, PostgreSQL resolver/RLS/migration/runtime privilege assertion, SQLite optimistic deletion and receipt restore, Studio delete action, durable delete intent across queue restart. Core 69/69, SQLite store 34/34, and queue restart test 1/1 pass; PostgreSQL acceptance is rerunning. Provisional work classification; not accepted until full Host integration passes permission, submitted/reference restriction, tombstone visibility, atomic retry, and ID reservation checks. |
+| 12 | B01 | CRUD with safe deletion semantics | Partial | Completed Gaps | 4 | COMPLETED | PostgreSQL 17.11 extension integration **98/98**; Core **69/69**; ExtensionStore **34/34**; durable delete-queue restart **1/1**; Host API and durable Host analyzers clean; localization gate passes. Covers permission, submitted/reference refusal, retained tombstone/revision, hidden reads, retry with exactly one journal/audit/outbox, ID reservation, local pending/rejection recovery and RLS. [Acceptance evidence](B01_SAFE_DELETE_ACCEPTANCE.md); implementation checkpoint `90e415d`. |
 | 13 | B05 | Record search, filtering, sorting, and pagination | Existing | Pending | 4 | NOT_STARTED | — |
 | 14 | C01 | Generated List View | Existing | Pending | 3 | NOT_STARTED | — |
 | 15 | C02 | Generated Form View | Existing | Pending | 3 | NOT_STARTED | — |
@@ -46,13 +46,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: B01 — verify the ADR-010 generic delete primitive with PostgreSQL integration and complete CRUD evidence.
-- Last successfully completed capability: B03 — document validation and lifecycle foundations.
-- Next task: B01 — CRUD with safe deletion semantics.
+- Current task: B05 — inspect and verify record search, filtering, sorting, and pagination against the fixed acceptance criteria.
+- Last successfully completed capability: B01 — CRUD with safe deletion semantics.
+- Next task: B05 — record search, filtering, sorting, and pagination.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest implementation checkpoint: pending the expanded PostgreSQL rerun. Delete-specific acceptance checks and corrected three-page pagination passed. Review traced a later stale-update failure to the B01 `FOR UPDATE` clause: RLS hides stale revisions through its expected-revision UPDATE policy, preventing the Host from returning `REVISION_CONFLICT`. Removed that redundant row lock; the exact-scope transaction advisory lock already serializes Host writes and reference checks. B01 remains IN_PROGRESS until full integration passes.
+- Latest implementation checkpoint: `90e415d` — B01 accepted after PostgreSQL extension integration passed 98/98. Removed a redundant row lock that caused RLS to hide stale revisions; the exact-scope transaction advisory lock serializes Host writes and reference checks. B05 begins next.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -89,3 +89,4 @@ ative_english_messages.dart`; stable IDs and user-entered business values remain
 - The PostgreSQL integration reached the new authorization case and exposed an incorrect expected HTTP status in that assertion; corrected it to the Host's established `403 PERMISSION_DENIED` contract. Added a third live fixture record so tombstone visibility checks do not invalidate later exact-read and paging assertions. The full Host integration is rerunning; B01 remains IN_PROGRESS.
 - Expanded PostgreSQL acceptance passed delete authorization, submitted and referenced-document refusals, retained tombstone data/revision, hidden tombstone reads, identical retry, exactly one journal/audit/outbox effect, and tombstoned ID reservation. Later pagination evidence showed the live submitted fixture is a third search result; updated the test to verify three ordered pages and hasMore boundaries. Rerun required before accepting B01.
 - PostgreSQL reruns passed all B01 delete cases and the corrected three-page pagination check, then exposed that `FOR UPDATE` causes RLS to hide rows whose current revision differs from the command's expected revision. The Host already takes an exact tenant/company/branch advisory transaction lock before reading/writing; removed `FOR UPDATE` so stale commands can report the current revision while retaining serialized deletion/reference safety. The expanded PostgreSQL integration must pass before accepting B01.
+- B01 accepted: the full isolated PostgreSQL 17.11 extension integration passed **98/98**. Core harness **69/69**, ExtensionStore **34/34**, durable queue restart **1/1**, Host API/durable Host analysis, and localization gate passed. Evidence: [B01_SAFE_DELETE_ACCEPTANCE.md](B01_SAFE_DELETE_ACCEPTANCE.md). Wave 1 is now **12/23 accepted**, overall progress **51.85%**, and B05 is next.
