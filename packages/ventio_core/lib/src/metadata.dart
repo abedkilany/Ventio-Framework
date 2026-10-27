@@ -1,5 +1,8 @@
 import 'contracts.dart';
 
+final RegExp _docTypeIdentifier = RegExp(r'^[A-Z][A-Za-z0-9_]*$');
+final RegExp _docFieldIdentifier = RegExp(r'^[a-z][A-Za-z0-9_]*$');
+
 class FieldDefinition {
   final String name;
   final String type;
@@ -35,6 +38,10 @@ class FieldDefinition {
       required this.referenceTo});
 
   factory FieldDefinition.fromJson(Map<String, dynamic> json) {
+    final name = requireString(json, 'name');
+    if (!_docFieldIdentifier.hasMatch(name) || name.length > 80) {
+      throw const ContractError('INVALID_FIELD', 'Invalid field name.');
+    }
     final type = requireString(json, 'type');
     if (![
       'text',
@@ -153,7 +160,7 @@ class FieldDefinition {
       }
     }
     return FieldDefinition(
-        name: requireString(json, 'name'),
+        name: name,
         type: type,
         required: requireBool(json, 'required'),
         label: requireString(json, 'label'),
@@ -265,7 +272,22 @@ class DocTypeDefinition {
         pageTitleKey = pageTitleKey ?? labelKey;
 
   factory DocTypeDefinition.fromJson(Map<String, dynamic> json) {
-    final fields = requireList(json, 'fields')
+    final name = requireString(json, 'name');
+    final moduleId = requireString(json, 'moduleId');
+    if (!_docTypeIdentifier.hasMatch(name) || name.length > 80) {
+      throw const ContractError('INVALID_DOCTYPE', 'Invalid DocType name.');
+    }
+    if (!isValidModuleId(moduleId)) {
+      throw const ContractError('INVALID_MODULE_ID', 'Invalid module ID.');
+    }
+    final rawFields = requireList(json, 'fields');
+    if (rawFields.length > 100) {
+      throw const ContractError(
+        'TOO_MANY_FIELDS',
+        'A DocType may contain at most 100 fields.',
+      );
+    }
+    final fields = rawFields
         .map((field) => FieldDefinition.fromJson(requireMap(field, 'fields[]')))
         .toList();
     final rawMigrations = json['migrations'];
@@ -410,8 +432,8 @@ class DocTypeDefinition {
       );
     }
     return DocTypeDefinition(
-        name: requireString(json, 'name'),
-        moduleId: requireString(json, 'moduleId'),
+        name: name,
+        moduleId: moduleId,
         schemaVersion: requireInt(json, 'schemaVersion', min: 1),
         kind: kind,
         label: requireString(json, 'label'),

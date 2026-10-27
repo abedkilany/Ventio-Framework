@@ -917,6 +917,23 @@ void main() {
       'A required field was hidden from the generated form',
     );
   });
+  test('DocType and field identifiers are validated by Core metadata', () {
+    final invalidDocType =
+        loadJsonFile('$root/examples/maintenance_doctype.json')
+          ..['name'] = 'Invalid DocType';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidDocType),
+      'Core accepted an invalid DocType identifier',
+    );
+
+    final invalidField =
+        loadJsonFile('$root/examples/maintenance_doctype.json');
+    (invalidField['fields'] as List).first['name'] = 'InvalidField';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidField),
+      'Core accepted an invalid field identifier',
+    );
+  });
   test('DocTypes default operations and can restrict their declared surface',
       () {
     final json = loadJsonFile('$root/examples/maintenance_doctype.json');
