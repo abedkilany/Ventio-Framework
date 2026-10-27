@@ -217,12 +217,21 @@ class InMemoryHost {
     if (docType.fields.any(
       (field) =>
           field.readOnly &&
+          field.calculation == null &&
           valuesForStorage.containsKey(field.name) &&
           valuesForStorage[field.name] != field.defaultValue,
     )) {
       return failure('REJECTED', 'READ_ONLY_FIELD');
     }
-    final normalizedValues = docType.applyDefaults(valuesForStorage);
+    late final Map<String, dynamic> normalizedValues;
+    try {
+      normalizedValues = docType.calculateValues(
+        valuesForStorage,
+        verifyCalculatedFields: valuesForStorage.keys.toSet(),
+      );
+    } on ContractError catch (error) {
+      return failure('REJECTED', error.code);
+    }
     final issues = docType.validatePayload(normalizedValues);
     if (issues.isNotEmpty) {
       return failure('REJECTED', 'INVALID_PAYLOAD');

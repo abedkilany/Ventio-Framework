@@ -755,8 +755,46 @@ void main() {
                   'labelKey':
                       'extension.com_example_asset_register.order.line_quantity',
                 },
+                {
+                  'name': 'unitPrice',
+                  'type': 'decimal',
+                  'required': false,
+                  'precision': 2,
+                  'default': 0.25,
+                  'label': 'Unit price',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.unit_price',
+                },
+                {
+                  'name': 'lineTotal',
+                  'type': 'decimal',
+                  'required': true,
+                  'precision': 2,
+                  'calculation': {
+                    'type': 'multiply',
+                    'leftField': 'quantity',
+                    'rightField': 'unitPrice',
+                  },
+                  'label': 'Line total',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.line_total',
+                },
               ],
             },
+          },
+          {
+            'name': 'total',
+            'type': 'decimal',
+            'required': true,
+            'precision': 2,
+            'readOnly': true,
+            'calculation': {
+              'type': 'sum',
+              'rowsField': 'lines',
+              'valueField': 'lineTotal',
+            },
+            'label': 'Total',
+            'labelKey': 'extension.com_example_asset_register.order.total',
           },
         ],
       );
@@ -800,6 +838,18 @@ void main() {
         recordId: 'order-1',
         values: values,
       );
+      await store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Order',
+        scope: _scope,
+        recordId: 'order-1',
+        expectedRevision: 1,
+        values: {
+          'lines': [
+            {'product': 'product-1', 'quantity': 2, 'unitPrice': 0.25},
+          ],
+        },
+      );
       final restoredValue = (await store.getRecord(
         moduleId: _moduleId,
         docTypeName: 'Order',
@@ -807,8 +857,14 @@ void main() {
         recordId: 'order-1',
       ))!.values;
       expect(restoredValue['lines'], [
-        {'product': 'product-1', 'quantity': 1},
+        {
+          'product': 'product-1',
+          'quantity': 2,
+          'unitPrice': 0.25,
+          'lineTotal': 0.5,
+        },
       ]);
+      expect(restoredValue['total'], 0.5);
 
       await expectLater(
         store.createRecord(

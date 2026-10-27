@@ -463,8 +463,44 @@ void main() {
                 'label': 'Quantity',
                 'labelKey': '$key.child.orderline.quantity.label',
               },
+              {
+                'name': 'unitPrice',
+                'type': 'decimal',
+                'required': true,
+                'precision': 2,
+                'default': 0.2,
+                'label': 'Unit price',
+                'labelKey': '$key.child.orderline.unit_price.label',
+              },
+              {
+                'name': 'lineTotal',
+                'type': 'decimal',
+                'required': true,
+                'precision': 2,
+                'calculation': {
+                  'type': 'multiply',
+                  'leftField': 'quantity',
+                  'rightField': 'unitPrice',
+                },
+                'label': 'Line total',
+                'labelKey': '$key.child.orderline.line_total.label',
+              },
             ],
           },
+        },
+        {
+          'name': 'total',
+          'type': 'decimal',
+          'required': true,
+          'precision': 2,
+          'readOnly': true,
+          'calculation': {
+            'type': 'sum',
+            'rowsField': 'lines',
+            'valueField': 'lineTotal',
+          },
+          'label': 'Total',
+          'labelKey': '$key.total',
         },
       ],
       'operations': ['read', 'create', 'update'],
@@ -475,8 +511,8 @@ void main() {
       },
       'ui': {
         'listColumns': ['lines'],
-        'formFields': ['lines'],
-        'detailFields': ['lines'],
+        'formFields': ['lines', 'total'],
+        'detailFields': ['lines', 'total'],
       },
       'label': 'Order',
       'labelKey': '$key.label',
@@ -564,9 +600,13 @@ void main() {
       isEmpty,
     );
     await tester.enterText(childInput('Quantity').at(2), '4.0');
-    await tester.tap(find.byTooltip('Remove row').last);
+    final removeThirdRow = find.byTooltip('Remove row').last;
+    await tester.ensureVisible(removeThirdRow);
+    await tester.tap(removeThirdRow);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Move row up').last);
+    final moveSecondRowUp = find.byTooltip('Move row up').last;
+    await tester.ensureVisible(moveSecondRowUp);
+    await tester.tap(moveSecondRowUp);
     await tester.pumpAndSettle();
     await tester.ensureVisible(save);
     await tester.pumpAndSettle();
@@ -578,10 +618,11 @@ void main() {
     );
     final record = records.single;
     const expectedLines = [
-      {'itemCode': 'B-2', 'quantity': 3.0},
-      {'itemCode': 'A-1', 'quantity': 2.5},
+      {'itemCode': 'B-2', 'quantity': 3.0, 'unitPrice': 0.2, 'lineTotal': 0.6},
+      {'itemCode': 'A-1', 'quantity': 2.5, 'unitPrice': 0.2, 'lineTotal': 0.5},
     ];
     expect(canonicalJson(record.values['lines']), canonicalJson(expectedLines));
+    expect(record.values['total'], 1.1);
     final queued = await queue.list();
     final pending = queued.single;
     expect(pending.hostStatus, HostCommandStatus.pending);
@@ -1660,6 +1701,48 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    Future<void> selectFieldDialogOption(
+      String fieldLabel,
+      String option,
+    ) async {
+      final dropdown = find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == fieldLabel,
+      );
+      await tester.ensureVisible(dropdown.last);
+      await tester.tap(dropdown.last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option).last);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> addDecimalChildField(String name, String label) async {
+      await tester.tap(find.text('Add child field'));
+      await tester.pumpAndSettle();
+      await tester.enterText(fieldInput('Field ID'), name);
+      await tester.enterText(fieldInput('Label'), label);
+      await selectFieldDialogOption('Data type', 'Decimal');
+      await tester.enterText(fieldInput('Decimal places'), '2');
+      await invokeDialogAction('Save field');
+    }
+
+    Future<void> selectCalculationOption(
+      String fieldLabel,
+      String option,
+    ) async {
+      final dropdown = find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String?> &&
+            widget.decoration.labelText == fieldLabel,
+      );
+      await tester.ensureVisible(dropdown.last);
+      await tester.tap(dropdown.last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option).last);
+      await tester.pumpAndSettle();
+    }
+
     await tester.enterText(fieldInput('Field ID'), 'lines');
     await tester.enterText(fieldInput('Label'), 'Lines');
     final fieldType = find.descendant(
@@ -1691,8 +1774,34 @@ void main() {
     await tester.enterText(fieldInput('Label'), 'Item code');
     await invokeDialogAction('Save field');
     expect(find.text('itemCode · text'), findsOneWidget);
+    await addDecimalChildField('quantity', 'Quantity');
+    await addDecimalChildField('unitPrice', 'Unit price');
+    await tester.tap(find.text('Add child field'));
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldInput('Field ID'), 'lineTotal');
+    await tester.enterText(fieldInput('Label'), 'Line total');
+    await selectFieldDialogOption('Data type', 'Decimal');
+    await tester.enterText(fieldInput('Decimal places'), '2');
+    await selectCalculationOption(
+      'Calculated value',
+      'Multiply two row fields',
+    );
+    await selectCalculationOption('First number field', 'quantity');
+    await selectCalculationOption('Second number field', 'unitPrice');
+    await invokeDialogAction('Save field');
     await invokeDialogAction('Save child DocType');
     expect(find.text('Edit child DocType · OrderLine'), findsOneWidget);
+    await invokeDialogAction('Save field');
+
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldInput('Field ID'), 'total');
+    await tester.enterText(fieldInput('Label'), 'Total');
+    await selectFieldDialogOption('Data type', 'Decimal');
+    await tester.enterText(fieldInput('Decimal places'), '2');
+    await selectCalculationOption('Calculated value', 'Sum a child row field');
+    await selectCalculationOption('Child table', 'lines');
+    await selectCalculationOption('Child number field to sum', 'lineTotal');
     await invokeDialogAction('Save field');
 
     final saveDocType = find.text('Save DocType');
@@ -1703,12 +1812,41 @@ void main() {
     );
     await invokeDialogAction('Save DocType');
     final saved = await store.getDocType(moduleId, 'Order');
-    final table = (saved!['fields'] as List).cast<Map>().single;
+    expect(
+      saved,
+      isNotNull,
+      reason: tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byType(SnackBar),
+              matching: find.byType(Text),
+            ),
+          )
+          .map((text) => text.data)
+          .join(' | '),
+    );
+    final table = (saved!['fields'] as List).cast<Map>().singleWhere(
+      (field) => field['name'] == 'lines',
+    );
     expect(table['childDocType']['name'], 'OrderLine');
     expect(
-      (table['childDocType']['fields'] as List).single['name'],
+      (table['childDocType']['fields'] as List).cast<Map>().first['name'],
       'itemCode',
     );
+    final childFields = table['childDocType']['fields'] as List;
+    expect((childFields.last as Map)['calculation'], {
+      'type': 'multiply',
+      'leftField': 'quantity',
+      'rightField': 'unitPrice',
+    });
+    final total = (saved['fields'] as List).cast<Map>().singleWhere(
+      (field) => field['name'] == 'total',
+    );
+    expect(total['calculation'], {
+      'type': 'sum',
+      'rowsField': 'lines',
+      'valueField': 'lineTotal',
+    });
     final bundle = await store.exportBundle(moduleId);
     expect(
       bundle.englishCatalog.containsKey(

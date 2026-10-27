@@ -1521,6 +1521,7 @@ class LocalExtensionStore {
       if (definition.fields.any(
         (field) =>
             field.readOnly &&
+            field.calculation == null &&
             values.containsKey(field.name) &&
             values[field.name] != field.defaultValue,
       )) {
@@ -1667,6 +1668,7 @@ class LocalExtensionStore {
       if (definition.fields.any(
         (field) =>
             field.readOnly &&
+            field.calculation == null &&
             values.containsKey(field.name) &&
             values[field.name] != current.values[field.name],
       )) {
@@ -1698,14 +1700,15 @@ class LocalExtensionStore {
       if (effectiveReadMask case final readMask?) {
         mergedValues.removeWhere((field, _) => !readMask.contains(field));
       }
-      _validatePayload(definition, mergedValues, partial: true);
+      final calculatedValues = definition.calculateValues(mergedValues);
+      _validatePayload(definition, calculatedValues, partial: true);
       await _validateReferences(transaction, definition, values, scope);
       final nextRevision = current.revision + 1;
       final now = _now();
       final changed = await transaction.update(
         _recordsTable,
         {
-          'data_json': canonicalJson(mergedValues),
+          'data_json': canonicalJson(calculatedValues),
           'schema_version': definition.schemaVersion,
           'revision': nextRevision,
           'pending_command_id': null,
@@ -1750,7 +1753,7 @@ class LocalExtensionStore {
         schemaVersion: definition.schemaVersion,
         revision: nextRevision,
         values: Map.unmodifiable(
-          jsonDecode(canonicalJson(mergedValues)) as Map<String, dynamic>,
+          jsonDecode(canonicalJson(calculatedValues)) as Map<String, dynamic>,
         ),
         updatedAtUtc: DateTime.parse(now),
         hostRevision: current.hostRevision,
@@ -2897,7 +2900,8 @@ class LocalExtensionStore {
     Map<String, dynamic> values, {
     bool partial = false,
   }) {
-    final issues = definition.validatePayload(values, partial: partial);
+    final normalized = definition.calculateValues(values);
+    final issues = definition.validatePayload(normalized, partial: partial);
     if (issues.isNotEmpty) {
       throw ExtensionStoreException('INVALID_RECORD', issues.join(', '));
     }

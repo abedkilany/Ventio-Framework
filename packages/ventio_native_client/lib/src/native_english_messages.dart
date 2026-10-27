@@ -211,6 +211,15 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.field_default': 'Default value',
   'native.ui.precision': 'Decimal places',
   'native.ui.precision_error': 'Enter a number from 0 to 9.',
+  'native.ui.calculation': 'Calculated value',
+  'native.ui.no_calculation': 'No calculation',
+  'native.ui.multiply_fields': 'Multiply two row fields',
+  'native.ui.sum_child_rows': 'Sum a child row field',
+  'native.ui.calculation_left_field': 'First number field',
+  'native.ui.calculation_right_field': 'Second number field',
+  'native.ui.calculation_table': 'Child table',
+  'native.ui.calculation_value': 'Child number field to sum',
+  'native.ui.complete_calculation': 'Complete the calculation fields.',
   'native.ui.invalid_field_default':
       'Enter a default that matches this field type and its constraints.',
   'native.ui.decimal_precision':

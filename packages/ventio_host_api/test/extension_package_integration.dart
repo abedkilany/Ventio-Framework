@@ -2985,8 +2985,46 @@ Future<void> main() async {
                     'labelKey':
                         'extension.com_example_inventory.movement.amount',
                   },
+                  {
+                    'name': 'unitPrice',
+                    'type': 'decimal',
+                    'required': false,
+                    'precision': 2,
+                    'default': 0.0,
+                    'label': 'Unit price',
+                    'labelKey':
+                        'extension.com_example_inventory.movement.unit_price',
+                  },
+                  {
+                    'name': 'lineTotal',
+                    'type': 'decimal',
+                    'required': true,
+                    'precision': 2,
+                    'calculation': {
+                      'type': 'multiply',
+                      'leftField': 'amount',
+                      'rightField': 'unitPrice',
+                    },
+                    'label': 'Line total',
+                    'labelKey':
+                        'extension.com_example_inventory.movement.line_total',
+                  },
                 ],
               },
+            },
+            {
+              'name': 'total',
+              'type': 'decimal',
+              'required': true,
+              'precision': 2,
+              'readOnly': true,
+              'calculation': {
+                'type': 'sum',
+                'rowsField': 'lines',
+                'valueField': 'lineTotal',
+              },
+              'label': 'Total',
+              'labelKey': 'extension.com_example_inventory.movement.total',
             },
             {
               'name': 'documentNumber',
@@ -3077,8 +3115,8 @@ Future<void> main() async {
           ],
           'ui': {
             'listColumns': ['lines', 'documentNumber'],
-            'formFields': ['lines', 'documentNumber'],
-            'detailFields': ['lines', 'documentNumber'],
+            'formFields': ['lines', 'documentNumber', 'total'],
+            'detailFields': ['lines', 'documentNumber', 'total'],
           },
         },
       ],
@@ -3092,6 +3130,9 @@ Future<void> main() async {
         'extension.com_example_inventory.movement.lines': 'Lines',
         'extension.com_example_inventory.movement.line': 'Movement Line',
         'extension.com_example_inventory.movement.amount': 'Amount',
+        'extension.com_example_inventory.movement.unit_price': 'Unit price',
+        'extension.com_example_inventory.movement.line_total': 'Line total',
+        'extension.com_example_inventory.movement.total': 'Total',
         'extension.com_example_inventory.movement.number': 'Document Number',
         'extension.com_example_inventory.movement.amended_from': 'Amended From',
       },
@@ -3155,6 +3196,129 @@ Future<void> main() async {
           )).body['receipt']['status'] ==
           'ACCEPTED',
       'Governed operation fixture creates a draft movement',
+    );
+    final calculatedMovement = ExtensionRecordCommand.create(
+      commandId: '76000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-calculated-movement',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {
+        'lines': [
+          {'product': 'inventory-product-1', 'amount': 0.1, 'unitPrice': 0.2},
+          {'product': 'inventory-product-1', 'amount': 2, 'unitPrice': 0.15},
+        ],
+      },
+    );
+    final calculatedMovementReply = await send(
+      api,
+      token: operationToken,
+      body: calculatedMovement.envelope.original,
+    );
+    final calculatedMovementState = await observer.execute(
+      pg.Sql.named('''
+        SELECT record_data::text AS record_json FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Movement'
+          AND record_id='inventory-calculated-movement'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final calculatedMovementValues =
+        jsonDecode(
+              calculatedMovementState.single.toColumnMap()['record_json']
+                  as String,
+            )
+            as Map<String, dynamic>;
+    expect(
+      calculatedMovementReply.body['receipt']['status'] == 'ACCEPTED' &&
+          (calculatedMovementValues['lines'] as List)[0]['lineTotal'] == 0.02 &&
+          (calculatedMovementValues['lines'] as List)[1]['lineTotal'] == 0.3 &&
+          calculatedMovementValues['total'] == 0.32,
+      'PostgreSQL Host recomputes and persists exact child and parent totals',
+    );
+    final forgedCalculation = ExtensionRecordCommand.create(
+      commandId: '76000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-forged-total',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {
+        'lines': [
+          {
+            'product': 'inventory-product-1',
+            'amount': 1,
+            'unitPrice': 2,
+            'lineTotal': 99,
+          },
+        ],
+        'total': 99,
+      },
+    );
+    final cursorBeforeForgedCalculation = await observer.execute(
+      pg.Sql.named('''
+        SELECT coalesce(max(scope_cursor),0) FROM ventio_command_journal
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+      },
+    );
+    final forgedReply = await send(
+      api,
+      token: operationToken,
+      body: forgedCalculation.envelope.original,
+    );
+    final forgedEffects = await observer.execute(
+      pg.Sql.named('''
+        SELECT
+          (SELECT count(*) FROM ventio_records WHERE tenant_id=@tenant
+            AND module_id=@module AND record_id='inventory-forged-total') AS record_count,
+          (SELECT count(*) FROM ventio_command_journal WHERE tenant_id=@tenant
+            AND command_id=@command) AS journal_count,
+          (SELECT count(*) FROM ventio_audit_entries WHERE tenant_id=@tenant
+            AND command_id=@command) AS audit_count,
+          (SELECT count(*) FROM ventio_outbox WHERE tenant_id=@tenant
+            AND command_id=@command) AS outbox_count,
+          (SELECT coalesce(max(scope_cursor),0) FROM ventio_command_journal
+            WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch) AS cursor_value
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'module': operationPackage.moduleId,
+        'command': forgedCalculation.envelope.commandId,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+      },
+    );
+    expect(
+      forgedReply.body['receipt']['reasonCode'] == 'INVALID_CALCULATION' &&
+          forgedEffects.single.toColumnMap()['record_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['journal_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['audit_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['outbox_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['cursor_value'] ==
+              cursorBeforeForgedCalculation.single[0],
+      'Host rejects forged totals without records, receipts, audit, outbox or cursor effects',
     );
     final unauthorizedSubmit = ExtensionBusinessOperationCommand.execute(
       commandId: '75000000-0000-4000-8000-000000000001',
@@ -3390,8 +3554,18 @@ Future<void> main() async {
           immutableState.single.toColumnMap()['document_status'] == 1 &&
           canonicalJson(immutableRecord['lines']) ==
               canonicalJson([
-                {'product': 'inventory-product-1', 'amount': 8},
-                {'product': 'inventory-product-1', 'amount': 12},
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 8,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 12,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
               ]),
       'Host rejects generic edits to a submitted document without changing rows or revision',
     );
@@ -3604,8 +3778,18 @@ Future<void> main() async {
           amendedValues['documentNumber'] == null &&
           canonicalJson(amendedValues['lines']) ==
               canonicalJson([
-                {'product': 'inventory-product-1', 'amount': 8},
-                {'product': 'inventory-product-1', 'amount': 12},
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 8,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 12,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
               ]),
       'Amend creates a linked draft with copied rows but no effects or official number',
     );

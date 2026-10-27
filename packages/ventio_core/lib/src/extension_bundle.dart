@@ -189,6 +189,7 @@ class ExtensionBundle {
             'readPermission',
             'writePermission',
             'childDocType',
+            'calculation',
           },
           'field',
         );
@@ -236,6 +237,7 @@ class ExtensionBundle {
                 'referenceTo',
                 'description',
                 'descriptionKey',
+                'calculation',
               },
               'child field',
             );

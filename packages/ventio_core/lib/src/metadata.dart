@@ -1,5 +1,6 @@
 import 'contracts.dart';
 import 'business_operations.dart';
+import 'exact_decimal.dart';
 
 final RegExp _docTypeIdentifier = RegExp(r'^[A-Z][A-Za-z0-9_]*$');
 final RegExp _docFieldIdentifier = RegExp(r'^[a-z][A-Za-z0-9_]*$');
@@ -27,6 +28,7 @@ class FieldDefinition {
   final Map<String, String> enumLabelKeys;
   final String? referenceTo;
   final ChildDocTypeDefinition? childDocType;
+  final FieldCalculationDefinition? calculation;
 
   const FieldDefinition(
       {required this.name,
@@ -49,7 +51,8 @@ class FieldDefinition {
       this.enumLabels = const {},
       this.enumLabelKeys = const {},
       required this.referenceTo,
-      this.childDocType});
+      this.childDocType,
+      this.calculation});
 
   factory FieldDefinition.fromJson(
     Map<String, dynamic> json, {
@@ -232,10 +235,22 @@ class FieldDefinition {
         : ChildDocTypeDefinition.fromJson(
             requireMap(json['childDocType'], 'childDocType'),
           );
+    final calculation = json['calculation'] == null
+        ? null
+        : FieldCalculationDefinition.fromJson(
+            requireMap(json['calculation'], 'calculation'),
+          );
     if (childDocType != null && type != 'table') {
       throw const ContractError(
         'INVALID_CHILD_DOCTYPE',
         'A child DocType may only be declared on a table field.',
+      );
+    }
+    if (calculation != null &&
+        (type != 'decimal' || precision == null || rawDefault != null)) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Calculated fields require decimal precision and cannot declare defaults.',
       );
     }
     for (final entry in {
@@ -271,7 +286,8 @@ class FieldDefinition {
         enumLabels: Map.unmodifiable(enumLabels),
         enumLabelKeys: Map.unmodifiable(enumLabelKeys),
         referenceTo: referenceTo,
-        childDocType: childDocType);
+        childDocType: childDocType,
+        calculation: calculation);
     if (rawDefault != null && field.validate(rawDefault) != null) {
       throw const ContractError(
         'INVALID_FIELD',
@@ -440,11 +456,73 @@ class ChildDocTypeDefinition {
         'Child DocType field names must be unique.',
       );
     }
+    _validateChildCalculations(fields);
     return ChildDocTypeDefinition(
       name: name,
       label: label,
       labelKey: labelKey,
       fields: List.unmodifiable(fields),
+    );
+  }
+}
+
+/// A small data-only calculation understood identically by Core, SQLite and
+/// the PostgreSQL Host.
+class FieldCalculationDefinition {
+  const FieldCalculationDefinition._({
+    required this.type,
+    this.leftField,
+    this.rightField,
+    this.rowsField,
+    this.valueField,
+  });
+
+  final String type;
+  final String? leftField;
+  final String? rightField;
+  final String? rowsField;
+  final String? valueField;
+
+  factory FieldCalculationDefinition.fromJson(Map<String, dynamic> json) {
+    final type = requireString(json, 'type');
+    final allowed = switch (type) {
+      'multiply' => const {'type', 'leftField', 'rightField'},
+      'sum' => const {'type', 'rowsField', 'valueField'},
+      _ => const <String>{},
+    };
+    if (allowed.isEmpty ||
+        json.keys.toSet().difference(allowed).isNotEmpty ||
+        allowed.difference(json.keys.toSet()).isNotEmpty) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Calculation declarations must use a supported bounded shape.',
+      );
+    }
+    final leftField = optionalString(json, 'leftField');
+    final rightField = optionalString(json, 'rightField');
+    final rowsField = optionalString(json, 'rowsField');
+    final valueField = optionalString(json, 'valueField');
+    if (type == 'multiply' &&
+            (leftField == null ||
+                !_docFieldIdentifier.hasMatch(leftField) ||
+                rightField == null ||
+                !_docFieldIdentifier.hasMatch(rightField)) ||
+        type == 'sum' &&
+            (rowsField == null ||
+                !_docFieldIdentifier.hasMatch(rowsField) ||
+                valueField == null ||
+                !_docFieldIdentifier.hasMatch(valueField))) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Calculation field bindings are invalid.',
+      );
+    }
+    return FieldCalculationDefinition._(
+      type: type,
+      leftField: leftField,
+      rightField: rightField,
+      rowsField: rowsField,
+      valueField: valueField,
     );
   }
 }
@@ -671,6 +749,7 @@ class DocTypeDefinition {
         'operations must contain unique supported record operations',
       );
     }
+    _validateParentCalculations(fields);
     final permissionsRaw = requireMap(json['permissions'], 'permissions');
     if (permissionsRaw.keys.toSet().difference(operations.toSet()).isNotEmpty ||
         operations.toSet().difference(permissionsRaw.keys.toSet()).isNotEmpty) {
@@ -821,6 +900,16 @@ class DocTypeDefinition {
   }
 
   Map<String, dynamic> applyDefaults(Map<String, dynamic> payload) {
+    return calculateValues(payload);
+  }
+
+  /// Applies defaults and recomputes derived fields. When requested, a
+  /// caller-supplied calculated value must exactly match the authoritative
+  /// result at the field's declared decimal scale.
+  Map<String, dynamic> calculateValues(
+    Map<String, dynamic> payload, {
+    Set<String> verifyCalculatedFields = const {},
+  }) {
     final values = Map<String, dynamic>.of(payload);
     for (final field in fields) {
       if (!values.containsKey(field.name) && field.defaultValue != null) {
@@ -829,13 +918,141 @@ class DocTypeDefinition {
       final child = field.childDocType;
       final rows = values[field.name];
       if (child != null && rows is List) {
-        values[field.name] = [
-          for (final rawRow in rows)
-            if (rawRow is Map) _applyChildDefaults(rawRow, child) else rawRow,
-        ];
+        values[field.name] = rows.map((rawRow) {
+          if (rawRow is! Map) return rawRow;
+          final row = _applyChildDefaults(rawRow, child);
+          for (final childField in child.fields) {
+            final calculation = childField.calculation;
+            if (calculation == null) continue;
+            final calculated = _calculateField(
+              childField,
+              calculation,
+              row,
+              childPrecision: {
+                for (final item in child.fields) item.name: item.precision,
+              },
+            );
+            _verifySuppliedCalculation(
+              childField,
+              row,
+              calculated,
+              verifyCalculatedFields.contains(field.name),
+            );
+            row[childField.name] = calculated;
+          }
+          return row;
+        }).toList(growable: false);
       }
     }
+    for (final field in fields) {
+      final calculation = field.calculation;
+      if (calculation == null || !values.containsKey(calculation.rowsField)) {
+        continue;
+      }
+      final calculated = _calculateField(field, calculation, values);
+      _verifySuppliedCalculation(
+        field,
+        values,
+        calculated,
+        verifyCalculatedFields.contains(field.name),
+      );
+      values[field.name] = calculated;
+    }
     return values;
+  }
+
+  void _verifySuppliedCalculation(
+    FieldDefinition field,
+    Map<String, dynamic> source,
+    num calculated,
+    bool rejectMismatch,
+  ) {
+    final provided = source[field.name];
+    if (!rejectMismatch || !source.containsKey(field.name)) return;
+    if (provided is! num ||
+        ExactDecimal.toScaledInteger(provided, field.precision!) !=
+            ExactDecimal.toScaledInteger(calculated, field.precision!)) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'A supplied calculated value does not match its declared calculation.',
+      );
+    }
+  }
+
+  num _calculateField(
+    FieldDefinition target,
+    FieldCalculationDefinition calculation,
+    Map<String, dynamic> values, {
+    Map<String, int?>? childPrecision,
+  }) {
+    try {
+      final outputScale = target.precision!;
+      if (calculation.type == 'multiply') {
+        final left = values[calculation.leftField];
+        final right = values[calculation.rightField];
+        if (left is! num || right is! num) {
+          throw const FormatException('Calculation input is missing.');
+        }
+        final leftField = childPrecision == null
+            ? fields.singleWhere((field) => field.name == calculation.leftField)
+            : null;
+        final rightField = childPrecision == null
+            ? fields
+                .singleWhere((field) => field.name == calculation.rightField)
+            : null;
+        final leftScale = childPrecision == null
+            ? (leftField!.type == 'integer' ? 0 : leftField.precision!)
+            : (childPrecision[calculation.leftField!] ?? 0);
+        final rightScale = childPrecision == null
+            ? (rightField!.type == 'integer' ? 0 : rightField.precision!)
+            : (childPrecision[calculation.rightField!] ?? 0);
+        return ExactDecimal.fromScaledInteger(
+          ExactDecimal.multiply(
+            left,
+            leftScale,
+            right,
+            rightScale,
+            outputScale,
+          ),
+          outputScale,
+        );
+      }
+      final rows = values[calculation.rowsField];
+      if (rows is! List) {
+        throw const FormatException('Calculation rows are missing.');
+      }
+      final child = fields
+          .singleWhere((field) => field.name == calculation.rowsField)
+          .childDocType!;
+      final sourceField = child.fields
+          .singleWhere((field) => field.name == calculation.valueField);
+      final sourceScale =
+          sourceField.type == 'integer' ? 0 : sourceField.precision!;
+      var total = BigInt.zero;
+      for (final row in rows) {
+        if (row is! Map || row[sourceField.name] is! num) {
+          throw const FormatException('Calculated row value is missing.');
+        }
+        final scaled = ExactDecimal.toScaledInteger(
+          row[sourceField.name] as num,
+          sourceScale,
+        );
+        if (sourceScale > outputScale) {
+          final divisor = BigInt.from(10).pow(sourceScale - outputScale);
+          if (scaled.remainder(divisor) != BigInt.zero) {
+            throw const FormatException(
+              'Calculated sum exceeds the declared precision.',
+            );
+          }
+          total += scaled ~/ divisor;
+        } else {
+          total += scaled * BigInt.from(10).pow(outputScale - sourceScale);
+        }
+      }
+      return ExactDecimal.fromScaledInteger(total, outputScale);
+    } on FormatException catch (error) {
+      throw ContractError('INVALID_CALCULATION', error.message);
+    }
   }
 
   Map<String, dynamic> _applyChildDefaults(
@@ -880,6 +1097,66 @@ class DocTypeDefinition {
           }
         }
       }
+    }
+  }
+}
+
+void _validateChildCalculations(List<FieldDefinition> fields) {
+  final byName = {for (final field in fields) field.name: field};
+  for (final target in fields.where((field) => field.calculation != null)) {
+    final calculation = target.calculation!;
+    if (calculation.type != 'multiply' || target.type != 'decimal') {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Child calculations must multiply numeric sibling fields into a decimal field.',
+      );
+    }
+    for (final name in [calculation.leftField!, calculation.rightField!]) {
+      final source = byName[name];
+      if (source == null ||
+          !{'integer', 'decimal'}.contains(source.type) ||
+          source.calculation != null ||
+          (source.type == 'decimal' && source.precision == null)) {
+        throw const ContractError(
+          'INVALID_CALCULATION',
+          'Multiplication inputs must be declared numeric sibling fields without calculations.',
+        );
+      }
+    }
+  }
+}
+
+void _validateParentCalculations(List<FieldDefinition> fields) {
+  for (final target in fields.where((field) => field.calculation != null)) {
+    final calculation = target.calculation!;
+    if (calculation.type != 'sum' ||
+        target.type != 'decimal' ||
+        !target.readOnly) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Parent calculations must sum typed child rows into a read-only decimal field.',
+      );
+    }
+    final table = fields.where((field) =>
+        field.name == calculation.rowsField &&
+        field.type == 'table' &&
+        field.childDocType != null);
+    if (table.length != 1) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'A parent sum must reference one typed table field.',
+      );
+    }
+    final source = table.single.childDocType!.fields
+        .where((field) => field.name == calculation.valueField);
+    if (source.length != 1 ||
+        !{'integer', 'decimal'}.contains(source.single.type) ||
+        (source.single.type == 'decimal' &&
+            source.single.precision! > target.precision!)) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'A parent sum must reference a numeric child field at no greater precision.',
+      );
     }
   }
 }

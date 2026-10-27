@@ -232,7 +232,7 @@ class DurableCommandHost {
           late final String moduleVersion;
           late final String moduleId;
           late final String operation;
-          late final Map<String, dynamic> recordValues;
+          late Map<String, dynamic> recordValues;
           BusinessOperationDefinition? businessOperation;
           var valuesForStorage = <String, dynamic>{};
           int? updateBaseRevision;
@@ -490,6 +490,14 @@ class DurableCommandHost {
               ),
             );
           }
+          try {
+            recordValues = docType.calculateValues(
+              recordValues,
+              verifyCalculatedFields: recordValues.keys.toSet(),
+            );
+          } on ContractError catch (error) {
+            throw _RejectedCommand(_failure(command, 'REJECTED', error.code));
+          }
           if (docType
               .validatePayload(recordValues, partial: operation != 'create')
               .isNotEmpty) {
@@ -593,6 +601,7 @@ class DurableCommandHost {
                     : recordValues.entries) {
               final field = fieldsByName[entry.key]!;
               if (field.readOnly &&
+                  field.calculation == null &&
                   canonicalJson(valuesForStorage[field.name]) !=
                       canonicalJson(entry.value)) {
                 throw _RejectedCommand(
@@ -623,6 +632,7 @@ class DurableCommandHost {
             for (final entry in recordValues.entries) {
               final field = fieldsByName[entry.key]!;
               if (field.readOnly &&
+                  field.calculation == null &&
                   canonicalJson(field.defaultValue) !=
                       canonicalJson(entry.value)) {
                 throw _RejectedCommand(
@@ -1135,7 +1145,14 @@ class DurableCommandHost {
             }
           }
           if (operation != 'delete') {
-            valuesForStorage = docType.applyDefaults(valuesForStorage);
+            try {
+              valuesForStorage = docType.calculateValues(
+                valuesForStorage,
+                verifyCalculatedFields: recordValues.keys.toSet(),
+              );
+            } on ContractError catch (error) {
+              throw _RejectedCommand(_failure(command, 'REJECTED', error.code));
+            }
           }
           if (operation != 'delete' &&
               docType.validatePayload(valuesForStorage).isNotEmpty) {
@@ -1415,25 +1432,7 @@ class _RejectedCommand implements Exception {
 }
 
 BigInt _decimalToScaledInteger(num value, int precision) {
-  final text = value.toString();
-  final parts = RegExp(r'^(-?)(\d+)(?:\.(\d+))?$').firstMatch(text);
-  if (parts == null) {
-    throw const FormatException('Invalid decimal operation amount.');
-  }
-  var fraction = parts.group(3) ?? '';
-  if (fraction.length > precision) {
-    if (fraction.substring(precision).split('').any((digit) => digit != '0')) {
-      throw const FormatException('Operation amount exceeds target precision.');
-    }
-    fraction = fraction.substring(0, precision);
-  }
-  final scale = BigInt.from(10).pow(precision);
-  final whole = BigInt.parse(parts.group(2)!) * scale;
-  final fractional = fraction.isEmpty
-      ? BigInt.zero
-      : BigInt.parse(fraction.padRight(precision, '0'));
-  final result = whole + fractional;
-  return parts.group(1) == '-' ? -result : result;
+  return ExactDecimal.toScaledInteger(value, precision);
 }
 
 String _scaledIntegerToDecimal(BigInt value, int precision) {

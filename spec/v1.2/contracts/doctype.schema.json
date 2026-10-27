@@ -126,6 +126,30 @@
     }
   },
   "$defs": {
+    "fieldCalculation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "leftField", "rightField"],
+          "properties": {
+            "type": { "const": "multiply" },
+            "leftField": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" },
+            "rightField": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "rowsField", "valueField"],
+          "properties": {
+            "type": { "const": "sum" },
+            "rowsField": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" },
+            "valueField": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" }
+          }
+        }
+      ]
+    },
     "businessOperation": {
       "type": "object",
       "additionalProperties": false,
@@ -243,6 +267,7 @@
           "minimum": 0,
           "maximum": 9
         },
+        "calculation": { "$ref": "#/$defs/fieldCalculation" },
         "default": {
           "type": ["string", "number", "boolean"]
         },

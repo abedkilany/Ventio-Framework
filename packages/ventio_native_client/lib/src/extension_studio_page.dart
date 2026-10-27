@@ -2147,6 +2147,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
         moduleId: widget.moduleId,
         docTypeName: docTypeName,
         relationTargets: targets,
+        availableFields: _fields
+            .map((field) => Map<String, dynamic>.from(field))
+            .toList(),
         existing: existing,
       ),
     );
@@ -3185,6 +3188,7 @@ class _FieldEditorDialog extends StatefulWidget {
     required this.moduleId,
     required this.docTypeName,
     required this.relationTargets,
+    this.availableFields = const [],
     this.childField = false,
     this.existing,
   });
@@ -3192,6 +3196,7 @@ class _FieldEditorDialog extends StatefulWidget {
   final String moduleId;
   final String docTypeName;
   final List<String> relationTargets;
+  final List<Map<String, dynamic>> availableFields;
   final bool childField;
   final Map<String, dynamic>? existing;
 
@@ -3218,6 +3223,11 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   Map<String, dynamic>? _childDocType;
   bool _required = false;
   bool _readOnly = false;
+  String? _calculationType;
+  String? _calculationLeft;
+  String? _calculationRight;
+  String? _calculationRows;
+  String? _calculationValue;
 
   @override
   void initState() {
@@ -3264,6 +3274,14 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
         : null;
     _required = field?['required'] as bool? ?? false;
     _readOnly = field?['readOnly'] as bool? ?? false;
+    final calculation = field?['calculation'];
+    if (calculation is Map) {
+      _calculationType = calculation['type'] as String?;
+      _calculationLeft = calculation['leftField'] as String?;
+      _calculationRight = calculation['rightField'] as String?;
+      _calculationRows = calculation['rowsField'] as String?;
+      _calculationValue = calculation['valueField'] as String?;
+    }
   }
 
   @override
@@ -3311,7 +3329,24 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     if (_type == 'decimal' && _precision.text.trim().isNotEmpty) {
       metadata['precision'] = int.parse(_precision.text.trim());
     }
-    final rawDefault = _defaultValue.text;
+    if (_type == 'decimal' && _calculationType != null) {
+      metadata['calculation'] = switch (_calculationType) {
+        'multiply' => {
+          'type': 'multiply',
+          'leftField': _calculationLeft,
+          'rightField': _calculationRight,
+        },
+        'sum' => {
+          'type': 'sum',
+          'rowsField': _calculationRows,
+          'valueField': _calculationValue,
+        },
+        _ => throw StateError('Unsupported calculation selection.'),
+      };
+      metadata['required'] = true;
+      if (!widget.childField) metadata['readOnly'] = true;
+    }
+    final rawDefault = _calculationType == null ? _defaultValue.text : '';
     if (rawDefault.isNotEmpty) {
       metadata['default'] = switch (_type) {
         'integer' => int.parse(rawDefault.trim()),
@@ -3320,7 +3355,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
         _ => rawDefault,
       };
     }
-    metadata['readOnly'] = _readOnly;
+    metadata['readOnly'] =
+        _readOnly || (_calculationType == 'sum' && !widget.childField);
     final description = _description.text.trim();
     if (description.isNotEmpty) {
       metadata['description'] = description;
@@ -3523,6 +3559,177 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     return null;
   }
 
+  List<Map<String, dynamic>> get _numericCalculationFields => widget
+      .availableFields
+      .where(
+        (field) =>
+            field['name'] != _name.text.trim() &&
+            {'integer', 'decimal'}.contains(field['type']) &&
+            field['calculation'] == null,
+      )
+      .toList(growable: false);
+
+  List<Map<String, dynamic>> get _calculationTables => widget.availableFields
+      .where(
+        (field) =>
+            field['name'] != _name.text.trim() &&
+            field['type'] == 'table' &&
+            field['childDocType'] is Map,
+      )
+      .toList(growable: false);
+
+  List<Map<String, dynamic>> get _calculationValues {
+    final table = _calculationTables.where(
+      (field) => field['name'] == _calculationRows,
+    );
+    if (table.isEmpty) return const [];
+    final child = table.single['childDocType'] as Map;
+    final fields = child['fields'];
+    if (fields is! List) return const [];
+    return fields
+        .whereType<Map>()
+        .map((field) => Map<String, dynamic>.from(field))
+        .where((field) => {'integer', 'decimal'}.contains(field['type']))
+        .toList(growable: false);
+  }
+
+  Widget _calculationEditor(BuildContext context) {
+    final canMultiply =
+        widget.childField && _numericCalculationFields.length >= 2;
+    final canSum = !widget.childField && _calculationTables.isNotEmpty;
+    final selectedType = switch (_calculationType) {
+      'multiply' when canMultiply => 'multiply',
+      'sum' when canSum => 'sum',
+      _ => null,
+    };
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String?>(
+          initialValue: selectedType,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: context.ventioText('native.ui.calculation'),
+          ),
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: VentioText('native.ui.no_calculation'),
+            ),
+            if (canMultiply)
+              DropdownMenuItem<String?>(
+                value: 'multiply',
+                child: VentioText('native.ui.multiply_fields'),
+              ),
+            if (canSum)
+              DropdownMenuItem<String?>(
+                value: 'sum',
+                child: VentioText('native.ui.sum_child_rows'),
+              ),
+          ],
+          onChanged: (value) => setState(() {
+            _calculationType = value;
+            if (value == null) {
+              _calculationLeft = null;
+              _calculationRight = null;
+              _calculationRows = null;
+              _calculationValue = null;
+            } else {
+              _defaultValue.clear();
+            }
+          }),
+          validator: (value) =>
+              value == 'multiply' &&
+                      (_calculationLeft == null || _calculationRight == null) ||
+                  value == 'sum' &&
+                      (_calculationRows == null || _calculationValue == null)
+              ? context.ventioText('native.ui.complete_calculation')
+              : null,
+        ),
+        if (selectedType == 'multiply') ...[
+          const SizedBox(height: 8),
+          for (final pair in [
+            ('left', 'native.ui.calculation_left_field', _calculationLeft),
+            ('right', 'native.ui.calculation_right_field', _calculationRight),
+          ])
+            DropdownButtonFormField<String?>(
+              key: ValueKey<String>('calculation-${pair.$1}'),
+              initialValue:
+                  _numericCalculationFields.any(
+                    (field) => field['name'] == pair.$3,
+                  )
+                  ? pair.$3
+                  : null,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: context.ventioText(pair.$2),
+              ),
+              items: [
+                for (final field in _numericCalculationFields)
+                  DropdownMenuItem<String?>(
+                    value: field['name'] as String,
+                    child: Text(field['name'] as String),
+                  ),
+              ],
+              onChanged: (value) => setState(() {
+                if (pair.$1 == 'left') _calculationLeft = value;
+                if (pair.$1 == 'right') _calculationRight = value;
+              }),
+            ),
+        ],
+        if (selectedType == 'sum') ...[
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String?>(
+            initialValue:
+                _calculationTables.any(
+                  (field) => field['name'] == _calculationRows,
+                )
+                ? _calculationRows
+                : null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: context.ventioText('native.ui.calculation_table'),
+            ),
+            items: [
+              for (final field in _calculationTables)
+                DropdownMenuItem<String?>(
+                  value: field['name'] as String,
+                  child: Text(field['name'] as String),
+                ),
+            ],
+            onChanged: (value) => setState(() {
+              _calculationRows = value;
+              _calculationValue = null;
+            }),
+          ),
+          if (_calculationValues.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String?>(
+              initialValue:
+                  _calculationValues.any(
+                    (field) => field['name'] == _calculationValue,
+                  )
+                  ? _calculationValue
+                  : null,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.calculation_value'),
+              ),
+              items: [
+                for (final field in _calculationValues)
+                  DropdownMenuItem<String?>(
+                    value: field['name'] as String,
+                    child: Text(field['name'] as String),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _calculationValue = value),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -3722,6 +3929,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                       ),
                       validator: _precisionError,
                     ),
+                    if (widget.availableFields.isNotEmpty)
+                      _calculationEditor(context),
                   ],
                 ],
                 if (!['table', 'reference'].contains(_type)) ...[
@@ -3914,6 +4123,9 @@ class _ChildDocTypeEditorDialogState extends State<_ChildDocTypeEditorDialog> {
         moduleId: widget.moduleId,
         docTypeName: childName,
         relationTargets: widget.relationTargets,
+        availableFields: _fields
+            .map((field) => Map<String, dynamic>.from(field))
+            .toList(),
         childField: true,
         existing: existing,
       ),
@@ -4555,7 +4767,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     final canCreate =
         _definition.operations.contains('create') &&
         _definition.fields
-            .where((field) => field.required)
+            .where((field) => field.required && field.calculation == null)
             .every(_canCreateField);
     final readableFields = _definition.fields
         .where(_canReadField)
@@ -4968,7 +5180,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
     if (editing) return _formFields.any(_isEditable);
     final requiredFields = widget.definition.fields.where(
-      (field) => field.required && field.defaultValue == null,
+      (field) =>
+          field.required &&
+          field.defaultValue == null &&
+          field.calculation == null,
     );
     return requiredFields.every(
       (field) => _effectiveCreatableFields.contains(field.name),
@@ -5139,7 +5354,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
-    final values = _values();
+    final values = widget.definition.calculateValues(_values());
     final issues = widget.definition.validatePayload(
       values,
       partial: widget.record != null,
@@ -5317,6 +5532,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           if (field.defaultValue != null) field.name: field.defaultValue,
       });
       (_childRowKeys[tableField.name] ??= []).add(Object());
+      _refreshCalculatedValues();
     });
   }
 
@@ -5329,6 +5545,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       rows.insert(destination, row);
       final keys = _childRowKeys[tableField.name]!;
       keys.insert(destination, keys.removeAt(index));
+      _refreshCalculatedValues();
     });
   }
 
@@ -5336,6 +5553,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     setState(() {
       _childRows[tableField.name]!.removeAt(index);
       _childRowKeys[tableField.name]!.removeAt(index);
+      _refreshCalculatedValues();
     });
   }
 
@@ -5346,6 +5564,52 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     dynamic value,
   ) {
     _childRows[tableField.name]![rowIndex][childField.name] = value;
+    _refreshCalculatedValues();
+  }
+
+  void _refreshCalculatedValues() {
+    for (final tableField in widget.definition.fields.where(
+      (field) => field.childDocType != null,
+    )) {
+      final calculatedFields = tableField.childDocType!.fields
+          .where((field) => field.calculation != null)
+          .toList(growable: false);
+      if (calculatedFields.isEmpty) continue;
+      try {
+        final calculated = widget.definition.calculateValues({
+          tableField.name: _childRows[tableField.name] ?? const [],
+        });
+        _childRows[tableField.name] = (calculated[tableField.name] as List)
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+      } on ContractError {
+        for (final row in _childRows[tableField.name] ?? const []) {
+          for (final field in calculatedFields) {
+            row.remove(field.name);
+          }
+        }
+      }
+    }
+    try {
+      final calculated = widget.definition.calculateValues(_values());
+      for (final field in widget.definition.fields.where(
+        (item) => item.calculation != null,
+      )) {
+        final controller = _controllers[field.name];
+        final value = calculated[field.name];
+        if (controller != null &&
+            value != null &&
+            controller.text != '$value') {
+          controller.text = '$value';
+        }
+      }
+    } on ContractError {
+      for (final field in widget.definition.fields.where(
+        (item) => item.calculation != null,
+      )) {
+        _controllers[field.name]?.clear();
+      }
+    }
   }
 
   dynamic _parseChildValue(FieldDefinition field, String raw) {
@@ -5359,6 +5623,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }
 
   String? _validateChildValue(FieldDefinition field, dynamic value) {
+    if (field.calculation != null) return null;
     if (value == null || (value is String && value.trim().isEmpty)) {
       if (!field.required) return null;
       return context.ventioText(
@@ -5517,6 +5782,15 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   }) {
     final value = _childRows[tableField.name]![rowIndex][field.name];
     final rowKey = _childRowKeys[tableField.name]![rowIndex];
+    if (field.calculation != null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(value?.toString() ?? '—'),
+        ),
+      );
+    }
     if (field.type == 'boolean') {
       return Checkbox(
         value: value as bool? ?? false,

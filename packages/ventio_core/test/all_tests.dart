@@ -938,6 +938,130 @@ void main() {
     );
   });
 
+  test('Declarative line and parent totals use exact decimal arithmetic', () {
+    final raw = changed(
+      (extensionBundleJson()['docTypes'] as List).single
+          as Map<String, dynamic>,
+    );
+    final fields = raw['fields'] as List;
+    fields.add({
+      'name': 'lines',
+      'type': 'table',
+      'required': true,
+      'label': 'Lines',
+      'labelKey': 'extension.com_example_assets.asset.lines',
+      'childDocType': {
+        'name': 'AssetLine',
+        'label': 'Asset line',
+        'labelKey': 'extension.com_example_assets.asset.line',
+        'fields': [
+          for (final (name, label) in [
+            ('quantity', 'Quantity'),
+            ('unitPrice', 'Unit price'),
+          ])
+            {
+              'name': name,
+              'type': 'decimal',
+              'required': true,
+              'precision': 2,
+              'label': label,
+              'labelKey': name == 'unitPrice'
+                  ? 'extension.com_example_assets.asset.unit_price'
+                  : 'extension.com_example_assets.asset.quantity',
+            },
+          {
+            'name': 'lineTotal',
+            'type': 'decimal',
+            'required': true,
+            'precision': 2,
+            'calculation': {
+              'type': 'multiply',
+              'leftField': 'quantity',
+              'rightField': 'unitPrice',
+            },
+            'label': 'Line total',
+            'labelKey': 'extension.com_example_assets.asset.line_total',
+          },
+        ],
+      },
+    });
+    fields.add({
+      'name': 'total',
+      'type': 'decimal',
+      'required': true,
+      'precision': 2,
+      'readOnly': true,
+      'calculation': {
+        'type': 'sum',
+        'rowsField': 'lines',
+        'valueField': 'lineTotal',
+      },
+      'label': 'Total',
+      'labelKey': 'extension.com_example_assets.asset.total',
+    });
+    ((raw['ui'] as Map<String, dynamic>)['formFields'] as List)
+      ..add('lines')
+      ..add('total');
+    final definition = DocTypeDefinition.fromJson(raw);
+    final input = {
+      'name': 'Exact calculation',
+      'lines': [
+        {'quantity': 0.1, 'unitPrice': 0.2},
+        {'quantity': 2, 'unitPrice': 0.15},
+      ],
+    };
+    final calculated = definition.calculateValues(input);
+    final rows = calculated['lines'] as List;
+    check(
+      (rows[0] as Map)['lineTotal'] == 0.02 &&
+          (rows[1] as Map)['lineTotal'] == 0.3 &&
+          calculated['total'] == 0.32 &&
+          definition.validatePayload(calculated).isEmpty,
+      'Line or parent totals did not use exact declared decimal scales',
+    );
+    checkThrows(
+      () => definition.calculateValues(
+        {
+          'name': 'Forged value',
+          'lines': [
+            {
+              'quantity': 0.1,
+              'unitPrice': 0.2,
+              'lineTotal': 999,
+            },
+          ],
+        },
+        verifyCalculatedFields: {'lines'},
+      ),
+      'A forged child total was accepted',
+    );
+    checkThrows(
+      () => definition.calculateValues({
+        'name': 'Rounds silently',
+        'lines': [
+          {'quantity': 0.1, 'unitPrice': 0.15},
+        ],
+      }),
+      'A product requiring implicit rounding was accepted',
+    );
+    checkThrows(
+      () => ExactDecimal.toScaledInteger(0.1 + 0.2, 2),
+      'Binary floating-point noise was accepted as a two-place decimal',
+    );
+    final invalid = changed(raw);
+    final invalidTotal =
+        (invalid['fields'] as List).last as Map<String, dynamic>;
+    invalidTotal['calculation'] = {
+      'type': 'sum',
+      'rowsField': 'missingLines',
+      'valueField': 'lineTotal',
+    };
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalid),
+      'A calculation referencing a missing child table was accepted',
+    );
+  });
+
   test('Field precision, defaults, read-only and descriptions are enforced',
       () {
     final amount = FieldDefinition.fromJson({

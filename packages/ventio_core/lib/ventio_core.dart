@@ -4,6 +4,7 @@
 library;
 
 export 'src/contracts.dart';
+export 'src/exact_decimal.dart';
 export 'src/metadata.dart';
 export 'src/business_operations.dart';
 export 'src/extension_bundle.dart';
