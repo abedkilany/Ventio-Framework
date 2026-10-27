@@ -383,6 +383,56 @@ class ExtensionBundle {
             );
           }
         }
+        for (final effect in operation.effects
+            .where((effect) => effect.type == 'record.increment_rows')) {
+          final table = type.fields.where(
+            (field) => field.name == effect.rowsField && field.type == 'table',
+          );
+          final child = table.isEmpty ? null : table.single.childDocType;
+          final targetType = docTypes.where(
+            (candidate) => candidate.name == effect.targetDocType,
+          );
+          final targetField = targetType.isEmpty
+              ? null
+              : targetType.single.fields.where(
+                  (field) => field.name == effect.field,
+                );
+          final idField = child?.fields.where(
+            (field) => field.name == effect.targetIdField,
+          );
+          final amountField = child?.fields.where(
+            (field) => field.name == effect.amountField,
+          );
+          if (child == null ||
+              targetType.isEmpty ||
+              targetField == null ||
+              targetField.isEmpty ||
+              idField == null ||
+              idField.isEmpty ||
+              amountField == null ||
+              amountField.isEmpty ||
+              idField.single.type != 'reference' ||
+              idField.single.referenceTo != effect.targetDocType ||
+              !idField.single.required ||
+              !{'integer', 'decimal'}.contains(amountField.single.type) ||
+              !amountField.single.required ||
+              targetField.single.readOnly ||
+              !{'integer', 'decimal'}.contains(targetField.single.type) ||
+              (targetField.single.type == 'integer' &&
+                  amountField.single.type != 'integer') ||
+              (targetField.single.type == 'decimal' &&
+                  (targetField.single.precision == null ||
+                      (amountField.single.type == 'decimal' &&
+                          (amountField.single.precision == null ||
+                              amountField.single.precision! >
+                                  targetField.single.precision!)))) ||
+              !targetType.single.operations.contains('update')) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} has an invalid child-row numeric target.',
+            );
+          }
+        }
       }
     }
 

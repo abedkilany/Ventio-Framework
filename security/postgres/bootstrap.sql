@@ -522,7 +522,7 @@ BEGIN
           EXISTS (SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
             CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
             WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
-              AND effects.effect->>'type' IN ('document.allocate_number','document.transition','record.increment')
+              AND effects.effect->>'type' IN ('document.allocate_number','document.transition','record.increment','record.increment_rows')
               AND p_subject=dynamic_name));
     END IF;
     IF p_mode='record_effect_update' THEN
@@ -531,10 +531,12 @@ BEGIN
         SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
         CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
         WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
-          AND effects.effect->>'type'='record.increment'
+          AND effects.effect->>'type' IN ('record.increment','record.increment_rows')
           AND effects.effect->>'targetDocType'=p_subject
-          AND p_actor=((nullif(current_setting('ventio.operation_inputs',true),'')::jsonb)
-            ->>(effects.effect->>'targetIdInput'))
+          AND p_actor=CASE WHEN effects.effect->>'type'='record.increment_rows'
+            THEN nullif(current_setting('ventio.effect_target_id',true),'')
+            ELSE ((nullif(current_setting('ventio.operation_inputs',true),'')::jsonb)
+              ->>(effects.effect->>'targetIdInput')) END
           AND identity->'permissions' ? ((policy->p_subject)->'permissions'->>'read')
           AND identity->'permissions' ? ((policy->p_subject)->'permissions'->>'update')
           AND EXISTS (

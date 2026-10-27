@@ -28,6 +28,7 @@ class BusinessOperationDefinition {
     'document.allocate_number',
     'document.transition',
     'record.increment',
+    'record.increment_rows',
   };
 
   final String id;
@@ -176,6 +177,10 @@ class OperationEffectDefinition {
     this.amountInput,
     this.targetStatus,
     this.output,
+    this.rowsField,
+    this.targetIdField,
+    this.amountField,
+    this.amountMultiplier,
   });
 
   final String type;
@@ -185,6 +190,10 @@ class OperationEffectDefinition {
   final String? amountInput;
   final int? targetStatus;
   final String? output;
+  final String? rowsField;
+  final String? targetIdField;
+  final String? amountField;
+  final int? amountMultiplier;
 
   factory OperationEffectDefinition.fromJson(Map<String, dynamic> json) {
     final type = requireString(json, 'type');
@@ -197,6 +206,15 @@ class OperationEffectDefinition {
           'targetIdInput',
           'amountInput',
           'field',
+        },
+      'record.increment_rows' => {
+          'type',
+          'targetDocType',
+          'rowsField',
+          'targetIdField',
+          'amountField',
+          'field',
+          'amountMultiplier',
         },
       _ => <String>{},
     };
@@ -212,6 +230,10 @@ class OperationEffectDefinition {
     final amountInput = optionalString(json, 'amountInput');
     final status = json['targetStatus'];
     final output = optionalString(json, 'output');
+    final rowsField = optionalString(json, 'rowsField');
+    final targetIdField = optionalString(json, 'targetIdField');
+    final amountField = optionalString(json, 'amountField');
+    final amountMultiplier = json['amountMultiplier'];
     if (type == 'document.allocate_number' &&
         (field == null ||
             !_fieldName.hasMatch(field) ||
@@ -243,6 +265,24 @@ class OperationEffectDefinition {
         'Invalid numeric record increment target or input binding.',
       );
     }
+    if (type == 'record.increment_rows' &&
+        (targetDocType == null ||
+            !_docTypeName.hasMatch(targetDocType) ||
+            field == null ||
+            !_fieldName.hasMatch(field) ||
+            rowsField == null ||
+            !_fieldName.hasMatch(rowsField) ||
+            targetIdField == null ||
+            !_fieldName.hasMatch(targetIdField) ||
+            amountField == null ||
+            !_fieldName.hasMatch(amountField) ||
+            amountMultiplier is! int ||
+            (amountMultiplier != 1 && amountMultiplier != -1))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Invalid child row increment target or field binding.',
+      );
+    }
     return OperationEffectDefinition(
       type: type,
       field: field,
@@ -251,6 +291,10 @@ class OperationEffectDefinition {
       amountInput: amountInput,
       targetStatus: status as int?,
       output: output,
+      rowsField: rowsField,
+      targetIdField: targetIdField,
+      amountField: amountField,
+      amountMultiplier: amountMultiplier as int?,
     );
   }
 }

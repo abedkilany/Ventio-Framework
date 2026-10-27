@@ -2956,20 +2956,36 @@ Future<void> main() async {
           },
           'fields': [
             {
-              'name': 'product',
-              'type': 'reference',
-              'referenceTo': 'Product',
+              'name': 'lines',
+              'type': 'table',
               'required': true,
-              'label': 'Product',
-              'labelKey': 'extension.com_example_inventory.movement.product',
-            },
-            {
-              'name': 'amount',
-              'type': 'decimal',
-              'required': true,
-              'precision': 2,
-              'label': 'Amount',
-              'labelKey': 'extension.com_example_inventory.movement.amount',
+              'label': 'Lines',
+              'labelKey': 'extension.com_example_inventory.movement.lines',
+              'childDocType': {
+                'name': 'MovementLine',
+                'label': 'Movement Line',
+                'labelKey': 'extension.com_example_inventory.movement.line',
+                'fields': [
+                  {
+                    'name': 'product',
+                    'type': 'reference',
+                    'referenceTo': 'Product',
+                    'required': true,
+                    'label': 'Product',
+                    'labelKey':
+                        'extension.com_example_inventory.movement.product',
+                  },
+                  {
+                    'name': 'amount',
+                    'type': 'decimal',
+                    'required': true,
+                    'precision': 2,
+                    'label': 'Amount',
+                    'labelKey':
+                        'extension.com_example_inventory.movement.amount',
+                  },
+                ],
+              },
             },
             {
               'name': 'documentNumber',
@@ -2986,14 +3002,7 @@ Future<void> main() async {
               'id': 'inventory.submit',
               'version': 1,
               'permission': 'extension.com_example_inventory.movement.submit',
-              'inputs': {
-                'product': {
-                  'type': 'reference',
-                  'required': true,
-                  'referenceTo': 'Product',
-                },
-                'amount': {'type': 'decimal', 'required': true, 'precision': 2},
-              },
+              'inputs': <String, Object>{},
               'outputs': {
                 'number': {'type': 'text', 'required': true, 'maxLength': 128},
               },
@@ -3004,10 +3013,12 @@ Future<void> main() async {
                   'output': 'number',
                 },
                 {
-                  'type': 'record.increment',
+                  'type': 'record.increment_rows',
                   'targetDocType': 'Product',
-                  'targetIdInput': 'product',
-                  'amountInput': 'amount',
+                  'rowsField': 'lines',
+                  'targetIdField': 'product',
+                  'amountField': 'amount',
+                  'amountMultiplier': 1,
                   'field': 'quantity',
                 },
                 {'type': 'document.transition', 'targetStatus': 1},
@@ -3017,21 +3028,16 @@ Future<void> main() async {
               'id': 'inventory.cancel',
               'version': 1,
               'permission': 'extension.com_example_inventory.movement.cancel',
-              'inputs': {
-                'product': {
-                  'type': 'reference',
-                  'required': true,
-                  'referenceTo': 'Product',
-                },
-                'amount': {'type': 'decimal', 'required': true, 'precision': 2},
-              },
+              'inputs': <String, Object>{},
               'outputs': {},
               'effects': [
                 {
-                  'type': 'record.increment',
+                  'type': 'record.increment_rows',
                   'targetDocType': 'Product',
-                  'targetIdInput': 'product',
-                  'amountInput': 'amount',
+                  'rowsField': 'lines',
+                  'targetIdField': 'product',
+                  'amountField': 'amount',
+                  'amountMultiplier': -1,
                   'field': 'quantity',
                 },
                 {'type': 'document.transition', 'targetStatus': 2},
@@ -3039,9 +3045,9 @@ Future<void> main() async {
             },
           ],
           'ui': {
-            'listColumns': ['product', 'amount', 'documentNumber'],
-            'formFields': ['product', 'amount', 'documentNumber'],
-            'detailFields': ['product', 'amount', 'documentNumber'],
+            'listColumns': ['lines', 'documentNumber'],
+            'formFields': ['lines', 'documentNumber'],
+            'detailFields': ['lines', 'documentNumber'],
           },
         },
       ],
@@ -3052,6 +3058,8 @@ Future<void> main() async {
         'extension.com_example_inventory.product.quantity': 'Quantity',
         'extension.com_example_inventory.movement.name': 'Movement',
         'extension.com_example_inventory.movement.product': 'Product',
+        'extension.com_example_inventory.movement.lines': 'Lines',
+        'extension.com_example_inventory.movement.line': 'Movement Line',
         'extension.com_example_inventory.movement.amount': 'Amount',
         'extension.com_example_inventory.movement.number': 'Document Number',
       },
@@ -3100,7 +3108,12 @@ Future<void> main() async {
       moduleVersion: operationPackage.version,
       docType: 'Movement',
       schemaVersion: 1,
-      values: {'product': 'inventory-product-1', 'amount': 20},
+      values: {
+        'lines': [
+          {'product': 'inventory-product-1', 'amount': 8},
+          {'product': 'inventory-product-1', 'amount': 12},
+        ],
+      },
     );
     expect(
       (await send(
@@ -3126,7 +3139,7 @@ Future<void> main() async {
       schemaVersion: 1,
       operationId: 'inventory.submit',
       operationVersion: 1,
-      inputs: {'product': 'inventory-product-1', 'amount': 20},
+      inputs: const {},
     );
     final unauthorizedSubmitReply = await send(
       api,
@@ -3182,7 +3195,7 @@ Future<void> main() async {
       schemaVersion: 1,
       operationId: 'inventory.submit',
       operationVersion: 1,
-      inputs: {'product': 'inventory-product-1', 'amount': 20},
+      inputs: const {},
     );
     final failedSubmit = await send(
       api,
@@ -3321,7 +3334,7 @@ Future<void> main() async {
       schemaVersion: 1,
       operationId: 'inventory.cancel',
       operationVersion: 1,
-      inputs: {'product': 'inventory-product-1', 'amount': -20},
+      inputs: const {},
     );
     final cancelled = await send(
       api,

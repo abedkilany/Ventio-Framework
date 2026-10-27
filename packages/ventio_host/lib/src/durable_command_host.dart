@@ -826,6 +826,165 @@ class DurableCommandHost {
                   );
                 }
                 await testFaultInjector?.call('after_business_effect');
+              } else if (effect.type == 'record.increment_rows') {
+                final targetDefinition = authorizedBundle!.docTypes.singleWhere(
+                  (definition) => definition.name == effect.targetDocType,
+                );
+                final targetField = targetDefinition.fields.singleWhere(
+                  (field) => field.name == effect.field,
+                );
+                final tableField = docType.fields.singleWhere(
+                  (field) => field.name == effect.rowsField,
+                );
+                if (tableField.childDocType == null) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'INVALID_EXTENSION'),
+                  );
+                }
+                final updatePermission = targetDefinition.permissions['update'];
+                final readPermission = targetDefinition.permissions['read'];
+                final targetPermissions = [
+                  updatePermission,
+                  readPermission,
+                  targetField.readPermission,
+                  targetField.writePermission,
+                ].whereType<String>();
+                if (targetDefinition.operations.contains('read') != true ||
+                    targetDefinition.operations.contains('update') != true ||
+                    updatePermission == null ||
+                    readPermission == null ||
+                    targetPermissions.any(
+                      (permission) => !authenticatedPrincipal.allowsInScope(
+                        permission,
+                        command.companyId,
+                        command.branchId,
+                      ),
+                    )) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'PERMISSION_DENIED'),
+                  );
+                }
+                final rawRows = valuesForStorage[effect.rowsField];
+                if (rawRows is! List || rawRows.length > 500) {
+                  throw _RejectedCommand(
+                    _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                  );
+                }
+                final precision = targetField.type == 'decimal'
+                    ? targetField.precision!
+                    : 0;
+                final totals = <String, BigInt>{};
+                for (final rawRow in rawRows) {
+                  if (rawRow is! Map) {
+                    throw _RejectedCommand(
+                      _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                    );
+                  }
+                  final targetId = rawRow[effect.targetIdField];
+                  final amount = rawRow[effect.amountField];
+                  if (targetId is! String ||
+                      amount is! num ||
+                      !amount.isFinite) {
+                    throw _RejectedCommand(
+                      _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                    );
+                  }
+                  final scaledAmount = _decimalToScaledInteger(
+                    amount,
+                    precision,
+                  );
+                  totals[targetId] =
+                      (totals[targetId] ?? BigInt.zero) +
+                      scaledAmount * BigInt.from(effect.amountMultiplier!);
+                }
+                for (final entry in totals.entries) {
+                  // The RLS policy consumes this transaction-local target binding
+                  // only after the Host has read it from the saved parent rows.
+                  await tx.execute(
+                    pg.Sql.named(
+                      "SELECT set_config('ventio.effect_target_id', @target, true)",
+                    ),
+                    parameters: {'target': entry.key},
+                  );
+                  final targetRows = await tx.execute(
+                    pg.Sql.named('''
+                      SELECT revision, record_data::text AS record_json
+                      FROM public.ventio_records
+                      WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+                        AND module_id=@module AND doc_type=@doctype AND record_id=@record
+                        AND deleted_at IS NULL AND document_status=0
+                    '''),
+                    parameters: {
+                      'tenant': command.tenantId,
+                      'company': command.companyId,
+                      'branch': command.branchId,
+                      'module': moduleId,
+                      'doctype': targetDefinition.name,
+                      'record': entry.key,
+                    },
+                  );
+                  if (targetRows.isEmpty) {
+                    throw _RejectedCommand(
+                      _failure(command, 'REJECTED', 'INVALID_REFERENCE'),
+                    );
+                  }
+                  final target = targetRows.single.toColumnMap();
+                  final targetData = jsonDecode(
+                    target['record_json'] as String,
+                  );
+                  if (targetData is! Map || targetData[effect.field] is! num) {
+                    throw _RejectedCommand(
+                      _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                    );
+                  }
+                  final updated = await tx.execute(
+                    pg.Sql.named('''
+                      UPDATE public.ventio_records
+                      SET revision=revision+1,
+                          record_data=jsonb_set(record_data,ARRAY[@field],
+                            to_jsonb((record_data->>@field)::numeric + @amount::numeric),true),
+                          updated_at=clock_timestamp()
+                      WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+                        AND module_id=@module AND doc_type=@doctype AND record_id=@record
+                        AND revision=@revision AND deleted_at IS NULL AND document_status=0
+                      RETURNING revision, record_data::text AS record_json
+                    '''),
+                    parameters: {
+                      'field': effect.field,
+                      'amount': _scaledIntegerToDecimal(entry.value, precision),
+                      'tenant': command.tenantId,
+                      'company': command.companyId,
+                      'branch': command.branchId,
+                      'module': moduleId,
+                      'doctype': targetDefinition.name,
+                      'record': entry.key,
+                      'revision': target['revision'],
+                    },
+                  );
+                  if (updated.isEmpty) {
+                    throw _RejectedCommand(
+                      _failure(command, 'CONFLICT', 'REVISION_CONFLICT'),
+                    );
+                  }
+                  final newTarget =
+                      jsonDecode(
+                            updated.single.toColumnMap()['record_json']
+                                as String,
+                          )
+                          as Map<String, dynamic>;
+                  if (targetField.validate(newTarget[targetField.name]) !=
+                      null) {
+                    throw _RejectedCommand(
+                      _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),
+                    );
+                  }
+                  await testFaultInjector?.call('after_business_effect');
+                }
+                await tx.execute(
+                  pg.Sql.named(
+                    "SELECT set_config('ventio.effect_target_id', '', true)",
+                  ),
+                );
               }
             }
             for (final output in businessOperation.outputs.entries) {
@@ -1104,4 +1263,37 @@ class DurableCommandHost {
 class _RejectedCommand implements Exception {
   final Map<String, dynamic> receipt;
   const _RejectedCommand(this.receipt);
+}
+
+BigInt _decimalToScaledInteger(num value, int precision) {
+  final text = value.toString();
+  final parts = RegExp(r'^(-?)(\d+)(?:\.(\d+))?$').firstMatch(text);
+  if (parts == null) {
+    throw const FormatException('Invalid decimal operation amount.');
+  }
+  var fraction = parts.group(3) ?? '';
+  if (fraction.length > precision) {
+    if (fraction.substring(precision).split('').any((digit) => digit != '0')) {
+      throw const FormatException('Operation amount exceeds target precision.');
+    }
+    fraction = fraction.substring(0, precision);
+  }
+  final scale = BigInt.from(10).pow(precision);
+  final whole = BigInt.parse(parts.group(2)!) * scale;
+  final fractional = fraction.isEmpty
+      ? BigInt.zero
+      : BigInt.parse(fraction.padRight(precision, '0'));
+  final result = whole + fractional;
+  return parts.group(1) == '-' ? -result : result;
+}
+
+String _scaledIntegerToDecimal(BigInt value, int precision) {
+  if (precision == 0) return value.toString();
+  final scale = BigInt.from(10).pow(precision);
+  final negative = value.isNegative;
+  final absolute = value.abs();
+  final whole = absolute ~/ scale;
+  final fraction = (absolute % scale).toString().padLeft(precision, '0');
+  final trimmed = fraction.replaceFirst(RegExp(r'0+$'), '');
+  return '${negative ? '-' : ''}$whole${trimmed.isEmpty ? '' : '.$trimmed'}';
 }
