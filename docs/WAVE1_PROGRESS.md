@@ -52,7 +52,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: Pending K02 implementation and acceptance checkpoint.
+- Latest checkpoint commit: `b53f38a` — K02 queue-safe removal and acceptance evidence, pushed to `codex/extension-platform`.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
