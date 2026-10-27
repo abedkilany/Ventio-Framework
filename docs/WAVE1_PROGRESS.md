@@ -12,11 +12,11 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Live checkpoint
 
-- Current task: F02 — verify declarative aggregation and calculated-total foundations against the fixed acceptance criteria.
+- Current task: F02 — implement bounded declarative line and parent totals using shared exact-decimal Core rules.
 - Last completed capability: B04 — Draft / Submit / Cancel / Amend lifecycle (20/23 accepted).
-- Next action: inspect Core, Host, SQLite, and Studio calculation paths; identify F02 gaps before making changes.
+- Next action: add the shared calculation contract and exact decimal resolver, then integrate Core validation and focused tests.
 - Blockers: none. B04 PostgreSQL Host integration passed **128/128**; A10 allocator passed **6/6**. Disposable PostgreSQL 17.11 cluster stopped after tests.
-- Latest implementation checkpoint: `4cbcb6f` (B04 implementation and acceptance). Stage 0 remains 7/7 PASS; B04 is accepted; Wave 1 is 20/23 at 76.55%.
+- Latest implementation checkpoint: `4cbcb6f` (B04 implementation and acceptance); F02 design is in [ADR-012](ADR-012_DECLARATIVE_EXACT_DECIMAL_CALCULATIONS.md). Stage 0 remains 7/7 PASS; B04 is accepted; Wave 1 is 20/23 at 76.55%.
 - Since the previous dashboard update: the expanded PostgreSQL integration passed **128/128**, including concurrent identical and distinct Amend races. Store passed **38/38**, Core **74/74**, focused Studio Amend and builder tests **1/1** each, client and Host analysis passed, and the localization gate passed. B04 acceptance evidence is recorded in [B04_LIFECYCLE_ACCEPTANCE.md](B04_LIFECYCLE_ACCEPTANCE.md). Overall accepted progress is **76.55%**.
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -47,7 +47,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 18 | A10 | Safe document naming and numbering series | Missing | Newly Implemented | 3 | COMPLETED | [Acceptance evidence](A10_DOCUMENT_NUMBERING_ACCEPTANCE.md). Disposable Windows PostgreSQL 17.11: allocator integration **6/6** (transaction rollback, concurrent sequence allocation, immutable configuration, branch partition); full PostgreSQL extension integration **119/119** including governed Submit/Cancel, atomic official number assignment, effect rollback, identical retries and single cancellation reversal. ExtensionStore **37/37** proves local receipt reconciliation; Extension Studio **27/27** proves ordinary Builder numbering/lifecycle authoring and operation queue recovery; targeted Flutter analysis clean. Checkpoints `7b6aaf6`, `0cb5019`, `78b23ac`, `747bcd0`, `04f1007`. |
 | 19 | K06 | Governed business operations engine | Missing | Newly Implemented | 8 | COMPLETED | [K06 acceptance evidence](K06_GOVERNED_OPERATIONS_ACCEPTANCE.md) and [A10 integration evidence](A10_DOCUMENT_NUMBERING_ACCEPTANCE.md). Core 73/73 validates data-only bounded declarations and typed Child Table bindings. Host executes `record.increment_rows` from persisted parent rows with exact fixed-point decimal aggregation, target scope/field permissions and RLS binding. Disposable PostgreSQL 17.11 extension integration **119/119** proves exact operation denial, no-side-effect rejection, rollback, concurrent identical Submit/one receipt/one number, multi-row effects, retry, Cancel reversal and idempotency. A10 allocator **6/6**; ExtensionStore **37/37**; Extension Studio **27/27**; targeted analysis clean. Checkpoint `04f1007`. |
 | 20 | B04 | Draft / Submit / Cancel / Amend lifecycle | Missing | Newly Implemented | 7 | COMPLETED | PostgreSQL 17.11 Host integration **128/128**; A10 allocator **6/6**; Core **74/74**; SQLite Store **38/38**; focused Studio Amend and lifecycle builder tests **1/1** each; Dart analysis and localization gate pass. Covers authorization, legal transitions, immutable submitted/cancelled records, numbering, rollback, amendment concurrency/idempotency, child-row copy, and accepted/rejected offline reconciliation. [Acceptance evidence](B04_LIFECYCLE_ACCEPTANCE.md); architecture review [here](B04_ARCHITECTURE_REVIEW.md). |
-| 21 | F02 | Aggregations and calculated totals | Missing | Pending | 4 | NOT_STARTED | — |
+| 21 | F02 | Aggregations and calculated totals | Missing | Pending | 4 | IN_PROGRESS | Initial source review found no declarative calculated-field support; inventory effects that sum rows are not F02 field calculations. Design is fixed in [ADR-012](ADR-012_DECLARATIVE_EXACT_DECIMAL_CALCULATIONS.md). No acceptance or progress increase is claimed while implementation and runtime evidence are pending. |
 | 22 | F01 | Declarative Report Builder | Missing | Pending | 5 | NOT_STARTED | — |
 | 23 | G01 | Standard printable document formats | Missing | Pending | 4 | NOT_STARTED | — |
 
@@ -55,7 +55,7 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: F02 — verify declarative aggregation and calculated-total foundations against the fixed acceptance criteria.
+- Current task: F02 — implement bounded declarative line and parent totals using shared exact-decimal Core rules.
 - Last successfully completed capability: B04 — Draft / Submit / Cancel / Amend lifecycle.
 - Next task: inspect current Core, Host, SQLite, and Studio calculation paths for F02 gaps.
 - Blockers: none. Stage 0 PASS; Wave 1 accepted 20/23; final extension NOT_STARTED.
@@ -118,6 +118,7 @@ Total Wave 1 effort points: **100**.
 - K06 PostgreSQL checkpoint: the disposable Windows PostgreSQL **17.11** cluster on `127.0.0.1:55439` was reused safely; migration `024_document_number_series.sql` was applied, then the guarded security bootstrap was applied twice. A10's allocator integration passed **6/6**. Runtime exposed and fixed the nonexistent `jsonb_object_length(jsonb)` calls. Full Host integration first passed **118/118**; after adding exact operation-permission denial and concurrent duplicate Submit coverage, it passed **119/119** including generic CRUD, child rows, lifecycle, package governance, field/scope permissions, RLS, atomic Submit/Cancel, rollback, retries, idempotency and recovery checks. A10 remains accepted at **18/23**, **66.80%** overall. K06 is IN_PROGRESS because the generic multi-row effect and offline reconciliation review remain. Checkpoints `0cb5019`, `78b23ac`, `747bcd0`.
 - K06 accepted: added the bounded `record.increment_rows` declaration, Core validation against the parent Child Table and target DocType, atomic Host execution over persisted rows, fixed-point decimal aggregation, and PostgreSQL RLS binding for each Host-selected target. The ordinary extension integration passed **119/119** on disposable Windows PostgreSQL 17.11 after reapplying the guarded security bootstrap twice; A10 allocation passed **6/6**; Core **73/73**; ExtensionStore **37/37**; Extension Studio **27/27**; targeted analysis clean. PostgreSQL was stopped after checks. [Evidence](K06_GOVERNED_OPERATIONS_ACCEPTANCE.md). K06 is **COMPLETED / Newly Implemented**; Wave 1 is **19/23**, overall accepted progress **72.00%**. Checkpoint `04f1007`.
 - B04 accepted: after reviewing [A04](A04_POSTGRESQL_ACCEPTANCE.md) and [D01](D01_IDENTITY_ACCEPTANCE.md), the disposable Windows PostgreSQL 17.11 cluster passed the expanded Host integration **128/128** and A10 allocator integration **6/6**. Migration `024_document_number_series.sql` and the guarded security bootstrap were applied; bootstrap reapplication was idempotent. Coverage includes lifecycle permissions, rollback, numbering, cancellation reversal, Amend validation, linked draft creation, concurrent identical retries, and distinct Amend races. Core **74/74**, SQLite Store **38/38**, focused Studio Amend and builder **1/1** each, Dart analysis, and localization gate passed. The cluster was stopped. Evidence: [B04_LIFECYCLE_ACCEPTANCE.md](B04_LIFECYCLE_ACCEPTANCE.md). Wave 1 is **20/23 accepted**, overall **76.55%**; F02 is next.
+
 
 
 
