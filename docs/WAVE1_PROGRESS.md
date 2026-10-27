@@ -6,7 +6,7 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 **0%** `░░░░░░░░░░░░░░░░░░░░` (0 / 100)
 
-- Stage 0 Localization Foundation: **0% of stage** — `NOT_STARTED` (20% overall)
+- Stage 0 Localization Foundation: **0% accepted** — `IN_PROGRESS` (20% overall)
 - Stage 1 Wave 1: **0 / 23 accepted** — `NOT_STARTED` (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
@@ -46,15 +46,15 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: Commit the authoritative plan and initial dashboard, then begin Stage 0.
+- Current task: Stage 0 localization foundation — auditing and replacing hardcoded Flutter UI copy.
 - Last successfully completed capability: None.
 - Next task: Stage 0 localization foundation implementation and gate evidence.
 - Blockers: None. Plan source supplied by project owner; reviewed baseline ancestry verified.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: Pending initial documentation commit.
+- Latest checkpoint commit: `1c7bfd7` — plan and initial dashboard committed and pushed.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
 
-- Initial authoritative execution scope and complexity weights recorded; no capability implementation is claimed.
+- Initial authoritative execution scope and complexity weights recorded, committed, and pushed; Stage 0 implementation has started. No acceptance gate is yet claimed.
