@@ -743,6 +743,7 @@ Future<void> main() async {
     final deletedReadback = await queryRecords(
       primaryToken,
       recordId: 'registry-item-2',
+      limit: 1,
     );
     expect(
       deletedReadback.status == 200 &&
