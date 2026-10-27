@@ -52,7 +52,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest implementation checkpoint: `PENDING_COMMIT` — C03 implementation in progress: replacing typed table JSON text input with an editable, reorderable child-row grid. Accepted progress remains 61.60%; Wave 1 is 16/23. Last accepted capability A07 (`5ec4837`).
+- Latest implementation checkpoint: `49b8d06` — C03 implementation in progress: replacing typed table JSON text input with an editable, reorderable child-row grid. Accepted progress remains 61.60%; Wave 1 is 16/23. Last accepted capability A07 (`5ec4837`).
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
