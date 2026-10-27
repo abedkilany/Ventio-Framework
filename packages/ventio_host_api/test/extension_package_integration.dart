@@ -122,6 +122,20 @@ Future<void> main() async {
         'extension.com_example_registry.item.delete',
       ],
     );
+    final noDeleteToken = await provision(
+      actor: 'record-editor-without-delete',
+      device: 'record-editor-device',
+      credential: 'record-editor-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_registry.item.read',
+        'extension.com_example_registry.item.create',
+        'extension.com_example_registry.item.update',
+      ],
+      registerBranch: false,
+    );
     final readerToken = await provision(
       actor: 'reader',
       device: 'reader-device',
@@ -672,6 +686,91 @@ Future<void> main() async {
           (secondRecordReply.body['receipt'] as Map?)?['status'] == 'ACCEPTED',
       'A second generic record is accepted under the same approved DocType',
     );
+    final unauthorizedDelete = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000032',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-2',
+      expectedRevision: 1,
+      actorId: 'record-editor-without-delete',
+      deviceId: 'record-editor-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final unauthorizedDeleteReply = await send(
+      api,
+      token: noDeleteToken,
+      body: unauthorizedDelete.envelope.original,
+    );
+    expect(
+      unauthorizedDeleteReply.status == 200 &&
+          unauthorizedDeleteReply.body['receipt']['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'A scoped identity without delete permission cannot delete a record',
+    );
+    final submittedRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000033',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-submitted',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Submitted item'},
+    );
+    final submittedCreateReply = await send(
+      api,
+      token: primaryToken,
+      body: submittedRecord.envelope.original,
+    );
+    expect(
+      submittedCreateReply.body['receipt']['status'] == 'ACCEPTED',
+      'Host accepts a draft before governed lifecycle transition',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        UPDATE ventio_records SET document_status=1
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item'
+          AND record_id='registry-item-submitted'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+      },
+    );
+    final deleteSubmitted = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000034',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-submitted',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: deleteSubmitted.envelope.original,
+          )).body['receipt']['reasonCode'] ==
+          'DOCUMENT_NOT_DRAFT',
+      'Host refuses deletion of a submitted document',
+    );
     final deleteReferencedParent = ExtensionRecordCommand.delete(
       commandId: '71000000-0000-4000-8000-000000000031',
       tenantId: tenant,
@@ -763,6 +862,45 @@ Future<void> main() async {
           deleteRetry.body['receipt']['scopeCursor'] ==
               deleteReply.body['receipt']['scopeCursor'],
       'An identical delete retry returns its saved receipt without another effect',
+    );
+    final deleteEffects = await observer.execute(
+      pg.Sql.named('''
+        SELECT
+          (SELECT count(*) FROM ventio_command_journal
+            WHERE tenant_id=@tenant AND command_id=@command) AS journal_count,
+          (SELECT count(*) FROM ventio_audit_entries
+            WHERE tenant_id=@tenant AND command_id=@command) AS audit_count,
+          (SELECT count(*) FROM ventio_outbox
+            WHERE tenant_id=@tenant AND command_id=@command) AS outbox_count
+      '''),
+      parameters: {'tenant': tenant, 'command': deleteChild.envelope.commandId},
+    );
+    expect(
+      deleteEffects.single.toColumnMap().values.every((count) => count == 1),
+      'Accepted delete writes one journal, audit, and outbox entry across retries',
+    );
+    final reuseDeletedId = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000035',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-2',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Replacement item'},
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: reuseDeletedId.envelope.original,
+          )).body['receipt']['reasonCode'] ==
+          'RECORD_ALREADY_EXISTS',
+      'A tombstoned record ID cannot be reused',
     );
     final missingReference = ExtensionRecordCommand.create(
       commandId: '71000000-0000-4000-8000-000000000008',

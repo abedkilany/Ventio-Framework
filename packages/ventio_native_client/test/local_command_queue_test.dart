@@ -91,6 +91,37 @@ void main() {
     },
   );
 
+  test(
+    'Generic delete intent survives queue restart as a provisional command',
+    () async {
+      final command = ExtensionRecordCommand.delete(
+        commandId: '00000000-0000-4000-8000-000000000036',
+        tenantId: 'tenant-west',
+        companyId: 'company-west',
+        branchId: 'branch-7',
+        recordId: 'inventory-move-1',
+        expectedRevision: 7,
+        actorId: 'operator-1',
+        deviceId: 'desktop-1',
+        moduleId: 'com.example.inventory',
+        moduleVersion: '1.0.0',
+        docType: 'InventoryMove',
+        schemaVersion: 1,
+      );
+      await queue.enqueue(command.envelope);
+
+      await reopenQueue();
+      final restored = await queue.getById(command.envelope.commandId);
+
+      expect(restored, isNotNull);
+      expect(restored!.envelope.type, ExtensionRecordCommand.deleteType);
+      expect(restored.envelope.expectedRevision, 7);
+      expect(restored.hostStatus, HostCommandStatus.pending);
+      expect(restored.isHostConfirmed, isFalse);
+      expect(restored.hostReceipt, isNull);
+    },
+  );
+
   test('Duplicate command IDs cannot overwrite the original intent', () async {
     final original = await maintenanceEnvelope();
     await queue.enqueue(original);
