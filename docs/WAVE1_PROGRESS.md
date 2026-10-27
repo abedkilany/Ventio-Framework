@@ -7,7 +7,7 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 **40.15%** `████████░░░░░░░░░░░░` (20% Stage 0 + 20.15% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **8 / 23 accepted** — D04 `NOT_STARTED` (65% overall)
+- Stage 1 Wave 1: **8 / 23 accepted** — D04 `IN_PROGRESS` (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -26,7 +26,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 06 | A05 | Record references and relationships | 4 | COMPLETED | Core bundle validation and Host exact-scope checks; SQLite scoped reference test (1/1); PostgreSQL 17.11 durable acceptance 43/43 covering valid, missing, cross-branch/company/tenant references and no record persistence on rejection. `RESTRICT`, no-cascade deletion policy fixed for B01. [Evidence](A05_RELATIONSHIP_ACCEPTANCE.md); checkpoint `f61fe7f`. |
 | 07 | D01 | User identity and authentication | 5 | COMPLETED | PostgreSQL 17.11 persistent identity integration 79/79 under SCRAM with restricted runtime/admin roles; invalid/revoked/expired token denial, exact identity/scope, forged claims, rechecks across HTTP and Host process restart. Host API analysis clean; Flutter credential tests 4/4. [Evidence](D01_IDENTITY_ACCEPTANCE.md); checkpoint `9118310`. |
 | 08 | D02 | Roles and scoped role assignments | 4 | COMPLETED | PostgreSQL 17.11 role API integration 16/16 plus D01 identity integration 79/79. Direct scoped managers, effective permissions, exact branch assignments, privilege ceilings, shared-role protection, revocation, and persisted role audit with database actor verified. [Evidence](D02_ROLE_ACCEPTANCE.md); checkpoint `76f831b`. |
-| 09 | D04 | Field-level permissions | 5 | NOT_STARTED | — |
+| 09 | D04 | Field-level permissions | 5 | IN_PROGRESS | Existing Host policy and cache regressions under PostgreSQL/Flutter verification. |
 | 10 | D03 | Operation-level permissions | 4 | NOT_STARTED | — |
 | 11 | B03 | Document validation and lifecycle foundations | 5 | NOT_STARTED | — |
 | 12 | B01 | CRUD with safe deletion semantics | 4 | NOT_STARTED | — |
@@ -46,13 +46,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: D04 — field-level permissions; verify Host read/write/create masks, unauthorized predicates, partial updates, and offline cache scrubbing.
+- Current task: D04 — field-level permissions; PostgreSQL Host integration and local cache/UI regressions are running. Source review confirms server masks, predicate denial, protected-value omission, and partial-update preservation.
 - Last successfully completed capability: D02 — roles and scoped role assignments.
-- Next task: D04 — close permission-mask or persistence/recovery gaps before acceptance.
+- Next task: Finish PostgreSQL integration review, capture D04 evidence, and accept only after all criteria pass.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: `76f831b` — D02 role administration audit regression, 16/16 PostgreSQL role API integration checks, and acceptance evidence, pushed with this dashboard update to `codex/extension-platform`.
+- Latest implementation checkpoint: `76f831b` — D02 role administration audit regression and acceptance evidence. Dashboard update for D04 in progress is being committed now.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -73,4 +73,4 @@ Total Wave 1 effort points: **100**.
 - D01 accepted: persistent Host API integration passed **79/79** on PostgreSQL 17.11 with the repository's security bootstrap, SCRAM-authenticated restricted runtime/admin roles, and a confirmed `ventio_runtime_test` database identity. Coverage includes opaque credentials/digest-only persistence, server-owned actor/device/scope, forged claim rejection, expiry and individual credential/device/user revocation, per-request and in-transaction permission rechecks, audit redaction/atomicity, fail-closed database failures, and multi-process restart/recovery. Host API analysis is clean; Flutter Host credential tests pass 4/4. Evidence: [D01_IDENTITY_ACCEPTANCE.md](D01_IDENTITY_ACCEPTANCE.md). Wave 1 is **7/23 accepted**, overall progress **37.55%**, and D02 is next.
 - D02 accepted: PostgreSQL role administration integration passed **16/16**, including direct manager exact-scope access, reader and cross-branch denial, role permission/assignment administration, reserved management-permission escalation refusal, shared-role scope checks, effective permission resolution, revocation, and durable audit entries with exact assignment scope and database actor. The D01 integration independently contributes 79/79 checks for permission enforcement at command execution and credential ceilings. Evidence: [D02_ROLE_ACCEPTANCE.md](D02_ROLE_ACCEPTANCE.md). Wave 1 is **8/23 accepted**, overall progress **40.15%**, and D04 is next.
 - Both root CI and V1.2 DocType schemas now carry the same A03 field types and A04 property constraints.
-- The final reference extension remains unstarted; Wave 1 capability acceptance is **8/23**.
+- D04 verification is now in progress. PostgreSQL Host acceptance is running; Flutter cache and Studio field-mask regressions passed 1/1 each.\n- The final reference extension remains unstarted; Wave 1 capability acceptance is **8/23**.
