@@ -12,13 +12,9 @@ void main() {
     Widget app() => MaterialApp(
       home: VentioLocalizationScope(
         controller: controller,
-        child: Builder(
-          builder: (context) => Text(
-            context.ventioText(
-              'native.sample.greeting',
-              params: const {'name': 'Ventio'},
-            ),
-          ),
+        child: const VentioText(
+          'native.sample.greeting',
+          params: {'name': 'Ventio'},
         ),
       ),
     );

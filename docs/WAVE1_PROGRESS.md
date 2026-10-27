@@ -4,10 +4,10 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**0%** `░░░░░░░░░░░░░░░░░░░░` (0 / 100)
+**20%** `████░░░░░░░░░░░░░░░░` (20 / 100)
 
-- Stage 0 Localization Foundation: **0% accepted** — `IN_PROGRESS`, **3/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **0 / 23 accepted** — `NOT_STARTED` (65% overall)
+- Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
+- Stage 1 Wave 1: **0 / 23 accepted** — K01 `IN_PROGRESS` (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -18,7 +18,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 
 | # | ID | Capability | Points | Status | Evidence / checkpoint |
 |---:|---|---|---:|---|---|
-| 01 | K01 | Metadata-driven module creation and registration | 3 | NOT_STARTED | — |
+| 01 | K01 | Metadata-driven module creation and registration | 3 | IN_PROGRESS | Reviewing installer, local persistence, registration, and export/import coverage. |
 | 02 | K02 | Extension installation, activation, disabling, and safe removal | 3 | NOT_STARTED | — |
 | 03 | A01 | Metadata-driven DocType creation | 3 | NOT_STARTED | — |
 | 04 | A03 | Field types required by business documents | 5 | NOT_STARTED | — |
@@ -46,19 +46,20 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: Stage 0 localization foundation — localize remaining Flutter UI copy and build the CI gate.
+- Current task: K01 — verify metadata-driven module authoring, validation, persistence, export/import and registration; implement only acceptance gaps.
 - Last successfully completed capability: None.
-- Next task: Stage 0 localization foundation implementation and gate evidence.
+- Next task: Close K01 source review and focused acceptance evidence, then address identified gaps.
 - Blockers: None. Plan source supplied by project owner; reviewed baseline ancestry verified.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: `ed8c570` — shared resolver foundation; committed and pushed.
+- Latest checkpoint commit: Pending the Stage 0 acceptance commit and dashboard checkpoint.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
 
-- `EnglishCatalog` now retains English fallbacks, accepts validated optional catalogs, rejects unknown keys and mismatched placeholders, and supports safe removal.
-- Flutter now has a shared localization controller/scope, dynamic locale rebuilds, and direction selection. Generated extension labels and enum labels resolve through the same catalog; stable enum values remain unchanged.
-- Added pseudo-locale restore/rebuild/RTL tests and enum metadata coverage. Core analysis and all 65 Core harness checks passed; Flutter analysis, the focused localization tests, and all 19 Extension Studio tests passed.
-- Stage 0 checklist: (1) English-only built-in/default — complete; (2) reuse ADR-009/Core localization contracts — complete; (3) shared resolver fully wired — in progress; (4) replace all hardcoded UI messages — not started; (5) preserve stable IDs and business data — complete; (6) pseudo-locale rebuild/restore and RTL readiness — in progress; (7) automatic CI localization gate — not started. These implementation steps are not the Stage 0 acceptance gate; the gate remains unpassed.
+- Flutter first-party UI messages now resolve through the shared catalog, including parameterized extension metadata, confirmation, conflict, queue, role, form and validation copy. English fallbacks are in `native_english_messages.dart`; stable IDs and user-entered business values remain data.
+- The CI localization gate validates fallback keys and English text, rejects duplicate/invalid/empty entries, checks catalog references, scans UI text widgets, and has four positive/negative unit cases. The Windows workflow runs both the new gate and the existing schema/language contract checks.
+- Core analysis and all 65 Core harness checks passed. Flutter analysis and 23 focused localization/Extension Studio/role/maintenance tests passed. Windows integration acceptance (1/1), debug build, and release build passed. Localization gate unit cases passed, including deliberately invalid UI/catalog inputs.
+- Stage 0 implementation checklist: (1) English-only built-in/default; (2) ADR-009/Core contract reuse; (3) shared Flutter/metadata resolver; (4) catalog-backed user-facing Flutter copy; (5) stable IDs/business data preserved; (6) rebuild, pseudo-locale restore and RTL readiness; (7) automatic CI gate — all implemented and verified. Formal gate evidence is complete.
+- K01 source review confirms declarative manifests, trusted capability/dependency validation, DocType validation, catalog validation, local transactional installation, export and import paths exist. It does not yet establish K01 acceptance; remaining criteria and durable registration behavior are being verified.
 - No Wave 1 capability or final-extension acceptance is claimed.

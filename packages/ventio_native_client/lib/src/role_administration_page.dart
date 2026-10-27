@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'app_localization.dart';
 import 'host_extension_packages.dart';
 
 class RoleAdministrationPage extends StatefulWidget {
@@ -76,7 +78,10 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
   }
 
   Future<void> _createRole() async {
-    final values = await _roleDialog(context, title: 'Create role');
+    final values = await _roleDialog(
+      context,
+      title: context.ventioText('native.ui.create_role'),
+    );
     if (values == null || !mounted) return;
     await _change(
       () => widget.client.createRole(
@@ -111,18 +116,21 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete role?'),
+        title: const VentioText('native.ui.delete_role'),
         content: Text(
-          'Delete ${role.displayName}? Host only allows deletion after all branch assignments have been removed.',
+          context.ventioText(
+            'native.ui.delete_role_confirmation',
+            params: {'roleName': role.displayName},
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const VentioText('native.ui.cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete role'),
+            child: const VentioText('native.ui.delete_role_ac18d11a'),
           ),
         ],
       ),
@@ -140,8 +148,8 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
   Future<void> _addPermission(HostIdentityRole role) async {
     final permission = await _textDialog(
       context,
-      title: 'Add permission',
-      label: 'Permission key',
+      title: context.ventioText('native.ui.add_permission'),
+      label: context.ventioText('native.ui.permission_key'),
       hint: 'extension.example.item.read',
       validator: (value) {
         if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(value.trim())) {
@@ -167,8 +175,8 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
   Future<void> _assignActor(HostIdentityRole role) async {
     final actorId = await _textDialog(
       context,
-      title: 'Assign role',
-      label: 'Existing user ID',
+      title: context.ventioText('native.ui.assign_role'),
+      label: context.ventioText('native.ui.existing_user_id'),
       hint: 'user-123',
       validator: (value) => value.trim().isEmpty || value.length > 256
           ? 'Enter an existing user ID.'
@@ -205,10 +213,10 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Roles & access'),
+      title: const VentioText('native.ui.roles_access'),
       actions: [
         IconButton(
-          tooltip: 'Refresh roles',
+          tooltip: context.ventioText('native.ui.refresh_roles'),
           onPressed: _loading || _saving ? null : _load,
           icon: const Icon(Icons.refresh),
         ),
@@ -224,11 +232,25 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.shield_outlined),
-                title: Text('Host · ${widget.tenantId}'),
-                subtitle: Text('${widget.companyId} / ${widget.branchId}'),
-                trailing: const Tooltip(
-                  message:
-                      'Host validates this exact branch scope on every change',
+                title: Text(
+                  context.ventioText(
+                    'native.ui.host_tenant_summary',
+                    params: {'tenantId': widget.tenantId},
+                  ),
+                ),
+                subtitle: Text(
+                  context.ventioText(
+                    'native.ui.scope_identifiers',
+                    params: {
+                      'companyId': widget.companyId,
+                      'branchId': widget.branchId,
+                    },
+                  ),
+                ),
+                trailing: Tooltip(
+                  message: context.ventioText(
+                    'native.ui.host_validates_this_exact_branch_scope_on_every_change',
+                  ),
                   child: Icon(Icons.verified_user_outlined),
                 ),
               ),
@@ -237,21 +259,21 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    'Branch roles',
+                  child: VentioText(
+                    'native.ui.branch_roles',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                 ),
                 FilledButton.icon(
                   onPressed: _loading || _saving ? null : _createRole,
                   icon: const Icon(Icons.add),
-                  label: const Text('Create role'),
+                  label: const VentioText('native.ui.create_role'),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Roles group permissions for this tenant. Host checks every affected branch before changing a shared role. The role management permission itself can only be granted directly by a trusted Host operator.',
+            const VentioText(
+              'native.ui.roles_group_permissions_for_this_tenant_host_checks_every_affected_branc',
             ),
             if (_saving) ...[
               const SizedBox(height: 12),
@@ -266,10 +288,12 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.cloud_off_outlined),
-                  title: const Text('Could not load Host roles'),
+                  title: const VentioText(
+                    'native.ui.could_not_load_host_roles',
+                  ),
                   subtitle: Text(_error!),
                   trailing: IconButton(
-                    tooltip: 'Retry',
+                    tooltip: context.ventioText('native.ui.retry'),
                     onPressed: _load,
                     icon: const Icon(Icons.refresh),
                   ),
@@ -279,8 +303,8 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text(
-                    'No roles are defined yet. Create a role, add namespaced permissions, then assign it to an existing user in this branch.',
+                  child: VentioText(
+                    'native.ui.no_roles_are_defined_yet_create_a_role_add_namespaced_permissions_then_a',
                   ),
                 ),
               )
@@ -299,10 +323,17 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
       leading: const Icon(Icons.badge_outlined),
       title: Text(role.displayName),
       subtitle: Text(
-        '${role.roleId} · ${role.permissions.length} permissions · ${role.assignedActorIds.length} users in this branch',
+        context.ventioText(
+          'native.ui.role_access_summary',
+          params: {
+            'roleId': role.roleId,
+            'permissionCount': role.permissions.length,
+            'userCount': role.assignedActorIds.length,
+          },
+        ),
       ),
       trailing: PopupMenuButton<String>(
-        tooltip: 'Role actions',
+        tooltip: context.ventioText('native.ui.role_actions'),
         enabled: !_saving,
         onSelected: (action) {
           switch (action) {
@@ -313,8 +344,14 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
           }
         },
         itemBuilder: (context) => [
-          const PopupMenuItem(value: 'rename', child: Text('Rename')),
-          const PopupMenuItem(value: 'delete', child: Text('Delete')),
+          const PopupMenuItem(
+            value: 'rename',
+            child: VentioText('native.ui.rename'),
+          ),
+          const PopupMenuItem(
+            value: 'delete',
+            child: VentioText('native.ui.delete'),
+          ),
         ],
       ),
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -326,8 +363,8 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
-                'Permissions',
+              VentioText(
+                'native.ui.permissions',
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               for (final permission in role.permissions)
@@ -346,7 +383,7 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
                 ),
               ActionChip(
                 avatar: const Icon(Icons.add, size: 18),
-                label: const Text('Add permission'),
+                label: const VentioText('native.ui.add_permission'),
                 onPressed: _saving ? null : () => _addPermission(role),
               ),
             ],
@@ -356,15 +393,15 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
         Row(
           children: [
             Expanded(
-              child: Text(
-                'Users in this branch',
+              child: VentioText(
+                'native.ui.users_in_this_branch',
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
             OutlinedButton.icon(
               onPressed: _saving ? null : () => _assignActor(role),
               icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('Assign user'),
+              label: const VentioText('native.ui.assign_user'),
             ),
           ],
         ),
@@ -373,7 +410,9 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: EdgeInsets.only(top: 8),
-              child: Text('No users are assigned in this branch.'),
+              child: VentioText(
+                'native.ui.no_users_are_assigned_in_this_branch',
+              ),
             ),
           )
         else
@@ -383,7 +422,10 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
               leading: const Icon(Icons.person_outline),
               title: SelectableText(actorId),
               trailing: IconButton(
-                tooltip: 'Remove role from $actorId',
+                tooltip: context.ventioText(
+                  'native.ui.remove_role_from_actor',
+                  params: {'actorId': actorId},
+                ),
                 onPressed: _saving ? null : () => _unassignActor(role, actorId),
                 icon: const Icon(Icons.person_remove_outlined),
               ),
@@ -458,8 +500,8 @@ class _RoleDialogState extends State<_RoleDialog> {
             TextFormField(
               controller: _idController,
               enabled: widget.allowIdEdit,
-              decoration: const InputDecoration(
-                labelText: 'Role ID',
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.role_id'),
                 hintText: 'inventory-editor',
               ),
               validator: (value) =>
@@ -473,7 +515,9 @@ class _RoleDialogState extends State<_RoleDialog> {
             TextFormField(
               controller: _nameController,
               autofocus: !widget.allowIdEdit,
-              decoration: const InputDecoration(labelText: 'Display name'),
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.display_name'),
+              ),
               validator: (value) {
                 final name = value?.trim() ?? '';
                 return name.isEmpty || name.length > 120
@@ -488,7 +532,7 @@ class _RoleDialogState extends State<_RoleDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const VentioText('native.ui.cancel'),
       ),
       FilledButton(
         onPressed: () {
@@ -499,7 +543,7 @@ class _RoleDialogState extends State<_RoleDialog> {
             ));
           }
         },
-        child: const Text('Save'),
+        child: const VentioText('native.ui.save'),
       ),
     ],
   );
@@ -565,7 +609,7 @@ class _TextDialogState extends State<_TextDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const VentioText('native.ui.cancel'),
       ),
       FilledButton(
         onPressed: () {
@@ -573,7 +617,7 @@ class _TextDialogState extends State<_TextDialog> {
             Navigator.pop(context, _controller.text.trim());
           }
         },
-        child: const Text('Save'),
+        child: const VentioText('native.ui.save'),
       ),
     ],
   );

@@ -41,6 +41,14 @@ const Map<String, IconData> _generatedPageIcons = {
 IconData _generatedPageIcon(String? id) =>
     _generatedPageIcons[id] ?? _generatedPageIcons['list']!;
 
+String _extensionMessageKey(String moduleId, String message) {
+  final namespace = moduleId.toLowerCase().replaceAll(
+    RegExp(r'[^a-z0-9]+'),
+    '_',
+  );
+  return 'extension.$namespace.module.$message';
+}
+
 class ExtensionStudioPage extends StatefulWidget {
   const ExtensionStudioPage({
     required this.store,
@@ -263,25 +271,40 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       final install = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Review extension package'),
+          title: const VentioText('native.ui.review_extension_package'),
           content: SizedBox(
             width: 560,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(bundle.manifest.displayName),
+                Text(
+                  context.extensionMetadataText(
+                    bundle.manifest.displayNameKey,
+                    bundle.manifest.displayName,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 SelectableText('${bundle.moduleId} · ${bundle.version}'),
                 const SizedBox(height: 12),
                 Text(
-                  'DocTypes: ${bundle.docTypes.map((type) => type.name).join(', ')}',
+                  context.ventioText(
+                    'native.ui.doctypes_summary',
+                    params: {
+                      'names': bundle.docTypes
+                          .map((type) => type.name)
+                          .join(', '),
+                    },
+                  ),
                 ),
                 const SizedBox(height: 12),
-                const _LocalOnlyNotice(
-                  title: 'Local installation only',
-                  body:
-                      'Installing this package saves a local draft on this device. It does not approve or publish it through Host.',
+                _LocalOnlyNotice(
+                  title: context.ventioText(
+                    'native.ui.local_installation_only',
+                  ),
+                  body: context.ventioText(
+                    'native.ui.installing_this_package_saves_a_local_draft_on_this_device_it_does_not_a',
+                  ),
                   icon: Icons.phonelink_lock_outlined,
                 ),
               ],
@@ -290,11 +313,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: const VentioText('native.ui.cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Install on this device'),
+              child: const VentioText('native.ui.install_on_this_device'),
             ),
           ],
         ),
@@ -408,18 +431,18 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Disconnect this device from Host?'),
-        content: const Text(
-          'This removes the saved Host scope and this endpoint’s device credential. Local drafts and records stay on this device.',
+        title: const VentioText('native.ui.disconnect_this_device_from_host'),
+        content: const VentioText(
+          'native.ui.this_removes_the_saved_host_scope_and_this_endpoint_s_device_credential',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const VentioText('native.ui.cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Disconnect'),
+            child: const VentioText('native.ui.disconnect'),
           ),
         ],
       ),
@@ -500,25 +523,38 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       final install = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Install Host-approved extension'),
+          title: const VentioText('native.ui.install_host_approved_extension'),
           content: SizedBox(
             width: 560,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(bundle.manifest.displayName),
+                Text(
+                  context.extensionMetadataText(
+                    bundle.manifest.displayNameKey,
+                    bundle.manifest.displayName,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 SelectableText('${bundle.moduleId} · ${bundle.version}'),
                 const SizedBox(height: 12),
                 Text(
-                  'DocTypes: ${bundle.docTypes.map((type) => type.name).join(', ')}',
+                  context.ventioText(
+                    'native.ui.doctypes_summary',
+                    params: {
+                      'names': bundle.docTypes
+                          .map((type) => type.name)
+                          .join(', '),
+                    },
+                  ),
                 ),
                 const SizedBox(height: 12),
-                const _LocalOnlyNotice(
-                  title: 'Host-approved package',
-                  body:
-                      'The Host approved this metadata package. Installing saves it on this device as a draft; activate it after reviewing its fields and dependencies.',
+                _LocalOnlyNotice(
+                  title: context.ventioText('native.ui.host_approved_package'),
+                  body: context.ventioText(
+                    'native.ui.the_host_approved_this_metadata_package_installing_saves_it_on_this_devi',
+                  ),
                   icon: Icons.verified_user_outlined,
                 ),
               ],
@@ -527,11 +563,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: const VentioText('native.ui.cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Install on this device'),
+              child: const VentioText('native.ui.install_on_this_device'),
             ),
           ],
         ),
@@ -596,11 +632,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     final width = MediaQuery.sizeOf(context).width;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ventio · Extension Builder'),
+        title: const VentioText('native.ui.ventio_extension_builder'),
         actions: [
           if (width < 600)
             PopupMenuButton<_StudioMenuAction>(
-              tooltip: 'Workspace actions',
+              tooltip: context.ventioText('native.ui.workspace_actions'),
               onSelected: (action) {
                 switch (action) {
                   case _StudioMenuAction.connect:
@@ -625,31 +661,33 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 PopupMenuItem(
                   value: _StudioMenuAction.installFromHost,
                   enabled: _hostProfile != null,
-                  child: const Text('Install from Host'),
+                  child: const VentioText('native.ui.install_from_host'),
                 ),
                 PopupMenuItem(
                   value: _StudioMenuAction.sync,
                   enabled: _hostProfile != null,
-                  child: const Text('Sync pending records'),
+                  child: const VentioText('native.ui.sync_pending_records'),
                 ),
                 const PopupMenuItem(
                   value: _StudioMenuAction.installPackage,
-                  child: Text('Install package'),
+                  child: VentioText('native.ui.install_package'),
                 ),
                 const PopupMenuItem(
                   value: _StudioMenuAction.offlineProof,
-                  child: Text('Offline queue proof'),
+                  child: VentioText('native.ui.offline_queue_proof'),
                 ),
               ],
             )
           else if (width < 1200) ...[
             IconButton(
-              tooltip: 'Sync pending records',
+              tooltip: context.ventioText('native.ui.sync_pending_records'),
               onPressed: _hostProfile == null ? null : _syncHost,
               icon: const Icon(Icons.sync),
             ),
             IconButton(
-              tooltip: 'Install Host-approved extension',
+              tooltip: context.ventioText(
+                'native.ui.install_host_approved_extension',
+              ),
               onPressed: _hostProfile == null ? null : _installApprovedFromHost,
               icon: const Icon(Icons.cloud_download_outlined),
             ),
@@ -659,12 +697,14 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               icon: const Icon(Icons.cloud_outlined),
             ),
             IconButton(
-              tooltip: 'Install extension package',
+              tooltip: context.ventioText(
+                'native.ui.install_extension_package',
+              ),
               onPressed: _installBundle,
               icon: const Icon(Icons.file_download_outlined),
             ),
             IconButton(
-              tooltip: 'Offline queue proof',
+              tooltip: context.ventioText('native.ui.offline_queue_proof'),
               onPressed: _openMaintenanceProof,
               icon: const Icon(Icons.cloud_off_outlined),
             ),
@@ -672,12 +712,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
             TextButton.icon(
               onPressed: _hostProfile == null ? null : _syncHost,
               icon: const Icon(Icons.sync),
-              label: const Text('Sync pending'),
+              label: const VentioText('native.ui.sync_pending'),
             ),
             TextButton.icon(
               onPressed: _hostProfile == null ? null : _installApprovedFromHost,
               icon: const Icon(Icons.cloud_download_outlined),
-              label: const Text('Install from Host'),
+              label: const VentioText('native.ui.install_from_host'),
             ),
             TextButton.icon(
               onPressed: _configureHost,
@@ -687,12 +727,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
             TextButton.icon(
               onPressed: _installBundle,
               icon: const Icon(Icons.file_download_outlined),
-              label: const Text('Install package'),
+              label: const VentioText('native.ui.install_package'),
             ),
             TextButton.icon(
               onPressed: _openMaintenanceProof,
               icon: const Icon(Icons.cloud_off_outlined),
-              label: const Text('Offline queue proof'),
+              label: const VentioText('native.ui.offline_queue_proof'),
             ),
           ],
           const SizedBox(width: 8),
@@ -721,12 +761,14 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   const SizedBox(height: 12),
                   _StateCard(
                     icon: Icons.warning_amber_outlined,
-                    title: 'A saved record could not enter the Host queue',
+                    title: context.ventioText(
+                      'native.ui.a_saved_record_could_not_enter_the_host_queue',
+                    ),
                     body: _queueRecoveryWarning!,
                     action: TextButton.icon(
                       onPressed: _load,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Retry queue recovery'),
+                      label: const VentioText('native.ui.retry_queue_recovery'),
                     ),
                   ),
                 ],
@@ -737,7 +779,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                       child: FilledButton.tonalIcon(
                         onPressed: _openRoleAdministration,
                         icon: const Icon(Icons.manage_accounts_outlined),
-                        label: const Text('Manage roles & access'),
+                        label: const VentioText(
+                          'native.ui.manage_roles_access',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -748,7 +792,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     child: TextButton.icon(
                       onPressed: _disconnectHost,
                       icon: const Icon(Icons.link_off_outlined),
-                      label: const Text('Disconnect Host'),
+                      label: const VentioText('native.ui.disconnect_host'),
                     ),
                   ),
                 ],
@@ -759,20 +803,20 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     final heading = Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Build an extension',
+                        VentioText(
+                          'native.ui.build_an_extension',
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
                         const SizedBox(height: 6),
-                        const Text(
-                          'Define reusable records, fields, relationships and screens without adding a page to the Flutter app.',
+                        const VentioText(
+                          'native.ui.define_reusable_records_fields_relationships_and_screens_without_adding',
                         ),
                       ],
                     );
                     final create = FilledButton.icon(
                       onPressed: _createExtension,
                       icon: const Icon(Icons.add),
-                      label: const Text('New extension'),
+                      label: const VentioText('native.ui.new_extension'),
                     );
                     if (compact) {
                       return Column(
@@ -795,29 +839,36 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 else if (_loadError != null)
                   _StateCard(
                     icon: Icons.error_outline,
-                    title: 'Extensions could not be loaded',
+                    title: context.ventioText(
+                      'native.ui.extensions_could_not_be_loaded',
+                    ),
                     body: _loadError!,
                     action: TextButton.icon(
                       onPressed: _load,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Try again'),
+                      label: const VentioText('native.ui.try_again'),
                     ),
                   )
                 else if (_extensions.isEmpty)
                   _StateCard(
                     icon: Icons.extension_outlined,
-                    title: 'Start with an extension',
-                    body:
-                        'Create a local draft, add one or more DocTypes, then preview the screens generated from your metadata.',
+                    title: context.ventioText(
+                      'native.ui.start_with_an_extension',
+                    ),
+                    body: context.ventioText(
+                      'native.ui.create_a_local_draft_add_one_or_more_doctypes_then_preview_the_screens_g',
+                    ),
                     action: FilledButton.icon(
                       onPressed: _createExtension,
                       icon: const Icon(Icons.add),
-                      label: const Text('Create your first extension'),
+                      label: const VentioText(
+                        'native.ui.create_your_first_extension',
+                      ),
                     ),
                   )
                 else ...[
-                  Text(
-                    'Your extensions',
+                  VentioText(
+                    'native.ui.your_extensions',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
@@ -875,8 +926,8 @@ class _HostConnectionDialogState extends State<_HostConnectionDialog> {
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Enter an HTTPS Host origin, or HTTP for a same-device loopback Host.',
+          content: VentioText(
+            'native.ui.enter_an_https_host_origin_or_http_for_a_same_device_loopback_host',
           ),
         ),
       );
@@ -885,7 +936,7 @@ class _HostConnectionDialogState extends State<_HostConnectionDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Connect to Host'),
+    title: const VentioText('native.ui.connect_to_host'),
     content: SizedBox(
       width: 520,
       child: Column(
@@ -894,10 +945,12 @@ class _HostConnectionDialogState extends State<_HostConnectionDialog> {
           TextField(
             controller: _endpoint,
             keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              labelText: 'Host origin',
+            decoration: InputDecoration(
+              labelText: context.ventioText('native.ui.host_origin'),
               hintText: 'https://ventio-host.example.com:8443',
-              helperText: 'Remote Hosts require HTTPS.',
+              helperText: context.ventioText(
+                'native.ui.remote_hosts_require_https',
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -921,9 +974,12 @@ class _HostConnectionDialogState extends State<_HostConnectionDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const VentioText('native.ui.cancel'),
       ),
-      FilledButton(onPressed: _save, child: const Text('Verify Host')),
+      FilledButton(
+        onPressed: _save,
+        child: const VentioText('native.ui.verify_host'),
+      ),
     ],
   );
 }
@@ -965,14 +1021,19 @@ class _HostScopeDialogState extends State<_HostScopeDialog> {
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
     return AlertDialog(
-      title: const Text('Choose Host scope'),
+      title: const VentioText('native.ui.choose_host_scope'),
       content: SizedBox(
         width: screen.width < 640 ? null : 560,
         height: screen.height * 0.45,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Tenant: ${widget.tenantId}'),
+            Text(
+              context.ventioText(
+                'native.ui.tenant_summary',
+                params: {'tenantId': widget.tenantId},
+              ),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: ListView(
@@ -997,13 +1058,13 @@ class _HostScopeDialogState extends State<_HostScopeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const VentioText('native.ui.cancel'),
         ),
         FilledButton(
           onPressed: _selected == null
               ? null
               : () => Navigator.pop(context, _selected),
-          child: const Text('Use this scope'),
+          child: const VentioText('native.ui.use_this_scope'),
         ),
       ],
     );
@@ -1096,8 +1157,8 @@ class _HostApprovedPackageDialogState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Approved extensions',
+                        VentioText(
+                          'native.ui.approved_extensions',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 4),
@@ -1111,12 +1172,14 @@ class _HostApprovedPackageDialogState
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Refresh approved extensions',
+                    tooltip: context.ventioText(
+                      'native.ui.refresh_approved_extensions',
+                    ),
                     onPressed: _loading ? null : () => _loadPage(reset: true),
                     icon: const Icon(Icons.refresh),
                   ),
                   IconButton(
-                    tooltip: 'Close',
+                    tooltip: context.ventioText('native.ui.close'),
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
@@ -1129,15 +1192,15 @@ class _HostApprovedPackageDialogState
                   actions: [
                     TextButton(
                       onPressed: _loading ? null : () => _loadPage(),
-                      child: const Text('Retry'),
+                      child: const VentioText('native.ui.retry'),
                     ),
                   ],
                 ),
               Expanded(
                 child: _packages.isEmpty && !_loading && _error == null
                     ? const Center(
-                        child: Text(
-                          'No approved extensions are available for this Host scope.',
+                        child: VentioText(
+                          'native.ui.no_approved_extensions_are_available_for_this_host_scope',
                           textAlign: TextAlign.center,
                         ),
                       )
@@ -1153,7 +1216,12 @@ class _HostApprovedPackageDialogState
                             leading: const CircleAvatar(
                               child: Icon(Icons.extension_outlined),
                             ),
-                            title: Text(package.displayName),
+                            title: Text(
+                              context.extensionMetadataText(
+                                _extensionMessageKey(package.moduleId, 'name'),
+                                package.displayName,
+                              ),
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -1162,7 +1230,13 @@ class _HostApprovedPackageDialogState
                                 ),
                                 if (package.description?.isNotEmpty == true)
                                   Text(
-                                    package.description!,
+                                    context.extensionMetadataText(
+                                      _extensionMessageKey(
+                                        package.moduleId,
+                                        'description',
+                                      ),
+                                      package.description!,
+                                    ),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -1183,7 +1257,7 @@ class _HostApprovedPackageDialogState
                   child: TextButton.icon(
                     onPressed: () => _loadPage(),
                     icon: const Icon(Icons.expand_more),
-                    label: const Text('Load more'),
+                    label: const VentioText('native.ui.load_more'),
                   ),
                 ),
             ],
@@ -1215,15 +1289,15 @@ class _ExtensionBundleImportDialogState
   @override
   Widget build(BuildContext context) => AlertDialog(
     scrollable: true,
-    title: const Text('Install extension package'),
+    title: const VentioText('native.ui.install_extension_package'),
     content: SizedBox(
       width: 680,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Paste a Ventio declarative package. It can contain schemas and UI metadata only; scripts, SQL and executable capabilities are rejected.',
+          const VentioText(
+            'native.ui.paste_a_ventio_declarative_package_it_can_contain_schemas_and_ui_metadat',
           ),
           const SizedBox(height: 12),
           TextField(
@@ -1232,8 +1306,8 @@ class _ExtensionBundleImportDialogState
             maxLines: 14,
             maxLength: ExtensionBundle.maxEncodedBytes,
             keyboardType: TextInputType.multiline,
-            decoration: const InputDecoration(
-              labelText: 'Package JSON',
+            decoration: InputDecoration(
+              labelText: context.ventioText('native.ui.package_json'),
               hintText: '{"manifest": ...}',
               border: OutlineInputBorder(),
               alignLabelWithHint: true,
@@ -1247,7 +1321,7 @@ class _ExtensionBundleImportDialogState
                 if (mounted) _controller.text = clipboard?.text ?? '';
               },
               icon: const Icon(Icons.content_paste),
-              label: const Text('Paste from clipboard'),
+              label: const VentioText('native.ui.paste_from_clipboard'),
             ),
           ),
         ],
@@ -1256,11 +1330,11 @@ class _ExtensionBundleImportDialogState
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const VentioText('native.ui.cancel'),
       ),
       FilledButton(
         onPressed: () => Navigator.pop(context, _controller.text.trim()),
-        child: const Text('Validate package'),
+        child: const VentioText('native.ui.validate_package'),
       ),
     ],
   );
@@ -1444,7 +1518,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
         context: context,
         builder: (context) => AlertDialog(
           scrollable: true,
-          title: const Text('Declarative extension package'),
+          title: const VentioText('native.ui.declarative_extension_package'),
           content: SizedBox(
             width: 720,
             height: MediaQuery.sizeOf(context).height * 0.6,
@@ -1460,11 +1534,11 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                 }
               },
               icon: const Icon(Icons.copy_outlined),
-              label: const Text('Copy package JSON'),
+              label: const VentioText('native.ui.copy_package_json'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
+              child: const VentioText('native.ui.close'),
             ),
           ],
         ),
@@ -1492,21 +1566,29 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Submit extension for Host review?'),
+        title: const VentioText('native.ui.submit_extension_for_host_review'),
         content: SelectableText(
-          '${bundle.manifest.displayName}\n'
-          '${bundle.moduleId} · ${bundle.version}\n\n'
-          'This sends declarative metadata to the selected Host. It remains a candidate until a trusted Host operator reviews and approves it.',
+          context.ventioText(
+            'native.ui.extension_review_submission',
+            params: {
+              'displayName': context.extensionMetadataText(
+                _extensionMessageKey(bundle.moduleId, 'name'),
+                bundle.manifest.displayName,
+              ),
+              'moduleId': bundle.moduleId,
+              'version': bundle.version,
+            },
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const VentioText('native.ui.cancel'),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.pop(context, true),
             icon: const Icon(Icons.cloud_upload_outlined),
-            label: const Text('Submit candidate'),
+            label: const VentioText('native.ui.submit_candidate'),
           ),
         ],
       ),
@@ -1553,18 +1635,18 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     final approved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove this local extension?'),
-        content: const Text(
-          'Removal is allowed only when the extension has no local records. This action cannot publish or revoke a shared Host extension.',
+        title: const VentioText('native.ui.remove_this_local_extension'),
+        content: const VentioText(
+          'native.ui.removal_is_allowed_only_when_the_extension_has_no_local_records_this_act',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const VentioText('native.ui.cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
+            child: const VentioText('native.ui.remove'),
           ),
         ],
       ),
@@ -1611,10 +1693,19 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     final extension = _extension;
     return Scaffold(
       appBar: AppBar(
-        title: Text(extension?.displayName ?? 'Extension'),
+        title: Text(
+          extension == null
+              ? context.ventioText('native.ui.extension')
+              : context.extensionMetadataText(
+                  _extensionMessageKey(extension.moduleId, 'name'),
+                  extension.displayName,
+                ),
+        ),
         actions: [
           IconButton(
-            tooltip: 'Submit package for Host review',
+            tooltip: context.ventioText(
+              'native.ui.submit_package_for_host_review',
+            ),
             onPressed:
                 extension == null ||
                     _docTypes.isEmpty ||
@@ -1626,7 +1717,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
             icon: const Icon(Icons.cloud_upload_outlined),
           ),
           IconButton(
-            tooltip: 'Export declarative package',
+            tooltip: context.ventioText('native.ui.export_declarative_package'),
             onPressed: extension == null || _docTypes.isEmpty || _busy
                 ? null
                 : _exportBundle,
@@ -1639,7 +1730,9 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
           : _error != null
           ? Center(child: Text(_error!))
           : extension == null
-          ? const Center(child: Text('This extension was removed.'))
+          ? const Center(
+              child: VentioText('native.ui.this_extension_was_removed'),
+            )
           : Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1080),
@@ -1647,9 +1740,12 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                   padding: const EdgeInsets.all(24),
                   children: [
                     _LocalOnlyNotice(
-                      title: 'Device-local extension copy',
-                      body:
-                          'Local activation controls this device only. Submit this declarative package for Host review before sharing its definition with other devices. Record commands stay provisional until Host receipts confirm acceptance.',
+                      title: context.ventioText(
+                        'native.ui.device_local_extension_copy',
+                      ),
+                      body: context.ventioText(
+                        'native.ui.local_activation_controls_this_device_only_submit_this_declarative_packa',
+                      ),
                       icon: Icons.lock_clock_outlined,
                     ),
                     const SizedBox(height: 20),
@@ -1658,25 +1754,26 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            'DocTypes',
+                          child: VentioText(
+                            'native.ui.doctypes',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ),
                         FilledButton.icon(
                           onPressed: _busy ? null : () => _addDocType(),
                           icon: const Icon(Icons.add),
-                          label: const Text('Add DocType'),
+                          label: const VentioText('native.ui.add_doctype'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     if (_docTypes.isEmpty)
-                      const _StateCard(
+                      _StateCard(
                         icon: Icons.schema_outlined,
-                        title: 'No DocTypes yet',
-                        body:
-                            'A DocType defines the fields, relationships, validation and permissions for a kind of record.',
+                        title: context.ventioText('native.ui.no_doctypes_yet'),
+                        body: context.ventioText(
+                          'native.ui.a_doctype_defines_the_fields_relationships_validation_and_permissions_fo',
+                        ),
                       )
                     else
                       for (final metadata in _docTypes)
@@ -1712,28 +1809,40 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
-                  extension.displayName,
+                  context.extensionMetadataText(
+                    _extensionMessageKey(extension.moduleId, 'name'),
+                    extension.displayName,
+                  ),
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 _StatusPill(label: extension.state.databaseValue),
-                const _StatusPill(label: 'LOCAL ONLY'),
+                _StatusPill(label: context.ventioText('native.ui.local_only')),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               extension.description.isEmpty
-                  ? 'No description.'
-                  : extension.description,
+                  ? context.ventioText('native.ui.no_description')
+                  : context.extensionMetadataText(
+                      _extensionMessageKey(extension.moduleId, 'description'),
+                      extension.description,
+                    ),
             ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 16,
               runSpacing: 8,
               children: [
-                _MetadataText(label: 'Module ID', value: extension.moduleId),
-                _MetadataText(label: 'Version', value: extension.version),
                 _MetadataText(
-                  label: 'Dependencies',
+                  label: context.ventioText('native.ui.module_id'),
+                  value: extension.moduleId,
+                ),
+                _MetadataText(
+                  label: context.ventioText('native.ui.version'),
+                  value: extension.version,
+                ),
+                _MetadataText(
+                  label: context.ventioText('native.ui.dependencies'),
                   value: extension.dependencies.isEmpty
                       ? 'None'
                       : extension.dependencies.entries
@@ -1741,7 +1850,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                             .join(', '),
                 ),
                 _MetadataText(
-                  label: 'Updated',
+                  label: context.ventioText('native.ui.updated'),
                   value: extension.updatedAtUtc
                       .toLocal()
                       .toString()
@@ -1755,7 +1864,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
               child: TextButton.icon(
                 onPressed: _busy ? null : _editExtension,
                 icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit extension details'),
+                label: const VentioText('native.ui.edit_extension_details'),
               ),
             ),
           ],
@@ -1776,17 +1885,19 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Permissions and operations',
+            VentioText(
+              'native.ui.permissions_and_operations',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'The extension declares read, create and update permission keys. It cannot grant them to users or add trusted Host capabilities. A Host administrator must approve and grant each exact scope.',
+            const VentioText(
+              'native.ui.the_extension_declares_read_create_and_update_permission_keys_it_cannot',
             ),
             const SizedBox(height: 12),
             if (permissions.isEmpty)
-              const Text('Add a DocType to define permission keys.')
+              const VentioText(
+                'native.ui.add_a_doctype_to_define_permission_keys',
+              )
             else
               Wrap(
                 spacing: 8,
@@ -1821,8 +1932,8 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Device lifecycle',
+                  VentioText(
+                    'native.ui.device_lifecycle',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 6),
@@ -1840,7 +1951,7 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                 OutlinedButton.icon(
                   onPressed: _busy ? null : _remove,
                   icon: const Icon(Icons.delete_outline),
-                  label: const Text('Remove'),
+                  label: const VentioText('native.ui.remove'),
                 ),
                 FilledButton.icon(
                   onPressed: _busy ? null : _changeState,
@@ -2015,18 +2126,21 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove field from this draft?'),
+        title: const VentioText('native.ui.remove_field_from_this_draft'),
         content: Text(
-          'Removing ${field['name']} may be rejected if the saved schema already uses it. Existing records are preserved.',
+          context.ventioText(
+            'native.ui.remove_field_confirmation',
+            params: {'fieldId': field['name']},
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep field'),
+            child: const VentioText('native.ui.keep_field'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove field'),
+            child: const VentioText('native.ui.remove_field'),
           ),
         ],
       ),
@@ -2095,7 +2209,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
             if (_fields.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 12),
-                child: Text('Add fields to configure this layout.'),
+                child: VentioText(
+                  'native.ui.add_fields_to_configure_this_layout',
+                ),
               ),
             for (final field in _fields)
               Builder(
@@ -2115,7 +2231,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                             spacing: 0,
                             children: [
                               IconButton(
-                                tooltip: 'Move ${field['label']} up',
+                                tooltip: context.ventioText(
+                                  'native.ui.move_field_up',
+                                  params: {'label': field['label']},
+                                ),
                                 onPressed: index == 0
                                     ? null
                                     : () =>
@@ -2123,7 +2242,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                                 icon: const Icon(Icons.arrow_upward),
                               ),
                               IconButton(
-                                tooltip: 'Move ${field['label']} down',
+                                tooltip: context.ventioText(
+                                  'native.ui.move_field_down',
+                                  params: {'label': field['label']},
+                                ),
                                 onPressed: index == selected.length - 1
                                     ? null
                                     : () =>
@@ -2240,21 +2362,23 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                const _LocalOnlyNotice(
-                  title: 'Schema designer',
-                  body:
-                      'DocType definitions are validated metadata. They cannot contain SQL, scripts or downloaded executable code.',
+                _LocalOnlyNotice(
+                  title: context.ventioText('native.ui.schema_designer'),
+                  body: context.ventioText(
+                    'native.ui.doctype_definitions_are_validated_metadata_they_cannot_contain_sql_scrip',
+                  ),
                   icon: Icons.schema_outlined,
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _nameController,
                   readOnly: editing,
-                  decoration: const InputDecoration(
-                    labelText: 'DocType ID',
-                    hintText: 'Asset',
-                    helperText:
-                        'Stable identifier. Use letters, numbers and underscores.',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.doctype_id'),
+                    hintText: context.ventioText('native.ui.asset'),
+                    helperText: context.ventioText(
+                      'native.ui.stable_identifier_use_letters_numbers_and_underscores',
+                    ),
                     border: OutlineInputBorder(),
                   ),
                   validator: _docTypeIdentifierError,
@@ -2262,8 +2386,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _labelController,
-                  decoration: const InputDecoration(
-                    labelText: 'Display name',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.display_name'),
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (value) {
@@ -2279,8 +2403,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                   controller: _descriptionController,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.description'),
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -2291,22 +2415,25 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Generated page settings',
+                        VentioText(
+                          'native.ui.generated_page_settings',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 4),
-                        const Text(
-                          'Each DocType creates a records page. These settings control its navigation label, icon and order; access still follows the DocType permissions.',
+                        const VentioText(
+                          'native.ui.each_doctype_creates_a_records_page_these_settings_control_its_navigatio',
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _pageTitleController,
                           maxLength: 120,
-                          decoration: const InputDecoration(
-                            labelText: 'Page title',
-                            helperText:
-                                'Shown in extension navigation and on the records page.',
+                          decoration: InputDecoration(
+                            labelText: context.ventioText(
+                              'native.ui.page_title',
+                            ),
+                            helperText: context.ventioText(
+                              'native.ui.shown_in_extension_navigation_and_on_the_records_page',
+                            ),
                             border: OutlineInputBorder(),
                           ),
                           onChanged: (value) {
@@ -2329,10 +2456,13 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
-                          decoration: const InputDecoration(
-                            labelText: 'Navigation order',
-                            helperText:
-                                'Lower values appear first. Values from 0 to 10000 are supported.',
+                          decoration: InputDecoration(
+                            labelText: context.ventioText(
+                              'native.ui.navigation_order',
+                            ),
+                            helperText: context.ventioText(
+                              'native.ui.lower_values_appear_first_values_from_0_to_10000_are_supported',
+                            ),
                             border: OutlineInputBorder(),
                           ),
                           validator: (value) {
@@ -2347,8 +2477,10 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                         DropdownButtonFormField<String>(
                           initialValue: _pageIcon,
                           isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Navigation icon',
+                          decoration: InputDecoration(
+                            labelText: context.ventioText(
+                              'native.ui.navigation_icon',
+                            ),
                             border: OutlineInputBorder(),
                           ),
                           items: [
@@ -2379,24 +2511,28 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Fields (${_fields.length})',
+                        context.ventioText(
+                          'native.ui.fields_count',
+                          params: {'count': _fields.length},
+                        ),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: () => _addField(),
                       icon: const Icon(Icons.add),
-                      label: const Text('Add field'),
+                      label: const VentioText('native.ui.add_field'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 if (_fields.isEmpty)
-                  const _StateCard(
+                  _StateCard(
                     icon: Icons.view_list_outlined,
-                    title: 'Add the first field',
-                    body:
-                        'Fields define what the generated form validates and stores.',
+                    title: context.ventioText('native.ui.add_the_first_field'),
+                    body: context.ventioText(
+                      'native.ui.fields_define_what_the_generated_form_validates_and_stores',
+                    ),
                   )
                 else
                   for (final field in _fields)
@@ -2407,25 +2543,28 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                     ),
                 const SizedBox(height: 24),
                 _layoutCard(
-                  title: 'List page columns',
-                  description:
-                      'Choose visible columns and their order in generated lists.',
+                  title: context.ventioText('native.ui.list_page_columns'),
+                  description: context.ventioText(
+                    'native.ui.choose_visible_columns_and_their_order_in_generated_lists',
+                  ),
                   selected: _listColumns,
                   requiredFieldsOnly: false,
                 ),
                 const SizedBox(height: 12),
                 _layoutCard(
-                  title: 'Generated form fields',
-                  description:
-                      'Choose and order fields shown on create and edit forms. Required fields stay visible.',
+                  title: context.ventioText('native.ui.generated_form_fields'),
+                  description: context.ventioText(
+                    'native.ui.choose_and_order_fields_shown_on_create_and_edit_forms_required_fields_s',
+                  ),
                   selected: _formFields,
                   requiredFieldsOnly: true,
                 ),
                 const SizedBox(height: 12),
                 _layoutCard(
-                  title: 'Details page fields',
-                  description:
-                      'Choose and order fields shown when a saved record is opened. This affects presentation only; it does not restrict access to field values.',
+                  title: context.ventioText('native.ui.details_page_fields'),
+                  description: context.ventioText(
+                    'native.ui.choose_and_order_fields_shown_when_a_saved_record_is_opened_this_affects',
+                  ),
                   selected: _detailFields,
                   requiredFieldsOnly: false,
                 ),
@@ -2437,13 +2576,13 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Data migration',
+                          VentioText(
+                            'native.ui.data_migration',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 4),
-                          const Text(
-                            'Supported operations preserve data: rename a field, or populate a constant scalar where a field is missing or null. Type conversion and field deletion are not supported.',
+                          const VentioText(
+                            'native.ui.supported_operations_preserve_data_rename_a_field_or_populate_a_constant',
                           ),
                           const SizedBox(height: 12),
                           Wrap(
@@ -2456,21 +2595,25 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                                 icon: const Icon(
                                   Icons.drive_file_rename_outline,
                                 ),
-                                label: const Text('Add field rename'),
+                                label: const VentioText(
+                                  'native.ui.add_field_rename',
+                                ),
                               ),
                               OutlinedButton.icon(
                                 onPressed: () =>
                                     _addMigrationStep(rename: false),
                                 icon: const Icon(Icons.data_object),
-                                label: const Text('Add default'),
+                                label: const VentioText(
+                                  'native.ui.add_default',
+                                ),
                               ),
                             ],
                           ),
                           if (_migrationSteps.isEmpty)
                             const Padding(
                               padding: EdgeInsets.only(top: 8),
-                              child: Text(
-                                'No data transformations. Safe optional additions and widened constraints need no step.',
+                              child: VentioText(
+                                'native.ui.no_data_transformations_safe_optional_additions_and_widened_constraints',
                               ),
                             ),
                           for (final step in _migrationSteps)
@@ -2483,7 +2626,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                                     : 'Default ${step['field']} to ${jsonEncode(step['value'])}',
                               ),
                               trailing: IconButton(
-                                tooltip: 'Remove migration step',
+                                tooltip: context.ventioText(
+                                  'native.ui.remove_migration_step',
+                                ),
                                 onPressed: () => setState(
                                   () => _migrationSteps.remove(step),
                                 ),
@@ -2502,13 +2647,13 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Declared record operations',
+                        VentioText(
+                          'native.ui.declared_record_operations',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 6),
-                        const Text(
-                          'Choose which local record operations this DocType supports. Permission keys are namespaced to this extension. These declarations do not grant user access; a Host administrator must grant each operation for an exact scope.',
+                        const VentioText(
+                          'native.ui.choose_which_local_record_operations_this_doctype_supports_permission_ke',
                         ),
                         for (final operation in const [
                           'read',
@@ -2529,8 +2674,8 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                             }),
                           ),
                         if (_operations.isEmpty)
-                          const Text(
-                            'No record operations are enabled for this DocType.',
+                          const VentioText(
+                            'native.ui.no_record_operations_are_enabled_for_this_doctype',
                           ),
                       ],
                     ),
@@ -2624,27 +2769,35 @@ class _MigrationStepDialogState extends State<_MigrationStepDialog> {
               if (widget.rename) ...[
                 TextField(
                   controller: _fromController,
-                  decoration: const InputDecoration(
-                    labelText: 'Existing field ID',
-                    helperText: 'The old value is retained under the new ID.',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText(
+                      'native.ui.existing_field_id',
+                    ),
+                    helperText: context.ventioText(
+                      'native.ui.the_old_value_is_retained_under_the_new_id',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _toController,
-                  decoration: const InputDecoration(
-                    labelText: 'New field ID',
-                    helperText: 'It must exist in the new schema.',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.new_field_id'),
+                    helperText: context.ventioText(
+                      'native.ui.it_must_exist_in_the_new_schema',
+                    ),
                   ),
                 ),
               ] else ...[
                 if (widget.fields.isEmpty)
-                  const Text('Add a field to the new schema first.')
+                  const VentioText(
+                    'native.ui.add_a_field_to_the_new_schema_first',
+                  )
                 else
                   DropdownButtonFormField<String>(
                     initialValue: widget.fields.first,
-                    decoration: const InputDecoration(
-                      labelText: 'Target field',
+                    decoration: InputDecoration(
+                      labelText: context.ventioText('native.ui.target_field'),
                     ),
                     items: [
                       for (final name in widget.fields)
@@ -2655,11 +2808,14 @@ class _MigrationStepDialogState extends State<_MigrationStepDialog> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _valueController,
-                  decoration: const InputDecoration(
-                    labelText: 'JSON scalar value',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText(
+                      'native.ui.json_scalar_value',
+                    ),
                     hintText: '"Unknown", 0, or false',
-                    helperText:
-                        'Applied only when the saved value is missing or null.',
+                    helperText: context.ventioText(
+                      'native.ui.applied_only_when_the_saved_value_is_missing_or_null',
+                    ),
                   ),
                 ),
               ],
@@ -2680,11 +2836,11 @@ class _MigrationStepDialogState extends State<_MigrationStepDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const VentioText('native.ui.cancel'),
         ),
         FilledButton(
           onPressed: !widget.rename && widget.fields.isEmpty ? null : _submit,
-          child: const Text('Add step'),
+          child: const VentioText('native.ui.add_step'),
         ),
       ],
     );
@@ -2891,8 +3047,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
               children: [
                 TextFormField(
                   controller: _name,
-                  decoration: const InputDecoration(
-                    labelText: 'Field ID',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.field_id'),
                     hintText: 'serialNumber',
                   ),
                   validator: (value) => _identifierError(
@@ -2904,7 +3060,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _label,
-                  decoration: const InputDecoration(labelText: 'Label'),
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.label'),
+                  ),
                   validator: (value) =>
                       _requiredText(value, 'Enter a field label.'),
                 ),
@@ -2912,24 +3070,41 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: _type,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Data type'),
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.data_type'),
+                  ),
                   items: const [
-                    DropdownMenuItem(value: 'text', child: Text('Text')),
+                    DropdownMenuItem(
+                      value: 'text',
+                      child: VentioText('native.ui.text'),
+                    ),
                     DropdownMenuItem(
                       value: 'integer',
-                      child: Text('Whole number'),
+                      child: VentioText('native.ui.whole_number'),
                     ),
-                    DropdownMenuItem(value: 'decimal', child: Text('Decimal')),
-                    DropdownMenuItem(value: 'boolean', child: Text('Yes / no')),
-                    DropdownMenuItem(value: 'date', child: Text('Date')),
+                    DropdownMenuItem(
+                      value: 'decimal',
+                      child: VentioText('native.ui.decimal'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'boolean',
+                      child: VentioText('native.ui.yes_no'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'date',
+                      child: VentioText('native.ui.date'),
+                    ),
                     DropdownMenuItem(
                       value: 'datetime',
-                      child: Text('Date and time'),
+                      child: VentioText('native.ui.date_and_time'),
                     ),
-                    DropdownMenuItem(value: 'enum', child: Text('Choice list')),
+                    DropdownMenuItem(
+                      value: 'enum',
+                      child: VentioText('native.ui.choice_list'),
+                    ),
                     DropdownMenuItem(
                       value: 'reference',
-                      child: Text('Relationship'),
+                      child: VentioText('native.ui.relationship'),
                     ),
                   ],
                   onChanged: (value) => setState(() => _type = value ?? 'text'),
@@ -2939,9 +3114,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   TextFormField(
                     controller: _minLength,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Minimum length',
-                      hintText: 'Optional',
+                    decoration: InputDecoration(
+                      labelText: context.ventioText('native.ui.minimum_length'),
+                      hintText: context.ventioText('native.ui.optional'),
                     ),
                     validator: (value) => _lengthError(value, minimum: true),
                   ),
@@ -2949,8 +3124,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   TextFormField(
                     controller: _maxLength,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Maximum length',
+                    decoration: InputDecoration(
+                      labelText: context.ventioText('native.ui.maximum_length'),
                     ),
                     validator: (value) => _lengthError(value, minimum: false),
                   ),
@@ -2962,9 +3137,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                     keyboardType: _type == 'integer'
                         ? TextInputType.number
                         : const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Minimum value',
-                      hintText: 'Optional',
+                    decoration: InputDecoration(
+                      labelText: context.ventioText('native.ui.minimum_value'),
+                      hintText: context.ventioText('native.ui.optional'),
                     ),
                     validator: (value) => _boundError(value, minimum: true),
                   ),
@@ -2974,9 +3149,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                     keyboardType: _type == 'integer'
                         ? TextInputType.number
                         : const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Maximum value',
-                      hintText: 'Optional',
+                    decoration: InputDecoration(
+                      labelText: context.ventioText('native.ui.maximum_value'),
+                      hintText: context.ventioText('native.ui.optional'),
                     ),
                     validator: (value) => _boundError(value, minimum: false),
                   ),
@@ -2987,10 +3162,12 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                     controller: _enumValues,
                     minLines: 2,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Choice values',
+                    decoration: InputDecoration(
+                      labelText: context.ventioText('native.ui.choice_values'),
                       hintText: 'new, active, retired',
-                      helperText: 'Separate stable values with commas.',
+                      helperText: context.ventioText(
+                        'native.ui.separate_stable_values_with_commas',
+                      ),
                     ),
                     validator: (value) {
                       final values = (value ?? '')
@@ -3014,8 +3191,10 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   DropdownButtonFormField<String>(
                     initialValue: _referenceTo,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Related DocType',
+                    decoration: InputDecoration(
+                      labelText: context.ventioText(
+                        'native.ui.related_doctype',
+                      ),
                     ),
                     items: [
                       for (final target in widget.relationTargets)
@@ -3029,27 +3208,33 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                 const SizedBox(height: 8),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Required field'),
+                  title: const VentioText('native.ui.required_field'),
                   value: _required,
                   onChanged: (value) => setState(() => _required = value),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _readPermission,
-                  decoration: const InputDecoration(
-                    labelText: 'Read permission (optional)',
-                    helperText:
-                        'Adds a Host grant required to receive this field.',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText(
+                      'native.ui.read_permission_optional',
+                    ),
+                    helperText: context.ventioText(
+                      'native.ui.adds_a_host_grant_required_to_receive_this_field',
+                    ),
                   ),
                   validator: _permissionError,
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _writePermission,
-                  decoration: const InputDecoration(
-                    labelText: 'Write permission (optional)',
-                    helperText:
-                        'Adds a Host grant required to create or change this field.',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText(
+                      'native.ui.write_permission_optional',
+                    ),
+                    helperText: context.ventioText(
+                      'native.ui.adds_a_host_grant_required_to_create_or_change_this_field',
+                    ),
                   ),
                   validator: _permissionError,
                 ),
@@ -3061,9 +3246,12 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const VentioText('native.ui.cancel'),
         ),
-        FilledButton(onPressed: _save, child: const Text('Save field')),
+        FilledButton(
+          onPressed: _save,
+          child: const VentioText('native.ui.save_field'),
+        ),
       ],
     );
   }
@@ -3436,7 +3624,12 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       await _loadRecords();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Host resolved $count queued command(s).')),
+          SnackBar(
+            content: VentioText(
+              'native.ui.host_resolved_commands',
+              params: {'count': count},
+            ),
+          ),
         );
       }
     } catch (error) {
@@ -3445,7 +3638,10 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Host sync stopped; pending work was preserved: $error',
+              context.ventioText(
+                'native.ui.host_sync_stopped',
+                params: {'reason': error.toString()},
+              ),
             ),
           ),
         );
@@ -3548,7 +3744,9 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
         actions: [
           if (widget.hostProfile != null)
             IconButton(
-              tooltip: 'Sync pending commands with Host',
+              tooltip: context.ventioText(
+                'native.ui.sync_pending_commands_with_host',
+              ),
               onPressed:
                   widget.credentialVault == null ||
                       widget.queue == null ||
@@ -3558,7 +3756,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
               icon: const Icon(Icons.sync),
             ),
           IconButton(
-            tooltip: 'Refresh records',
+            tooltip: context.ventioText('native.ui.refresh_records'),
             onPressed: _loading ? null : _loadRecords,
             icon: const Icon(Icons.refresh),
           ),
@@ -3610,12 +3808,14 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                 const SizedBox(height: 10),
                 _StateCard(
                   icon: Icons.cloud_off_outlined,
-                  title: 'Host records were not refreshed',
+                  title: context.ventioText(
+                    'native.ui.host_records_were_not_refreshed',
+                  ),
                   body: _hostWarning!,
                   action: TextButton.icon(
                     onPressed: _loadRecords,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Retry Host query'),
+                    label: const VentioText('native.ui.retry_host_query'),
                   ),
                 ),
               ],
@@ -3631,7 +3831,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    labelText: 'Search records',
+                    labelText: context.ventioText('native.ui.search_records'),
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: IconButton(
                       onPressed: () {
@@ -3655,14 +3855,16 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                       child: DropdownButtonFormField<String?>(
                         initialValue: _filterField,
                         isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Filter field',
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.ui.filter_field',
+                          ),
                           border: OutlineInputBorder(),
                         ),
                         items: [
                           const DropdownMenuItem<String?>(
                             value: null,
-                            child: Text('No filter'),
+                            child: VentioText('native.ui.no_filter'),
                           ),
                           for (final field in readableFields)
                             DropdownMenuItem<String?>(
@@ -3686,8 +3888,8 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                       child: TextField(
                         controller: _filterController,
                         enabled: _filterField != null,
-                        decoration: const InputDecoration(
-                          labelText: 'Contains',
+                        decoration: InputDecoration(
+                          labelText: context.ventioText('native.ui.contains'),
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (_) => _loadRecords(),
@@ -3698,14 +3900,14 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                       child: DropdownButtonFormField<String?>(
                         initialValue: _sortField,
                         isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Sort by',
+                        decoration: InputDecoration(
+                          labelText: context.ventioText('native.ui.sort_by'),
                           border: OutlineInputBorder(),
                         ),
                         items: [
                           const DropdownMenuItem<String?>(
                             value: null,
-                            child: Text('Last updated'),
+                            child: VentioText('native.ui.last_updated'),
                           ),
                           for (final field in readableFields)
                             DropdownMenuItem<String?>(
@@ -3741,48 +3943,56 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
               if (widget.previewOnly)
                 _StateCard(
                   icon: Icons.view_list_outlined,
-                  title: 'Generated list view',
+                  title: context.ventioText('native.ui.generated_list_view'),
                   body:
                       'The list shows ${_definition.listColumns.length} configured column${_definition.listColumns.length == 1 ? '' : 's'} and will support search and local filters when activated.',
                   action: OutlinedButton.icon(
                     onPressed: () => _openForm(),
                     icon: const Icon(Icons.open_in_new),
-                    label: const Text('Open generated form'),
+                    label: const VentioText('native.ui.open_generated_form'),
                   ),
                 )
               else if (!canRead)
-                const _StateCard(
+                _StateCard(
                   icon: Icons.lock_outline,
-                  title: 'Read operation is not declared',
-                  body:
-                      'This DocType does not permit listing or opening records on this device.',
+                  title: context.ventioText(
+                    'native.ui.read_operation_is_not_declared',
+                  ),
+                  body: context.ventioText(
+                    'native.ui.this_doctype_does_not_permit_listing_or_opening_records_on_this_device',
+                  ),
                 )
               else if (_loading)
                 const Center(child: CircularProgressIndicator())
               else if (_hostAccessDenied)
                 _StateCard(
                   icon: Icons.lock_outline,
-                  title: 'Host denied record access',
+                  title: context.ventioText(
+                    'native.ui.host_denied_record_access',
+                  ),
                   body:
                       'Cached rows are hidden until a Host-authorized query succeeds. Local records and pending commands have not been deleted. ${_hostWarning ?? ''}',
                 )
               else if (_error != null)
                 _StateCard(
                   icon: Icons.error_outline,
-                  title: 'Records could not be loaded',
+                  title: context.ventioText(
+                    'native.ui.records_could_not_be_loaded',
+                  ),
                   body: _error!,
                   action: TextButton.icon(
                     onPressed: _loadRecords,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Try again'),
+                    label: const VentioText('native.ui.try_again'),
                   ),
                 )
               else if (_visibleRecords.isEmpty)
-                const _StateCard(
+                _StateCard(
                   icon: Icons.inbox_outlined,
-                  title: 'No matching records',
-                  body:
-                      'Create a record on this device or change your search and filters.',
+                  title: context.ventioText('native.ui.no_matching_records'),
+                  body: context.ventioText(
+                    'native.ui.create_a_record_on_this_device_or_change_your_search_and_filters',
+                  ),
                 )
               else
                 for (final record in _visibleRecords)
@@ -3796,7 +4006,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                   child: OutlinedButton.icon(
                     onPressed: _loadMoreHostRecords,
                     icon: const Icon(Icons.expand_more),
-                    label: const Text('Load more Host records'),
+                    label: const VentioText('native.ui.load_more_host_records'),
                   ),
                 ),
             ],
@@ -4082,8 +4292,24 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       appBar: AppBar(
         title: Text(
           editing
-              ? 'Edit ${context.extensionMetadataText(widget.definition.labelKey, widget.definition.label)}'
-              : 'New ${context.extensionMetadataText(widget.definition.labelKey, widget.definition.label)}',
+              ? context.ventioText(
+                  'native.ui.edit_document',
+                  params: {
+                    'label': context.extensionMetadataText(
+                      widget.definition.labelKey,
+                      widget.definition.label,
+                    ),
+                  },
+                )
+              : context.ventioText(
+                  'native.ui.new_document',
+                  params: {
+                    'label': context.extensionMetadataText(
+                      widget.definition.labelKey,
+                      widget.definition.label,
+                    ),
+                  },
+                ),
         ),
       ),
       body: Center(
@@ -4168,7 +4394,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           if (!field.required)
             const DropdownMenuItem<String?>(
               value: null,
-              child: Text('Not set'),
+              child: VentioText('native.ui.not_set'),
             ),
           for (final value in field.enumValues)
             DropdownMenuItem<String?>(
@@ -4180,7 +4406,14 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
             ? null
             : (value) => setState(() => _selections[field.name] = value),
         validator: (value) => field.required && value == null
-            ? 'Select ${context.extensionMetadataText(field.labelKey, field.label).toLowerCase()}.'
+            ? context.ventioText(
+                'native.ui.select_field',
+                params: {
+                  'label': context
+                      .extensionMetadataText(field.labelKey, field.label)
+                      .toLowerCase(),
+                },
+              )
             : null,
       );
     }
@@ -4191,14 +4424,17 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         isExpanded: true,
         decoration: InputDecoration(
           labelText: context.extensionMetadataText(field.labelKey, field.label),
-          helperText: 'Related ${field.referenceTo} in the current local scope',
+          helperText: context.ventioText(
+            'native.ui.related_reference_scope',
+            params: {'doctype': field.referenceTo!},
+          ),
           border: const OutlineInputBorder(),
         ),
         items: [
           if (!field.required)
             const DropdownMenuItem<String?>(
               value: null,
-              child: Text('Not set'),
+              child: VentioText('native.ui.not_set'),
             ),
           for (final record in records)
             DropdownMenuItem<String?>(
@@ -4210,7 +4446,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
             ? null
             : (value) => setState(() => _selections[field.name] = value),
         validator: (value) => field.required && value == null
-            ? 'Select a related ${field.referenceTo} record.'
+            ? context.ventioText(
+                'native.ui.select_related_record',
+                params: {'doctype': field.referenceTo!},
+              )
             : null,
       );
     }
@@ -4236,7 +4475,11 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         labelText: context.extensionMetadataText(field.labelKey, field.label),
         helperText: [
           field.type,
-          field.required ? 'required' : 'optional',
+          context
+              .ventioText(
+                field.required ? 'native.ui.required' : 'native.ui.optional',
+              )
+              .toLowerCase(),
           ...lengthConstraints,
           ...numericBounds,
         ].join(' · '),
@@ -4245,16 +4488,29 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       validator: (value) {
         final raw = value?.trim() ?? '';
         if (editable && field.required && raw.isEmpty) {
-          return 'Enter ${context.extensionMetadataText(field.labelKey, field.label).toLowerCase()}.';
+          return context.ventioText(
+            'native.ui.enter_field',
+            params: {
+              'label': context
+                  .extensionMetadataText(field.labelKey, field.label)
+                  .toLowerCase(),
+            },
+          );
         }
         if (raw.isEmpty) return null;
         if (field.type == 'text') {
           final issue = field.validate(raw);
           if (issue == 'TOO_SHORT') {
-            return 'Enter at least ${field.minLength} characters.';
+            return context.ventioText(
+              'native.ui.too_short',
+              params: {'minLength': field.minLength!},
+            );
           }
           if (issue == 'TOO_LONG') {
-            return 'Enter no more than ${field.maxLength} characters.';
+            return context.ventioText(
+              'native.ui.too_long',
+              params: {'maxLength': field.maxLength!},
+            );
           }
         }
         if (field.type == 'integer') {
@@ -4630,7 +4886,15 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '${context.extensionMetadataText(widget.definition.labelKey, widget.definition.label)} details',
+          context.ventioText(
+            'native.ui.details_for_doctype',
+            params: {
+              'label': context.extensionMetadataText(
+                widget.definition.labelKey,
+                widget.definition.label,
+              ),
+            },
+          ),
         ),
       ),
       floatingActionButton:
@@ -4646,7 +4910,7 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
           ? FloatingActionButton.extended(
               onPressed: _editRecord,
               icon: const Icon(Icons.edit_outlined),
-              label: const Text('Edit record'),
+              label: const VentioText('native.ui.edit_record'),
             )
           : null,
       body: Center(
@@ -4708,7 +4972,10 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                   )
                 else ...[
                   Text(
-                    'Host snapshot revision ${record.conflictRevision}',
+                    context.ventioText(
+                      'native.ui.host_snapshot_revision',
+                      params: {'revision': record.conflictRevision},
+                    ),
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   OutlinedButton.icon(
@@ -4716,12 +4983,14 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                         ? null
                         : _refreshConflictSnapshot,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh Host version'),
+                    label: const VentioText('native.ui.refresh_host_version'),
                   ),
                   FilledButton.icon(
                     onPressed: _reviewConflict,
                     icon: const Icon(Icons.compare_arrows),
-                    label: const Text('Review and resolve conflict'),
+                    label: const VentioText(
+                      'native.ui.review_and_resolve_conflict',
+                    ),
                   ),
                 ],
               ],
@@ -4751,7 +5020,14 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                         const Divider(height: 24),
                       ],
                       Text(
-                        'Local revision ${record.revision} · Host revision ${record.hostRevision ?? 'none'} · ${record.syncState}',
+                        context.ventioText(
+                          'native.ui.local_host_revision',
+                          params: {
+                            'localRevision': record.revision,
+                            'hostRevision': record.hostRevision ?? 'none',
+                            'syncState': record.syncState,
+                          },
+                        ),
                       ),
                     ],
                   ),
@@ -4812,18 +5088,18 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
     final discard = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Use Host version?'),
-        content: const Text(
-          'This replaces the local provisional values with the latest Host values on this device. The Host record is not changed.',
+        title: const VentioText('native.ui.use_host_version'),
+        content: const VentioText(
+          'native.ui.this_replaces_the_local_provisional_values_with_the_latest_host_values_o',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const VentioText('native.ui.cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Replace local values'),
+            child: const VentioText('native.ui.replace_local_values'),
           ),
         ],
       ),
@@ -4896,16 +5172,20 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
     final hostValues = widget.record.conflictValues;
     if (hostValues == null || widget.record.conflictRevision == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Resolve record conflict')),
+        appBar: AppBar(
+          title: const VentioText('native.ui.resolve_record_conflict'),
+        ),
         body: const Center(
-          child: Text(
-            'Fetch the latest Host version before reviewing this conflict.',
+          child: VentioText(
+            'native.ui.fetch_the_latest_host_version_before_reviewing_this_conflict',
           ),
         ),
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Review record conflict')),
+      appBar: AppBar(
+        title: const VentioText('native.ui.review_record_conflict'),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
@@ -4913,7 +5193,10 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
             padding: const EdgeInsets.all(24),
             children: [
               Text(
-                'Choose which value to keep for each field. Saving the merge creates a new command against Host revision ${widget.record.conflictRevision}; the Host will validate it again.',
+                context.ventioText(
+                  'native.ui.choose_conflict_values',
+                  params: {'revision': widget.record.conflictRevision},
+                ),
               ),
               const SizedBox(height: 16),
               for (final field in widget.definition.fields.where(
@@ -4936,17 +5219,35 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Local · ${_displayValue(context, field, widget.record.values[field.name])}',
+                          context.ventioText(
+                            'native.ui.local_value',
+                            params: {
+                              'value': _displayValue(
+                                context,
+                                field,
+                                widget.record.values[field.name],
+                              ),
+                            },
+                          ),
                         ),
                         Text(
-                          'Host · ${_displayValue(context, field, hostValues[field.name])}',
+                          context.ventioText(
+                            'native.ui.host_value',
+                            params: {
+                              'value': _displayValue(
+                                context,
+                                field,
+                                hostValues[field.name],
+                              ),
+                            },
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
                           children: [
                             ChoiceChip(
-                              label: const Text('Keep local'),
+                              label: const VentioText('native.ui.keep_local'),
                               selected: _sources[field.name] == 'local',
                               onSelected: _saving
                                   ? null
@@ -4955,7 +5256,7 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
                                     ),
                             ),
                             ChoiceChip(
-                              label: const Text('Use Host'),
+                              label: const VentioText('native.ui.use_host'),
                               selected: _sources[field.name] == 'host',
                               onSelected: _saving
                                   ? null
@@ -4973,17 +5274,21 @@ class _DynamicRecordConflictPageState extends State<DynamicRecordConflictPage> {
               OutlinedButton.icon(
                 onPressed: _saving ? null : _useHostVersion,
                 icon: const Icon(Icons.download_done),
-                label: const Text('Discard local edits and use Host version'),
+                label: const VentioText(
+                  'native.ui.discard_local_edits_and_use_host_version',
+                ),
               ),
               if (widget.definition.operations.contains('update'))
                 FilledButton.icon(
                   onPressed: _saving ? null : _mergeAndEdit,
                   icon: const Icon(Icons.merge_type),
-                  label: const Text('Continue with selected values'),
+                  label: const VentioText(
+                    'native.ui.continue_with_selected_values',
+                  ),
                 )
               else
-                const Text(
-                  'This DocType does not grant the update operation, so merged values cannot be submitted.',
+                const VentioText(
+                  'native.ui.this_doctype_does_not_grant_the_update_operation_so_merged_values_cannot',
                 ),
             ],
           ),
@@ -5082,11 +5387,14 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
                 TextFormField(
                   controller: _moduleId,
                   readOnly: editing,
-                  decoration: const InputDecoration(
-                    labelText: 'Module ID',
-                    hintText: 'com.example.asset_register',
-                    helperText:
-                        'Stable namespaced ID; it cannot be changed later.',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.module_id'),
+                    hintText: context.ventioText(
+                      'native.ui.com_example_asset_register',
+                    ),
+                    helperText: context.ventioText(
+                      'native.ui.stable_namespaced_id_it_cannot_be_changed_later',
+                    ),
                   ),
                   validator: (value) => _identifierError(
                     value,
@@ -5097,7 +5405,9 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _name,
-                  decoration: const InputDecoration(labelText: 'Display name'),
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.display_name'),
+                  ),
                   validator: (value) => _requiredText(value, 'Enter a name.'),
                 ),
                 const SizedBox(height: 8),
@@ -5105,14 +5415,18 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
                   controller: _description,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Description'),
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.description'),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _version,
-                  decoration: const InputDecoration(
-                    labelText: 'Version',
-                    helperText: 'Semantic version, for example 0.1.0.',
+                  decoration: InputDecoration(
+                    labelText: context.ventioText('native.ui.version'),
+                    helperText: context.ventioText(
+                      'native.ui.semantic_version_for_example_0_1_0',
+                    ),
                   ),
                   validator: (value) {
                     final raw = value?.trim() ?? '';
@@ -5131,8 +5445,8 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
                 const SizedBox(height: 12),
                 const Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Dependencies',
+                  child: VentioText(
+                    'native.ui.dependencies',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -5154,8 +5468,8 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
                     .isEmpty)
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Create another extension to add a dependency.',
+                    child: VentioText(
+                      'native.ui.create_another_extension_to_add_a_dependency',
                     ),
                   )
                 else
@@ -5192,7 +5506,7 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const VentioText('native.ui.cancel'),
         ),
         FilledButton(
           onPressed: _save,
@@ -5223,7 +5537,15 @@ class _ExtensionCard extends StatelessWidget {
         title: Text(extension.displayName),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text('${extension.moduleId} · v${extension.version}'),
+          child: Text(
+            context.ventioText(
+              'native.ui.extension_module_version',
+              params: {
+                'moduleId': extension.moduleId,
+                'version': extension.version,
+              },
+            ),
+          ),
         ),
         trailing: Wrap(
           spacing: 8,
@@ -5279,14 +5601,29 @@ class _DocTypeCard extends StatelessWidget {
                 Icon(_generatedPageIcon(pageIcon)),
                 Text(pageTitle, style: Theme.of(context).textTheme.titleMedium),
                 _StatusPill(label: 'SCHEMA ${metadata['schemaVersion']}'),
-                Text('${fields.length} fields'),
+                Text(
+                  context.ventioText(
+                    'native.ui.fields_count',
+                    params: {'count': fields.length},
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 4),
-            Text('${metadata['name']} · operational DocType'),
+            Text(
+              context.ventioText(
+                'native.ui.operational_doctype',
+                params: {'label': label},
+              ),
+            ),
             if (pageTitle != label) ...[
               const SizedBox(height: 2),
-              Text('Record label: $label'),
+              Text(
+                context.ventioText(
+                  'native.ui.record_label',
+                  params: {'label': label},
+                ),
+              ),
             ],
             const SizedBox(height: 10),
             Wrap(
@@ -5299,7 +5636,14 @@ class _DocTypeCard extends StatelessWidget {
                     label: Text('${item['label']} · ${item['type']}'),
                   ),
                 if (fields.length > 6)
-                  Chip(label: Text('+${fields.length - 6} more')),
+                  Chip(
+                    label: Text(
+                      context.ventioText(
+                        'native.ui.more_fields',
+                        params: {'count': fields.length - 6},
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -5309,18 +5653,18 @@ class _DocTypeCard extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: onPreview,
                   icon: const Icon(Icons.preview_outlined),
-                  label: const Text('Preview'),
+                  label: const VentioText('native.ui.preview'),
                 ),
                 if (active)
                   FilledButton.tonalIcon(
                     onPressed: onOpen,
                     icon: const Icon(Icons.open_in_new),
-                    label: const Text('Open records'),
+                    label: const VentioText('native.ui.open_records'),
                   ),
                 TextButton.icon(
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit schema'),
+                  label: const VentioText('native.ui.edit_schema'),
                 ),
               ],
             ),
@@ -5363,12 +5707,12 @@ class _FieldCard extends StatelessWidget {
           children: [
             IconButton(
               onPressed: onEdit,
-              tooltip: 'Edit field',
+              tooltip: context.ventioText('native.ui.edit_field'),
               icon: const Icon(Icons.edit_outlined),
             ),
             IconButton(
               onPressed: onDelete,
-              tooltip: 'Remove field',
+              tooltip: context.ventioText('native.ui.remove_field'),
               icon: const Icon(Icons.delete_outline),
             ),
           ],

@@ -6,6 +6,7 @@ security validator, Host runtime, sync harness or financial transaction test.
 """
 import json
 import re
+import subprocess
 import unicodedata
 from pathlib import Path
 
@@ -153,7 +154,15 @@ def cross_check(manifest, doctype, capability, command, receipt, *, catalog=None
 def check_package_language():
     """Reject non-English-script text in bundled docs, source and JSON fixtures."""
     scanned = 0
-    for path in ROOT.rglob('*'):
+    # CI checks the checked-out repository. Limit the scan to Git-tracked
+    # project files so unrelated local notes do not fail a product contract.
+    tracked_paths = subprocess.check_output(
+        ['git', 'ls-files', '-z'], cwd=ROOT
+    ).decode('utf-8').split('\0')
+    for relative_path in tracked_paths:
+        if not relative_path:
+            continue
+        path = ROOT / relative_path
         if not path.is_file() or path.suffix not in {'.md', '.json', '.py'}:
             continue
         source = path.read_text(encoding='utf-8')

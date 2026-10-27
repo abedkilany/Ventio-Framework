@@ -1,5 +1,7 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:ventio_core/ventio_core.dart';
+
+import 'native_english_messages.dart';
 
 /// Owns the single message resolver shared by first-party UI and dynamic
 /// extension metadata. English remains the fallback for every locale.
@@ -7,17 +9,13 @@ class VentioLocalizationController extends ChangeNotifier
     implements LocalizationProvider {
   VentioLocalizationController({EnglishCatalog? catalog})
     : catalog = catalog ?? EnglishCatalog() {
-    registerEnglishFallbacks(nativeEnglishMessages);
+    registerEnglishFallbacks(ventioNativeEnglishMessages);
   }
-
-  static const nativeEnglishMessages = <String, String>{
-    'native.app.title': 'Ventio Extension Builder',
-  };
 
   static final defaultInstance = VentioLocalizationController._fallback();
 
   VentioLocalizationController._fallback() : catalog = EnglishCatalog() {
-    registerEnglishFallbacks(nativeEnglishMessages);
+    registerEnglishFallbacks(ventioNativeEnglishMessages);
   }
 
   final EnglishCatalog catalog;
@@ -101,4 +99,60 @@ extension VentioLocalizedBuildContext on BuildContext {
       VentioLocalizationScope.of(
         this,
       ).extensionMetadataText(key, englishFallback);
+}
+
+/// Catalog-backed drop-in text widgets. Keeping these constructors const lets
+/// existing immutable widget trees stay const while their rendered message
+/// resolves through the active provider at build time.
+class VentioText extends StatelessWidget {
+  const VentioText(
+    this.keyName, {
+    this.params = const {},
+    this.style,
+    this.strutStyle,
+    this.textAlign,
+    this.textDirection,
+    this.locale,
+    this.softWrap,
+    this.overflow,
+    this.textScaler,
+    this.maxLines,
+    this.semanticsLabel,
+    this.textWidthBasis,
+    this.textHeightBehavior,
+    super.key,
+  });
+
+  final String keyName;
+  final Map<String, Object?> params;
+  final TextStyle? style;
+  final StrutStyle? strutStyle;
+  final TextAlign? textAlign;
+  final TextDirection? textDirection;
+  final Locale? locale;
+  final bool? softWrap;
+  final TextOverflow? overflow;
+  final TextScaler? textScaler;
+  final int? maxLines;
+  final String? semanticsLabel;
+  final TextWidthBasis? textWidthBasis;
+  final TextHeightBehavior? textHeightBehavior;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    context.ventioText(keyName, params: params),
+    style: style,
+    strutStyle: strutStyle,
+    textAlign: textAlign,
+    textDirection: textDirection,
+    locale: locale,
+    softWrap: softWrap,
+    overflow: overflow,
+    textScaler: textScaler,
+    maxLines: maxLines,
+    semanticsLabel: semanticsLabel,
+    textWidthBasis: textWidthBasis,
+    textHeightBehavior: textHeightBehavior,
+    key: key,
+  );
 }

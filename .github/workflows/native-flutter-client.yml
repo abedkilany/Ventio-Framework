@@ -10,6 +10,8 @@ on:
       - 'scripts/prepare_native_client_platforms.ps1'
       - 'scripts/ci/**'
       - 'scripts/ci_android/**'
+      - 'scripts/check_localization_gate.py'
+      - 'scripts/test_check_localization_gate.py'
       - 'spec/v1.2/examples/**'
   pull_request:
     branches: [main]
@@ -20,6 +22,8 @@ on:
       - 'scripts/prepare_native_client_platforms.ps1'
       - 'scripts/ci/**'
       - 'scripts/ci_android/**'
+      - 'scripts/check_localization_gate.py'
+      - 'scripts/test_check_localization_gate.py'
       - 'spec/v1.2/examples/**'
   workflow_dispatch:
 
@@ -66,6 +70,11 @@ jobs:
       - name: Resolve dependencies
         working-directory: packages/ventio_native_client
         run: flutter pub get --enforce-lockfile
+      - name: Enforce localization gate
+        run: |
+          python scripts\validate_contracts.py
+          python scripts\check_localization_gate.py
+          python -m unittest scripts.test_check_localization_gate
       - name: Check formatting and static analysis
         working-directory: packages/ventio_native_client
         run: |
