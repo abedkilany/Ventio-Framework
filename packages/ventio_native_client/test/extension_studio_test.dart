@@ -413,6 +413,185 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Typed child grid edits rows and queues the parent atomically', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.child_grid';
+    const key = 'extension.com_example_child_grid.order';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Order',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': '$key.lines',
+          'childDocType': {
+            'name': 'OrderLine',
+            'label': 'Order line',
+            'labelKey': '$key.child.orderline.label',
+            'fields': [
+              {
+                'name': 'itemCode',
+                'type': 'text',
+                'required': true,
+                'maxLength': 40,
+                'label': 'Item code',
+                'labelKey': '$key.child.orderline.itemcode.label',
+              },
+              {
+                'name': 'quantity',
+                'type': 'decimal',
+                'required': true,
+                'precision': 2,
+                'default': 1.0,
+                'label': 'Quantity',
+                'labelKey': '$key.child.orderline.quantity.label',
+              },
+            ],
+          },
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$key.read',
+        'create': '$key.create',
+        'update': '$key.update',
+      },
+      'ui': {
+        'listColumns': ['lines'],
+        'formFields': ['lines'],
+        'detailFields': ['lines'],
+      },
+      'label': 'Order',
+      'labelKey': '$key.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Child Grid',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: const HostConnectionProfile(
+            endpoint: 'http://127.0.0.1:8080',
+            tenantId: 'tenant-1',
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            actorId: 'operator-1',
+            deviceId: 'desktop-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final addRow = find.byTooltip('Add row');
+    await tester.tap(addRow);
+    await tester.pumpAndSettle();
+    await tester.tap(addRow);
+    await tester.pumpAndSettle();
+    await tester.tap(addRow);
+    await tester.pumpAndSettle();
+
+    Finder childInput(String label) => find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField && widget.decoration?.labelText == label,
+    );
+    final save = find.text('Save on device');
+    Future<void> saveForm() async {
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+    }
+    final itemCodes = childInput('Item code');
+    await tester.enterText(itemCodes.at(0), 'A-1');
+    await tester.enterText(itemCodes.at(1), 'B-2');
+    await tester.enterText(itemCodes.at(2), '');
+    final quantities = childInput('Quantity');
+    await tester.enterText(quantities.at(0), '2.5');
+    await tester.enterText(quantities.at(1), '3.0');
+    await tester.enterText(quantities.at(2), '4.0');
+
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await saveForm();
+    expect(find.text('Enter item code.'), findsOneWidget);
+    expect(
+      await store.listRecords(
+        moduleId: moduleId,
+        docTypeName: 'Order',
+        scope: scope,
+      ),
+      isEmpty,
+    );
+
+    await tester.enterText(childInput('Item code').at(2), 'C-3');
+    await tester.enterText(childInput('Quantity').at(2), '4.123');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await saveForm();
+    expect(find.text('Check the value for Quantity.'), findsOneWidget);
+    expect(
+      await store.listRecords(
+        moduleId: moduleId,
+        docTypeName: 'Order',
+        scope: scope,
+      ),
+      isEmpty,
+    );
+    await tester.enterText(childInput('Quantity').at(2), '4.0');
+    await tester.tap(find.byTooltip('Remove row').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Move row up').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await saveForm();
+    final records = await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Order',
+      scope: scope,
+    );
+    final record = records.single;
+    const expectedLines = [
+      {'itemCode': 'B-2', 'quantity': 3.0},
+      {'itemCode': 'A-1', 'quantity': 2.5},
+    ];
+    expect(canonicalJson(record.values['lines']), canonicalJson(expectedLines));
+    final queued = await queue.list();
+    final pending = queued.single;
+    expect(pending.hostStatus, HostCommandStatus.pending);
+    expect(
+      canonicalJson(
+        (pending.envelope.payload['values'] as Map<String, dynamic>)['lines'],
+      ),
+      canonicalJson(expectedLines),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Generated form applies defaults and enforces field precision', (
     tester,
   ) async {
