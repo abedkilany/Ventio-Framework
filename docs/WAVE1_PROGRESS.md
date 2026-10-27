@@ -29,7 +29,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 09 | D04 | Field-level permissions | 5 | COMPLETED | PostgreSQL Host integration 87/87; protected-field create, direct read-mask, filter/sort, and write checks; partial-update preservation. SQLite cache scrubbing 1/1; Studio identity-scoped masks 1/1. [Evidence](D04_FIELD_PERMISSION_ACCEPTANCE.md); checkpoint `2066399`. |
 | 10 | D03 | Operation-level permissions | 4 | COMPLETED | Core 69/69; PostgreSQL Host extension integration 87/87. `read`-only identity denied create/update with no record or revision effects; identity integration confirms permission revocation blocks saved-receipt replay. [Evidence](D03_OPERATION_PERMISSION_ACCEPTANCE.md); checkpoint `2066399`. |
 | 11 | B03 | Document validation and lifecycle foundations | 5 | COMPLETED | Core 69/69; PostgreSQL 17.11 durable Host integration 43/43; extension integration 87/87; Host analysis clean. Invalid writes/references rejected, pre-commit fault rolls back record/journal/audit/outbox/cursor, same-ID retry and concurrency verified. [Evidence](B03_DOCUMENT_VALIDATION_ACCEPTANCE.md); checkpoint `78b3d89`. |
-| 12 | B01 | CRUD with safe deletion semantics | 4 | IN_PROGRESS | Verify generic create/read/update/delete, optimistic revisions, permissions, `RESTRICT` references, and durable receipt reconciliation. |
+| 12 | B01 | CRUD with safe deletion semantics | 4 | IN_PROGRESS | B01/K06/B04 compatibility fixed in ADR-010: governed `record.delete@1`, retained tombstone, reserved ID, `RESTRICT` references, Host-owned draft/submitted/cancelled status. Begin implementation and focused Host/SQLite verification. |
 | 13 | B05 | Record search, filtering, sorting, and pagination | 4 | NOT_STARTED | — |
 | 14 | C01 | Generated List View | 3 | NOT_STARTED | — |
 | 15 | C02 | Generated Form View | 3 | NOT_STARTED | — |
@@ -46,7 +46,7 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: B01 — CRUD with safe deletion semantics; inspect existing record operations, deletion/reference policy, optimistic revisions, and durable receipt reconciliation.
+- Current task: B01 — implement the ADR-010 generic delete primitive with tombstone and Host/SQLite receipt reconciliation.
 - Last successfully completed capability: B03 — document validation and lifecycle foundations.
 - Next task: B01 — CRUD with safe deletion semantics.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
