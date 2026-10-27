@@ -61,7 +61,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: none. Stage 0 PASS; Wave 1 accepted 21/23; final extension NOT_STARTED.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest GitHub checkpoint: `PENDING_COMMIT` — F01 architecture checkpoint; F02 implementation `08069dd` is accepted. Wave 1 is 21/23 at 79.15%.
+- Latest GitHub checkpoint: `1e0ef7f` — F01 architecture checkpoint; F02 implementation `08069dd` is accepted. Wave 1 is 21/23 at 79.15%.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
