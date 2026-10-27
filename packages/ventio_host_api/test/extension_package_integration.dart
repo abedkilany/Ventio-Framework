@@ -662,14 +662,38 @@ Future<void> main() async {
       schemaVersion: 1,
       values: {'title': 'Second item', 'parent': 'registry-item-1'},
     );
+    final secondRecordReply = await send(
+      api,
+      token: primaryToken,
+      body: secondRecord.envelope.original,
+    );
+    expect(
+      secondRecordReply.status == 200 &&
+          (secondRecordReply.body['receipt'] as Map?)?['status'] == 'ACCEPTED',
+      'A second generic record is accepted under the same approved DocType',
+    );
+    final deleteReferencedParent = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000031',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
     expect(
       (await send(
             api,
             token: primaryToken,
-            body: secondRecord.envelope.original,
-          )).body['receipt']['status'] ==
-          'ACCEPTED',
-      'A second generic record is accepted under the same approved DocType',
+            body: deleteReferencedParent.envelope.original,
+          )).body['receipt']['reasonCode'] ==
+          'RECORD_IN_USE',
+      'Deletion refuses a record that has a live inbound reference',
     );
     final deleteChild = ExtensionRecordCommand.delete(
       commandId: '71000000-0000-4000-8000-000000000030',
@@ -738,29 +762,6 @@ Future<void> main() async {
           deleteRetry.body['receipt']['scopeCursor'] ==
               deleteReply.body['receipt']['scopeCursor'],
       'An identical delete retry returns its saved receipt without another effect',
-    );
-    final deleteReferencedParent = ExtensionRecordCommand.delete(
-      commandId: '71000000-0000-4000-8000-000000000031',
-      tenantId: tenant,
-      companyId: primaryCompany,
-      branchId: primaryBranch,
-      recordId: 'registry-item-1',
-      expectedRevision: 1,
-      actorId: 'publisher',
-      deviceId: 'publisher-device',
-      moduleId: package.moduleId,
-      moduleVersion: package.version,
-      docType: 'Item',
-      schemaVersion: 1,
-    );
-    expect(
-      (await send(
-            api,
-            token: primaryToken,
-            body: deleteReferencedParent.envelope.original,
-          )).body['receipt']['reasonCode'] ==
-          'RECORD_IN_USE',
-      'Deletion refuses a record that has a live inbound reference',
     );
     final missingReference = ExtensionRecordCommand.create(
       commandId: '71000000-0000-4000-8000-000000000008',
