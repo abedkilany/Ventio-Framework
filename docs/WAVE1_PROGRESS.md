@@ -4,10 +4,10 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**58.35%** `████████████░░░░░░░░` (20% Stage 0 + 38.35% accepted Wave 1)
+**61.60%** `████████████░░░░░░░░` (20% Stage 0 + 41.60% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **15 / 23 accepted** — A07 is next (65% overall)
+- Stage 1 Wave 1: **16 / 23 accepted** — C03 is next (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -33,7 +33,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 13 | B05 | Record search, filtering, sorting, and pagination | Existing | Hardened | 4 | COMPLETED | Existing SQLite query behavior verified; added Host keyset continuation bound to query parameters, stable sort-value/record-ID ordering, client transport and Studio continuation. Flutter Host client, Studio and SQLite suites **67/67**; isolated PostgreSQL 17.11 extension integration **102/102**, including insertion before cursor, mismatch rejection, bounded queries, permission-aware filters/sorts and exact-scope isolation. Fixed unpadded base64url decoding for longer cursor payloads. [Acceptance evidence](B05_RECORD_QUERY_ACCEPTANCE.md); checkpoint `PENDING_COMMIT`. |
 | 14 | C01 | Generated List View | Existing | Hardened | 3 | COMPLETED | Metadata-driven columns; search and filters/sort are limited to Host-readable fields; stable empty/loading/error and authorization-denial states; Host keyset paging. Localized all list-specific first-party copy and replaced raw technical query errors with catalog-backed user messages. Extension Studio widget suite **22/22** including Host scope/paging, denied-cache hiding, empty state and phone viewport; localization gate and its six negative/positive tests pass. [Acceptance evidence](C01_GENERATED_LIST_ACCEPTANCE.md); checkpoint `PENDING_COMMIT`. |
 | 15 | C02 | Generated Form View | Existing | Hardened | 3 | COMPLETED | Generated forms follow configured DocType field order/types, apply defaults/constraints, show field permissions, validate values and relationships, preserve hidden values on partial updates, and save local provisional records durably. Replaced first-party form notice, control, constraint-summary and save-failure copy with catalog-backed English messages; payload validation and unknown persistence failures show stable localized guidance. Extension Studio widget suite **22/22** (typed fields/tables, defaults/precision, Host permissions, offline queue, partial-edit preservation, phone viewport); localization gate passes. [Acceptance evidence](C02_GENERATED_FORM_ACCEPTANCE.md); checkpoint `PENDING_COMMIT`. |
-| 16 | A07 | Child / Table DocTypes | Missing | Verifying | 5 | IN_PROGRESS | Reviewing current scalar table behavior and fixing the child-row storage, reference, permission and lifecycle model with ADR-011 before implementation; acceptance still provisional. |
+| 16 | A07 | Child / Table DocTypes | Missing | Newly Implemented | 5 | COMPLETED | Core 70/70; ExtensionStore 35/35; Extension Studio 23/23 including child-schema authoring/package export; isolated PostgreSQL 17.11 Host integration 107/107 covering defaults, precision rejection, parent tombstones, exact-scope child references and delete restriction. [Acceptance evidence](A07_CHILD_DOCTYPE_ACCEPTANCE.md); architecture [ADR-011](../decisions/ADR-011_EMBEDDED_CHILD_DOCTYPES.md); checkpoint `5ec4837`. |
 | 17 | C03 | Editable child-row Grid View | Missing | Pending | 5 | NOT_STARTED | — |
 | 18 | A10 | Safe document naming and numbering series | Missing | Pending | 3 | NOT_STARTED | — |
 | 19 | K06 | Governed business operations engine | Missing | Pending | 8 | NOT_STARTED | — |
@@ -46,13 +46,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: A07 — fix and document embedded child-DocType architecture and acceptance boundary before implementing schema, validation and atomic persistence.
-- Last successfully completed capability: C02 — Generated Form View.
-- Next task: A07 — implement the ADR-011 embedded child schema contract and validation.
+- Current task: C03 — implement and verify editable child-row Grid View using the accepted A07 embedded child schema and parent-level authorization/lifecycle contract.
+- Last successfully completed capability: A07 — Child / Table DocTypes.
+- Next task: C03 — inspect existing table rendering and complete the declarative child-row editing flow.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest implementation checkpoint: `69526c3f6f3c9c66ed147487c6c0b1995361ee02` — C02 accepted after localizing generated-form status, operation, field constraint, and save failure copy. Extension Studio widget suite passed 22/22, analysis clean, localization gate and its six scanner tests passed. A07 architecture decision is being recorded before implementation; overall remains 58.35% and Wave 1 15/23.
+- Latest implementation checkpoint: `5ec4837` — A07 accepted after implementing the ADR-011 embedded child schema, validation, local persistence, package authoring/export, and Host reference enforcement. Core 70/70, ExtensionStore 35/35, Extension Studio 23/23, PostgreSQL 17.11 Host integration 107/107; targeted analysis and localization gate pass. Overall is 61.60%; Wave 1 is 16/23; C03 is next.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -95,3 +95,4 @@ ative_english_messages.dart`; stable IDs and user-entered business values remain
 - C01 accepted: reviewed the generated list against configured metadata columns, accessible fields, Host-approved scoped reads, authorized search/filter/sort and keyset paging. Added catalog-backed English for list status, preview, action, row and retry messages; static and raw query-error text no longer bypass the localization contract. `flutter test test/extension_studio_test.dart` passed **22/22**, including paging, Host-scope, denied-cache, empty-state and phone-layout cases. Localization gate and six unit cases passed. [Evidence](C01_GENERATED_LIST_ACCEPTANCE.md). Wave 1 is now **14/23 accepted**; weighted overall progress is **56.40%**; C02 is next.
 - C02 accepted: reviewed generated forms against metadata field ordering/types, field and operation permissions, defaults, validation, hidden-value preservation, and durable local provisional saves. Localized the first-party form notice, action, type/constraint summaries and save errors; raw persistence exceptions are no longer shown to users. `flutter test test/extension_studio_test.dart` passed **22/22** (including typed fields/table round-trip, field defaults/precision, permissions, offline queue and partial edit preservation); targeted Flutter analysis and localization gate passed. [Evidence](C02_GENERATED_FORM_ACCEPTANCE.md). Wave 1 is now **15/23 accepted**; weighted overall progress is **58.35%**; A07 is next.
 - A07 architecture checkpoint: `table` values are currently bounded but untyped JSON scalar maps. Before A07 implementation, the plan fixes a nested declarative child schema in one parent table field, rows embedded and ordered inside the parent record, inherited parent scope/authorization/lifecycle, same-scope child references, no nested tables, and no independent child records or commands. This aligns the later K06 generic operation path and ADR-010's parent-owned status with atomic recovery. No A07 implementation or acceptance is claimed yet.
+- A07 accepted: implemented the ADR-011 embedded child schema across Core, SQLite, Studio package authoring/export, and PostgreSQL Host validation/reference restriction. Core 70/70, ExtensionStore 35/35, Extension Studio 23/23, PostgreSQL Host extension integration 107/107, targeted analysis clean, and localization gate plus six tests passed. Evidence: [A07_CHILD_DOCTYPE_ACCEPTANCE.md](A07_CHILD_DOCTYPE_ACCEPTANCE.md). Wave 1 is now **16/23 accepted**; weighted overall progress is **61.60%**; C03 is next.
