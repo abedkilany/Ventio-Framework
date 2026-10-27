@@ -1048,6 +1048,49 @@ void main() {
             manifest.offlineCommands.single == 'maintenance.create',
         'Offline metadata lost');
   });
+  test('Module and dependency IDs fail closed when invalid', () {
+    final source = loadJsonFile('$root/examples/maintenance_manifest.json');
+    final invalidModule = Map<String, dynamic>.from(source)
+      ..['moduleId'] = 'Invalid Module ID';
+    checkThrows(
+      () => ModuleManifest.fromJson(invalidModule),
+      'Invalid module identifier was accepted',
+    );
+
+    final invalidDependency = Map<String, dynamic>.from(source)
+      ..['dependencies'] = ['com.example.Valid', 'bad dependency'];
+    checkThrows(
+      () => ModuleManifest.fromJson(invalidDependency),
+      'Invalid dependency identifier was accepted',
+    );
+
+    final valid = ModuleManifest.fromJson(source);
+    final manuallyConstructed = ModuleManifest(
+      moduleId: 'Invalid Module ID',
+      version: valid.version,
+      minPlatformApi: valid.minPlatformApi,
+      displayName: valid.displayName,
+      displayNameKey: valid.displayNameKey,
+      englishCatalog: valid.englishCatalog,
+      dependencies: valid.dependencies,
+      docTypes: valid.docTypes,
+      commands: valid.commands,
+      requiredCapabilities: valid.requiredCapabilities,
+      offlineEnabled: valid.offlineEnabled,
+      offlineCommands: valid.offlineCommands,
+    );
+    checkThrows(
+      () => ModuleRegistry().install(
+        manuallyConstructed,
+        [
+          DocTypeDefinition.fromJson(
+            loadJsonFile('$root/examples/maintenance_doctype.json'),
+          ),
+        ],
+      ),
+      'Registry accepted an invalid manually constructed module ID',
+    );
+  });
   test('Malformed manifest version is rejected', () {
     final json = loadJsonFile('$root/examples/maintenance_manifest.json');
     json['manifestVersion'] = 2;

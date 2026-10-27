@@ -13,6 +13,11 @@ class ContractError implements Exception {
   String toString() => '$code: $details';
 }
 
+/// Stable namespaced identifier accepted for declarative modules.
+bool isValidModuleId(String value) =>
+    value.length <= 128 &&
+    RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(value);
+
 Map<String, dynamic> requireMap(Object? value, String path) {
   if (value is! Map)
     throw ContractError('INVALID_CONTRACT', '$path must be an object');
@@ -211,16 +216,31 @@ class ModuleManifest {
             'INVALID_CONTRACT', 'Offline command $command is not declared');
       }
     }
+    final moduleId = requireString(json, 'moduleId');
+    if (!isValidModuleId(moduleId)) {
+      throw const ContractError(
+        'INVALID_MODULE_ID',
+        'Module ID must be a lowercase namespaced identifier.',
+      );
+    }
+    final dependencies = strings(
+      json['dependencies'] == null ? [] : requireList(json, 'dependencies'),
+      'dependencies',
+    );
+    if (dependencies.any((dependency) => !isValidModuleId(dependency))) {
+      throw const ContractError(
+        'INVALID_MODULE_ID',
+        'Every dependency must be a lowercase namespaced module ID.',
+      );
+    }
     return ModuleManifest(
-      moduleId: requireString(json, 'moduleId'),
+      moduleId: moduleId,
       version: version,
       minPlatformApi: minApi,
       displayName: requireString(json, 'displayName'),
       displayNameKey: requireString(json, 'displayNameKey'),
       englishCatalog: requireString(json, 'englishCatalog'),
-      dependencies: strings(
-          json['dependencies'] == null ? [] : requireList(json, 'dependencies'),
-          'dependencies'),
+      dependencies: dependencies,
       docTypes: strings(requireList(json, 'docTypes'), 'docTypes'),
       commands: List.unmodifiable(commands),
       requiredCapabilities: required,

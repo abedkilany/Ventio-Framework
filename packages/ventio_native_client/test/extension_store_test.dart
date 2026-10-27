@@ -130,6 +130,48 @@ void main() {
     expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
   });
 
+  test(
+    'Module identifiers are validated and duplicate installs fail closed',
+    () async {
+      await expectLater(
+        store.createExtension(
+          moduleId: 'Invalid Module ID',
+          displayName: 'Invalid',
+          description: '',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'INVALID_MODULE_ID',
+          ),
+        ),
+      );
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: '',
+      );
+      await expectLater(
+        store.createExtension(
+          moduleId: _moduleId,
+          displayName: 'Duplicate Asset Register',
+          description: '',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'DUPLICATE_MODULE',
+          ),
+        ),
+      );
+      expect((await store.listExtensions()).map((item) => item.moduleId), [
+        _moduleId,
+      ]);
+    },
+  );
+
   test('Host scope profile persists across a database reopen', () async {
     const profile = HostConnectionProfile(
       endpoint: 'https://host.example.test:8443',
