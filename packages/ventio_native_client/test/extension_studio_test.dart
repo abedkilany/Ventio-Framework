@@ -430,6 +430,8 @@ void main() {
           'name': 'amount',
           'type': 'decimal',
           'required': true,
+          'minValue': 0,
+          'maxValue': 9,
           'precision': 2,
           'default': 1.25,
           'label': 'Amount',
@@ -486,6 +488,16 @@ void main() {
     );
     expect(tester.widget<TextField>(labeledField('Status')).readOnly, isTrue);
     expect(find.textContaining('Managed by the Host.'), findsOneWidget);
+    await tester.enterText(labeledField('Amount'), '-1');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a value of at least 0.'), findsOneWidget);
+
+    await tester.enterText(labeledField('Amount'), '10');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a value no greater than 9.'), findsOneWidget);
+
     await tester.enterText(labeledField('Amount'), '1.234');
     await tester.tap(find.text('Save on device'));
     await tester.pumpAndSettle();

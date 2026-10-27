@@ -2452,9 +2452,15 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                           },
                           validator: (value) {
                             final trimmed = value?.trim() ?? '';
-                            if (trimmed.isEmpty) return 'Enter a page title.';
+                            if (trimmed.isEmpty) {
+                              return context.ventioText(
+                                'native.ui.enter_page_title',
+                              );
+                            }
                             if (trimmed.length > 120) {
-                              return 'Use 120 characters or fewer.';
+                              return context.ventioText(
+                                'native.ui.use_120_characters_or_fewer',
+                              );
                             }
                             return null;
                           },
@@ -2478,7 +2484,9 @@ class _DocTypeBuilderPageState extends State<DocTypeBuilderPage> {
                           validator: (value) {
                             final order = int.tryParse(value?.trim() ?? '');
                             if (order == null || order > 10000) {
-                              return 'Enter an order from 0 to 10000.';
+                              return context.ventioText(
+                                'native.ui.enter_navigation_order',
+                              );
                             }
                             return null;
                           },
@@ -3034,14 +3042,14 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     final parsed = _parseBound(raw);
     if (parsed == null || !parsed.isFinite) {
       return _type == 'integer'
-          ? 'Enter a whole number.'
-          : 'Enter a finite number.';
+          ? context.ventioText('native.ui.enter_whole_number')
+          : context.ventioText('native.ui.enter_finite_number');
     }
     final other = _parseBound(minimum ? _maxValue.text : _minValue.text);
     if (other != null && (minimum ? parsed > other : parsed < other)) {
       return minimum
-          ? 'Minimum must not exceed the maximum.'
-          : 'Maximum must not be below the minimum.';
+          ? context.ventioText('native.ui.minimum_must_not_exceed_maximum')
+          : context.ventioText('native.ui.maximum_must_not_be_below_minimum');
     }
     return null;
   }
@@ -3051,15 +3059,19 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     if (raw.isEmpty && minimum) return null;
     final parsed = int.tryParse(raw);
     if (parsed == null || parsed < 1 || parsed > 65535) {
-      return 'Enter a number from 1 to 65,535.';
+      return context.ventioText('native.ui.enter_length_bound');
     }
     final other = int.tryParse(
       (minimum ? _maxLength.text : _minLength.text).trim(),
     );
     if (other != null && (minimum ? parsed > other : parsed < other)) {
       return minimum
-          ? 'Minimum length must not exceed the maximum.'
-          : 'Maximum length must not be below the minimum.';
+          ? context.ventioText(
+              'native.ui.minimum_length_must_not_exceed_maximum',
+            )
+          : context.ventioText(
+              'native.ui.maximum_length_must_not_be_below_minimum',
+            );
     }
     return null;
   }
@@ -3376,12 +3388,20 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                           .map((item) => item.trim())
                           .where((item) => item.isNotEmpty)
                           .toList();
-                      if (values.isEmpty) return 'Add at least one choice.';
+                      if (values.isEmpty) {
+                        return context.ventioText(
+                          'native.ui.add_at_least_one_choice',
+                        );
+                      }
                       if (values.toSet().length != values.length) {
-                        return 'Choice values must be unique.';
+                        return context.ventioText(
+                          'native.ui.choice_values_must_be_unique',
+                        );
                       }
                       if (values.any((item) => !_enumValue.hasMatch(item))) {
-                        return 'Use lowercase stable IDs, such as in_use.';
+                        return context.ventioText(
+                          'native.ui.use_lowercase_stable_choice_ids',
+                        );
                       }
                       return null;
                     },
@@ -4772,14 +4792,20 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         }
         if (field.type == 'integer') {
           final parsed = int.tryParse(raw);
-          if (parsed == null) return 'Enter a whole number.';
+          if (parsed == null) {
+            return context.ventioText('native.ui.enter_whole_number');
+          }
           return _numericValidationMessage(field, parsed);
         }
         if (field.type == 'decimal') {
           final parsed = num.tryParse(raw);
-          if (parsed == null) return 'Enter a number.';
+          if (parsed == null) {
+            return context.ventioText('native.ui.enter_number');
+          }
           final issue = field.validate(parsed);
-          if (issue == 'INVALID_DECIMAL') return 'Enter a finite number.';
+          if (issue == 'INVALID_DECIMAL') {
+            return context.ventioText('native.ui.enter_finite_number');
+          }
           if (issue == 'INVALID_PRECISION') {
             return context.ventioText(
               'native.ui.decimal_precision',
@@ -4789,10 +4815,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           return _numericValidationMessage(field, parsed);
         }
         if (field.type == 'date' && field.validate(raw) != null) {
-          return 'Enter a valid date in YYYY-MM-DD format.';
+          return context.ventioText('native.ui.enter_valid_date');
         }
         if (field.type == 'datetime' && field.validate(raw) != null) {
-          return 'Enter an ISO date and time with a time-zone offset.';
+          return context.ventioText('native.ui.enter_valid_datetime');
         }
         return null;
       },
@@ -4802,10 +4828,16 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   String? _numericValidationMessage(FieldDefinition field, num value) {
     final issue = field.validate(value);
     if (issue == 'BELOW_MINIMUM') {
-      return 'Enter a value of at least ${field.minValue}.';
+      return context.ventioText(
+        'native.ui.value_at_least',
+        params: {'minimum': field.minValue!},
+      );
     }
     if (issue == 'ABOVE_MAXIMUM') {
-      return 'Enter a value no greater than ${field.maxValue}.';
+      return context.ventioText(
+        'native.ui.value_at_most',
+        params: {'maximum': field.maxValue!},
+      );
     }
     return null;
   }
@@ -5696,11 +5728,15 @@ class _ExtensionFormDialogState extends State<_ExtensionFormDialog> {
                     if (!RegExp(
                       r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$',
                     ).hasMatch(raw)) {
-                      return 'Enter a semantic version such as 0.1.1.';
+                      return context.ventioText(
+                        'native.ui.enter_semantic_version',
+                      );
                     }
                     final previous = widget.extension?.version;
                     if (previous != null && compareSemver(raw, previous) < 0) {
-                      return 'Version cannot move backwards.';
+                      return context.ventioText(
+                        'native.ui.version_cannot_move_backwards',
+                      );
                     }
                     return null;
                   },
@@ -5952,11 +5988,17 @@ class _FieldCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final detail = field['type'] == 'reference'
-        ? 'Related to ${field['referenceTo']}'
+        ? context.ventioText(
+            'native.ui.related_to',
+            params: {'referenceTo': field['referenceTo']},
+          )
         : field['type'] == 'enum'
         ? (field['enumValues'] as List).join(', ')
         : field['type'] == 'text'
-        ? 'Maximum ${field['maxLength']} characters'
+        ? context.ventioText(
+            'native.ui.maximum_characters',
+            params: {'maxLength': field['maxLength']},
+          )
         : field['type'] as String;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -5964,7 +6006,17 @@ class _FieldCard extends StatelessWidget {
         leading: const Icon(Icons.drag_indicator),
         title: Text('${field['label']} · ${field['name']}'),
         subtitle: Text(
-          '$detail · ${field['required'] == true ? 'required' : 'optional'}',
+          context.ventioText(
+            'native.ui.field_card_summary',
+            params: {
+              'detail': detail,
+              'requiredness': context.ventioText(
+                field['required'] == true
+                    ? 'native.ui.required'
+                    : 'native.ui.optional',
+              ),
+            },
+          ),
         ),
         trailing: Wrap(
           children: [

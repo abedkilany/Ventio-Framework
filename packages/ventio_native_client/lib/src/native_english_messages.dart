@@ -92,10 +92,37 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.tenant_summary': 'Tenant: {tenantId}',
   'native.ui.edit_document': 'Edit {label}',
   'native.ui.new_document': 'New {label}',
+  'native.ui.enter_number': 'Enter a number.',
+  'native.ui.enter_finite_number': 'Enter a finite number.',
+  'native.ui.enter_valid_date': 'Enter a valid date in YYYY-MM-DD format.',
+  'native.ui.enter_valid_datetime':
+      'Enter an ISO date and time with a time-zone offset.',
+  'native.ui.enter_whole_number': 'Enter a whole number.',
   'native.ui.select_field': 'Select {label}.',
   'native.ui.enter_field': 'Enter {label}.',
+  'native.ui.enter_page_title': 'Enter a page title.',
+  'native.ui.use_120_characters_or_fewer': 'Use 120 characters or fewer.',
+  'native.ui.enter_navigation_order': 'Enter an order from 0 to 10000.',
+  'native.ui.minimum_must_not_exceed_maximum':
+      'Minimum must not exceed the maximum.',
+  'native.ui.maximum_must_not_be_below_minimum':
+      'Maximum must not be below the minimum.',
+  'native.ui.enter_length_bound': 'Enter a number from 1 to 65,535.',
+  'native.ui.minimum_length_must_not_exceed_maximum':
+      'Minimum length must not exceed the maximum.',
+  'native.ui.maximum_length_must_not_be_below_minimum':
+      'Maximum length must not be below the minimum.',
+  'native.ui.add_at_least_one_choice': 'Add at least one choice.',
+  'native.ui.choice_values_must_be_unique': 'Choice values must be unique.',
+  'native.ui.use_lowercase_stable_choice_ids':
+      'Use lowercase stable IDs, such as in_use.',
+  'native.ui.enter_semantic_version': 'Enter a semantic version such as 0.1.1.',
+  'native.ui.version_cannot_move_backwards': 'Version cannot move backwards.',
   'native.ui.related_reference_scope':
       'Related {doctype} in the current local scope',
+  'native.ui.related_to': 'Related to {referenceTo}',
+  'native.ui.maximum_characters': 'Maximum {maxLength} characters',
+  'native.ui.field_card_summary': '{detail} · {requiredness}',
   'native.ui.select_related_record': 'Select a related {doctype} record.',
   'native.ui.too_short': 'Enter at least {minLength} characters.',
   'native.ui.too_long': 'Enter no more than {maxLength} characters.',
@@ -109,6 +136,22 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.remove_role_from_actor': 'Remove role from {actorId}',
   'native.ui.scope_identifiers': '{companyId} / {branchId}',
   'native.ui.host_snapshot_revision': 'Host snapshot revision {revision}',
+  'native.ui.host_request_failed': 'Host request failed.',
+  'native.ui.role_permission_denied':
+      'This credential needs a direct identity.roles.manage grant for this branch.',
+  'native.ui.persistent_identity_required':
+      'Connect a persistent Host identity.',
+  'native.ui.role_already_exists': 'A role with that ID already exists.',
+  'native.ui.role_not_found': 'The role no longer exists on Host.',
+  'native.ui.role_has_assignments':
+      'Remove all branch assignments before deleting this role.',
+  'native.ui.role_change_rejected':
+      'Host rejected the change. Check the role and user IDs, then try again.',
+  'native.ui.invalid_role_change': 'Host rejected the role details.',
+  'native.ui.host_unreachable':
+      'Host is unreachable. Try again when connected.',
+  'native.ui.host_request_timeout': 'Host did not respond in time. Try again.',
+  'native.ui.host_request_failed_with_code': 'Host request failed ({code}).',
   'native.ui.extension_review_submission':
       '{displayName}\n{moduleId} · {version}\n\nThis sends declarative metadata to the selected Host. It remains a candidate until a trusted Host operator reviews and approves it.',
   'native.ui.remove_field_confirmation':
@@ -350,6 +393,12 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.ventio_framework': 'Ventio Framework',
   'native.ui.verify_host': 'Verify Host',
   'native.ui.version': 'Version',
+  'native.ui.value_at_least': 'Enter a value of at least {minimum}.',
+  'native.ui.value_at_most': 'Enter a value no greater than {maximum}.',
+  'native.ui.use_lowercase_namespaced_permission_key':
+      'Use a lower-case namespaced permission key.',
+  'native.ui.role_management_requires_trusted_operator':
+      'Role management must be granted directly by a trusted operator.',
   'native.ui.whole_number': 'Whole number',
   'native.ui.workspace_actions': 'Workspace actions',
   'native.ui.write_permission_optional': 'Write permission (optional)',

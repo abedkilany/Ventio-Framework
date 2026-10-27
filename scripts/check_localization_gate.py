@@ -22,6 +22,12 @@ STATIC_SPAN_RE = re.compile(r"\bTextSpan\s*\(\s*text\s*:\s*(['\"])(.*?)\1", re.S
 STATIC_PROPERTY_RE = re.compile(
     r"\b(?:labelText|helperText|tooltip|semanticLabel)\s*:\s*(['\"])(.*?)\1", re.S
 )
+# Flutter validators commonly return a sentence directly instead of passing it
+# to a Text widget. Catch fixed English sentences there as well; plain status
+# codes and technical return constants do not match this pattern.
+RETURN_MESSAGE_RE = re.compile(
+    r"\breturn\s+(['\"])(?=[A-Z][^'\"\n]*\s)([^'\"\n]*\.[^'\"\n]*)\1"
+)
 TECHNICAL_TEXT_ALLOWLIST = {
     "", " ", "\\n", "-", "…", "•", "·", ":", "/", "\\", "{", "}", "[", "]",
     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
@@ -69,7 +75,7 @@ def scan_dart(source: str, source_name: str, catalog_keys: set[str]) -> list[str
     # not mistake key names or user data for presentation text.
     presentation_code = re.sub(r"\$\{[^}]*\}|\$[A-Za-z_]\w*", "", code)
     errors: list[str] = []
-    for regex in (STATIC_TEXT_RE, STATIC_SPAN_RE, STATIC_PROPERTY_RE):
+    for regex in (STATIC_TEXT_RE, STATIC_SPAN_RE, STATIC_PROPERTY_RE, RETURN_MESSAGE_RE):
         for match in regex.finditer(presentation_code):
             value = match.group(2).strip()
             message_text = value.strip()

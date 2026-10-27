@@ -57,7 +57,7 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = _friendlyError(error);
+        _error = _friendlyError(context, error);
         _loading = false;
       });
     }
@@ -71,7 +71,7 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
       await _load();
       if (mounted) _message('Role changes were accepted by Host.');
     } catch (error) {
-      if (mounted) _message(_friendlyError(error));
+      if (mounted) _message(_friendlyError(context, error));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -153,10 +153,14 @@ class _RoleAdministrationPageState extends State<RoleAdministrationPage> {
       hint: 'extension.example.item.read',
       validator: (value) {
         if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(value.trim())) {
-          return 'Use a lower-case namespaced permission key.';
+          return context.ventioText(
+            'native.ui.use_lowercase_namespaced_permission_key',
+          );
         }
         if (value.trim() == 'identity.roles.manage') {
-          return 'Role management must be granted directly by a trusted operator.';
+          return context.ventioText(
+            'native.ui.role_management_requires_trusted_operator',
+          );
         }
         return null;
       },
@@ -623,23 +627,27 @@ class _TextDialogState extends State<_TextDialog> {
   );
 }
 
-String _friendlyError(Object error) {
-  if (error is! HostPackageTransportException) return 'Host request failed.';
-  return switch (error.code) {
-    'PERMISSION_DENIED' =>
-      'This credential needs a direct identity.roles.manage grant for this branch.',
-    'PERSISTENT_IDENTITY_REQUIRED' => 'Connect a persistent Host identity.',
-    'ROLE_ALREADY_EXISTS' => 'A role with that ID already exists.',
-    'ROLE_NOT_FOUND' => 'The role no longer exists on Host.',
-    'ROLE_CHANGE_CONFLICT' =>
-      'Remove all branch assignments before deleting this role.',
-    'ROLE_HAS_ASSIGNMENTS' =>
-      'Remove all branch assignments before deleting this role.',
-    'ROLE_CHANGE_REJECTED' =>
-      'Host rejected the change. Check the role and user IDs, then try again.',
-    'INVALID_ROLE_CHANGE' => 'Host rejected the role details.',
-    'HOST_UNREACHABLE' => 'Host is unreachable. Try again when connected.',
-    'HOST_REQUEST_TIMEOUT' => 'Host did not respond in time. Try again.',
-    _ => 'Host request failed (${error.code}).',
+String _friendlyError(BuildContext context, Object error) {
+  if (error is! HostPackageTransportException) {
+    return context.ventioText('native.ui.host_request_failed');
+  }
+  final key = switch (error.code) {
+    'PERMISSION_DENIED' => 'native.ui.role_permission_denied',
+    'PERSISTENT_IDENTITY_REQUIRED' => 'native.ui.persistent_identity_required',
+    'ROLE_ALREADY_EXISTS' => 'native.ui.role_already_exists',
+    'ROLE_NOT_FOUND' => 'native.ui.role_not_found',
+    'ROLE_CHANGE_CONFLICT' ||
+    'ROLE_HAS_ASSIGNMENTS' => 'native.ui.role_has_assignments',
+    'ROLE_CHANGE_REJECTED' => 'native.ui.role_change_rejected',
+    'INVALID_ROLE_CHANGE' => 'native.ui.invalid_role_change',
+    'HOST_UNREACHABLE' => 'native.ui.host_unreachable',
+    'HOST_REQUEST_TIMEOUT' => 'native.ui.host_request_timeout',
+    _ => 'native.ui.host_request_failed_with_code',
   };
+  return context.ventioText(
+    key,
+    params: key == 'native.ui.host_request_failed_with_code'
+        ? {'code': error.code}
+        : const {},
+  );
 }

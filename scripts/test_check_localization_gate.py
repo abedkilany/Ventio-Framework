@@ -30,6 +30,11 @@ class LocalizationGateTests(unittest.TestCase):
         self.assertTrue(any("hardcoded UI text" in error for error in errors))
         self.assertTrue(any("missing English fallback" in error for error in errors))
 
+    def test_rejects_hardcoded_validator_message(self):
+        source = "validator: (value) { if (value == null) return 'Enter a valid date.'; }"
+        errors = gate.scan_dart(source, "sample.dart", {"native.ui.ok"})
+        self.assertTrue(any("hardcoded UI text" in error for error in errors))
+
     def test_allows_dynamic_business_data_and_catalog_backed_ui(self):
         source = "Text(record.customerName); VentioText('native.ui.ok');"
         self.assertEqual(gate.scan_dart(source, "sample.dart", {"native.ui.ok"}), [])
