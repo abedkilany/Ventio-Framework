@@ -22,7 +22,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 02 | K02 | Extension installation, activation, disabling, and safe removal | 3 | COMPLETED | ExtensionStore 31 tests cover atomic package install/upgrade, restart persistence, activation/disable, dependencies, data preservation/removal refusal. Added queue scan and Extension Studio UI test proving unresolved commands block removal. |
 | 03 | A01 | Metadata-driven DocType creation | 3 | COMPLETED | Added Core boundary validation for stable DocType and field IDs; Core 67 checks and ExtensionStore/Extension Studio 51 tests pass. Existing tests cover persistent metadata, package export/import, registry installation, and generated records. |
 | 04 | A03 | Field types required by business documents | 5 | COMPLETED | Added `long_text` and bounded flat-row `table` types across Core metadata, JSON Schema, generated editors and SQLite records. Core 68 checks, ExtensionStore 32 tests and Extension Studio 21 tests pass; field type and record value export/restart round-trips verified. Child DocType row schema/linkage remains A07 scope. |
-| 05 | A04 | Field properties, constraints, and validation | 4 | IN_PROGRESS | Review property matrix and existing enforcement across Core, Local Store, Host and generated editors; implement missing bounds and constraints. |
+| 05 | A04 | Field properties, constraints, and validation | 4 | IN_PROGRESS | Added decimal scale, typed defaults, read-only enforcement, and localized field descriptions through Core, SQLite, generated forms, and both Host paths. Reviewing persisted Host behavior and final contract coverage before acceptance. |
 | 06 | A05 | Record references and relationships | 4 | NOT_STARTED | — |
 | 07 | D01 | User identity and authentication | 5 | NOT_STARTED | — |
 | 08 | D02 | Roles and scoped role assignments | 4 | NOT_STARTED | — |
@@ -46,13 +46,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: A04 — field properties, constraints, and validation.
+- Current task: A04 — verify precision/default/read-only/presentation enforcement across client, SQLite, Core Host, and PostgreSQL Host.
 - Last successfully completed capability: A03 — field types required by business documents.
-- Next task: Complete A04 by verifying field-property enforcement at Core, local storage, Host, and generated-form boundaries.
+- Next task: Finish the A04 property matrix and Host checks; then save acceptance evidence or resolve any remaining gaps.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint commit: `8c082c2` — A03 field types and acceptance evidence plus the accepted dashboard checkpoint, pushed to `codex/extension-platform`.
+- Latest checkpoint commit: pending — A04 implementation and verification checkpoint is being saved and pushed to `codex/extension-platform`.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -65,4 +65,6 @@ Total Wave 1 effort points: **100**.
 - K02 acceptance passed: package install/upgrade, activate/disable, restart persistence, dependency refusal, record preservation, and safe removal are covered by ExtensionStore 31 tests. Added a durable queue module scan and UI regression test that leaves a module installed when its queue contains an unresolved Host command. Flutter analysis passes; the queue guard and removal UI tests pass. One existing child-process recovery check is blocked by a Dart FFI compiler crash before its test body.
 - A01 acceptance passed: Core DocType/field IDs now fail closed at metadata parse and registry boundaries; SQLite saves the validated JSON transactionally; Extension Studio creates, previews, activates, and uses generated definitions; export/import and restart persistence are covered. Core analysis + 67 checks and ExtensionStore/Extension Studio 51 focused tests passed.
 - A03 acceptance passed: Core validates text, long text, integer, decimal, date, boolean, enum, reference and bounded table row shapes; generated forms preserve long text and table data, and SQLite restart plus declarative package round-trip are covered. Core analysis + 68 checks, ExtensionStore 32 tests, Extension Studio 21 tests and localization/contract/schema gates pass. Row DocType linkage and child-row schema validation remain A07 scope.
+- A04 implementation checkpoint: Core enforces decimal scale (0–9 places) and field defaults, and treats omitted defaults consistently during complete client/Host validation. SQLite and both Host paths apply defaults and reject client changes to read-only fields. Decimal precision cannot be tightened over saved records. Extension Studio authors defaults, scale, read-only, and localized field descriptions; generated forms show defaults/descriptions and validate decimal scale. Added contract schema edge checks. Core analysis + 69 checks, ExtensionStore 33 tests, Extension Studio 22 tests, Host analysis, 9 contract tests, localization gate and schema profile pass. A04 remains in progress pending final coverage review.
+- Both root CI and V1.2 DocType schemas now carry the same A03 field types and A04 property constraints.
 - The final reference extension remains unstarted; Wave 1 capability acceptance is **4/23**.

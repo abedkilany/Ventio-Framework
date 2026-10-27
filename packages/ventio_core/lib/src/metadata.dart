@@ -16,6 +16,11 @@ class FieldDefinition {
   final int? maxLength;
   final num? minValue;
   final num? maxValue;
+  final int? precision;
+  final Object? defaultValue;
+  final bool readOnly;
+  final String? description;
+  final String? descriptionKey;
   final List<String> enumValues;
   final Map<String, String> enumLabels;
   final Map<String, String> enumLabelKeys;
@@ -33,6 +38,11 @@ class FieldDefinition {
       required this.maxLength,
       this.minValue,
       this.maxValue,
+      this.precision,
+      this.defaultValue,
+      this.readOnly = false,
+      this.description,
+      this.descriptionKey,
       required this.enumValues,
       this.enumLabels = const {},
       this.enumLabelKeys = const {},
@@ -108,6 +118,52 @@ class FieldDefinition {
         'minValue must not exceed maxValue',
       );
     }
+    final precision = json['precision'];
+    if (precision != null &&
+        (precision is! int ||
+            precision < 0 ||
+            precision > 9 ||
+            type != 'decimal')) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'Precision must be between zero and nine and only applies to decimal fields',
+      );
+    }
+    final rawDefault = json['default'];
+    if (json.containsKey('default') &&
+        (rawDefault == null ||
+            rawDefault is Map ||
+            rawDefault is List ||
+            (rawDefault is num && !rawDefault.isFinite))) {
+      throw const ContractError('INVALID_FIELD', 'Invalid field default');
+    }
+    if (rawDefault != null && (type == 'table' || type == 'reference')) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'Defaults are not supported for table or reference fields',
+      );
+    }
+    final readOnly = json['readOnly'] ?? false;
+    if (readOnly is! bool) {
+      throw const ContractError('INVALID_FIELD', 'Invalid readOnly value');
+    }
+    final description = json['description'];
+    final descriptionKey = json['descriptionKey'];
+    if (description != null &&
+        (description is! String ||
+            description.trim().isEmpty ||
+            description.length > 500)) {
+      throw const ContractError('INVALID_FIELD', 'Invalid field description');
+    }
+    if ((description == null) != (descriptionKey == null) ||
+        (descriptionKey != null &&
+            (descriptionKey is! String ||
+                !_messageKey.hasMatch(descriptionKey)))) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'Field description and namespaced descriptionKey must be provided together',
+      );
+    }
     final options = json['enumValues'] == null
         ? <String>[]
         : strings(requireList(json, 'enumValues'), 'enumValues');
@@ -164,7 +220,7 @@ class FieldDefinition {
         );
       }
     }
-    return FieldDefinition(
+    final field = FieldDefinition(
         name: name,
         type: type,
         required: requireBool(json, 'required'),
@@ -176,10 +232,22 @@ class FieldDefinition {
         maxLength: maxLength as int?,
         minValue: minValue as num?,
         maxValue: maxValue as num?,
+        precision: precision as int?,
+        defaultValue: rawDefault,
+        readOnly: readOnly,
+        description: description as String?,
+        descriptionKey: descriptionKey as String?,
         enumValues: List.unmodifiable(options),
         enumLabels: Map.unmodifiable(enumLabels),
         enumLabelKeys: Map.unmodifiable(enumLabelKeys),
         referenceTo: referenceTo);
+    if (rawDefault != null && field.validate(rawDefault) != null) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'The field default does not satisfy its declared type and constraints',
+      );
+    }
+    return field;
   }
 
   String? validate(Object? value) {
@@ -231,9 +299,13 @@ class FieldDefinition {
         if (value is! int) return 'INVALID_INTEGER';
         return _validateNumberBounds(value);
       case 'decimal':
-        // Monetary values need a decimal-precision contract before this type can
-        // be used for financial postings. Never use binary doubles for ledgers.
+        // A declared scale bounds ordinary form values. Governed financial
+        // postings still require an exact decimal representation, not doubles.
         if (value is! num || !value.isFinite) return 'INVALID_DECIMAL';
+        if (precision != null &&
+            !_hasAtMostFractionalDigits(value, precision!)) {
+          return 'INVALID_PRECISION';
+        }
         return _validateNumberBounds(value);
       case 'boolean':
         return value is bool ? null : 'INVALID_BOOLEAN';
@@ -256,6 +328,16 @@ class FieldDefinition {
     if (minValue != null && value < minValue!) return 'BELOW_MINIMUM';
     if (maxValue != null && value > maxValue!) return 'ABOVE_MAXIMUM';
     return null;
+  }
+
+  bool _hasAtMostFractionalDigits(num value, int allowed) {
+    final parts = value.abs().toString().toLowerCase().split('e');
+    final mantissa = parts.first;
+    final exponent = parts.length == 2 ? int.tryParse(parts.last) ?? 0 : 0;
+    final fraction = mantissa.split('.').skip(1).firstOrNull ?? '';
+    final significantFraction = fraction.replaceFirst(RegExp(r'0+$'), '');
+    final decimalPlaces = significantFraction.length - exponent;
+    return decimalPlaces <= allowed;
   }
 }
 
@@ -492,10 +574,23 @@ class DocTypeDefinition {
     }
     for (final field in fields) {
       if (partial && !payload.containsKey(field.name)) continue;
-      final issue = field.validate(payload[field.name]);
+      final value = payload.containsKey(field.name)
+          ? payload[field.name]
+          : field.defaultValue;
+      final issue = field.validate(value);
       if (issue != null) issues.add('${field.name}:$issue');
     }
     return issues;
+  }
+
+  Map<String, dynamic> applyDefaults(Map<String, dynamic> payload) {
+    final values = Map<String, dynamic>.of(payload);
+    for (final field in fields) {
+      if (!values.containsKey(field.name) && field.defaultValue != null) {
+        values[field.name] = field.defaultValue;
+      }
+    }
+    return values;
   }
 }
 
@@ -790,6 +885,8 @@ bool _constraintsWidened(FieldDefinition old, FieldDefinition updated) {
           (old.minValue != null && updated.minValue! <= old.minValue!)) &&
       (updated.maxValue == null ||
           (old.maxValue != null && updated.maxValue! >= old.maxValue!)) &&
+      (updated.precision == null ||
+          (old.precision != null && updated.precision! >= old.precision!)) &&
       (updated.minLength == null ||
           (old.minLength != null && updated.minLength! <= old.minLength!)) &&
       (updated.maxLength == null ||

@@ -122,6 +122,17 @@ const ventioNativeEnglishMessages = <String, String>{
       'Enter a JSON array of flat row objects (up to 500 rows).',
   'native.ui.table_json_error':
       'Enter a valid JSON array of non-empty row objects, with no nested values and no more than 500 rows.',
+  'native.ui.field_description': 'Field description',
+  'native.ui.description_too_long':
+      'Keep the description under 500 characters.',
+  'native.ui.read_only': 'Read only',
+  'native.ui.field_default': 'Default value',
+  'native.ui.precision': 'Decimal places',
+  'native.ui.precision_error': 'Enter a number from 0 to 9.',
+  'native.ui.invalid_field_default':
+      'Enter a default that matches this field type and its constraints.',
+  'native.ui.decimal_precision':
+      'Enter a value with no more than {precision} decimal places.',
   'native.ui.removal_requires_no_data_or_pending_commands':
       'Removal requires no local records or unresolved Host commands. Other extensions must not depend on this module.',
   'native.ui.remove_blocked_pending_commands':

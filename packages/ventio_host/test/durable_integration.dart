@@ -99,16 +99,43 @@ Future<void> main() async {
     modules.registerTrustedCapability(
       Capability.fromJson(loadJsonFile('$inspectionPath/capability.json')),
     );
+    final inspectionDocType = loadJsonFile('$inspectionPath/doctype.json');
+    (inspectionDocType['fields'] as List).addAll([
+      {
+        'name': 'feeRate',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'label': 'Fee rate',
+        'labelKey': 'inspection.record.fee_rate',
+      },
+      {
+        'name': 'approvalStatus',
+        'type': 'text',
+        'required': false,
+        'maxLength': 40,
+        'default': 'Pending',
+        'readOnly': true,
+        'label': 'Approval status',
+        'labelKey': 'inspection.record.approval_status',
+        'description': 'Managed by the Host.',
+        'descriptionKey': 'inspection.record.approval_status_description',
+      },
+    ]);
+    final inspectionCatalog =
+        loadJsonFile('$inspectionPath/localization/en.inspection.json')
+          ..['inspection.record.fee_rate'] = 'Fee rate'
+          ..['inspection.record.approval_status'] = 'Approval status'
+          ..['inspection.record.approval_status_description'] =
+              'Managed by the Host.';
     DeclarativeModuleInstaller(
       modules: modules,
       docTypes: docTypes,
       english: prototype.english,
     ).install(
       manifestJson: loadJsonFile('$inspectionPath/manifest.json'),
-      docTypeJsons: [loadJsonFile('$inspectionPath/doctype.json')],
-      englishCatalog: loadJsonFile(
-        '$inspectionPath/localization/en.inspection.json',
-      ),
+      docTypeJsons: [inspectionDocType],
+      englishCatalog: inspectionCatalog,
     );
     DurableCommandHost host(pg.Connection connection) {
       final result = DurableCommandHost(
@@ -293,6 +320,60 @@ Future<void> main() async {
     check(
       inspectionReceipt['status'] == 'ACCEPTED',
       'A separate business module uses the same transaction engine',
+    );
+    final storedInspection = await conn.execute(
+      pg.Sql.named('''
+        SELECT record_data->>'approvalStatus' AS approval_status
+        FROM ventio_records
+        WHERE tenant_id = @tenant AND module_id = @module
+          AND doc_type = @doctype AND record_id = @record
+      '''),
+      parameters: {
+        'tenant': scope,
+        'module': 'com.ventio.inspection',
+        'doctype': 'EquipmentInspection',
+        'record': inspection.aggregateId,
+      },
+    );
+    check(
+      storedInspection.single.toColumnMap()['approval_status'] == 'Pending',
+      'PostgreSQL Host stores the declared default for an omitted field',
+    );
+    final precisionJson = Map<String, dynamic>.from(inspectionJson)
+      ..['payload'] = Map<String, dynamic>.from(
+        inspectionJson['payload'] as Map<String, dynamic>,
+      )
+      ..['payload']['feeRate'] = 1.234;
+    final invalidPrecision = _command(
+      precisionJson,
+      scope,
+      record: 'inspection-invalid-precision',
+    );
+    check(
+      (await secondHost.execute(
+            invalidPrecision,
+            _principal(invalidPrecision),
+          ))['reasonCode'] ==
+          'INVALID_PAYLOAD',
+      'PostgreSQL Host rejects a decimal outside its declared precision',
+    );
+    final readOnlyJson = Map<String, dynamic>.from(inspectionJson)
+      ..['payload'] = Map<String, dynamic>.from(
+        inspectionJson['payload'] as Map<String, dynamic>,
+      )
+      ..['payload']['approvalStatus'] = 'Approved';
+    final readOnlyOverride = _command(
+      readOnlyJson,
+      scope,
+      record: 'inspection-readonly-override',
+    );
+    check(
+      (await secondHost.execute(
+            readOnlyOverride,
+            _principal(readOnlyOverride),
+          ))['reasonCode'] ==
+          'READ_ONLY_FIELD',
+      'PostgreSQL Host rejects a client override of a read-only field',
     );
     check(
       inspectionReceipt['scopeCursor'] == 'scope-v1-3',

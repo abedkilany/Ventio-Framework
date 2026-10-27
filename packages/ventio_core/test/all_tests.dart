@@ -584,6 +584,99 @@ void main() {
     );
   });
 
+  test('Field precision, defaults, read-only and descriptions are enforced',
+      () {
+    final amount = FieldDefinition.fromJson({
+      'name': 'amount',
+      'type': 'decimal',
+      'required': false,
+      'precision': 2,
+      'minValue': 0,
+      'maxValue': 100,
+      'default': 1.25,
+      'readOnly': true,
+      'label': 'Amount',
+      'labelKey': 'extension.example.invoice.amount',
+      'description': 'Approved amount.',
+      'descriptionKey': 'extension.example.invoice.amount_description',
+    });
+    check(
+      amount.validate(1.25) == null &&
+          amount.validate(1.234) == 'INVALID_PRECISION' &&
+          amount.defaultValue == 1.25 &&
+          amount.readOnly &&
+          amount.descriptionKey ==
+              'extension.example.invoice.amount_description',
+      'Decimal precision, default, read-only, or presentation metadata failed',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson({
+        'name': 'amount',
+        'type': 'integer',
+        'required': false,
+        'precision': 2,
+        'label': 'Amount',
+        'labelKey': 'extension.example.invoice.amount',
+      }),
+      'Precision was allowed on a non-decimal field',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson({
+        'name': 'amount',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'default': 1.234,
+        'label': 'Amount',
+        'labelKey': 'extension.example.invoice.amount',
+      }),
+      'An invalid decimal default was accepted',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson({
+        'name': 'amount',
+        'type': 'text',
+        'required': false,
+        'description': 'Missing translation key',
+        'label': 'Amount',
+        'labelKey': 'extension.example.invoice.amount',
+      }),
+      'A user-visible field description without a stable key was accepted',
+    );
+    final package = extensionBundleJson();
+    final rawDocType =
+        (package['docTypes'] as List).single as Map<String, dynamic>;
+    ((rawDocType['fields'] as List).single as Map<String, dynamic>)['default'] =
+        'Default asset';
+    final docType = DocTypeDefinition.fromJson(rawDocType);
+    final normalized = docType.applyDefaults({});
+    check(
+      normalized['name'] == 'Default asset' &&
+          docType.validatePayload(normalized).isEmpty,
+      'A declared default was not applied during payload normalization',
+    );
+    final previousJson = changed(
+      (extensionBundleJson()['docTypes'] as List).single
+          as Map<String, dynamic>,
+    );
+    final previousField =
+        ((previousJson['fields'] as List).single as Map<String, dynamic>)
+          ..['type'] = 'decimal'
+          ..remove('maxLength')
+          ..['precision'] = 4;
+    final nextJson = changed(previousJson)..['schemaVersion'] = 2;
+    (((nextJson['fields'] as List).single as Map<String, dynamic>)
+      ..['precision'] = 2);
+    checkThrows(
+      () => validateDocTypeUpgrade(
+        DocTypeDefinition.fromJson(previousJson),
+        DocTypeDefinition.fromJson(nextJson),
+      ),
+      'A schema upgrade tightened decimal precision over saved values',
+    );
+    check(previousField['precision'] == 4, 'Previous precision was mutated');
+  });
+
   test('Host rejects extension records outside declared field bounds', () {
     const fixture = '../../fixtures/inspection';
     final modules = ModuleRegistry();
@@ -599,6 +692,28 @@ void main() {
       'label': 'Related inspection',
       'labelKey': 'inspection.record.related_inspection',
     });
+    (doctype['fields'] as List).addAll([
+      {
+        'name': 'taxRate',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'label': 'Tax rate',
+        'labelKey': 'inspection.record.tax_rate',
+      },
+      {
+        'name': 'approvedRate',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'default': 1.25,
+        'readOnly': true,
+        'label': 'Approved rate',
+        'labelKey': 'inspection.record.approved_rate',
+        'description': 'Host managed approved rate.',
+        'descriptionKey': 'inspection.record.approved_rate_description',
+      },
+    ]);
     ((doctype['ui'] as Map<String, dynamic>)['formFields'] as List)
         .add('relatedInspection');
     ((doctype['fields'] as List).first as Map<String, dynamic>)['minLength'] =
@@ -617,7 +732,12 @@ void main() {
     );
     final englishCatalog = loadJsonFile(
       '$fixture/localization/en.inspection.json',
-    )..['inspection.record.related_inspection'] = 'Related inspection';
+    )
+      ..['inspection.record.related_inspection'] = 'Related inspection'
+      ..['inspection.record.tax_rate'] = 'Tax rate'
+      ..['inspection.record.approved_rate'] = 'Approved rate'
+      ..['inspection.record.approved_rate_description'] =
+          'Host managed approved rate.';
     DeclarativeModuleInstaller(
       modules: modules,
       docTypes: docTypes,
@@ -655,7 +775,7 @@ void main() {
       deviceId: command.deviceId,
       companyIds: {command.companyId},
       branchIds: {command.branchId},
-      permissions: {'inspection.create'},
+      permissions: {'inspection.create', 'inspection.read'},
     );
 
     check(
@@ -688,6 +808,43 @@ void main() {
     check(
       parentReceipt.accepted,
       'Host accepts a reference target in the same branch (${parentReceipt.reasonCode})',
+    );
+    final storedParent = host.readRecord(
+      'EquipmentInspection',
+      parent.aggregateId,
+      principal,
+      companyId: command.companyId,
+      branchId: command.branchId,
+    );
+    check(
+      storedParent?.data['approvedRate'] == 1.25,
+      'Host did not apply and persist the declared read-only default',
+    );
+
+    final precisionRaw = Map<String, dynamic>.from(parentRaw)
+      ..['commandId'] = uuid(907)
+      ..['aggregateId'] = 'inspection-invalid-precision'
+      ..['payload'] = Map<String, dynamic>.from(parentPayload)
+      ..['payload']['taxRate'] = 1.234;
+    check(
+      host
+              .execute(CommandEnvelope.fromJson(precisionRaw), principal)
+              .reasonCode ==
+          'INVALID_PAYLOAD',
+      'Host accepted a decimal outside its declared precision',
+    );
+
+    final readOnlyRaw = Map<String, dynamic>.from(parentRaw)
+      ..['commandId'] = uuid(908)
+      ..['aggregateId'] = 'inspection-readonly-override'
+      ..['payload'] = Map<String, dynamic>.from(parentPayload)
+      ..['payload']['approvedRate'] = 9.99;
+    check(
+      host
+              .execute(CommandEnvelope.fromJson(readOnlyRaw), principal)
+              .reasonCode ==
+          'READ_ONLY_FIELD',
+      'Host accepted a client override of a read-only field',
     );
 
     final childPayload = Map<String, dynamic>.from(parentPayload)

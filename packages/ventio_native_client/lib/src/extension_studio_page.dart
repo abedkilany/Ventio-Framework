@@ -2882,12 +2882,16 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
   late final TextEditingController _maxLength;
   late final TextEditingController _minValue;
   late final TextEditingController _maxValue;
+  late final TextEditingController _precision;
+  late final TextEditingController _defaultValue;
+  late final TextEditingController _description;
   late final TextEditingController _enumValues;
   late final TextEditingController _readPermission;
   late final TextEditingController _writePermission;
   String _type = 'text';
   String? _referenceTo;
   bool _required = false;
+  bool _readOnly = false;
 
   @override
   void initState() {
@@ -2909,6 +2913,15 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _maxValue = TextEditingController(
       text: field?['maxValue']?.toString() ?? '',
     );
+    _precision = TextEditingController(
+      text: field?['precision']?.toString() ?? '',
+    );
+    _defaultValue = TextEditingController(
+      text: field?['default']?.toString() ?? '',
+    );
+    _description = TextEditingController(
+      text: field?['description'] as String? ?? '',
+    );
     _enumValues = TextEditingController(
       text: ((field?['enumValues'] as List?) ?? const []).join(', '),
     );
@@ -2921,6 +2934,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _type = field?['type'] as String? ?? 'text';
     _referenceTo = field?['referenceTo'] as String?;
     _required = field?['required'] as bool? ?? false;
+    _readOnly = field?['readOnly'] as bool? ?? false;
   }
 
   @override
@@ -2931,6 +2945,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _maxLength.dispose();
     _minValue.dispose();
     _maxValue.dispose();
+    _precision.dispose();
+    _defaultValue.dispose();
+    _description.dispose();
     _enumValues.dispose();
     _readPermission.dispose();
     _writePermission.dispose();
@@ -2961,6 +2978,24 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       final maximum = _parseBound(_maxValue.text);
       if (minimum != null) metadata['minValue'] = minimum;
       if (maximum != null) metadata['maxValue'] = maximum;
+    }
+    if (_type == 'decimal' && _precision.text.trim().isNotEmpty) {
+      metadata['precision'] = int.parse(_precision.text.trim());
+    }
+    final rawDefault = _defaultValue.text;
+    if (rawDefault.isNotEmpty) {
+      metadata['default'] = switch (_type) {
+        'integer' => int.parse(rawDefault.trim()),
+        'decimal' => num.parse(rawDefault.trim()),
+        'boolean' => rawDefault.trim() == 'true',
+        _ => rawDefault,
+      };
+    }
+    metadata['readOnly'] = _readOnly;
+    final description = _description.text.trim();
+    if (description.isNotEmpty) {
+      metadata['description'] = description;
+      metadata['descriptionKey'] = '$fieldNamespace.description';
     }
     if (_type == 'reference') metadata['referenceTo'] = _referenceTo;
     final readPermission = _readPermission.text.trim();
@@ -3029,6 +3064,100 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     return null;
   }
 
+  String? _precisionError(String? value) {
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) return null;
+    final parsed = int.tryParse(raw);
+    return parsed != null && parsed >= 0 && parsed <= 9
+        ? null
+        : context.ventioText('native.ui.precision_error');
+  }
+
+  String? _defaultError(String? value) {
+    final raw = value ?? '';
+    if (raw.isEmpty) return null;
+    dynamic parsed;
+    switch (_type) {
+      case 'integer':
+        parsed = int.tryParse(raw.trim());
+        break;
+      case 'decimal':
+        parsed = num.tryParse(raw.trim());
+        if (parsed is num && !parsed.isFinite) parsed = null;
+        break;
+      case 'boolean':
+        if (raw.trim() != 'true' && raw.trim() != 'false') {
+          parsed = null;
+        } else {
+          parsed = raw.trim() == 'true';
+        }
+        break;
+      case 'enum':
+        final values = _enumValues.text
+            .split(',')
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty);
+        if (!values.contains(raw)) {
+          parsed = null;
+        } else {
+          parsed = raw;
+        }
+        break;
+      case 'date':
+        parsed = _validIsoDate(raw) ? raw : null;
+        break;
+      case 'datetime':
+        parsed =
+            RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(raw) &&
+                DateTime.tryParse(raw) != null
+            ? raw
+            : null;
+        break;
+      default:
+        parsed = raw;
+    }
+    if (parsed == null) {
+      return context.ventioText('native.ui.invalid_field_default');
+    }
+    if (_type == 'text' || _type == 'long_text') {
+      final minimum = int.tryParse(_minLength.text.trim());
+      final maximum = int.tryParse(_maxLength.text.trim());
+      if ((minimum != null && (parsed as String).runes.length < minimum) ||
+          (maximum != null && (parsed as String).runes.length > maximum)) {
+        return context.ventioText('native.ui.invalid_field_default');
+      }
+    }
+    if (_type == 'decimal') {
+      final precision = int.tryParse(_precision.text.trim());
+      if (precision != null && _fractionalDigits(parsed) > precision) {
+        return context.ventioText('native.ui.invalid_field_default');
+      }
+    }
+    if (parsed is num) {
+      final minimum = _parseBound(_minValue.text);
+      final maximum = _parseBound(_maxValue.text);
+      if ((minimum != null && parsed < minimum) ||
+          (maximum != null && parsed > maximum)) {
+        return context.ventioText('native.ui.invalid_field_default');
+      }
+    }
+    return null;
+  }
+
+  int _fractionalDigits(num value) {
+    final parts = value.abs().toString().toLowerCase().split('e');
+    final mantissa = parts.first;
+    final exponent = parts.length == 2 ? int.tryParse(parts.last) ?? 0 : 0;
+    final fraction = mantissa.split('.').skip(1).firstOrNull ?? '';
+    return fraction.replaceFirst(RegExp(r'0+$'), '').length - exponent;
+  }
+
+  bool _validIsoDate(String value) {
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) return false;
+    final parsed = DateTime.tryParse(value);
+    return parsed != null && parsed.toIso8601String().startsWith(value);
+  }
+
   String? _permissionError(String? value) {
     final permission = value?.trim() ?? '';
     if (permission.isEmpty) return null;
@@ -3077,6 +3206,26 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   ),
                   validator: (value) =>
                       _requiredText(value, 'Enter a field label.'),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _description,
+                  maxLength: 500,
+                  decoration: InputDecoration(
+                    labelText: context.ventioText(
+                      'native.ui.field_description',
+                    ),
+                  ),
+                  validator: (value) => (value?.length ?? 0) > 500
+                      ? context.ventioText('native.ui.description_too_long')
+                      : null,
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: VentioText('native.ui.read_only'),
+                  value: _readOnly,
+                  onChanged: (value) =>
+                      setState(() => _readOnly = value ?? false),
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
@@ -3183,6 +3332,29 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                       hintText: context.ventioText('native.ui.optional'),
                     ),
                     validator: (value) => _boundError(value, minimum: false),
+                  ),
+                  if (_type == 'decimal') ...[
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _precision,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: context.ventioText('native.ui.precision'),
+                        hintText: context.ventioText('native.ui.optional'),
+                      ),
+                      validator: _precisionError,
+                    ),
+                  ],
+                ],
+                if (!['table', 'reference'].contains(_type)) ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _defaultValue,
+                    decoration: InputDecoration(
+                      labelText: context.ventioText('native.ui.field_default'),
+                      hintText: context.ventioText('native.ui.optional'),
+                    ),
+                    validator: _defaultError,
                   ),
                 ],
                 if (_type == 'enum') ...[
@@ -4128,8 +4300,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           .toSet();
 
   bool _isEditable(FieldDefinition field) => widget.record == null
-      ? _effectiveCreatableFields.contains(field.name)
-      : _effectiveWritableFields.contains(field.name);
+      ? !field.readOnly && _effectiveCreatableFields.contains(field.name)
+      : !field.readOnly && _effectiveWritableFields.contains(field.name);
 
   bool get _canSaveOperation {
     final editing = widget.record != null;
@@ -4138,7 +4310,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
     if (editing) return _formFields.any(_isEditable);
     final requiredFields = widget.definition.fields.where(
-      (field) => field.required,
+      (field) => field.required && field.defaultValue == null,
     );
     return requiredFields.every(
       (field) => _effectiveCreatableFields.contains(field.name),
@@ -4155,7 +4327,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           (field) =>
               widget.previewOnly ||
               (widget.record == null
-                  ? _effectiveCreatableFields.contains(field.name)
+                  ? _effectiveCreatableFields.contains(field.name) ||
+                        (field.readOnly &&
+                            _effectiveReadableFields.contains(field.name))
                   : _effectiveReadableFields.contains(field.name) ||
                         _effectiveWritableFields.contains(field.name)),
         )
@@ -4173,7 +4347,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           ? null
           : initialValues != null && initialValues.containsKey(field.name)
           ? initialValues[field.name]
-          : widget.record?.values[field.name];
+          : widget.record?.values[field.name] ?? field.defaultValue;
       if (field.type == 'boolean') {
         _booleans[field.name] = value as bool? ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
@@ -4500,6 +4674,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       if (field.minLength != null) 'min length ${field.minLength}',
       if (field.maxLength != null) 'max length ${field.maxLength}',
     ];
+    if (field.precision != null) {
+      numericBounds.add('precision ${field.precision}');
+    }
     return TextFormField(
       controller: _controllers[field.name],
       readOnly: widget.previewOnly || !editable,
@@ -4530,6 +4707,11 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               .toLowerCase(),
           ...lengthConstraints,
           ...numericBounds,
+          if (field.description != null)
+            context.extensionMetadataText(
+              field.descriptionKey!,
+              field.description!,
+            ),
           if (field.type == 'table')
             context.ventioText('native.ui.table_json_help'),
         ].join(' · '),
@@ -4598,6 +4780,12 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           if (parsed == null) return 'Enter a number.';
           final issue = field.validate(parsed);
           if (issue == 'INVALID_DECIMAL') return 'Enter a finite number.';
+          if (issue == 'INVALID_PRECISION') {
+            return context.ventioText(
+              'native.ui.decimal_precision',
+              params: {'precision': field.precision!},
+            );
+          }
           return _numericValidationMessage(field, parsed);
         }
         if (field.type == 'date' && field.validate(raw) != null) {

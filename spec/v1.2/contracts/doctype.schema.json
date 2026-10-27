@@ -158,6 +158,18 @@
         "maxValue": {
           "type": "number"
         },
+        "precision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9
+        },
+        "default": {
+          "type": ["string", "number", "boolean"]
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
         "referenceTo": {
           "type": "string"
         },
@@ -218,6 +230,23 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "decimal" } },
+            "required": ["type"]
+          },
+          "then": {},
+          "else": { "not": { "required": ["precision"] } }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "enum": ["table", "reference"] }
+            },
+            "required": ["type"]
+          },
+          "then": { "not": { "required": ["default"] } }
+        },
         {
           "if": {
             "properties": {

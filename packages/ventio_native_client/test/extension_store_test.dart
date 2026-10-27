@@ -237,6 +237,78 @@ void main() {
     expect(restored!.values, values);
   });
 
+  test(
+    'Field defaults persist and read-only fields reject client changes',
+    () async {
+      final definition = _docType(
+        fields: [
+          _textField(),
+          {
+            'name': 'status',
+            'type': 'text',
+            'required': true,
+            'maxLength': 40,
+            'default': 'Pending review',
+            'readOnly': true,
+            'label': 'Status',
+            'labelKey': 'extension.com_example_asset_register.asset.status',
+          },
+        ],
+      );
+      await createActiveExtension(docType: definition);
+      final created = await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Pump'},
+        recordId: 'asset-default-field',
+      );
+      expect(created.values['status'], 'Pending review');
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: const {'name': 'Unsafe', 'status': 'Approved'},
+          recordId: 'asset-readonly-create',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'READ_ONLY_FIELD',
+          ),
+        ),
+      );
+      await expectLater(
+        store.updateRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: created.recordId,
+          scope: _scope,
+          expectedRevision: created.revision,
+          values: const {'status': 'Approved'},
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'READ_ONLY_FIELD',
+          ),
+        ),
+      );
+      await store.close();
+      await openStore();
+      final restored = await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+      );
+      expect(restored!.values['status'], 'Pending review');
+    },
+  );
+
   test('Host scope profile persists across a database reopen', () async {
     const profile = HostConnectionProfile(
       endpoint: 'https://host.example.test:8443',

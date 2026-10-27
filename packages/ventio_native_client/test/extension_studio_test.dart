@@ -410,6 +410,101 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Generated form applies defaults and enforces field precision', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.field_properties';
+    const permission = 'extension.com_example_field_properties.invoice';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Invoice',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'amount',
+          'type': 'decimal',
+          'required': true,
+          'precision': 2,
+          'default': 1.25,
+          'label': 'Amount',
+          'labelKey': '$permission.amount',
+        },
+        {
+          'name': 'status',
+          'type': 'text',
+          'required': true,
+          'maxLength': 40,
+          'default': 'Pending',
+          'readOnly': true,
+          'label': 'Status',
+          'labelKey': '$permission.status',
+          'description': 'Managed by the Host.',
+          'descriptionKey': '$permission.status_description',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['amount', 'status'],
+        'formFields': ['amount', 'status'],
+        'detailFields': ['amount', 'status'],
+      },
+      'label': 'Invoice',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Field Properties',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Finder labeledField(String label) => find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
+    );
+    expect(tester.widget<TextField>(labeledField('Status')).readOnly, isTrue);
+    expect(find.textContaining('Managed by the Host.'), findsOneWidget);
+    await tester.enterText(labeledField('Amount'), '1.234');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Enter a value with no more than 2 decimal places.'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(labeledField('Amount'), '1.2');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    final record = (await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Invoice',
+      scope: scope,
+    )).single;
+    expect(record.values, {'amount': 1.2, 'status': 'Pending'});
+  });
+
   testWidgets('Builder verifies Host and saves an exact granted scope', (
     tester,
   ) async {
@@ -688,7 +783,13 @@ void main() {
       );
       await tester.enterText(nameDialogFields.at(0), 'name');
       await tester.enterText(nameDialogFields.at(1), 'Name');
-      await tester.enterText(nameDialogFields.at(2), '3');
+      final minimumLengthField = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Minimum length',
+      );
+      await tester.ensureVisible(minimumLengthField);
+      await tester.enterText(minimumLengthField, '3');
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
@@ -719,12 +820,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Whole number').last);
       await tester.pumpAndSettle();
-      final quantityFields = find.descendant(
-        of: quantityDialog,
-        matching: find.byType(TextFormField),
+      Finder labeledField(String label) => find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == label,
       );
-      await tester.enterText(quantityFields.at(2), '1');
-      await tester.enterText(quantityFields.at(3), '10');
+      await tester.enterText(labeledField('Minimum value'), '1');
+      await tester.enterText(labeledField('Maximum value'), '10');
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
@@ -838,6 +939,19 @@ void main() {
     );
     await tester.enterText(permissionField('Field ID'), 'secret');
     await tester.enterText(permissionField('Label'), 'Secret');
+    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Decimal').last);
+    await tester.pumpAndSettle();
+    final descriptionField = permissionField('Field description');
+    await tester.ensureVisible(descriptionField);
+    await tester.enterText(descriptionField, 'A protected value.');
+    final defaultField = permissionField('Default value');
+    await tester.ensureVisible(defaultField);
+    await tester.enterText(defaultField, '1.25');
+    final precisionField = permissionField('Decimal places');
+    await tester.ensureVisible(precisionField);
+    await tester.enterText(precisionField, '2');
     final readPermission =
         'extension.com_example_field_acl_builder.profile.secret.read';
     final writePermission =
@@ -848,6 +962,21 @@ void main() {
     final writeField = permissionField('Write permission (optional)');
     await tester.ensureVisible(writeField);
     await tester.enterText(writeField, writePermission);
+    await tester.ensureVisible(find.text('Save field'));
+    await tester.tap(find.text('Save field'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    Finder newFieldInput(String label) => find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
+    );
+    await tester.enterText(newFieldInput('Field ID'), 'status');
+    await tester.enterText(newFieldInput('Label'), 'Status');
+    final defaultValueField = newFieldInput('Default value');
+    await tester.ensureVisible(defaultValueField);
+    await tester.enterText(defaultValueField, 'Pending');
+    await tester.tap(find.byType(CheckboxListTile).last);
     await tester.ensureVisible(find.text('Save field'));
     await tester.tap(find.text('Save field'));
     await tester.pumpAndSettle();
@@ -869,10 +998,27 @@ void main() {
     final definition = (await store.listDocTypes(
       'com.example.field_acl_builder',
     )).single;
-    final field = (definition['fields'] as List).single as Map;
+    final savedFields = (definition['fields'] as List).cast<Map>();
+    final field = savedFields.singleWhere((item) => item['name'] == 'secret');
     expect(field['readPermission'], readPermission);
     expect(field['writePermission'], writePermission);
+    expect(field['default'], 1.25);
+    expect(field['description'], 'A protected value.');
+    expect(field['precision'], 2);
+    final status = savedFields.singleWhere((item) => item['name'] == 'status');
+    expect(status['readOnly'], isTrue);
+    expect(status['default'], 'Pending');
     final bundle = await store.exportBundle('com.example.field_acl_builder');
+    final bundledSecret = bundle.docTypes.single.fields.singleWhere(
+      (item) => item.name == 'secret',
+    );
+    expect(bundledSecret.defaultValue, 1.25);
+    expect(bundledSecret.precision, 2);
+    expect(bundledSecret.description, 'A protected value.');
+    expect(
+      bundle.englishCatalog[field['descriptionKey']],
+      'A protected value.',
+    );
     expect(bundle.manifest.minPlatformApi, '0.3.0');
   });
 

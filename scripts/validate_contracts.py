@@ -5,9 +5,12 @@ Development-only structural checks; not a live translation engine, extension
 security validator, Host runtime, sync harness or financial transaction test.
 """
 import json
+import math
 import re
 import subprocess
 import unicodedata
+from copy import deepcopy
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -48,10 +51,87 @@ def validate_length_bounds(doctype):
     for field in doctype['fields']:
         minimum = field.get('minLength')
         maximum = field.get('maxLength')
-        if minimum is not None and field['type'] != 'text':
-            raise ValueError(f"{field['name']}: minLength requires a text field")
+        if (minimum is not None or maximum is not None) and field['type'] not in {
+            'text', 'long_text'
+        }:
+            raise ValueError(f"{field['name']}: length limits require a text field")
         if minimum is not None and maximum is not None and minimum > maximum:
             raise ValueError(f"{field['name']}: minimum length exceeds maximum length")
+
+
+def validate_field_properties(doctype):
+    for field in doctype['fields']:
+        precision = field.get('precision')
+        if precision is not None and (
+            field['type'] != 'decimal'
+            or type(precision) is not int
+            or precision < 0
+            or precision > 9
+        ):
+            raise ValueError(f"{field['name']}: invalid decimal precision")
+        if 'readOnly' in field and type(field['readOnly']) is not bool:
+            raise ValueError(f"{field['name']}: readOnly must be boolean")
+        if ('description' in field) != ('descriptionKey' in field):
+            raise ValueError(f"{field['name']}: description needs a stable key")
+        if 'default' not in field:
+            continue
+        value = field['default']
+        kind = field['type']
+        valid = (
+            (kind in {'text', 'long_text', 'date', 'datetime', 'enum'} and isinstance(value, str))
+            or (kind == 'integer' and type(value) is int)
+            or (kind == 'decimal' and type(value) in {int, float} and math.isfinite(value))
+            or (kind == 'boolean' and type(value) is bool)
+        )
+        if not valid:
+            raise ValueError(f"{field['name']}: default does not match its field type")
+        if kind == 'enum' and value not in field.get('enumValues', []):
+            raise ValueError(f"{field['name']}: default is not a declared enum value")
+        if kind == 'decimal' and precision is not None:
+            try:
+                scale = max(0, -Decimal(str(value)).normalize().as_tuple().exponent)
+            except InvalidOperation as error:
+                raise ValueError(f"{field['name']}: invalid decimal default") from error
+            if scale > precision:
+                raise ValueError(f"{field['name']}: default exceeds decimal precision")
+
+
+def validate_field_schema_edges(schema, doctype):
+    validator = Draft202012Validator(schema)
+    valid = deepcopy(doctype)
+    field = valid['fields'][0]
+    field.update({
+        'type': 'decimal',
+        'precision': 2,
+        'default': 1.25,
+        'readOnly': True,
+        'description': 'Managed rate.',
+        'descriptionKey': 'maintenance.request.field.managed_rate',
+    })
+    field.pop('maxLength', None)
+    field.pop('minLength', None)
+    errors = list(validator.iter_errors(valid))
+    if errors:
+        formatted = '; '.join(
+            f"{list(error.absolute_path)}: {error.message}" for error in errors
+        )
+        raise ValueError(f'Valid decimal precision/default field rejected: {formatted}')
+    validate_field_properties(valid)
+
+    invalid_precision = deepcopy(valid)
+    invalid_precision['fields'][0]['precision'] = 10
+    if validator.is_valid(invalid_precision):
+        raise ValueError('Schema accepted decimal precision outside zero to nine')
+
+    invalid_default = deepcopy(valid)
+    invalid_default['fields'][0]['type'] = 'table'
+    if validator.is_valid(invalid_default):
+        raise ValueError('Schema accepted a scalar default on a table field')
+
+    missing_description_key = deepcopy(valid)
+    missing_description_key['fields'][0].pop('descriptionKey')
+    if validator.is_valid(missing_description_key):
+        raise ValueError('Schema accepted a field description without its key')
 
 
 def validate_schema_pair(schema_name: str, example_name: str):
@@ -66,6 +146,8 @@ def validate_schema_pair(schema_name: str, example_name: str):
     if schema_name == 'doctype':
         validate_numeric_bounds(payload)
         validate_length_bounds(payload)
+        validate_field_properties(payload)
+        validate_field_schema_edges(schema, payload)
     return payload
 
 

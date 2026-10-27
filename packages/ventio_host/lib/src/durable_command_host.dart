@@ -406,6 +406,13 @@ class DurableCommandHost {
             };
             for (final entry in recordValues.entries) {
               final field = fieldsByName[entry.key]!;
+              if (field.readOnly &&
+                  canonicalJson(valuesForStorage[field.name]) !=
+                      canonicalJson(entry.value)) {
+                throw _RejectedCommand(
+                  _failure(command, 'REJECTED', 'READ_ONLY_FIELD'),
+                );
+              }
               final requiredPermission = field.writePermission;
               if (requiredPermission != null &&
                   !authenticatedPrincipal.allowsInScope(
@@ -429,6 +436,13 @@ class DurableCommandHost {
             };
             for (final entry in recordValues.entries) {
               final field = fieldsByName[entry.key]!;
+              if (field.readOnly &&
+                  canonicalJson(field.defaultValue) !=
+                      canonicalJson(entry.value)) {
+                throw _RejectedCommand(
+                  _failure(command, 'REJECTED', 'READ_ONLY_FIELD'),
+                );
+              }
               final requiredPermission = field.writePermission;
               if (requiredPermission != null &&
                   !authenticatedPrincipal.allowsInScope(
@@ -445,6 +459,7 @@ class DurableCommandHost {
               }
             }
           }
+          valuesForStorage = docType.applyDefaults(valuesForStorage);
           if (docType.validatePayload(valuesForStorage).isNotEmpty) {
             throw _RejectedCommand(
               _failure(command, 'REJECTED', 'INVALID_PAYLOAD'),

@@ -1420,8 +1420,20 @@ class LocalExtensionStore {
       );
       final definition = DocTypeDefinition.fromJson(metadata);
       _requireOperation(definition, 'create');
-      _validatePayload(definition, values);
-      await _validateReferences(transaction, definition, values, scope);
+      final storedValues = definition.applyDefaults(values);
+      if (definition.fields.any(
+        (field) =>
+            field.readOnly &&
+            values.containsKey(field.name) &&
+            values[field.name] != field.defaultValue,
+      )) {
+        throw const ExtensionStoreException(
+          'READ_ONLY_FIELD',
+          'A read-only field cannot be set by a record creator.',
+        );
+      }
+      _validatePayload(definition, storedValues);
+      await _validateReferences(transaction, definition, storedValues, scope);
       final knownFields = definition.fields.map((field) => field.name).toSet();
       final readMask = readableFields == null
           ? null
@@ -1437,7 +1449,6 @@ class LocalExtensionStore {
           (createMask != null && !knownFields.containsAll(createMask))) {
         throw const FormatException('Host field permission mask is invalid.');
       }
-      final storedValues = Map<String, dynamic>.of(values);
       if (readMask != null) {
         storedValues.removeWhere((field, _) => !readMask.contains(field));
       }
@@ -1540,6 +1551,17 @@ class LocalExtensionStore {
         throw ExtensionStoreException(
           'REVISION_CONFLICT',
           'The record is at revision ${current.revision}; reload before saving.',
+        );
+      }
+      if (definition.fields.any(
+        (field) =>
+            field.readOnly &&
+            values.containsKey(field.name) &&
+            values[field.name] != current.values[field.name],
+      )) {
+        throw const ExtensionStoreException(
+          'READ_ONLY_FIELD',
+          'A read-only field cannot be changed after record creation.',
         );
       }
       final effectiveReadMask = readableFields == null
