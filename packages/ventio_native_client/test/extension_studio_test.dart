@@ -308,6 +308,108 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Generated form round-trips long text and table rows', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.typed_fields';
+    const permission = 'extension.com_example_typed_fields.asset';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 80,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'notes',
+          'type': 'long_text',
+          'required': true,
+          'maxLength': 2000,
+          'label': 'Notes',
+          'labelKey': '$permission.notes',
+        },
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': '$permission.lines',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['name', 'notes'],
+        'formFields': ['name', 'notes', 'lines'],
+        'detailFields': ['name', 'notes', 'lines'],
+      },
+      'label': 'Asset',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Typed Fields',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final inputs = find.byType(TextFormField);
+    await tester.enterText(inputs.at(0), 'Pump');
+    await tester.enterText(inputs.at(1), 'Installed beside the west workshop.');
+    await tester.enterText(
+      inputs.at(2),
+      '[{"itemCode":"SEAL-1","quantity":3}]',
+    );
+    await tester.scrollUntilVisible(
+      find.text('Save on device'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+
+    final record = (await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: scope,
+    )).single;
+    expect(record.values['notes'], 'Installed beside the west workshop.');
+    expect(record.values['lines'], [
+      {'itemCode': 'SEAL-1', 'quantity': 3},
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Builder verifies Host and saves an exact granted scope', (
     tester,
   ) async {

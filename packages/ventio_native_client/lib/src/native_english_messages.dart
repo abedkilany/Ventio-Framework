@@ -116,6 +116,12 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.move_field_up': 'Move {label} up',
   'native.ui.move_field_down': 'Move {label} down',
   'native.ui.extension_module_version': '{moduleId} · v{version}',
+  'native.ui.long_text': 'Long text',
+  'native.ui.child_table': 'Child table',
+  'native.ui.table_json_help':
+      'Enter a JSON array of flat row objects (up to 500 rows).',
+  'native.ui.table_json_error':
+      'Enter a valid JSON array of non-empty row objects, with no nested values and no more than 500 rows.',
   'native.ui.removal_requires_no_data_or_pending_commands':
       'Removal requires no local records or unresolved Host commands. Other extensions must not depend on this module.',
   'native.ui.remove_blocked_pending_commands':

@@ -128,6 +128,8 @@
         "type": {
           "enum": [
             "text",
+            "long_text",
+            "table",
             "integer",
             "decimal",
             "boolean",
@@ -227,7 +229,8 @@
                   "date",
                   "datetime",
                   "reference",
-                  "enum"
+                  "enum",
+                  "table"
                 ]
               }
             },
@@ -237,8 +240,9 @@
           },
           "then": {
             "not": {
-              "required": [
-                "minLength"
+              "anyOf": [
+                { "required": ["minLength"] },
+                { "required": ["maxLength"] }
               ]
             }
           }
@@ -271,6 +275,8 @@
               "type": {
                 "enum": [
                   "text",
+                  "long_text",
+                  "table",
                   "boolean",
                   "date",
                   "datetime",

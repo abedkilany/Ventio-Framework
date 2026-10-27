@@ -2899,7 +2899,9 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       text: field?['minLength']?.toString() ?? '',
     );
     _maxLength = TextEditingController(
-      text: field?['maxLength']?.toString() ?? '160',
+      text:
+          field?['maxLength']?.toString() ??
+          (field?['type'] == 'long_text' ? '2000' : '160'),
     );
     _minValue = TextEditingController(
       text: field?['minValue']?.toString() ?? '',
@@ -2949,7 +2951,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
       'label': label,
       'labelKey': '$fieldNamespace.label',
     };
-    if (_type == 'text') {
+    if (_type == 'text' || _type == 'long_text') {
       metadata['maxLength'] = int.parse(_maxLength.text);
       final minimumLength = int.tryParse(_minLength.text.trim());
       if (minimumLength != null) metadata['minLength'] = minimumLength;
@@ -3089,6 +3091,14 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                       child: VentioText('native.ui.text'),
                     ),
                     DropdownMenuItem(
+                      value: 'long_text',
+                      child: VentioText('native.ui.long_text'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'table',
+                      child: VentioText('native.ui.child_table'),
+                    ),
+                    DropdownMenuItem(
                       value: 'integer',
                       child: VentioText('native.ui.whole_number'),
                     ),
@@ -3117,9 +3127,18 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                       child: VentioText('native.ui.relationship'),
                     ),
                   ],
-                  onChanged: (value) => setState(() => _type = value ?? 'text'),
+                  onChanged: (value) => setState(() {
+                    if (value == 'long_text' &&
+                        _maxLength.text.trim() == '160') {
+                      _maxLength.text = '2000';
+                    } else if (value == 'text' &&
+                        _maxLength.text.trim() == '2000') {
+                      _maxLength.text = '160';
+                    }
+                    _type = value ?? 'text';
+                  }),
                 ),
-                if (_type == 'text') ...[
+                if (_type == 'text' || _type == 'long_text') ...[
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _minLength,
@@ -4159,6 +4178,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         _booleans[field.name] = value as bool? ?? false;
       } else if (field.type == 'enum' || field.type == 'reference') {
         _selections[field.name] = value as String?;
+      } else if (field.type == 'table') {
+        _controllers[field.name] = TextEditingController(
+          text: value == null ? '[]' : jsonEncode(value),
+        );
       } else {
         _controllers[field.name] = TextEditingController(
           text: value?.toString() ?? '',
@@ -4208,6 +4231,12 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         final raw = _controllers[field.name]!.text.trim();
         if (raw.isEmpty) {
           values[field.name] = null;
+        } else if (field.type == 'table') {
+          try {
+            values[field.name] = jsonDecode(raw);
+          } on FormatException {
+            values[field.name] = raw;
+          }
         } else if (field.type == 'integer') {
           values[field.name] = int.tryParse(raw);
         } else if (field.type == 'decimal') {
@@ -4474,13 +4503,22 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     return TextFormField(
       controller: _controllers[field.name],
       readOnly: widget.previewOnly || !editable,
-      keyboardType: switch (field.type) {
-        'integer' => TextInputType.number,
-        'decimal' => const TextInputType.numberWithOptions(decimal: true),
-        _ => TextInputType.text,
+      keyboardType: field.type == 'long_text' || field.type == 'table'
+          ? TextInputType.multiline
+          : switch (field.type) {
+              'integer' => TextInputType.number,
+              'decimal' => const TextInputType.numberWithOptions(decimal: true),
+              _ => TextInputType.text,
+            },
+      maxLength: field.type == 'text' || field.type == 'long_text'
+          ? field.maxLength
+          : null,
+      maxLines: switch (field.type) {
+        'long_text' => 4,
+        'table' => 8,
+        'text' when (field.maxLength ?? 0) > 500 => 4,
+        _ => 1,
       },
-      maxLength: field.type == 'text' ? field.maxLength : null,
-      maxLines: field.type == 'text' && (field.maxLength ?? 0) > 500 ? 4 : 1,
       decoration: InputDecoration(
         labelText: context.extensionMetadataText(field.labelKey, field.label),
         helperText: [
@@ -4492,6 +4530,8 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               .toLowerCase(),
           ...lengthConstraints,
           ...numericBounds,
+          if (field.type == 'table')
+            context.ventioText('native.ui.table_json_help'),
         ].join(' · '),
         border: const OutlineInputBorder(),
       ),
@@ -4521,6 +4561,31 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               'native.ui.too_long',
               params: {'maxLength': field.maxLength!},
             );
+          }
+        }
+        if (field.type == 'long_text') {
+          final issue = field.validate(raw);
+          if (issue == 'TOO_SHORT') {
+            return context.ventioText(
+              'native.ui.too_short',
+              params: {'minLength': field.minLength!},
+            );
+          }
+          if (issue == 'TOO_LONG') {
+            return context.ventioText(
+              'native.ui.too_long',
+              params: {'maxLength': field.maxLength!},
+            );
+          }
+        }
+        if (field.type == 'table') {
+          try {
+            final decoded = jsonDecode(raw);
+            if (field.validate(decoded) != null) {
+              return context.ventioText('native.ui.table_json_error');
+            }
+          } on FormatException {
+            return context.ventioText('native.ui.table_json_error');
           }
         }
         if (field.type == 'integer') {

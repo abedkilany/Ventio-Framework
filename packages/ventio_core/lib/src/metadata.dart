@@ -2,6 +2,7 @@ import 'contracts.dart';
 
 final RegExp _docTypeIdentifier = RegExp(r'^[A-Z][A-Za-z0-9_]*$');
 final RegExp _docFieldIdentifier = RegExp(r'^[a-z][A-Za-z0-9_]*$');
+const maxRowsPerTableField = 500;
 
 class FieldDefinition {
   final String name;
@@ -45,6 +46,8 @@ class FieldDefinition {
     final type = requireString(json, 'type');
     if (![
       'text',
+      'long_text',
+      'table',
       'integer',
       'decimal',
       'boolean',
@@ -65,10 +68,12 @@ class FieldDefinition {
         (maxLength is! int || maxLength < 1 || maxLength > 65535)) {
       throw const ContractError('INVALID_FIELD', 'Invalid maxLength');
     }
-    if (minLength != null && type != 'text') {
+    if ((minLength != null || maxLength != null) &&
+        type != 'text' &&
+        type != 'long_text') {
       throw const ContractError(
         'INVALID_FIELD',
-        'minLength requires a text field',
+        'Text length limits require a text or long text field',
       );
     }
     if (minLength != null && maxLength != null && minLength > maxLength) {
@@ -181,10 +186,11 @@ class FieldDefinition {
     if (value == null) return required ? 'REQUIRED' : null;
     switch (type) {
       case 'text':
+      case 'long_text':
       case 'reference':
         if (value is! String || (required && value.trim().isEmpty))
           return 'INVALID_TEXT';
-        if (type == 'text' &&
+        if ((type == 'text' || type == 'long_text') &&
             value.isNotEmpty &&
             minLength != null &&
             value.runes.length < minLength!) {
@@ -192,6 +198,30 @@ class FieldDefinition {
         }
         if (maxLength != null && value.runes.length > maxLength!)
           return 'TOO_LONG';
+        return null;
+      case 'table':
+        if (value is! List ||
+            value.length > maxRowsPerTableField ||
+            (required && value.isEmpty)) {
+          return 'INVALID_TABLE';
+        }
+        for (final row in value) {
+          if (row is! Map ||
+              row.isEmpty ||
+              row.keys.any((key) => key is! String) ||
+              row.values.any(
+                (cell) =>
+                    cell is Map ||
+                    cell is List ||
+                    (cell is num && !cell.isFinite) ||
+                    (cell != null &&
+                        cell is! String &&
+                        cell is! bool &&
+                        cell is! num),
+              )) {
+            return 'INVALID_TABLE';
+          }
+        }
         return null;
       case 'enum':
         return value is String && enumValues.contains(value)

@@ -536,6 +536,54 @@ void main() {
     );
   });
 
+  test('Long text and table fields preserve their typed value shapes', () {
+    final longText = FieldDefinition.fromJson({
+      'name': 'notes',
+      'type': 'long_text',
+      'required': true,
+      'minLength': 2,
+      'maxLength': 2000,
+      'label': 'Notes',
+      'labelKey': 'extension.example.asset.notes',
+    });
+    check(
+      longText.validate('A') == 'TOO_SHORT' &&
+          longText.validate('Long description') == null &&
+          longText.validate(List.filled(2001, 'x').join()) == 'TOO_LONG',
+      'Long text bounds were not enforced',
+    );
+
+    final table = FieldDefinition.fromJson({
+      'name': 'lines',
+      'type': 'table',
+      'required': true,
+      'label': 'Lines',
+      'labelKey': 'extension.example.asset.lines',
+    });
+    check(
+      table.validate([
+            {'itemCode': 'SKU-1', 'quantity': 3},
+          ]) ==
+          null,
+      'A flat child-row table was rejected',
+    );
+    check(
+      table.validate([]) == 'INVALID_TABLE' &&
+          table.validate([
+                {
+                  'nested': {'unsupported': true}
+                },
+              ]) ==
+              'INVALID_TABLE' &&
+          table.validate(
+                List.generate(
+                    maxRowsPerTableField + 1, (index) => {'row': index}),
+              ) ==
+              'INVALID_TABLE',
+      'Required, nested, or oversized table data was accepted',
+    );
+  });
+
   test('Host rejects extension records outside declared field bounds', () {
     const fixture = '../../fixtures/inspection';
     final modules = ModuleRegistry();

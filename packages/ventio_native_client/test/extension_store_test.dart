@@ -172,6 +172,71 @@ void main() {
     },
   );
 
+  test('Long text and table values survive SQLite record restart', () async {
+    final metadata = _docType(
+      fields: [
+        _textField(),
+        {
+          'name': 'notes',
+          'type': 'long_text',
+          'required': true,
+          'maxLength': 2000,
+          'label': 'Notes',
+          'labelKey': 'extension.com_example_asset_register.asset.notes',
+        },
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': 'extension.com_example_asset_register.asset.lines',
+        },
+      ],
+    );
+    metadata['labelKey'] = 'extension.com_example_asset_register.asset.name';
+    (metadata['fields'] as List).first['labelKey'] =
+        'extension.com_example_asset_register.asset.field.name.label';
+    await store.createExtension(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(_moduleId);
+    final values = <String, dynamic>{
+      'name': 'Pump',
+      'notes': 'Long service description',
+      'lines': [
+        {'itemCode': 'SEAL-1', 'quantity': 2},
+      ],
+    };
+    await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: values,
+      recordId: 'asset-typed-fields',
+    );
+    final roundTrip = ExtensionBundle.fromJson(
+      (await store.exportBundle(_moduleId)).toJson(),
+    );
+    expect(roundTrip.docTypes.single.fields.map((field) => field.type), [
+      'text',
+      'long_text',
+      'table',
+    ]);
+
+    await store.close();
+    await openStore();
+    final restored = await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: 'asset-typed-fields',
+      scope: _scope,
+    );
+    expect(restored!.values, values);
+  });
+
   test('Host scope profile persists across a database reopen', () async {
     const profile = HostConnectionProfile(
       endpoint: 'https://host.example.test:8443',

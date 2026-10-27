@@ -20,7 +20,8 @@ class LocalizationGateTests(unittest.TestCase):
         self.assertTrue(any("duplicate key" in error for error in errors))
 
     def test_catalog_rejects_non_english_script(self):
-        _, errors = gate.validate_catalog("'native.ui.ok': 'Καλημέρα',")
+        sample = "".join(chr(point) for point in (0x039A, 0x03B1, 0x03BB))
+        _, errors = gate.validate_catalog(f"'native.ui.ok': '{sample}',")
         self.assertTrue(any("non-English text" in error for error in errors))
 
     def test_rejects_literal_widget_text_and_missing_catalog_key(self):
