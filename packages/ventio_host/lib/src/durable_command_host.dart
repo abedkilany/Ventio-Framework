@@ -55,8 +55,9 @@ class DurableCommandHost {
           SELECT 1 FROM ventio_records
           WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
             AND module_id=@module AND doc_type=@doctype
-            AND record_id<>@target AND deleted_at IS NULL
-            AND record_data->>@field=@target
+            AND (doc_type<>@target_doctype OR record_id<>@target_record)
+            AND deleted_at IS NULL
+            AND record_data->>@field=@target_value
           LIMIT 1
         '''),
           parameters: {
@@ -65,8 +66,10 @@ class DurableCommandHost {
             'branch': command.branchId,
             'module': moduleId,
             'doctype': source.name,
+            'target_doctype': target.name,
+            'target_record': command.aggregateId,
             'field': field.name,
-            'target': command.aggregateId,
+            'target_value': command.aggregateId,
           },
         );
         if (rows.isNotEmpty) return true;
