@@ -94,6 +94,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.doctypes_summary': 'DocTypes: {names}',
   'native.ui.tenant_summary': 'Tenant: {tenantId}',
   'native.ui.edit_document': 'Edit {label}',
+  'native.ui.decimal_precision_summary': 'precision {precision}',
   'native.ui.new_document': 'New {label}',
   'native.ui.enter_number': 'Enter a number.',
   'native.ui.enter_finite_number': 'Enter a finite number.',
@@ -244,6 +245,10 @@ const ventioNativeEnglishMessages = <String, String>{
       'The Host-approved package and exact company/branch scope were verified. Accepted records are cached locally; new changes remain provisional until a Host receipt arrives.',
   'native.ui.host_record_refresh_failed_body':
       'The Host query did not complete. Retry to refresh records; cached records remain subject to Host authorization.',
+  'native.ui.host_record_local_edits':
+      'Host record · Local changes are provisional',
+  'native.ui.host_record_revision_notice':
+      'The Host accepted revision {revision}. Saving changes creates a pending command and requires a new Host receipt.',
   'native.ui.generated_page_settings': 'Generated page settings',
   'native.ui.host_approved_package': 'Host-approved package',
   'native.ui.host_denied_record_access': 'Host denied record access',
@@ -291,8 +296,12 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.manage_roles_access': 'Manage roles & access',
   'native.ui.maximum_length': 'Maximum length',
   'native.ui.maximum_value': 'Maximum value',
+  'native.ui.maximum_value_summary': 'max {maximum}',
+  'native.ui.maximum_length_summary': 'max length {maximum}',
   'native.ui.minimum_length': 'Minimum length',
   'native.ui.minimum_value': 'Minimum value',
+  'native.ui.minimum_value_summary': 'min {minimum}',
+  'native.ui.minimum_length_summary': 'min length {minimum}',
   'native.ui.module_id': 'Module ID',
   'native.ui.navigation_icon': 'Navigation icon',
   'native.ui.navigation_order': 'Navigation order',
@@ -322,6 +331,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.open_generated_form': 'Open generated form',
   'native.ui.open_records': 'Open records',
   'native.ui.optional': 'Optional',
+  'native.ui.operation_not_declared': 'Operation not declared',
   'native.ui.package_json': 'Package JSON',
   'native.ui.page_title': 'Page title',
   'native.ui.paste_a_ventio_declarative_package_it_can_contain_schemas_and_ui_metadat':
@@ -332,6 +342,19 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.permissions_and_operations': 'Permissions and operations',
   'native.ui.preview': 'Preview',
   'native.ui.preview_form': 'Preview form',
+  'native.ui.preview_only': 'Preview only',
+  'native.ui.provisional_device_record': 'Provisional device record',
+  'native.ui.provisional_record_notice':
+      'This record is stored locally. The Host has not accepted it yet; a Host receipt is required before it becomes shared data.',
+  'native.ui.form_preview_cannot_save':
+      'Values are for preview and cannot be saved.',
+  'native.ui.form_operation_not_declared':
+      'This DocType does not declare the required create or update operation.',
+  'native.ui.correct_form_errors_before_saving':
+      'Correct the highlighted form errors before saving.',
+  'native.ui.form_save_failed': 'The record could not be saved. Try again.',
+  'native.ui.saved_record_needs_queue_recovery':
+      'The record was saved locally, but its Host command needs recovery.',
   'native.ui.problem_description': 'Problem description',
   'native.ui.provisional_local_records': 'Provisional local records',
   'native.ui.read_operation_is_not_declared': 'Read operation is not declared',
@@ -372,6 +395,8 @@ const ventioNativeEnglishMessages = <String, String>{
       'Roles group permissions for this tenant. Host checks every affected branch before changing a shared role. The role management permission itself can only be granted directly by a trusted Host operator.',
   'native.ui.run_local_fixture': 'Run local fixture',
   'native.ui.save': 'Save',
+  'native.ui.save_changes': 'Save changes',
+  'native.ui.save_on_device': 'Save on device',
   'native.ui.save_field': 'Save field',
   'native.ui.saved_requests_will_remain_in_this_device_s_local_queue_after_the_app_re':
       'Saved requests will remain in this device’s local queue after the app restarts.',
@@ -402,6 +427,16 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.sync_pending_records': 'Sync pending records',
   'native.ui.target_field': 'Target field',
   'native.ui.text': 'Text',
+  'native.ui.field_type_text': 'Text',
+  'native.ui.field_type_long_text': 'Long text',
+  'native.ui.field_type_integer': 'Whole number',
+  'native.ui.field_type_decimal': 'Decimal',
+  'native.ui.field_type_date': 'Date',
+  'native.ui.field_type_datetime': 'Date and time',
+  'native.ui.field_type_boolean': 'Yes or no',
+  'native.ui.field_type_enum': 'Choice',
+  'native.ui.field_type_reference': 'Record reference',
+  'native.ui.field_type_table': 'Table data',
   'native.ui.the_extension_declares_read_create_and_update_permission_keys_it_cannot':
       'The extension declares read, create and update permission keys. It cannot grant them to users or add trusted Host capabilities. A Host administrator must approve and grant each exact scope.',
   'native.ui.the_host_approved_this_metadata_package_installing_saves_it_on_this_devi':

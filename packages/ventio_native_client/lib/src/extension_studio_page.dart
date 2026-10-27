@@ -4490,9 +4490,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     if (widget.previewOnly) return;
     final operation = widget.record == null ? 'create' : 'update';
     if (!widget.definition.operations.contains(operation)) {
-      _message(
-        'The ${widget.definition.name} DocType does not declare $operation.',
-      );
+      _message('native.ui.form_operation_not_declared');
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -4502,7 +4500,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       partial: widget.record != null,
     );
     if (issues.isNotEmpty) {
-      _message(issues.join('\n'));
+      _message('native.ui.correct_form_errors_before_saving');
       return;
     }
     setState(() => _saving = true);
@@ -4543,21 +4541,21 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
           definition: widget.definition,
           values: values,
         );
-      } catch (error) {
-        _message('Saved locally; Host command recovery is needed: $error');
+      } catch (_) {
+        _message('native.ui.saved_record_needs_queue_recovery');
       }
       if (mounted) Navigator.pop(context, true);
-    } catch (error) {
-      _message(error.toString());
+    } catch (_) {
+      _message('native.ui.form_save_failed');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  void _message(String value) {
+  void _message(String key) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(value)));
+      ..showSnackBar(SnackBar(content: VentioText(key)));
   }
 
   @override
@@ -4598,15 +4596,26 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               children: [
                 _LocalOnlyNotice(
                   title: widget.previewOnly
-                      ? 'Preview form'
+                      ? context.ventioText('native.ui.preview_form')
                       : widget.record?.authorityState == 'HOST_ACCEPTED'
-                      ? 'Host record · Local changes are provisional'
-                      : 'Provisional device record',
+                      ? context.ventioText('native.ui.host_record_local_edits')
+                      : context.ventioText(
+                          'native.ui.provisional_device_record',
+                        ),
                   body: widget.previewOnly
-                      ? 'Values are for preview and cannot be saved.'
+                      ? context.ventioText('native.ui.form_preview_cannot_save')
                       : widget.record?.authorityState == 'HOST_ACCEPTED'
-                      ? 'The Host accepted revision ${widget.record!.hostRevision ?? widget.record!.revision}. Saving changes creates a pending command and requires a new Host receipt.'
-                      : 'This record is stored locally. The Host has not accepted it yet; a Host receipt is required before it becomes shared data.',
+                      ? context.ventioText(
+                          'native.ui.host_record_revision_notice',
+                          params: {
+                            'revision':
+                                widget.record!.hostRevision ??
+                                widget.record!.revision,
+                          },
+                        )
+                      : context.ventioText(
+                          'native.ui.provisional_record_notice',
+                        ),
                   icon: widget.previewOnly
                       ? Icons.preview_outlined
                       : Icons.save_outlined,
@@ -4627,14 +4636,16 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
                     icon: const Icon(Icons.save_outlined),
                     label: Text(
                       widget.previewOnly
-                          ? 'Preview only'
+                          ? context.ventioText('native.ui.preview_only')
                           : !canSave
-                          ? 'Operation not declared'
+                          ? context.ventioText(
+                              'native.ui.operation_not_declared',
+                            )
                           : _saving
-                          ? 'Saving…'
+                          ? context.ventioText('native.ui.saving')
                           : editing
-                          ? 'Save changes'
-                          : 'Save on device',
+                          ? context.ventioText('native.ui.save_changes')
+                          : context.ventioText('native.ui.save_on_device'),
                     ),
                   ),
                 ),
@@ -4651,7 +4662,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(context.extensionMetadataText(field.labelKey, field.label)),
-        subtitle: Text(field.required ? 'Required' : 'Optional'),
+        subtitle: VentioText(
+          field.required ? 'native.ui.required' : 'native.ui.optional',
+        ),
         value: _booleans[field.name] ?? false,
         onChanged: widget.previewOnly || !editable
             ? null
@@ -4730,15 +4743,36 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       );
     }
     final numericBounds = <String>[
-      if (field.minValue != null) 'min ${field.minValue}',
-      if (field.maxValue != null) 'max ${field.maxValue}',
+      if (field.minValue != null)
+        context.ventioText(
+          'native.ui.minimum_value_summary',
+          params: {'minimum': field.minValue!},
+        ),
+      if (field.maxValue != null)
+        context.ventioText(
+          'native.ui.maximum_value_summary',
+          params: {'maximum': field.maxValue!},
+        ),
     ];
     final lengthConstraints = <String>[
-      if (field.minLength != null) 'min length ${field.minLength}',
-      if (field.maxLength != null) 'max length ${field.maxLength}',
+      if (field.minLength != null)
+        context.ventioText(
+          'native.ui.minimum_length_summary',
+          params: {'minimum': field.minLength!},
+        ),
+      if (field.maxLength != null)
+        context.ventioText(
+          'native.ui.maximum_length_summary',
+          params: {'maximum': field.maxLength!},
+        ),
     ];
     if (field.precision != null) {
-      numericBounds.add('precision ${field.precision}');
+      numericBounds.add(
+        context.ventioText(
+          'native.ui.decimal_precision_summary',
+          params: {'precision': field.precision!},
+        ),
+      );
     }
     return TextFormField(
       controller: _controllers[field.name],
@@ -4762,7 +4796,19 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       decoration: InputDecoration(
         labelText: context.extensionMetadataText(field.labelKey, field.label),
         helperText: [
-          field.type,
+          context.ventioText(switch (field.type) {
+            'text' => 'native.ui.field_type_text',
+            'long_text' => 'native.ui.field_type_long_text',
+            'integer' => 'native.ui.field_type_integer',
+            'decimal' => 'native.ui.field_type_decimal',
+            'date' => 'native.ui.field_type_date',
+            'datetime' => 'native.ui.field_type_datetime',
+            'boolean' => 'native.ui.field_type_boolean',
+            'enum' => 'native.ui.field_type_enum',
+            'reference' => 'native.ui.field_type_reference',
+            'table' => 'native.ui.field_type_table',
+            _ => 'native.ui.field_type_text',
+          }),
           context
               .ventioText(
                 field.required ? 'native.ui.required' : 'native.ui.optional',
