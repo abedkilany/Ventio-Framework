@@ -7,16 +7,16 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 **76.55%** `███████████████▎░░░░` (20% Stage 0 + 56.55% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **20 / 23 accepted** — K06 accepted after PostgreSQL multi-row operation and offline reconciliation evidence (65% overall)
+- Stage 1 Wave 1: **20 / 23 accepted** — all capabilities through B04 in the execution order are accepted (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 ## Live checkpoint
 
-- Current task: A07 — implement child / Table DocTypes and typed child rows.
+- Current task: F02 — verify declarative aggregation and calculated-total foundations against the fixed acceptance criteria.
 - Last completed capability: B04 — Draft / Submit / Cancel / Amend lifecycle (20/23 accepted).
-- Next action: review existing child-row storage against A07 acceptance, then implement only verified gaps.
+- Next action: inspect Core, Host, SQLite, and Studio calculation paths; identify F02 gaps before making changes.
 - Blockers: none. B04 PostgreSQL Host integration passed **128/128**; A10 allocator passed **6/6**. Disposable PostgreSQL 17.11 cluster stopped after tests.
-- Latest committed checkpoint: `4cbcb6f` (B04 implementation and acceptance). Stage 0 remains 7/7 PASS; B04 is accepted; Wave 1 is 20/23 at 76.55%.
+- Latest implementation checkpoint: `4cbcb6f` (B04 implementation and acceptance). Stage 0 remains 7/7 PASS; B04 is accepted; Wave 1 is 20/23 at 76.55%.
 - Since the previous dashboard update: the expanded PostgreSQL integration passed **128/128**, including concurrent identical and distinct Amend races. Store passed **38/38**, Core **74/74**, focused Studio Amend and builder tests **1/1** each, client and Host analysis passed, and the localization gate passed. B04 acceptance evidence is recorded in [B04_LIFECYCLE_ACCEPTANCE.md](B04_LIFECYCLE_ACCEPTANCE.md). Overall accepted progress is **76.55%**.
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
@@ -118,4 +118,5 @@ Total Wave 1 effort points: **100**.
 - K06 PostgreSQL checkpoint: the disposable Windows PostgreSQL **17.11** cluster on `127.0.0.1:55439` was reused safely; migration `024_document_number_series.sql` was applied, then the guarded security bootstrap was applied twice. A10's allocator integration passed **6/6**. Runtime exposed and fixed the nonexistent `jsonb_object_length(jsonb)` calls. Full Host integration first passed **118/118**; after adding exact operation-permission denial and concurrent duplicate Submit coverage, it passed **119/119** including generic CRUD, child rows, lifecycle, package governance, field/scope permissions, RLS, atomic Submit/Cancel, rollback, retries, idempotency and recovery checks. A10 remains accepted at **18/23**, **66.80%** overall. K06 is IN_PROGRESS because the generic multi-row effect and offline reconciliation review remain. Checkpoints `0cb5019`, `78b23ac`, `747bcd0`.
 - K06 accepted: added the bounded `record.increment_rows` declaration, Core validation against the parent Child Table and target DocType, atomic Host execution over persisted rows, fixed-point decimal aggregation, and PostgreSQL RLS binding for each Host-selected target. The ordinary extension integration passed **119/119** on disposable Windows PostgreSQL 17.11 after reapplying the guarded security bootstrap twice; A10 allocation passed **6/6**; Core **73/73**; ExtensionStore **37/37**; Extension Studio **27/27**; targeted analysis clean. PostgreSQL was stopped after checks. [Evidence](K06_GOVERNED_OPERATIONS_ACCEPTANCE.md). K06 is **COMPLETED / Newly Implemented**; Wave 1 is **19/23**, overall accepted progress **72.00%**. Checkpoint `04f1007`.
 - B04 accepted: after reviewing [A04](A04_POSTGRESQL_ACCEPTANCE.md) and [D01](D01_IDENTITY_ACCEPTANCE.md), the disposable Windows PostgreSQL 17.11 cluster passed the expanded Host integration **128/128** and A10 allocator integration **6/6**. Migration `024_document_number_series.sql` and the guarded security bootstrap were applied; bootstrap reapplication was idempotent. Coverage includes lifecycle permissions, rollback, numbering, cancellation reversal, Amend validation, linked draft creation, concurrent identical retries, and distinct Amend races. Core **74/74**, SQLite Store **38/38**, focused Studio Amend and builder **1/1** each, Dart analysis, and localization gate passed. The cluster was stopped. Evidence: [B04_LIFECYCLE_ACCEPTANCE.md](B04_LIFECYCLE_ACCEPTANCE.md). Wave 1 is **20/23 accepted**, overall **76.55%**; A07 is next.
+
 
