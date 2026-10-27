@@ -29,7 +29,7 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 09 | D04 | Field-level permissions | 5 | COMPLETED | PostgreSQL Host integration 87/87; protected-field create, direct read-mask, filter/sort, and write checks; partial-update preservation. SQLite cache scrubbing 1/1; Studio identity-scoped masks 1/1. [Evidence](D04_FIELD_PERMISSION_ACCEPTANCE.md); checkpoint `2066399`. |
 | 10 | D03 | Operation-level permissions | 4 | COMPLETED | Core 69/69; PostgreSQL Host extension integration 87/87. `read`-only identity denied create/update with no record or revision effects; identity integration confirms permission revocation blocks saved-receipt replay. [Evidence](D03_OPERATION_PERMISSION_ACCEPTANCE.md); checkpoint `2066399`. |
 | 11 | B03 | Document validation and lifecycle foundations | 5 | COMPLETED | Core 69/69; PostgreSQL 17.11 durable Host integration 43/43; extension integration 87/87; Host analysis clean. Invalid writes/references rejected, pre-commit fault rolls back record/journal/audit/outbox/cursor, same-ID retry and concurrency verified. [Evidence](B03_DOCUMENT_VALIDATION_ACCEPTANCE.md); checkpoint `78b3d89`. |
-| 12 | B01 | CRUD with safe deletion semantics | 4 | IN_PROGRESS | B01/K06/B04 compatibility fixed in ADR-010: governed `record.delete@1`, retained tombstone, reserved ID, `RESTRICT` references, Host-owned draft/submitted/cancelled status. Begin implementation and focused Host/SQLite verification. |
+| 12 | B01 | CRUD with safe deletion semantics | 4 | IN_PROGRESS | ADR-010 implementation checkpoint `72c42cd`: Core delete command/metadata, Host draft-only tombstone with revision and inbound-reference checks, PostgreSQL resolver/RLS/migration, SQLite optimistic deletion and receipt restore, Studio delete action. Core 69/69 and focused SQLite test pass; PostgreSQL acceptance is running. Not accepted until Host integration proves permissions, reference restriction, hidden tombstones, and retry idempotency. |
 | 13 | B05 | Record search, filtering, sorting, and pagination | 4 | NOT_STARTED | — |
 | 14 | C01 | Generated List View | 3 | NOT_STARTED | — |
 | 15 | C02 | Generated Form View | 3 | NOT_STARTED | — |
@@ -46,13 +46,13 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: B01 — implement the ADR-010 generic delete primitive with tombstone and Host/SQLite receipt reconciliation.
+- Current task: B01 — verify the ADR-010 generic delete primitive with PostgreSQL integration and complete CRUD evidence.
 - Last successfully completed capability: B03 — document validation and lifecycle foundations.
 - Next task: B01 — CRUD with safe deletion semantics.
 - Blockers: The unrelated abrupt-child queue recovery test currently hits a Dart FFI compiler transformer crash (exit 252) before the test body. Queue guard, standard queue recovery, SQLite persistence, and Windows acceptance checks pass; no current Wave 1 acceptance depends on that subprocess case.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest checkpoint: `11b3f3b` — ADR-010 resolves governed CRUD operation and document-state architecture before B01 implementation.
+- Latest implementation checkpoint: `72c42cd` — governed safe delete path and focused Core/SQLite tests committed; PostgreSQL integration is still running.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -77,3 +77,5 @@ ative_english_messages.dart`; stable IDs and user-entered business values remain
 - D04 accepted and strengthened: PostgreSQL Host integration passed 87/87, directly checking unreadable-field omission and filter/sort denial, plus protected writes and partial-update preservation. SQLite cache scrubbing and Extension Studio identity-scoped mask tests passed 1/1 each. [Evidence](D04_FIELD_PERMISSION_ACCEPTANCE.md).
 - D03 accepted: Core operation contract checks passed in the 69/69 harness. PostgreSQL Host extension integration passed 87/87, including read-only denial of create/update with no record or revision effects. Prior persistent identity integration confirms revoked permission blocks retries and saved-receipt replay without side effects. A repeat-run benchmark fixture collision and a noisy microbenchmark threshold were fixed so the Host integration now completes reliably. [Evidence](D03_OPERATION_PERMISSION_ACCEPTANCE.md). Wave 1 is **11/23 accepted**, overall progress **49.25%**, and B01 is next.
 - ADR-010 now fixes one declarative governed-operation pipeline, Host-owned document status, and safe delete tombstones before B01 implementation. The final reference extension remains unstarted.
+- B01 implementation checkpoint in progress: generic delete command and DocType operation, draft-only Host tombstone with stable ID/data and optimistic revision, cross-row inbound reference guard, PostgreSQL delete resolver/RLS/schema migration, SQLite local tombstone/receipt restore and Extension Studio delete action. Core 69/69, focused SQLite deletion test 1/1, and Host API analysis pass. PostgreSQL extension integration is still running, so B01 remains IN_PROGRESS and the weighted percentage remains 49.25%.
+- Implementation commit `72c42cd` saved the B01 code and focused tests to `codex/extension-platform`. The isolated PostgreSQL package integration remains in progress; no acceptance is claimed yet.
