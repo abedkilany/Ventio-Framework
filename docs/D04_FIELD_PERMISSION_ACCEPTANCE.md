@@ -8,17 +8,17 @@ Date: 2026-10-27
 
 ## PostgreSQL Host evidence
 
-Against the isolated PostgreSQL 17.11 `ventio_host_test` database on loopback, `dart run test/extension_package_integration.dart` completed with **83 passed, 0 failed**. The field permission checks verified:
+Against the isolated PostgreSQL 17.11 `ventio_host_test` database on loopback, `dart run test/extension_package_integration.dart` completed with **87 passed, 0 failed** (including the D03 additions). The field permission checks verified:
 
 - A field-granted identity can create and update the protected value.
-- A principal without field read permission cannot discover the protected sentinel through search; Host omits the field from `readableFields` and returns no matching records.
-- Host rejects a filter on an unreadable protected field with `PERMISSION_DENIED`.
+- A principal without field read permission cannot discover the protected sentinel through search; Host omits the field from `readableFields`, returns no matching records, and a direct record read omits the protected value entirely.
+- Host rejects filters and sorting on unreadable protected fields with `PERMISSION_DENIED`.
 - Host rejects creation of a protected value without the field write grant and a privileged readback confirms no record was stored.
 - Host reports that a read-only field is not writable.
 - Host rejects a forged protected-field write and preserves the prior value.
 - A permitted partial update succeeds and preserves protected values not included in its patch.
 
-Host implementation review confirms that the query response constructs each record's `values` map only from `readableFields`, and rejects unreadable filter, search, and sort fields before querying. Regression assertions for direct-read omission and sort denial were added to the integration source; `dart analyze test/extension_package_integration.dart` reported no issues.
+Host constructs each record's `values` map only from `readableFields`; the PostgreSQL integration directly verifies protected-value omission and denial of unreadable filters and sorting. `dart analyze test/extension_package_integration.dart` reported no issues.
 
 ## Native client evidence
 
