@@ -17,9 +17,11 @@ class _RoleTestExecutor implements AuthoritativeCommandExecutor {
 }
 
 Future<void> main() async {
+  final auditUrl = Platform.environment['VENTIO_TEST_DATABASE_URL'];
   final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
   final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
-  if (runtimeUrl == null ||
+  if (auditUrl == null ||
+      runtimeUrl == null ||
       adminUrl == null ||
       Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
       Uri.parse(
@@ -41,6 +43,7 @@ Future<void> main() async {
   }
 
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
+  final auditConnection = await pg.Connection.openFromUrl(auditUrl);
   final temporary = await createPrivateTestDirectory('ventio-role-api-');
   final authority = RecoveryAuthority('${temporary.path}/authority.json');
   final tenant = 'role-api-${DateTime.now().toUtc().microsecondsSinceEpoch}';
@@ -388,9 +391,38 @@ Future<void> main() async {
       revokedManager.status == 403,
       'Revoking the direct management grant takes effect on the next request',
     );
+    final roleAudit = await auditConnection.execute(
+      pg.Sql.named('''
+        SELECT action, subject_id, details::text, database_actor
+        FROM ventio_identity_audit
+        WHERE tenant_id = @tenant AND action LIKE 'ROLE_%'
+      '''),
+      parameters: {'tenant': tenant},
+    );
+    final roleActions = roleAudit.map((row) => row[0] as String).toSet();
+    final assignmentWasAudited = roleAudit.any((row) {
+      final details = jsonDecode(row[2] as String) as Map<String, dynamic>;
+      return row[0] == 'ROLE_ASSIGNED' &&
+          row[1] == 'reader-a' &&
+          details['roleId'] == 'branch-editor' &&
+          details['companyId'] == companyA &&
+          details['branchId'] == branchA;
+    });
+    check(
+      roleActions.containsAll({
+            'ROLE_CREATED',
+            'ROLE_RENAMED',
+            'ROLE_PERMISSION_GRANTED',
+            'ROLE_ASSIGNED',
+          }) &&
+          assignmentWasAudited &&
+          roleAudit.every((row) => (row[3] as String).isNotEmpty),
+      'Role changes are durably audited with exact assignment scope and database actor',
+    );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     await api?.close();
+    await auditConnection.close();
     await adminConnection.close();
     await temporary.delete(recursive: true);
   }
