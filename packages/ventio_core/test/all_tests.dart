@@ -158,6 +158,45 @@ void main() {
     );
   });
 
+  test('Business operation commands have a strict bounded wire shape', () {
+    final command = ExtensionBusinessOperationCommand.execute(
+      commandId: uuid(109),
+      tenantId: 'example-tenant',
+      companyId: 'example-company',
+      branchId: 'example-branch',
+      recordId: uuid(110),
+      expectedRevision: 3,
+      actorId: 'example-user',
+      deviceId: 'example-device',
+      moduleId: 'com.example.assets',
+      moduleVersion: '0.1.0',
+      docType: 'Asset',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: {'reason': 'Count verified'},
+    );
+    final parsed =
+        ExtensionBusinessOperationCommand.fromEnvelope(command.envelope);
+    check(
+      parsed.operationId == 'inventory.submit' &&
+          parsed.operationVersion == 1 &&
+          parsed.inputs['reason'] == 'Count verified' &&
+          parsed.envelope.expectedRevision == 3,
+      'A valid operation command did not round-trip',
+    );
+    final nested = changed(command.envelope.original);
+    (nested['payload'] as Map)['inputs'] = {
+      'reason': {'code': 'forbidden'}
+    };
+    checkThrows(
+      () => ExtensionBusinessOperationCommand.fromEnvelope(
+        CommandEnvelope.fromJson(nested),
+      ),
+      'Nested executable-like command input was accepted',
+    );
+  });
+
   test('Principal grants stay bound to exact company and branch pairs', () {
     final principal = Principal(
       actorId: 'user',

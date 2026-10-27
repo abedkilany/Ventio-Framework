@@ -24,5 +24,29 @@
       "docTypeVersion": {"type": "integer", "minimum": 1},
       "clientTimestamp": {"type": "string", "format": "date-time"}
     }}
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "extension.operation.execute" } }, "required": ["type"] },
+      "then": {
+        "properties": {
+          "typeVersion": { "const": 1 },
+          "expectedRevision": { "type": "integer", "minimum": 1 },
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["moduleId", "docType", "operationId", "operationVersion", "inputs"],
+            "properties": {
+              "moduleId": { "type": "string", "maxLength": 128, "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$" },
+              "docType": { "type": "string", "maxLength": 80, "pattern": "^[A-Z][A-Za-z0-9_]*$" },
+              "operationId": { "type": "string", "maxLength": 128, "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$" },
+              "operationVersion": { "type": "integer", "minimum": 1, "maximum": 255 },
+              "inputs": { "type": "object", "maxProperties": 32, "propertyNames": { "pattern": "^[a-z][A-Za-z0-9_]{0,79}$" }, "additionalProperties": { "type": ["string", "number", "boolean", "null"] } }
+            }
+          }
+        },
+        "required": ["expectedRevision"]
+      }
+    }
+  ]
 }

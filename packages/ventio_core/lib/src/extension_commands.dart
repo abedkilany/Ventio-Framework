@@ -174,10 +174,12 @@ class ExtensionRecordCommand {
         'Delete commands cannot include business field values.',
       );
     }
-    if (moduleId.length > 128 || !_moduleIdPattern.hasMatch(moduleId)) {
+    if (moduleId.length > 128 ||
+        !ExtensionRecordCommand._moduleIdPattern.hasMatch(moduleId)) {
       throw const ContractError('INVALID_MODULE_ID', 'Invalid extension ID.');
     }
-    if (docType.length > 80 || !_docTypePattern.hasMatch(docType)) {
+    if (docType.length > 80 ||
+        !ExtensionRecordCommand._docTypePattern.hasMatch(docType)) {
       throw const ContractError('INVALID_DOCTYPE', 'Invalid DocType name.');
     }
     return ExtensionRecordCommand._(
@@ -225,5 +227,125 @@ class ExtensionRecordCommand {
       },
     });
     return ExtensionRecordCommand.fromEnvelope(envelope);
+  }
+}
+
+/// Wire command for a package-declared business operation. The payload carries
+/// only bounded data; the Host resolves the approved declaration and runs its
+/// Core-owned effect implementation.
+class ExtensionBusinessOperationCommand {
+  const ExtensionBusinessOperationCommand._(this.envelope, this.moduleId,
+      this.docType, this.operationId, this.operationVersion, this.inputs);
+
+  static const commandType = 'extension.operation.execute';
+  static const commandVersion = 1;
+
+  final CommandEnvelope envelope;
+  final String moduleId;
+  final String docType;
+  final String operationId;
+  final int operationVersion;
+  final Map<String, dynamic> inputs;
+
+  factory ExtensionBusinessOperationCommand.execute({
+    required String commandId,
+    required String tenantId,
+    required String companyId,
+    required String branchId,
+    required String recordId,
+    required int expectedRevision,
+    required String actorId,
+    required String deviceId,
+    required String moduleId,
+    required String moduleVersion,
+    required String docType,
+    required int schemaVersion,
+    required String operationId,
+    required int operationVersion,
+    required Map<String, dynamic> inputs,
+    List<String> dependsOn = const [],
+  }) {
+    final envelope = CommandEnvelope.fromJson({
+      'protocolVersion': 0,
+      'commandId': commandId,
+      'type': commandType,
+      'typeVersion': commandVersion,
+      'tenantId': tenantId,
+      'companyId': companyId,
+      'branchId': branchId,
+      'aggregateId': recordId,
+      'expectedRevision': expectedRevision,
+      'dependsOn': dependsOn,
+      'payload': {
+        'moduleId': moduleId,
+        'docType': docType,
+        'operationId': operationId,
+        'operationVersion': operationVersion,
+        'inputs': inputs,
+      },
+      'clientContext': {
+        'deviceId': deviceId,
+        'actorId': actorId,
+        'moduleVersion': moduleVersion,
+        'docTypeVersion': schemaVersion,
+      },
+    });
+    return ExtensionBusinessOperationCommand.fromEnvelope(envelope);
+  }
+
+  factory ExtensionBusinessOperationCommand.fromEnvelope(
+      CommandEnvelope envelope) {
+    if (envelope.type != commandType ||
+        envelope.typeVersion != commandVersion ||
+        envelope.expectedRevision == null ||
+        envelope.expectedRevision! < 1) {
+      throw const ContractError(
+          'INVALID_COMMAND', 'Invalid business operation command.');
+    }
+    final payload = envelope.payload;
+    if (payload.keys.toSet().difference(const {
+          'moduleId',
+          'docType',
+          'operationId',
+          'operationVersion',
+          'inputs',
+        }).isNotEmpty ||
+        payload.length != 5) {
+      throw const ContractError(
+          'INVALID_CONTRACT', 'Invalid business operation command payload.');
+    }
+    final moduleId = requireString(payload, 'moduleId');
+    final docType = requireString(payload, 'docType');
+    final operationId = requireString(payload, 'operationId');
+    final operationVersion = requireInt(payload, 'operationVersion', min: 1);
+    final inputs = requireMap(payload['inputs'], 'inputs');
+    if (moduleId.length > 128 ||
+        !ExtensionRecordCommand._moduleIdPattern.hasMatch(moduleId)) {
+      throw const ContractError('INVALID_MODULE_ID', 'Invalid extension ID.');
+    }
+    if (docType.length > 80 ||
+        !ExtensionRecordCommand._docTypePattern.hasMatch(docType)) {
+      throw const ContractError('INVALID_DOCTYPE', 'Invalid DocType name.');
+    }
+    if (operationId.length > 128 ||
+        !RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(operationId) ||
+        operationVersion > 255 ||
+        inputs.length > 32 ||
+        inputs.entries.any((entry) =>
+            !RegExp(r'^[a-z][A-Za-z0-9_]{0,79}$').hasMatch(entry.key) ||
+            entry.value is Map ||
+            entry.value is List ||
+            (entry.value is num && !(entry.value as num).isFinite))) {
+      throw const ContractError(
+          'INVALID_CONTRACT', 'Invalid business operation inputs.');
+    }
+    return ExtensionBusinessOperationCommand._(
+      envelope,
+      moduleId,
+      docType,
+      operationId,
+      operationVersion,
+      Map.unmodifiable(inputs),
+    );
   }
 }
