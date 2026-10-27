@@ -176,6 +176,23 @@ void main() {
       canonicalJson(bundle.toJson()) == canonicalJson(source),
       'Extension bundle did not round-trip canonically',
     );
+    final outsidePackageRelation = changed(source);
+    final relationType = (outsidePackageRelation['docTypes'] as List).single
+        as Map<String, dynamic>;
+    (relationType['fields'] as List).add({
+      'name': 'externalAsset',
+      'type': 'reference',
+      'referenceTo': 'ExternalAsset',
+      'required': false,
+      'label': 'External asset',
+      'labelKey': 'extension.com_example_assets.asset.external_asset',
+    });
+    (outsidePackageRelation['englishCatalog'] as Map<String, dynamic>)[
+        'extension.com_example_assets.asset.external_asset'] = 'External asset';
+    checkThrows(
+      () => ExtensionBundle.fromJson(outsidePackageRelation),
+      'A package reference target outside the module was accepted',
+    );
     final generatedPage = changed(source);
     final generatedPageType =
         (generatedPage['docTypes'] as List).single as Map<String, dynamic>;
