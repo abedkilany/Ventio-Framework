@@ -47,9 +47,7 @@ Future<void> main() async {
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
   final runtimeConnection = await pg.Connection.openFromUrl(runtimeUrl);
   final observer = await pg.Connection.openFromUrl(databaseUrl);
-  stderr.writeln('SETUP: PostgreSQL connections opened');
   final temporary = await createPrivateTestDirectory('ventio-package-');
-  stderr.writeln('SETUP: private test directory protected');
   final authority = RecoveryAuthority(temporary.path + '/authority.json');
   final tenant =
       'extension-' + DateTime.now().toUtc().microsecondsSinceEpoch.toString();
@@ -60,7 +58,6 @@ Future<void> main() async {
   HostApi? api;
   try {
     await authority.resetForReenrollment(adminConnection, 'package-test-reset');
-    stderr.writeln('SETUP: recovery authority reset');
     final identityAdmin = IdentityAdministration(
       connection: adminConnection,
       tenantId: tenant,
@@ -86,15 +83,11 @@ Future<void> main() async {
       bool registerBranch = true,
     }) async {
       await identityAdmin.createUser(actor);
-      stderr.writeln('SETUP: user $actor created');
       if (registerBranch) await identityAdmin.registerBranch(company, branch);
-      stderr.writeln('SETUP: branch $branch registered');
       await identityAdmin.registerDevice(actor, device);
-      stderr.writeln('SETUP: device $device registered');
       for (final permission in permissions) {
         await identityAdmin.grant(actor, company, branch, permission);
       }
-      stderr.writeln('SETUP: permissions granted for $actor');
       final output = temporary.path + '/' + credential + '.json';
       await identityAdmin.provisionToFile(
         actorId: actor,
@@ -110,7 +103,6 @@ Future<void> main() async {
         ],
         outputPath: output,
       );
-      stderr.writeln('SETUP: credential provisioned for $actor');
       return (jsonDecode(await PrivateFiles.read(output)) as Map)['token']
           as String;
     }
@@ -1404,7 +1396,6 @@ Future<void> main() async {
       token: primaryToken,
       body: staleRecord.envelope.original,
     );
-    stderr.writeln('DEBUG: stale-write response ${stale.status} ${stale.body}');
     expect(
       stale.status == 409 &&
           stale.body['receipt']['reasonCode'] == 'REVISION_CONFLICT' &&

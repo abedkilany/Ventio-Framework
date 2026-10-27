@@ -406,6 +406,10 @@ class DurableCommandHost {
             }
             final currentRows = await tx.execute(
               pg.Sql.named('''
+              -- The exact-scope advisory transaction lock above serializes
+              -- Host writes. Avoid FOR UPDATE here: the RLS UPDATE policy
+              -- binds rows to expected_revision, which would hide stale rows
+              -- before we can return their current revision to the client.
               SELECT revision, record_data::text AS record_json,
                      document_status, deleted_at
             FROM ventio_records
@@ -413,7 +417,6 @@ class DurableCommandHost {
               AND branch_id = @branch AND module_id = @module
               AND doc_type = @doctype AND record_id = @record
               AND deleted_at IS NULL
-            FOR UPDATE
           '''),
               parameters: {
                 'tenant': command.tenantId,
