@@ -4,20 +4,20 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**82.40%** `████████████████▍░░░` (20% Stage 0 + 62.40% accepted Wave 1)
+**85.00%** `█████████████████░░░` (20% Stage 0 + 65% accepted Wave 1)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
-- Stage 1 Wave 1: **22 / 23 accepted** — all capabilities through F01 in the execution order are accepted (65% overall)
+- Stage 1 Wave 1: **23 / 23 accepted** — all capabilities are accepted (65% overall)
 - Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
 
 ## Live checkpoint
 
-- Current task: G01 — define a bounded declarative print-format contract, then implement ordinary Studio authoring and authorized PDF output.
-- Last completed capability: F01 — Declarative Report Builder (22/23 accepted).
-- Next action: add Core print-format metadata and package round-trip, then persist formats in SQLite.
-- Blockers: none. Disposable Windows PostgreSQL 17.11 Host integration passed **137/137**, including report exact sums, field/scope denials, filters, sorting, group limit, row limit, and the retained A10/K06/B04 regressions.
-- Latest checkpoint: `16a3710` (G01 declarative print architecture); accepted F01 implementation is `446ac49`. G01 contract and acceptance mapping are in [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 remains 7/7 PASS; Wave 1 is 22/23 at 82.40%.
-- Since the previous dashboard update: fixed G01's bounded format contract: source DocType, A4/Letter orientation, ordered scalar/table/page-break blocks, 500-row child-table cap, and a fresh exact-scope approved Host read before PDF rendering. No acceptance points were added; overall accepted progress stays **82.40%**.
+- Current task: Final Acceptance — create Ventio Inventory Operations through ordinary extension tools and demonstrate the governed end-to-end scenario.
+- Last completed capability: G01 — Standard printable document formats (23/23 accepted).
+- Next action: author Products and Inventory Movement DocTypes, child rows, calculations, numbering, and lifecycle operations using the same Studio and package contracts available to ordinary creators.
+- Blockers: none. A full Studio-suite run found one separate phone-sized DocType Builder test failure; it reproduces alone and is recorded in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md). Focused G01 tests and the Windows release build pass.
+- Latest implementation checkpoint: `89b8a8d` (G01 accepted implementation and evidence); G01 architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 remains 7/7 PASS; Wave 1 is 23/23 at **85.00%**. Final extension remains NOT_STARTED.
+- Since the previous dashboard update: Core print metadata and package validation, SQLite persistence/install/export, ordinary Studio field/table/page-break authoring, Host-authorized exact-record PDF printing, Unicode-aware Windows rendering, focused test evidence, and a Windows release build are complete. Core **77/77**, ExtensionStore **40/40**, renderer **3/3**, focused Studio/Host tests **1/1 each**, analysis clean, localization gate **6/6**, Windows build exit 0. G01 is accepted; overall progress is now **85.00%**.
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
 
@@ -49,19 +49,19 @@ Effort points and proportional Wave 1 weights were fixed before implementation i
 | 20 | B04 | Draft / Submit / Cancel / Amend lifecycle | Missing | Newly Implemented | 7 | COMPLETED | PostgreSQL 17.11 Host integration **128/128**; A10 allocator **6/6**; Core **74/74**; SQLite Store **38/38**; focused Studio Amend and lifecycle builder tests **1/1** each; Dart analysis and localization gate pass. Covers authorization, legal transitions, immutable submitted/cancelled records, numbering, rollback, amendment concurrency/idempotency, child-row copy, and accepted/rejected offline reconciliation. [Acceptance evidence](B04_LIFECYCLE_ACCEPTANCE.md); architecture review [here](B04_ARCHITECTURE_REVIEW.md). |
 | 21 | F02 | Aggregations and calculated totals | Missing | Newly Implemented | 4 | COMPLETED | Core **75/75**; SQLite calculated child/parent persistence **1/1**; Studio grid **1/1** and calculation builder **1/1**; Dart analysis, contract/schema checks, and localization gate pass. Disposable Windows PostgreSQL 17.11 extension integration **130/130** verifies exact line/parent totals, forged-total rejection without record/journal/audit/outbox/cursor effects, plus K06 lifecycle, rollback, idempotency, numbering, and concurrency regressions. Design: [ADR-012](ADR-012_DECLARATIVE_EXACT_DECIMAL_CALCULATIONS.md); [acceptance evidence](F02_CALCULATIONS_ACCEPTANCE.md). |
 | 22 | F01 | Declarative Report Builder | Missing | Newly Implemented | 5 | COMPLETED | Core **76/76**; SQLite persistence/export, Studio authoring, and Host client parsing **1/1** each; localization gate and targeted analysis pass. PostgreSQL 17.11 Host integration **137/137** verifies exact sums/counts, grouping/sorting/filtering, exact-scope and field-permission denials, and rejection above 100 groups and 10,000 candidates. [Acceptance evidence](F01_DECLARATIVE_REPORTS_ACCEPTANCE.md); design [ADR-013](ADR-013_DECLARATIVE_REPORTS.md); implementation checkpoint `446ac49`. |
-| 23 | G01 | Standard printable document formats | Missing | Verifying | 4 | IN_PROGRESS | Source review found no declarative print-format contract, PDF generation, or print UI. G01 is in architecture and implementation; no acceptance evidence yet. |
+| 23 | G01 | Standard printable document formats | Missing | Newly Implemented | 4 | COMPLETED | [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md); [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Core **77/77**, ExtensionStore **40/40**, renderer **3/3**, Studio field/table/page-break authoring **1/1**, exact Host record/digest/scope printing **1/1**, localization gate **6/6**, targeted analysis clean, Windows release build exit 0. Checkpoint `89b8a8d`. |
 
 Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: F01 — implement bounded declarative report metadata and authorized report execution.
-- Last successfully completed capability: F02 — Aggregations and calculated totals.
-- Next task: implement Core report validation and local draft persistence from the ADR-013 contract.
-- Blockers: none. Stage 0 PASS; Wave 1 accepted 21/23; final extension NOT_STARTED.
+- Current task: Final Acceptance — create and verify Ventio Inventory Operations through the ordinary extension platform.
+- Last successfully completed capability: G01 — Standard printable document formats.
+- Next task: author the Products and Inventory Movement metadata and run the offline/Host lifecycle scenario.
+- Blockers: none. Stage 0 PASS; Wave 1 accepted 23/23; final extension NOT_STARTED.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest GitHub checkpoint: `1e0ef7f` — F01 architecture checkpoint; F02 implementation `08069dd` is accepted. Wave 1 is 21/23 at 79.15%.
+- Latest GitHub implementation checkpoint: `89b8a8d` — G01 accepted; Wave 1 is 23/23 at 85.00%. The final extension contributes the remaining 15%.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint
@@ -121,6 +121,7 @@ Total Wave 1 effort points: **100**.
 - F02 accepted: added exact decimal parsing and bounded multiply/sum calculation metadata across Core, SQLite persistence, Studio forms/grids, and PostgreSQL Host validation. Core **75/75**, SQLite calculated child/parent persistence **1/1**, Studio calculated grid **1/1**, builder **1/1**, Dart analysis, contract/schema validation, and localization gate passed. The disposable Windows PostgreSQL 17.11 extension integration completed with exit code 0 and **130 passed, 0 failed**, including exact `0.1 × 0.2 = 0.02`, parent aggregate `0.32`, forged-total rejection without side effects, and K06/B04 transactional regressions. The first attempt exposed overlapping test command IDs; those F02 fixture IDs were isolated and the complete integration rerun passed. Evidence: [F02_CALCULATIONS_ACCEPTANCE.md](F02_CALCULATIONS_ACCEPTANCE.md). Wave 1 is **21/23 accepted**, overall **79.15%**; F01 is next.
 - F01 accepted: Core report metadata, package serialization, SQLite draft persistence/export, Studio builder, and bounded PostgreSQL Host query are implemented. Exact counts and sums use the shared integer-scaled `ExactDecimal` arithmetic after an exact-scope bounded projection; the Host enforces 10,000 candidates, 100 groups, 512 KiB projected input, and current field permissions. PostgreSQL integration passed **137/137** including report filtering, sorting, grouping, exact sums, scope/field denials, and both row/group over-limit rejection. Core **76/76**, each focused client report test **1/1**, targeted analysis and localization gate pass. [Evidence](F01_DECLARATIVE_REPORTS_ACCEPTANCE.md); [ADR-013](ADR-013_DECLARATIVE_REPORTS.md). F01 is **COMPLETED / Newly Implemented**; Wave 1 is **22/23**, overall accepted progress **82.40%**. Implementation checkpoint `446ac49`; G01 is next.
 - G01 architecture checkpoint: [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md) fixes a data-only print format with scalar fields, child rows, explicit page breaks and fixed page settings. PDF output requires a fresh exact-record Host read matching the approved package digest and readable field mask. Source review found no existing implementation. G01 remains IN_PROGRESS / Verifying; overall accepted progress remains **82.40%**. Checkpoint `16a3710`.
+- G01 accepted: Core validates bounded data-only layouts; SQLite persists/reopens/imports/exports them; Studio authors ordered scalar, Child Table, and page-break blocks; the Windows renderer prints fields, child rows, and calculated-total values from an exact authenticated Host record after package digest, revision, and field-mask checks. Core **77/77**, ExtensionStore **40/40**, PDF renderer **3/3**, focused Studio authoring and Host-backed print tests **1/1 each**, Flutter analysis clean, localization gate **6/6**, Windows release build exit 0. The full Studio suite separately reports one repeatable phone-sized DocType Builder viewport test failure (details in G01 evidence); the focused G01 paths pass. [Acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md); [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). G01 is **COMPLETED / Newly Implemented**; Wave 1 is **23/23**, weighted overall **85.00%**. Checkpoint `89b8a8d`; Final Acceptance is next.
 
 
 
