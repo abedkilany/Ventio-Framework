@@ -4,7 +4,8 @@ Date: 2026-10-28
 Branch: `codex/extension-platform`
 Reviewed implementation baseline: `59037f708cc565ee31b605e3a9c10065fcb855b9`
 Initial audit checkpoint: `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`
-Latest audit remediation checkpoint: pending commit
+Latest reviewed code/test checkpoint: `35100a159b917319be76df6259c91019bdc10fb2`
+The final audit report and progress dashboard are published in the following documentation checkpoint on this branch.
 
 This audit does not start Wave 2 and does not declare commercial production readiness. The Wave 1 dashboard's 100% remains the accepted implementation status; this document records a separate release-readiness review.
 
@@ -19,7 +20,7 @@ This audit does not start Wave 2 and does not declare commercial production read
 
 The reviewed design retains a Windows-first Flutter native client, local SQLite command queue, and PostgreSQL Host authority. Local provisional changes and receipts are reconciled through durable commands; Host acceptance remains transactional and scope-bound. Existing extension and Host tests exercise tenant/company/branch/actor enforcement, role and field permissions, RLS, atomic rollback, retry idempotency, numbering, Amend races, and restart recovery.
 
-The audit found no confirmed architecture defect requiring a broad refactor. Two targeted test-harness defects and one child-process import issue were corrected. The full Linux Host Engineering gate is still outstanding in this environment; see Open items.
+The audit found no confirmed architecture defect requiring a broad refactor. Targeted test-harness, source-formatting, package-verifier, and child-process import issues were corrected. All eight GitHub Actions workflows pass on the reviewed code/test checkpoint; see GitHub Actions.
 
 ## Changes made during the audit
 
@@ -75,19 +76,18 @@ The localization scanner's stated coverage is static text/source/JSON inspection
 
 At the pre-audit commit `59037f708cc565ee31b605e3a9c10065fcb855b9`, GitHub reported no combined commit statuses and no workflow runs through the connected GitHub integration. A draft validation PR (#4) was opened against `main` to trigger the event-gated checks; it remains unmerged.
 
-On initial audit PR head `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`, the Windows self-hosted runner ran `Ventio Host Crash Recovery` and `Ventio Credential Lifecycle`. Both failed at `dart format --output=none --set-exit-if-changed lib bin test`; logs named `ventio_host_api/lib/src/persistent_identity.dart` and `test/document_number_allocator_integration.dart`. On `528c6fbda6d6a1661d02dd37d0f77ca002e6784c`, Host Persistence and Host Crash Recovery passed; Host API formatting, analyzer, unit API, identity and direct-SQL/RLS checks passed, then the run was cancelled during role administration when the next source checkpoint arrived. `Ventio Durable Commands` exposed one format-only failure in `ventio_host/test/durable_integration.dart`. On `c2e7d7d7a762903a957b50246aebe412b5afd127`, Host Engineering Gate, Host Persistence, Host Crash Recovery and Durable Commands passed. Core jobs failed on one unformatted `report_metadata.dart` and `verify_package.py` rejected the Arabic user-input test literal; both findings are corrected in the current local checkpoint. The same verifier then exposed a Windows default-encoding bug while parsing Dart imports; explicit UTF-8 reading fixed it, and a clean tracked-source snapshot now passes the verifier. The Windows Flutter job on `c2e7d7d` remains in progress; CI must be rerun on the corrective head.
+The first validation PR runs exposed real formatter failures in the Flutter, Host API, Host and Core packages, plus the static verifier's handling of the Arabic user-input fixture and Windows default text encoding. The source formatting was fixed without functional changes; the Arabic test value remains Arabic at runtime through Dart Unicode escapes, and the verifier reads Dart files as UTF-8. Those failures are recorded here rather than hidden. On the exact reviewed checkpoint `35100a159b917319be76df6259c91019bdc10fb2`, all eight workflow runs and all nine jobs passed: Native Flutter Client and Extension Builder (including localization, full Flutter suite, native Windows integration, Windows Debug/Release, Android Debug/Release and cleanup); Ventio Core Foundation (format, analyze, 78 core checks and both demos) and its Architecture Contracts job (`verify_package.py`, V1.2 contracts and Python suites); Host API (unit, HTTP/PG, identity/revocation, RLS/direct SQL, roles, extension approval/authorization/recovery); Host Engineering Gate (Linux PG16, privilege helper, migration/recovery/performance audit); Host Persistence (PG16); Host Crash Recovery (kill/retry/restore into fresh PG16 cluster); Durable Commands (PG16); and Credential Lifecycle (PG16). All disposable PostgreSQL fixtures were cleaned up by their jobs.
 
-The Host Engineering workflow requires a Linux self-hosted runner and its PostgreSQL 16/Docker/sudo-helper environment. That gate was not executed locally: Docker Desktop's Linux engine was unavailable, and the workflow helper is Linux-only. This gate must not be represented as passing based on the Windows PostgreSQL 17.11 evidence above.
+The Linux Host Engineering workflow was not runnable locally because Docker Desktop's Linux engine was unavailable and its privilege helper is Linux-only. GitHub's designated Linux self-hosted runner executed the exact gate on the reviewed checkpoint and passed. Windows CI also emitted a non-blocking Node.js 20 deprecation warning for `actions/checkout@v4`; it does not fail any job.
 
-CI verification after the latest local remediation: **pending push/rerun**. The successful Linux Host Engineering, Host Persistence, Host Crash Recovery and Durable Commands jobs are on `c2e7d7d`; Core and Architecture Contract jobs failed as detailed above and are fixed locally. The Windows Flutter job on `c2e7d7d` remains in progress. Do not interpret old-head failures or successes as a final green result for the corrective head.
+CI verification on `35100a159b917319be76df6259c91019bdc10fb2`: **8/8 workflows PASS**. Pull request #4 remains draft and unmerged; no changes were made to `main`.
 
 ## Open items and residual risks
 
-- The complete Linux Host Engineering audit, including its PG16 recovery integration and privilege-drop path, remains unverified here. Smallest safe remedy: let the repository's designated Linux self-hosted Host Engineering workflow run on the pushed audit commit and inspect its actual result/logs. If no runner is available, provision the documented isolated PG16/Docker fixture on that runner and rerun the workflow.
-- GitHub Actions results for the audit commit remain pending until the Windows runner workflow executes. Do not merge before reviewing the exact head SHA and both relevant workflow outcomes.
+- No blocking engineering or CI items remain for the reviewed code checkpoint. The workflow emits a non-blocking `actions/checkout@v4` Node.js 20 deprecation warning for future CI maintenance.
 - Startup smoke validation confirms process/window creation only; it does not replace interactive user acceptance or broader deployment testing.
 - This release candidate is for evaluation. It is not a declaration of commercial production readiness.
 
 ## Merge recommendation
 
-**Hold merge pending CI evidence.** The Windows-focused gates, disposable PostgreSQL 17.11 integration suites, Flutter tests and Release startup smoke passed. However, the Linux self-hosted Host Engineering / PG16 recovery gate and Actions results for the final audit commit are still outstanding. Reassess after those exact gates pass; this report does not authorize or perform a merge to `main`.
+**Engineering recommendation: ready for owner-reviewed merge to `main`.** All eight required GitHub Actions workflows passed on the exact code/test checkpoint; the disposable PostgreSQL 17.11 and 16 integrations, Windows Release build, and extracted-app startup smoke passed. Pull request #4 is still draft and unmerged; no merge was performed or authorized. This is a Wave 1 release candidate and not a commercial production-readiness declaration.
