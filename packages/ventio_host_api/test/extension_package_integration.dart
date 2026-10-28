@@ -2865,16 +2865,16 @@ Future<void> main() async {
       permissions: const [
         'extension.package.submit',
         'extension.package.read',
-        'extension.com_example_inventory.product.read',
-        'extension.com_example_inventory.product.create',
-        'extension.com_example_inventory.product.update',
-        'extension.com_example_inventory.movement.read',
-        'extension.com_example_inventory.movement.total_read',
-        'extension.com_example_inventory.movement.create',
-        'extension.com_example_inventory.movement.update',
-        'extension.com_example_inventory.movement.submit',
-        'extension.com_example_inventory.movement.cancel',
-        'extension.com_example_inventory.movement.amend',
+        'extension.com_ventio_inventory_operations.product.read',
+        'extension.com_ventio_inventory_operations.product.create',
+        'extension.com_ventio_inventory_operations.product.update',
+        'extension.com_ventio_inventory_operations.movement.read',
+        'extension.com_ventio_inventory_operations.movement.total_read',
+        'extension.com_ventio_inventory_operations.movement.create',
+        'extension.com_ventio_inventory_operations.movement.update',
+        'extension.com_ventio_inventory_operations.movement.submit',
+        'extension.com_ventio_inventory_operations.movement.cancel',
+        'extension.com_ventio_inventory_operations.movement.amend',
       ],
       registerBranch: false,
     );
@@ -2886,10 +2886,10 @@ Future<void> main() async {
       branch: primaryBranch,
       permissions: const [
         'extension.package.read',
-        'extension.com_example_inventory.product.read',
-        'extension.com_example_inventory.product.update',
-        'extension.com_example_inventory.movement.read',
-        'extension.com_example_inventory.movement.update',
+        'extension.com_ventio_inventory_operations.product.read',
+        'extension.com_ventio_inventory_operations.product.update',
+        'extension.com_ventio_inventory_operations.movement.read',
+        'extension.com_ventio_inventory_operations.movement.update',
       ],
       registerBranch: false,
     );
@@ -2901,290 +2901,20 @@ Future<void> main() async {
       branch: primaryBranch,
       permissions: const [
         'extension.package.read',
-        'extension.com_example_inventory.movement.read',
+        'extension.com_ventio_inventory_operations.movement.read',
       ],
       registerBranch: false,
     );
-    final operationPackage = ExtensionBundle.fromJson({
-      'manifest': {
-        'manifestVersion': 0,
-        'moduleId': 'com.example.inventory',
-        'version': '1.0.0',
-        'minPlatformApi': '0.3.0',
-        'displayName': 'Inventory',
-        'displayNameKey': 'extension.com_example_inventory.name',
-        'englishCatalog': 'localization/en.inventory.json',
-        'dependencies': <String>[],
-        'docTypes': ['Product', 'Movement'],
-        'commands': <Object>[],
-        'requiredCapabilities': <String>[],
-        'offline': {'enabled': false, 'allowedCommands': <String>[]},
-      },
-      'docTypes': [
-        {
-          'name': 'Product',
-          'moduleId': 'com.example.inventory',
-          'schemaVersion': 1,
-          'kind': 'operational',
-          'label': 'Product',
-          'labelKey': 'extension.com_example_inventory.product.name',
-          'operations': ['read', 'create', 'update'],
-          'permissions': {
-            'read': 'extension.com_example_inventory.product.read',
-            'create': 'extension.com_example_inventory.product.create',
-            'update': 'extension.com_example_inventory.product.update',
-          },
-          'fields': [
-            {
-              'name': 'quantity',
-              'type': 'decimal',
-              'required': true,
-              'precision': 2,
-              'minValue': 0,
-              'maxValue': 100,
-              'default': 0,
-              'label': 'Quantity',
-              'labelKey': 'extension.com_example_inventory.product.quantity',
-            },
-          ],
-          'ui': {
-            'listColumns': ['quantity'],
-            'formFields': ['quantity'],
-            'detailFields': ['quantity'],
-          },
-        },
-        {
-          'name': 'Movement',
-          'moduleId': 'com.example.inventory',
-          'schemaVersion': 1,
-          'kind': 'operational',
-          'label': 'Movement',
-          'labelKey': 'extension.com_example_inventory.movement.name',
-          'operations': ['read', 'create', 'update'],
-          'permissions': {
-            'read': 'extension.com_example_inventory.movement.read',
-            'create': 'extension.com_example_inventory.movement.create',
-            'update': 'extension.com_example_inventory.movement.update',
-          },
-          'naming': {
-            'seriesId': 'inventory-movement',
-            'field': 'documentNumber',
-            'prefix': 'INV-',
-            'padding': 6,
-          },
-          'fields': [
-            {
-              'name': 'lines',
-              'type': 'table',
-              'required': true,
-              'label': 'Lines',
-              'labelKey': 'extension.com_example_inventory.movement.lines',
-              'childDocType': {
-                'name': 'MovementLine',
-                'label': 'Movement Line',
-                'labelKey': 'extension.com_example_inventory.movement.line',
-                'fields': [
-                  {
-                    'name': 'product',
-                    'type': 'reference',
-                    'referenceTo': 'Product',
-                    'required': true,
-                    'label': 'Product',
-                    'labelKey':
-                        'extension.com_example_inventory.movement.product',
-                  },
-                  {
-                    'name': 'amount',
-                    'type': 'decimal',
-                    'required': true,
-                    'precision': 2,
-                    'label': 'Amount',
-                    'labelKey':
-                        'extension.com_example_inventory.movement.amount',
-                  },
-                  {
-                    'name': 'unitPrice',
-                    'type': 'decimal',
-                    'required': false,
-                    'precision': 2,
-                    'default': 0.0,
-                    'label': 'Unit price',
-                    'labelKey':
-                        'extension.com_example_inventory.movement.unit_price',
-                  },
-                  {
-                    'name': 'lineTotal',
-                    'type': 'decimal',
-                    'required': true,
-                    'precision': 2,
-                    'calculation': {
-                      'type': 'multiply',
-                      'leftField': 'amount',
-                      'rightField': 'unitPrice',
-                    },
-                    'label': 'Line total',
-                    'labelKey':
-                        'extension.com_example_inventory.movement.line_total',
-                  },
-                ],
-              },
-            },
-            {
-              'name': 'total',
-              'type': 'decimal',
-              'required': true,
-              'precision': 2,
-              'readOnly': true,
-              'calculation': {
-                'type': 'sum',
-                'rowsField': 'lines',
-                'valueField': 'lineTotal',
-              },
-              'readPermission': 'extension.com_example_inventory.movement.total_read',
-              'label': 'Total',
-              'labelKey': 'extension.com_example_inventory.movement.total',
-            },
-            {
-              'name': 'documentNumber',
-              'type': 'text',
-              'required': false,
-              'readOnly': true,
-              'maxLength': 128,
-              'label': 'Document Number',
-              'labelKey': 'extension.com_example_inventory.movement.number',
-            },
-            {
-              'name': 'amendedFrom',
-              'type': 'reference',
-              'referenceTo': 'Movement',
-              'required': false,
-              'readOnly': true,
-              'label': 'Amended From',
-              'labelKey':
-                  'extension.com_example_inventory.movement.amended_from',
-            },
-          ],
-          'businessOperations': [
-            {
-              'id': 'inventory.submit',
-              'version': 1,
-              'permission': 'extension.com_example_inventory.movement.submit',
-              'inputs': <String, Object>{},
-              'outputs': {
-                'number': {'type': 'text', 'required': true, 'maxLength': 128},
-              },
-              'effects': [
-                {
-                  'type': 'document.allocate_number',
-                  'field': 'documentNumber',
-                  'output': 'number',
-                },
-                {
-                  'type': 'record.increment_rows',
-                  'targetDocType': 'Product',
-                  'rowsField': 'lines',
-                  'targetIdField': 'product',
-                  'amountField': 'amount',
-                  'amountMultiplier': 1,
-                  'field': 'quantity',
-                },
-                {'type': 'document.transition', 'targetStatus': 1},
-              ],
-            },
-            {
-              'id': 'inventory.cancel',
-              'version': 1,
-              'permission': 'extension.com_example_inventory.movement.cancel',
-              'inputs': <String, Object>{},
-              'outputs': {},
-              'effects': [
-                {
-                  'type': 'record.increment_rows',
-                  'targetDocType': 'Product',
-                  'rowsField': 'lines',
-                  'targetIdField': 'product',
-                  'amountField': 'amount',
-                  'amountMultiplier': -1,
-                  'field': 'quantity',
-                },
-                {'type': 'document.transition', 'targetStatus': 2},
-              ],
-            },
-            {
-              'id': 'document.amend',
-              'version': 1,
-              'permission': 'extension.com_example_inventory.movement.amend',
-              'inputs': <String, Object>{},
-              'outputs': {
-                'amendedRecordId': {
-                  'type': 'text',
-                  'required': true,
-                  'maxLength': 128,
-                },
-              },
-              'effects': [
-                {
-                  'type': 'document.amend',
-                  'linkField': 'amendedFrom',
-                  'output': 'amendedRecordId',
-                },
-              ],
-            },
-          ],
-          'ui': {
-            'listColumns': ['lines', 'documentNumber'],
-            'formFields': ['lines', 'documentNumber', 'total'],
-            'detailFields': ['lines', 'documentNumber', 'total'],
-          },
-        },
-      ],
-      'reports': [
-        {
-          'id': 'movement_totals',
-          'docType': 'Movement',
-          'label': 'Movement totals',
-          'labelKey': 'extension.com_example_inventory.report.movement_totals',
-          'filters': ['documentNumber'],
-          'groupBy': 'documentNumber',
-          'sortBy': 'sum_total',
-          'descending': true,
-          'aggregates': [
-            {
-              'id': 'row_count',
-              'operation': 'count',
-              'label': 'Count',
-              'labelKey': 'extension.com_example_inventory.report.movement_totals.row_count',
-            },
-            {
-              'id': 'sum_total',
-              'operation': 'sum',
-              'field': 'total',
-              'label': 'Total',
-              'labelKey': 'extension.com_example_inventory.report.movement_totals.sum_total',
-            },
-          ],
-        },
-      ],
-      'dependencyVersions': <String, String>{},
-      'englishCatalog': {
-        'extension.com_example_inventory.name': 'Inventory',
-        'extension.com_example_inventory.product.name': 'Product',
-        'extension.com_example_inventory.product.quantity': 'Quantity',
-        'extension.com_example_inventory.movement.name': 'Movement',
-        'extension.com_example_inventory.movement.product': 'Product',
-        'extension.com_example_inventory.movement.lines': 'Lines',
-        'extension.com_example_inventory.movement.line': 'Movement Line',
-        'extension.com_example_inventory.movement.amount': 'Amount',
-        'extension.com_example_inventory.movement.unit_price': 'Unit price',
-        'extension.com_example_inventory.movement.line_total': 'Line total',
-        'extension.com_example_inventory.movement.total': 'Total',
-        'extension.com_example_inventory.movement.number': 'Document Number',
-        'extension.com_example_inventory.movement.amended_from': 'Amended From',
-        'extension.com_example_inventory.report.movement_totals': 'Movement totals',
-        'extension.com_example_inventory.report.movement_totals.row_count': 'Count',
-        'extension.com_example_inventory.report.movement_totals.sum_total': 'Total',
-      },
-    });
+    final operationPackage = ExtensionBundle.fromJson(
+      Map<String, dynamic>.from(
+        jsonDecode(
+              await File(
+                '../../examples/ventio_inventory_operations/extension.json',
+              ).readAsString(),
+            )
+            as Map,
+      ),
+    );
     expect(
       (await submitPackage(operationToken, operationPackage)).status == 202,
       'Declarative governed operations can be submitted by an ordinary extension creator',
@@ -3715,7 +3445,7 @@ Future<void> main() async {
           filteredReport['rowCount'] == 1 &&
           (filteredReport['groups'] as List).length == 1 &&
           ((filteredReport['groups'] as List).single['aggregates']
-              as Map)['sum_total'] ==
+                  as Map)['sum_total'] ==
               '0',
       'PostgreSQL report equality filters apply only to declared fields',
     );

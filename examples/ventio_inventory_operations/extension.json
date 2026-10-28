@@ -1,0 +1,349 @@
+{
+  "manifest": {
+    "manifestVersion": 0,
+    "moduleId": "com.ventio.inventory_operations",
+    "version": "1.0.0",
+    "minPlatformApi": "0.3.0",
+    "displayName": "Ventio Inventory Operations",
+    "displayNameKey": "extension.com_ventio_inventory_operations.name",
+    "englishCatalog": "localization/en.inventory_operations.json",
+    "dependencies": [],
+    "docTypes": [
+      "Product",
+      "Movement"
+    ],
+    "commands": [],
+    "requiredCapabilities": [],
+    "offline": {
+      "enabled": false,
+      "allowedCommands": []
+    }
+  },
+  "docTypes": [
+    {
+      "name": "Product",
+      "moduleId": "com.ventio.inventory_operations",
+      "schemaVersion": 1,
+      "kind": "operational",
+      "label": "Product",
+      "labelKey": "extension.com_ventio_inventory_operations.product.name",
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "permissions": {
+        "read": "extension.com_ventio_inventory_operations.product.read",
+        "create": "extension.com_ventio_inventory_operations.product.create",
+        "update": "extension.com_ventio_inventory_operations.product.update"
+      },
+      "fields": [
+        {
+          "name": "quantity",
+          "type": "decimal",
+          "required": true,
+          "precision": 2,
+          "minValue": 0,
+          "maxValue": 100,
+          "default": 0,
+          "label": "Quantity",
+          "labelKey": "extension.com_ventio_inventory_operations.product.quantity"
+        }
+      ],
+      "ui": {
+        "listColumns": [
+          "quantity"
+        ],
+        "formFields": [
+          "quantity"
+        ],
+        "detailFields": [
+          "quantity"
+        ]
+      }
+    },
+    {
+      "name": "Movement",
+      "moduleId": "com.ventio.inventory_operations",
+      "schemaVersion": 1,
+      "kind": "operational",
+      "label": "Movement",
+      "labelKey": "extension.com_ventio_inventory_operations.movement.name",
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "permissions": {
+        "read": "extension.com_ventio_inventory_operations.movement.read",
+        "create": "extension.com_ventio_inventory_operations.movement.create",
+        "update": "extension.com_ventio_inventory_operations.movement.update"
+      },
+      "naming": {
+        "seriesId": "inventory-movement",
+        "field": "documentNumber",
+        "prefix": "INV-",
+        "padding": 6
+      },
+      "fields": [
+        {
+          "name": "lines",
+          "type": "table",
+          "required": true,
+          "label": "Lines",
+          "labelKey": "extension.com_ventio_inventory_operations.movement.lines",
+          "childDocType": {
+            "name": "MovementLine",
+            "label": "Movement Line",
+            "labelKey": "extension.com_ventio_inventory_operations.movement.line",
+            "fields": [
+              {
+                "name": "product",
+                "type": "reference",
+                "referenceTo": "Product",
+                "required": true,
+                "label": "Product",
+                "labelKey": "extension.com_ventio_inventory_operations.movement.product"
+              },
+              {
+                "name": "amount",
+                "type": "decimal",
+                "required": true,
+                "precision": 2,
+                "label": "Amount",
+                "labelKey": "extension.com_ventio_inventory_operations.movement.amount"
+              },
+              {
+                "name": "unitPrice",
+                "type": "decimal",
+                "required": false,
+                "precision": 2,
+                "default": 0.0,
+                "label": "Unit price",
+                "labelKey": "extension.com_ventio_inventory_operations.movement.unit_price"
+              },
+              {
+                "name": "lineTotal",
+                "type": "decimal",
+                "required": true,
+                "precision": 2,
+                "calculation": {
+                  "type": "multiply",
+                  "leftField": "amount",
+                  "rightField": "unitPrice"
+                },
+                "label": "Line total",
+                "labelKey": "extension.com_ventio_inventory_operations.movement.line_total"
+              }
+            ]
+          }
+        },
+        {
+          "name": "total",
+          "type": "decimal",
+          "required": true,
+          "precision": 2,
+          "readOnly": true,
+          "calculation": {
+            "type": "sum",
+            "rowsField": "lines",
+            "valueField": "lineTotal"
+          },
+          "readPermission": "extension.com_ventio_inventory_operations.movement.total_read",
+          "label": "Total",
+          "labelKey": "extension.com_ventio_inventory_operations.movement.total"
+        },
+        {
+          "name": "documentNumber",
+          "type": "text",
+          "required": false,
+          "readOnly": true,
+          "maxLength": 128,
+          "label": "Document Number",
+          "labelKey": "extension.com_ventio_inventory_operations.movement.number"
+        },
+        {
+          "name": "amendedFrom",
+          "type": "reference",
+          "referenceTo": "Movement",
+          "required": false,
+          "readOnly": true,
+          "label": "Amended From",
+          "labelKey": "extension.com_ventio_inventory_operations.movement.amended_from"
+        }
+      ],
+      "businessOperations": [
+        {
+          "id": "inventory.submit",
+          "version": 1,
+          "permission": "extension.com_ventio_inventory_operations.movement.submit",
+          "inputs": {},
+          "outputs": {
+            "number": {
+              "type": "text",
+              "required": true,
+              "maxLength": 128
+            }
+          },
+          "effects": [
+            {
+              "type": "document.allocate_number",
+              "field": "documentNumber",
+              "output": "number"
+            },
+            {
+              "type": "record.increment_rows",
+              "targetDocType": "Product",
+              "rowsField": "lines",
+              "targetIdField": "product",
+              "amountField": "amount",
+              "amountMultiplier": 1,
+              "field": "quantity"
+            },
+            {
+              "type": "document.transition",
+              "targetStatus": 1
+            }
+          ]
+        },
+        {
+          "id": "inventory.cancel",
+          "version": 1,
+          "permission": "extension.com_ventio_inventory_operations.movement.cancel",
+          "inputs": {},
+          "outputs": {},
+          "effects": [
+            {
+              "type": "record.increment_rows",
+              "targetDocType": "Product",
+              "rowsField": "lines",
+              "targetIdField": "product",
+              "amountField": "amount",
+              "amountMultiplier": -1,
+              "field": "quantity"
+            },
+            {
+              "type": "document.transition",
+              "targetStatus": 2
+            }
+          ]
+        },
+        {
+          "id": "document.amend",
+          "version": 1,
+          "permission": "extension.com_ventio_inventory_operations.movement.amend",
+          "inputs": {},
+          "outputs": {
+            "amendedRecordId": {
+              "type": "text",
+              "required": true,
+              "maxLength": 128
+            }
+          },
+          "effects": [
+            {
+              "type": "document.amend",
+              "linkField": "amendedFrom",
+              "output": "amendedRecordId"
+            }
+          ]
+        }
+      ],
+      "ui": {
+        "listColumns": [
+          "lines",
+          "documentNumber"
+        ],
+        "formFields": [
+          "lines",
+          "documentNumber",
+          "total"
+        ],
+        "detailFields": [
+          "lines",
+          "documentNumber",
+          "total"
+        ]
+      }
+    }
+  ],
+  "reports": [
+    {
+      "id": "movement_totals",
+      "docType": "Movement",
+      "label": "Movement totals",
+      "labelKey": "extension.com_ventio_inventory_operations.report.movement_totals",
+      "filters": [
+        "documentNumber"
+      ],
+      "groupBy": "documentNumber",
+      "sortBy": "sum_total",
+      "descending": true,
+      "aggregates": [
+        {
+          "id": "row_count",
+          "operation": "count",
+          "label": "Count",
+          "labelKey": "extension.com_ventio_inventory_operations.report.movement_totals.row_count"
+        },
+        {
+          "id": "sum_total",
+          "operation": "sum",
+          "field": "total",
+          "label": "Total",
+          "labelKey": "extension.com_ventio_inventory_operations.report.movement_totals.sum_total"
+        }
+      ]
+    }
+  ],
+  "printFormats": [
+    {
+      "id": "inventory_movement",
+      "docType": "Movement",
+      "label": "Inventory Movement",
+      "labelKey": "extension.com_ventio_inventory_operations.print.inventory_movement",
+      "pageSize": "a4",
+      "orientation": "portrait",
+      "blocks": [
+        {
+          "type": "field",
+          "field": "documentNumber"
+        },
+        {
+          "type": "field",
+          "field": "total"
+        },
+        {
+          "type": "table",
+          "field": "lines",
+          "columns": [
+            "product",
+            "amount",
+            "unitPrice",
+            "lineTotal"
+          ]
+        }
+      ]
+    }
+  ],
+  "dependencyVersions": {},
+  "englishCatalog": {
+    "extension.com_ventio_inventory_operations.name": "Ventio Inventory Operations",
+    "extension.com_ventio_inventory_operations.print.inventory_movement": "Inventory Movement",
+    "extension.com_ventio_inventory_operations.product.name": "Product",
+    "extension.com_ventio_inventory_operations.product.quantity": "Quantity",
+    "extension.com_ventio_inventory_operations.movement.name": "Movement",
+    "extension.com_ventio_inventory_operations.movement.product": "Product",
+    "extension.com_ventio_inventory_operations.movement.lines": "Lines",
+    "extension.com_ventio_inventory_operations.movement.line": "Movement Line",
+    "extension.com_ventio_inventory_operations.movement.amount": "Amount",
+    "extension.com_ventio_inventory_operations.movement.unit_price": "Unit price",
+    "extension.com_ventio_inventory_operations.movement.line_total": "Line total",
+    "extension.com_ventio_inventory_operations.movement.total": "Total",
+    "extension.com_ventio_inventory_operations.movement.number": "Document Number",
+    "extension.com_ventio_inventory_operations.movement.amended_from": "Amended From",
+    "extension.com_ventio_inventory_operations.report.movement_totals": "Movement totals",
+    "extension.com_ventio_inventory_operations.report.movement_totals.row_count": "Count",
+    "extension.com_ventio_inventory_operations.report.movement_totals.sum_total": "Total"
+  }
+}

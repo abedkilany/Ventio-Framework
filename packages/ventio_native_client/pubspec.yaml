@@ -27,6 +27,13 @@ dev_dependencies:
     sdk: flutter
   flutter_test:
     sdk: flutter
+  postgres: ^3.5.20
+  ventio_host:
+    path: ../ventio_host
+  ventio_host_api:
+    path: ../ventio_host_api
+  ventio_postgres:
+    path: ../ventio_postgres
 
 flutter:
   uses-material-design: true

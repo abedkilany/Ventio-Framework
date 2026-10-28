@@ -12,12 +12,12 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Live checkpoint
 
-- Current task: Final Acceptance — implement and verify Ventio Inventory Operations through the ordinary extension authoring and governed execution paths.
+- Current task: Final Acceptance — complete the Windows SQLite to PostgreSQL Host acceptance run using the official Ventio Inventory Operations package.
 - Last completed capability: G01 — Standard printable document formats (23/23 accepted).
-- Next action: turn the generic Host inventory integration fixture into an official, reusable declarative extension artifact, then connect its SQLite offline queue and Host reconciliation evidence.
-- Blockers: none. PostgreSQL 17.11 is available on loopback at 127.0.0.1:55439 from the prior disposable cluster; read-only verification confirmed database ventio_host_test and the recorded temporary installation. No integration test is currently running. A full Studio-suite run found one separate phone-sized DocType Builder test failure; it is recorded in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md).
-- Latest implementation checkpoint: `89b8a8d` (G01 accepted implementation and evidence); G01 architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 remains 7/7 PASS; Wave 1 is 23/23 at **85.00%**. Final extension remains NOT_STARTED.
-- Since the previous dashboard update: final acceptance reconnaissance confirmed the existing generic inventory Host scenario, reviewed the final gate, verified the prior B04 architecture/evidence, and confirmed the temporary PostgreSQL 17.11 test database is reachable on loopback. Final extension implementation is now in progress; accepted progress remains **85.00%**.
+- Next action: inspect the integrated test's complete output and exit code; resolve any failure, then save acceptance evidence and the final checkpoint.
+- Blockers: none. The disposable PostgreSQL 17.11 cluster is reachable on loopback at 127.0.0.1:55439. The full generic Host inventory integration passed **137/137**; the official package Core test passed **78/78**; the focused Windows SQLite offline create/edit/restart test passed **1/1**. The cross-layer Windows SQLite/PostgreSQL test is currently running. A full Studio-suite run found one separate phone-sized DocType Builder test failure; it is recorded in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md).
+- Latest implementation checkpoint: `d47c181` (Final Acceptance started; progress commit). G01 implementation evidence is `89b8a8d`; its architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 remains 7/7 PASS; Wave 1 is 23/23 at **85.00%**. Final extension is IN_PROGRESS and has **0/15** acceptance points until the integrated gate passes.
+- Since the previous dashboard update: added the official declarative package and English catalog; the exact package now passes Core validation and the PostgreSQL Host integration (137/137), including lifecycle, rollback, numbering, retry, concurrency, permissions, reporting, and amendment checks. Added and passed a Windows SQLite offline create/edit/restart test. A unified SQLite-to-PostgreSQL acceptance test is in progress; accepted overall progress remains **85.00%**.
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
 

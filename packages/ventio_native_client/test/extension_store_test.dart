@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
+import 'package:ventio_native_client/src/local_command_queue.dart';
 
 const _moduleId = 'com.example.asset_register';
 const _scope = RecordScope(
@@ -131,6 +132,226 @@ void main() {
   });
 
   test(
+    'Official inventory package stores provisional offline creates and edits across SQLite restart',
+    () async {
+      const moduleId = 'com.ventio.inventory_operations';
+      const productId = 'inventory-product-offline';
+      const movementId = 'inventory-movement-offline';
+      const productCommandId = '84000000-0000-4000-8000-000000000001';
+      const movementCommandId = '84000000-0000-4000-8000-000000000002';
+      const updateCommandId = '84000000-0000-4000-8000-000000000003';
+      var queue = await LocalCommandQueue.open(
+        factory: databaseFactoryFfi,
+        path: '${directory.path}${Platform.pathSeparator}commands.sqlite3',
+      );
+      try {
+        final bundleJson = Map<String, dynamic>.from(
+          jsonDecode(
+                await File(
+                  '../../examples/ventio_inventory_operations/extension.json',
+                ).readAsString(),
+              )
+              as Map,
+        );
+        final bundle = ExtensionBundle.fromJson(bundleJson);
+        await store.installBundle(bundle);
+        await store.activate(moduleId);
+
+        final product = await store.createRecord(
+          moduleId: moduleId,
+          docTypeName: 'Product',
+          scope: _scope,
+          recordId: productId,
+          values: const {'quantity': 12.0},
+        );
+        final movement = await store.createRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          scope: _scope,
+          recordId: movementId,
+          values: const {
+            'lines': [
+              {'product': productId, 'amount': 2.0, 'unitPrice': 0.5},
+              {'product': productId, 'amount': 1.5, 'unitPrice': 0.4},
+            ],
+          },
+        );
+        expect(movement.values['documentNumber'], 'LOCAL-$movementId');
+        expect(movement.values['total'], 1.6);
+        expect(movement.values['lines'], [
+          {
+            'product': productId,
+            'amount': 2.0,
+            'unitPrice': 0.5,
+            'lineTotal': 1.0,
+          },
+          {
+            'product': productId,
+            'amount': 1.5,
+            'unitPrice': 0.4,
+            'lineTotal': 0.6,
+          },
+        ]);
+
+        final productCommand = ExtensionRecordCommand.create(
+          commandId: productCommandId,
+          tenantId: _scope.organizationId,
+          companyId: _scope.companyId,
+          branchId: _scope.branchId,
+          recordId: productId,
+          actorId: 'inventory-operator',
+          deviceId: 'inventory-desktop',
+          moduleId: moduleId,
+          moduleVersion: '1.0.0',
+          docType: 'Product',
+          schemaVersion: 1,
+          values: product.values,
+        );
+        await queue.enqueue(productCommand.envelope);
+        await store.markRecordPending(
+          recordId: productId,
+          scope: _scope,
+          commandId: productCommandId,
+          operation: 'create',
+        );
+
+        final movementValues = Map<String, dynamic>.of(movement.values)
+          ..remove('documentNumber');
+        final movementCommand = ExtensionRecordCommand.create(
+          commandId: movementCommandId,
+          tenantId: _scope.organizationId,
+          companyId: _scope.companyId,
+          branchId: _scope.branchId,
+          recordId: movementId,
+          actorId: 'inventory-operator',
+          deviceId: 'inventory-desktop',
+          moduleId: moduleId,
+          moduleVersion: '1.0.0',
+          docType: 'Movement',
+          schemaVersion: 1,
+          values: movementValues,
+          dependsOn: const [productCommandId],
+        );
+        await queue.enqueue(movementCommand.envelope);
+        await store.markRecordPending(
+          recordId: movementId,
+          scope: _scope,
+          commandId: movementCommandId,
+          operation: 'create',
+        );
+
+        const hostMovementId = 'inventory-movement-host-accepted';
+        await store.applyHostRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          scope: _scope,
+          recordId: hostMovementId,
+          revision: 4,
+          updatedAtUtc: DateTime.utc(2026, 10, 28),
+          readableFields: const [
+            'lines',
+            'total',
+            'documentNumber',
+            'amendedFrom',
+          ],
+          writableFields: const ['lines'],
+          creatableFields: const ['lines'],
+          values: const {
+            'documentNumber': 'INV-000021',
+            'lines': [
+              {'product': productId, 'amount': 2.0, 'unitPrice': 0.5},
+            ],
+          },
+        );
+        final edited = await store.updateRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: hostMovementId,
+          scope: _scope,
+          expectedRevision: 4,
+          values: const {
+            'lines': [
+              {'product': productId, 'amount': 3.0, 'unitPrice': 0.5},
+            ],
+          },
+        );
+        expect(edited.values['total'], 1.5);
+        final updateCommand = ExtensionRecordCommand.update(
+          commandId: updateCommandId,
+          tenantId: _scope.organizationId,
+          companyId: _scope.companyId,
+          branchId: _scope.branchId,
+          recordId: hostMovementId,
+          expectedRevision: 4,
+          actorId: 'inventory-operator',
+          deviceId: 'inventory-desktop',
+          moduleId: moduleId,
+          moduleVersion: '1.0.0',
+          docType: 'Movement',
+          schemaVersion: 1,
+          values: {'lines': edited.values['lines']},
+        );
+        await queue.enqueue(updateCommand.envelope);
+        await store.markRecordPending(
+          recordId: hostMovementId,
+          scope: _scope,
+          commandId: updateCommandId,
+        );
+
+        await queue.close();
+        await store.close();
+        await openStore();
+        queue = await LocalCommandQueue.open(
+          factory: databaseFactoryFfi,
+          path: '${directory.path}${Platform.pathSeparator}commands.sqlite3',
+        );
+        final restoredMovement = await store.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: movementId,
+          scope: _scope,
+        );
+        final restoredEdit = await store.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: hostMovementId,
+          scope: _scope,
+        );
+        final pending = await queue.list(limit: 10);
+        final pendingById = {
+          for (final entry in pending) entry.envelope.commandId: entry,
+        };
+        expect(
+          (await store.getExtension(moduleId))?.state,
+          ExtensionState.active,
+        );
+        expect(restoredMovement?.values['documentNumber'], 'LOCAL-$movementId');
+        expect(restoredMovement?.values['total'], 1.6);
+        expect(restoredMovement?.pendingCommandId, movementCommandId);
+        expect(restoredEdit?.values['total'], 1.5);
+        expect(restoredEdit?.pendingCommandId, updateCommandId);
+        expect(pendingById.keys, {
+          productCommandId,
+          movementCommandId,
+          updateCommandId,
+        });
+        expect(pendingById[movementCommandId]!.envelope.dependsOn, [
+          productCommandId,
+        ]);
+        expect(
+          (pendingById[movementCommandId]!.envelope.payload['values']
+                  as Map<String, dynamic>)
+              .containsKey('documentNumber'),
+          isFalse,
+        );
+        expect(pending.every((entry) => entry.isPending), isTrue);
+      } finally {
+        await queue.close();
+      }
+    },
+  );
+
+  test(
     'Saved report definitions persist and export with package labels',
     () async {
       await store.createExtension(
@@ -230,8 +451,9 @@ void main() {
       );
       await installed.installBundle(bundle);
       expect(
-        (await installed.getExtension(_moduleId))!
-            .printFormatDefinitions.single['id'],
+        (await installed.getExtension(
+          _moduleId,
+        ))!.printFormatDefinitions.single['id'],
         'asset_receipt',
       );
       await installed.close();

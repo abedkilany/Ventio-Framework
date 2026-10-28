@@ -2610,6 +2610,51 @@ void main() {
     checkThrows(() => CommandReceipt.fromJson(unknown),
         'Receipt with unsupported authority field was accepted');
   });
+  test(
+      'Official Ventio Inventory Operations package is ordinary declarative metadata',
+      () {
+    final package = ExtensionBundle.fromJson(
+      loadJsonFile('../../examples/ventio_inventory_operations/extension.json'),
+    );
+    check(package.moduleId == 'com.ventio.inventory_operations',
+        'Official module identity changed');
+    check(package.manifest.displayName == 'Ventio Inventory Operations',
+        'Official extension display name changed');
+    check(
+        package.docTypes.length == 2 &&
+            package.docTypes.any((type) => type.name == 'Product') &&
+            package.docTypes.any((type) => type.name == 'Movement'),
+        'Official package must define Product and Movement');
+    final movement =
+        package.docTypes.singleWhere((type) => type.name == 'Movement');
+    check(
+        movement.fields
+                .singleWhere((field) => field.name == 'lines')
+                .childDocType
+                ?.fields
+                .length ==
+            4,
+        'Movement line schema changed');
+    check(
+        movement.businessOperations.length == 3 &&
+            movement.businessOperations
+                .any((operation) => operation.id == 'inventory.submit') &&
+            movement.businessOperations
+                .any((operation) => operation.id == 'inventory.cancel') &&
+            movement.businessOperations
+                .any((operation) => operation.id == 'document.amend'),
+        'Governed lifecycle declarations are incomplete');
+    check(
+        package.reports.single.id == 'movement_totals' &&
+            package.printFormats.single.id == 'inventory_movement',
+        'Official report or print format is missing');
+    check(
+        package.manifest.commands.isEmpty &&
+            package.manifest.requiredCapabilities.isEmpty &&
+            !package.manifest.offlineEnabled &&
+            package.manifest.offlineCommands.isEmpty,
+        'Official package must not ship executable handlers');
+  });
   print('RESULT: $passed passed, $failed failed');
   if (failed > 0) throw StateError('$failed tests failed');
 }
