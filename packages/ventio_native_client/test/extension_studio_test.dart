@@ -109,6 +109,7 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
   String? queriedCompany;
   String? queriedBranch;
   String? queriedCursor;
+  String? queriedRecordId;
 
   @override
   Future<HostExtensionRecordPage> queryRecords({
@@ -131,6 +132,7 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
     queriedCompany = companyId;
     queriedBranch = branchId;
     queriedCursor = cursor;
+    queriedRecordId = recordId;
     final error = queryError;
     if (error != null) throw error;
     return page;
@@ -349,20 +351,25 @@ void main() {
           'maxLength': 100,
         },
       ],
-      'ui': {'listColumns': ['title'], 'formFields': ['title']},
+      'ui': {
+        'listColumns': ['title'],
+        'formFields': ['title'],
+      },
     });
-    await tester.pumpWidget(MaterialApp(
-      home: ExtensionDetailsPage(
-        store: store,
-        queue: queue,
-        moduleId: moduleId,
-        scope: const RecordScope(
-          organizationId: 'local-organization',
-          companyId: 'local-company',
-          branchId: 'local-branch',
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          scope: const RecordScope(
+            organizationId: 'local-organization',
+            companyId: 'local-company',
+            branchId: 'local-branch',
+          ),
         ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add report'));
     await tester.pumpAndSettle();
@@ -378,7 +385,134 @@ void main() {
     expect(saved!.reportDefinitions.single['id'], 'asset_count');
     final exported = await store.exportBundle(moduleId);
     expect(exported.reports.single.docType, 'Asset');
-    expect(exported.englishCatalog['extension.com_example_report_builder.report.asset_count'], 'Asset count');
+    expect(
+      exported
+          .englishCatalog['extension.com_example_report_builder.report.asset_count'],
+      'Asset count',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Extension Studio builds and exports a declarative print format', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.print_builder';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Print Builder',
+      description: '',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'label': 'Asset',
+      'labelKey': 'extension.com_example_print_builder.asset',
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': 'extension.com_example_print_builder.asset.read',
+        'create': 'extension.com_example_print_builder.asset.create',
+        'update': 'extension.com_example_print_builder.asset.update',
+      },
+      'fields': [
+        {
+          'name': 'title',
+          'type': 'text',
+          'required': true,
+          'label': 'Title',
+          'labelKey': 'extension.com_example_print_builder.asset.title',
+          'maxLength': 100,
+        },
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': 'extension.com_example_print_builder.asset.lines',
+          'childDocType': {
+            'name': 'AssetLine',
+            'label': 'Asset line',
+            'labelKey': 'extension.com_example_print_builder.asset.line',
+            'fields': [
+              {
+                'name': 'product',
+                'type': 'text',
+                'required': true,
+                'maxLength': 100,
+                'label': 'Product',
+                'labelKey': 'extension.com_example_print_builder.asset.product',
+              },
+            ],
+          },
+        },
+      ],
+      'ui': {
+        'listColumns': ['title'],
+        'formFields': ['title'],
+      },
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          scope: const RecordScope(
+            organizationId: 'local-organization',
+            companyId: 'local-company',
+            branchId: 'local-branch',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Add print format'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Add print format'));
+    await tester.pumpAndSettle();
+    final inputs = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(inputs.at(0), 'asset_receipt');
+    await tester.enterText(inputs.at(1), 'Asset receipt');
+    await tester.tap(find.text('Field to add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Title').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add field block'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Child table to add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lines').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add table block'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add page break'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save print format'));
+    await tester.pumpAndSettle();
+    final saved = (await store.getExtension(moduleId))!;
+    expect(saved.printFormatDefinitions.single['id'], 'asset_receipt');
+    final exported = await store.exportBundle(moduleId);
+    expect(exported.printFormats.single.blocks.map((block) => block.type), [
+      'field',
+      'table',
+      'page_break',
+    ]);
+    expect(
+      exported
+          .englishCatalog['extension.com_example_print_builder.print.asset_receipt'],
+      'Asset receipt',
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -3104,6 +3238,156 @@ void main() {
     expect(find.text('Hidden value'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Printing refreshes an accepted record from its exact Host scope',
+    (tester) async {
+      const moduleId = 'com.example.print_records';
+      const scope = RecordScope(
+        organizationId: 'tenant-print',
+        companyId: 'company-print',
+        branchId: 'branch-print',
+      );
+      const permission = 'extension.com_example_print_records.asset';
+      final metadata = <String, dynamic>{
+        'name': 'Asset',
+        'moduleId': moduleId,
+        'schemaVersion': 1,
+        'kind': 'operational',
+        'fields': [
+          {
+            'name': 'name',
+            'type': 'text',
+            'required': true,
+            'maxLength': 120,
+            'label': 'Name',
+            'labelKey': '$permission.name',
+          },
+        ],
+        'operations': ['read', 'create', 'update'],
+        'permissions': {
+          'read': '$permission.read',
+          'create': '$permission.create',
+          'update': '$permission.update',
+        },
+        'ui': {
+          'listColumns': ['name'],
+          'formFields': ['name'],
+        },
+        'label': 'Asset',
+        'labelKey': '$permission.label',
+      };
+      await store.createExtension(
+        moduleId: moduleId,
+        displayName: 'Print Records',
+        description: '',
+      );
+      await store.saveDocType(metadata);
+      await store.savePrintFormatDefinition(
+        moduleId: moduleId,
+        metadata: const {
+          'id': 'asset_receipt',
+          'docType': 'Asset',
+          'label': 'Asset receipt',
+          'labelKey': 'extension.com_example_print_records.print.asset_receipt',
+          'pageSize': 'a4',
+          'orientation': 'portrait',
+          'blocks': [
+            {'type': 'field', 'field': 'name'},
+          ],
+        },
+      );
+      await store.activate(moduleId);
+      final bundle = await store.exportBundle(moduleId);
+      final digest = sha256
+          .convert(utf8.encode(canonicalJson(bundle.toJson())))
+          .toString();
+      final created = await store.createRecord(
+        moduleId: moduleId,
+        docTypeName: 'Asset',
+        scope: scope,
+        values: const {'name': 'Stale local value'},
+        recordId: 'print-record-1',
+      );
+      await store.markRecordPending(
+        recordId: created.recordId,
+        scope: scope,
+        commandId: 'print-accepted-command',
+      );
+      await store.applyHostReceipt(
+        recordId: created.recordId,
+        scope: scope,
+        commandId: 'print-accepted-command',
+        receipt: CommandReceipt(
+          commandId: 'print-accepted-command',
+          status: 'ACCEPTED',
+          hostRevision: 3,
+        ),
+      );
+      final accepted = (await store.getRecord(
+        moduleId: moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: scope,
+      ))!;
+      final queryClient = _FakeRecordQueryClient(
+        endpoint: Uri.parse('https://host.example.test'),
+        credentials: HostCredentialVault(_MemoryCredentialBackend()),
+        page: HostExtensionRecordPage(
+          records: [
+            HostExtensionRecord(
+              recordId: created.recordId,
+              revision: 4,
+              updatedAtUtc: '2026-10-28T10:00:00Z',
+              values: const {'name': 'Fresh Host value'},
+            ),
+          ],
+          packageSha256: digest,
+          hasMore: false,
+          readableFields: const {'name'},
+        ),
+      );
+      var printedName = '';
+      List<int>? printedBytes;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DynamicRecordDetailsPage(
+            store: store,
+            moduleId: moduleId,
+            definition: DocTypeDefinition.fromJson(metadata),
+            scope: scope,
+            moduleVersion: bundle.version,
+            hostProfile: const HostConnectionProfile(
+              endpoint: 'https://host.example.test',
+              tenantId: 'tenant-print',
+              companyId: 'company-print',
+              branchId: 'branch-print',
+              actorId: 'print-actor',
+              deviceId: 'print-device',
+            ),
+            credentialVault: HostCredentialVault(_MemoryCredentialBackend()),
+            hostPackageClientFactory:
+                ({required endpoint, required credentials}) => queryClient,
+            printPdf: (name, bytes) async {
+              printedName = name;
+              printedBytes = bytes;
+            },
+            record: accepted,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Print record'), findsOneWidget);
+      await tester.tap(find.byTooltip('Print record'));
+      await tester.pumpAndSettle();
+      expect(queryClient.queriedRecordId, created.recordId);
+      expect(queryClient.queriedCompany, 'company-print');
+      expect(queryClient.queriedBranch, 'branch-print');
+      expect(printedName, 'asset_receipt-print-record-1.pdf');
+      expect(String.fromCharCodes(printedBytes!.take(5)), '%PDF-');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('Amend queues a local draft copy for a cancelled document', (
     tester,

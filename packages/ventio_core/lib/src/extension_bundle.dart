@@ -5,6 +5,7 @@ import 'contracts.dart';
 import 'metadata.dart';
 import 'modules.dart';
 import 'report_metadata.dart';
+import 'print_format_metadata.dart';
 
 /// A bounded, declarative extension package for the trusted generic engines.
 /// It carries no executable commands, scripts, SQL or custom capabilities.
@@ -14,6 +15,8 @@ class ExtensionBundle {
     required this.docTypes,
     required this.reports,
     required this.reportJson,
+    required this.printFormats,
+    required this.printFormatJson,
     required this.dependencyVersions,
     required this.englishCatalog,
     required this.manifestJson,
@@ -28,6 +31,8 @@ class ExtensionBundle {
   final List<DocTypeDefinition> docTypes;
   final List<ReportDefinition> reports;
   final List<Map<String, dynamic>> reportJson;
+  final List<PrintFormatDefinition> printFormats;
+  final List<Map<String, dynamic>> printFormatJson;
   final Map<String, String> dependencyVersions;
   final Map<String, String> englishCatalog;
   final Map<String, dynamic> manifestJson;
@@ -44,6 +49,7 @@ class ExtensionBundle {
         'manifest',
         'docTypes',
         'reports',
+        'printFormats',
         'dependencyVersions',
         'englishCatalog',
       },
@@ -274,7 +280,8 @@ class ExtensionBundle {
     final rawReports = source['reports'] ?? const <Object>[];
     if (rawReports is! List ||
         rawReports.length > ReportDefinition.maxReportsPerBundle) {
-      throw const ContractError('INVALID_REPORT', 'Too many report definitions.');
+      throw const ContractError(
+          'INVALID_REPORT', 'Too many report definitions.');
     }
     final reportJson = rawReports
         .map((raw) => _freezeMap(requireMap(raw, 'reports[]')))
@@ -290,6 +297,27 @@ class ExtensionBundle {
         .toList(growable: false);
     if (reports.map((report) => report.id).toSet().length != reports.length) {
       throw const ContractError('INVALID_REPORT', 'Report IDs must be unique.');
+    }
+    final rawPrintFormats = source['printFormats'] ?? const <Object>[];
+    if (rawPrintFormats is! List ||
+        rawPrintFormats.length > PrintFormatDefinition.maxFormatsPerBundle) {
+      throw const ContractError(
+          'INVALID_PRINT_FORMAT', 'Too many print formats.');
+    }
+    final printFormatJson = rawPrintFormats
+        .map((raw) => _freezeMap(requireMap(raw, 'printFormats[]')))
+        .toList(growable: false);
+    final printFormats = printFormatJson
+        .map((json) => PrintFormatDefinition.fromJson(
+              json,
+              moduleId: manifest.moduleId,
+              docTypes: docTypes,
+            ))
+        .toList(growable: false);
+    if (printFormats.map((format) => format.id).toSet().length !=
+        printFormats.length) {
+      throw const ContractError(
+          'INVALID_PRINT_FORMAT', 'Print format IDs must be unique.');
     }
     final hasFieldPermissions = docTypes.any(
       (type) => type.fields.any(
@@ -610,6 +638,9 @@ class ExtensionBundle {
         requiredLabels.add(aggregate.labelKey);
       }
     }
+    for (final format in printFormats) {
+      requiredLabels.add(format.labelKey);
+    }
     if (requiredLabels.any((key) => !catalog.containsKey(key))) {
       throw const ContractError(
         'MISSING_ENGLISH_LABELS',
@@ -622,6 +653,8 @@ class ExtensionBundle {
       docTypes: List.unmodifiable(docTypes),
       reports: List.unmodifiable(reports),
       reportJson: List.unmodifiable(reportJson),
+      printFormats: List.unmodifiable(printFormats),
+      printFormatJson: List.unmodifiable(printFormatJson),
       dependencyVersions: Map.unmodifiable(dependencyVersions),
       englishCatalog: Map.unmodifiable(catalog),
       manifestJson: _freezeMap(rawManifest),
@@ -633,6 +666,7 @@ class ExtensionBundle {
         'manifest': manifestJson,
         'docTypes': docTypeJson,
         if (reportJson.isNotEmpty) 'reports': reportJson,
+        if (printFormatJson.isNotEmpty) 'printFormats': printFormatJson,
         'dependencyVersions': dependencyVersions,
         'englishCatalog': englishCatalog,
       };

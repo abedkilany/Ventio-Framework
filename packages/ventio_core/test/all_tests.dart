@@ -1100,14 +1100,16 @@ void main() {
             'id': 'count',
             'operation': 'count',
             'label': 'Count',
-            'labelKey': 'extension.com_example_assets.report.asset_summary.count',
+            'labelKey':
+                'extension.com_example_assets.report.asset_summary.count',
           },
           {
             'id': 'value_total',
             'operation': 'sum',
             'field': 'assetValue',
             'label': 'Total value',
-            'labelKey': 'extension.com_example_assets.report.asset_summary.value_total',
+            'labelKey':
+                'extension.com_example_assets.report.asset_summary.value_total',
           },
         ],
       },
@@ -1117,14 +1119,15 @@ void main() {
       bundle.reports.single.filterFields.single == 'name' &&
           bundle.reports.single.groupBy == 'name' &&
           bundle.reports.single.aggregates.last.field == 'assetValue' &&
-          (ExtensionBundle.fromJson(bundle.toJson()).toJson()['reports'] as List)
+          (ExtensionBundle.fromJson(bundle.toJson()).toJson()['reports']
+                      as List)
                   .length ==
               1,
       'A bounded declarative report did not validate and round-trip',
     );
     final invalidFilter = changed(source);
-    (((invalidFilter['reports'] as List).single as Map<String, dynamic>)
-        ['filters'] as List)[0] = 'unknownField';
+    (((invalidFilter['reports'] as List).single
+        as Map<String, dynamic>)['filters'] as List)[0] = 'unknownField';
     checkThrows(
       () => ExtensionBundle.fromJson(invalidFilter),
       'A report was allowed to filter on an unknown field',
@@ -1137,6 +1140,50 @@ void main() {
     checkThrows(
       () => ExtensionBundle.fromJson(invalidSum),
       'A report was allowed to sum a text field',
+    );
+  });
+
+  test('Print formats are bounded, data-only, namespaced and round trip', () {
+    final source = extensionBundleJson();
+    final catalog = source['englishCatalog'] as Map<String, String>;
+    const labelKey = 'extension.com_example_assets.print.asset_summary';
+    catalog[labelKey] = 'Asset summary';
+    source['printFormats'] = [
+      {
+        'id': 'asset_summary',
+        'docType': 'Asset',
+        'label': 'Asset summary',
+        'labelKey': labelKey,
+        'pageSize': 'a4',
+        'orientation': 'portrait',
+        'blocks': [
+          {'type': 'field', 'field': 'name'},
+        ],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    final roundTrip = ExtensionBundle.fromJson(bundle.toJson());
+    check(
+      bundle.printFormats.single.blocks.single.field == 'name' &&
+          roundTrip.printFormats.single.pageSize == 'a4',
+      'A valid print format did not validate and round trip',
+    );
+
+    final invalidBlock = changed(source);
+    (((invalidBlock['printFormats'] as List).single
+            as Map<String, dynamic>)['blocks']
+        as List)[0] = {'type': 'html', 'source': '<script/>'};
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidBlock),
+      'An executable print block was accepted',
+    );
+    final invalidField = changed(source);
+    ((((invalidField['printFormats'] as List).single
+            as Map<String, dynamic>)['blocks'] as List)[0]
+        as Map<String, dynamic>)['field'] = 'unknown';
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidField),
+      'A print block referencing an unknown field was accepted',
     );
   });
 

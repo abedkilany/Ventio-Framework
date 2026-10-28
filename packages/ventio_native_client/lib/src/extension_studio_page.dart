@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:printing/printing.dart';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
@@ -15,6 +16,7 @@ import 'host_sync_service.dart';
 import 'host_transport.dart';
 import 'local_command_queue.dart';
 import 'maintenance_request_page.dart';
+import 'print_format_renderer.dart';
 import 'queued_record_reconciliation.dart';
 import 'role_administration_page.dart';
 import 'transport_fixture.dart';
@@ -1504,6 +1506,24 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     });
   }
 
+  Future<void> _addPrintFormat() async {
+    if (_docTypes.isEmpty) return;
+    final metadata = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _PrintFormatBuilderDialog(
+        moduleId: widget.moduleId,
+        docTypes: _docTypes,
+      ),
+    );
+    if (metadata == null) return;
+    await _run(() async {
+      await widget.store.savePrintFormatDefinition(
+        moduleId: widget.moduleId,
+        metadata: metadata,
+      );
+    });
+  }
+
   Future<void> _openPreview(
     Map<String, dynamic> metadata, {
     bool previewOnly = true,
@@ -1855,6 +1875,43 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                             subtitle: Text(
                               '${report['id']} · ${report['docType']}',
                             ),
+                          ),
+                        ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: VentioText(
+                            'native.ui.print_formats',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: _busy || _docTypes.isEmpty
+                              ? null
+                              : _addPrintFormat,
+                          icon: const Icon(Icons.print_outlined),
+                          label: const VentioText('native.ui.add_print_format'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (extension.printFormatDefinitions.isEmpty)
+                      _StateCard(
+                        icon: Icons.print_disabled_outlined,
+                        title: context.ventioText('native.ui.no_print_formats_yet'),
+                        body: context.ventioText('native.ui.print_formats_use_authorized_record_fields'),
+                      )
+                    else
+                      for (final format in extension.printFormatDefinitions)
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.print_outlined),
+                            title: Text(context.extensionMetadataText(
+                              format['labelKey'] as String,
+                              format['label'] as String,
+                            )),
+                            subtitle: Text('${format['id']} · ${format['docType']} · ${format['pageSize']} · ${format['orientation']}'),
                           ),
                         ),
                     const SizedBox(height: 20),
@@ -6288,6 +6345,7 @@ class DynamicRecordDetailsPage extends StatefulWidget {
     this.readableFields,
     this.writableFields,
     this.creatableFields,
+    this.printPdf,
     required this.record,
     super.key,
   });
@@ -6304,6 +6362,7 @@ class DynamicRecordDetailsPage extends StatefulWidget {
   final Set<String>? readableFields;
   final Set<String>? writableFields;
   final Set<String>? creatableFields;
+  final Future<void> Function(String name, List<int> bytes)? printPdf;
   final LocalExtensionRecord record;
 
   @override
@@ -6313,8 +6372,10 @@ class DynamicRecordDetailsPage extends StatefulWidget {
 
 class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
   late LocalExtensionRecord _record;
+  List<PrintFormatDefinition> _printFormats = const [];
   bool _refreshingConflict = false;
   String? _conflictRefreshError;
+  bool _printingRecord = false;
 
   @override
   void initState() {
@@ -6331,9 +6392,111 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
       scope: widget.scope,
     );
     if (!mounted || latest == null) return;
-    setState(() => _record = latest);
+    final extension = await widget.store.getExtension(widget.moduleId);
+    final typeDefinitions = (await widget.store.listDocTypes(widget.moduleId))
+        .map(DocTypeDefinition.fromJson)
+        .toList(growable: false);
+    final formats = extension?.printFormatDefinitions
+            .map((raw) => PrintFormatDefinition.fromJson(
+                  raw,
+                  moduleId: widget.moduleId,
+                  docTypes: typeDefinitions,
+                ))
+            .where((format) => format.docType == widget.definition.name)
+            .toList(growable: false) ??
+        const <PrintFormatDefinition>[];
+    setState(() {
+      _record = latest;
+      _printFormats = formats;
+    });
     if (latest.authorityState == 'CONFLICT' && latest.conflictValues == null) {
       await _refreshConflictSnapshot();
+    }
+  }
+
+  Future<void> _printRecord() async {
+    final profile = widget.hostProfile;
+    final vault = widget.credentialVault;
+    final moduleVersion = widget.moduleVersion;
+    if (_printingRecord || _printFormats.isEmpty ||
+        _record.authorityState != 'HOST_ACCEPTED' ||
+        _record.pendingCommandId != null || _record.hostRevision == null ||
+        _record.isDeleted || profile == null || vault == null ||
+        moduleVersion == null) {
+      return;
+    }
+    final selected = _printFormats.length == 1
+        ? _printFormats.single
+        : await showDialog<PrintFormatDefinition>(
+            context: context,
+            builder: (context) => SimpleDialog(
+              title: const VentioText('native.ui.choose_print_format'),
+              children: [
+                for (final format in _printFormats)
+                  SimpleDialogOption(
+                    onPressed: () => Navigator.pop(context, format),
+                    child: Text(context.extensionMetadataText(format.labelKey, format.label)),
+                  ),
+              ],
+            ),
+          );
+    if (selected == null || !mounted) return;
+    setState(() => _printingRecord = true);
+    try {
+      final bundle = await widget.store.exportBundle(widget.moduleId);
+      if (bundle.version != moduleVersion) {
+        throw const HostPackageTransportException('LOCAL_PACKAGE_VERSION_DIFFERS_FROM_HOST_APPROVED_RELEASE');
+      }
+      final digest = sha256.convert(utf8.encode(canonicalJson(bundle.toJson()))).toString();
+      final client = widget.hostPackageClientFactory?.call(
+            endpoint: Uri.parse(profile.endpoint), credentials: vault,
+          ) ?? HostExtensionPackageClient(
+            endpoint: Uri.parse(profile.endpoint), credentials: vault,
+          );
+      final page = await client.queryRecords(
+        companyId: profile.companyId,
+        branchId: profile.branchId,
+        moduleId: widget.moduleId,
+        version: moduleVersion,
+        docType: widget.definition.name,
+        recordId: _record.recordId,
+        sortField: null,
+        limit: 1,
+      );
+      final requiredFields = selected.blocks.where((block) => block.field != null)
+          .map((block) => block.field!).toSet();
+      final values = verifiedHostPrintValues(
+        page: page,
+        recordId: _record.recordId,
+        minimumRevision: _record.hostRevision!,
+        approvedPackageDigest: digest,
+        requiredFields: requiredFields,
+        fieldPermissionsDeclared: widget.definition.fields.any(
+          (field) => requiredFields.contains(field.name) && field.readPermission != null,
+        ),
+      );
+      final bytes = await buildPrintFormatPdf(
+        format: selected,
+        docType: widget.definition,
+        englishCatalog: bundle.englishCatalog,
+        record: values,
+        useSystemFonts: widget.printPdf == null,
+      );
+      final safeRecordId = _record.recordId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      final name = '${selected.id}-$safeRecordId.pdf';
+      if (widget.printPdf case final printPdf?) {
+        await printPdf(name, bytes);
+      } else {
+        await Printing.layoutPdf(name: name, onLayout: (_) async => Uint8List.fromList(bytes));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: VentioText('native.ui.print_failed')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _printingRecord = false);
     }
   }
 
@@ -6696,17 +6859,25 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
             },
           ),
         ),
-        actions: widget.definition.operations.contains('delete')
-            ? [
-                IconButton(
-                  tooltip: context.ventioText('native.ui.delete_record'),
-                  onPressed: record.pendingCommandId == null
-                      ? _deleteRecord
-                      : null,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ]
-            : null,
+        actions: [
+          if (_printFormats.isNotEmpty)
+            IconButton(
+              tooltip: context.ventioText('native.ui.print_record'),
+              onPressed: !_printingRecord && record.authorityState == 'HOST_ACCEPTED' &&
+                      record.pendingCommandId == null && record.hostRevision != null && !record.isDeleted
+                  ? _printRecord
+                  : null,
+              icon: _printingRecord
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.print_outlined),
+            ),
+          if (widget.definition.operations.contains('delete'))
+            IconButton(
+              tooltip: context.ventioText('native.ui.delete_record'),
+              onPressed: record.pendingCommandId == null ? _deleteRecord : null,
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
       ),
       floatingActionButton:
           !conflicted &&
@@ -7303,6 +7474,156 @@ class _ReportBuilderDialogState extends State<_ReportBuilderDialog> {
       onChanged: update,
     );
   }
+}
+
+class _PrintFormatBuilderDialog extends StatefulWidget {
+  const _PrintFormatBuilderDialog({required this.moduleId, required this.docTypes});
+
+  final String moduleId;
+  final List<Map<String, dynamic>> docTypes;
+
+  @override
+  State<_PrintFormatBuilderDialog> createState() => _PrintFormatBuilderDialogState();
+}
+
+class _PrintFormatBuilderDialogState extends State<_PrintFormatBuilderDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _id = TextEditingController();
+  final _label = TextEditingController();
+  late String _docType;
+  String _pageSize = 'a4';
+  String _orientation = 'portrait';
+  String? _field;
+  String? _table;
+  final List<Map<String, dynamic>> _blocks = [];
+
+  Map<String, dynamic> get _selectedType => widget.docTypes.firstWhere((type) => type['name'] == _docType);
+  List<Map<String, dynamic>> get _fields => (_selectedType['fields'] as List).cast<Map<String, dynamic>>();
+  List<Map<String, dynamic>> get _scalarFields => _fields.where((field) => field['type'] != 'table').toList();
+  List<Map<String, dynamic>> get _tableFields => _fields.where((field) => field['type'] == 'table').toList();
+
+  @override
+  void initState() { super.initState(); _docType = widget.docTypes.first['name'] as String; }
+
+  @override
+  void dispose() { _id.dispose(); _label.dispose(); super.dispose(); }
+
+  void _appendField() {
+    final field = _field;
+    if (field == null || _blocks.length >= PrintFormatDefinition.maxBlocks) return;
+    setState(() => _blocks.add({'type': 'field', 'field': field}));
+  }
+
+  void _appendTable() {
+    final tableName = _table;
+    if (tableName == null || _blocks.length >= PrintFormatDefinition.maxBlocks) return;
+    final table = _tableFields.firstWhere((field) => field['name'] == tableName);
+    final child = table['childDocType'] as Map<String, dynamic>;
+    final columns = (child['fields'] as List).cast<Map<String, dynamic>>()
+        .where((field) => field['type'] != 'table')
+        .take(PrintFormatDefinition.maxColumnsPerTable)
+        .map((field) => field['name'] as String).toList();
+    if (columns.isEmpty) return;
+    setState(() => _blocks.add({'type': 'table', 'field': tableName, 'columns': columns}));
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate() || _blocks.isEmpty) return;
+    final id = _id.text.trim();
+    final slug = widget.moduleId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    Navigator.pop(context, <String, dynamic>{
+      'id': id,
+      'docType': _docType,
+      'label': _label.text.trim(),
+      'labelKey': 'extension.$slug.print.$id',
+      'pageSize': _pageSize,
+      'orientation': _orientation,
+      'blocks': _blocks,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const VentioText('native.ui.create_print_format'),
+    content: SizedBox(
+      width: 600,
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(
+              controller: _id,
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.print_format_id')),
+              validator: (value) => RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(value?.trim() ?? '')
+                  ? null : context.ventioText('native.ui.enter_valid_print_format_id'),
+            ),
+            TextFormField(
+              controller: _label,
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.print_format_label')),
+              validator: (value) => value?.trim().isNotEmpty == true
+                  ? null : context.ventioText('native.ui.enter_print_format_label'),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _docType,
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.source_doctype')),
+              items: widget.docTypes.map((type) => DropdownMenuItem(value: type['name'] as String, child: Text(type['label'] as String))).toList(),
+              onChanged: (value) => setState(() { _docType = value!; _field = null; _table = null; }),
+            ),
+            Row(children: [
+              Expanded(child: DropdownButtonFormField<String>(
+                initialValue: _pageSize,
+                decoration: InputDecoration(labelText: context.ventioText('native.ui.page_size')),
+                items: [DropdownMenuItem(value: 'a4', child: Text(context.ventioText('native.ui.a4'))), DropdownMenuItem(value: 'letter', child: Text(context.ventioText('native.ui.letter')))],
+                onChanged: (value) => setState(() => _pageSize = value!),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: DropdownButtonFormField<String>(
+                initialValue: _orientation,
+                decoration: InputDecoration(labelText: context.ventioText('native.ui.orientation')),
+                items: [DropdownMenuItem(value: 'portrait', child: Text(context.ventioText('native.ui.portrait'))), DropdownMenuItem(value: 'landscape', child: Text(context.ventioText('native.ui.landscape')))],
+                onChanged: (value) => setState(() => _orientation = value!),
+              )),
+            ]),
+            if (_scalarFields.isNotEmpty) Row(children: [
+              Expanded(child: DropdownButtonFormField<String>(
+                initialValue: _scalarFields.any((field) => field['name'] == _field) ? _field : null,
+                decoration: InputDecoration(labelText: context.ventioText('native.ui.field_block')),
+                items: _scalarFields.map((field) => DropdownMenuItem(value: field['name'] as String, child: Text(field['label'] as String))).toList(),
+                onChanged: (value) => setState(() => _field = value),
+              )),
+              IconButton(onPressed: _appendField, icon: const Icon(Icons.add), tooltip: context.ventioText('native.ui.add_field_block')),
+            ]),
+            if (_tableFields.isNotEmpty) Row(children: [
+              Expanded(child: DropdownButtonFormField<String>(
+                initialValue: _tableFields.any((field) => field['name'] == _table) ? _table : null,
+                decoration: InputDecoration(labelText: context.ventioText('native.ui.child_table_block')),
+                items: _tableFields.map((field) => DropdownMenuItem(value: field['name'] as String, child: Text(field['label'] as String))).toList(),
+                onChanged: (value) => setState(() => _table = value),
+              )),
+              IconButton(onPressed: _appendTable, icon: const Icon(Icons.add), tooltip: context.ventioText('native.ui.add_table_block')),
+            ]),
+            Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+              onPressed: _blocks.length >= PrintFormatDefinition.maxBlocks ? null : () => setState(() => _blocks.add({'type': 'page_break'})),
+              icon: const Icon(Icons.insert_page_break_outlined),
+              label: const VentioText('native.ui.add_page_break'),
+            )),
+            for (var index = 0; index < _blocks.length; index++)
+              ListTile(
+                dense: true,
+                leading: Icon(_blocks[index]['type'] == 'page_break' ? Icons.insert_page_break_outlined : _blocks[index]['type'] == 'table' ? Icons.table_rows_outlined : Icons.text_fields_outlined),
+                title: Text(_blocks[index]['type'] == 'page_break' ? context.ventioText('native.ui.page_break') : '${_blocks[index]['type'] == 'table' ? context.ventioText('native.ui.table') : context.ventioText('native.ui.field')}: ${_blocks[index]['field']}'),
+                trailing: IconButton(onPressed: () => setState(() => _blocks.removeAt(index)), icon: const Icon(Icons.remove_circle_outline), tooltip: context.ventioText('native.ui.remove_block')),
+              ),
+            if (_blocks.isEmpty) Align(alignment: Alignment.centerLeft, child: Text(context.ventioText('native.ui.add_print_content_block'))),
+          ]),
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const VentioText('native.ui.cancel')),
+      FilledButton(onPressed: _save, child: const VentioText('native.ui.save_print_format')),
+    ],
+  );
 }
 
 class _ExtensionFormDialog extends StatefulWidget {

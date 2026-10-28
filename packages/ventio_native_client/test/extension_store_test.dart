@@ -130,54 +130,113 @@ void main() {
     expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
   });
 
-  test('Saved report definitions persist and export with package labels', () async {
-    await store.createExtension(
-      moduleId: _moduleId,
-      displayName: 'Asset Register',
-      description: 'Track assets.',
-    );
-    final asset = _docType();
-    asset['labelKey'] = 'extension.com_example_asset_register.asset.name';
-    (asset['fields'] as List).first['labelKey'] =
-        'extension.com_example_asset_register.asset.field_name';
-    await store.saveDocType(asset);
-    final report = {
-      'id': 'asset_count',
-      'docType': 'Asset',
-      'label': 'Asset count',
-      'labelKey': 'extension.com_example_asset_register.report.asset_count',
-      'filters': ['name'],
-      'groupBy': 'name',
-      'sortBy': 'asset_count',
-      'descending': false,
-      'aggregates': [
-        {
-          'id': 'asset_count',
-          'operation': 'count',
-          'label': 'Count',
+  test(
+    'Saved report definitions persist and export with package labels',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: 'Track assets.',
+      );
+      final asset = _docType();
+      asset['labelKey'] = 'extension.com_example_asset_register.asset.name';
+      (asset['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.asset.field_name';
+      await store.saveDocType(asset);
+      final report = {
+        'id': 'asset_count',
+        'docType': 'Asset',
+        'label': 'Asset count',
+        'labelKey': 'extension.com_example_asset_register.report.asset_count',
+        'filters': ['name'],
+        'groupBy': 'name',
+        'sortBy': 'asset_count',
+        'descending': false,
+        'aggregates': [
+          {
+            'id': 'asset_count',
+            'operation': 'count',
+            'label': 'Count',
+            'labelKey':
+                'extension.com_example_asset_register.report.asset_count.count',
+          },
+        ],
+      };
+      await store.saveReportDefinition(moduleId: _moduleId, metadata: report);
+      final saved = (await store.getExtension(_moduleId))!;
+      expect(saved.version, '0.1.1');
+      expect(saved.reportDefinitions.single['id'], 'asset_count');
+      await store.close();
+      await openStore();
+      final restored = (await store.getExtension(_moduleId))!;
+      expect(restored.reportDefinitions.single['filters'], ['name']);
+      final bundle = await store.exportBundle(_moduleId);
+      final roundTrip = ExtensionBundle.fromJson(bundle.toJson());
+      expect(roundTrip.reports.single.id, 'asset_count');
+      expect(
+        roundTrip
+            .englishCatalog['extension.com_example_asset_register.report.asset_count.count'],
+        'Count',
+      );
+    },
+  );
+
+  test(
+    'Saved print formats persist and export with English package labels',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: 'Track assets.',
+      );
+      final asset = _docType();
+      asset['labelKey'] = 'extension.com_example_asset_register.asset.name';
+      (asset['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.asset.field_name';
+      await store.saveDocType(asset);
+      await store.savePrintFormatDefinition(
+        moduleId: _moduleId,
+        metadata: const {
+          'id': 'asset_receipt',
+          'docType': 'Asset',
+          'label': 'Asset receipt',
           'labelKey':
-              'extension.com_example_asset_register.report.asset_count.count',
+              'extension.com_example_asset_register.print.asset_receipt',
+          'pageSize': 'a4',
+          'orientation': 'portrait',
+          'blocks': [
+            {'type': 'field', 'field': 'name'},
+            {'type': 'page_break'},
+            {'type': 'field', 'field': 'name'},
+          ],
         },
-      ],
-    };
-    await store.saveReportDefinition(moduleId: _moduleId, metadata: report);
-    final saved = (await store.getExtension(_moduleId))!;
-    expect(saved.version, '0.1.1');
-    expect(saved.reportDefinitions.single['id'], 'asset_count');
-    await store.close();
-    await openStore();
-    final restored = (await store.getExtension(_moduleId))!;
-    expect(restored.reportDefinitions.single['filters'], ['name']);
-    final bundle = await store.exportBundle(_moduleId);
-    final roundTrip = ExtensionBundle.fromJson(bundle.toJson());
-    expect(roundTrip.reports.single.id, 'asset_count');
-    expect(
-      roundTrip.englishCatalog[
-        'extension.com_example_asset_register.report.asset_count.count'
-      ],
-      'Count',
-    );
-  });
+      );
+      expect(
+        (await store.getExtension(_moduleId))!.printFormatDefinitions,
+        hasLength(1),
+      );
+      await store.close();
+      await openStore();
+      final bundle = await store.exportBundle(_moduleId);
+      expect(bundle.printFormats.single.id, 'asset_receipt');
+      expect(
+        bundle
+            .englishCatalog['extension.com_example_asset_register.print.asset_receipt'],
+        'Asset receipt',
+      );
+      final installed = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: '${directory.path}${Platform.pathSeparator}installed.sqlite3',
+      );
+      await installed.installBundle(bundle);
+      expect(
+        (await installed.getExtension(_moduleId))!
+            .printFormatDefinitions.single['id'],
+        'asset_receipt',
+      );
+      await installed.close();
+    },
+  );
 
   test(
     'Accepted governed operation receipt reconciles status and official number',

@@ -34,6 +34,7 @@ class LocalExtension {
     required this.version,
     required this.dependencies,
     required this.reportDefinitions,
+    required this.printFormatDefinitions,
     required this.state,
     required this.updatedAtUtc,
   });
@@ -44,6 +45,7 @@ class LocalExtension {
   final String version;
   final Map<String, String> dependencies;
   final List<Map<String, dynamic>> reportDefinitions;
+  final List<Map<String, dynamic>> printFormatDefinitions;
   final ExtensionState state;
   final DateTime updatedAtUtc;
 
@@ -70,9 +72,17 @@ class LocalExtension {
       dependencies[id] = version;
     }
     final rawReports = jsonDecode(row['reports_json'] as String? ?? '[]');
-    if (rawReports is! List ||
-        rawReports.any((report) => report is! Map)) {
+    if (rawReports is! List || rawReports.any((report) => report is! Map)) {
       throw const FormatException('Stored extension reports are invalid.');
+    }
+    final rawPrintFormats = jsonDecode(
+      row['print_formats_json'] as String? ?? '[]',
+    );
+    if (rawPrintFormats is! List ||
+        rawPrintFormats.any((format) => format is! Map)) {
+      throw const FormatException(
+        'Stored extension print formats are invalid.',
+      );
     }
     return LocalExtension(
       moduleId: row['module_id']! as String,
@@ -82,6 +92,11 @@ class LocalExtension {
       dependencies: Map.unmodifiable(dependencies),
       reportDefinitions: List.unmodifiable(
         rawReports.map((report) => Map<String, dynamic>.from(report as Map)),
+      ),
+      printFormatDefinitions: List.unmodifiable(
+        rawPrintFormats.map(
+          (format) => Map<String, dynamic>.from(format as Map),
+        ),
       ),
       state: ExtensionState.fromDatabase(row['state']),
       updatedAtUtc: DateTime.parse(row['updated_at_utc']! as String).toUtc(),
@@ -297,7 +312,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 11,
+        version: 12,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -312,6 +327,7 @@ class LocalExtensionStore {
               version TEXT NOT NULL,
               dependencies_json TEXT NOT NULL DEFAULT '{}',
               reports_json TEXT NOT NULL DEFAULT '[]',
+              print_formats_json TEXT NOT NULL DEFAULT '[]',
               state TEXT NOT NULL CHECK (state IN ('DRAFT', 'ACTIVE_LOCAL', 'DISABLED_LOCAL')),
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL
@@ -588,6 +604,18 @@ class LocalExtensionStore {
               ''');
             }
           }
+          if (oldVersion < 12) {
+            final extensionTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_extensionsTable],
+            );
+            if (extensionTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_extensionsTable ADD COLUMN print_formats_json TEXT
+                  NOT NULL DEFAULT '[]'
+              ''');
+            }
+          }
         },
       ),
     );
@@ -645,6 +673,7 @@ class LocalExtensionStore {
           'version': version,
           'dependencies_json': canonicalJson(normalizedDependencies),
           'reports_json': '[]',
+          'print_formats_json': '[]',
           'state': ExtensionState.draft.databaseValue,
           'created_at_utc': now,
           'updated_at_utc': now,
@@ -1052,6 +1081,12 @@ class LocalExtensionStore {
         addLabel(aggregate['labelKey'], aggregate['label']);
       }
     }
+    final exportPrintFormats = extension.printFormatDefinitions
+        .map((format) => jsonDecode(jsonEncode(format)) as Map<String, dynamic>)
+        .toList(growable: false);
+    for (final format in exportPrintFormats) {
+      addLabel(format['labelKey'], format['label']);
+    }
 
     return ExtensionBundle.fromJson({
       'manifest': {
@@ -1075,6 +1110,7 @@ class LocalExtensionStore {
       },
       'docTypes': exportDocTypes,
       if (exportReports.isNotEmpty) 'reports': exportReports,
+      if (exportPrintFormats.isNotEmpty) 'printFormats': exportPrintFormats,
       'dependencyVersions': extension.dependencies,
       'englishCatalog': catalog,
     });
@@ -1099,6 +1135,7 @@ class LocalExtensionStore {
       for (final json in bundle.docTypeJson) json['name'] as String: json,
     };
     final incomingReports = canonicalJson(bundle.reportJson);
+    final incomingPrintFormats = canonicalJson(bundle.printFormatJson);
     final now = _now();
 
     await _database.transaction((transaction) async {
@@ -1172,6 +1209,8 @@ class LocalExtensionStore {
               current.displayName == displayName &&
               current.description == description &&
               canonicalJson(current.reportDefinitions) == incomingReports &&
+              canonicalJson(current.printFormatDefinitions) ==
+                  incomingPrintFormats &&
               _sameDependencies(current.dependencies, dependencies) &&
               incomingByName.length == existingByName.length &&
               incomingByName.entries.every(
@@ -1205,6 +1244,7 @@ class LocalExtensionStore {
             'version': bundle.version,
             'dependencies_json': canonicalJson(dependencies),
             'reports_json': incomingReports,
+            'print_formats_json': incomingPrintFormats,
             'updated_at_utc': now,
           },
           where: 'module_id = ?',
@@ -1218,6 +1258,7 @@ class LocalExtensionStore {
           'version': bundle.version,
           'dependencies_json': canonicalJson(dependencies),
           'reports_json': incomingReports,
+          'print_formats_json': incomingPrintFormats,
           'state': ExtensionState.draft.databaseValue,
           'created_at_utc': now,
           'updated_at_utc': now,
@@ -1484,9 +1525,9 @@ class LocalExtensionStore {
         'Create the extension before adding a report.',
       );
     }
-    final definitions = (await listDocTypes(moduleId))
-        .map(DocTypeDefinition.fromJson)
-        .toList(growable: false);
+    final definitions = (await listDocTypes(
+      moduleId,
+    )).map(DocTypeDefinition.fromJson).toList(growable: false);
     final report = ReportDefinition.fromJson(
       metadata,
       moduleId: moduleId,
@@ -1515,6 +1556,59 @@ class LocalExtensionStore {
       _extensionsTable,
       {
         'reports_json': canonicalJson(reports),
+        'version': _nextPatch(extension.version),
+        'updated_at_utc': _now(),
+      },
+      where: 'module_id = ?',
+      whereArgs: [moduleId],
+    );
+  }
+
+  /// Saves a bounded data-only print format in an ordinary extension draft.
+  Future<void> savePrintFormatDefinition({
+    required String moduleId,
+    required Map<String, dynamic> metadata,
+  }) async {
+    _ensureOpen();
+    final extension = await getExtension(moduleId);
+    if (extension == null) {
+      throw const ExtensionStoreException(
+        'UNKNOWN_MODULE',
+        'Create the extension before adding a print format.',
+      );
+    }
+    final definitions = (await listDocTypes(
+      moduleId,
+    )).map(DocTypeDefinition.fromJson).toList(growable: false);
+    final format = PrintFormatDefinition.fromJson(
+      metadata,
+      moduleId: moduleId,
+      docTypes: definitions,
+    );
+    final formats = extension.printFormatDefinitions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final existing = formats.indexWhere((item) => item['id'] == format.id);
+    if (existing < 0 &&
+        formats.length >= PrintFormatDefinition.maxFormatsPerBundle) {
+      throw const ExtensionStoreException(
+        'TOO_MANY_PRINT_FORMATS',
+        'An extension may define at most 32 print formats.',
+      );
+    }
+    if (existing >= 0 &&
+        canonicalJson(formats[existing]) == canonicalJson(format.toJson())) {
+      return;
+    }
+    if (existing < 0) {
+      formats.add(format.toJson());
+    } else {
+      formats[existing] = format.toJson();
+    }
+    await _database.update(
+      _extensionsTable,
+      {
+        'print_formats_json': canonicalJson(formats),
         'version': _nextPatch(extension.version),
         'updated_at_utc': _now(),
       },
