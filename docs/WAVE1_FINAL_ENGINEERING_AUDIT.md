@@ -1,8 +1,8 @@
 # Wave 1 Final Engineering Audit & Windows Release Candidate
 
-Date: 2026-10-28  
-Branch: `codex/extension-platform`  
-Reviewed implementation baseline: `59037f708cc565ee31b605e3a9c10065fcb855b9`  
+Date: 2026-10-28
+Branch: `codex/extension-platform`
+Reviewed implementation baseline: `59037f708cc565ee31b605e3a9c10065fcb855b9`
 Audit checkpoint: pending commit
 
 This audit does not start Wave 2 and does not declare commercial production readiness. The Wave 1 dashboard's 100% remains the accepted implementation status; this document records a separate release-readiness review.
