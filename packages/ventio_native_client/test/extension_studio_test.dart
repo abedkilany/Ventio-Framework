@@ -3701,11 +3701,22 @@ void main() {
     await tester.enterText(fields.at(0), 'PhoneNote');
     await tester.enterText(fields.at(1), 'Phone Note');
     await tester.enterText(fields.at(2), 'A note created from a compact view.');
+    final builderList = find
+        .descendant(
+          of: find.byType(DocTypeBuilderPage),
+          matching: find.byType(ListView),
+        )
+        .first;
+    final builderScrollable = find
+        .descendant(of: builderList, matching: find.byType(Scrollable))
+        .first;
     await tester.scrollUntilVisible(
       find.text('Add field'),
       120,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScrollable,
     );
+    await tester.ensureVisible(find.text('Add field'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add field'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -3724,7 +3735,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Save DocType'),
       160,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScrollable,
     );
     await tester.ensureVisible(find.text('Save DocType'));
     await tester.pumpAndSettle();

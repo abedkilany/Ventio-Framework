@@ -792,53 +792,59 @@ void main() {
     expect(page.nextCursor, isNull);
   });
 
-  test('Report query sends fixed metadata selectors and parses exact results', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    final seen = Completer<Map<String, dynamic>>();
-    server.listen((request) async {
-      final raw = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
-      seen.complete(Map<String, dynamic>.from(raw));
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..headers.contentType = ContentType.json
-        ..write(jsonEncode({
-          'apiVersion': hostApiVersion,
-          'reportResult': {
-            'status': 'REPORT',
-            'reportId': 'amounts',
-            'packageSha256': List.filled(64, 'a').join(),
-            'rowCount': 3,
-            'groups': [
-              {
-                'key': 'North',
-                'aggregates': {'row_count': '3', 'sum_amount': '0.32'},
+  test(
+    'Report query sends fixed metadata selectors and parses exact results',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final seen = Completer<Map<String, dynamic>>();
+      server.listen((request) async {
+        final raw = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+        seen.complete(Map<String, dynamic>.from(raw));
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode({
+              'apiVersion': hostApiVersion,
+              'reportResult': {
+                'status': 'REPORT',
+                'reportId': 'amounts',
+                'packageSha256': List.filled(64, 'a').join(),
+                'rowCount': 3,
+                'groups': [
+                  {
+                    'key': 'North',
+                    'aggregates': {'row_count': '3', 'sum_amount': '0.32'},
+                  },
+                ],
               },
-            ],
-          },
-        }));
-      await request.response.close();
-    });
-    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
-    final vault = HostCredentialVault(_MemoryCredentialBackend());
-    await vault.save(endpoint, token);
-    final result = await HostExtensionPackageClient(
-      endpoint: endpoint,
-      credentials: vault,
-    ).queryReport(
-      companyId: 'company-1',
-      branchId: 'branch-1',
-      moduleId: 'com.example.host_package',
-      version: '1.0.0',
-      docType: 'Item',
-      reportId: 'amounts',
-      filters: const {'status': 'active'},
-    );
-    final body = await seen.future;
-    expect(body['docType'], 'Item');
-    expect(body['reportId'], 'amounts');
-    expect(body['filters'], {'status': 'active'});
-    expect(result.rowCount, 3);
-    expect(result.groups.single.aggregates['sum_amount'], '0.32');
-  });
+            }),
+          );
+        await request.response.close();
+      });
+      final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(endpoint, token);
+      final result =
+          await HostExtensionPackageClient(
+            endpoint: endpoint,
+            credentials: vault,
+          ).queryReport(
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            moduleId: 'com.example.host_package',
+            version: '1.0.0',
+            docType: 'Item',
+            reportId: 'amounts',
+            filters: const {'status': 'active'},
+          );
+      final body = await seen.future;
+      expect(body['docType'], 'Item');
+      expect(body['reportId'], 'amounts');
+      expect(body['filters'], {'status': 'active'});
+      expect(result.rowCount, 3);
+      expect(result.groups.single.aggregates['sum_amount'], '0.32');
+    },
+  );
 }

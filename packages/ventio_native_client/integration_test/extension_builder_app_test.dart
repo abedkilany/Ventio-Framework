@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ventio_native_client/main.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
+import 'package:ventio_native_client/src/extension_studio_page.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
 
 Future<void> _scrollTo(
@@ -29,13 +30,42 @@ Future<void> _scrollTo(
   if (targetCount > 1) {
     throw TestFailure('Expected one matching widget, found $targetCount.');
   }
-  final scrollable = verticalScrollables.first;
-  final position = tester.state<ScrollableState>(scrollable).position;
-  if (position.maxScrollExtent <= position.minScrollExtent) {
+  final activePage = [
+    find.byType(DynamicRecordConflictPage),
+    find.byType(DynamicRecordFormPage),
+    find.byType(DynamicRecordDetailsPage),
+    find.byType(DynamicDocTypePage),
+    find.byType(DocTypeBuilderPage),
+    find.byType(ExtensionDetailsPage),
+    find.byType(ExtensionStudioPage),
+  ].firstWhere((page) => page.evaluate().isNotEmpty);
+  final pageScrollables = find.descendant(
+    of: activePage,
+    matching: verticalScrollables,
+  );
+  if (pageScrollables.evaluate().isEmpty) {
+    throw TestFailure('The active Builder page has no vertical scrollable.');
+  }
+  Finder? scrollable;
+  var maxScrollExtent = 0.0;
+  final elements = pageScrollables.evaluate().toList();
+  for (var index = 0; index < elements.length; index++) {
+    final element = elements[index];
+    final candidate = find.byElementPredicate((current) => current == element);
+    final position = tester.state<ScrollableState>(candidate).position;
+    if (position.maxScrollExtent > maxScrollExtent) {
+      maxScrollExtent = position.maxScrollExtent;
+      scrollable = pageScrollables.at(index);
+    }
+  }
+  if (scrollable == null) {
     throw TestFailure(
       'Could not find the target on the active screen, and it cannot scroll.',
     );
   }
+  final position = tester.state<ScrollableState>(scrollable).position;
+  position.jumpTo(position.minScrollExtent);
+  await tester.pumpAndSettle();
   await tester.scrollUntilVisible(
     target,
     delta,

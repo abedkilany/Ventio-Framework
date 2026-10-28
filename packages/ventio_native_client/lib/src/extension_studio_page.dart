@@ -1492,10 +1492,8 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     if (_docTypes.isEmpty) return;
     final metadata = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => _ReportBuilderDialog(
-        moduleId: widget.moduleId,
-        docTypes: _docTypes,
-      ),
+      builder: (context) =>
+          _ReportBuilderDialog(moduleId: widget.moduleId, docTypes: _docTypes),
     );
     if (metadata == null) return;
     await _run(() async {
@@ -1899,19 +1897,27 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                     if (extension.printFormatDefinitions.isEmpty)
                       _StateCard(
                         icon: Icons.print_disabled_outlined,
-                        title: context.ventioText('native.ui.no_print_formats_yet'),
-                        body: context.ventioText('native.ui.print_formats_use_authorized_record_fields'),
+                        title: context.ventioText(
+                          'native.ui.no_print_formats_yet',
+                        ),
+                        body: context.ventioText(
+                          'native.ui.print_formats_use_authorized_record_fields',
+                        ),
                       )
                     else
                       for (final format in extension.printFormatDefinitions)
                         Card(
                           child: ListTile(
                             leading: const Icon(Icons.print_outlined),
-                            title: Text(context.extensionMetadataText(
-                              format['labelKey'] as String,
-                              format['label'] as String,
-                            )),
-                            subtitle: Text('${format['id']} · ${format['docType']} · ${format['pageSize']} · ${format['orientation']}'),
+                            title: Text(
+                              context.extensionMetadataText(
+                                format['labelKey'] as String,
+                                format['label'] as String,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${format['id']} · ${format['docType']} · ${format['pageSize']} · ${format['orientation']}',
+                            ),
                           ),
                         ),
                     const SizedBox(height: 20),
@@ -6393,15 +6399,18 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     );
     if (!mounted || latest == null) return;
     final extension = await widget.store.getExtension(widget.moduleId);
-    final typeDefinitions = (await widget.store.listDocTypes(widget.moduleId))
-        .map(DocTypeDefinition.fromJson)
-        .toList(growable: false);
-    final formats = extension?.printFormatDefinitions
-            .map((raw) => PrintFormatDefinition.fromJson(
-                  raw,
-                  moduleId: widget.moduleId,
-                  docTypes: typeDefinitions,
-                ))
+    final typeDefinitions = (await widget.store.listDocTypes(
+      widget.moduleId,
+    )).map(DocTypeDefinition.fromJson).toList(growable: false);
+    final formats =
+        extension?.printFormatDefinitions
+            .map(
+              (raw) => PrintFormatDefinition.fromJson(
+                raw,
+                moduleId: widget.moduleId,
+                docTypes: typeDefinitions,
+              ),
+            )
             .where((format) => format.docType == widget.definition.name)
             .toList(growable: false) ??
         const <PrintFormatDefinition>[];
@@ -6418,10 +6427,14 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     final profile = widget.hostProfile;
     final vault = widget.credentialVault;
     final moduleVersion = widget.moduleVersion;
-    if (_printingRecord || _printFormats.isEmpty ||
+    if (_printingRecord ||
+        _printFormats.isEmpty ||
         _record.authorityState != 'HOST_ACCEPTED' ||
-        _record.pendingCommandId != null || _record.hostRevision == null ||
-        _record.isDeleted || profile == null || vault == null ||
+        _record.pendingCommandId != null ||
+        _record.hostRevision == null ||
+        _record.isDeleted ||
+        profile == null ||
+        vault == null ||
         moduleVersion == null) {
       return;
     }
@@ -6435,7 +6448,12 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
                 for (final format in _printFormats)
                   SimpleDialogOption(
                     onPressed: () => Navigator.pop(context, format),
-                    child: Text(context.extensionMetadataText(format.labelKey, format.label)),
+                    child: Text(
+                      context.extensionMetadataText(
+                        format.labelKey,
+                        format.label,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -6445,13 +6463,21 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     try {
       final bundle = await widget.store.exportBundle(widget.moduleId);
       if (bundle.version != moduleVersion) {
-        throw const HostPackageTransportException('LOCAL_PACKAGE_VERSION_DIFFERS_FROM_HOST_APPROVED_RELEASE');
+        throw const HostPackageTransportException(
+          'LOCAL_PACKAGE_VERSION_DIFFERS_FROM_HOST_APPROVED_RELEASE',
+        );
       }
-      final digest = sha256.convert(utf8.encode(canonicalJson(bundle.toJson()))).toString();
-      final client = widget.hostPackageClientFactory?.call(
-            endpoint: Uri.parse(profile.endpoint), credentials: vault,
-          ) ?? HostExtensionPackageClient(
-            endpoint: Uri.parse(profile.endpoint), credentials: vault,
+      final digest = sha256
+          .convert(utf8.encode(canonicalJson(bundle.toJson())))
+          .toString();
+      final client =
+          widget.hostPackageClientFactory?.call(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+          ) ??
+          HostExtensionPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
           );
       final page = await client.queryRecords(
         companyId: profile.companyId,
@@ -6463,8 +6489,10 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
         sortField: null,
         limit: 1,
       );
-      final requiredFields = selected.blocks.where((block) => block.field != null)
-          .map((block) => block.field!).toSet();
+      final requiredFields = selected.blocks
+          .where((block) => block.field != null)
+          .map((block) => block.field!)
+          .toSet();
       final values = verifiedHostPrintValues(
         page: page,
         recordId: _record.recordId,
@@ -6472,7 +6500,9 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
         approvedPackageDigest: digest,
         requiredFields: requiredFields,
         fieldPermissionsDeclared: widget.definition.fields.any(
-          (field) => requiredFields.contains(field.name) && field.readPermission != null,
+          (field) =>
+              requiredFields.contains(field.name) &&
+              field.readPermission != null,
         ),
       );
       final bytes = await buildPrintFormatPdf(
@@ -6482,12 +6512,18 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
         record: values,
         useSystemFonts: widget.printPdf == null,
       );
-      final safeRecordId = _record.recordId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      final safeRecordId = _record.recordId.replaceAll(
+        RegExp(r'[^A-Za-z0-9_-]'),
+        '_',
+      );
       final name = '${selected.id}-$safeRecordId.pdf';
       if (widget.printPdf case final printPdf?) {
         await printPdf(name, bytes);
       } else {
-        await Printing.layoutPdf(name: name, onLayout: (_) async => Uint8List.fromList(bytes));
+        await Printing.layoutPdf(
+          name: name,
+          onLayout: (_) async => Uint8List.fromList(bytes),
+        );
       }
     } catch (_) {
       if (mounted) {
@@ -6863,12 +6899,20 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
           if (_printFormats.isNotEmpty)
             IconButton(
               tooltip: context.ventioText('native.ui.print_record'),
-              onPressed: !_printingRecord && record.authorityState == 'HOST_ACCEPTED' &&
-                      record.pendingCommandId == null && record.hostRevision != null && !record.isDeleted
+              onPressed:
+                  !_printingRecord &&
+                      record.authorityState == 'HOST_ACCEPTED' &&
+                      record.pendingCommandId == null &&
+                      record.hostRevision != null &&
+                      !record.isDeleted
                   ? _printRecord
                   : null,
               icon: _printingRecord
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.print_outlined),
             ),
           if (widget.definition.operations.contains('delete'))
@@ -7427,49 +7471,115 @@ class _ReportBuilderDialogState extends State<_ReportBuilderDialog> {
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextFormField(
-              controller: _id,
-              decoration: InputDecoration(labelText: context.ventioText('native.ui.report_id')),
-              validator: (value) => RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(value?.trim() ?? '')
-                  ? null
-                  : context.ventioText('native.ui.enter_valid_report_id'),
-            ),
-            TextFormField(
-              controller: _label,
-              decoration: InputDecoration(labelText: context.ventioText('native.ui.report_label')),
-              validator: (value) => (value?.trim().isNotEmpty ?? false)
-                  ? null
-                  : context.ventioText('native.ui.enter_report_label'),
-            ),
-            DropdownButtonFormField<String>(
-              initialValue: _docType,
-              decoration: InputDecoration(labelText: context.ventioText('native.ui.source_doctype')),
-              items: widget.docTypes.map((type) => DropdownMenuItem(value: type['name'] as String, child: Text(type['label'] as String))).toList(),
-              onChanged: (value) => setState(() { _docType = value; _filter = null; _group = null; _sum = null; }),
-            ),
-            _fieldDropdown('native.ui.report_filter_field', _filter, (value) => _filter = value, nullable: true),
-            _fieldDropdown('native.ui.group_by_field', _group, (value) => _group = value, nullable: true),
-            _fieldDropdown('native.ui.sum_numeric_field', _sum, (value) => _sum = value, numericOnly: true, nullable: true),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _id,
+                decoration: InputDecoration(
+                  labelText: context.ventioText('native.ui.report_id'),
+                ),
+                validator: (value) =>
+                    RegExp(
+                      r'^[a-z][a-z0-9_]{0,63}$',
+                    ).hasMatch(value?.trim() ?? '')
+                    ? null
+                    : context.ventioText('native.ui.enter_valid_report_id'),
+              ),
+              TextFormField(
+                controller: _label,
+                decoration: InputDecoration(
+                  labelText: context.ventioText('native.ui.report_label'),
+                ),
+                validator: (value) => (value?.trim().isNotEmpty ?? false)
+                    ? null
+                    : context.ventioText('native.ui.enter_report_label'),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: _docType,
+                decoration: InputDecoration(
+                  labelText: context.ventioText('native.ui.source_doctype'),
+                ),
+                items: widget.docTypes
+                    .map(
+                      (type) => DropdownMenuItem(
+                        value: type['name'] as String,
+                        child: Text(type['label'] as String),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _docType = value;
+                  _filter = null;
+                  _group = null;
+                  _sum = null;
+                }),
+              ),
+              _fieldDropdown(
+                'native.ui.report_filter_field',
+                _filter,
+                (value) => _filter = value,
+                nullable: true,
+              ),
+              _fieldDropdown(
+                'native.ui.group_by_field',
+                _group,
+                (value) => _group = value,
+                nullable: true,
+              ),
+              _fieldDropdown(
+                'native.ui.sum_numeric_field',
+                _sum,
+                (value) => _sum = value,
+                numericOnly: true,
+                nullable: true,
+              ),
+            ],
+          ),
         ),
       ),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const VentioText('native.ui.cancel')),
-      FilledButton(onPressed: _save, child: const VentioText('native.ui.save_report')),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const VentioText('native.ui.cancel'),
+      ),
+      FilledButton(
+        onPressed: _save,
+        child: const VentioText('native.ui.save_report'),
+      ),
     ],
   );
 
-  Widget _fieldDropdown(String key, String? value, ValueChanged<String?> update,
-      {bool numericOnly = false, bool nullable = false}) {
-    final fields = _fields.where((field) => !numericOnly || const {'integer', 'decimal'}.contains(field['type'])).toList();
+  Widget _fieldDropdown(
+    String key,
+    String? value,
+    ValueChanged<String?> update, {
+    bool numericOnly = false,
+    bool nullable = false,
+  }) {
+    final fields = _fields
+        .where(
+          (field) =>
+              !numericOnly ||
+              const {'integer', 'decimal'}.contains(field['type']),
+        )
+        .toList();
     return DropdownButtonFormField<String>(
       initialValue: value,
       decoration: InputDecoration(labelText: context.ventioText(key)),
       items: [
-        if (nullable) DropdownMenuItem<String>(value: null, child: Text(context.ventioText('native.ui.none'))),
-        ...fields.map((field) => DropdownMenuItem(value: field['name'] as String, child: Text(field['label'] as String))),
+        if (nullable)
+          DropdownMenuItem<String>(
+            value: null,
+            child: Text(context.ventioText('native.ui.none')),
+          ),
+        ...fields.map(
+          (field) => DropdownMenuItem(
+            value: field['name'] as String,
+            child: Text(field['label'] as String),
+          ),
+        ),
       ],
       onChanged: update,
     );
@@ -7477,13 +7587,17 @@ class _ReportBuilderDialogState extends State<_ReportBuilderDialog> {
 }
 
 class _PrintFormatBuilderDialog extends StatefulWidget {
-  const _PrintFormatBuilderDialog({required this.moduleId, required this.docTypes});
+  const _PrintFormatBuilderDialog({
+    required this.moduleId,
+    required this.docTypes,
+  });
 
   final String moduleId;
   final List<Map<String, dynamic>> docTypes;
 
   @override
-  State<_PrintFormatBuilderDialog> createState() => _PrintFormatBuilderDialogState();
+  State<_PrintFormatBuilderDialog> createState() =>
+      _PrintFormatBuilderDialogState();
 }
 
 class _PrintFormatBuilderDialogState extends State<_PrintFormatBuilderDialog> {
@@ -7497,40 +7611,69 @@ class _PrintFormatBuilderDialogState extends State<_PrintFormatBuilderDialog> {
   String? _table;
   final List<Map<String, dynamic>> _blocks = [];
 
-  Map<String, dynamic> get _selectedType => widget.docTypes.firstWhere((type) => type['name'] == _docType);
-  List<Map<String, dynamic>> get _fields => (_selectedType['fields'] as List).cast<Map<String, dynamic>>();
-  List<Map<String, dynamic>> get _scalarFields => _fields.where((field) => field['type'] != 'table').toList();
-  List<Map<String, dynamic>> get _tableFields => _fields.where((field) => field['type'] == 'table').toList();
+  Map<String, dynamic> get _selectedType =>
+      widget.docTypes.firstWhere((type) => type['name'] == _docType);
+  List<Map<String, dynamic>> get _fields =>
+      (_selectedType['fields'] as List).cast<Map<String, dynamic>>();
+  List<Map<String, dynamic>> get _scalarFields =>
+      _fields.where((field) => field['type'] != 'table').toList();
+  List<Map<String, dynamic>> get _tableFields =>
+      _fields.where((field) => field['type'] == 'table').toList();
 
   @override
-  void initState() { super.initState(); _docType = widget.docTypes.first['name'] as String; }
+  void initState() {
+    super.initState();
+    _docType = widget.docTypes.first['name'] as String;
+  }
 
   @override
-  void dispose() { _id.dispose(); _label.dispose(); super.dispose(); }
+  void dispose() {
+    _id.dispose();
+    _label.dispose();
+    super.dispose();
+  }
 
   void _appendField() {
     final field = _field;
-    if (field == null || _blocks.length >= PrintFormatDefinition.maxBlocks) return;
+    if (field == null || _blocks.length >= PrintFormatDefinition.maxBlocks) {
+      return;
+    }
     setState(() => _blocks.add({'type': 'field', 'field': field}));
   }
 
   void _appendTable() {
     final tableName = _table;
-    if (tableName == null || _blocks.length >= PrintFormatDefinition.maxBlocks) return;
-    final table = _tableFields.firstWhere((field) => field['name'] == tableName);
+    if (tableName == null ||
+        _blocks.length >= PrintFormatDefinition.maxBlocks) {
+      return;
+    }
+    final table = _tableFields.firstWhere(
+      (field) => field['name'] == tableName,
+    );
     final child = table['childDocType'] as Map<String, dynamic>;
-    final columns = (child['fields'] as List).cast<Map<String, dynamic>>()
+    final columns = (child['fields'] as List)
+        .cast<Map<String, dynamic>>()
         .where((field) => field['type'] != 'table')
         .take(PrintFormatDefinition.maxColumnsPerTable)
-        .map((field) => field['name'] as String).toList();
+        .map((field) => field['name'] as String)
+        .toList();
     if (columns.isEmpty) return;
-    setState(() => _blocks.add({'type': 'table', 'field': tableName, 'columns': columns}));
+    setState(
+      () => _blocks.add({
+        'type': 'table',
+        'field': tableName,
+        'columns': columns,
+      }),
+    );
   }
 
   void _save() {
     if (!_formKey.currentState!.validate() || _blocks.isEmpty) return;
     final id = _id.text.trim();
-    final slug = widget.moduleId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    final slug = widget.moduleId.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
     Navigator.pop(context, <String, dynamic>{
       'id': id,
       'docType': _docType,
@@ -7550,78 +7693,216 @@ class _PrintFormatBuilderDialogState extends State<_PrintFormatBuilderDialog> {
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextFormField(
-              controller: _id,
-              decoration: InputDecoration(labelText: context.ventioText('native.ui.print_format_id')),
-              validator: (value) => RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(value?.trim() ?? '')
-                  ? null : context.ventioText('native.ui.enter_valid_print_format_id'),
-            ),
-            TextFormField(
-              controller: _label,
-              decoration: InputDecoration(labelText: context.ventioText('native.ui.print_format_label')),
-              validator: (value) => value?.trim().isNotEmpty == true
-                  ? null : context.ventioText('native.ui.enter_print_format_label'),
-            ),
-            DropdownButtonFormField<String>(
-              initialValue: _docType,
-              decoration: InputDecoration(labelText: context.ventioText('native.ui.source_doctype')),
-              items: widget.docTypes.map((type) => DropdownMenuItem(value: type['name'] as String, child: Text(type['label'] as String))).toList(),
-              onChanged: (value) => setState(() { _docType = value!; _field = null; _table = null; }),
-            ),
-            Row(children: [
-              Expanded(child: DropdownButtonFormField<String>(
-                initialValue: _pageSize,
-                decoration: InputDecoration(labelText: context.ventioText('native.ui.page_size')),
-                items: [DropdownMenuItem(value: 'a4', child: Text(context.ventioText('native.ui.a4'))), DropdownMenuItem(value: 'letter', child: Text(context.ventioText('native.ui.letter')))],
-                onChanged: (value) => setState(() => _pageSize = value!),
-              )),
-              const SizedBox(width: 12),
-              Expanded(child: DropdownButtonFormField<String>(
-                initialValue: _orientation,
-                decoration: InputDecoration(labelText: context.ventioText('native.ui.orientation')),
-                items: [DropdownMenuItem(value: 'portrait', child: Text(context.ventioText('native.ui.portrait'))), DropdownMenuItem(value: 'landscape', child: Text(context.ventioText('native.ui.landscape')))],
-                onChanged: (value) => setState(() => _orientation = value!),
-              )),
-            ]),
-            if (_scalarFields.isNotEmpty) Row(children: [
-              Expanded(child: DropdownButtonFormField<String>(
-                initialValue: _scalarFields.any((field) => field['name'] == _field) ? _field : null,
-                decoration: InputDecoration(labelText: context.ventioText('native.ui.field_block')),
-                items: _scalarFields.map((field) => DropdownMenuItem(value: field['name'] as String, child: Text(field['label'] as String))).toList(),
-                onChanged: (value) => setState(() => _field = value),
-              )),
-              IconButton(onPressed: _appendField, icon: const Icon(Icons.add), tooltip: context.ventioText('native.ui.add_field_block')),
-            ]),
-            if (_tableFields.isNotEmpty) Row(children: [
-              Expanded(child: DropdownButtonFormField<String>(
-                initialValue: _tableFields.any((field) => field['name'] == _table) ? _table : null,
-                decoration: InputDecoration(labelText: context.ventioText('native.ui.child_table_block')),
-                items: _tableFields.map((field) => DropdownMenuItem(value: field['name'] as String, child: Text(field['label'] as String))).toList(),
-                onChanged: (value) => setState(() => _table = value),
-              )),
-              IconButton(onPressed: _appendTable, icon: const Icon(Icons.add), tooltip: context.ventioText('native.ui.add_table_block')),
-            ]),
-            Align(alignment: Alignment.centerLeft, child: TextButton.icon(
-              onPressed: _blocks.length >= PrintFormatDefinition.maxBlocks ? null : () => setState(() => _blocks.add({'type': 'page_break'})),
-              icon: const Icon(Icons.insert_page_break_outlined),
-              label: const VentioText('native.ui.add_page_break'),
-            )),
-            for (var index = 0; index < _blocks.length; index++)
-              ListTile(
-                dense: true,
-                leading: Icon(_blocks[index]['type'] == 'page_break' ? Icons.insert_page_break_outlined : _blocks[index]['type'] == 'table' ? Icons.table_rows_outlined : Icons.text_fields_outlined),
-                title: Text(_blocks[index]['type'] == 'page_break' ? context.ventioText('native.ui.page_break') : '${_blocks[index]['type'] == 'table' ? context.ventioText('native.ui.table') : context.ventioText('native.ui.field')}: ${_blocks[index]['field']}'),
-                trailing: IconButton(onPressed: () => setState(() => _blocks.removeAt(index)), icon: const Icon(Icons.remove_circle_outline), tooltip: context.ventioText('native.ui.remove_block')),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _id,
+                decoration: InputDecoration(
+                  labelText: context.ventioText('native.ui.print_format_id'),
+                ),
+                validator: (value) =>
+                    RegExp(
+                      r'^[a-z][a-z0-9_]{0,63}$',
+                    ).hasMatch(value?.trim() ?? '')
+                    ? null
+                    : context.ventioText(
+                        'native.ui.enter_valid_print_format_id',
+                      ),
               ),
-            if (_blocks.isEmpty) Align(alignment: Alignment.centerLeft, child: Text(context.ventioText('native.ui.add_print_content_block'))),
-          ]),
+              TextFormField(
+                controller: _label,
+                decoration: InputDecoration(
+                  labelText: context.ventioText('native.ui.print_format_label'),
+                ),
+                validator: (value) => value?.trim().isNotEmpty == true
+                    ? null
+                    : context.ventioText('native.ui.enter_print_format_label'),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: _docType,
+                decoration: InputDecoration(
+                  labelText: context.ventioText('native.ui.source_doctype'),
+                ),
+                items: widget.docTypes
+                    .map(
+                      (type) => DropdownMenuItem(
+                        value: type['name'] as String,
+                        child: Text(type['label'] as String),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _docType = value!;
+                  _field = null;
+                  _table = null;
+                }),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _pageSize,
+                      decoration: InputDecoration(
+                        labelText: context.ventioText('native.ui.page_size'),
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'a4',
+                          child: Text(context.ventioText('native.ui.a4')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'letter',
+                          child: Text(context.ventioText('native.ui.letter')),
+                        ),
+                      ],
+                      onChanged: (value) => setState(() => _pageSize = value!),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _orientation,
+                      decoration: InputDecoration(
+                        labelText: context.ventioText('native.ui.orientation'),
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'portrait',
+                          child: Text(context.ventioText('native.ui.portrait')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'landscape',
+                          child: Text(
+                            context.ventioText('native.ui.landscape'),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _orientation = value!),
+                    ),
+                  ),
+                ],
+              ),
+              if (_scalarFields.isNotEmpty)
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue:
+                            _scalarFields.any(
+                              (field) => field['name'] == _field,
+                            )
+                            ? _field
+                            : null,
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.ui.field_block',
+                          ),
+                        ),
+                        items: _scalarFields
+                            .map(
+                              (field) => DropdownMenuItem(
+                                value: field['name'] as String,
+                                child: Text(field['label'] as String),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) => setState(() => _field = value),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _appendField,
+                      icon: const Icon(Icons.add),
+                      tooltip: context.ventioText('native.ui.add_field_block'),
+                    ),
+                  ],
+                ),
+              if (_tableFields.isNotEmpty)
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue:
+                            _tableFields.any((field) => field['name'] == _table)
+                            ? _table
+                            : null,
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.ui.child_table_block',
+                          ),
+                        ),
+                        items: _tableFields
+                            .map(
+                              (field) => DropdownMenuItem(
+                                value: field['name'] as String,
+                                child: Text(field['label'] as String),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) => setState(() => _table = value),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _appendTable,
+                      icon: const Icon(Icons.add),
+                      tooltip: context.ventioText('native.ui.add_table_block'),
+                    ),
+                  ],
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _blocks.length >= PrintFormatDefinition.maxBlocks
+                      ? null
+                      : () =>
+                            setState(() => _blocks.add({'type': 'page_break'})),
+                  icon: const Icon(Icons.insert_page_break_outlined),
+                  label: const VentioText('native.ui.add_page_break'),
+                ),
+              ),
+              for (var index = 0; index < _blocks.length; index++)
+                ListTile(
+                  dense: true,
+                  leading: Icon(
+                    _blocks[index]['type'] == 'page_break'
+                        ? Icons.insert_page_break_outlined
+                        : _blocks[index]['type'] == 'table'
+                        ? Icons.table_rows_outlined
+                        : Icons.text_fields_outlined,
+                  ),
+                  title: Text(
+                    _blocks[index]['type'] == 'page_break'
+                        ? context.ventioText('native.ui.page_break')
+                        : '${_blocks[index]['type'] == 'table' ? context.ventioText('native.ui.table') : context.ventioText('native.ui.field')}: ${_blocks[index]['field']}',
+                  ),
+                  trailing: IconButton(
+                    onPressed: () => setState(() => _blocks.removeAt(index)),
+                    icon: const Icon(Icons.remove_circle_outline),
+                    tooltip: context.ventioText('native.ui.remove_block'),
+                  ),
+                ),
+              if (_blocks.isEmpty)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    context.ventioText('native.ui.add_print_content_block'),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const VentioText('native.ui.cancel')),
-      FilledButton(onPressed: _save, child: const VentioText('native.ui.save_print_format')),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const VentioText('native.ui.cancel'),
+      ),
+      FilledButton(
+        onPressed: _save,
+        child: const VentioText('native.ui.save_print_format'),
+      ),
     ],
   );
 }

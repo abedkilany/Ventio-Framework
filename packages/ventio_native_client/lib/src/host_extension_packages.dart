@@ -761,19 +761,16 @@ class HostExtensionPackageClient {
         )) {
       throw const HostPackageTransportException('INVALID_REPORT_QUERY');
     }
-    final response = await _request(
-      'POST',
-      '/api/v1/extensions/reports/query',
-      {
-        'companyId': companyId,
-        'branchId': branchId,
-        'moduleId': moduleId,
-        'version': version,
-        'docType': docType,
-        'reportId': reportId,
-        'filters': filters,
-      },
-    );
+    final response =
+        await _request('POST', '/api/v1/extensions/reports/query', {
+          'companyId': companyId,
+          'branchId': branchId,
+          'moduleId': moduleId,
+          'version': version,
+          'docType': docType,
+          'reportId': reportId,
+          'filters': filters,
+        });
     final raw = response.body['reportResult'];
     if (raw is! Map) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
@@ -781,7 +778,8 @@ class HostExtensionPackageClient {
     final result = Map<String, dynamic>.from(raw);
     if (response.statusCode != HttpStatus.ok || result['status'] != 'REPORT') {
       final reason = result['reasonCode'];
-      final code = reason is String && RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(reason)
+      final code =
+          reason is String && RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(reason)
           ? reason
           : 'HOST_REPORT_QUERY_FAILED';
       throw HostPackageTransportException(
@@ -789,7 +787,13 @@ class HostExtensionPackageClient {
         statusCode: response.statusCode,
       );
     }
-    const resultKeys = {'status', 'reportId', 'packageSha256', 'rowCount', 'groups'};
+    const resultKeys = {
+      'status',
+      'reportId',
+      'packageSha256',
+      'rowCount',
+      'groups',
+    };
     final packageSha256 = result['packageSha256'];
     final rowCount = result['rowCount'];
     final groups = result['groups'];
@@ -804,31 +808,38 @@ class HostExtensionPackageClient {
         groups.length > 100) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
     }
-    final parsedGroups = groups.map((rawGroup) {
-      if (rawGroup is! Map) {
-        throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
-      }
-      final group = Map<String, dynamic>.from(rawGroup);
-      if (group.keys.toSet().difference(const {'key', 'aggregates'}).isNotEmpty ||
-          group.keys.length != 2 ||
-          group['aggregates'] is! Map) {
-        throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
-      }
-      final rawAggregates = Map<String, dynamic>.from(group['aggregates'] as Map);
-      if (rawAggregates.length > ReportDefinition.maxAggregates ||
-          rawAggregates.entries.any(
-            (entry) =>
-                !RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(entry.key) ||
-                entry.value is! String ||
-                (entry.value as String).length > 128,
-          )) {
-        throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
-      }
-      return HostExtensionReportGroup(
-        key: group['key'],
-        aggregates: rawAggregates.cast<String, String>(),
-      );
-    }).toList(growable: false);
+    final parsedGroups = groups
+        .map((rawGroup) {
+          if (rawGroup is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final group = Map<String, dynamic>.from(rawGroup);
+          if (group.keys.toSet().difference(const {
+                'key',
+                'aggregates',
+              }).isNotEmpty ||
+              group.keys.length != 2 ||
+              group['aggregates'] is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final rawAggregates = Map<String, dynamic>.from(
+            group['aggregates'] as Map,
+          );
+          if (rawAggregates.length > ReportDefinition.maxAggregates ||
+              rawAggregates.entries.any(
+                (entry) =>
+                    !RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(entry.key) ||
+                    entry.value is! String ||
+                    (entry.value as String).length > 128,
+              )) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          return HostExtensionReportGroup(
+            key: group['key'],
+            aggregates: rawAggregates.cast<String, String>(),
+          );
+        })
+        .toList(growable: false);
     return HostExtensionReportResult(
       reportId: reportId,
       packageSha256: packageSha256,

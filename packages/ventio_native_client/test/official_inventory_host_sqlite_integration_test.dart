@@ -736,6 +736,9 @@ void main() {
         await localDirectory?.delete(recursive: true);
       }
     },
+    skip: Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] == 'yes'
+        ? false
+        : 'Requires the explicitly enabled disposable loopback PostgreSQL test database.',
     timeout: const Timeout(Duration(minutes: 10)),
   );
 }

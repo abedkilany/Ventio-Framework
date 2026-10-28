@@ -24,7 +24,7 @@ The cross-layer test exercised:
 - Host-authorized Product read and a grouped Movement report returning one row and exact sum `0.7`.
 - Authenticated Host-record printing through the declarative PDF renderer, producing a valid `%PDF-` document.
 - Governed Cancel and reversal to quantity `90`, followed by Amend, a linked local draft, official number `INV-000002`, resubmission, and cancellation of the amended movement. Final quantity returned to `90`; the source and amendment retained their respective official numbers.
-- Closing and reopening both SQLite databases, reconciling all seven queued commands as Host-confirmed, and verifying the accepted amendment at Host revision `3`.
+- Closing and reopening both SQLite databases, reconciling all eight queued commands as Host-confirmed, and verifying the accepted amendment at Host revision `3`.
 - Rebinding a fresh Host API instance and rereading the PostgreSQL-backed record and audit history after the restart boundary.
 
 The end-to-end run exposed a generic Amend recovery edge: replaying the original Amend command while a later command on its linked draft was pending. Core now recognizes the already-linked provisional copy while preserving that follow-up command. The focused SQLite offline create/edit/restart test and lifecycle recovery test both passed **1/1** with regression coverage for same-command replay and replay during a later pending command. Dart analysis of the changed client source and tests reported no issues.

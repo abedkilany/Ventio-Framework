@@ -122,38 +122,42 @@ void main() {
     },
   );
 
-  test('Child rows stay inside the parent command after queue restart', () async {
-    const lines = [
-      {'itemCode': 'B-2', 'quantity': 3.0},
-      {'itemCode': 'A-1', 'quantity': 2.5},
-    ];
-    final command = ExtensionRecordCommand.create(
-      commandId: 'c03a0000-0000-4000-8000-000000000001',
-      tenantId: 'tenant-west',
-      companyId: 'company-west',
-      branchId: 'branch-7',
-      recordId: 'order-1',
-      actorId: 'operator-1',
-      deviceId: 'desktop-1',
-      moduleId: 'com.example.orders',
-      moduleVersion: '1.0.0',
-      docType: 'Order',
-      schemaVersion: 1,
-      values: const {'lines': lines},
-    );
-    await queue.enqueue(command.envelope);
+  test(
+    'Child rows stay inside the parent command after queue restart',
+    () async {
+      const lines = [
+        {'itemCode': 'B-2', 'quantity': 3.0},
+        {'itemCode': 'A-1', 'quantity': 2.5},
+      ];
+      final command = ExtensionRecordCommand.create(
+        commandId: 'c03a0000-0000-4000-8000-000000000001',
+        tenantId: 'tenant-west',
+        companyId: 'company-west',
+        branchId: 'branch-7',
+        recordId: 'order-1',
+        actorId: 'operator-1',
+        deviceId: 'desktop-1',
+        moduleId: 'com.example.orders',
+        moduleVersion: '1.0.0',
+        docType: 'Order',
+        schemaVersion: 1,
+        values: const {'lines': lines},
+      );
+      await queue.enqueue(command.envelope);
 
-    await reopenQueue();
-    final restored = await queue.getById(command.envelope.commandId);
-    expect(restored, isNotNull);
-    expect(restored!.hostStatus, HostCommandStatus.pending);
-    expect(
-      canonicalJson(
-        (restored.envelope.payload['values'] as Map<String, dynamic>)['lines'],
-      ),
-      canonicalJson(lines),
-    );
-  });
+      await reopenQueue();
+      final restored = await queue.getById(command.envelope.commandId);
+      expect(restored, isNotNull);
+      expect(restored!.hostStatus, HostCommandStatus.pending);
+      expect(
+        canonicalJson(
+          (restored.envelope.payload['values']
+              as Map<String, dynamic>)['lines'],
+        ),
+        canonicalJson(lines),
+      );
+    },
+  );
 
   test('Duplicate command IDs cannot overwrite the original intent', () async {
     final original = await maintenanceEnvelope();
