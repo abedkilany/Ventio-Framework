@@ -67,12 +67,12 @@ class ReportAggregateDefinition {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'operation': operation,
-    if (field != null) 'field': field,
-    'label': label,
-    'labelKey': labelKey,
-  };
+        'id': id,
+        'operation': operation,
+        if (field != null) 'field': field,
+        'label': label,
+        'labelKey': labelKey,
+      };
 }
 
 /// A saved report whose query shape is fixed by an approved extension package.
@@ -147,7 +147,8 @@ class ReportDefinition {
     final filters = json['filters'] ?? const <Object>[];
     if (filters is! List ||
         filters.length > maxFilters ||
-        filters.any((field) => field is! String || !fields.containsKey(field)) ||
+        filters
+            .any((field) => field is! String || !fields.containsKey(field)) ||
         filters.toSet().length != filters.length) {
       throw const ContractError(
         'INVALID_REPORT',
@@ -163,9 +164,7 @@ class ReportDefinition {
       }
     }
     final groupValue = json['groupBy'];
-    final groupBy = groupValue == null
-        ? null
-        : requireString(json, 'groupBy');
+    final groupBy = groupValue == null ? null : requireString(json, 'groupBy');
     if (groupBy != null &&
         (!fields.containsKey(groupBy) || fields[groupBy]!.type == 'table')) {
       throw const ContractError(
@@ -198,9 +197,7 @@ class ReportDefinition {
       );
     }
     final aggregateIds = aggregates.map((aggregate) => aggregate.id).toSet();
-    if (sortBy != null &&
-        sortBy != groupBy &&
-        !aggregateIds.contains(sortBy)) {
+    if (sortBy != null && sortBy != groupBy && !aggregateIds.contains(sortBy)) {
       throw const ContractError(
         'INVALID_REPORT',
         'Report sorting must use the grouping field or an aggregate output.',
@@ -220,16 +217,17 @@ class ReportDefinition {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'docType': docType,
-    'label': label,
-    'labelKey': labelKey,
-    'filters': filterFields,
-    if (groupBy != null) 'groupBy': groupBy,
-    if (sortBy != null) 'sortBy': sortBy,
-    'descending': descending,
-    'aggregates': aggregates.map((aggregate) => aggregate.toJson()).toList(),
-  };
+        'id': id,
+        'docType': docType,
+        'label': label,
+        'labelKey': labelKey,
+        'filters': filterFields,
+        if (groupBy != null) 'groupBy': groupBy,
+        if (sortBy != null) 'sortBy': sortBy,
+        'descending': descending,
+        'aggregates':
+            aggregates.map((aggregate) => aggregate.toJson()).toList(),
+      };
 }
 
 void _checkKeys(Map<String, dynamic> json, Set<String> allowed) {

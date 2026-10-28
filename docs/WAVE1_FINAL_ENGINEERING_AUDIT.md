@@ -4,7 +4,7 @@ Date: 2026-10-28
 Branch: `codex/extension-platform`
 Reviewed implementation baseline: `59037f708cc565ee31b605e3a9c10065fcb855b9`
 Initial audit checkpoint: `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`
-CI formatting remediation checkpoint: pending commit
+Latest audit remediation checkpoint: pending commit
 
 This audit does not start Wave 2 and does not declare commercial production readiness. The Wave 1 dashboard's 100% remains the accepted implementation status; this document records a separate release-readiness review.
 
@@ -29,6 +29,7 @@ The audit found no confirmed architecture defect requiring a broad refactor. Two
 4. Guarded the PostgreSQL-dependent Flutter integration case behind the explicit test-only `VENTIO_ALLOW_DATABASE_TESTS=yes` opt-in. It remains separately enabled and executed against the disposable test cluster; it is not removed or counted as an acceptance without runtime evidence.
 5. Applied the repository's pinned Dart formatter to the files failing its CI formatting gate and fixed two analyzer brace infos. The inventory acceptance note's queued-command count was corrected from seven to eight based on the scenario evidence.
 6. Actions exposed Dart formatting failures in Host API and Host Durable Commands files that were outside the Flutter formatter invocation. Formatted the two Host API files and `packages/ventio_host/test/durable_integration.dart` without logic changes. Host API's full format check and analyzer pass locally alongside its 45 API checks and six isolated PostgreSQL numbering checks; Host's format check and analyzer also pass locally.
+7. The next Actions run exposed one formatter failure in Core and two issues in the static package verifier. Formatted `ventio_core/lib/src/report_metadata.dart`; kept the Arabic user-data renderer fixture while expressing it as Dart Unicode escapes so the English-only source scanner sees English source and the runtime input remains Arabic. Made `verify_package.py` decode Dart source explicitly as UTF-8. Core format/analyzer pass, the focused print renderer test passes, and the static verifier passes against a clean tracked-source snapshot.
 
 ## Verification results
 
@@ -74,11 +75,11 @@ The localization scanner's stated coverage is static text/source/JSON inspection
 
 At the pre-audit commit `59037f708cc565ee31b605e3a9c10065fcb855b9`, GitHub reported no combined commit statuses and no workflow runs through the connected GitHub integration. A draft validation PR (#4) was opened against `main` to trigger the event-gated checks; it remains unmerged.
 
-On initial audit PR head `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`, the Windows self-hosted runner ran `Ventio Host Crash Recovery` and `Ventio Credential Lifecycle`. Both failed at `dart format --output=none --set-exit-if-changed lib bin test`; logs named `ventio_host_api/lib/src/persistent_identity.dart` and `test/document_number_allocator_integration.dart`. The PostgreSQL/recovery stages were consequently skipped. These were formatted and verified locally. On remediation head `528c6fbda6d6a1661d02dd37d0f77ca002e6784c`, `Ventio Host Persistence` and `Ventio Host Crash Recovery` passed, and the `Ventio Host API` job passed formatting and analysis before setting up PG16 for its remaining integrations. `Ventio Durable Commands` exposed one more format-only failure in `ventio_host/test/durable_integration.dart`; it is now formatted and Host format/analyzer pass locally. Its rerun is pending.
+On initial audit PR head `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`, the Windows self-hosted runner ran `Ventio Host Crash Recovery` and `Ventio Credential Lifecycle`. Both failed at `dart format --output=none --set-exit-if-changed lib bin test`; logs named `ventio_host_api/lib/src/persistent_identity.dart` and `test/document_number_allocator_integration.dart`. On `528c6fbda6d6a1661d02dd37d0f77ca002e6784c`, Host Persistence and Host Crash Recovery passed; Host API formatting, analyzer, unit API, identity and direct-SQL/RLS checks passed, then the run was cancelled during role administration when the next source checkpoint arrived. `Ventio Durable Commands` exposed one format-only failure in `ventio_host/test/durable_integration.dart`. On `c2e7d7d7a762903a957b50246aebe412b5afd127`, Host Engineering Gate, Host Persistence, Host Crash Recovery and Durable Commands passed. Core jobs failed on one unformatted `report_metadata.dart` and `verify_package.py` rejected the Arabic user-input test literal; both findings are corrected in the current local checkpoint. The same verifier then exposed a Windows default-encoding bug while parsing Dart imports; explicit UTF-8 reading fixed it, and a clean tracked-source snapshot now passes the verifier. The Windows Flutter job on `c2e7d7d` remains in progress; CI must be rerun on the corrective head.
 
 The Host Engineering workflow requires a Linux self-hosted runner and its PostgreSQL 16/Docker/sudo-helper environment. That gate was not executed locally: Docker Desktop's Linux engine was unavailable, and the workflow helper is Linux-only. This gate must not be represented as passing based on the Windows PostgreSQL 17.11 evidence above.
 
-CI verification after the latest formatting remediation: **in progress**. Prior failed jobs are recorded above and are not counted as successful; Host Persistence and Host Crash Recovery have passed on `528c6fb`, while Host API integration, Host Engineering, Flutter/Windows, and the latest Durable Commands rerun are pending.
+CI verification after the latest local remediation: **pending push/rerun**. The successful Linux Host Engineering, Host Persistence, Host Crash Recovery and Durable Commands jobs are on `c2e7d7d`; Core and Architecture Contract jobs failed as detailed above and are fixed locally. The Windows Flutter job on `c2e7d7d` remains in progress. Do not interpret old-head failures or successes as a final green result for the corrective head.
 
 ## Open items and residual risks
 

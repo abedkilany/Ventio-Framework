@@ -97,7 +97,11 @@ assert 'TrustedCommandBinding' in source
 assert 'decimal' in source and 'INVALID_BINDING' in source
 # Ensure package imports resolve locally (besides dart:* and package self).
 for dart_file in PKG.rglob('*.dart'):
-  for path in re.findall(r"^import\s+'([^']+)'\s*;", dart_file.read_text(), flags=re.M):
+  for path in re.findall(
+      r"^import\s+'([^']+)'\s*;",
+      dart_file.read_text(encoding='utf-8'),
+      flags=re.M,
+  ):
     if path.startswith('dart:'): continue
     if path.startswith('package:ventio_core/'):
       candidate = PKG/'lib'/path.removeprefix('package:ventio_core/')

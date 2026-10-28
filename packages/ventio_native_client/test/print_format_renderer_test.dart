@@ -59,7 +59,10 @@ void main() {
               'Product receipt',
           'extension.com_example_inventory.product.name': 'Name',
         },
-        record: const {'name': '<script>alert(1)</script> العربية'},
+        record: const {
+          'name':
+              '<script>alert(1)</script> \u0627\u0644\u0639\u0631\u0628\u064a\u0629',
+        },
       );
       expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
       expect(bytes.length, lessThan(5 * 1024 * 1024));
