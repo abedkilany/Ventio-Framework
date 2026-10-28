@@ -16,7 +16,7 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 - Last completed capability: G01 — Standard printable document formats (23/23 accepted).
 - Next action: none. The final acceptance evidence and checkpoint are saved in [INVENTORY_OPERATIONS_ACCEPTANCE.md](INVENTORY_OPERATIONS_ACCEPTANCE.md).
 - Blockers: none. The loopback-only PostgreSQL 17.11 cluster ran all checks against disposable `ventio_host_test`; the migration ledger was current, and the guarded security bootstrap had passed twice. Final cross-layer Windows SQLite/PostgreSQL Host integration passed **1/1** (exit 0); generic Host inventory integration **137/137**; A10 allocator **6/6**; Core package validation **78/78**; focused SQLite offline lifecycle/recovery **1/1**. The isolated Host API was rebound and the accepted record reread after restart. A full Studio-suite phone-sized DocType Builder failure remains documented in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md) and does not affect the focused accepted reference extension paths.
-- Latest implementation checkpoint: `PENDING_FINAL_CHECKPOINT` (official extension package, generic Amend recovery fix, and final acceptance evidence). G01 implementation evidence is `89b8a8d`; its architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 is 7/7 PASS; Wave 1 is 23/23 accepted; final acceptance is PASS. Overall progress is **100.00%**.
+- Latest implementation checkpoint: `e93ddad` (generic Amend recovery fix, official extension acceptance evidence, and final progress checkpoint). G01 implementation evidence is `89b8a8d`; its architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 is 7/7 PASS; Wave 1 is 23/23 accepted; final acceptance is PASS. Overall progress is **100.00%**.
 - Since the previous dashboard update: the cross-layer test passed the complete real SQLite/PostgreSQL scenario, including Submit/Cancel/Amend, transactional numbers and effects, retries, report, PDF output, restart recovery, and persisted Host readback. Fixed generic Amend reconciliation to preserve a linked draft during later pending operations; its focused regression and targeted analysis passed.
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. **100%** is reached only after all three gates pass.
@@ -61,7 +61,7 @@ Total Wave 1 effort points: **100**.
 - Blockers: none. Stage 0 PASS; Wave 1 accepted 23/23; final extension PASS.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest GitHub acceptance checkpoint: `PENDING_FINAL_CHECKPOINT` — Ventio Inventory Operations accepted; Stage 0, all 23 capabilities, and the official reference extension are complete at 100.00%.
+- Latest GitHub acceptance checkpoint: `e93ddad` — Ventio Inventory Operations accepted; Stage 0, all 23 capabilities, and the official reference extension are complete at 100.00%.
 
 ## Final acceptance
 
