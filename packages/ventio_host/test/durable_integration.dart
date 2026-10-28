@@ -532,12 +532,17 @@ Future<void> main() async {
     );
 
     final failCommand = _command(maintenanceJson, scope, record: 'rollback');
-    final journalCountBeforeFailure =
-        await _count(conn, 'ventio_command_journal', scope);
-    final auditCountBeforeFailure =
-        await _count(conn, 'ventio_audit_entries', scope);
-    final outboxCountBeforeFailure =
-        await _count(conn, 'ventio_outbox', scope);
+    final journalCountBeforeFailure = await _count(
+      conn,
+      'ventio_command_journal',
+      scope,
+    );
+    final auditCountBeforeFailure = await _count(
+      conn,
+      'ventio_audit_entries',
+      scope,
+    );
+    final outboxCountBeforeFailure = await _count(conn, 'ventio_outbox', scope);
     final failingHost = DurableCommandHost(
       connection: conn,
       modules: modules,

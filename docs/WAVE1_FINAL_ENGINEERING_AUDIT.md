@@ -28,7 +28,7 @@ The audit found no confirmed architecture defect requiring a broad refactor. Two
 3. Corrected the Windows app integration test's scroll helper to identify the active page scrollable and return to its top before finding an above-the-fold action. The native Windows app integration test passes.
 4. Guarded the PostgreSQL-dependent Flutter integration case behind the explicit test-only `VENTIO_ALLOW_DATABASE_TESTS=yes` opt-in. It remains separately enabled and executed against the disposable test cluster; it is not removed or counted as an acceptance without runtime evidence.
 5. Applied the repository's pinned Dart formatter to the files failing its CI formatting gate and fixed two analyzer brace infos. The inventory acceptance note's queued-command count was corrected from seven to eight based on the scenario evidence.
-6. The first Actions run on the audit checkpoint exposed two additional Dart formatting failures in `ventio_host_api` that were outside the Flutter formatter invocation. Formatted those two files without logic changes; the package's full format check and analyzer now pass locally, as do its 45 API checks and the six isolated PostgreSQL document-number allocator checks.
+6. Actions exposed Dart formatting failures in Host API and Host Durable Commands files that were outside the Flutter formatter invocation. Formatted the two Host API files and `packages/ventio_host/test/durable_integration.dart` without logic changes. Host API's full format check and analyzer pass locally alongside its 45 API checks and six isolated PostgreSQL numbering checks; Host's format check and analyzer also pass locally.
 
 ## Verification results
 
@@ -74,11 +74,11 @@ The localization scanner's stated coverage is static text/source/JSON inspection
 
 At the pre-audit commit `59037f708cc565ee31b605e3a9c10065fcb855b9`, GitHub reported no combined commit statuses and no workflow runs through the connected GitHub integration. A draft validation PR (#4) was opened against `main` to trigger the event-gated checks; it remains unmerged.
 
-On initial audit PR head `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`, the Windows self-hosted runner ran the `Ventio Host Crash Recovery` and `Ventio Credential Lifecycle` jobs. Both failed at `dart format --output=none --set-exit-if-changed lib bin test`; logs named `lib/src/persistent_identity.dart` and `test/document_number_allocator_integration.dart`. The PostgreSQL/recovery stages were consequently skipped in those jobs. Both files were formatted and the equivalent Host API formatting/analyzer/API/allocator checks pass locally. A rerun on the remediation head is pending and must be checked before the merge recommendation changes.
+On initial audit PR head `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`, the Windows self-hosted runner ran `Ventio Host Crash Recovery` and `Ventio Credential Lifecycle`. Both failed at `dart format --output=none --set-exit-if-changed lib bin test`; logs named `ventio_host_api/lib/src/persistent_identity.dart` and `test/document_number_allocator_integration.dart`. The PostgreSQL/recovery stages were consequently skipped. These were formatted and verified locally. On remediation head `528c6fbda6d6a1661d02dd37d0f77ca002e6784c`, `Ventio Host Persistence` and `Ventio Host Crash Recovery` passed, and the `Ventio Host API` job passed formatting and analysis before setting up PG16 for its remaining integrations. `Ventio Durable Commands` exposed one more format-only failure in `ventio_host/test/durable_integration.dart`; it is now formatted and Host format/analyzer pass locally. Its rerun is pending.
 
 The Host Engineering workflow requires a Linux self-hosted runner and its PostgreSQL 16/Docker/sudo-helper environment. That gate was not executed locally: Docker Desktop's Linux engine was unavailable, and the workflow helper is Linux-only. This gate must not be represented as passing based on the Windows PostgreSQL 17.11 evidence above.
 
-CI verification after the formatting remediation push: **pending**. The initial two Windows jobs above are failures, not successes.
+CI verification after the latest formatting remediation: **in progress**. Prior failed jobs are recorded above and are not counted as successful; Host Persistence and Host Crash Recovery have passed on `528c6fb`, while Host API integration, Host Engineering, Flutter/Windows, and the latest Durable Commands rerun are pending.
 
 ## Open items and residual risks
 
