@@ -12,7 +12,9 @@ Future<void> main() async {
   final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
   if (adminUrl == null ||
       Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
-      Uri.parse(adminUrl).pathSegments.where((part) => part.isNotEmpty).lastOrNull !=
+      Uri.parse(
+            adminUrl,
+          ).pathSegments.where((part) => part.isNotEmpty).lastOrNull !=
           'ventio_host_test') {
     stderr.writeln(
       'Document numbering integration requires the disposable ventio_host_test database and explicit test opt-in.',
@@ -21,8 +23,7 @@ Future<void> main() async {
     return;
   }
 
-  final tenant =
-      'numbering-${DateTime.now().toUtc().microsecondsSinceEpoch}';
+  final tenant = 'numbering-${DateTime.now().toUtc().microsecondsSinceEpoch}';
   const company = 'numbering-company';
   const branch = 'numbering-branch';
   const module = 'com.example.numbering';
@@ -110,7 +111,10 @@ Future<void> main() async {
     } on StateError {
       changedSeriesRejected = true;
     }
-    expect(changedSeriesRejected, 'A changed prefix cannot reset a live series');
+    expect(
+      changedSeriesRejected,
+      'A changed prefix cannot reset a live series',
+    );
     expect(
       await allocateOnConnection() == 'DOC-000004',
       'Rejected configuration change does not consume a number',

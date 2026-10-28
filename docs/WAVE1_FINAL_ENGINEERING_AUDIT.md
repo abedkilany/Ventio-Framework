@@ -3,7 +3,8 @@
 Date: 2026-10-28
 Branch: `codex/extension-platform`
 Reviewed implementation baseline: `59037f708cc565ee31b605e3a9c10065fcb855b9`
-Audit checkpoint: pending commit
+Initial audit checkpoint: `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`
+CI formatting remediation checkpoint: pending commit
 
 This audit does not start Wave 2 and does not declare commercial production readiness. The Wave 1 dashboard's 100% remains the accepted implementation status; this document records a separate release-readiness review.
 
@@ -27,6 +28,7 @@ The audit found no confirmed architecture defect requiring a broad refactor. Two
 3. Corrected the Windows app integration test's scroll helper to identify the active page scrollable and return to its top before finding an above-the-fold action. The native Windows app integration test passes.
 4. Guarded the PostgreSQL-dependent Flutter integration case behind the explicit test-only `VENTIO_ALLOW_DATABASE_TESTS=yes` opt-in. It remains separately enabled and executed against the disposable test cluster; it is not removed or counted as an acceptance without runtime evidence.
 5. Applied the repository's pinned Dart formatter to the files failing its CI formatting gate and fixed two analyzer brace infos. The inventory acceptance note's queued-command count was corrected from seven to eight based on the scenario evidence.
+6. The first Actions run on the audit checkpoint exposed two additional Dart formatting failures in `ventio_host_api` that were outside the Flutter formatter invocation. Formatted those two files without logic changes; the package's full format check and analyzer now pass locally, as do its 45 API checks and the six isolated PostgreSQL document-number allocator checks.
 
 ## Verification results
 
@@ -70,11 +72,13 @@ The localization scanner's stated coverage is static text/source/JSON inspection
 
 ## GitHub Actions
 
-At the pre-audit commit `59037f708cc565ee31b605e3a9c10065fcb855b9`, GitHub reported no combined commit statuses and no workflow runs through the connected GitHub integration. The workflows are event-gated, and a current result on the new audit commit must be observed after push. The Windows self-hosted runner outcome will be recorded here once available.
+At the pre-audit commit `59037f708cc565ee31b605e3a9c10065fcb855b9`, GitHub reported no combined commit statuses and no workflow runs through the connected GitHub integration. A draft validation PR (#4) was opened against `main` to trigger the event-gated checks; it remains unmerged.
+
+On initial audit PR head `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`, the Windows self-hosted runner ran the `Ventio Host Crash Recovery` and `Ventio Credential Lifecycle` jobs. Both failed at `dart format --output=none --set-exit-if-changed lib bin test`; logs named `lib/src/persistent_identity.dart` and `test/document_number_allocator_integration.dart`. The PostgreSQL/recovery stages were consequently skipped in those jobs. Both files were formatted and the equivalent Host API formatting/analyzer/API/allocator checks pass locally. A rerun on the remediation head is pending and must be checked before the merge recommendation changes.
 
 The Host Engineering workflow requires a Linux self-hosted runner and its PostgreSQL 16/Docker/sudo-helper environment. That gate was not executed locally: Docker Desktop's Linux engine was unavailable, and the workflow helper is Linux-only. This gate must not be represented as passing based on the Windows PostgreSQL 17.11 evidence above.
 
-CI verification after the audit push: **pending**.
+CI verification after the formatting remediation push: **pending**. The initial two Windows jobs above are failures, not successes.
 
 ## Open items and residual risks
 

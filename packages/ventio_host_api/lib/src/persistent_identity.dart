@@ -683,10 +683,7 @@ class PostgresExtensionReportQueryGateway
               actorId: principal.actorId,
               deviceId: principal.deviceId,
             )) {
-              return const {
-                'status': 'REJECTED',
-                'reasonCode': 'SCOPE_DENIED',
-              };
+              return const {'status': 'REJECTED', 'reasonCode': 'SCOPE_DENIED'};
             }
             final matches = bundle.reports.where(
               (report) => report.id == reportId && report.docType == docType,
@@ -711,11 +708,7 @@ class PostgresExtensionReportQueryGateway
             final readPermission = definition.permissions['read'];
             if (!definition.operations.contains('read') ||
                 readPermission == null ||
-                !principal.allowsInScope(
-                  readPermission,
-                  companyId,
-                  branchId,
-                )) {
+                !principal.allowsInScope(readPermission, companyId, branchId)) {
               return const {
                 'status': 'REJECTED',
                 'reasonCode': 'PERMISSION_DENIED',
@@ -729,7 +722,9 @@ class PostgresExtensionReportQueryGateway
                 'reasonCode': 'INVALID_REPORT_FILTER',
               };
             }
-            final fields = {for (final field in definition.fields) field.name: field};
+            final fields = {
+              for (final field in definition.fields) field.name: field,
+            };
             final usedFields = <String>{
               if (report.groupBy != null) report.groupBy!,
               for (final field in filters.keys) field,
@@ -769,9 +764,7 @@ class PostgresExtensionReportQueryGateway
               parameters['projection_field$index'] = projectedFields[index];
               projection
                 ..add('CAST(@projection_key$index AS text)')
-                ..add(
-                  'record_data -> CAST(@projection_field$index AS text)',
-                );
+                ..add('record_data -> CAST(@projection_field$index AS text)');
             }
             final conditions = <String>[];
             final sortedFilters = filters.keys.toList()..sort();
@@ -820,7 +813,9 @@ class PostgresExtensionReportQueryGateway
               parameters: parameters,
             );
             if (rows.isEmpty) {
-              throw StateError('Report candidate query returned no statistics.');
+              throw StateError(
+                'Report candidate query returned no statistics.',
+              );
             }
             final rowCount = (rows.first[0] as int);
             final projectedBytes = (rows.first[1] as int);
@@ -875,10 +870,12 @@ class PostgresExtensionReportQueryGateway
                 try {
                   group.sums.update(
                     aggregate.id,
-                    (total) => total + ExactDecimal.toScaledInteger(
-                      value,
-                      fieldScales[aggregate.field!]!,
-                    ),
+                    (total) =>
+                        total +
+                        ExactDecimal.toScaledInteger(
+                          value,
+                          fieldScales[aggregate.field!]!,
+                        ),
                     ifAbsent: () => ExactDecimal.toScaledInteger(
                       value,
                       fieldScales[aggregate.field!]!,
@@ -931,31 +928,30 @@ class PostgresExtensionReportQueryGateway
                   order = left.value.sums
                       .putIfAbsent(sortBy, () => BigInt.zero)
                       .compareTo(
-                        right.value.sums.putIfAbsent(
-                          sortBy,
-                          () => BigInt.zero,
-                        ),
+                        right.value.sums.putIfAbsent(sortBy, () => BigInt.zero),
                       );
                 }
                 if (report.descending) order = -order;
               }
               return order == 0 ? left.key.compareTo(right.key) : order;
             });
-            final outputGroups = sortedGroups.map((entry) {
-              final outputs = <String, String>{};
-              for (final aggregate in report.aggregates) {
-                outputs[aggregate.id] = aggregate.operation == 'count'
-                    ? entry.value.count.toString()
-                    : _scaledReportDecimal(
-                        entry.value.sums.putIfAbsent(
-                          aggregate.id,
-                          () => BigInt.zero,
-                        ),
-                        fieldScales[aggregate.field!]!,
-                      );
-              }
-              return {'key': entry.value.key, 'aggregates': outputs};
-            }).toList(growable: false);
+            final outputGroups = sortedGroups
+                .map((entry) {
+                  final outputs = <String, String>{};
+                  for (final aggregate in report.aggregates) {
+                    outputs[aggregate.id] = aggregate.operation == 'count'
+                        ? entry.value.count.toString()
+                        : _scaledReportDecimal(
+                            entry.value.sums.putIfAbsent(
+                              aggregate.id,
+                              () => BigInt.zero,
+                            ),
+                            fieldScales[aggregate.field!]!,
+                          );
+                  }
+                  return {'key': entry.value.key, 'aggregates': outputs};
+                })
+                .toList(growable: false);
             return {
               'status': 'REPORT',
               'reportId': report.id,
