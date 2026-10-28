@@ -16,6 +16,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.add_fields_to_configure_this_layout':
       'Add fields to configure this layout.',
   'native.ui.add_permission': 'Add permission',
+  'native.ui.add_report': 'Add report',
   'native.ui.add_step': 'Add step',
   'native.ui.add_the_first_field': 'Add the first field',
   'native.ui.adds_a_host_grant_required_to_create_or_change_this_field':
@@ -454,6 +455,20 @@ const ventioNativeEnglishMessages = <String, String>{
       'Shown in extension navigation and on the records page.',
   'native.ui.sort_by': 'Sort by',
   'native.ui.descending': 'Descending',
+  'native.ui.create_report': 'Create report',
+  'native.ui.enter_report_label': 'Enter a report label.',
+  'native.ui.enter_valid_report_id': 'Use lowercase letters, numbers and underscores; start with a letter.',
+  'native.ui.group_by_field': 'Group by field',
+  'native.ui.no_reports_yet': 'No reports yet',
+  'native.ui.none': 'None',
+  'native.ui.report_filter_field': 'Filter field',
+  'native.ui.report_id': 'Report ID',
+  'native.ui.report_label': 'Report label',
+  'native.ui.reports': 'Reports',
+  'native.ui.reports_are_saved_as_bounded_package_metadata_and_host_permissions_are_rechecked': 'Reports are saved as bounded package metadata. Host permissions are checked again for each query.',
+  'native.ui.save_report': 'Save report',
+  'native.ui.source_doctype': 'Source DocType',
+  'native.ui.sum_numeric_field': 'Sum numeric field',
   'native.ui.stable_identifier_use_letters_numbers_and_underscores':
       'Stable identifier. Use letters, numbers and underscores.',
   'native.ui.stable_namespaced_id_it_cannot_be_changed_later':

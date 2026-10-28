@@ -130,6 +130,55 @@ void main() {
     expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
   });
 
+  test('Saved report definitions persist and export with package labels', () async {
+    await store.createExtension(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: 'Track assets.',
+    );
+    final asset = _docType();
+    asset['labelKey'] = 'extension.com_example_asset_register.asset.name';
+    (asset['fields'] as List).first['labelKey'] =
+        'extension.com_example_asset_register.asset.field_name';
+    await store.saveDocType(asset);
+    final report = {
+      'id': 'asset_count',
+      'docType': 'Asset',
+      'label': 'Asset count',
+      'labelKey': 'extension.com_example_asset_register.report.asset_count',
+      'filters': ['name'],
+      'groupBy': 'name',
+      'sortBy': 'asset_count',
+      'descending': false,
+      'aggregates': [
+        {
+          'id': 'asset_count',
+          'operation': 'count',
+          'label': 'Count',
+          'labelKey':
+              'extension.com_example_asset_register.report.asset_count.count',
+        },
+      ],
+    };
+    await store.saveReportDefinition(moduleId: _moduleId, metadata: report);
+    final saved = (await store.getExtension(_moduleId))!;
+    expect(saved.version, '0.1.1');
+    expect(saved.reportDefinitions.single['id'], 'asset_count');
+    await store.close();
+    await openStore();
+    final restored = (await store.getExtension(_moduleId))!;
+    expect(restored.reportDefinitions.single['filters'], ['name']);
+    final bundle = await store.exportBundle(_moduleId);
+    final roundTrip = ExtensionBundle.fromJson(bundle.toJson());
+    expect(roundTrip.reports.single.id, 'asset_count');
+    expect(
+      roundTrip.englishCatalog[
+        'extension.com_example_asset_register.report.asset_count.count'
+      ],
+      'Count',
+    );
+  });
+
   test(
     'Accepted governed operation receipt reconciles status and official number',
     () async {

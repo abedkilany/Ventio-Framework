@@ -601,3 +601,395 @@ class PostgresExtensionRecordQueryGateway
     );
   }
 }
+
+class PostgresExtensionReportQueryGateway
+    implements AuthoritativeExtensionReportQueryGateway {
+  const PostgresExtensionReportQueryGateway({
+    this.connect,
+    this.pool,
+    this.admission,
+  }) : assert((connect == null) != (pool == null));
+
+  final Future<pg.Connection> Function()? connect;
+  final pg.Pool<dynamic>? pool;
+  final RecoveryAuthority? admission;
+
+  @override
+  Future<Map<String, dynamic>> queryReport({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+    required String docType,
+    required String reportId,
+    required Map<String, dynamic> filters,
+  }) async {
+    final digest = session.credentialDigest;
+    if (digest == null || !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
+      return const {
+        'status': 'REJECTED',
+        'reasonCode': 'AUTHENTICATION_REQUIRED',
+      };
+    }
+    if (filters.length > ReportDefinition.maxFilters ||
+        filters.values.any(
+          (value) =>
+              value == null ||
+              value is Map ||
+              value is List ||
+              (value is String && value.length > 256) ||
+              (value is num && !value.isFinite),
+        )) {
+      throw const FormatException('Invalid report filter bounds.');
+    }
+    return withPostgresConnection(
+      connect: connect,
+      pool: pool,
+      action: (connection) async {
+        await _configure(connection);
+        return connection.runTx(
+          (tx) async {
+            await admission?.admit(tx);
+            final resolved = await const PostgresIdentityStore()
+                .resolveExtensionRead(
+                  tx,
+                  digest,
+                  companyId: companyId,
+                  branchId: branchId,
+                  moduleId: moduleId,
+                  version: version,
+                  docType: docType,
+                );
+            if (resolved == null) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'AUTHENTICATION_REQUIRED',
+              };
+            }
+            final bundle = resolved.bundle;
+            if (bundle == null) {
+              return {
+                'status': 'REJECTED',
+                'reasonCode':
+                    resolved.failureReasonCode ?? 'EXTENSION_NOT_APPROVED',
+              };
+            }
+            final principal = resolved.principal;
+            if (!principal.withinScope(
+              tenantId: principal.tenantId,
+              companyId: companyId,
+              branchId: branchId,
+              actorId: principal.actorId,
+              deviceId: principal.deviceId,
+            )) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'SCOPE_DENIED',
+              };
+            }
+            final matches = bundle.reports.where(
+              (report) => report.id == reportId && report.docType == docType,
+            );
+            if (matches.length != 1) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'REPORT_NOT_FOUND',
+              };
+            }
+            final report = matches.single;
+            final definitions = bundle.docTypes.where(
+              (type) => type.moduleId == moduleId && type.name == docType,
+            );
+            if (definitions.length != 1) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'REPORT_NOT_FOUND',
+              };
+            }
+            final definition = definitions.single;
+            final readPermission = definition.permissions['read'];
+            if (!definition.operations.contains('read') ||
+                readPermission == null ||
+                !principal.allowsInScope(
+                  readPermission,
+                  companyId,
+                  branchId,
+                )) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'PERMISSION_DENIED',
+              };
+            }
+            if (filters.keys.any(
+              (field) => !report.filterFields.contains(field),
+            )) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'INVALID_REPORT_FILTER',
+              };
+            }
+            final fields = {for (final field in definition.fields) field.name: field};
+            final usedFields = <String>{
+              if (report.groupBy != null) report.groupBy!,
+              for (final field in filters.keys) field,
+              for (final aggregate in report.aggregates)
+                if (aggregate.operation == 'sum') aggregate.field!,
+            };
+            if (usedFields.any((name) {
+              final permission = fields[name]?.readPermission;
+              return permission != null &&
+                  !principal.allowsInScope(permission, companyId, branchId);
+            })) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'PERMISSION_DENIED',
+              };
+            }
+
+            const maxRows = 10000;
+            const maxProjectedBytes = 512 * 1024;
+            final projectedFields = usedFields.toList()..sort();
+            final parameters = <String, Object?>{
+              'tenant': principal.tenantId,
+              'company': companyId,
+              'branch': branchId,
+              'module': moduleId,
+              'doctype': docType,
+              'row_limit': maxRows + 1,
+              'max_rows': maxRows,
+              'max_bytes': maxProjectedBytes,
+            };
+            final aliases = <String, String>{};
+            final projection = <String>[];
+            for (var index = 0; index < projectedFields.length; index++) {
+              final alias = 'value$index';
+              aliases[projectedFields[index]] = alias;
+              parameters['projection_key$index'] = alias;
+              parameters['projection_field$index'] = projectedFields[index];
+              projection
+                ..add('CAST(@projection_key$index AS text)')
+                ..add(
+                  'record_data -> CAST(@projection_field$index AS text)',
+                );
+            }
+            final conditions = <String>[];
+            final sortedFilters = filters.keys.toList()..sort();
+            for (var index = 0; index < sortedFilters.length; index++) {
+              parameters['filter_key$index'] = sortedFilters[index];
+              parameters['filter_value$index'] = canonicalJson(
+                filters[sortedFilters[index]],
+              );
+              conditions.add(
+                'record_data @> jsonb_build_object('
+                'CAST(@filter_key$index AS text), '
+                'CAST(@filter_value$index AS jsonb))',
+              );
+            }
+            final whereFilters = conditions.isEmpty
+                ? ''
+                : 'AND ${conditions.join(' AND ')}';
+            final projected = projection.isEmpty
+                ? "'{}'::jsonb"
+                : 'jsonb_build_object(${projection.join(', ')})';
+            final rows = await tx.execute(
+              pg.Sql.named('''
+                WITH matching AS MATERIALIZED (
+                  SELECT $projected AS projected_values
+                  FROM public.ventio_records
+                  WHERE tenant_id=@tenant AND company_id=@company
+                    AND branch_id=@branch AND module_id=@module
+                    AND doc_type=@doctype AND deleted_at IS NULL
+                    $whereFilters
+                  LIMIT @row_limit
+                ), statistics AS (
+                  SELECT count(*)::bigint AS row_count,
+                    coalesce(sum(octet_length(projected_values::text)),0)::bigint
+                      AS projected_bytes
+                  FROM matching
+                )
+                SELECT statistics.row_count, statistics.projected_bytes,
+                  CASE WHEN statistics.row_count <= @max_rows
+                         AND statistics.projected_bytes <= @max_bytes
+                       THEN matching.projected_values::text
+                       ELSE NULL END AS projected_json
+                FROM statistics
+                LEFT JOIN matching ON statistics.row_count <= @max_rows
+                  AND statistics.projected_bytes <= @max_bytes
+              '''),
+              parameters: parameters,
+            );
+            if (rows.isEmpty) {
+              throw StateError('Report candidate query returned no statistics.');
+            }
+            final rowCount = (rows.first[0] as int);
+            final projectedBytes = (rows.first[1] as int);
+            if (rowCount > maxRows || projectedBytes > maxProjectedBytes) {
+              return const {
+                'status': 'REJECTED',
+                'reasonCode': 'REPORT_TOO_LARGE',
+              };
+            }
+            final fieldScales = <String, int>{
+              for (final aggregate in report.aggregates)
+                if (aggregate.operation == 'sum')
+                  aggregate.field!: fields[aggregate.field!]!.type == 'integer'
+                      ? 0
+                      : (fields[aggregate.field!]!.precision ?? 9),
+            };
+            final groups = <String, _ReportGroupState>{};
+            for (final aggregate in report.aggregates) {
+              if (aggregate.operation == 'sum') {
+                for (final group in groups.values) {
+                  group.sums.putIfAbsent(aggregate.id, () => BigInt.zero);
+                }
+              }
+            }
+            for (final row in rows) {
+              final rawJson = row[2];
+              if (rawJson is! String) continue;
+              final rawValues = jsonDecode(rawJson);
+              if (rawValues is! Map) {
+                throw const FormatException('Invalid projected report values.');
+              }
+              final values = Map<String, dynamic>.from(rawValues);
+              final groupValue = report.groupBy == null
+                  ? null
+                  : values[aliases[report.groupBy!]!];
+              final groupKey = canonicalJson(groupValue);
+              final group = groups.putIfAbsent(
+                groupKey,
+                () => _ReportGroupState(groupValue),
+              );
+              group.count++;
+              for (final aggregate in report.aggregates) {
+                if (aggregate.operation != 'sum') continue;
+                final value = values[aliases[aggregate.field!]!];
+                if (value == null) continue;
+                if (value is! num || !value.isFinite) {
+                  return const {
+                    'status': 'REJECTED',
+                    'reasonCode': 'INVALID_REPORT_DATA',
+                  };
+                }
+                try {
+                  group.sums.update(
+                    aggregate.id,
+                    (total) => total + ExactDecimal.toScaledInteger(
+                      value,
+                      fieldScales[aggregate.field!]!,
+                    ),
+                    ifAbsent: () => ExactDecimal.toScaledInteger(
+                      value,
+                      fieldScales[aggregate.field!]!,
+                    ),
+                  );
+                } on FormatException {
+                  return const {
+                    'status': 'REJECTED',
+                    'reasonCode': 'INVALID_REPORT_DATA',
+                  };
+                }
+              }
+              if (groups.length > 100) {
+                return const {
+                  'status': 'REJECTED',
+                  'reasonCode': 'REPORT_TOO_LARGE',
+                };
+              }
+            }
+            if (report.groupBy == null && groups.isEmpty) {
+              groups['null'] = _ReportGroupState(null);
+            }
+            final aggregateById = {
+              for (final aggregate in report.aggregates)
+                aggregate.id: aggregate,
+            };
+            int compareValues(Object? left, Object? right) {
+              if (identical(left, right)) return 0;
+              if (left == null) return -1;
+              if (right == null) return 1;
+              if (left is num && right is num) return left.compareTo(right);
+              if (left is bool && right is bool) {
+                return (left ? 1 : 0).compareTo(right ? 1 : 0);
+              }
+              return left.toString().compareTo(right.toString());
+            }
+
+            final sortedGroups = groups.entries.toList();
+            final sortBy = report.sortBy;
+            sortedGroups.sort((left, right) {
+              var order = 0;
+              if (sortBy == report.groupBy && sortBy != null) {
+                order = compareValues(left.value.key, right.value.key);
+                if (report.descending) order = -order;
+              } else if (sortBy != null) {
+                final aggregate = aggregateById[sortBy]!;
+                if (aggregate.operation == 'count') {
+                  order = left.value.count.compareTo(right.value.count);
+                } else {
+                  order = left.value.sums
+                      .putIfAbsent(sortBy, () => BigInt.zero)
+                      .compareTo(
+                        right.value.sums.putIfAbsent(
+                          sortBy,
+                          () => BigInt.zero,
+                        ),
+                      );
+                }
+                if (report.descending) order = -order;
+              }
+              return order == 0 ? left.key.compareTo(right.key) : order;
+            });
+            final outputGroups = sortedGroups.map((entry) {
+              final outputs = <String, String>{};
+              for (final aggregate in report.aggregates) {
+                outputs[aggregate.id] = aggregate.operation == 'count'
+                    ? entry.value.count.toString()
+                    : _scaledReportDecimal(
+                        entry.value.sums.putIfAbsent(
+                          aggregate.id,
+                          () => BigInt.zero,
+                        ),
+                        fieldScales[aggregate.field!]!,
+                      );
+              }
+              return {'key': entry.value.key, 'aggregates': outputs};
+            }).toList(growable: false);
+            return {
+              'status': 'REPORT',
+              'reportId': report.id,
+              'packageSha256': sha256
+                  .convert(utf8.encode(canonicalJson(bundle.toJson())))
+                  .toString(),
+              'rowCount': rowCount,
+              'groups': outputGroups,
+            };
+          },
+          settings: pg.TransactionSettings(
+            isolationLevel: pg.IsolationLevel.readCommitted,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ReportGroupState {
+  _ReportGroupState(this.key);
+
+  final Object? key;
+  int count = 0;
+  final Map<String, BigInt> sums = {};
+}
+
+String _scaledReportDecimal(BigInt value, int scale) {
+  if (scale == 0) return value.toString();
+  final negative = value.isNegative;
+  final absolute = value.abs();
+  final factor = BigInt.from(10).pow(scale);
+  final whole = absolute ~/ factor;
+  var fraction = (absolute % factor).toString().padLeft(scale, '0');
+  fraction = fraction.replaceFirst(RegExp(r'0+$'), '');
+  return '${negative ? '-' : ''}$whole${fraction.isEmpty ? '' : '.$fraction'}';
+}

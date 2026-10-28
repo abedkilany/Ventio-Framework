@@ -1486,6 +1486,24 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
     if (saved == true) await _load();
   }
 
+  Future<void> _addReport() async {
+    if (_docTypes.isEmpty) return;
+    final metadata = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _ReportBuilderDialog(
+        moduleId: widget.moduleId,
+        docTypes: _docTypes,
+      ),
+    );
+    if (metadata == null) return;
+    await _run(() async {
+      await widget.store.saveReportDefinition(
+        moduleId: widget.moduleId,
+        metadata: metadata,
+      );
+    });
+  }
+
   Future<void> _openPreview(
     Map<String, dynamic> metadata, {
     bool previewOnly = true,
@@ -1795,6 +1813,49 @@ class _ExtensionDetailsPageState extends State<ExtensionDetailsPage> {
                           onPreview: () => _openPreview(metadata),
                           onOpen: () =>
                               _openPreview(metadata, previewOnly: false),
+                        ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: VentioText(
+                            'native.ui.reports',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: _busy || _docTypes.isEmpty
+                              ? null
+                              : _addReport,
+                          icon: const Icon(Icons.add),
+                          label: const VentioText('native.ui.add_report'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (extension.reportDefinitions.isEmpty)
+                      _StateCard(
+                        icon: Icons.summarize_outlined,
+                        title: context.ventioText('native.ui.no_reports_yet'),
+                        body: context.ventioText(
+                          'native.ui.reports_are_saved_as_bounded_package_metadata_and_host_permissions_are_rechecked',
+                        ),
+                      )
+                    else
+                      for (final report in extension.reportDefinitions)
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.summarize_outlined),
+                            title: Text(
+                              context.extensionMetadataText(
+                                report['labelKey'] as String,
+                                report['label'] as String,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${report['id']} · ${report['docType']}',
+                            ),
+                          ),
                         ),
                     const SizedBox(height: 20),
                     _permissionsCard(_docTypes),
@@ -7109,6 +7170,139 @@ class _ExtensionFormValues {
   final String description;
   final String version;
   final Map<String, String> dependencies;
+}
+
+class _ReportBuilderDialog extends StatefulWidget {
+  const _ReportBuilderDialog({required this.moduleId, required this.docTypes});
+
+  final String moduleId;
+  final List<Map<String, dynamic>> docTypes;
+
+  @override
+  State<_ReportBuilderDialog> createState() => _ReportBuilderDialogState();
+}
+
+class _ReportBuilderDialogState extends State<_ReportBuilderDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _id = TextEditingController();
+  final _label = TextEditingController();
+  String? _docType;
+  String? _filter;
+  String? _group;
+  String? _sum;
+
+  @override
+  void initState() {
+    super.initState();
+    _docType = widget.docTypes.first['name'] as String;
+  }
+
+  @override
+  void dispose() {
+    _id.dispose();
+    _label.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _fields =>
+      ((widget.docTypes.firstWhere((type) => type['name'] == _docType)['fields']
+                  as List)
+              .cast<Map<String, dynamic>>())
+          .where((field) => field['type'] != 'table')
+          .toList();
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final id = _id.text.trim();
+    final slug = widget.moduleId.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
+    final key = 'extension.$slug.report.$id';
+    final aggregates = <Map<String, dynamic>>[
+      {
+        'id': 'row_count',
+        'operation': 'count',
+        'label': 'Count',
+        'labelKey': '$key.row_count',
+      },
+      if (_sum != null)
+        {
+          'id': 'sum_total',
+          'operation': 'sum',
+          'field': _sum,
+          'label': 'Total',
+          'labelKey': '$key.sum_total',
+        },
+    ];
+    Navigator.pop(context, <String, dynamic>{
+      'id': id,
+      'docType': _docType,
+      'label': _label.text.trim(),
+      'labelKey': key,
+      if (_filter != null) 'filters': [_filter!],
+      if (_group != null) 'groupBy': _group,
+      if (_sum != null) 'sortBy': 'sum_total',
+      'descending': true,
+      'aggregates': aggregates,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const VentioText('native.ui.create_report'),
+    content: SizedBox(
+      width: 520,
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(
+              controller: _id,
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.report_id')),
+              validator: (value) => RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(value?.trim() ?? '')
+                  ? null
+                  : context.ventioText('native.ui.enter_valid_report_id'),
+            ),
+            TextFormField(
+              controller: _label,
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.report_label')),
+              validator: (value) => (value?.trim().isNotEmpty ?? false)
+                  ? null
+                  : context.ventioText('native.ui.enter_report_label'),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _docType,
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.source_doctype')),
+              items: widget.docTypes.map((type) => DropdownMenuItem(value: type['name'] as String, child: Text(type['label'] as String))).toList(),
+              onChanged: (value) => setState(() { _docType = value; _filter = null; _group = null; _sum = null; }),
+            ),
+            _fieldDropdown('native.ui.report_filter_field', _filter, (value) => _filter = value, nullable: true),
+            _fieldDropdown('native.ui.group_by_field', _group, (value) => _group = value, nullable: true),
+            _fieldDropdown('native.ui.sum_numeric_field', _sum, (value) => _sum = value, numericOnly: true, nullable: true),
+          ]),
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const VentioText('native.ui.cancel')),
+      FilledButton(onPressed: _save, child: const VentioText('native.ui.save_report')),
+    ],
+  );
+
+  Widget _fieldDropdown(String key, String? value, ValueChanged<String?> update,
+      {bool numericOnly = false, bool nullable = false}) {
+    final fields = _fields.where((field) => !numericOnly || const {'integer', 'decimal'}.contains(field['type'])).toList();
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      decoration: InputDecoration(labelText: context.ventioText(key)),
+      items: [
+        if (nullable) DropdownMenuItem<String>(value: null, child: Text(context.ventioText('native.ui.none'))),
+        ...fields.map((field) => DropdownMenuItem(value: field['name'] as String, child: Text(field['label'] as String))),
+      ],
+      onChanged: update,
+    );
+  }
 }
 
 class _ExtensionFormDialog extends StatefulWidget {

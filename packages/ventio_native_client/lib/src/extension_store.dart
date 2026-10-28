@@ -33,6 +33,7 @@ class LocalExtension {
     required this.description,
     required this.version,
     required this.dependencies,
+    required this.reportDefinitions,
     required this.state,
     required this.updatedAtUtc,
   });
@@ -42,6 +43,7 @@ class LocalExtension {
   final String description;
   final String version;
   final Map<String, String> dependencies;
+  final List<Map<String, dynamic>> reportDefinitions;
   final ExtensionState state;
   final DateTime updatedAtUtc;
 
@@ -67,12 +69,20 @@ class LocalExtension {
       semverParts(version);
       dependencies[id] = version;
     }
+    final rawReports = jsonDecode(row['reports_json'] as String? ?? '[]');
+    if (rawReports is! List ||
+        rawReports.any((report) => report is! Map)) {
+      throw const FormatException('Stored extension reports are invalid.');
+    }
     return LocalExtension(
       moduleId: row['module_id']! as String,
       displayName: row['display_name']! as String,
       description: row['description']! as String,
       version: row['version']! as String,
       dependencies: Map.unmodifiable(dependencies),
+      reportDefinitions: List.unmodifiable(
+        rawReports.map((report) => Map<String, dynamic>.from(report as Map)),
+      ),
       state: ExtensionState.fromDatabase(row['state']),
       updatedAtUtc: DateTime.parse(row['updated_at_utc']! as String).toUtc(),
     );
@@ -287,7 +297,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 10,
+        version: 11,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -301,6 +311,7 @@ class LocalExtensionStore {
               description TEXT NOT NULL,
               version TEXT NOT NULL,
               dependencies_json TEXT NOT NULL DEFAULT '{}',
+              reports_json TEXT NOT NULL DEFAULT '[]',
               state TEXT NOT NULL CHECK (state IN ('DRAFT', 'ACTIVE_LOCAL', 'DISABLED_LOCAL')),
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL
@@ -565,6 +576,18 @@ class LocalExtensionStore {
               ''');
             }
           }
+          if (oldVersion < 11) {
+            final extensionTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_extensionsTable],
+            );
+            if (extensionTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_extensionsTable ADD COLUMN reports_json TEXT
+                  NOT NULL DEFAULT '[]'
+              ''');
+            }
+          }
         },
       ),
     );
@@ -621,6 +644,7 @@ class LocalExtensionStore {
           'description': summary,
           'version': version,
           'dependencies_json': canonicalJson(normalizedDependencies),
+          'reports_json': '[]',
           'state': ExtensionState.draft.databaseValue,
           'created_at_utc': now,
           'updated_at_utc': now,
@@ -805,6 +829,9 @@ class LocalExtensionStore {
         'extension.${moduleId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
     final exportDocTypes = docTypes
         .map((type) => jsonDecode(jsonEncode(type)) as Map<String, dynamic>)
+        .toList(growable: false);
+    final exportReports = extension.reportDefinitions
+        .map((report) => jsonDecode(jsonEncode(report)) as Map<String, dynamic>)
         .toList(growable: false);
     final catalog = <String, String>{};
     void addLabel(Object? rawKey, Object? rawLabel) {
@@ -1006,6 +1033,25 @@ class LocalExtensionStore {
         }
       }
     }
+    for (final report in exportReports) {
+      addLabel(report['labelKey'], report['label']);
+      final aggregates = report['aggregates'];
+      if (aggregates is! List) {
+        throw const ExtensionStoreException(
+          'INVALID_BUNDLE_METADATA',
+          'A report needs an aggregate definition.',
+        );
+      }
+      for (final aggregate in aggregates) {
+        if (aggregate is! Map<String, dynamic>) {
+          throw const ExtensionStoreException(
+            'INVALID_BUNDLE_METADATA',
+            'A report aggregate has an invalid definition.',
+          );
+        }
+        addLabel(aggregate['labelKey'], aggregate['label']);
+      }
+    }
 
     return ExtensionBundle.fromJson({
       'manifest': {
@@ -1028,6 +1074,7 @@ class LocalExtensionStore {
         'offline': {'enabled': false, 'allowedCommands': <String>[]},
       },
       'docTypes': exportDocTypes,
+      if (exportReports.isNotEmpty) 'reports': exportReports,
       'dependencyVersions': extension.dependencies,
       'englishCatalog': catalog,
     });
@@ -1051,6 +1098,7 @@ class LocalExtensionStore {
     final incomingByName = <String, Map<String, dynamic>>{
       for (final json in bundle.docTypeJson) json['name'] as String: json,
     };
+    final incomingReports = canonicalJson(bundle.reportJson);
     final now = _now();
 
     await _database.transaction((transaction) async {
@@ -1123,6 +1171,7 @@ class LocalExtensionStore {
           final unchanged =
               current.displayName == displayName &&
               current.description == description &&
+              canonicalJson(current.reportDefinitions) == incomingReports &&
               _sameDependencies(current.dependencies, dependencies) &&
               incomingByName.length == existingByName.length &&
               incomingByName.entries.every(
@@ -1155,6 +1204,7 @@ class LocalExtensionStore {
             'description': description,
             'version': bundle.version,
             'dependencies_json': canonicalJson(dependencies),
+            'reports_json': incomingReports,
             'updated_at_utc': now,
           },
           where: 'module_id = ?',
@@ -1167,6 +1217,7 @@ class LocalExtensionStore {
           'description': description,
           'version': bundle.version,
           'dependencies_json': canonicalJson(dependencies),
+          'reports_json': incomingReports,
           'state': ExtensionState.draft.databaseValue,
           'created_at_utc': now,
           'updated_at_utc': now,
@@ -1416,6 +1467,60 @@ class LocalExtensionStore {
         );
       }
     });
+  }
+
+  /// Saves one data-only report definition in the local extension draft.
+  /// The definition is exported with the ordinary package and gains no Host
+  /// authority until that package is reviewed and approved.
+  Future<void> saveReportDefinition({
+    required String moduleId,
+    required Map<String, dynamic> metadata,
+  }) async {
+    _ensureOpen();
+    final extension = await getExtension(moduleId);
+    if (extension == null) {
+      throw const ExtensionStoreException(
+        'UNKNOWN_MODULE',
+        'Create the extension before adding a report.',
+      );
+    }
+    final definitions = (await listDocTypes(moduleId))
+        .map(DocTypeDefinition.fromJson)
+        .toList(growable: false);
+    final report = ReportDefinition.fromJson(
+      metadata,
+      moduleId: moduleId,
+      docTypes: definitions,
+    );
+    final reports = extension.reportDefinitions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final existing = reports.indexWhere((item) => item['id'] == report.id);
+    if (existing < 0 &&
+        reports.length >= ReportDefinition.maxReportsPerBundle) {
+      throw const ExtensionStoreException(
+        'TOO_MANY_REPORTS',
+        'An extension may define at most 32 reports.',
+      );
+    }
+    if (existing < 0) {
+      reports.add(report.toJson());
+    } else {
+      if (canonicalJson(reports[existing]) == canonicalJson(report.toJson())) {
+        return;
+      }
+      reports[existing] = report.toJson();
+    }
+    await _database.update(
+      _extensionsTable,
+      {
+        'reports_json': canonicalJson(reports),
+        'version': _nextPatch(extension.version),
+        'updated_at_utc': _now(),
+      },
+      where: 'module_id = ?',
+      whereArgs: [moduleId],
+    );
   }
 
   Future<void> activate(String moduleId) async {

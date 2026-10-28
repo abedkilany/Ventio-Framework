@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'contracts.dart';
 import 'metadata.dart';
 import 'modules.dart';
+import 'report_metadata.dart';
 
 /// A bounded, declarative extension package for the trusted generic engines.
 /// It carries no executable commands, scripts, SQL or custom capabilities.
@@ -11,6 +12,8 @@ class ExtensionBundle {
   ExtensionBundle._({
     required this.manifest,
     required this.docTypes,
+    required this.reports,
+    required this.reportJson,
     required this.dependencyVersions,
     required this.englishCatalog,
     required this.manifestJson,
@@ -23,6 +26,8 @@ class ExtensionBundle {
 
   final ModuleManifest manifest;
   final List<DocTypeDefinition> docTypes;
+  final List<ReportDefinition> reports;
+  final List<Map<String, dynamic>> reportJson;
   final Map<String, String> dependencyVersions;
   final Map<String, String> englishCatalog;
   final Map<String, dynamic> manifestJson;
@@ -35,7 +40,13 @@ class ExtensionBundle {
     _validateJsonTree(source);
     _checkKeys(
       source,
-      const {'manifest', 'docTypes', 'dependencyVersions', 'englishCatalog'},
+      const {
+        'manifest',
+        'docTypes',
+        'reports',
+        'dependencyVersions',
+        'englishCatalog',
+      },
       'extension bundle',
     );
     if (utf8.encode(canonicalJson(source)).length > maxEncodedBytes) {
@@ -260,6 +271,26 @@ class ExtensionBundle {
     }).toList(growable: false);
     final docTypes =
         docTypeJson.map(DocTypeDefinition.fromJson).toList(growable: false);
+    final rawReports = source['reports'] ?? const <Object>[];
+    if (rawReports is! List ||
+        rawReports.length > ReportDefinition.maxReportsPerBundle) {
+      throw const ContractError('INVALID_REPORT', 'Too many report definitions.');
+    }
+    final reportJson = rawReports
+        .map((raw) => _freezeMap(requireMap(raw, 'reports[]')))
+        .toList(growable: false);
+    final reports = reportJson
+        .map(
+          (json) => ReportDefinition.fromJson(
+            json,
+            moduleId: manifest.moduleId,
+            docTypes: docTypes,
+          ),
+        )
+        .toList(growable: false);
+    if (reports.map((report) => report.id).toSet().length != reports.length) {
+      throw const ContractError('INVALID_REPORT', 'Report IDs must be unique.');
+    }
     final hasFieldPermissions = docTypes.any(
       (type) => type.fields.any(
         (field) =>
@@ -571,6 +602,14 @@ class ExtensionBundle {
         }
       }
     }
+    for (final report in reports) {
+      _requireNamespace(report.labelKey, messageNamespace);
+      requiredLabels.add(report.labelKey);
+      for (final aggregate in report.aggregates) {
+        _requireNamespace(aggregate.labelKey, messageNamespace);
+        requiredLabels.add(aggregate.labelKey);
+      }
+    }
     if (requiredLabels.any((key) => !catalog.containsKey(key))) {
       throw const ContractError(
         'MISSING_ENGLISH_LABELS',
@@ -581,6 +620,8 @@ class ExtensionBundle {
     return ExtensionBundle._(
       manifest: manifest,
       docTypes: List.unmodifiable(docTypes),
+      reports: List.unmodifiable(reports),
+      reportJson: List.unmodifiable(reportJson),
       dependencyVersions: Map.unmodifiable(dependencyVersions),
       englishCatalog: Map.unmodifiable(catalog),
       manifestJson: _freezeMap(rawManifest),
@@ -591,6 +632,7 @@ class ExtensionBundle {
   Map<String, dynamic> toJson() => {
         'manifest': manifestJson,
         'docTypes': docTypeJson,
+        if (reportJson.isNotEmpty) 'reports': reportJson,
         'dependencyVersions': dependencyVersions,
         'englishCatalog': englishCatalog,
       };

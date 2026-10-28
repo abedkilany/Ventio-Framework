@@ -10,6 +10,7 @@ export 'src/business_operations.dart';
 export 'src/extension_bundle.dart';
 export 'src/extension_commands.dart';
 export 'src/modules.dart';
+export 'src/report_metadata.dart';
 export 'src/permissions.dart';
 export 'src/localization.dart';
 export 'src/host.dart';

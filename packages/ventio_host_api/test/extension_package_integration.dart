@@ -274,6 +274,10 @@ Future<void> main() async {
         connect: () => pg.Connection.openFromUrl(runtimeUrl),
         admission: authority,
       ),
+      extensionReportQueries: PostgresExtensionReportQueryGateway(
+        connect: () => pg.Connection.openFromUrl(runtimeUrl),
+        admission: authority,
+      ),
     );
 
     Map<String, dynamic> bundleSource(
@@ -2865,6 +2869,7 @@ Future<void> main() async {
         'extension.com_example_inventory.product.create',
         'extension.com_example_inventory.product.update',
         'extension.com_example_inventory.movement.read',
+        'extension.com_example_inventory.movement.total_read',
         'extension.com_example_inventory.movement.create',
         'extension.com_example_inventory.movement.update',
         'extension.com_example_inventory.movement.submit',
@@ -2888,12 +2893,24 @@ Future<void> main() async {
       ],
       registerBranch: false,
     );
+    final reportFieldBlindToken = await provision(
+      actor: 'report-field-blind',
+      device: 'report-field-blind-device',
+      credential: 'report-field-blind-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_example_inventory.movement.read',
+      ],
+      registerBranch: false,
+    );
     final operationPackage = ExtensionBundle.fromJson({
       'manifest': {
         'manifestVersion': 0,
         'moduleId': 'com.example.inventory',
         'version': '1.0.0',
-        'minPlatformApi': '0.1.0',
+        'minPlatformApi': '0.3.0',
         'displayName': 'Inventory',
         'displayNameKey': 'extension.com_example_inventory.name',
         'englishCatalog': 'localization/en.inventory.json',
@@ -3023,6 +3040,7 @@ Future<void> main() async {
                 'rowsField': 'lines',
                 'valueField': 'lineTotal',
               },
+              'readPermission': 'extension.com_example_inventory.movement.total_read',
               'label': 'Total',
               'labelKey': 'extension.com_example_inventory.movement.total',
             },
@@ -3120,6 +3138,33 @@ Future<void> main() async {
           },
         },
       ],
+      'reports': [
+        {
+          'id': 'movement_totals',
+          'docType': 'Movement',
+          'label': 'Movement totals',
+          'labelKey': 'extension.com_example_inventory.report.movement_totals',
+          'filters': ['documentNumber'],
+          'groupBy': 'documentNumber',
+          'sortBy': 'sum_total',
+          'descending': true,
+          'aggregates': [
+            {
+              'id': 'row_count',
+              'operation': 'count',
+              'label': 'Count',
+              'labelKey': 'extension.com_example_inventory.report.movement_totals.row_count',
+            },
+            {
+              'id': 'sum_total',
+              'operation': 'sum',
+              'field': 'total',
+              'label': 'Total',
+              'labelKey': 'extension.com_example_inventory.report.movement_totals.sum_total',
+            },
+          ],
+        },
+      ],
       'dependencyVersions': <String, String>{},
       'englishCatalog': {
         'extension.com_example_inventory.name': 'Inventory',
@@ -3135,6 +3180,9 @@ Future<void> main() async {
         'extension.com_example_inventory.movement.total': 'Total',
         'extension.com_example_inventory.movement.number': 'Document Number',
         'extension.com_example_inventory.movement.amended_from': 'Amended From',
+        'extension.com_example_inventory.report.movement_totals': 'Movement totals',
+        'extension.com_example_inventory.report.movement_totals.row_count': 'Count',
+        'extension.com_example_inventory.report.movement_totals.sum_total': 'Total',
       },
     });
     expect(
@@ -3247,6 +3295,137 @@ Future<void> main() async {
           (calculatedMovementValues['lines'] as List)[1]['lineTotal'] == 0.3 &&
           calculatedMovementValues['total'] == 0.32,
       'PostgreSQL Host recomputes and persists exact child and parent totals',
+    );
+    final reportBody = {
+      'companyId': primaryCompany,
+      'branchId': primaryBranch,
+      'moduleId': operationPackage.moduleId,
+      'version': operationPackage.version,
+      'docType': 'Movement',
+      'reportId': 'movement_totals',
+      'filters': <String, Object>{},
+    };
+    final reportReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    final reportResult = reportReply.body['reportResult'] as Map?;
+    final reportGroups = reportResult?['groups'] as List?;
+    expect(
+      reportReply.status == 200 &&
+          reportResult?['rowCount'] == 2 &&
+          reportGroups?.length == 1 &&
+          (reportGroups!.single['aggregates'] as Map)['row_count'] == '2' &&
+          (reportGroups.single['aggregates'] as Map)['sum_total'] == '0.32',
+      'PostgreSQL reports enforce approved metadata and return exact grouped counts and sums: HTTP ${reportReply.status} ${reportReply.body}',
+    );
+    final blindReportReply = await send(
+      api,
+      token: reportFieldBlindToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      blindReportReply.status == 403 &&
+          (blindReportReply.body['reportResult'] as Map)['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'PostgreSQL reports reject callers without read permission for aggregate fields',
+    );
+    final outOfScopeReportReply = await send(
+      api,
+      token: readerToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      outOfScopeReportReply.status == 403 &&
+          (outOfScopeReportReply.body['error'] as Map)['code'] ==
+              'SCOPE_DENIED',
+      'PostgreSQL report queries reject a company and branch outside the caller scope',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        INSERT INTO public.ventio_records
+          (tenant_id, company_id, branch_id, module_id, doc_type, record_id, revision, record_data)
+        SELECT @tenant, @company, @branch, @module, 'Movement',
+          'f01-report-group-limit-' || n::text, 1,
+          jsonb_build_object('documentNumber', 'GROUP-' || n::text, 'total', 0)
+        FROM generate_series(1, 101) AS generated(n)
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final groupLimitReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      groupLimitReply.status == 413 &&
+          (groupLimitReply.body['reportResult'] as Map)['reasonCode'] ==
+              'REPORT_TOO_LARGE',
+      'PostgreSQL reports reject more than 100 groups instead of returning partial results',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        DELETE FROM public.ventio_records WHERE tenant_id=@tenant
+          AND company_id=@company AND branch_id=@branch AND module_id=@module
+          AND record_id LIKE 'f01-report-group-limit-%'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        INSERT INTO public.ventio_records
+          (tenant_id, company_id, branch_id, module_id, doc_type, record_id, revision, record_data)
+        SELECT @tenant, @company, @branch, @module, 'Movement',
+          'f01-report-row-limit-' || n::text, 1,
+          jsonb_build_object('documentNumber', 'OVER-LIMIT', 'total', 0)
+        FROM generate_series(1, 10001) AS generated(n)
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final rowLimitReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      rowLimitReply.status == 413 &&
+          (rowLimitReply.body['reportResult'] as Map)['reasonCode'] ==
+              'REPORT_TOO_LARGE',
+      'PostgreSQL reports reject more than 10000 candidate records without partial results',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        DELETE FROM public.ventio_records WHERE tenant_id=@tenant
+          AND company_id=@company AND branch_id=@branch AND module_id=@module
+          AND record_id LIKE 'f01-report-row-limit-%'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
     );
     final forgedCalculation = ExtensionRecordCommand.create(
       commandId: '76000000-0000-4000-8000-000000000002',
@@ -3504,6 +3683,41 @@ Future<void> main() async {
               'INV-000001' &&
           submittedState.single.toColumnMap()['next_number'] == 2,
       'Submit atomically updates stock, status, document number and revisions after a failed attempt',
+    );
+    final sortedReportReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    final sortedReport = sortedReportReply.body['reportResult'] as Map;
+    final sortedReportGroups = sortedReport['groups'] as List;
+    expect(
+      sortedReportReply.status == 200 &&
+          sortedReport['rowCount'] == 2 &&
+          sortedReportGroups.length == 2 &&
+          (sortedReportGroups[0]['aggregates'] as Map)['sum_total'] == '0.32' &&
+          (sortedReportGroups[1]['aggregates'] as Map)['sum_total'] == '0',
+      'PostgreSQL report groups sort deterministically by the declared aggregate',
+    );
+    final filteredReportReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: {
+        ...reportBody,
+        'filters': {'documentNumber': 'INV-000001'},
+      },
+    );
+    final filteredReport = filteredReportReply.body['reportResult'] as Map;
+    expect(
+      filteredReportReply.status == 200 &&
+          filteredReport['rowCount'] == 1 &&
+          (filteredReport['groups'] as List).length == 1 &&
+          ((filteredReport['groups'] as List).single['aggregates']
+              as Map)['sum_total'] ==
+              '0',
+      'PostgreSQL report equality filters apply only to declared fields',
     );
     final updateSubmittedMovement = ExtensionRecordCommand.update(
       commandId: '74000000-0000-4000-8000-000000000006',

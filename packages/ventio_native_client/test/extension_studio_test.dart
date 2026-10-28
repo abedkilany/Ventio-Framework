@@ -313,6 +313,75 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Extension Studio builds and exports a bounded report', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.report_builder';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Report Builder',
+      description: '',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'label': 'Asset',
+      'labelKey': 'extension.com_example_report_builder.asset',
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': 'extension.com_example_report_builder.asset.read',
+        'create': 'extension.com_example_report_builder.asset.create',
+        'update': 'extension.com_example_report_builder.asset.update',
+      },
+      'fields': [
+        {
+          'name': 'title',
+          'type': 'text',
+          'required': true,
+          'label': 'Title',
+          'labelKey': 'extension.com_example_report_builder.asset.title',
+          'maxLength': 100,
+        },
+      ],
+      'ui': {'listColumns': ['title'], 'formFields': ['title']},
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: ExtensionDetailsPage(
+        store: store,
+        queue: queue,
+        moduleId: moduleId,
+        scope: const RecordScope(
+          organizationId: 'local-organization',
+          companyId: 'local-company',
+          branchId: 'local-branch',
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add report'));
+    await tester.pumpAndSettle();
+    final fields = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(fields.at(0), 'asset_count');
+    await tester.enterText(fields.at(1), 'Asset count');
+    await tester.tap(find.text('Save report'));
+    await tester.pumpAndSettle();
+    final saved = await store.getExtension(moduleId);
+    expect(saved!.reportDefinitions.single['id'], 'asset_count');
+    final exported = await store.exportBundle(moduleId);
+    expect(exported.reports.single.docType, 'Asset');
+    expect(exported.englishCatalog['extension.com_example_report_builder.report.asset_count'], 'Asset count');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Generated form round-trips long text and table rows', (
     tester,
   ) async {

@@ -30,6 +30,7 @@ class HostApi {
   final CommandExecutor _executor;
   final ExtensionPackageGateway? _extensionPackages;
   final ExtensionRecordQueryGateway? _extensionRecordQueries;
+  final ExtensionReportQueryGateway? _extensionReportQueries;
   final IdentityRoleAdministrationGateway? _identityRoleAdministration;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
@@ -44,6 +45,7 @@ class HostApi {
     this._executor,
     this._extensionPackages,
     this._extensionRecordQueries,
+    this._extensionReportQueries,
     this._identityRoleAdministration,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
@@ -66,6 +68,7 @@ class HostApi {
     required CommandExecutor executor,
     ExtensionPackageGateway? extensionPackages,
     ExtensionRecordQueryGateway? extensionRecordQueries,
+    ExtensionReportQueryGateway? extensionReportQueries,
     IdentityRoleAdministrationGateway? identityRoleAdministration,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
@@ -89,6 +92,9 @@ class HostApi {
             (extensionRecordQueries != null &&
                 extensionRecordQueries
                     is! AuthoritativeExtensionRecordQueryGateway) ||
+            (extensionReportQueries != null &&
+                extensionReportQueries
+                    is! AuthoritativeExtensionReportQueryGateway) ||
             (identityRoleAdministration != null &&
                 identityRoleAdministration
                     is! AuthoritativeIdentityRoleAdministrationGateway))) {
@@ -105,6 +111,7 @@ class HostApi {
       executor,
       extensionPackages,
       extensionRecordQueries,
+      extensionReportQueries,
       identityRoleAdministration,
       maxBodyBytes,
       maxConcurrentRequests,
@@ -197,11 +204,14 @@ class HostApi {
     };
     final recordQueryRoute =
         request.uri.path == '/api/v1/extensions/records/query';
+    final reportQueryRoute =
+        request.uri.path == '/api/v1/extensions/reports/query';
     final identityRoleRoute = _identityRoleAction(request.uri.path);
     final sessionRoute = request.uri.path == '/api/v1/session';
     if (request.uri.path != '/api/v1/commands' &&
         packageRoute == null &&
         !recordQueryRoute &&
+        !reportQueryRoute &&
         identityRoleRoute == null &&
         !sessionRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
@@ -328,6 +338,10 @@ class HostApi {
     }
     if (recordQueryRoute) {
       await _handleExtensionRecordQuery(request, json, session);
+      return;
+    }
+    if (reportQueryRoute) {
+      await _handleExtensionReportQuery(request, json, session);
       return;
     }
     _validateWireShape(json);
@@ -778,6 +792,95 @@ class HostApi {
     } catch (_) {
       /* Peer disconnected before error delivery. */
     }
+  }
+
+  Future<void> _handleExtensionReportQuery(
+    HttpRequest request,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    const keys = {
+      'companyId',
+      'branchId',
+      'moduleId',
+      'version',
+      'docType',
+      'reportId',
+      'filters',
+    };
+    if (json.keys.any((key) => !keys.contains(key)) ||
+        json.keys.length != keys.length) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final moduleId = _boundedIdentifier(json, 'moduleId');
+    final version = _boundedIdentifier(json, 'version');
+    final docType = _boundedIdentifier(json, 'docType');
+    final reportId = _boundedIdentifier(json, 'reportId');
+    if (!RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
+        moduleId.length > 128 ||
+        !RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(docType) ||
+        docType.length > 80 ||
+        !RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(reportId)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    try {
+      semverParts(version);
+    } on ContractError {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final rawFilters = requireMap(json['filters'], 'filters');
+    if (rawFilters.length > 10 ||
+        rawFilters.entries.any((entry) {
+          final value = entry.value;
+          return entry.key.length > 80 ||
+              value is Map ||
+              value is List ||
+              value == null ||
+              (value is String && value.length > 256) ||
+              (value is num && !value.isFinite);
+        })) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final principal = session.principal;
+    if (!principal.withinScope(
+      tenantId: principal.tenantId,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: principal.actorId,
+      deviceId: principal.deviceId,
+    )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    final gateway = _extensionReportQueries;
+    if (gateway == null) {
+      throw const _ApiError(503, 'REPORT_SERVICE_UNAVAILABLE', retryable: true);
+    }
+    final result = await gateway.queryReport(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      moduleId: moduleId,
+      version: version,
+      docType: docType,
+      reportId: reportId,
+      filters: rawFilters,
+    );
+    final statusCode = switch (result['status']) {
+      'REPORT' => 200,
+      'REJECTED' => switch (result['reasonCode']) {
+        'SCOPE_DENIED' || 'PERMISSION_DENIED' => 403,
+        'EXTENSION_NOT_APPROVED' || 'REPORT_NOT_FOUND' => 404,
+        'REPORT_TOO_LARGE' => 413,
+        _ => 422,
+      },
+      _ => throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true),
+    };
+    if (utf8.encode(jsonEncode(result)).length > 256 * 1024) {
+      throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+    }
+    _json(request, statusCode, {'apiVersion': 1, 'reportResult': result});
   }
 
   void _json(HttpRequest request, int status, Map<String, dynamic> body) {

@@ -1062,6 +1062,84 @@ void main() {
     );
   });
 
+  test('Reports validate bounded fields, aggregates and package labels', () {
+    final source = extensionBundleJson();
+    final asset = (source['docTypes'] as List).single as Map<String, dynamic>;
+    (asset['fields'] as List).add({
+      'name': 'assetValue',
+      'type': 'decimal',
+      'required': true,
+      'precision': 2,
+      'label': 'Asset value',
+      'labelKey': 'extension.com_example_assets.asset.asset_value',
+    });
+    final ui = asset['ui'] as Map<String, dynamic>;
+    (ui['listColumns'] as List).add('assetValue');
+    (ui['formFields'] as List).add('assetValue');
+    (ui['detailFields'] as List).add('assetValue');
+    final catalog = source['englishCatalog'] as Map<String, String>;
+    catalog['extension.com_example_assets.asset.asset_value'] = 'Asset value';
+    catalog['extension.com_example_assets.report.asset_summary'] =
+        'Asset summary';
+    catalog['extension.com_example_assets.report.asset_summary.count'] =
+        'Count';
+    catalog['extension.com_example_assets.report.asset_summary.value_total'] =
+        'Total value';
+    source['reports'] = [
+      {
+        'id': 'asset_summary',
+        'docType': 'Asset',
+        'label': 'Asset summary',
+        'labelKey': 'extension.com_example_assets.report.asset_summary',
+        'filters': ['name'],
+        'groupBy': 'name',
+        'sortBy': 'count',
+        'descending': false,
+        'aggregates': [
+          {
+            'id': 'count',
+            'operation': 'count',
+            'label': 'Count',
+            'labelKey': 'extension.com_example_assets.report.asset_summary.count',
+          },
+          {
+            'id': 'value_total',
+            'operation': 'sum',
+            'field': 'assetValue',
+            'label': 'Total value',
+            'labelKey': 'extension.com_example_assets.report.asset_summary.value_total',
+          },
+        ],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    check(
+      bundle.reports.single.filterFields.single == 'name' &&
+          bundle.reports.single.groupBy == 'name' &&
+          bundle.reports.single.aggregates.last.field == 'assetValue' &&
+          (ExtensionBundle.fromJson(bundle.toJson()).toJson()['reports'] as List)
+                  .length ==
+              1,
+      'A bounded declarative report did not validate and round-trip',
+    );
+    final invalidFilter = changed(source);
+    (((invalidFilter['reports'] as List).single as Map<String, dynamic>)
+        ['filters'] as List)[0] = 'unknownField';
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidFilter),
+      'A report was allowed to filter on an unknown field',
+    );
+    final invalidSum = changed(source);
+    final report =
+        (invalidSum['reports'] as List).single as Map<String, dynamic>;
+    ((report['aggregates'] as List).last as Map<String, dynamic>)['field'] =
+        'name';
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidSum),
+      'A report was allowed to sum a text field',
+    );
+  });
+
   test('Field precision, defaults, read-only and descriptions are enforced',
       () {
     final amount = FieldDefinition.fromJson({
