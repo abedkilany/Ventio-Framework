@@ -239,6 +239,7 @@ void main() {
         const amendId = '85000000-0000-4000-8000-000000000005';
         const amendSubmitId = '85000000-0000-4000-8000-000000000006';
         const amendCancelId = '85000000-0000-4000-8000-000000000007';
+        const movementUpdateId = '85000000-0000-4000-8000-000000000008';
 
         final localProduct = await store!.createRecord(
           moduleId: moduleId,
@@ -311,21 +312,51 @@ void main() {
         Future<CommandReceipt> sendQueued(
           String commandId, {
           bool retryIdentically = false,
+          bool simulateLostFirstResponse = false,
         }) async {
           final entry = (await queue!.list(
             limit: 100,
           )).singleWhere((item) => item.envelope.commandId == commandId);
           await queue!.recordAttempt(commandId);
-          final first = await send(
-            activeApi,
-            token: token,
-            body: entry.envelope.original,
-          );
-          expect(first.status, anyOf(200, 202));
-          final receipt = CommandReceipt.fromJson(
-            Map<String, dynamic>.from(first.body['receipt'] as Map),
-          );
-          expect(receipt.accepted, isTrue, reason: '$commandId was rejected.');
+          late final CommandReceipt receipt;
+          if (simulateLostFirstResponse) {
+            // The Host commits, but the client process loses the response
+            // before saving a Host receipt. The durable command remains
+            // pending and must be replayed with the same ID.
+            await send(activeApi, token: token, body: entry.envelope.original);
+            final unresolved = await queue!.getById(commandId);
+            expect(unresolved?.isPending, isTrue);
+            expect(unresolved?.hostReceipt, isNull);
+            final retry = await send(
+              activeApi,
+              token: token,
+              body: entry.envelope.original,
+            );
+            expect(retry.status, anyOf(200, 202));
+            receipt = CommandReceipt.fromJson(
+              Map<String, dynamic>.from(retry.body['receipt'] as Map),
+            );
+            expect(
+              receipt.accepted,
+              isTrue,
+              reason: '$commandId was rejected after lost-response recovery.',
+            );
+          } else {
+            final first = await send(
+              activeApi,
+              token: token,
+              body: entry.envelope.original,
+            );
+            expect(first.status, anyOf(200, 202));
+            receipt = CommandReceipt.fromJson(
+              Map<String, dynamic>.from(first.body['receipt'] as Map),
+            );
+            expect(
+              receipt.accepted,
+              isTrue,
+              reason: '$commandId was rejected.',
+            );
+          }
           if (retryIdentically) {
             final retry = await send(
               activeApi,
@@ -354,6 +385,44 @@ void main() {
         expect(productReceipt.hostRevision, 1);
         final movementReceipt = await sendQueued(movementCreateId);
         expect(movementReceipt.hostRevision, 1);
+
+        final offlineEdit = await store!.updateRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: movementId,
+          scope: scope,
+          expectedRevision: 1,
+          values: const {
+            'lines': [
+              {'product': productId, 'amount': 1, 'unitPrice': 0.1},
+              {'product': productId, 'amount': 3, 'unitPrice': 0.2},
+            ],
+          },
+        );
+        expect(offlineEdit.values['total'], 0.7);
+        final movementUpdate = ExtensionRecordCommand.update(
+          commandId: movementUpdateId,
+          tenantId: tenant,
+          companyId: company,
+          branchId: branch,
+          recordId: movementId,
+          expectedRevision: 1,
+          actorId: actor,
+          deviceId: device,
+          moduleId: moduleId,
+          moduleVersion: bundle.version,
+          docType: 'Movement',
+          schemaVersion: 1,
+          values: {'lines': offlineEdit.values['lines']},
+        );
+        await queue!.enqueue(movementUpdate.envelope);
+        await store!.markRecordPending(
+          recordId: movementId,
+          scope: scope,
+          commandId: movementUpdateId,
+        );
+        final updateReceipt = await sendQueued(movementUpdateId);
+        expect(updateReceipt.hostRevision, 2);
         var acceptedMovement = await store!.getRecord(
           moduleId: moduleId,
           docTypeName: 'Movement',
@@ -361,7 +430,8 @@ void main() {
           scope: scope,
         );
         expect(acceptedMovement?.authorityState, 'HOST_ACCEPTED');
-        expect(acceptedMovement?.hostRevision, 1);
+        expect(acceptedMovement?.hostRevision, 2);
+        expect(acceptedMovement?.values['total'], 0.7);
 
         Future<Map<String, dynamic>> queryRecord(
           String docType,
@@ -415,12 +485,20 @@ void main() {
           );
         }
 
+        final movementAfterOfflineEdit = await queryRecord(
+          'Movement',
+          movementId,
+        );
+        expect(movementAfterOfflineEdit['revision'], 2);
+        expect((movementAfterOfflineEdit['values'] as Map)['total'], 0.7);
+
         Future<CommandReceipt> executeOperation({
           required String commandId,
           required String recordId,
           required int expectedRevision,
           required String operationId,
           bool retryIdentically = false,
+          bool simulateLostFirstResponse = false,
         }) async {
           final command = ExtensionBusinessOperationCommand.execute(
             commandId: commandId,
@@ -441,15 +519,19 @@ void main() {
           );
           await queue!.enqueue(command.envelope);
           await reconcileQueuedRecords(store!, queue!);
-          return sendQueued(commandId, retryIdentically: retryIdentically);
+          return sendQueued(
+            commandId,
+            retryIdentically: retryIdentically,
+            simulateLostFirstResponse: simulateLostFirstResponse,
+          );
         }
 
         final submitted = await executeOperation(
           commandId: submitId,
           recordId: movementId,
-          expectedRevision: 1,
+          expectedRevision: 2,
           operationId: 'inventory.submit',
-          retryIdentically: true,
+          simulateLostFirstResponse: true,
         );
         expect(submitted.output?['number'], 'INV-000001');
         acceptedMovement = await store!.getRecord(
@@ -459,11 +541,12 @@ void main() {
           scope: scope,
         );
         expect(acceptedMovement?.documentStatus, 1);
+        expect(acceptedMovement?.hostRevision, 3);
         expect(acceptedMovement?.values['documentNumber'], 'INV-000001');
         expect(acceptedMovement?.authorityState, 'HOST_ACCEPTED');
 
         final hostProduct = await queryRecord('Product', productId);
-        expect((hostProduct['values'] as Map)['quantity'], 95);
+        expect((hostProduct['values'] as Map)['quantity'], 94);
         await applyHostRecord('Product', productId);
         final localProductAfterSubmit = await store!.getRecord(
           moduleId: moduleId,
@@ -471,7 +554,7 @@ void main() {
           recordId: productId,
           scope: scope,
         );
-        expect(localProductAfterSubmit?.values['quantity'], 95);
+        expect(localProductAfterSubmit?.values['quantity'], 94);
 
         final report = await send(
           activeApi,
@@ -494,7 +577,7 @@ void main() {
             ((reportResult['groups'] as List).single as Map)['aggregates']
                 as Map;
         expect(aggregates['row_count'], '1');
-        expect(aggregates['sum_total'], '0.8');
+        expect(aggregates['sum_total'], '0.7');
 
         final hostMovement = await queryRecord('Movement', movementId);
         final rendered = await buildPrintFormatPdf(
@@ -511,7 +594,7 @@ void main() {
         final cancelled = await executeOperation(
           commandId: cancelId,
           recordId: movementId,
-          expectedRevision: 2,
+          expectedRevision: 3,
           operationId: 'inventory.cancel',
           retryIdentically: true,
         );
@@ -531,14 +614,14 @@ void main() {
           docTypeName: 'Movement',
           sourceRecordId: movementId,
           scope: scope,
-          expectedSourceRevision: 3,
+          expectedSourceRevision: 4,
           commandId: amendId,
           linkField: 'amendedFrom',
         );
         final amended = await executeOperation(
           commandId: amendId,
           recordId: movementId,
-          expectedRevision: 3,
+          expectedRevision: 4,
           operationId: 'document.amend',
         );
         expect(amended.output?['amendedRecordId'], amendId);
@@ -570,7 +653,7 @@ void main() {
         expect(localResubmission?.documentStatus, 1);
         expect(localResubmission?.values['documentNumber'], 'INV-000002');
         final productAfterResubmit = await queryRecord('Product', productId);
-        expect((productAfterResubmit['values'] as Map)['quantity'], 95);
+        expect((productAfterResubmit['values'] as Map)['quantity'], 94);
 
         await executeOperation(
           commandId: amendCancelId,
@@ -619,7 +702,7 @@ void main() {
         expect(restored?.hostRevision, greaterThanOrEqualTo(3));
         expect(restored?.documentStatus, 2);
         expect(restored?.values['documentNumber'], 'INV-000002');
-        expect(recoveredCommands, hasLength(7));
+        expect(recoveredCommands, hasLength(8));
         expect(
           recoveredCommands.every((entry) => entry.isHostConfirmed),
           isTrue,
