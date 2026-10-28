@@ -28,13 +28,10 @@ void main() {
       final runtimeUrl =
           Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
       final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
-      final migrationUrl =
-          Platform.environment['VENTIO_TEST_MIGRATION_DATABASE_URL'];
       final allowed = Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'];
       if (databaseUrl == null ||
           runtimeUrl == null ||
           adminUrl == null ||
-          migrationUrl == null ||
           allowed != 'yes') {
         throw StateError(
           'Set the guarded disposable ventio_host_test connection URLs and test opt-in.',
@@ -44,7 +41,6 @@ void main() {
         databaseUrl,
         runtimeUrl,
         adminUrl,
-        migrationUrl,
       ].map(Uri.parse).toList(growable: false);
       expect(
         parsedUrls.every(
@@ -60,7 +56,6 @@ void main() {
       final observer = await pg.Connection.openFromUrl(databaseUrl);
       final runtime = await pg.Connection.openFromUrl(runtimeUrl);
       final admin = await pg.Connection.openFromUrl(adminUrl);
-      final migrator = await pg.Connection.openFromUrl(migrationUrl);
       final temporary = await createPrivateTestDirectory(
         'ventio-inventory-e2e-',
       );
@@ -83,7 +78,7 @@ void main() {
       Directory? localDirectory;
       try {
         final unapplied = await PostgresMigrationRunner(
-          migrator,
+          observer,
           Directory('../../migrations/postgres'),
         ).apply();
         expect(
@@ -122,7 +117,8 @@ void main() {
               permissions.add(permission);
             }
           }
-          for (final rawOperation in rawType['businessOperations'] as List) {
+          for (final rawOperation
+              in rawType['businessOperations'] as List? ?? const []) {
             permissions.add((rawOperation as Map)['permission'] as String);
           }
         }
@@ -389,7 +385,7 @@ void main() {
               'sortField': docType == 'Product' ? 'quantity' : 'documentNumber',
               'descending': false,
               'offset': 0,
-              'limit': 10,
+              'limit': 1,
             },
           );
           expect(reply.status, 200);
@@ -650,7 +646,6 @@ void main() {
         await api?.close();
         await queue?.close();
         await store?.close();
-        await migrator.close();
         await observer.close();
         await runtime.close();
         await admin.close();

@@ -2086,16 +2086,23 @@ class LocalExtensionStore {
       );
       if (existingCopy.isNotEmpty) {
         final copy = LocalExtensionRecord.fromRow(existingCopy.single);
-        if (copy.values[linkField] != sourceRecordId ||
-            (copy.pendingCommandId != commandId &&
-                !{
-                  'HOST_ACCEPTED',
-                  'REJECTED',
-                  'CONFLICT',
-                }.contains(copy.authorityState))) {
-          throw const ExtensionStoreException(
+        final linkMatches = copy.values[linkField] == sourceRecordId;
+        final commandMatches = copy.pendingCommandId == commandId;
+        final terminalState = {
+          'HOST_ACCEPTED',
+          'REJECTED',
+          'CONFLICT',
+        }.contains(copy.authorityState);
+        final followUpCommandPending =
+            copy.authorityState == 'PENDING' && copy.pendingCommandId != null;
+        if (!linkMatches ||
+            (!commandMatches && !terminalState && !followUpCommandPending)) {
+          throw ExtensionStoreException(
             'AMENDMENT_COPY_MISMATCH',
-            'The provisional amendment ID is already used by another record.',
+            'The provisional amendment copy no longer matches its link or '
+                'pending command (linkMatches=$linkMatches, '
+                'commandMatches=$commandMatches, '
+                'authorityState=${copy.authorityState}).',
           );
         }
         return copy;
@@ -2149,7 +2156,9 @@ class LocalExtensionStore {
       _validatePayload(definition, storedValues);
       await _validateReferences(transaction, definition, storedValues, scope);
       if (source.readableFields case final readMask?) {
-        storedValues.removeWhere((field, _) => !readMask.contains(field));
+        storedValues.removeWhere(
+          (field, _) => field != linkField && !readMask.contains(field),
+        );
       }
       final now = _now();
       await transaction.insert(_recordsTable, {

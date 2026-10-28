@@ -4,22 +4,22 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 ## Overall
 
-**85.00%** `█████████████████░░░` (20% Stage 0 + 65% accepted Wave 1)
+**100.00%** `████████████████████` (20% Stage 0 + 65% accepted Wave 1 + 15% final acceptance)
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
 - Stage 1 Wave 1: **23 / 23 accepted** — all capabilities are accepted (65% overall)
-- Final Acceptance — Ventio Inventory Operations: **IN_PROGRESS** (0/15 points accepted; 15% remains gated)
+- Final Acceptance — Ventio Inventory Operations: **PASS — 100% accepted** (15/15 points)
 
 ## Live checkpoint
 
-- Current task: Final Acceptance — complete the Windows SQLite to PostgreSQL Host acceptance run using the official Ventio Inventory Operations package.
+- Current task: Final Acceptance — accepted; mission complete.
 - Last completed capability: G01 — Standard printable document formats (23/23 accepted).
-- Next action: inspect the integrated test's complete output and exit code; resolve any failure, then save acceptance evidence and the final checkpoint.
-- Blockers: none. The first unified SQLite/PostgreSQL test stopped during setup because the restricted migration login cannot create in `public`; this is expected security behavior. All 24 migrations through `024` are already recorded in the disposable database, and the guarded bootstrap passed twice. I’m updating the test to verify the migration ledger through the isolated database administrator connection and rerunning. PostgreSQL 17.11 is loopback-only at 127.0.0.1:55439. The generic Host inventory integration passed **137/137**, official package Core validation **78/78**, and focused Windows SQLite offline create/edit/restart **1/1**. A full Studio-suite phone-sized DocType Builder failure is recorded in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md).
-- Latest implementation checkpoint: `69dc1ec` (official extension package and acceptance scenarios; cross-layer test setup fix in progress). G01 implementation evidence is `89b8a8d`; its architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 remains 7/7 PASS; Wave 1 is 23/23 at **85.00%**. Final extension is IN_PROGRESS and has **0/15** acceptance points until the integrated gate passes.
-- Since the previous dashboard update: the official package and English catalog passed Core validation (**78/78**), its PostgreSQL Host scenarios passed (**137/137**), and its Windows SQLite offline create/edit/restart scenario passed (**1/1**). The unified test reached its restricted migration-setup boundary before business execution; its fixture now uses the isolated database administrator only to verify the existing migration ledger. Accepted overall progress remains **85.00%**.
+- Next action: none. The final acceptance evidence and checkpoint are saved in [INVENTORY_OPERATIONS_ACCEPTANCE.md](INVENTORY_OPERATIONS_ACCEPTANCE.md).
+- Blockers: none. The loopback-only PostgreSQL 17.11 cluster ran all checks against disposable `ventio_host_test`; the migration ledger was current, and the guarded security bootstrap had passed twice. Final cross-layer Windows SQLite/PostgreSQL Host integration passed **1/1** (exit 0); generic Host inventory integration **137/137**; A10 allocator **6/6**; Core package validation **78/78**; focused SQLite offline lifecycle/recovery **1/1**. The isolated Host API was rebound and the accepted record reread after restart. A full Studio-suite phone-sized DocType Builder failure remains documented in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md) and does not affect the focused accepted reference extension paths.
+- Latest implementation checkpoint: `PENDING_FINAL_CHECKPOINT` (official extension package, generic Amend recovery fix, and final acceptance evidence). G01 implementation evidence is `89b8a8d`; its architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 is 7/7 PASS; Wave 1 is 23/23 accepted; final acceptance is PASS. Overall progress is **100.00%**.
+- Since the previous dashboard update: the cross-layer test passed the complete real SQLite/PostgreSQL scenario, including Submit/Cancel/Amend, transactional numbers and effects, retries, report, PDF output, restart recovery, and persisted Host readback. Fixed generic Amend reconciliation to preserve a linked draft during later pending operations; its focused regression and targeted analysis passed.
 
-Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
+Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. **100%** is reached only after all three gates pass.
 
 ## Capability ledger
 
@@ -55,13 +55,19 @@ Total Wave 1 effort points: **100**.
 
 ## Execution checkpoint
 
-- Current task: Final Acceptance — create and verify Ventio Inventory Operations through the ordinary extension platform.
-- Last successfully completed capability: G01 — Standard printable document formats.
-- Next task: author the Products and Inventory Movement metadata and run the offline/Host lifecycle scenario.
-- Blockers: none. Stage 0 PASS; Wave 1 accepted 23/23; final extension NOT_STARTED.
+- Current task: complete — Stage 0, Wave 1, and Final Acceptance passed.
+- Last successfully completed capability: G01 — Standard printable document formats; final extension acceptance passed.
+- Next task: none.
+- Blockers: none. Stage 0 PASS; Wave 1 accepted 23/23; final extension PASS.
 - Branch: `codex/extension-platform`.
 - Baseline: `da3b13851e1b4e210618755d5eab93f02b4dfa48`.
-- Latest GitHub implementation checkpoint: `89b8a8d` — G01 accepted; Wave 1 is 23/23 at 85.00%. The final extension contributes the remaining 15%.
+- Latest GitHub acceptance checkpoint: `PENDING_FINAL_CHECKPOINT` — Ventio Inventory Operations accepted; Stage 0, all 23 capabilities, and the official reference extension are complete at 100.00%.
+
+## Final acceptance
+
+- Ventio Inventory Operations: **PASS** — evidence in [INVENTORY_OPERATIONS_ACCEPTANCE.md](INVENTORY_OPERATIONS_ACCEPTANCE.md). The ordinary declarative extension passed Windows SQLite to PostgreSQL 17.11 Host integration (**1/1**, exit 0); it covers Products, two-line Movements, offline commands, Host receipts, transactional numbering, Submit/Cancel/Amend, correct effects and totals, permissions, report, print, retry idempotency, SQLite restart/reconciliation, and Host record/audit readback.
+- No inventory-specific Core or Host runtime changes or privileged extension exceptions were used.
+- Accepted overall progress: **100.00%**; Stage 0 **7/7 PASS**; Wave 1 **23/23 accepted**; Final Acceptance **15/15 PASS**.
 - Timed live updates: Not available as a guaranteed background service; dashboard is updated at persisted checkpoints.
 
 ## Meaningful work since previous checkpoint

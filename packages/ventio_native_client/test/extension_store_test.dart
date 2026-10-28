@@ -680,6 +680,17 @@ void main() {
     expect(amendment.values['amendedFrom'], source.recordId);
     expect(amendment.values['documentNumber'], 'LOCAL-amend-local-copy');
     expect(amendment.values['lines'], source.values['lines']);
+    final retriedAmendment = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: 'amend-local-copy',
+      linkField: 'amendedFrom',
+    );
+    expect(retriedAmendment.recordId, amendment.recordId);
+    expect(retriedAmendment.values['amendedFrom'], source.recordId);
     await expectLater(
       store.createAmendmentDraft(
         moduleId: _moduleId,
@@ -757,6 +768,20 @@ void main() {
       recordId: amendment.recordId,
       scope: _scope,
       commandId: 'cancel-amendment-copy',
+    );
+    final amendmentReplayDuringFollowUp = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: amendment.recordId,
+      linkField: 'amendedFrom',
+    );
+    expect(amendmentReplayDuringFollowUp.recordId, amendment.recordId);
+    expect(
+      amendmentReplayDuringFollowUp.pendingCommandId,
+      'cancel-amendment-copy',
     );
     await store.applyHostReceipt(
       recordId: amendment.recordId,
