@@ -8,16 +8,16 @@ Canonical execution dashboard. Percentages count accepted deliverables only.
 
 - Stage 0 Localization Foundation: **PASS — 100% accepted** — **7/7 implementation steps complete** (20% overall)
 - Stage 1 Wave 1: **23 / 23 accepted** — all capabilities are accepted (65% overall)
-- Final Acceptance — Ventio Inventory Operations: **NOT_STARTED** (15% overall)
+- Final Acceptance — Ventio Inventory Operations: **IN_PROGRESS** (0/15 points accepted; 15% remains gated)
 
 ## Live checkpoint
 
-- Current task: Final Acceptance — create Ventio Inventory Operations through ordinary extension tools and demonstrate the governed end-to-end scenario.
+- Current task: Final Acceptance — implement and verify Ventio Inventory Operations through the ordinary extension authoring and governed execution paths.
 - Last completed capability: G01 — Standard printable document formats (23/23 accepted).
-- Next action: author Products and Inventory Movement DocTypes, child rows, calculations, numbering, and lifecycle operations using the same Studio and package contracts available to ordinary creators.
-- Blockers: none. A full Studio-suite run found one separate phone-sized DocType Builder test failure; it reproduces alone and is recorded in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md). Focused G01 tests and the Windows release build pass.
+- Next action: turn the generic Host inventory integration fixture into an official, reusable declarative extension artifact, then connect its SQLite offline queue and Host reconciliation evidence.
+- Blockers: none. PostgreSQL 17.11 is available on loopback at 127.0.0.1:55439 from the prior disposable cluster; read-only verification confirmed database ventio_host_test and the recorded temporary installation. No integration test is currently running. A full Studio-suite run found one separate phone-sized DocType Builder test failure; it is recorded in [G01 acceptance evidence](G01_PRINT_FORMATS_ACCEPTANCE.md).
 - Latest implementation checkpoint: `89b8a8d` (G01 accepted implementation and evidence); G01 architecture is [ADR-014](ADR-014_DECLARATIVE_PRINT_FORMATS.md). Stage 0 remains 7/7 PASS; Wave 1 is 23/23 at **85.00%**. Final extension remains NOT_STARTED.
-- Since the previous dashboard update: Core print metadata and package validation, SQLite persistence/install/export, ordinary Studio field/table/page-break authoring, Host-authorized exact-record PDF printing, Unicode-aware Windows rendering, focused test evidence, and a Windows release build are complete. Core **77/77**, ExtensionStore **40/40**, renderer **3/3**, focused Studio/Host tests **1/1 each**, analysis clean, localization gate **6/6**, Windows build exit 0. G01 is accepted; overall progress is now **85.00%**.
+- Since the previous dashboard update: final acceptance reconnaissance confirmed the existing generic inventory Host scenario, reviewed the final gate, verified the prior B04 architecture/evidence, and confirmed the temporary PostgreSQL 17.11 test database is reachable on loopback. Final extension implementation is now in progress; accepted progress remains **85.00%**.
 
 Progress formula: Stage 0 gate pass contributes 20 points; accepted Wave 1 effort points contribute `65 × points / 100`; final acceptance gate pass contributes 15 points. Overall is capped below 100 until all three gates pass.
 
