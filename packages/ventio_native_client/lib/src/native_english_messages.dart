@@ -1,6 +1,126 @@
 // First-party English UI fallbacks. Keys are stable message identifiers.
 const ventioNativeEnglishMessages = <String, String>{
   'native.app.title': 'Ventio Extension Builder',
+  'native.ui.users_permissions': 'Users & permissions',
+  'native.ui.host_overview': 'Host overview',
+  'native.ui.refresh_host_readiness': 'Refresh Host readiness',
+  'native.ui.host_checks_status_permission':
+      'The Host checks host.status.read for this exact branch on every request.',
+  'native.ui.host_status_access_required': 'Host status access required',
+  'native.ui.host_status_access_required_details':
+      'This signed-in identity does not have host.status.read for the selected company and branch.',
+  'native.ui.host_overall_state': 'Overall Host state: {state}',
+  'native.ui.host_version_checked':
+      'Host version {version} · checked {timestamp}',
+  'native.ui.host_readiness_reason_code': 'Safe reason code: {code}',
+  'native.ui.device_inventory_unavailable':
+      'Device and pairing details are not available yet',
+  'native.ui.device_inventory_unavailable_details':
+      'The Host has not exposed device inventory or pairing management APIs yet, so no registered or connected device counts can be shown.',
+  'native.ui.host_readiness_failed': 'Could not check Host readiness',
+  'native.ui.host_status_denied':
+      'The Host denied access to readiness for this scope.',
+  'native.ui.host_readiness_failed_details':
+      'The Host could not return a valid readiness summary. Retry and share the reference with a Host administrator if the problem continues.',
+  'native.ui.host_component_api': 'Authenticated Host API',
+  'native.ui.host_component_database': 'PostgreSQL connection',
+  'native.ui.host_component_schema': 'Database schema and runtime profile',
+  'native.ui.host_component_recovery': 'Recovery Authority',
+  'native.ui.host_api_ready_guidance':
+      'The Host accepted this authenticated readiness check.',
+  'native.ui.host_database_ready_guidance':
+      'The Host confirmed its database connection.',
+  'native.ui.host_schema_ready_guidance':
+      'The Host confirmed its approved schema and runtime profile.',
+  'native.ui.host_recovery_ready_guidance':
+      'Recovery admission is ready for Host operations.',
+  'native.ui.host_component_degraded_guidance':
+      'This component reports degraded readiness. Some Host operations may need attention.',
+  'native.ui.host_recovery_blocked_guidance':
+      'Recovery admission is blocked. Contact a Host administrator before retrying protected operations.',
+  'native.ui.host_component_blocked_guidance':
+      'This component is blocked. Review the readiness code with a Host administrator.',
+  'native.ui.host_component_not_configured':
+      'This Host component has not been configured.',
+  'native.ui.host_component_unknown':
+      'The Host could not determine this component state.',
+  'native.ui.host_api_unavailable_guidance':
+      'The Host could not confirm API readiness. Check the Host service and retry.',
+  'native.ui.host_database_unavailable_guidance':
+      'The Host could not confirm the PostgreSQL connection. Check the Host database service and retry.',
+  'native.ui.host_schema_unavailable_guidance':
+      'The Host could not confirm the approved schema or runtime profile. Ask a Host administrator to review migrations and database setup.',
+  'native.ui.host_recovery_unavailable_guidance':
+      'The Host could not confirm Recovery Authority readiness. Ask a Host administrator to review recovery configuration.',
+  'native.ui.host_users': 'Host users',
+  'native.ui.create_user': 'Create user',
+  'native.ui.actor_id': 'User ID',
+  'native.ui.user_active': 'Active',
+  'native.ui.user_disabled_state': 'Disabled',
+  'native.ui.user_actions': 'User actions',
+  'native.ui.direct_permissions': 'Direct permissions',
+  'native.ui.no_direct_permissions': 'No direct permissions',
+  'native.ui.role_assignments': 'Role assignments',
+  'native.ui.no_role_assignments': 'No role assignments in this scope',
+  'native.ui.grant_permission': 'Grant permission',
+  'native.ui.revoke_permission': 'Revoke permission',
+  'native.ui.disable_user': 'Disable user',
+  'native.ui.disable_user_confirmation':
+      'Disable user {displayName} in this Host scope? The account will no longer be active.',
+  'native.ui.refresh_users': 'Refresh users',
+  'native.ui.users_scope_summary': 'Host tenant: {tenantId}',
+  'native.ui.host_checks_user_management_permission':
+      'The Host checks identity.users.manage for this exact branch on every request.',
+  'native.ui.user_access_required': 'User-management access required',
+  'native.ui.user_access_required_details':
+      'This signed-in identity does not have identity.users.manage for the selected company and branch.',
+  'native.ui.no_host_users': 'No users are registered in this Host scope.',
+  'native.ui.could_not_load_host_users': 'Could not load Host users',
+  'native.ui.user_created_without_permissions':
+      'User created without direct permissions or role assignments.',
+  'native.ui.legacy_identity_reference': 'Legacy identity {number}',
+  'native.ui.user_created_with_id': 'User created. Generated ID: {actorId}',
+  'native.ui.generated_user_id': 'Generated user ID: {actorId}',
+  'native.ui.user_permission_granted': 'Permission granted by Host.',
+  'native.ui.user_permission_revoked': 'Permission revoked by Host.',
+  'native.ui.user_disabled': 'Host disabled the user.',
+  'native.ui.recent_user_activity': 'Recent administrative activity',
+  'native.ui.no_recent_user_activity': 'No recent activity is available.',
+  'native.ui.audit_activity_load_failed':
+      'Could not load recent administrative activity',
+  'native.ui.audit_event_summary':
+      'User {subjectId} · Operator {operator} · {timestamp}',
+  'native.ui.audit_user_created': 'User created',
+  'native.ui.audit_user_disabled': 'User disabled',
+  'native.ui.audit_permission_granted': 'Permission granted',
+  'native.ui.audit_permission_revoked': 'Permission revoked',
+  'native.ui.audit_role_created': 'Role created',
+  'native.ui.audit_role_renamed': 'Role renamed',
+  'native.ui.audit_role_deleted': 'Role deleted',
+  'native.ui.audit_role_permission_granted': 'Role permission granted',
+  'native.ui.audit_role_permission_revoked': 'Role permission revoked',
+  'native.ui.audit_role_assigned': 'Role assigned',
+  'native.ui.audit_role_unassigned': 'Role unassigned',
+  'native.ui.audit_other_administration': 'Administrative activity',
+  'native.ui.enter_actor_id': 'Enter a user ID.',
+  'native.ui.enter_display_name': 'Enter a display name.',
+  'native.ui.permission_not_grantable_to_users':
+      'Enter a valid non-management permission key. Identity, Host, system, security and recovery permissions cannot be granted here.',
+  'native.ui.new_user_is_unprivileged':
+      'The new user starts with no permissions or roles.',
+  'native.ui.user_management_denied_by_host':
+      'The Host denied this user-management request.',
+  'native.ui.host_credential_unavailable':
+      'A valid Host credential is not available on this device.',
+  'native.ui.host_not_reachable':
+      'The Host could not be reached. Your account changes were not confirmed.',
+  'native.ui.host_tls_validation_failed':
+      'The Host TLS certificate could not be validated. Check the Host address and certificate.',
+  'native.ui.host_api_version_not_supported':
+      'This Host does not support the required management API version.',
+  'native.ui.host_user_operation_failed':
+      'The Host could not complete the user-management request.',
+  'native.ui.correlation_reference': 'Reference: {correlationId}',
   'native.ui.a_doctype_defines_the_fields_relationships_validation_and_permissions_fo':
       'A DocType defines the fields, relationships, validation and permissions for a kind of record.',
   'native.ui.a_saved_record_could_not_enter_the_host_queue':

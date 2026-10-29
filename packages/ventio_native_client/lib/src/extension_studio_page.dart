@@ -9,21 +9,30 @@ import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
 import 'command_id.dart';
+import 'diagnostics_center_page.dart';
 import 'extension_store.dart';
 import 'host_credentials.dart';
 import 'host_extension_packages.dart';
+import 'host_overview_page.dart';
+import 'host_readiness.dart';
+import 'host_user_management.dart';
 import 'host_sync_service.dart';
 import 'host_transport.dart';
 import 'local_command_queue.dart';
+import 'local_diagnostics.dart';
 import 'maintenance_request_page.dart';
 import 'print_format_renderer.dart';
 import 'queued_record_reconciliation.dart';
 import 'role_administration_page.dart';
 import 'transport_fixture.dart';
+import 'users_permissions_page.dart';
 
 enum _StudioMenuAction {
   connect,
   sync,
+  manageUsers,
+  hostOverview,
+  localDiagnostics,
   installFromHost,
   installPackage,
   offlineProof,
@@ -52,12 +61,16 @@ String _extensionMessageKey(String moduleId, String message) {
   return 'extension.$namespace.module.$message';
 }
 
+String _localDiagnosticsLabel(BuildContext context) => context
+    .extensionMetadataText('native.ui.local_diagnostics', 'Local diagnostics');
+
 class ExtensionStudioPage extends StatefulWidget {
   const ExtensionStudioPage({
     required this.store,
     required this.queue,
     this.credentialVault,
     this.hostPackageClientFactory,
+    this.diagnosticEventSource,
     this.scope = const RecordScope(
       organizationId: 'local-organization',
       companyId: 'local-company',
@@ -70,6 +83,7 @@ class ExtensionStudioPage extends StatefulWidget {
   final LocalCommandQueue queue;
   final HostCredentialVault? credentialVault;
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
+  final DiagnosticEventSource? diagnosticEventSource;
   final RecordScope scope;
 
   @override
@@ -165,6 +179,112 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           scope.branchId == profile.branchId &&
           scope.permissions.contains('identity.roles.manage'),
     );
+  }
+
+  bool get _canManageUsers {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    if (profile == null || identity == null || !identity.persistent) {
+      return false;
+    }
+    return identity.scopes.any(
+      (scope) =>
+          scope.companyId == profile.companyId &&
+          scope.branchId == profile.branchId &&
+          scope.permissions.contains(identityUsersManagePermission),
+    );
+  }
+
+  bool get _canReadHostStatus {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    if (profile == null || identity == null || !identity.persistent) {
+      return false;
+    }
+    return identity.scopes.any(
+      (scope) =>
+          scope.companyId == profile.companyId &&
+          scope.branchId == profile.branchId &&
+          scope.permissions.contains(hostStatusReadPermission),
+    );
+  }
+
+  Future<void> _openUserManagement() async {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    final vault = widget.credentialVault;
+    if (!_canManageUsers ||
+        profile == null ||
+        identity == null ||
+        vault == null) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => UsersPermissionsPage(
+          client: HostUserManagementClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+            verifiedIdentity: identity,
+            companyId: profile.companyId,
+            branchId: profile.branchId,
+          ),
+        ),
+      ),
+    );
+    await _refreshHostIdentity();
+  }
+
+  Future<void> _openHostOverview() async {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    final vault = widget.credentialVault;
+    if (!_canReadHostStatus ||
+        profile == null ||
+        identity == null ||
+        vault == null) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => HostOverviewPage(
+          client: HostReadinessClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+            verifiedIdentity: identity,
+            companyId: profile.companyId,
+            branchId: profile.branchId,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLocalDiagnostics() async {
+    DiagnosticEventSource? source = widget.diagnosticEventSource;
+    LocalDiagnosticsStore? ownedStore;
+    try {
+      if (source == null) {
+        ownedStore = await openDefaultLocalDiagnosticsStore();
+        source = ownedStore;
+      }
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (context) => DiagnosticsCenterPage(store: source!),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        _message('Local diagnostics are unavailable on this device.');
+      }
+    } finally {
+      try {
+        await ownedStore?.close();
+      } catch (_) {
+        // Do not replace a completed UI flow with a raw local-storage error.
+      }
+    }
   }
 
   Future<void> _openRoleAdministration() async {
@@ -646,6 +766,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _configureHost();
                   case _StudioMenuAction.sync:
                     _syncHost();
+                  case _StudioMenuAction.manageUsers:
+                    _openUserManagement();
+                  case _StudioMenuAction.hostOverview:
+                    _openHostOverview();
+                  case _StudioMenuAction.localDiagnostics:
+                    _openLocalDiagnostics();
                   case _StudioMenuAction.installFromHost:
                     _installApprovedFromHost();
                   case _StudioMenuAction.installPackage:
@@ -661,6 +787,20 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _hostProfile == null ? 'Connect Host' : 'Host settings',
                   ),
                 ),
+                PopupMenuItem(
+                  value: _StudioMenuAction.localDiagnostics,
+                  child: Text(_localDiagnosticsLabel(context)),
+                ),
+                if (_canManageUsers)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.manageUsers,
+                    child: VentioText('native.ui.users_permissions'),
+                  ),
+                if (_canReadHostStatus)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.hostOverview,
+                    child: VentioText('native.ui.host_overview'),
+                  ),
                 PopupMenuItem(
                   value: _StudioMenuAction.installFromHost,
                   enabled: _hostProfile != null,
@@ -682,6 +822,17 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               ],
             )
           else if (width < 1200) ...[
+            IconButton(
+              tooltip: _localDiagnosticsLabel(context),
+              onPressed: _openLocalDiagnostics,
+              icon: const Icon(Icons.health_and_safety_outlined),
+            ),
+            if (_canReadHostStatus)
+              IconButton(
+                tooltip: context.ventioText('native.ui.host_overview'),
+                onPressed: _openHostOverview,
+                icon: const Icon(Icons.monitor_heart_outlined),
+              ),
             IconButton(
               tooltip: context.ventioText('native.ui.sync_pending_records'),
               onPressed: _hostProfile == null ? null : _syncHost,
@@ -712,6 +863,17 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               icon: const Icon(Icons.cloud_off_outlined),
             ),
           ] else ...[
+            TextButton.icon(
+              onPressed: _openLocalDiagnostics,
+              icon: const Icon(Icons.health_and_safety_outlined),
+              label: Text(_localDiagnosticsLabel(context)),
+            ),
+            if (_canReadHostStatus)
+              TextButton.icon(
+                onPressed: _openHostOverview,
+                icon: const Icon(Icons.monitor_heart_outlined),
+                label: const VentioText('native.ui.host_overview'),
+              ),
             TextButton.icon(
               onPressed: _hostProfile == null ? null : _syncHost,
               icon: const Icon(Icons.sync),
@@ -760,6 +922,15 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                       ? Icons.phonelink_setup_outlined
                       : Icons.cloud_done_outlined,
                 ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.tonalIcon(
+                    onPressed: _openLocalDiagnostics,
+                    icon: const Icon(Icons.health_and_safety_outlined),
+                    label: Text(_localDiagnosticsLabel(context)),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 if (_queueRecoveryWarning != null) ...[
                   const SizedBox(height: 12),
                   _StateCard(
@@ -776,6 +947,17 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   ),
                 ],
                 if (_hostProfile != null) ...[
+                  if (_canManageUsers) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.tonalIcon(
+                        onPressed: _openUserManagement,
+                        icon: const Icon(Icons.people_alt_outlined),
+                        label: const VentioText('native.ui.users_permissions'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   if (_canManageRoles) ...[
                     Align(
                       alignment: Alignment.centerLeft,
@@ -799,6 +981,15 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     ),
                   ),
                 ],
+                if (_canReadHostStatus)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.tonalIcon(
+                      onPressed: _openHostOverview,
+                      icon: const Icon(Icons.monitor_heart_outlined),
+                      label: const VentioText('native.ui.host_overview'),
+                    ),
+                  ),
                 const SizedBox(height: 24),
                 LayoutBuilder(
                   builder: (context, constraints) {

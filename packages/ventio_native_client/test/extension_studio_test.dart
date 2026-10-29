@@ -11,6 +11,7 @@ import 'package:ventio_native_client/src/extension_studio_page.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
 import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
+import 'package:ventio_native_client/src/local_diagnostics.dart';
 import 'package:ventio_native_client/src/queued_record_reconciliation.dart';
 import 'package:ventio_native_client/src/transport_fixture.dart';
 
@@ -32,7 +33,17 @@ class _MemoryCredentialBackend implements HostCredentialBackend {
 }
 
 class _FakeHostPackageClient extends HostExtensionPackageClient {
-  _FakeHostPackageClient({required super.endpoint, required super.credentials});
+  _FakeHostPackageClient({
+    required super.endpoint,
+    required super.credentials,
+    this.canManageUsers = false,
+    this.canReadHostStatus = false,
+    this.roleAdministrationAvailable = true,
+  });
+
+  final bool canManageUsers;
+  final bool canReadHostStatus;
+  final bool roleAdministrationAvailable;
 
   HostApprovedPackagePage registryPage = HostApprovedPackagePage(
     packages: const [],
@@ -49,15 +60,23 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
     actorId: 'user-1',
     deviceId: 'device-1',
     persistent: true,
-    roleAdministrationAvailable: true,
+    roleAdministrationAvailable: roleAdministrationAvailable,
     scopes: [
       HostScopeGrant(
         companyId: 'company-1',
         branchId: 'branch-1',
-        permissions: const {
-          'extension.package.read',
-          'extension.package.submit',
-        },
+        permissions:
+            const {'extension.package.read', 'extension.package.submit'}
+                .union(
+                  canManageUsers
+                      ? {identityUsersManagePermission}
+                      : const <String>{},
+                )
+                .union(
+                  canReadHostStatus
+                      ? {hostStatusReadPermission}
+                      : const <String>{},
+                ),
       ),
     ],
   );
@@ -94,6 +113,22 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
     expectedDigest = expectedPackageSha256;
     return bundle;
   }
+}
+
+class _MemoryDiagnosticEventSource implements DiagnosticEventSource {
+  _MemoryDiagnosticEventSource(this.event);
+
+  final ManagementDiagnosticEvent event;
+
+  @override
+  Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async => [
+    event,
+  ];
+
+  @override
+  Future<String> exportJson({int limit = 100}) async => jsonEncode({
+    'events': [event.toJson()],
+  });
 }
 
 class _FakeRecordQueryClient extends HostExtensionPackageClient {
@@ -1110,6 +1145,161 @@ void main() {
     expect(find.textContaining('Host connected'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Users administration entry depends on the Host user permission, not device mode',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const endpoint = 'https://host.example.test';
+      const profile = HostConnectionProfile(
+        endpoint: endpoint,
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+        deviceId: 'device-1',
+      );
+      await store.saveHostProfile(profile);
+      final backend = _MemoryCredentialBackend();
+      final vault = HostCredentialVault(backend);
+      await vault.save(Uri.parse(endpoint), 'a' * 43);
+
+      Future<Widget> app({required bool canManageUsers}) async => MaterialApp(
+        home: ExtensionStudioPage(
+          key: ValueKey(canManageUsers),
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    canManageUsers: canManageUsers,
+                  ),
+        ),
+      );
+
+      await tester.pumpWidget(await app(canManageUsers: false));
+      await tester.pumpAndSettle();
+      expect(find.text('Users & permissions'), findsNothing);
+
+      await tester.pumpWidget(await app(canManageUsers: true));
+      await tester.pumpAndSettle();
+      expect(find.text('Users & permissions'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Host overview entry requires exact status permission regardless of device role',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const endpoint = 'https://host.example.test';
+      const profile = HostConnectionProfile(
+        endpoint: endpoint,
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+        deviceId: 'device-1',
+      );
+      await store.saveHostProfile(profile);
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(Uri.parse(endpoint), 'a' * 43);
+
+      Future<Widget> app({
+        required bool canReadHostStatus,
+        required bool roleAdministrationAvailable,
+      }) async => MaterialApp(
+        home: ExtensionStudioPage(
+          key: ValueKey((canReadHostStatus, roleAdministrationAvailable)),
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    canReadHostStatus: canReadHostStatus,
+                    roleAdministrationAvailable: roleAdministrationAvailable,
+                  ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        await app(canReadHostStatus: false, roleAdministrationAvailable: true),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host overview'), findsNothing);
+
+      await tester.pumpWidget(
+        await app(canReadHostStatus: true, roleAdministrationAvailable: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host overview'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'local diagnostics entry is available before Host authentication',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final diagnostic = ManagementDiagnosticEvent(
+        code: 'PAIRING_TOKEN_EXPIRED',
+        component: 'client.pairing',
+        category: ManagementDiagnosticCategory.pairing,
+        severity: ManagementDiagnosticSeverity.warning,
+        occurredAtUtc: DateTime.utc(2026, 10, 29, 18),
+        correlationId: 'cor_0123456789abcdef0123456789abcdef',
+        retryable: true,
+        messageKey: 'native.diagnostics.pairing_token_expired',
+        safeExplanation: 'The pairing code expired before enrollment.',
+        recommendedAction: 'Generate a new temporary code on the Host.',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(
+            store: store,
+            queue: queue,
+            diagnosticEventSource: _MemoryDiagnosticEventSource(diagnostic),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Local diagnostics'), findsOneWidget);
+      expect(find.text('Host settings'), findsNothing);
+
+      await tester.tap(find.text('Local diagnostics'));
+      await tester.pumpAndSettle();
+      expect(find.text('PAIRING_TOKEN_EXPIRED'), findsOneWidget);
+      expect(
+        find.text('The pairing code expired before enrollment.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Local diagnostics'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'Changed Host profile identity stops sync before queue attempts',
