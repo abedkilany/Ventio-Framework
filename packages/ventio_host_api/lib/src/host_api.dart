@@ -10,6 +10,7 @@ import 'authentication.dart';
 import 'extension_packages.dart';
 import 'extension_records.dart';
 import 'management.dart';
+import 'pairing_administration.dart';
 import 'role_administration.dart';
 import 'user_administration.dart';
 
@@ -36,12 +37,15 @@ class HostApi {
   final ExtensionReportQueryGateway? _extensionReportQueries;
   final IdentityRoleAdministrationGateway? _identityRoleAdministration;
   final IdentityUserAdministrationGateway? _identityUserAdministration;
+  final IdentityPairingGateway? _identityPairing;
   final HostReadinessProvider? _readinessProvider;
   final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
   final Duration bodyTimeout;
   final Set<Future<void>> _active = {};
+  final _PairingRedeemRateLimiter _pairingRedeemRateLimiter =
+      _PairingRedeemRateLimiter();
   bool _closing = false;
   Future<void>? _closeFuture;
 
@@ -54,6 +58,7 @@ class HostApi {
     this._extensionReportQueries,
     this._identityRoleAdministration,
     this._identityUserAdministration,
+    this._identityPairing,
     this._readinessProvider,
     this._diagnostics,
     this.maxBodyBytes,
@@ -80,6 +85,7 @@ class HostApi {
     ExtensionReportQueryGateway? extensionReportQueries,
     IdentityRoleAdministrationGateway? identityRoleAdministration,
     IdentityUserAdministrationGateway? identityUserAdministration,
+    IdentityPairingGateway? identityPairing,
     HostReadinessProvider? readinessProvider,
     ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
@@ -113,6 +119,8 @@ class HostApi {
             (identityUserAdministration != null &&
                 identityUserAdministration
                     is! AuthoritativeIdentityUserAdministrationGateway) ||
+            (identityPairing != null &&
+                identityPairing is! AuthoritativeIdentityPairingGateway) ||
             (readinessProvider != null &&
                 readinessProvider is! AuthoritativeHostReadinessProvider))) {
       throw ArgumentError(
@@ -131,6 +139,7 @@ class HostApi {
       extensionReportQueries,
       identityRoleAdministration,
       identityUserAdministration,
+      identityPairing,
       readinessProvider,
       diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
@@ -172,6 +181,7 @@ class HostApi {
         error.code,
         correlationId: correlationId,
         retryable: error.retryable,
+        retryAfterSeconds: error.retryAfterSeconds,
       );
     } on HttpException {
       await _error(
@@ -207,6 +217,32 @@ class HostApi {
         error.statusCode,
         error.code,
         correlationId: correlationId,
+      );
+    } on IdentityPairingException catch (error) {
+      await _recordDiagnostic(
+        ManagementDiagnosticEvent(
+          code: error.code,
+          component: 'identity.pairing',
+          category: ManagementDiagnosticCategory.pairing,
+          severity: error.statusCode >= 500
+              ? ManagementDiagnosticSeverity.error
+              : ManagementDiagnosticSeverity.warning,
+          occurredAtUtc: DateTime.now().toUtc(),
+          correlationId: correlationId,
+          retryable: error.retryable,
+          messageKey: 'host_api.error.${error.code.toLowerCase()}',
+          safeExplanation: 'The device pairing request could not be completed.',
+          recommendedAction:
+              'Check the pairing state and request a new code if it expired.',
+        ),
+      );
+      await _error(
+        request,
+        error.statusCode,
+        error.code,
+        correlationId: correlationId,
+        retryable: error.retryable,
+        retryAfterSeconds: error.retryAfterSeconds,
       );
     } catch (_) {
       // Never return exception text, database details, tokens, or request bodies.
@@ -254,6 +290,27 @@ class HostApi {
       _json(request, 200, {'apiVersion': 1, 'status': 'alive'});
       return;
     }
+    final pairingRedeemRoute =
+        request.uri.path == HostManagementRoutes.pairingRedeem;
+    if (pairingRedeemRoute) {
+      if (request.method != 'POST') {
+        request.response.headers.set(HttpHeaders.allowHeader, 'POST');
+        throw const _ApiError(405, 'METHOD_NOT_ALLOWED');
+      }
+      if (_identityPairing == null) throw const _ApiError(404, 'NOT_FOUND');
+      final remote = request.connectionInfo?.remoteAddress.address ?? 'unknown';
+      if (!_pairingRedeemRateLimiter.allow(remote)) {
+        throw const _ApiError(
+          429,
+          'PAIRING_RATE_LIMITED',
+          retryable: true,
+          retryAfterSeconds: 60,
+        );
+      }
+      final json = await _readJsonBody(request, iterator, firstChunk);
+      await _handlePairingRedeem(request, json, correlationId);
+      return;
+    }
     final packageRoute = switch (request.uri.path) {
       '/api/v1/extensions/submit' => 'submit',
       '/api/v1/extensions/read' => 'read',
@@ -266,6 +323,8 @@ class HostApi {
         request.uri.path == '/api/v1/extensions/reports/query';
     final identityRoleRoute = _identityRoleAction(request.uri.path);
     final identityUserRoute = _identityUserAction(request.uri.path);
+    final pairingCreateRoute =
+        request.uri.path == HostManagementRoutes.pairingCreate;
     final sessionRoute = request.uri.path == '/api/v1/session';
     final readinessRoute = request.uri.path == HostManagementRoutes.readiness;
     if (request.uri.path != '/api/v1/commands' &&
@@ -274,6 +333,7 @@ class HostApi {
         !reportQueryRoute &&
         identityRoleRoute == null &&
         identityUserRoute == null &&
+        !pairingCreateRoute &&
         !sessionRoute &&
         !readinessRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
@@ -345,6 +405,7 @@ class HostApi {
             recordQueryRoute ||
             identityRoleRoute != null ||
             identityUserRoute != null ||
+            pairingCreateRoute ||
             readinessRoute) &&
         session.credentialDigest == null) {
       throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
@@ -357,6 +418,9 @@ class HostApi {
     }
     if (readinessRoute && _readinessProvider == null) {
       throw const _ApiError(503, 'HOST_STATUS_UNAVAILABLE', retryable: true);
+    }
+    if (pairingCreateRoute && _identityPairing == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
     }
     final contentType = request.headers.contentType;
     if (contentType?.mimeType.toLowerCase() != 'application/json' ||
@@ -395,6 +459,10 @@ class HostApi {
     final json = requireMap(jsonDecode(text), 'command');
     if (readinessRoute) {
       await _handleReadiness(request, json, session, correlationId);
+      return;
+    }
+    if (pairingCreateRoute) {
+      await _handlePairingCreate(request, json, session, correlationId);
       return;
     }
     if (identityRoleRoute != null) {
@@ -463,6 +531,111 @@ class HostApi {
       },
     };
     _json(request, status, {'apiVersion': 1, 'receipt': receipt});
+  }
+
+  Future<Map<String, dynamic>> _readJsonBody(
+    HttpRequest request,
+    StreamIterator<List<int>> iterator,
+    Future<bool> firstChunk,
+  ) async {
+    final contentType = request.headers.contentType;
+    if (contentType?.mimeType.toLowerCase() != 'application/json' ||
+        (contentType?.charset != null &&
+            contentType!.charset!.toLowerCase() != 'utf-8') ||
+        request.headers.value(HttpHeaders.contentEncodingHeader) != null) {
+      throw const _ApiError(415, 'UNSUPPORTED_MEDIA_TYPE');
+    }
+    if (request.contentLength > maxBodyBytes) {
+      throw const _ApiError(413, 'BODY_TOO_LARGE');
+    }
+    final bytes = BytesBuilder(copy: false);
+    final watch = Stopwatch()..start();
+    var nextChunk = firstChunk;
+    try {
+      while (true) {
+        final remaining = bodyTimeout - watch.elapsed;
+        if (remaining <= Duration.zero) {
+          throw const _ApiError(408, 'BODY_TIMEOUT');
+        }
+        if (!await nextChunk.timeout(remaining)) break;
+        if (bytes.length + iterator.current.length > maxBodyBytes) {
+          throw const _ApiError(413, 'BODY_TOO_LARGE');
+        }
+        bytes.add(iterator.current);
+        nextChunk = iterator.moveNext();
+      }
+    } on TimeoutException {
+      throw const _ApiError(408, 'BODY_TIMEOUT');
+    }
+    final text = utf8.decode(bytes.takeBytes());
+    _validateNesting(text);
+    return requireMap(jsonDecode(text), 'pairing request');
+  }
+
+  Future<void> _handlePairingCreate(
+    HttpRequest request,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+    String correlationId,
+  ) async {
+    const keys = {'managementApiVersion', 'companyId', 'branchId', 'actorId'};
+    if (json.keys.toSet().length != keys.length ||
+        !json.keys.toSet().containsAll(keys) ||
+        json['managementApiVersion'] != managementApiVersion) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final actorId = _boundedIdentifier(json, 'actorId');
+    if (!session.principal.allowsInScope(
+      identityPairingManagePermission,
+      companyId,
+      branchId,
+    )) {
+      throw const IdentityPairingException(
+        'PERMISSION_DENIED',
+        statusCode: 403,
+      );
+    }
+    final pairing = await _identityPairing!.create(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: actorId,
+    );
+    _json(request, 201, {
+      'apiVersion': 1,
+      'managementApiVersion': managementApiVersion,
+      'correlationId': correlationId,
+      'pairing': pairing,
+    });
+  }
+
+  Future<void> _handlePairingRedeem(
+    HttpRequest request,
+    Map<String, dynamic> json,
+    String correlationId,
+  ) async {
+    const keys = {'managementApiVersion', 'code', 'deviceId'};
+    if (json.keys.toSet().length != keys.length ||
+        !json.keys.toSet().containsAll(keys) ||
+        json['managementApiVersion'] != managementApiVersion) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final code = json['code'];
+    if (code is! String || !OpaqueToken.isValid(code)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final enrollment = await _identityPairing!.redeem(
+      code: code,
+      deviceId: _boundedIdentifier(json, 'deviceId'),
+    );
+    _json(request, 201, {
+      'apiVersion': 1,
+      'managementApiVersion': managementApiVersion,
+      'correlationId': correlationId,
+      'enrollment': enrollment,
+    });
   }
 
   Future<void> _handleExtensionPackage(
@@ -1107,6 +1280,7 @@ class HostApi {
     String code, {
     required String correlationId,
     bool retryable = false,
+    int? retryAfterSeconds,
   }) async {
     try {
       if (status == 401)
@@ -1114,8 +1288,12 @@ class HostApi {
           HttpHeaders.wwwAuthenticateHeader,
           'Bearer',
         );
-      if (retryable)
-        request.response.headers.set(HttpHeaders.retryAfterHeader, '1');
+      if (retryable) {
+        request.response.headers.set(
+          HttpHeaders.retryAfterHeader,
+          (retryAfterSeconds ?? 1).clamp(1, 86400).toString(),
+        );
+      }
       _json(request, status, {
         'apiVersion': 1,
         'correlationId': correlationId,
@@ -1130,6 +1308,14 @@ class HostApi {
               'A persistent Host identity is required.',
             'HOST_UNAVAILABLE' =>
               'Outcome may be unknown. Retry the identical command.',
+            'PAIRING_INVALID_OR_EXPIRED' =>
+              'The pairing code is invalid, expired, or already used.',
+            'PAIRING_RATE_LIMITED' =>
+              'Too many pairing attempts were made. Wait and try again.',
+            'DEVICE_ALREADY_REGISTERED' =>
+              'This device identity is already registered.',
+            'PAIRING_TARGET_UNAVAILABLE' =>
+              'The selected user is unavailable in this branch.',
             _ => 'The request could not be processed.',
           },
           'retryable': retryable,
@@ -1403,7 +1589,48 @@ class _ApiError implements Exception {
   final int status;
   final String code;
   final bool retryable;
-  const _ApiError(this.status, this.code, {this.retryable = false});
+  final int? retryAfterSeconds;
+  const _ApiError(
+    this.status,
+    this.code, {
+    this.retryable = false,
+    this.retryAfterSeconds,
+  });
+}
+
+class _PairingRedeemRateLimiter {
+  static const _window = Duration(minutes: 1);
+  static const _maxAttempts = 10;
+  static const _maxAddresses = 2048;
+  final Map<String, _PairingAttemptWindow> _attempts = {};
+
+  bool allow(String address) {
+    final now = DateTime.now().toUtc();
+    var window = _attempts[address];
+    if (window == null) {
+      if (_attempts.length >= _maxAddresses) {
+        _attempts.removeWhere(
+          (_, value) => now.difference(value.startedAt) >= _window,
+        );
+      }
+      if (_attempts.length >= _maxAddresses) return false;
+      window = _PairingAttemptWindow(now);
+      _attempts[address] = window;
+    } else if (now.difference(window.startedAt) >= _window) {
+      window
+        ..startedAt = now
+        ..count = 0;
+    }
+    if (window.count >= _maxAttempts) return false;
+    window.count++;
+    return true;
+  }
+}
+
+class _PairingAttemptWindow {
+  _PairingAttemptWindow(this.startedAt);
+  DateTime startedAt;
+  int count = 0;
 }
 
 String _newCorrelationId() {

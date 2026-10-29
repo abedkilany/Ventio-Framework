@@ -182,7 +182,7 @@ BEGIN
     'ventio_identity_credentials','ventio_identity_branches',
     'ventio_identity_grants','ventio_identity_roles',
     'ventio_identity_role_permissions','ventio_identity_role_assignments',
-    'ventio_identity_audit',
+    'ventio_identity_audit','ventio_identity_pairings',
     'ventio_schema_migrations'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_lock ON public.%I', t);

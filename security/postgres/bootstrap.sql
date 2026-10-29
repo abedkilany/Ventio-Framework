@@ -58,7 +58,7 @@ BEGIN
     'ventio_identity_users','ventio_identity_devices','ventio_identity_credentials','ventio_identity_branches',
     'ventio_identity_grants','ventio_identity_roles','ventio_identity_role_permissions',
     'ventio_identity_role_assignments','ventio_identity_audit','ventio_extension_packages',
-    'ventio_extension_package_events','ventio_document_number_series',
+    'ventio_identity_pairings','ventio_extension_package_events','ventio_document_number_series',
     'ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
   END LOOP;
@@ -112,7 +112,8 @@ BEGIN
     'public.ventio_identity_credentials','public.ventio_identity_branches','public.ventio_identity_grants',
     'public.ventio_identity_roles','public.ventio_identity_role_permissions',
     'public.ventio_identity_role_assignments',
-    'public.ventio_identity_audit','public.ventio_extension_packages',
+    'public.ventio_identity_audit','public.ventio_identity_pairings',
+    'public.ventio_extension_packages',
     'public.ventio_extension_package_events','public.ventio_document_number_series',
     'public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
@@ -747,6 +748,7 @@ GRANT SELECT, INSERT ON public.ventio_document_number_series TO ventio_runtime;
 GRANT UPDATE (next_number) ON public.ventio_document_number_series TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
+\ir pairing.sql
 \ir schema_profile.sql
 \ir runtime_check.sql
 REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
@@ -773,6 +775,8 @@ GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
 GRANT EXECUTE ON FUNCTION
   ventio_security.scoped_admin_change(text,text,text,jsonb),
   ventio_security.scoped_user_admin_change(text,text,text,jsonb),
+  ventio_security.scoped_pairing_create(text,text,text,text,text,text),
+  ventio_security.scoped_pairing_redeem(text,text,text,text),
   ventio_security.admit_recovery(text,text),
   ventio_security.recovery_snapshot()
   TO ventio_identity_api;

@@ -42,7 +42,11 @@ BEGIN
     ('021_extension_update_compatibility.sql','2044a1974db26f0cb61b24b248249d04689bf767ab55377389dff51902324a9e'),
     ('022_record_data_gin_index.sql','adf1f0791da08c757552d9eb2b306e0e6c15f0c363c08c265434234dec944872'),
     ('023_governed_document_state.sql','8c130e7c9071f3a862be3331dad96a3823c3688164419bc9bd9502575ce60e89'),
-    ('024_document_number_series.sql','3b07f8e0638e0148bf24500eb026a3ad10f80be0bd576217205a3a2fb965f26a'))
+    ('024_document_number_series.sql','3b07f8e0638e0148bf24500eb026a3ad10f80be0bd576217205a3a2fb965f26a'),
+    ('025_identity_audit_scope_index.sql','6462163d7a01ee0abadb1ffad8ac340c468c6b91cc9a403044fe8dc715357bb5'),
+    ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
+    ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),
+    ('028_identity_pairing_rate_index.sql','6c975a92942a3e53abe50da9441f94b9fb7b68f2bda5932792c610814dcd6f68'))
     SELECT FROM expected e FULL JOIN public.ventio_schema_migrations m USING(name)
     WHERE e.sha256 IS DISTINCT FROM m.sha256
   ) THEN

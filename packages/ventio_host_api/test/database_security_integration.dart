@@ -257,6 +257,7 @@ Future<void> main() async {
       'ventio_identity_role_permissions',
       'ventio_identity_role_assignments',
       'ventio_identity_audit',
+      'ventio_identity_pairings',
     ]) {
       await denied(
         () => runtime.execute('SELECT * FROM public.$table'),
@@ -737,6 +738,7 @@ Future<void> main() async {
       'ventio_command_journal',
       'ventio_records',
       'ventio_identity_audit',
+      'ventio_identity_pairings',
       'ventio_identity_role_assignments',
       'ventio_identity_role_permissions',
       'ventio_identity_roles',

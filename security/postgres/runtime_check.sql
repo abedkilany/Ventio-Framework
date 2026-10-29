@@ -43,7 +43,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY['ventio_identity_users','ventio_identity_devices','ventio_identity_credentials',
       'ventio_identity_branches','ventio_identity_grants','ventio_identity_roles',
       'ventio_identity_role_permissions','ventio_identity_role_assignments',
-      'ventio_identity_audit','ventio_extension_packages',
+      'ventio_identity_audit','ventio_identity_pairings','ventio_extension_packages',
       'ventio_extension_package_events','ventio_schema_migrations'] LOOP
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_class pc JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pn.nspname = 'public' AND pc.relname = t AND pc.relrowsecurity AND pc.relforcerowsecurity) THEN

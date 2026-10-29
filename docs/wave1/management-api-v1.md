@@ -1,6 +1,6 @@
 # Host Management API Contract v1
 
-**Status:** implemented readiness and safe diagnostic event contracts; device, credential, pairing, synchronization and administrative HTTP operations remain subsequent stage work.
+**Status:** implemented readiness, pairing create/redeem contracts, and safe diagnostic event contracts. Device inventory, revocation/rotation, synchronization, and broader administrative APIs remain subsequent work.
 **API paths:** under `/api/v1`; management payloads carry `managementApiVersion: 1`.
 **Compatibility:** existing `/healthz`, `/api/v1/session`, command and extension routes retain their existing payloads. Every response now also carries an `X-Correlation-ID` response header.
 
@@ -51,11 +51,12 @@ Unexpected Host API failures are recorded in a bounded, process-local buffer as 
 
 `ventio_core/src/management_contracts.dart` defines versioned, Flutter-independent types for readiness snapshots, diagnostic categories/severity, device roles, device registration, credential lifecycle, pairing lifecycle, synchronization summary, and administrative operation state. Credential and pairing inventory projections intentionally contain no bearer token, digest, or one-time pairing code. `HostDeviceRole` is descriptive infrastructure metadata; it grants no user permission.
 
-Routes for users, devices, pairing, diagnostics and synchronization are reserved in the shared contract file only. They are not active HTTP endpoints yet. Pairing, device/user inventory and remote administrative APIs will be added with their authorization and migration tests in the dependent stages; clients must not infer support from a route constant.
+`POST /api/v1/management/pairing/create` and `POST /api/v1/pairing/redeem` are active. Their versioned request/response and security behavior are documented in [pairing-api-v1.md](pairing-api-v1.md). Other routes reserved in the shared contract file are not active merely because a route constant exists. The PostgreSQL integration suite for pairing has been added but has not been run; local API contract tests do not prove SQL grants, RLS, recovery admission, or replay behavior.
 
 ## Authorization and operational boundaries
 
 - `host.status.read` is checked against the authenticated principal's exact company/branch grant for every readiness request.
+- `identity.pairing.manage` is required directly in the exact branch to create a pairing code. PostgreSQL independently rechecks this permission against the caller credential's exact scope ceiling.
 - Device registration role (`HOST` or `CLIENT`) is not an authorization input.
 - User and device lifecycle mutations remain trusted local operations until the later authenticated management APIs are implemented. The existing protected operator and Recovery Authority paths remain unchanged.
 - No management request accepts an operating-system command, process path, shell string, SQL statement, database URL, or recovery witness value.

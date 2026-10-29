@@ -83,6 +83,95 @@ class FakeManagementAuthenticator implements PersistentHostAuthenticator {
   }
 }
 
+class PairingContractAuthenticator implements PersistentHostAuthenticator {
+  @override
+  Future<AuthenticatedSession?> authenticate(String token) async {
+    if (token != validToken && token != deniedToken) return null;
+    final permissions = token == validToken
+        ? {identityPairingManagePermission}
+        : const <String>{};
+    final scope = PrincipalScope(
+      companyId: 'company-001',
+      branchId: 'branch-001',
+      permissions: permissions,
+    );
+    return AuthenticatedSession.persistent(
+      Principal(
+        actorId: 'operator-001',
+        deviceId: 'operator-device-001',
+        tenantId: 'pairing-contract',
+        companyIds: {'company-001'},
+        branchIds: {'branch-001'},
+        permissions: permissions,
+        scopeGrants: [scope],
+      ),
+      OpaqueToken.digest(token),
+    );
+  }
+}
+
+class FakeIdentityPairingGateway implements IdentityPairingGateway {
+  static final code = List.filled(43, 'e').join();
+  static final credential = List.filled(43, 'f').join();
+  bool failRedeem = false;
+  int createCalls = 0;
+  int redeemCalls = 0;
+  String? lastRedeemedCode;
+  String? lastDeviceId;
+
+  @override
+  Future<Map<String, dynamic>> create({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String actorId,
+  }) async {
+    createCalls++;
+    return {
+      'pairingId': 'pair_${List.filled(32, '1').join()}',
+      'actorId': actorId,
+      'deviceRole': 'CLIENT',
+      'code': code,
+      'companyId': companyId,
+      'branchId': branchId,
+      'expiresAtUtc': DateTime.now()
+          .toUtc()
+          .add(const Duration(minutes: 5))
+          .toIso8601String(),
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> redeem({
+    required String code,
+    required String deviceId,
+  }) async {
+    redeemCalls++;
+    lastRedeemedCode = code;
+    lastDeviceId = deviceId;
+    if (failRedeem) {
+      throw const IdentityPairingException(
+        'PAIRING_INVALID_OR_EXPIRED',
+        statusCode: 410,
+      );
+    }
+    return {
+      'tenantId': 'pairing-contract',
+      'actorId': 'user-001',
+      'deviceId': deviceId,
+      'deviceRole': 'CLIENT',
+      'credentialId': 'cred_${List.filled(32, '2').join()}',
+      'companyId': 'company-001',
+      'branchId': 'branch-001',
+      'expiresAtUtc': DateTime.now()
+          .toUtc()
+          .add(const Duration(days: 30))
+          .toIso8601String(),
+      'credential': credential,
+    };
+  }
+}
+
 class FakeReadinessProvider implements HostReadinessProvider {
   FakeReadinessProvider(this.snapshot);
 
@@ -207,6 +296,23 @@ Future<void> main() async {
   check(
     nonAuthoritativeReadinessRejected,
     'An external TLS listener rejects non-authoritative readiness providers',
+  );
+
+  var nonAuthoritativePairingRejected = false;
+  try {
+    await HostApi.bind(
+      listenAddress: InternetAddress.anyIPv4,
+      tlsContext: SecurityContext(withTrustedRoots: true),
+      authenticator: FakePersistentAuthenticator(),
+      executor: FakeAuthoritativeExecutor(),
+      identityPairing: FakeIdentityPairingGateway(),
+    );
+  } on ArgumentError {
+    nonAuthoritativePairingRejected = true;
+  }
+  check(
+    nonAuthoritativePairingRejected,
+    'An external TLS listener rejects non-authoritative pairing gateways',
   );
 
   final executor = FakeExecutor();
@@ -690,6 +796,186 @@ Future<void> main() async {
     );
   } finally {
     await sessionFailureApi.close();
+  }
+
+  final pairingGateway = FakeIdentityPairingGateway();
+  final pairingDiagnostics = ManagementDiagnosticBuffer();
+  final pairingApi = await HostApi.bind(
+    authenticator: PairingContractAuthenticator(),
+    executor: FakeAuthoritativeExecutor(),
+    identityPairing: pairingGateway,
+    diagnostics: pairingDiagnostics,
+  );
+  try {
+    final unauthenticatedCreate = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreate,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+      },
+    );
+    check(
+      unauthenticatedCreate.status == 401 && pairingGateway.createCalls == 0,
+      'Pairing creation requires authenticated Host authorization',
+    );
+    final deniedCreate = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreate,
+      token: deniedToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+      },
+    );
+    check(
+      deniedCreate.status == 403 && pairingGateway.createCalls == 0,
+      'Pairing creation requires the dedicated exact-scope permission',
+    );
+    final outOfScopeCreate = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreate,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-other',
+        'actorId': 'user-001',
+      },
+    );
+    check(
+      outOfScopeCreate.status == 403 && pairingGateway.createCalls == 0,
+      'Pairing creation cannot cross the caller exact company and branch scope',
+    );
+    final clientChosenRole = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreate,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+        'deviceRole': 'HOST',
+      },
+    );
+    check(
+      clientChosenRole.status == 400 && pairingGateway.createCalls == 0,
+      'Clients cannot select or change the server-fixed device role',
+    );
+    final createdPairing = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreate,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+      },
+    );
+    check(
+      createdPairing.status == 201 &&
+          createdPairing.body['managementApiVersion'] == managementApiVersion &&
+          createdPairing.body['correlationId'] ==
+              createdPairing.headers.value('X-Correlation-ID') &&
+          createdPairing.body['pairing']['deviceRole'] == 'CLIENT' &&
+          createdPairing.body['pairing']['code'] ==
+              FakeIdentityPairingGateway.code,
+      'Pairing creation returns a correlated one-time code and fixed CLIENT role',
+    );
+    final redeemedPairing = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingRedeem,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'code': FakeIdentityPairingGateway.code,
+        'deviceId': 'client-device-001',
+      },
+    );
+    check(
+      redeemedPairing.status == 201 &&
+          pairingGateway.lastRedeemedCode == FakeIdentityPairingGateway.code &&
+          pairingGateway.lastDeviceId == 'client-device-001' &&
+          redeemedPairing.body['enrollment']['deviceRole'] == 'CLIENT' &&
+          redeemedPairing.body['enrollment']['credential'] ==
+              FakeIdentityPairingGateway.credential &&
+          redeemedPairing.body['correlationId'] ==
+              redeemedPairing.headers.value('X-Correlation-ID'),
+      'Pairing redemption is unauthenticated but returns a correlated device-bound enrollment contract',
+    );
+    pairingGateway.failRedeem = true;
+    final secretFailure = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingRedeem,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'code': FakeIdentityPairingGateway.code,
+        'deviceId': 'client-device-002',
+      },
+    );
+    final diagnosticJson = jsonEncode(
+      pairingDiagnostics.recent().map((event) => event.toJson()).toList(),
+    );
+    check(
+      secretFailure.status == 410 &&
+          secretFailure.body['error']['code'] == 'PAIRING_INVALID_OR_EXPIRED' &&
+          !diagnosticJson.contains(FakeIdentityPairingGateway.code) &&
+          !diagnosticJson.contains(FakeIdentityPairingGateway.credential),
+      'Pairing errors use stable codes and diagnostics exclude code and credential material',
+    );
+    final unsupportedPairingVersion = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingRedeem,
+      body: {
+        'managementApiVersion': managementApiVersion + 1,
+        'code': FakeIdentityPairingGateway.code,
+        'deviceId': 'client-device-003',
+      },
+    );
+    check(
+      unsupportedPairingVersion.status == 400 &&
+          unsupportedPairingVersion.body['error']['code'] == 'INVALID_REQUEST',
+      'Pairing endpoints reject unsupported contract versions',
+    );
+  } finally {
+    await pairingApi.close();
+  }
+
+  final rateLimitGateway = FakeIdentityPairingGateway();
+  final rateLimitApi = await HostApi.bind(
+    authenticator: PairingContractAuthenticator(),
+    executor: FakeAuthoritativeExecutor(),
+    identityPairing: rateLimitGateway,
+  );
+  try {
+    final replies = <Reply>[];
+    for (var attempt = 0; attempt < 11; attempt++) {
+      replies.add(
+        await send(
+          rateLimitApi,
+          path: HostManagementRoutes.pairingRedeem,
+          body: {
+            'managementApiVersion': managementApiVersion,
+            'code': FakeIdentityPairingGateway.code,
+            'deviceId': 'rate-client-$attempt',
+          },
+        ),
+      );
+    }
+    check(
+      replies.take(10).every((reply) => reply.status == 201) &&
+          replies.last.status == 429 &&
+          replies.last.headers.value('Retry-After') == '60' &&
+          replies.last.body['error']['code'] == 'PAIRING_RATE_LIMITED',
+      'Pairing redemption enforces a per-source bounded attempt rate',
+    );
+  } finally {
+    await rateLimitApi.close();
   }
 
   final result = await Process.run(
