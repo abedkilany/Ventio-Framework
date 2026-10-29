@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
+import 'client_pairing_page.dart';
 import 'command_id.dart';
 import 'diagnostics_center_page.dart';
 import 'extension_store.dart';
@@ -33,6 +34,7 @@ enum _StudioMenuAction {
   sync,
   manageUsers,
   hostOverview,
+  pairClient,
   localDiagnostics,
   synchronization,
   installFromHost,
@@ -330,6 +332,25 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openClientPairing() async {
+    final vault = widget.credentialVault;
+    if (vault == null) {
+      _message('Secure Host credential storage is unavailable on this build.');
+      return;
+    }
+    final enrolled = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (context) => ClientPairingPage(
+          store: widget.store,
+          credentials: vault,
+          initialEndpoint: _hostProfile?.endpoint,
+          diagnosticEventSource: widget.diagnosticEventSource,
+        ),
+      ),
+    );
+    if (enrolled == true) await _load();
   }
 
   Future<void> _openLocalDiagnostics() async {
@@ -890,6 +911,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _openUserManagement();
                   case _StudioMenuAction.hostOverview:
                     _openHostOverview();
+                  case _StudioMenuAction.pairClient:
+                    _openClientPairing();
                   case _StudioMenuAction.localDiagnostics:
                     _openLocalDiagnostics();
                   case _StudioMenuAction.synchronization:
@@ -913,6 +936,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   value: _StudioMenuAction.localDiagnostics,
                   child: Text(_localDiagnosticsLabel(context)),
                 ),
+                if (widget.credentialVault != null)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.pairClient,
+                    child: VentioText('native.ui.enroll_client'),
+                  ),
                 const PopupMenuItem(
                   value: _StudioMenuAction.synchronization,
                   child: VentioText('native.ui.synchronization'),
@@ -948,6 +976,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               ],
             )
           else if (width < 1200) ...[
+            if (widget.credentialVault != null)
+              IconButton(
+                tooltip: context.ventioText('native.ui.enroll_client'),
+                onPressed: _openClientPairing,
+                icon: const Icon(Icons.phonelink_setup_outlined),
+              ),
             IconButton(
               tooltip: _localDiagnosticsLabel(context),
               onPressed: _openLocalDiagnostics,
@@ -994,6 +1028,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               icon: const Icon(Icons.cloud_off_outlined),
             ),
           ] else ...[
+            if (widget.credentialVault != null)
+              TextButton.icon(
+                onPressed: _openClientPairing,
+                icon: const Icon(Icons.phonelink_setup_outlined),
+                label: const VentioText('native.ui.enroll_client'),
+              ),
             TextButton.icon(
               onPressed: _openLocalDiagnostics,
               icon: const Icon(Icons.health_and_safety_outlined),
@@ -1058,6 +1098,18 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                       ? Icons.phonelink_setup_outlined
                       : Icons.cloud_done_outlined,
                 ),
+                if (widget.credentialVault != null) ...[
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.tonalIcon(
+                      key: const ValueKey('client-pairing-open'),
+                      onPressed: _openClientPairing,
+                      icon: const Icon(Icons.phonelink_setup_outlined),
+                      label: const VentioText('native.ui.enroll_client'),
+                    ),
+                  ),
+                ],
                 Align(
                   alignment: Alignment.centerLeft,
                   child: FilledButton.tonalIcon(

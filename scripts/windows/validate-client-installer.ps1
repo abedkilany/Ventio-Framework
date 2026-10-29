@@ -15,9 +15,13 @@ $installDir = Join-Path $testRoot 'app'
 $dataMarkerDir = Join-Path $testRoot 'preserved-user-data'
 $marker = Join-Path $dataMarkerDir 'retention-marker.txt'
 $process = $null
+$previousTemp = $env:TEMP
+$previousTmp = $env:TMP
 
 New-Item -ItemType Directory -Force -Path $testRoot, $dataMarkerDir | Out-Null
 Set-Content -LiteralPath $marker -Encoding ascii -Value 'installer validation marker'
+$env:TEMP = $testRoot
+$env:TMP = $testRoot
 
 try {
   $process = Start-Process -FilePath $installer -ArgumentList @(
@@ -79,6 +83,8 @@ try {
   Write-Output 'PASS: data outside the installation directory was preserved.'
   Write-Output 'LIMIT: this validates client packaging only; it does not test Host provisioning or service lifecycle.'
 } finally {
+  $env:TEMP = $previousTemp
+  $env:TMP = $previousTmp
   if ($testRoot.StartsWith($testRootPrefix, [StringComparison]::OrdinalIgnoreCase) -and
       (Test-Path -LiteralPath $testRoot)) {
     Remove-Item -LiteralPath $testRoot -Recurse -Force

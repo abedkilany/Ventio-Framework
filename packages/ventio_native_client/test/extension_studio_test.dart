@@ -1320,6 +1320,38 @@ void main() {
   );
 
   testWidgets(
+    'Client enrollment entry is available without deriving permissions from device role',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(
+            store: store,
+            queue: queue,
+            credentialVault: vault,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('client-pairing-open')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('client-pairing-open')));
+      await tester.pumpAndSettle();
+      expect(find.text('Connect this Client to a Host'), findsOneWidget);
+      expect(
+        find.textContaining('CLIENT identifies this device role only'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'durable synchronization queue is available in the integrated app',
     (tester) async {
       tester.view.physicalSize = const Size(900, 800);

@@ -3,8 +3,8 @@
 **Run date:** 2026-10-30 (Asia/Beirut)
 **Environment:** Windows x64, Flutter 3.44.1, Inno Setup 6.7.3
 **Package:** [`Ventio-Client-Setup-0.1.0.exe`](../dist/windows/Ventio-Client-Setup-0.1.0.exe)
-**SHA-256:** `6109e45fd6e15b91a26bf11b76234e272d940716b08783674e41f5f352f68228`
-**Size:** 14,535,653 bytes
+**SHA-256:** `38e434a597f5b8ef58ff55969cd13b5f194c0f93bbf2b79cd8e13b34694b60a5`
+**Size:** 14,545,366 bytes
 
 ## Executed checks
 
@@ -15,12 +15,12 @@
 | Fresh current-user install into a unique temporary directory | PASS | Validator found the executable, Flutter runtime, SQLite library, and bundled Flutter asset manifest. No elevation was requested. |
 | Repeat install of the same version | PASS | Second invocation completed; installed executable and external retention marker remained. This is a repair/reinstall smoke test, not a version-to-version upgrade test. |
 | Uninstall from the temporary installation directory | PASS | The uninstaller removed the temporary application directory. The external retention marker remained. |
-| Test cleanup | PASS | The validator removed its generated temporary directory; a follow-up check found no `VentioInstallerTest-*` directory remaining. |
+| Test cleanup | PASS | The validator isolated installer and uninstaller temporary files in its unique test root and removed that generated directory. |
 | Artifact checksum manifest | PASS | `dist/windows/SHA256SUMS.txt` matches the package hash above. |
 
-The package was rebuilt from current Flutter source after adding the integrated synchronization page, stored-Host-receipt status, safe Host error references, Host Overview, user identity privacy masking, and local Diagnostics Center. The install, repeat-install, uninstall, and retention checks above were rerun against this rebuilt artifact.
+The package was rebuilt from current Flutter source after adding the integrated synchronization page, stored-Host-receipt status, safe Host error references, Host Overview, user identity privacy masking, local Diagnostics Center, and the HTTPS-only Client pairing flow. The install, repeat-install, uninstall, and retention checks above were rerun against this rebuilt artifact.
 
-The first compile attempt exposed an unsupported Inno Setup directive. It was removed, then the package compiled successfully. An initial validator run also rejected a Windows path separator in its temp-directory guard; the guard was corrected and the complete install/reinstall/uninstall run passed.
+The first compile attempt exposed an unsupported Inno Setup directive. It was removed, then the package compiled successfully. An initial validator run also rejected a Windows path separator in its temp-directory guard; the guard was corrected. A follow-up exposed that Inno Setup's uninstaller creates a separate temporary executable outside the validator's test root. The validator now points `TEMP`/`TMP` at its unique test root while installation and removal run; a second full install/reinstall/uninstall run passed with no residue inside that root.
 
 ## Not tested / not accepted
 

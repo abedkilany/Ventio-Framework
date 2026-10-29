@@ -3,6 +3,47 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.app.title': 'Ventio Extension Builder',
   'native.ui.users_permissions': 'Users & permissions',
   'native.ui.host_overview': 'Host overview',
+  'native.ui.enroll_client': 'Enroll this device as a Client',
+  'native.ui.client_pairing_heading': 'Connect this Client to a Host',
+  'native.ui.client_pairing_explanation':
+      'Enter the Host address and the temporary single-use pairing code supplied by a Host administrator. The Host assigns the account and one exact company/branch scope.',
+  'native.ui.client_role_is_not_permission':
+      'CLIENT identifies this device role only. It grants no user permissions; access is determined by the Host-authenticated user identity.',
+  'native.ui.client_pairing_https_only':
+      'HTTPS is required. The Host certificate is verified by the device.',
+  'native.ui.client_pairing_code': 'Temporary pairing code',
+  'native.ui.client_pairing_single_use':
+      'This code can be used once and expires after a short time.',
+  'native.ui.client_pairing_enrolling': 'Enrolling Client…',
+  'native.ui.client_pairing_success': 'Client enrolled',
+  'native.ui.client_pairing_scope':
+      'Host scope: company {companyId} · branch {branchId}',
+  'native.ui.client_pairing_credential_expiry':
+      'Device credential expires {timestamp}',
+  'native.ui.client_pairing_success_details':
+      'The device credential was stored securely. Sign-in and permissions continue to be checked by the Host.',
+  'native.ui.client_pairing_failed_title': 'Enrollment did not complete',
+  'native.ui.client_pairing_https_required':
+      'Enter a valid HTTPS Host address. Certificate validation cannot be bypassed.',
+  'native.ui.client_pairing_code_invalid':
+      'Enter a valid pairing code supplied by the Host administrator.',
+  'native.ui.client_pairing_code_expired':
+      'The pairing code is invalid, expired, or already used. Ask the Host administrator for a new code.',
+  'native.ui.client_pairing_rate_limited':
+      'Too many pairing attempts were made. Wait before trying again.',
+  'native.ui.client_pairing_device_registered':
+      'This device is already registered. Contact the Host administrator if you need to enroll it again.',
+  'native.ui.client_pairing_tls_failed':
+      'The Host certificate could not be validated. Check the address and trusted certificate.',
+  'native.ui.client_pairing_host_unreachable':
+      'The Host could not be reached. Check the network and try again with a current pairing code.',
+  'native.ui.client_pairing_version_mismatch':
+      'This Host does not support the required pairing API version.',
+  'native.ui.client_pairing_local_save_failed':
+      'The Host accepted enrollment, but this device could not save it securely. Ask the Host administrator for a new pairing code before retrying.',
+  'native.ui.client_pairing_failed':
+      'The Host could not complete Client enrollment. Share the reference with a Host administrator if the problem continues.',
+  'native.ui.done': 'Done',
   'native.ui.refresh_host_readiness': 'Refresh Host readiness',
   'native.ui.host_checks_status_permission':
       'The Host checks host.status.read for this exact branch on every request.',

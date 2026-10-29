@@ -12,6 +12,8 @@ export 'src/host_user_management.dart';
 export 'src/host_readiness.dart';
 export 'src/host_overview_page.dart';
 export 'src/users_permissions_page.dart';
+export 'src/client_pairing.dart';
+export 'src/client_pairing_page.dart';
 export 'src/local_diagnostics.dart';
 export 'src/diagnostics_center_page.dart';
 export 'src/synchronization_page.dart';
