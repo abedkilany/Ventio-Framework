@@ -14,8 +14,8 @@ Existing management-related implementation that can be reused:
 - Host authorization derives identity and exact scope from persistent credentials. Role administration routes require a direct `identity.roles.manage` grant and use the restricted identity-administration pool plus the configured recovery authority. PostgreSQL RLS and transactional identity revalidation remain in force.
 - Trusted local identity administration (user creation, branch/device registration, credential issue/provision/rotation, grants and revocation) currently lives in `bin/identity_admin.dart` and `IdentityAdministration`; raw credentials are written to protected files, not returned by that API.
 - The Flutter client already persists extension metadata and records in SQLite, stores a Host profile, uses a platform credential vault, has a scoped role editor, queues durable commands, retries the same command IDs, and distinguishes Host receipts from fixtures and local provisional records.
-- The API currently exposes `/healthz` (process liveness), `/api/v1/session`, commands, extension package/record/report routes and `/api/v1/identity/roles/*`. It does not expose Host readiness, database/recovery diagnostics, device inventory, single-use pairing, general user inventory, or a diagnostic event feed.
-- The Flutter app has no first-run mode wizard or general Settings/Host administration section. Its Host connection, sync and extension actions are within the Extension Builder screen. Existing errors are primarily localized UI messages; there is no reusable Diagnostics Center or sanitized diagnostic export.
+- At baseline, the API exposed `/healthz` (process liveness), `/api/v1/session`, commands, extension package/record/report routes and `/api/v1/identity/roles/*`; it lacked readiness, pairing and user administration contracts.
+- At baseline, the Flutter app had no first-run mode wizard or reusable Diagnostics Center. Host connection, sync and extension actions were within Extension Studio.
 
 Evidence read: `README.md`, `docs/WAVE1_PROGRESS.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/WINDOWS_TWO_DEVICE_CLOSURE.md`, `packages/ventio_host_api/lib/src/host_api.dart`, `packages/ventio_host_api/lib/src/identity_administration.dart`, `packages/ventio_host_api/lib/src/persistent_identity.dart`, `packages/ventio_host_api/bin/local_host.dart`, `packages/ventio_host_api/bin/identity_admin.dart`, `packages/ventio_native_client/lib/main.dart`, `packages/ventio_native_client/lib/src/extension_studio_page.dart`, `packages/ventio_native_client/lib/src/host_credentials.dart`, `packages/ventio_native_client/lib/src/host_sync_service.dart`, and `packages/ventio_native_client/lib/src/local_command_queue.dart`. Identity migrations 006–012 and 017–019 already persist user, device, credential, direct grant, audit, role and scoped assignment state; they lack query/inventory API contracts for management views. The API route registry confirms that only role administration is exposed remotely.
 
@@ -55,6 +55,15 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 5. Make new UI copy use the existing localization controller and stable message keys with English fallbacks. API errors expose stable codes/correlation IDs and safe guidance; protected technical details stay in restricted local logs.
 6. Keep ordinary setup in Flutter while delegating privileged OS work to a small fixed-operation helper or supported OS service API. No shell command execution from HTTP or arbitrary user-provided command strings. If required OS privilege/infrastructure cannot be safely obtained, deliver all independent work and mark that acceptance gate BLOCKED with evidence.
 
+## Current implementation and verification checkpoint
+
+**Updated:** 2026-10-30 (Asia/Beirut). Source commits: `7c48fa8` (pairing API/SQL slice) and `0f48444` (synchronization UI/error diagnostics slice).
+
+- Stage 4 now has versioned pairing create/redeem API routes, exact-scope `identity.pairing.manage` checks, a single-use five-minute code with digest-only database storage, a fixed `CLIENT` device role, a 30-day device credential scope ceiling, rate limits, audit and Recovery Authority integration. API/contract tests pass (64/64); Core tests pass (81/81); Host API analysis and formatting pass. PostgreSQL-backed RLS, digest, expiry and replay cases are present but NOT RUN, so Stage 4 remains IN PROGRESS.
+- Stage 7 has an integrated Flutter page backed by the existing durable SQLite command queue. It distinguishes Host receipts from local fixtures, displays pending/retry/rejected/conflict/accepted states, retries original command IDs and records safe sync errors locally. Tests cover queue display, Host acceptance, fixture non-confirmation, safe error references and navigation. The complete Flutter suite passed 147 tests with 2 skips; Flutter analysis is clean. Real Host/database reconnect and cross-device acceptance remain open.
+- The Windows artifact was rebuilt from this source and verified only as a Client package. It does not install PostgreSQL or a Host service and does not satisfy Stage 10. Latest package SHA-256: `6109e45fd6e15b91a26bf11b76234e272d940716b08783674e41f5f352f68228`.
+- PostgreSQL integrations remain NOT RUN because `psql`/`pg_ctl` are absent and the user explicitly directed that Docker remain stopped. Do not start Docker. Wave 1 remains open; overall accepted progress remains 4% (Stage 0 only).
+
 ## Verification strategy
 
 - Run focused unit/widget tests and static analysis for each changed Dart package after its stage; run contract/schema/localization gates whenever their inputs change.
@@ -65,7 +74,7 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 
 ## Known risks and baseline blockers
 
-- No pairing contract, pairing secret table, device inventory endpoint, or user inventory endpoint exists in the baseline. Adding them requires carefully scoped PostgreSQL changes and authorization tests.
+- Pairing create/redeem contracts and scoped PostgreSQL functions are now implemented. Device inventory, revocation/rotation APIs and Flutter enrollment screens remain to be added and require carefully scoped PostgreSQL tests.
 - The local Host launcher is a foreground Dart process started with environment configuration; the repo has no verified Windows service installer, headless Host setup UI, isolated PostgreSQL provisioner, or OS privilege broker. Host setup must not imply these capabilities until implemented and exercised.
 - The recovery witness has an independent OS trust boundary. Making Flutter role administration write it is an explicit deployment profile; setup must not silently widen that boundary or write/reinitialize an existing witness.
 - The latest closure record documents unresolved operator-side identity state and no demonstrated two-physical-Windows-device run. This is historical evidence; current database/device availability must be rechecked before any mutation.

@@ -58,6 +58,6 @@ Unexpected Host API failures are recorded in a bounded, process-local buffer as 
 - `host.status.read` is checked against the authenticated principal's exact company/branch grant for every readiness request.
 - `identity.pairing.manage` is required directly in the exact branch to create a pairing code. PostgreSQL independently rechecks this permission against the caller credential's exact scope ceiling.
 - Device registration role (`HOST` or `CLIENT`) is not an authorization input.
-- User and device lifecycle mutations remain trusted local operations until the later authenticated management APIs are implemented. The existing protected operator and Recovery Authority paths remain unchanged.
+- User and role administration use their dedicated exact-scope permissions and restricted database gateway. Pair creation and redemption use the dedicated pairing contract. Device inventory, revocation/rotation, and host-local bootstrap/service operations are not exposed by these routes; protected operator and Recovery Authority paths remain in force.
 - No management request accepts an operating-system command, process path, shell string, SQL statement, database URL, or recovery witness value.
 - The readiness contract deliberately does not bypass persistent authentication. If recovery admission prevents authentication, an authenticated remote readiness body cannot be produced; the local Diagnostics Center must explain that failure using safe local evidence.
