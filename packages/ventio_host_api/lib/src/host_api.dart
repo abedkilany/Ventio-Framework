@@ -11,6 +11,7 @@ import 'extension_packages.dart';
 import 'extension_records.dart';
 import 'management.dart';
 import 'role_administration.dart';
+import 'user_administration.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
@@ -34,6 +35,7 @@ class HostApi {
   final ExtensionRecordQueryGateway? _extensionRecordQueries;
   final ExtensionReportQueryGateway? _extensionReportQueries;
   final IdentityRoleAdministrationGateway? _identityRoleAdministration;
+  final IdentityUserAdministrationGateway? _identityUserAdministration;
   final HostReadinessProvider? _readinessProvider;
   final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
@@ -51,6 +53,7 @@ class HostApi {
     this._extensionRecordQueries,
     this._extensionReportQueries,
     this._identityRoleAdministration,
+    this._identityUserAdministration,
     this._readinessProvider,
     this._diagnostics,
     this.maxBodyBytes,
@@ -76,6 +79,7 @@ class HostApi {
     ExtensionRecordQueryGateway? extensionRecordQueries,
     ExtensionReportQueryGateway? extensionReportQueries,
     IdentityRoleAdministrationGateway? identityRoleAdministration,
+    IdentityUserAdministrationGateway? identityUserAdministration,
     HostReadinessProvider? readinessProvider,
     ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
@@ -106,6 +110,9 @@ class HostApi {
             (identityRoleAdministration != null &&
                 identityRoleAdministration
                     is! AuthoritativeIdentityRoleAdministrationGateway) ||
+            (identityUserAdministration != null &&
+                identityUserAdministration
+                    is! AuthoritativeIdentityUserAdministrationGateway) ||
             (readinessProvider != null &&
                 readinessProvider is! AuthoritativeHostReadinessProvider))) {
       throw ArgumentError(
@@ -123,6 +130,7 @@ class HostApi {
       extensionRecordQueries,
       extensionReportQueries,
       identityRoleAdministration,
+      identityUserAdministration,
       readinessProvider,
       diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
@@ -193,6 +201,13 @@ class HostApi {
         error.code,
         correlationId: correlationId,
       );
+    } on IdentityUserAdministrationException catch (error) {
+      await _error(
+        request,
+        error.statusCode,
+        error.code,
+        correlationId: correlationId,
+      );
     } catch (_) {
       // Never return exception text, database details, tokens, or request bodies.
       // Any execution exception may have an ambiguous commit outcome.
@@ -250,6 +265,7 @@ class HostApi {
     final reportQueryRoute =
         request.uri.path == '/api/v1/extensions/reports/query';
     final identityRoleRoute = _identityRoleAction(request.uri.path);
+    final identityUserRoute = _identityUserAction(request.uri.path);
     final sessionRoute = request.uri.path == '/api/v1/session';
     final readinessRoute = request.uri.path == HostManagementRoutes.readiness;
     if (request.uri.path != '/api/v1/commands' &&
@@ -257,6 +273,7 @@ class HostApi {
         !recordQueryRoute &&
         !reportQueryRoute &&
         identityRoleRoute == null &&
+        identityUserRoute == null &&
         !sessionRoute &&
         !readinessRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
@@ -327,11 +344,15 @@ class HostApi {
     if ((packageRoute != null ||
             recordQueryRoute ||
             identityRoleRoute != null ||
+            identityUserRoute != null ||
             readinessRoute) &&
         session.credentialDigest == null) {
       throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
     }
     if (identityRoleRoute != null && _identityRoleAdministration == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if (identityUserRoute != null && _identityUserAdministration == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     if (readinessRoute && _readinessProvider == null) {
@@ -382,6 +403,16 @@ class HostApi {
         identityRoleRoute,
         json,
         session,
+      );
+      return;
+    }
+    if (identityUserRoute != null) {
+      await _handleIdentityUserAdministration(
+        request,
+        identityUserRoute,
+        json,
+        session,
+        correlationId,
       );
       return;
     }
@@ -736,6 +767,166 @@ class HostApi {
     _ => null,
   };
 
+  String? _identityUserAction(String path) => switch (path) {
+    '/api/v1/management/users/list' => 'list',
+    '/api/v1/management/users/audit' => 'audit',
+    '/api/v1/management/users/create' => 'create',
+    '/api/v1/management/users/grant' => 'grant',
+    '/api/v1/management/users/revoke' => 'revoke',
+    '/api/v1/management/users/disable' => 'disable',
+    _ => null,
+  };
+
+  Future<void> _handleIdentityUserAdministration(
+    HttpRequest request,
+    String action,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+    String correlationId,
+  ) async {
+    final expectedKeys = switch (action) {
+      'list' ||
+      'audit' => const {'managementApiVersion', 'companyId', 'branchId'},
+      'create' => const {'managementApiVersion', 'companyId', 'branchId'},
+      'disable' => const {
+        'managementApiVersion',
+        'companyId',
+        'branchId',
+        'actorId',
+      },
+      'grant' || 'revoke' => const {
+        'managementApiVersion',
+        'companyId',
+        'branchId',
+        'actorId',
+        'permission',
+      },
+      _ => throw const _ApiError(404, 'NOT_FOUND'),
+    };
+    if (json.keys.toSet().length != expectedKeys.length ||
+        !json.keys.toSet().containsAll(expectedKeys) ||
+        json['managementApiVersion'] != managementApiVersion) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final principal = session.principal;
+    if (!principal.withinScope(
+      tenantId: principal.tenantId,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: principal.actorId,
+      deviceId: principal.deviceId,
+    )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    if (!principal.allowsInScope(
+      identityUsersManagePermission,
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+
+    final gateway = _identityUserAdministration!;
+    if (action == 'audit') {
+      final audit = await gateway.audit(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+      );
+      if (!_isSafeAuditProjection(
+        audit,
+        tenantId: principal.tenantId,
+        companyId: companyId,
+        branchId: branchId,
+      )) {
+        throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true);
+      }
+      if (utf8.encode(jsonEncode(audit)).length > 128 * 1024) {
+        throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+      }
+      _json(request, 200, {
+        'apiVersion': 1,
+        'managementApiVersion': managementApiVersion,
+        'correlationId': correlationId,
+        'audit': audit,
+      });
+      return;
+    }
+
+    if (action == 'list') {
+      final users = await gateway.list(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+      );
+      if (users['tenantId'] != principal.tenantId ||
+          users['companyId'] != companyId ||
+          users['branchId'] != branchId ||
+          users['items'] is! List) {
+        throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true);
+      }
+      if (utf8.encode(jsonEncode(users)).length > 1024 * 1024) {
+        throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+      }
+      _json(request, 200, {
+        'apiVersion': 1,
+        'managementApiVersion': managementApiVersion,
+        'correlationId': correlationId,
+        'users': users,
+      });
+      return;
+    }
+
+    final change = <String, Object?>{
+      'action': switch (action) {
+        'create' => 'USER_CREATED',
+        'grant' => 'PERMISSION_GRANTED',
+        'revoke' => 'PERMISSION_REVOKED',
+        'disable' => 'USER_DISABLED',
+        _ => throw const _ApiError(404, 'NOT_FOUND'),
+      },
+    };
+    if (action != 'create') {
+      change['actorId'] = _boundedIdentifier(json, 'actorId');
+    }
+    if (action == 'grant' || action == 'revoke') {
+      final permission = _boundedIdentifier(json, 'permission');
+      if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission)) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      if (RegExp(
+        r'^(identity|host|system|security|recovery|authorization)\.',
+      ).hasMatch(permission)) {
+        throw const _ApiError(422, 'RESERVED_PERMISSION');
+      }
+      change['permission'] = permission;
+    }
+    final createdActorId = await gateway.change(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      change: change,
+    );
+    if ((action == 'create' &&
+            (createdActorId == null ||
+                !RegExp(r'^usr_[0-9a-f]{32}$').hasMatch(createdActorId))) ||
+        (action != 'create' && createdActorId != null)) {
+      throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true);
+    }
+    _json(request, 200, {
+      'apiVersion': 1,
+      'managementApiVersion': managementApiVersion,
+      'correlationId': correlationId,
+      'userOperation': {
+        'status': 'APPLIED',
+        if (createdActorId != null) 'actorId': createdActorId,
+      },
+    });
+  }
+
   Future<void> _handleExtensionRecordQuery(
     HttpRequest request,
     Map<String, dynamic> json,
@@ -1045,6 +1236,87 @@ class HostApi {
     request.response.contentLength = bytes.length;
     request.response.add(bytes);
   }
+}
+
+const _safeAuditActions = <String>{
+  'USER_CREATED',
+  'USER_DISABLED',
+  'PERMISSION_GRANTED',
+  'PERMISSION_REVOKED',
+  'ROLE_CREATED',
+  'ROLE_RENAMED',
+  'ROLE_DELETED',
+  'ROLE_PERMISSION_GRANTED',
+  'ROLE_PERMISSION_REVOKED',
+  'ROLE_ASSIGNED',
+  'ROLE_UNASSIGNED',
+};
+
+bool _isSafeAuditProjection(
+  Map<String, dynamic> audit, {
+  required String tenantId,
+  required String companyId,
+  required String branchId,
+}) {
+  if (audit.keys.toSet().length != 4 ||
+      !audit.keys.toSet().containsAll(const {
+        'tenantId',
+        'companyId',
+        'branchId',
+        'events',
+      }) ||
+      audit['tenantId'] != tenantId ||
+      audit['companyId'] != companyId ||
+      audit['branchId'] != branchId ||
+      audit['events'] is! List ||
+      (audit['events'] as List).length > 100) {
+    return false;
+  }
+  final expectedEventKeys = const {
+    'eventId',
+    'occurredAtUtc',
+    'action',
+    'subjectId',
+    'operator',
+  };
+  for (final rawEvent in audit['events'] as List) {
+    if (rawEvent is! Map || rawEvent.keys.any((key) => key is! String)) {
+      return false;
+    }
+    final event = Map<String, dynamic>.from(rawEvent);
+    if (event.keys.toSet().length != expectedEventKeys.length ||
+        !event.keys.toSet().containsAll(expectedEventKeys) ||
+        event['eventId'] is! String ||
+        !RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(event['eventId'] as String) ||
+        event['occurredAtUtc'] is! String ||
+        !_isUtcTimestamp(event['occurredAtUtc'] as String) ||
+        event['action'] is! String ||
+        !_safeAuditActions.contains(event['action']) ||
+        !_isSafeAuditLabel(event['subjectId']) ||
+        !_isSafeAuditLabel(event['operator'])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _isUtcTimestamp(String value) {
+  final parsed = DateTime.tryParse(value);
+  return parsed != null && parsed.isUtc;
+}
+
+bool _isSafeAuditLabel(Object? raw) {
+  if (raw is! String) return false;
+  if (raw == '[redacted]' || raw == 'Host administrator') return true;
+  if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$').hasMatch(raw) ||
+      RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(raw) ||
+      RegExp(
+        r'(bearer|password|token|secret|postgres(?:ql)?|credential)',
+        caseSensitive: false,
+      ).hasMatch(raw)) {
+    return false;
+  }
+  return true;
 }
 
 void _validateWireShape(Map<String, dynamic> json) {

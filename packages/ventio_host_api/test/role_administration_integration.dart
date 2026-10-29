@@ -20,9 +20,12 @@ Future<void> main() async {
   final auditUrl = Platform.environment['VENTIO_TEST_DATABASE_URL'];
   final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
   final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
+  final apiAdminUrl =
+      Platform.environment['VENTIO_TEST_API_ADMIN_DATABASE_URL'];
   if (auditUrl == null ||
       runtimeUrl == null ||
       adminUrl == null ||
+      apiAdminUrl == null ||
       Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
       Uri.parse(
             runtimeUrl,
@@ -155,7 +158,7 @@ Future<void> main() async {
     Future<pg.Connection> connectRuntime() =>
         pg.Connection.openFromUrl(runtimeUrl);
     Future<pg.Connection> connectAdministration() =>
-        pg.Connection.openFromUrl(adminUrl);
+        pg.Connection.openFromUrl(apiAdminUrl);
     final runtimeProbe = await connectRuntime();
     try {
       await verifyRuntimeConnection(runtimeProbe);
@@ -168,6 +171,16 @@ Future<void> main() async {
     } finally {
       await adminProbe.close();
     }
+    var trustedLocalProfileRejected = false;
+    try {
+      await verifyIdentityAdministrationConnection(adminConnection);
+    } on StateError {
+      trustedLocalProfileRejected = true;
+    }
+    check(
+      trustedLocalProfileRejected,
+      'The broad trusted local operator profile is rejected by the persistent API verifier',
+    );
     api = await HostApi.bind(
       authenticator: PersistentTokenAuthenticator(
         connect: connectRuntime,

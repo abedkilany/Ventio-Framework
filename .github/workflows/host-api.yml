@@ -57,6 +57,7 @@ jobs:
       - name: Start private PostgreSQL 16 test instance
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\start-postgres-test-instance.ps1
       - run: dart run test/api_tests.dart
+      - run: dart run test/management_users_api_test.dart
       - name: Install database security profile in disposable PostgreSQL
         env:
           VENTIO_MIGRATIONS_DIR: ../../migrations/postgres
@@ -74,6 +75,8 @@ jobs:
         run: dart run test/database_security_integration.dart
       - name: Run scoped role administration tests
         run: dart run test/role_administration_integration.dart
+      - name: Run scoped user administration tests
+        run: dart run test/management_users_integration.dart
       - name: Run extension package approval, scope and recovery integration tests
         run: dart run test/extension_package_integration.dart
       - name: Remove disposable PostgreSQL test instance

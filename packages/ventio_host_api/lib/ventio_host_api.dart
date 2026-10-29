@@ -14,6 +14,7 @@ export 'src/identity_store.dart';
 export 'src/identity_administration.dart';
 export 'src/role_administration.dart';
 export 'src/management.dart';
+export 'src/user_administration.dart';
 export 'src/persistent_identity.dart';
 
 export 'src/private_files.dart';

@@ -32,6 +32,7 @@ BEGIN
     IF actor IS NULL THEN RAISE EXCEPTION 'User is required'; END IF;
     INSERT INTO public.ventio_identity_users (tenant_id, actor_id) VALUES (tenant, actor);
     subject := actor;
+    details := jsonb_build_object('companyId',company,'branchId',branch);
   ELSIF operation = 'BRANCH_REGISTERED' THEN
     IF company IS NULL OR branch IS NULL THEN RAISE EXCEPTION 'Scope is required'; END IF;
     INSERT INTO public.ventio_identity_branches (tenant_id, company_id, branch_id)
@@ -74,8 +75,9 @@ BEGIN
         permission_name !~ '^[a-z][a-z0-9_.]+$' OR length(permission_name)>256 THEN
       RAISE EXCEPTION 'Invalid role permission';
     END IF;
-    IF operation='ROLE_PERMISSION_GRANTED' AND permission_name='identity.roles.manage' THEN
-      RAISE EXCEPTION 'Role management permission must be granted directly to a user'
+    IF operation='ROLE_PERMISSION_GRANTED' AND
+        permission_name ~ '^(identity|host|system|security|recovery|authorization)\.' THEN
+      RAISE EXCEPTION 'Host management permissions must be granted directly to a user'
         USING ERRCODE='42501';
     END IF;
     PERFORM 1 FROM public.ventio_identity_roles
@@ -331,6 +333,7 @@ BEGIN
       GET DIAGNOSTICS changed = ROW_COUNT;
       IF changed = 0 THEN RETURN; END IF;
       subject := actor;
+      details := jsonb_build_object('companyId',company,'branchId',branch);
     ELSE RAISE EXCEPTION 'Unknown administrative operation';
     END CASE;
   END IF;
@@ -407,7 +410,8 @@ BEGIN
       'displayName',r.display_name,
       'permissions',coalesce((SELECT jsonb_agg(rp.permission ORDER BY rp.permission)
         FROM public.ventio_identity_role_permissions rp
-        WHERE rp.tenant_id=r.tenant_id AND rp.role_id=r.role_id),'[]'::jsonb),
+        WHERE rp.tenant_id=r.tenant_id AND rp.role_id=r.role_id
+          AND rp.permission !~ '^(identity|host|system|security|recovery|authorization)\.'),'[]'::jsonb),
       'assignedActorIds',coalesce((SELECT jsonb_agg(a.actor_id ORDER BY a.actor_id)
         FROM public.ventio_identity_role_assignments a
         WHERE a.tenant_id=r.tenant_id AND a.role_id=r.role_id
@@ -432,7 +436,8 @@ DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
         operation text := p_change->>'action'; role_key text := p_change->>'roleId';
         assignment_scope record; has_assignments boolean := false; change jsonb;
 BEGIN
-  IF NOT pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
       EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
         AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
           r.rolcreaterole OR r.rolreplication)) OR
@@ -510,8 +515,8 @@ BEGIN
     IF operation='ROLE_ASSIGNED' AND EXISTS (
         SELECT FROM public.ventio_identity_role_permissions rp
         WHERE rp.tenant_id=credential_row.tenant_id AND rp.role_id=role_key
-          AND rp.permission='identity.roles.manage') THEN
-      RAISE EXCEPTION 'Role management permission cannot be assigned through a role'
+          AND rp.permission ~ '^(identity|host|system|security|recovery|authorization)\.') THEN
+      RAISE EXCEPTION 'Host management permissions cannot be assigned through a role'
         USING ERRCODE='42501';
     END IF;
   END IF;
@@ -525,4 +530,329 @@ BEGIN
     change := change - 'actorId';
   END IF;
   PERFORM ventio_security.admin_change(change);
+END $fn$;
+
+-- The remote user-management surface is intentionally separate from both the
+-- trusted local admin_change function and the role-only scoped function above.
+-- A caller must carry a direct, credential-bounded grant for this exact branch.
+CREATE OR REPLACE FUNCTION ventio_security.identity_users_manager_allowed(
+    p_digest text, p_tenant text, p_company text, p_branch text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+BEGIN
+  IF NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_tenant IS NULL OR p_company IS NULL OR p_branch IS NULL OR
+      length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      length(trim(p_branch)) NOT BETWEEN 1 AND 256 THEN
+    RETURN false;
+  END IF;
+
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.tenant_id=p_tenant
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+      AND u.disabled_at IS NULL AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND OR credential_row.allowed_scopes IS NULL OR NOT EXISTS (
+      SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
+      WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
+        AND s->'permissions' ? 'identity.users.manage') THEN
+    RETURN false;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT FROM public.ventio_identity_grants g
+    WHERE g.tenant_id=p_tenant AND g.actor_id=credential_row.actor_id
+      AND g.company_id=p_company AND g.branch_id=p_branch
+      AND g.permission='identity.users.manage');
+END $fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.identity_users_snapshot(
+    p_digest text, p_company text, p_branch text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+        user_data jsonb;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_runtime','MEMBER') OR
+      p_company IS NULL OR p_branch IS NULL OR
+      length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      length(trim(p_branch)) NOT BETWEEN 1 AND 256 OR
+      NOT ventio_security.recovery_guard() THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT * INTO credential_row FROM public.ventio_identity_credentials
+    WHERE token_digest=p_digest AND revoked_at IS NULL
+      AND expires_at>clock_timestamp();
+  IF NOT FOUND OR NOT ventio_security.identity_users_manager_allowed(
+      p_digest,credential_row.tenant_id,p_company,p_branch) THEN
+    RETURN NULL;
+  END IF;
+
+  WITH scoped_users AS (
+    SELECT u.actor_id, u.disabled_at
+    FROM public.ventio_identity_users u
+    WHERE u.tenant_id=credential_row.tenant_id
+      AND (
+        EXISTS (SELECT FROM public.ventio_identity_grants g
+          WHERE g.tenant_id=u.tenant_id AND g.actor_id=u.actor_id
+            AND g.company_id=p_company AND g.branch_id=p_branch)
+        OR EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+          WHERE a.tenant_id=u.tenant_id AND a.actor_id=u.actor_id
+            AND a.company_id=p_company AND a.branch_id=p_branch)
+        OR EXISTS (SELECT FROM public.ventio_identity_audit e
+          WHERE e.tenant_id=u.tenant_id AND e.action='USER_CREATED'
+            AND e.subject_id=u.actor_id
+            AND e.details->>'companyId'=p_company
+            AND e.details->>'branchId'=p_branch)
+        OR EXISTS (SELECT FROM public.ventio_identity_audit e
+          WHERE e.tenant_id=u.tenant_id
+            AND e.action IN ('USER_DISABLED','PERMISSION_GRANTED',
+              'PERMISSION_REVOKED','ROLE_ASSIGNED','ROLE_UNASSIGNED')
+            AND e.subject_id=u.actor_id
+            AND e.details->>'companyId'=p_company
+            AND e.details->>'branchId'=p_branch)
+      )
+    ORDER BY u.actor_id
+  )
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'actorId',u.actor_id,
+      'state',CASE WHEN u.disabled_at IS NULL THEN 'ACTIVE' ELSE 'DISABLED' END,
+      'directPermissions',coalesce((
+        SELECT jsonb_agg(g.permission ORDER BY g.permission)
+        FROM public.ventio_identity_grants g
+        WHERE g.tenant_id=credential_row.tenant_id AND g.actor_id=u.actor_id
+          AND g.company_id=p_company AND g.branch_id=p_branch
+      ),'[]'::jsonb),
+      'roles',coalesce((
+        SELECT jsonb_agg(r.role_id ORDER BY r.display_name,r.role_id)
+        FROM public.ventio_identity_role_assignments a
+        JOIN public.ventio_identity_roles r
+          ON r.tenant_id=a.tenant_id AND r.role_id=a.role_id
+        WHERE a.tenant_id=credential_row.tenant_id AND a.actor_id=u.actor_id
+          AND a.company_id=p_company AND a.branch_id=p_branch
+      ),'[]'::jsonb)
+    ) ORDER BY u.actor_id),'[]'::jsonb)
+  INTO user_data FROM scoped_users u;
+
+  RETURN jsonb_build_object('tenantId',credential_row.tenant_id,
+    'companyId',p_company,'branchId',p_branch,'items',user_data);
+END $fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.identity_users_audit_snapshot(
+    p_digest text, p_company text, p_branch text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+        event_data jsonb;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_runtime','MEMBER') OR
+      p_company IS NULL OR p_branch IS NULL OR
+      length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      length(trim(p_branch)) NOT BETWEEN 1 AND 256 OR
+      NOT ventio_security.recovery_guard() THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT * INTO credential_row FROM public.ventio_identity_credentials
+    WHERE token_digest=p_digest AND revoked_at IS NULL
+      AND expires_at>clock_timestamp();
+  IF NOT FOUND OR NOT ventio_security.identity_users_manager_allowed(
+      p_digest,credential_row.tenant_id,p_company,p_branch) THEN
+    RETURN NULL;
+  END IF;
+
+  WITH recent_events AS (
+    SELECT e.id,e.occurred_at,e.action,e.subject_id,e.details
+    FROM public.ventio_identity_audit e
+    WHERE e.tenant_id=credential_row.tenant_id
+      AND e.details->>'companyId'=p_company
+      AND e.details->>'branchId'=p_branch
+      AND e.action IN (
+        'USER_CREATED','USER_DISABLED','PERMISSION_GRANTED','PERMISSION_REVOKED',
+        'ROLE_CREATED','ROLE_RENAMED','ROLE_DELETED',
+        'ROLE_PERMISSION_GRANTED','ROLE_PERMISSION_REVOKED',
+        'ROLE_ASSIGNED','ROLE_UNASSIGNED')
+    ORDER BY e.id DESC
+    LIMIT 100
+  )
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'eventId',e.id::text,
+      'occurredAtUtc',to_char(e.occurred_at AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'action',e.action,
+      'subjectId',CASE
+        WHEN e.subject_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' AND
+             e.subject_id !~ '^[A-Za-z0-9_-]{43,128}$' AND
+             e.subject_id !~* '(bearer|password|token|secret|postgresql?://)'
+          THEN e.subject_id
+        ELSE '[redacted]'
+      END,
+      'operator',CASE
+        WHEN e.details->>'operatorActorId' ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' AND
+             e.details->>'operatorActorId' !~ '^[A-Za-z0-9_-]{43,128}$' AND
+             e.details->>'operatorActorId' !~* '(bearer|password|token|secret|postgresql?://)'
+          THEN e.details->>'operatorActorId'
+        ELSE 'Host administrator'
+      END
+    ) ORDER BY e.id DESC),'[]'::jsonb)
+  INTO event_data FROM recent_events e;
+
+  RETURN jsonb_build_object('tenantId',credential_row.tenant_id,
+    'companyId',p_company,'branchId',p_branch,'events',event_data);
+END $fn$;
+
+-- The return type changed from void when Host-generated IDs were introduced.
+-- Recreate the function inside the bootstrap transaction so reruns on existing
+-- installations receive the same non-disclosing create contract.
+DROP FUNCTION IF EXISTS ventio_security.scoped_user_admin_change(
+  text,text,text,jsonb);
+CREATE FUNCTION ventio_security.scoped_user_admin_change(
+    p_digest text, p_company text, p_branch text, p_change jsonb)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+        operation text := p_change->>'action'; target_actor text := p_change->>'actorId';
+        permission_name text := p_change->>'permission'; target_disabled timestamptz;
+        change jsonb;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      jsonb_typeof(p_change) IS DISTINCT FROM 'object' OR
+      operation IS NULL OR operation NOT IN
+        ('USER_CREATED','PERMISSION_GRANTED','PERMISSION_REVOKED','USER_DISABLED') OR
+      p_change ?| ARRAY['tenantId','operatorLabel','operatorActorId','deviceId',
+        'credentialId','tokenDigest','allowedScopes','expiresAt','package',
+        'packageSha256','companyId','branchId'] OR
+      p_company IS NULL OR p_branch IS NULL OR
+      length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      length(trim(p_branch)) NOT BETWEEN 1 AND 256 OR
+      (operation='USER_CREATED' AND p_change ? 'actorId') OR
+      (operation<>'USER_CREATED' AND
+        (target_actor IS NULL OR
+         length(trim(target_actor)) NOT BETWEEN 1 AND 256)) OR
+      (operation IN ('USER_CREATED','USER_DISABLED') AND
+        (p_change ? 'permission' OR p_change ? 'extra')) OR
+      (operation IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
+        (permission_name IS NULL OR
+         permission_name !~ '^[a-z][a-z0-9_.]+$' OR
+         length(permission_name)>256 OR
+         permission_name ~ '^(identity|host|system|security|recovery|authorization)\.')) OR
+      (operation NOT IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
+        p_change ? 'permission') THEN
+    RAISE EXCEPTION 'Invalid scoped user administration request' USING ERRCODE='22023';
+  END IF;
+  IF (operation='USER_CREATED' AND
+      p_change-ARRAY['action']<>'{}'::jsonb) OR
+     (operation IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
+      p_change-ARRAY['action','actorId','permission']<>'{}'::jsonb) OR
+     (operation='USER_DISABLED' AND
+      p_change-ARRAY['action','actorId']<>'{}'::jsonb) THEN
+    RAISE EXCEPTION 'Unexpected user administration field' USING ERRCODE='22023';
+  END IF;
+
+  -- Serialize the authority check, scope checks and mutation with the existing
+  -- identity administration lock so another identity change cannot race them.
+  PERFORM pg_advisory_xact_lock(86744321);
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.revoked_at IS NULL
+      AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND OR NOT ventio_security.identity_users_manager_allowed(
+      p_digest,credential_row.tenant_id,p_company,p_branch) THEN
+    RAISE EXCEPTION 'User management denied' USING ERRCODE='42501';
+  END IF;
+
+  IF operation='USER_CREATED' THEN
+    -- Caller-controlled IDs would let a branch administrator probe the
+    -- tenant-global identity keyspace. Generate the ID only inside this
+    -- authorized, serialized transaction and return it to this manager.
+    LOOP
+      target_actor := 'usr_' || encode(ventio_crypto.gen_random_bytes(16),'hex');
+      EXIT WHEN NOT EXISTS (SELECT FROM public.ventio_identity_users
+        WHERE tenant_id=credential_row.tenant_id AND actor_id=target_actor);
+    END LOOP;
+  ELSE
+    SELECT disabled_at INTO target_disabled
+      FROM public.ventio_identity_users
+      WHERE tenant_id=credential_row.tenant_id AND actor_id=target_actor
+      FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'User not found or disabled' USING ERRCODE='P0002';
+    END IF;
+    -- Actor IDs are tenant-global. Do not let an administrator distinguish an
+    -- unknown ID from an ID active only in another company/branch.
+    IF NOT EXISTS (SELECT FROM public.ventio_identity_grants g
+        WHERE g.tenant_id=credential_row.tenant_id AND g.actor_id=target_actor
+          AND g.company_id=p_company AND g.branch_id=p_branch) AND
+       NOT EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+        WHERE a.tenant_id=credential_row.tenant_id AND a.actor_id=target_actor
+          AND a.company_id=p_company AND a.branch_id=p_branch) AND
+       NOT EXISTS (SELECT FROM public.ventio_identity_audit e
+        WHERE e.tenant_id=credential_row.tenant_id AND e.subject_id=target_actor
+          AND e.action IN ('USER_CREATED','USER_DISABLED','PERMISSION_GRANTED',
+            'PERMISSION_REVOKED','ROLE_ASSIGNED','ROLE_UNASSIGNED')
+          AND e.details->>'companyId'=p_company
+          AND e.details->>'branchId'=p_branch) THEN
+      RAISE EXCEPTION 'User not found' USING ERRCODE='P0002';
+    END IF;
+    IF target_disabled IS NOT NULL THEN
+      RAISE EXCEPTION 'User not found or disabled' USING ERRCODE='P0002';
+    END IF;
+  END IF;
+
+  IF operation='USER_DISABLED' THEN
+    IF target_actor=credential_row.actor_id THEN
+      RAISE EXCEPTION 'An administrator cannot disable their own account'
+        USING ERRCODE='42501';
+    END IF;
+    IF EXISTS (SELECT FROM public.ventio_identity_grants g
+        WHERE g.tenant_id=credential_row.tenant_id AND g.actor_id=target_actor
+          AND (g.company_id,g.branch_id) IS DISTINCT FROM (p_company,p_branch)) OR
+       EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+        WHERE a.tenant_id=credential_row.tenant_id AND a.actor_id=target_actor
+          AND (a.company_id,a.branch_id) IS DISTINCT FROM (p_company,p_branch)) OR
+       EXISTS (SELECT FROM public.ventio_identity_credentials c
+        JOIN public.ventio_identity_devices d
+          ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+        WHERE c.tenant_id=credential_row.tenant_id AND c.actor_id=target_actor
+          AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+          AND d.revoked_at IS NULL
+          AND (c.allowed_scopes IS NULL OR EXISTS (
+            SELECT FROM jsonb_array_elements(c.allowed_scopes) s
+            WHERE s->>'companyId' IS DISTINCT FROM p_company OR
+              s->>'branchId' IS DISTINCT FROM p_branch))) THEN
+      -- Keep an out-of-scope authority/credential ceiling indistinguishable
+      -- from a missing target. The branch manager already knows the subject is
+      -- listed in this branch; do not reveal any other branch's state.
+      RAISE EXCEPTION 'User not found or disabled' USING ERRCODE='P0002';
+    END IF;
+  END IF;
+
+  change := p_change || jsonb_build_object(
+    'actorId',target_actor,
+    'tenantId',credential_row.tenant_id,
+    'operatorLabel','api:' || left(credential_row.actor_id,252),
+    'operatorActorId',credential_row.actor_id,
+    'companyId',p_company,'branchId',p_branch);
+  PERFORM ventio_security.admin_change(change);
+  IF operation='USER_CREATED' THEN RETURN target_actor; END IF;
+  RETURN NULL;
 END $fn$;

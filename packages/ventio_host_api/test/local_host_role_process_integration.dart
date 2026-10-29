@@ -21,8 +21,14 @@ Future<void> main() async {
   final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
   final administrationUrl =
       Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
-  if (runtimeUrl == null || administrationUrl == null) {
-    throw StateError('Restricted Windows Host database logins are required.');
+  final apiAdministrationUrl =
+      Platform.environment['VENTIO_TEST_API_ADMIN_DATABASE_URL'];
+  if (runtimeUrl == null ||
+      administrationUrl == null ||
+      apiAdministrationUrl == null) {
+    throw StateError(
+      'Separate local and scoped API Host database logins are required.',
+    );
   }
 
   final sid = await _currentSid();
@@ -127,7 +133,8 @@ Future<void> main() async {
       ...Platform.environment,
       'VENTIO_ENABLE_LOCAL_HOST': 'yes',
       'VENTIO_HOST_DATABASE_URL': runtimeUrl,
-      'VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL': administrationUrl,
+      'VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL': '',
+      'VENTIO_HOST_IDENTITY_API_DATABASE_URL': apiAdministrationUrl,
       'VENTIO_HOST_BIND_ADDRESS': '127.0.0.1',
       'VENTIO_HOST_PORT': '0',
       'VENTIO_RECOVERY_AUTHORITY_FILE': witnessPath,

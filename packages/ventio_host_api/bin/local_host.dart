@@ -23,7 +23,7 @@ Future<void> runLocalHost({
   }
   HostApi? api;
   pg.Pool<dynamic>? runtimePool;
-  pg.Pool<dynamic>? identityAdminPool;
+  pg.Pool<dynamic>? identityApiPool;
   try {
     final url = Platform.environment['VENTIO_HOST_DATABASE_URL'];
     if (url == null || url.isEmpty)
@@ -37,13 +37,19 @@ Future<void> runLocalHost({
       throw StateError('Invalid recovery authority Host-write setting');
     }
     final hostWritesAuthority = hostWritesText == 'yes';
-    final identityAdminUrl =
+    final legacyIdentityAdminUrl =
         Platform.environment['VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL'];
-    final hasIdentityAdmin =
-        identityAdminUrl != null && identityAdminUrl.isNotEmpty;
-    if (hasIdentityAdmin != hostWritesAuthority) {
+    if (legacyIdentityAdminUrl != null && legacyIdentityAdminUrl.isNotEmpty) {
       throw StateError(
-        'Role administration requires explicit Host-owned recovery authority writes',
+        'The Host no longer accepts the trusted local identity-admin database login; configure a separate scoped API login',
+      );
+    }
+    final identityApiUrl =
+        Platform.environment['VENTIO_HOST_IDENTITY_API_DATABASE_URL'];
+    final hasIdentityApi = identityApiUrl != null && identityApiUrl.isNotEmpty;
+    if (hasIdentityApi != hostWritesAuthority) {
+      throw StateError(
+        'Remote identity administration requires a separate scoped API login and explicit Host-owned recovery authority writes',
       );
     }
     final int? writerUid;
@@ -84,15 +90,24 @@ Future<void> runLocalHost({
     final runtime = pg.Pool<dynamic>.withUrl(boundedUrl);
     runtimePool = runtime;
     PostgresIdentityRoleAdministrationGateway? roleAdministration;
-    if (identityAdminUrl != null && identityAdminUrl.isNotEmpty) {
-      final parsedAdminUrl = Uri.parse(identityAdminUrl);
-      final boundedAdminUrl = _poolUrl(parsedAdminUrl, maxConnections: 4);
-      final administration = pg.Pool<dynamic>.withUrl(boundedAdminUrl);
-      identityAdminPool = administration;
+    PostgresIdentityUserAdministrationGateway? userAdministration;
+    if (identityApiUrl != null && identityApiUrl.isNotEmpty) {
+      final parsedApiUrl = Uri.parse(identityApiUrl);
+      final boundedApiUrl = _poolUrl(parsedApiUrl, maxConnections: 4);
+      final administration = pg.Pool<dynamic>.withUrl(boundedApiUrl);
+      identityApiPool = administration;
       await administration.withConnection(
         verifyIdentityAdministrationConnection,
       );
+      await administration.withConnection(
+        verifyScopedUserAdministrationConnection,
+      );
       roleAdministration = PostgresIdentityRoleAdministrationGateway(
+        runtimePool: runtime,
+        administrationPool: administration,
+        admission: admission,
+      );
+      userAdministration = PostgresIdentityUserAdministrationGateway(
         runtimePool: runtime,
         administrationPool: administration,
         admission: admission,
@@ -141,6 +156,7 @@ Future<void> runLocalHost({
         admission: admission,
       ),
       identityRoleAdministration: roleAdministration,
+      identityUserAdministration: userAdministration,
       readinessProvider: PostgresHostReadinessProvider(
         pool: runtime,
         recoveryAuthority: admission,
@@ -162,7 +178,7 @@ Future<void> runLocalHost({
     );
   } catch (error) {
     try {
-      await _closePools(identityAdminPool, runtimePool);
+      await _closePools(identityApiPool, runtimePool);
     } catch (_) {
       // Startup remains fail-closed and never exposes driver error details.
     }
@@ -198,7 +214,7 @@ Future<void> runLocalHost({
     await api.close();
   } finally {
     try {
-      await _closePools(identityAdminPool, runtimePool);
+      await _closePools(identityApiPool, runtimePool);
     } finally {
       for (final subscription in subscriptions) {
         await subscription.cancel();

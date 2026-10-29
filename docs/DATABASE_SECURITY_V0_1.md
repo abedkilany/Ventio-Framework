@@ -27,23 +27,30 @@ non-owner roles, and operational tables enforce scope through RLS.
 | --- | --- | --- |
 | `ventio_owner` | Non-login schema/function owner | Trusted DDL and private function implementation; never used by Host |
 | `ventio_migrator` | Non-login migration capability | May explicitly `SET ROLE ventio_owner`; does not inherit ownership automatically |
-| `ventio_identity_admin` | Non-login server maintenance capability | EXECUTE `admin_change(jsonb)` only; no direct identity/business DML or schema modification |
+| `ventio_identity_admin` | Non-login trusted local identity-operator capability | EXECUTE `admin_change(jsonb)` and local recovery functions; no direct identity/business DML or schema modification. Never grant to the persistent Host API login. |
+| `ventio_identity_api` | Non-login persistent Host API capability | EXECUTE scoped role/user change functions and Recovery Authority admission/read only; no raw `admin_change`, recovery reset, or direct table/sequence access |
 | `ventio_runtime` | Non-login operational capability | Auth resolution, RLS checks, scoped SELECT/INSERT on operational tables and UPDATE of journal receipt only |
 
-Create separate private login credentials and grant each exactly one capability
-role. Runtime logins must be NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE
+Create separate private login credentials for runtime, trusted local identity
+administration, persistent Host API administration, and migration, and grant
+each exactly one capability role. Runtime logins must be NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE
 NOREPLICATION, with no extra role memberships, CREATE or TEMP privileges. They
 must not own databases, tables, schemas or functions. No capability has GRANT
-OPTION. Identity administration is a server-wide maintenance authority, not a
-self-service tenant administrator API. Its operator label is descriptive; the
-actual authenticated `session_user` is always captured by the database audit.
+OPTION. The trusted local identity-admin profile is a server-wide maintenance
+authority, not the persistent Host API. The API profile can mutate identities
+only through scoped SECURITY DEFINER wrappers that check the direct permission
+grant, exact credential ceiling and Recovery Authority admission in the same
+transaction. Operator labels are descriptive; the actual authenticated
+`session_user` is always captured by the database audit.
 
 Runtime cannot read credential hashes, edit users/devices/grants, issue tokens,
 erase audit, execute administrative/private helpers, run migrations, change table
 ownership or policies, truncate tables, or assume an administrator/owner role.
-Identity administration goes through one vetted SECURITY DEFINER entry point. Its
-user lock, state change and audit insert are one database transaction; audit
-failure rolls back the change. Raw silent administrative DML is denied even to the
+Remote role and user administration use vetted scoped SECURITY DEFINER entry
+points. Their identity lock, state change and audit insert are one database
+transaction; audit failure rolls back the change. The API login cannot execute
+the broad local `admin_change` function or recovery reset and has no direct table
+access. Raw silent administrative DML is denied even to the trusted local
 administration login. Issuance still returns a random raw token once from Dart;
 the database receives only its digest and public credential identifier.
 
@@ -110,13 +117,17 @@ No installation is performed against a user's database automatically.
    confirmation is mandatory. Installation is transactional and rerunnable;
    it transfers only the explicitly listed Framework objects, installs policies
    and functions, and revokes PUBLIC database CONNECT/CREATE/TEMP privileges.
-3. Provision three distinct private LOGIN roles and grant the corresponding
-   runtime, identity-administration or migrator capability. Configure SCRAM and
+3. Provision separate private LOGIN roles for runtime, trusted local identity
+   administration, persistent Host API administration, and migration, and grant
+   the corresponding capability roles. Configure SCRAM and
    secure credential delivery outside source control. Use TLS verification for
    remote PostgreSQL; fixture passwords/sslmode=disable are CI-only.
-4. Set the local Host's `VENTIO_HOST_DATABASE_URL` to the runtime login only.
-   Use the separate administration connection with `IdentityAdministration`.
-   Never pass either URL to Clients or put operator credentials in Host config.
+4. Set the Host's `VENTIO_HOST_DATABASE_URL` to the runtime login and, only when
+   remote management is enabled, `VENTIO_HOST_IDENTITY_API_DATABASE_URL` to the
+   dedicated API login. The persistent Host rejects the trusted local
+   `ventio_identity_admin` connection. Use that separate connection only with
+   the trusted local `IdentityAdministration` workflow. Never pass database
+   URLs to Clients or put trusted operator credentials in Host config.
 5. For later migrations, use the migration URL as `VENTIO_DATABASE_URL` and
    explicitly set `VENTIO_MIGRATION_ROLE=ventio_owner` for the migration CLI.
    Run the reviewed bootstrap/profile upgrade after relevant schema or trusted

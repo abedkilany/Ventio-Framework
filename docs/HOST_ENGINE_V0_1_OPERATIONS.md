@@ -4,13 +4,13 @@ Scope: controlled prototype deployment on Windows or Linux. The listener default
 
 ## Identities and protected paths
 
-Use separate OS accounts for the Host service and trusted recovery administrator. Use a group whose members may read the witness; Host must not control group membership. Do not put administrator database secrets in Host environment or readable service configuration.
+Use separate OS accounts for the Host service and trusted recovery administrator. Use a group whose members may read the witness; Host must not control group membership. Never put the trusted local identity-admin database secret in Host configuration. Remote management, when enabled, uses only the separate restricted API database login.
 
 On Linux, `local_host.dart` requires `VENTIO_RECOVERY_AUTHORITY_OWNER_UID`, pinned by trusted deployment configuration to the administrator UID. It refuses a witness owned by Host, the wrong UID, a writable witness/parent, symlinks and unsafe permissions. Host cannot overwrite, unlink or rename the witness.
 
 On Windows, set `VENTIO_RECOVERY_AUTHORITY_OWNER_SID` to the separate writer account SID and `VENTIO_RECOVERY_AUTHORITY_READER_SID` to a dedicated local group SID containing the Host service account. Provision the authority directory before starting either process. Give its trusted writer, `SYSTEM` (`S-1-5-18`) and local Administrators (`S-1-5-32-544`) full control, and give only the reader group read/traverse (`RX`). Disable inherited entries and remove unexpected explicit entries. The writer must own the directory and witness; Host must be a member of the reader group and must not be the writer. The runtime checks the owner, explicit ACL, reader-group membership, local fixed-volume path and path chain, and refuses reparse points or ancestors that an untrusted principal can delete or replace. It does not create or repair authority directories or ACLs.
 
-The default read-only Host profile keeps the writer and Host accounts separate and does not serve identity-role mutation routes. To enable the Flutter role editor against a persistent Host, configure both `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` and `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`, then run `local_host.dart` as the pinned witness owner SID/UID. This explicitly places the Host service account inside the recovery trust boundary: the service can publish a new witness only after the database's scoped administration function accepts a directly authorized exact-branch change. Keep the identity-admin connection restricted to that function and keep the account dedicated to Ventio. Database backup rollback remains detectable while the independently protected witness is current; compromise of the Host OS account is inside this profile's trust boundary. If this profile is unacceptable, leave both settings unset and perform identity changes with the trusted operator CLI.
+The default read-only Host profile keeps the writer and Host accounts separate and does not serve identity-role or user mutation routes. To enable the Flutter administration views against a persistent Host, configure both `VENTIO_HOST_IDENTITY_API_DATABASE_URL` and `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`, then run `local_host.dart` as the pinned witness owner SID/UID. The persistent Host accepts only the dedicated `ventio_identity_api` login. It cannot execute raw `admin_change` or recovery reset and has no direct identity-table access. Keep the separate trusted `ventio_identity_admin` connection in the local operator workflow. This explicitly places the Host service account inside the recovery trust boundary: the service can publish a new witness only after the database's scoped administration function accepts a directly authorized exact-branch change. Database backup rollback remains detectable while the independently protected witness is current; compromise of the Host OS account is inside this profile's trust boundary. If this profile is unacceptable, leave both settings unset and perform identity changes with the trusted operator CLI.
 
 For example, a trusted Windows administrator can provision a new directory using the SIDs above (replace the two placeholders with verified SIDs):
 
@@ -72,10 +72,10 @@ VENTIO_RECOVERY_AUTHORITY_OWNER_SID=<trusted writer SID>
 VENTIO_RECOVERY_AUTHORITY_READER_SID=<Host reader group SID>
 ```
 
-For the Host-owned role-editor profile, the Host process SID must equal
+For the Host-owned administration profile, the Host process SID must equal
 `VENTIO_RECOVERY_AUTHORITY_OWNER_SID`; the witness owner-read check verifies
 this at startup. Set `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes` only when the
-restricted identity-admin database URL is configured. Configuring only one of
+restricted identity API database URL is configured. Configuring only one of
 these settings is rejected before the listener binds.
 
 Run under the separate Host OS account, from `packages/ventio_host_api` in the deployed tree, so `../../spec/v1.2` resolves. Compile using the pinned Dart SDK 3.13.7. Keep the binary, spec, environment and PATH read-only to that account. Protected file operations use Python 3 on Linux and the Windows system PowerShell runtime with ACL APIs on Windows; the executable is resolved from `SystemRoot`, not from a client path or mutable PATH lookup. Do not log environment, bearer tokens, private request contents or credential delivery files.

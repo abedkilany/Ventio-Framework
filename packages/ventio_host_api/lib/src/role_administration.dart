@@ -176,7 +176,13 @@ Future<void> verifyIdentityAdministrationConnection(
 ) async {
   final rows = await connection.execute('''
     SELECT
-      pg_has_role(session_user,'ventio_identity_admin','MEMBER'),
+      pg_has_role(session_user,'ventio_identity_api','MEMBER'),
+      NOT pg_has_role(session_user,'ventio_identity_admin','MEMBER'),
+      NOT pg_has_role(session_user,'ventio_owner','MEMBER'),
+      NOT pg_has_role(session_user,'ventio_migrator','MEMBER'),
+      NOT pg_has_role(session_user,
+        (SELECT datdba::regrole::text FROM pg_catalog.pg_database
+          WHERE datname=current_database()),'MEMBER'),
       NOT EXISTS (SELECT FROM pg_catalog.pg_roles r
         WHERE r.rolname=session_user AND
           (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
@@ -184,19 +190,54 @@ Future<void> verifyIdentityAdministrationConnection(
       NOT has_database_privilege(session_user,current_database(),'CREATE'),
       NOT has_database_privilege(session_user,current_database(),'TEMP'),
       NOT has_schema_privilege(session_user,'public','CREATE'),
+      has_schema_privilege(session_user,'ventio_security','USAGE'),
+      NOT has_schema_privilege(session_user,'ventio_security','CREATE'),
+      NOT has_schema_privilege(session_user,'ventio_crypto','USAGE'),
+      NOT has_schema_privilege(session_user,'ventio_crypto','CREATE'),
       has_function_privilege(session_user,
         'ventio_security.scoped_admin_change(text,text,text,jsonb)','EXECUTE'),
+      has_function_privilege(session_user,
+        'ventio_security.scoped_user_admin_change(text,text,text,jsonb)','EXECUTE'),
+      has_function_privilege(session_user,
+        'ventio_security.admit_recovery(text,text)','EXECUTE'),
+      has_function_privilege(session_user,
+        'ventio_security.recovery_snapshot()','EXECUTE'),
+      NOT has_function_privilege(session_user,
+        'ventio_security.admin_change(jsonb)','EXECUTE'),
+      NOT has_function_privilege(session_user,
+        'ventio_security.reset_recovery(text,text)','EXECUTE'),
       NOT has_function_privilege(session_user,
         'ventio_security.identity_snapshot(text,text,text)','EXECUTE'),
-      NOT has_any_column_privilege(session_user,
-        'public.ventio_identity_roles','SELECT,INSERT,UPDATE,REFERENCES'),
-      NOT has_any_column_privilege(session_user,
-        'public.ventio_identity_role_permissions','SELECT,INSERT,UPDATE,REFERENCES'),
-      NOT has_any_column_privilege(session_user,
-        'public.ventio_identity_role_assignments','SELECT,INSERT,UPDATE,REFERENCES')
+      NOT EXISTS (SELECT FROM pg_catalog.pg_proc p
+        JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname IN ('ventio_security','public','ventio_crypto')
+          AND has_function_privilege(session_user,p.oid,'EXECUTE')
+          AND p.oid NOT IN (
+            'ventio_security.scoped_admin_change(text,text,text,jsonb)'::regprocedure,
+            'ventio_security.scoped_user_admin_change(text,text,text,jsonb)'::regprocedure,
+            'ventio_security.admit_recovery(text,text)'::regprocedure,
+            'ventio_security.recovery_snapshot()'::regprocedure)),
+      NOT EXISTS (SELECT FROM pg_catalog.pg_class t
+        JOIN pg_catalog.pg_namespace n ON n.oid=t.relnamespace
+        WHERE n.nspname IN ('public','ventio_security','ventio_crypto')
+          AND t.relkind IN ('r','p','v','m','f')
+          AND (has_table_privilege(session_user,t.oid,'SELECT') OR
+            has_table_privilege(session_user,t.oid,'INSERT') OR
+            has_table_privilege(session_user,t.oid,'UPDATE') OR
+            has_table_privilege(session_user,t.oid,'DELETE') OR
+            has_table_privilege(session_user,t.oid,'TRUNCATE') OR
+            has_table_privilege(session_user,t.oid,'REFERENCES') OR
+            has_table_privilege(session_user,t.oid,'TRIGGER'))),
+      NOT EXISTS (SELECT FROM pg_catalog.pg_class s
+        JOIN pg_catalog.pg_namespace n ON n.oid=s.relnamespace
+        WHERE n.nspname IN ('public','ventio_security','ventio_crypto')
+          AND s.relkind='S'
+          AND (has_sequence_privilege(session_user,s.oid,'USAGE') OR
+            has_sequence_privilege(session_user,s.oid,'SELECT') OR
+            has_sequence_privilege(session_user,s.oid,'UPDATE')))
   ''');
   if (rows.length != 1 || rows.single.any((value) => value != true)) {
-    throw StateError('Host identity administration login is not restricted.');
+    throw StateError('Host identity API login is not restricted.');
   }
 }
 

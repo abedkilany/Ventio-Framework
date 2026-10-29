@@ -27,6 +27,7 @@ foreach ($tool in @($pgCtl, $initdb, $createdb, $pgIsReady)) {
 Write-Output '::add-mask::ventio_test_only'
 Write-Output '::add-mask::runtime_test_only'
 Write-Output '::add-mask::admin_test_only'
+Write-Output '::add-mask::user_api_test_only'
 Write-Output '::add-mask::migration_test_only'
 Write-Output '::add-mask::restore_fixture_only'
 
@@ -79,6 +80,7 @@ try {
         VENTIO_DATABASE_URL = "postgresql://ventio:ventio_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_TEST_RUNTIME_DATABASE_URL = "postgresql://ventio_runtime_test:runtime_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_TEST_ADMIN_DATABASE_URL = "postgresql://ventio_admin_test:admin_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
+        VENTIO_TEST_API_ADMIN_DATABASE_URL = "postgresql://ventio_user_api_test:user_api_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_TEST_MIGRATION_DATABASE_URL = "postgresql://ventio_migration_test:migration_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_ALLOW_DATABASE_TESTS = 'yes'
         VENTIO_ALLOW_POSTGRES_CRASH_TEST = 'yes'

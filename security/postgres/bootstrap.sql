@@ -11,7 +11,7 @@ BEGIN;
 DO $roles$
 DECLARE n text;
 BEGIN
-  FOREACH n IN ARRAY ARRAY['ventio_owner','ventio_runtime','ventio_identity_admin','ventio_migrator'] LOOP
+  FOREACH n IN ARRAY ARRAY['ventio_owner','ventio_runtime','ventio_identity_admin','ventio_identity_api','ventio_migrator'] LOOP
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = n) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', n);
     ELSIF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = n
@@ -24,12 +24,12 @@ GRANT ventio_owner TO ventio_migrator WITH INHERIT FALSE, SET TRUE;
 ALTER FUNCTION public.ventio_validate_extension_schema_upgrade(text,text,text)
   OWNER TO ventio_owner;
 REVOKE ALL ON FUNCTION public.ventio_validate_extension_schema_upgrade(text,text,text)
-  FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 -- A prior recovery profile kept pgcrypto beside callable RLS functions. Move
 -- that extension as the trusted cluster administrator before reducing to the
 -- non-superuser owner role below.
 CREATE SCHEMA IF NOT EXISTS ventio_crypto AUTHORIZATION ventio_owner;
-REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 DO $crypto_upgrade$
 DECLARE crypto_schema text; crypto_owner name;
 BEGIN
@@ -45,11 +45,11 @@ END $crypto_upgrade$;
 DO $database$
 BEGIN
   EXECUTE format('REVOKE ALL ON DATABASE %I FROM PUBLIC', current_database());
-  EXECUTE format('GRANT CONNECT ON DATABASE %I TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_migrator', current_database());
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_identity_api, ventio_migrator', current_database());
   EXECUTE format('GRANT CREATE ON DATABASE %I TO ventio_owner', current_database());
 END $database$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-GRANT USAGE ON SCHEMA public TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_migrator;
+GRANT USAGE ON SCHEMA public TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_identity_api, ventio_migrator;
 GRANT CREATE ON SCHEMA public TO ventio_owner;
 DO $ownership$
 DECLARE t text;
@@ -66,9 +66,9 @@ END $ownership$;
 SET LOCAL ROLE ventio_owner;
 CREATE SCHEMA IF NOT EXISTS ventio_security AUTHORIZATION ventio_owner;
 REVOKE ALL ON SCHEMA ventio_security FROM PUBLIC;
-GRANT USAGE ON SCHEMA ventio_security TO ventio_runtime, ventio_identity_admin;
+GRANT USAGE ON SCHEMA ventio_security TO ventio_runtime, ventio_identity_admin, ventio_identity_api;
 CREATE SCHEMA IF NOT EXISTS ventio_crypto AUTHORIZATION ventio_owner;
-REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA ventio_crypto;
 DO $crypto$
 DECLARE crypto_schema text; crypto_owner name;
@@ -89,9 +89,9 @@ END $crypto$;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 CREATE TABLE IF NOT EXISTS ventio_security.command_bindings (
   command_type text NOT NULL,
   command_version integer NOT NULL,
@@ -172,7 +172,7 @@ BEGIN
         JOIN public.ventio_identity_role_permissions rp
           USING (tenant_id,role_id)
         WHERE a.tenant_id=c.tenant_id AND a.actor_id=c.actor_id
-          AND rp.permission <> 'identity.roles.manage'
+          AND rp.permission !~ '^(identity|host|system|security|recovery|authorization)\.'
     ) effective
     WHERE (p_company IS NULL OR effective.company_id=p_company)
       AND (p_branch IS NULL OR effective.branch_id=p_branch)
@@ -749,8 +749,8 @@ GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_
 \ir administration.sql
 \ir schema_profile.sql
 \ir runtime_check.sql
-REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
-REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
   ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
   ventio_security.admit_recovery(text,text),
@@ -759,14 +759,21 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
   ventio_security.read_approved_extension_package(text,text,text,text,text,text),
   ventio_security.list_approved_extension_packages(text,text,text,text,text,text,integer),
-  ventio_security.identity_roles_snapshot(text,text,text)
+  ventio_security.identity_roles_snapshot(text,text,text),
+  ventio_security.identity_users_snapshot(text,text,text),
+  ventio_security.identity_users_audit_snapshot(text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
-  ventio_security.scoped_admin_change(text,text,text,jsonb),
   ventio_security.admit_recovery(text,text),
   ventio_security.recovery_snapshot(),
   ventio_security.reset_recovery(text,text),
   ventio_security.read_extension_submission(text,text,text),
   public.ventio_validate_extension_schema_upgrade(text,text,text),
   ventio_security.assert_schema() TO ventio_identity_admin;
+GRANT EXECUTE ON FUNCTION
+  ventio_security.scoped_admin_change(text,text,text,jsonb),
+  ventio_security.scoped_user_admin_change(text,text,text,jsonb),
+  ventio_security.admit_recovery(text,text),
+  ventio_security.recovery_snapshot()
+  TO ventio_identity_api;
 COMMIT;

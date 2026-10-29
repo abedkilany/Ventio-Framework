@@ -1,0 +1,1 @@
+CREATE INDEX ventio_identity_audit_scope_recent ON ventio_identity_audit (tenant_id, (details->>'companyId'), (details->>'branchId'), id DESC) WHERE action IN ('USER_CREATED','USER_DISABLED','PERMISSION_GRANTED','PERMISSION_REVOKED','ROLE_CREATED','ROLE_RENAMED','ROLE_DELETED','ROLE_PERMISSION_GRANTED','ROLE_PERMISSION_REVOKED','ROLE_ASSIGNED','ROLE_UNASSIGNED');
