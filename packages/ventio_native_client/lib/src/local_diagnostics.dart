@@ -19,6 +19,8 @@ Future<LocalDiagnosticsStore> openDefaultLocalDiagnosticsStore() async {
 }
 
 abstract interface class DiagnosticEventSource {
+  Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input);
+
   Future<List<ManagementDiagnosticEvent>> recent({int limit = 100});
 
   Future<String> exportJson({int limit = 100});
@@ -77,6 +79,7 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
     return LocalDiagnosticsStore._(database, clock ?? DateTime.now);
   }
 
+  @override
   Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async {
     _ensureOpen();
     final explanation = sanitizeDiagnosticText(input.safeExplanation);

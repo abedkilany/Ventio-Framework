@@ -388,7 +388,53 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.host_resolved_commands':
       'Host resolved {count} queued command(s).',
   'native.ui.host_sync_stopped':
-      'Host sync stopped; pending work was preserved: {reason}',
+      'Host synchronization failed. Pending work remains saved locally.',
+  'native.ui.sync_failed_message':
+      'Host synchronization failed ({code}). Pending operations remain saved locally. Reference: {correlationId}',
+  'native.ui.synchronization': 'Synchronization',
+  'native.ui.refresh_sync_status': 'Refresh synchronization status',
+  'native.ui.sync_queue_unavailable':
+      'The local synchronization queue could not be read. Retry to check it again.',
+  'native.ui.sync_attempt_failed':
+      'The sync attempt did not complete. Pending operations remain saved locally; check the connection and retry.',
+  'native.ui.sync_status_unavailable': 'Synchronization status unavailable',
+  'native.ui.sync_queue_empty': 'No queued operations',
+  'native.ui.sync_queue_empty_details':
+      'New offline operations will appear here and remain saved until the Host responds.',
+  'native.ui.sync_recent_limit': 'Showing the latest 1,000 operations.',
+  'native.ui.sync_overview_title': 'Synchronization status',
+  'native.ui.retry_pending_sync': 'Retry pending',
+  'native.ui.sync_offline_explanation':
+      'No authenticated Host connection is configured. Local operations remain saved on this device.',
+  'native.ui.sync_host_retry_explanation':
+      'Only a stored Host receipt counts as confirmed. Retry sends the same durable command IDs.',
+  'native.ui.sync_pending_count': 'Pending: {count}',
+  'native.ui.sync_retry_count': 'Retry later: {count}',
+  'native.ui.sync_confirmed_count': 'Host confirmed: {count}',
+  'native.ui.sync_rejected_count': 'Rejected: {count}',
+  'native.ui.sync_conflict_count': 'Conflicts: {count}',
+  'native.ui.sync_no_host_attempt': 'No Host synchronization attempt recorded.',
+  'native.ui.sync_latest_attempt': 'Latest attempt: {timestamp}',
+  'native.ui.sync_operation': 'Queued operation',
+  'native.ui.sync_status_line': '{status} · {attempts} attempt(s)',
+  'native.ui.sync_command_reference': 'Command reference: {commandId}',
+  'native.ui.sync_created_at': 'Created: {timestamp}',
+  'native.ui.sync_updated_at': 'Updated: {timestamp}',
+  'native.ui.sync_attempted_at': 'Last attempt: {timestamp}',
+  'native.ui.sync_host_reason': 'Host reason code: {code}',
+  'native.ui.sync_host_reason_guidance':
+      'Review this Host result and correct the operation before retrying.',
+  'native.ui.sync_fixture_not_confirmation':
+      'A local test response is saved. It is not a Host confirmation.',
+  'native.ui.sync_confirmed': 'Confirmed by Host',
+  'native.ui.sync_pending_status': 'Pending on this device',
+  'native.ui.sync_unconfirmed_status': 'Waiting for a Host receipt',
+  'native.ui.sync_rejected': 'Rejected by Host',
+  'native.ui.sync_conflict': 'Conflict reported by Host',
+  'native.ui.sync_retry_later': 'Host requested retry later',
+  'native.ui.sync_failure_code': 'Safe error code: {code}',
+  'native.ui.sync_failure_reference': 'Reference: {correlationId}',
+  'native.diagnostics.host_sync_failed': 'Host synchronization failed',
   'native.ui.local_host_revision':
       'Local revision {localRevision} · Host revision {hostRevision} · {syncState}',
   'native.ui.local_value': 'Local · {value}',

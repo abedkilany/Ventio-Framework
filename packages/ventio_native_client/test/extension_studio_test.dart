@@ -119,11 +119,29 @@ class _MemoryDiagnosticEventSource implements DiagnosticEventSource {
   _MemoryDiagnosticEventSource(this.event);
 
   final ManagementDiagnosticEvent event;
+  final recorded = <ManagementDiagnosticEvent>[];
 
   @override
-  Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async => [
-    event,
-  ];
+  Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async {
+    final saved = ManagementDiagnosticEvent(
+      code: input.code,
+      component: input.component,
+      category: input.category,
+      severity: input.severity,
+      occurredAtUtc: input.occurredAtUtc ?? DateTime.now().toUtc(),
+      correlationId: input.correlationId ?? newLocalCorrelationId(),
+      retryable: input.retryable,
+      messageKey: input.messageKey,
+      safeExplanation: input.safeExplanation,
+      recommendedAction: input.recommendedAction,
+    );
+    recorded.add(saved);
+    return saved;
+  }
+
+  @override
+  Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async =>
+      [...recorded, event].reversed.take(limit).toList(growable: false);
 
   @override
   Future<String> exportJson({int limit = 100}) async => jsonEncode({
@@ -1302,6 +1320,53 @@ void main() {
   );
 
   testWidgets(
+    'durable synchronization queue is available in the integrated app',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await queue.enqueue(
+        CommandEnvelope.fromJson({
+          'protocolVersion': 0,
+          'commandId': '00e0ca03-e259-4958-87fc-69fd40e23f11',
+          'type': 'extension.example.create',
+          'typeVersion': 1,
+          'tenantId': 'tenant-1',
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'aggregateId': 'record-pending',
+          'expectedRevision': null,
+          'dependsOn': <String>[],
+          'payload': <String, Object?>{'name': 'Pending work'},
+          'clientContext': <String, Object?>{
+            'deviceId': 'device-1',
+            'actorId': 'user-1',
+            'moduleVersion': '0.1.0',
+            'docTypeVersion': 1,
+            'clientTimestamp': '2026-10-29T18:00:00Z',
+          },
+        }),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(store: store, queue: queue),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Synchronization'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Synchronization status'), findsOneWidget);
+      expect(find.text('Pending: 1'), findsOneWidget);
+      expect(find.text('Host confirmed: 0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Changed Host profile identity stops sync before queue attempts',
     (tester) async {
       tester.view.physicalSize = const Size(900, 800);
@@ -1342,12 +1407,27 @@ void main() {
       );
 
       final vault = HostCredentialVault(_MemoryCredentialBackend());
+      final diagnosticSource = _MemoryDiagnosticEventSource(
+        ManagementDiagnosticEvent(
+          code: 'HOST_UNREACHABLE',
+          component: 'client.synchronization',
+          category: ManagementDiagnosticCategory.networkTls,
+          severity: ManagementDiagnosticSeverity.warning,
+          occurredAtUtc: DateTime.utc(2026, 10, 29, 18),
+          correlationId: 'cor_0123456789abcdef0123456789abcdef',
+          retryable: true,
+          messageKey: 'native.diagnostics.host_sync_failed',
+          safeExplanation: 'A safe local diagnostic seed.',
+          recommendedAction: 'Open synchronization and retry.',
+        ),
+      );
       await tester.pumpWidget(
         MaterialApp(
           home: ExtensionStudioPage(
             store: store,
             queue: queue,
             credentialVault: vault,
+            diagnosticEventSource: diagnosticSource,
             hostPackageClientFactory:
                 ({required endpoint, required credentials}) =>
                     _FakeHostPackageClient(
@@ -1361,9 +1441,14 @@ void main() {
       await tester.tap(find.byTooltip('Sync pending records'));
       await tester.pumpAndSettle();
 
+      expect(diagnosticSource.recorded, hasLength(1));
       expect(
-        find.textContaining('HOST_PROFILE_IDENTITY_CHANGED'),
-        findsOneWidget,
+        diagnosticSource.recorded.single.code,
+        'HOST_PROFILE_IDENTITY_CHANGED',
+      );
+      expect(
+        diagnosticSource.recorded.single.safeExplanation,
+        isNot(contains('saved-user')),
       );
       final entry = (await queue.list()).single;
       expect(entry.hostStatus, HostCommandStatus.pending);

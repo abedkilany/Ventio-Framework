@@ -24,6 +24,7 @@ import 'maintenance_request_page.dart';
 import 'print_format_renderer.dart';
 import 'queued_record_reconciliation.dart';
 import 'role_administration_page.dart';
+import 'synchronization_page.dart';
 import 'transport_fixture.dart';
 import 'users_permissions_page.dart';
 
@@ -33,6 +34,7 @@ enum _StudioMenuAction {
   manageUsers,
   hostOverview,
   localDiagnostics,
+  synchronization,
   installFromHost,
   installPackage,
   offlineProof,
@@ -63,6 +65,76 @@ String _extensionMessageKey(String moduleId, String message) {
 
 String _localDiagnosticsLabel(BuildContext context) => context
     .extensionMetadataText('native.ui.local_diagnostics', 'Local diagnostics');
+
+Future<HostSyncFailureException> _recordHostSyncFailure(
+  Object error, {
+  DiagnosticEventSource? source,
+}) async {
+  final code = switch (error) {
+    HostTransportException() => error.code,
+    HostPackageTransportException() => error.code,
+    HostSyncIdentityMismatchException() => 'HOST_QUEUE_IDENTITY_MISMATCH',
+    _ => 'HOST_SYNC_FAILED',
+  };
+  final safeCode = RegExp(r'^[A-Z][A-Z0-9_]{0,79}$').hasMatch(code)
+      ? code
+      : 'HOST_SYNC_FAILED';
+  final correlationId =
+      error is HostTransportException && error.correlationId != null
+      ? error.correlationId!
+      : newLocalCorrelationId();
+  final retryable = error is HostTransportException
+      ? error.retryable
+      : error is HostPackageTransportException && error.retryable;
+  final category = switch (safeCode) {
+    'HOST_UNREACHABLE' ||
+    'HOST_REQUEST_TIMEOUT' ||
+    'HOST_TLS_VALIDATION_FAILED' => ManagementDiagnosticCategory.networkTls,
+    'UNAUTHENTICATED' ||
+    'HOST_CREDENTIAL_MISSING' => ManagementDiagnosticCategory.authentication,
+    'PERMISSION_DENIED' ||
+    'SCOPE_DENIED' ||
+    'HOST_QUEUE_IDENTITY_MISMATCH' ||
+    'HOST_PROFILE_IDENTITY_CHANGED' =>
+      ManagementDiagnosticCategory.authorization,
+    _ => ManagementDiagnosticCategory.synchronization,
+  };
+  final input = LocalDiagnosticInput(
+    code: safeCode,
+    component: 'client.synchronization',
+    category: category,
+    severity: ManagementDiagnosticSeverity.error,
+    retryable: retryable,
+    messageKey: 'native.diagnostics.host_sync_failed',
+    safeExplanation:
+        'Host synchronization failed. Pending operations remain saved on this device.',
+    recommendedAction:
+        'Check Host connectivity and permissions, then retry. Share the correlation reference with an administrator if the issue continues.',
+    correlationId: correlationId,
+  );
+  LocalDiagnosticsStore? ownedStore;
+  try {
+    if (source != null) {
+      await source.record(input);
+    } else {
+      ownedStore = await openDefaultLocalDiagnosticsStore();
+      await ownedStore.record(input);
+    }
+  } catch (_) {
+    // A diagnostic write failure must never replace the original safe error.
+  } finally {
+    try {
+      await ownedStore?.close();
+    } catch (_) {
+      // Queue state remains available if diagnostic persistence fails.
+    }
+  }
+  return HostSyncFailureException(
+    code: safeCode,
+    correlationId: correlationId,
+    retryable: retryable,
+  );
+}
 
 class ExtensionStudioPage extends StatefulWidget {
   const ExtensionStudioPage({
@@ -589,6 +661,34 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       return;
     }
     try {
+      final resolved = await _syncPendingFromHost();
+      if (mounted) _message('Host resolved $resolved queued command(s).');
+    } on HostSyncFailureException catch (failure) {
+      if (mounted) {
+        _message(
+          context.ventioText(
+            'native.ui.sync_failed_message',
+            params: {
+              'code': failure.code,
+              'correlationId': failure.correlationId,
+            },
+          ),
+        );
+      }
+    }
+  }
+
+  Future<int> _syncPendingFromHost() async {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    if (profile == null || vault == null) {
+      throw HostSyncFailureException(
+        code: 'HOST_CREDENTIAL_MISSING',
+        correlationId: newLocalCorrelationId(),
+        retryable: false,
+      );
+    }
+    try {
       final identity = await _requireHostSyncIdentity(
         _hostPackageClient(endpoint: Uri.parse(profile.endpoint), vault: vault),
         profile,
@@ -603,15 +703,35 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       ).syncPending();
       await reconcileQueuedRecords(widget.store, widget.queue);
       await _load();
-      if (mounted) _message('Host resolved $resolved queued command(s).');
+      return resolved;
     } catch (error) {
-      await reconcileQueuedRecords(widget.store, widget.queue);
-      if (mounted) {
-        _message(
-          'Host sync stopped; unresolved commands remain queued: $error',
-        );
+      try {
+        await reconcileQueuedRecords(widget.store, widget.queue);
+      } catch (_) {
+        // Queue recovery remains visible through the dedicated recovery warning.
       }
+      throw await _recordHostSyncFailure(
+        error,
+        source: widget.diagnosticEventSource,
+      );
     }
+  }
+
+  Future<void> _openSynchronization() async {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => SynchronizationPage(
+          queue: widget.queue,
+          onRetryPending: profile != null && vault != null
+              ? () async {
+                  await _syncPendingFromHost();
+                }
+              : null,
+        ),
+      ),
+    );
   }
 
   Future<void> _installApprovedFromHost() async {
@@ -772,6 +892,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _openHostOverview();
                   case _StudioMenuAction.localDiagnostics:
                     _openLocalDiagnostics();
+                  case _StudioMenuAction.synchronization:
+                    _openSynchronization();
                   case _StudioMenuAction.installFromHost:
                     _installApprovedFromHost();
                   case _StudioMenuAction.installPackage:
@@ -790,6 +912,10 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 PopupMenuItem(
                   value: _StudioMenuAction.localDiagnostics,
                   child: Text(_localDiagnosticsLabel(context)),
+                ),
+                const PopupMenuItem(
+                  value: _StudioMenuAction.synchronization,
+                  child: VentioText('native.ui.synchronization'),
                 ),
                 if (_canManageUsers)
                   const PopupMenuItem(
@@ -834,6 +960,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 icon: const Icon(Icons.monitor_heart_outlined),
               ),
             IconButton(
+              tooltip: context.ventioText('native.ui.synchronization'),
+              onPressed: _openSynchronization,
+              icon: const Icon(Icons.sync_alt_outlined),
+            ),
+            IconButton(
               tooltip: context.ventioText('native.ui.sync_pending_records'),
               onPressed: _hostProfile == null ? null : _syncHost,
               icon: const Icon(Icons.sync),
@@ -874,6 +1005,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 icon: const Icon(Icons.monitor_heart_outlined),
                 label: const VentioText('native.ui.host_overview'),
               ),
+            TextButton.icon(
+              onPressed: _openSynchronization,
+              icon: const Icon(Icons.sync_alt_outlined),
+              label: const VentioText('native.ui.synchronization'),
+            ),
             TextButton.icon(
               onPressed: _hostProfile == null ? null : _syncHost,
               icon: const Icon(Icons.sync),
@@ -928,6 +1064,15 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     onPressed: _openLocalDiagnostics,
                     icon: const Icon(Icons.health_and_safety_outlined),
                     label: Text(_localDiagnosticsLabel(context)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.tonalIcon(
+                    onPressed: _openSynchronization,
+                    icon: const Icon(Icons.sync_alt_outlined),
+                    label: const VentioText('native.ui.synchronization'),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -4983,13 +5128,17 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       }
     } catch (error) {
       await reconcileQueuedRecords(widget.store, queue);
+      final failure = await _recordHostSyncFailure(error);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               context.ventioText(
-                'native.ui.host_sync_stopped',
-                params: {'reason': error.toString()},
+                'native.ui.sync_failed_message',
+                params: {
+                  'code': failure.code,
+                  'correlationId': failure.correlationId,
+                },
               ),
             ),
           ),

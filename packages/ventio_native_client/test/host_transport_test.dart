@@ -159,6 +159,93 @@ void main() {
     expect(requests, 1);
   });
 
+  test(
+    'Authenticated Host errors retain validated correlation references',
+    () async {
+      const correlationId = 'cor_0123456789abcdef0123456789abcdef';
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        await request.drain<void>();
+        request.response
+          ..statusCode = HttpStatus.serviceUnavailable
+          ..headers.contentType = ContentType.json
+          ..headers.set('X-Correlation-ID', correlationId)
+          ..write(
+            jsonEncode({
+              'apiVersion': hostApiVersion,
+              'correlationId': correlationId,
+              'error': {'code': 'HOST_UNAVAILABLE', 'retryable': true},
+            }),
+          );
+        await request.response.close();
+      });
+
+      final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(endpoint, token);
+      await expectLater(
+        HttpHostCommandTransport(
+          endpoint: endpoint,
+          credentials: vault,
+        ).send(await _envelope()),
+        throwsA(
+          isA<HostTransportException>()
+              .having((error) => error.code, 'code', 'HOST_UNAVAILABLE')
+              .having(
+                (error) => error.correlationId,
+                'correlationId',
+                correlationId,
+              )
+              .having((error) => error.retryable, 'retryable', isTrue),
+        ),
+      );
+    },
+  );
+
+  test(
+    'Mismatched Host correlation references invalidate the response',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        await request.drain<void>();
+        request.response
+          ..statusCode = HttpStatus.serviceUnavailable
+          ..headers.contentType = ContentType.json
+          ..headers.set(
+            'X-Correlation-ID',
+            'cor_0123456789abcdef0123456789abcdef',
+          )
+          ..write(
+            jsonEncode({
+              'apiVersion': hostApiVersion,
+              'correlationId': 'cor_fedcba9876543210fedcba9876543210',
+              'error': {'code': 'HOST_UNAVAILABLE', 'retryable': true},
+            }),
+          );
+        await request.response.close();
+      });
+
+      final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(endpoint, token);
+      await expectLater(
+        HttpHostCommandTransport(
+          endpoint: endpoint,
+          credentials: vault,
+        ).send(await _envelope()),
+        throwsA(
+          isA<HostTransportException>().having(
+            (error) => error.code,
+            'code',
+            'HOST_INVALID_RESPONSE',
+          ),
+        ),
+      );
+    },
+  );
+
   test('Remote cleartext endpoints are rejected before a request', () async {
     expect(
       () => HttpHostCommandTransport(

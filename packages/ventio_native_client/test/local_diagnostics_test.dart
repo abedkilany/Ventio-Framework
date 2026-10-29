@@ -134,6 +134,21 @@ class _MemoryDiagnosticSource implements DiagnosticEventSource {
   final ManagementDiagnosticEvent event;
 
   @override
+  Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async =>
+      ManagementDiagnosticEvent(
+        code: input.code,
+        component: input.component,
+        category: input.category,
+        severity: input.severity,
+        occurredAtUtc: input.occurredAtUtc ?? DateTime.now().toUtc(),
+        correlationId: input.correlationId ?? newLocalCorrelationId(),
+        retryable: input.retryable,
+        messageKey: input.messageKey,
+        safeExplanation: input.safeExplanation,
+        recommendedAction: input.recommendedAction,
+      );
+
+  @override
   Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async => [
     event,
   ];

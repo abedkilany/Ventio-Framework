@@ -14,3 +14,4 @@ export 'src/host_overview_page.dart';
 export 'src/users_permissions_page.dart';
 export 'src/local_diagnostics.dart';
 export 'src/diagnostics_center_page.dart';
+export 'src/synchronization_page.dart';
