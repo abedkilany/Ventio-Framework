@@ -3,8 +3,8 @@
 **Run date:** 2026-10-29 (Asia/Beirut)
 **Environment:** Windows x64, Flutter 3.44.1, Inno Setup 6.7.3
 **Package:** [`Ventio-Client-Setup-0.1.0.exe`](../dist/windows/Ventio-Client-Setup-0.1.0.exe)
-**SHA-256:** `4ce3d26d4463327ae391df0d51d78d7c6dd546432f01a17deffd343d6b199a0d`
-**Size:** 14,517,870 bytes
+**SHA-256:** `11bde4e468ab857f038b3dae2e859378e9d4e902e7f6eceb76e5831288cce5e2`
+**Size:** 14,524,781 bytes
 
 ## Executed checks
 
@@ -17,6 +17,8 @@
 | Uninstall from the temporary installation directory | PASS | The uninstaller removed the temporary application directory. The external retention marker remained. |
 | Test cleanup | PASS | The validator removed its generated temporary directory; a follow-up check found no `VentioInstallerTest-*` directory remaining. |
 | Artifact checksum manifest | PASS | `dist/windows/SHA256SUMS.txt` matches the package hash above. |
+
+The package was rebuilt from the current Flutter source after integrating the Host Overview, user identity privacy masking, and local Diagnostics Center. The install, repeat-install, uninstall, and retention checks above were rerun against this rebuilt artifact.
 
 The first compile attempt exposed an unsupported Inno Setup directive. It was removed, then the package compiled successfully. An initial validator run also rejected a Windows path separator in its temp-directory guard; the guard was corrected and the complete install/reinstall/uninstall run passed.
 
