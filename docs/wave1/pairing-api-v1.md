@@ -83,7 +83,7 @@ Enrollment rejects device IDs that resemble bearer tokens, including clients tha
 
 ## Verification status
 
-- `dart run test/api_tests.dart`: 65 passed, 0 failed; covers authentication, exact-scope permission, versioning, correlation, no-secret diagnostics, unauthenticated redemption contract, and source rate limiting.
+- `dart run test/api_tests.dart`: 66 passed, 0 failed; covers authentication, exact-scope permission, versioning, correlation, no-secret diagnostics, unauthenticated redemption contract, and source rate limiting.
 - `dart run test/management_devices_api_test.dart`: 8 passed, 0 failed; covers exact-scope authorization, safe inventory projection, and revocation dispatch.
 - Flutter `test/host_device_management_test.dart`: 7 passed, 0 failed; covers inventory, one-time pairing code handling, permission denial, redaction, error correlation, and UI user selection.
 - Full Flutter package suite: 162 passed, 2 environment-gated skips; Flutter package analysis clean.
