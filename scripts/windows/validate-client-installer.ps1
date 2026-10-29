@@ -1,10 +1,20 @@
 param(
   [Parameter(Mandatory = $true)]
-  [string] $InstallerPath
+  [string] $InstallerPath,
+  [string] $UpgradeInstallerPath,
+  [string] $ExpectedUpgradeVersion
 )
 
 $ErrorActionPreference = 'Stop'
 $installer = (Resolve-Path -LiteralPath $InstallerPath).Path
+$upgradeInstaller = if ($UpgradeInstallerPath) {
+  (Resolve-Path -LiteralPath $UpgradeInstallerPath).Path
+} else {
+  $null
+}
+if ($upgradeInstaller -and $ExpectedUpgradeVersion -notmatch '^\d+\.\d+\.\d+$') {
+  throw 'ExpectedUpgradeVersion must be provided as a semantic version when testing an upgrade.'
+}
 $testBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
 $testRoot = [IO.Path]::GetFullPath((Join-Path $testBase ("VentioInstallerTest-" + [guid]::NewGuid().ToString('N'))))
 $testRootPrefix = $testBase + '\VentioInstallerTest-'
@@ -64,6 +74,30 @@ try {
     throw 'Repeat install did not preserve the application and external data.'
   }
 
+  if ($upgradeInstaller) {
+    $process = Start-Process -FilePath $upgradeInstaller -ArgumentList @(
+      '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-',
+      ('/DIR="' + $installDir + '"'), '/NOICONS'
+    ) -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+      throw "Client upgrade installer failed with exit code $($process.ExitCode)"
+    }
+    if (-not (Test-Path -LiteralPath $appExe -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $marker -PathType Leaf)) {
+      throw 'Client upgrade did not preserve the installed application and external data.'
+    }
+    $installedEntry = Get-ChildItem -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' |
+      ForEach-Object { Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue } |
+      Where-Object {
+        $_.InstallLocation -and
+        [IO.Path]::GetFullPath($_.InstallLocation).TrimEnd('\') -eq $installDir.TrimEnd('\')
+      } |
+      Select-Object -First 1
+    if ($null -eq $installedEntry -or $installedEntry.DisplayVersion -ne $ExpectedUpgradeVersion) {
+      throw "Client upgrade did not register the expected package version $ExpectedUpgradeVersion."
+    }
+  }
+
   $process = Start-Process -FilePath $uninstaller -ArgumentList @(
     '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-'
   ) -Wait -PassThru
@@ -79,6 +113,9 @@ try {
 
   Write-Output 'PASS: per-user install placed the Flutter app and required runtime files.'
   Write-Output 'PASS: repeating the same installer preserved the app and external data.'
+  if ($upgradeInstaller) {
+    Write-Output "PASS: upgrading from the installed package to version $ExpectedUpgradeVersion preserved the app and external data."
+  }
   Write-Output 'PASS: uninstaller removed the test installation directory.'
   Write-Output 'PASS: data outside the installation directory was preserved.'
   Write-Output 'LIMIT: this validates client packaging only; it does not test Host provisioning or service lifecycle.'
