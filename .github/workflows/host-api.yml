@@ -77,6 +77,8 @@ jobs:
         run: dart run test/role_administration_integration.dart
       - name: Run scoped user administration tests
         run: dart run test/management_users_integration.dart
+      - name: Run secure device pairing and enrollment integration tests
+        run: dart run test/pairing_integration.dart
       - name: Run extension package approval, scope and recovery integration tests
         run: dart run test/extension_package_integration.dart
       - name: Remove disposable PostgreSQL test instance
