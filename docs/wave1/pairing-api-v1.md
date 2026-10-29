@@ -1,6 +1,6 @@
 # Secure Device Pairing API v1
 
-**Status:** backend contract implemented; deterministic API tests pass. PostgreSQL integration tests are present but NOT RUN because Docker must remain stopped.
+**Status:** backend contract and integrated Flutter pairing/device-management screen are implemented; deterministic API/UI tests pass. PostgreSQL integration tests are present but NOT RUN. Docker remains stopped by user direction; the CI harness can use native PostgreSQL binaries without Docker, but the local pinned archive transfer was too slow to finish.
 
 Pairing is a Host-authorized operation. Device role is descriptive metadata and grants no user permission. The Host fixes every authority-bearing value; clients cannot choose a device role, scope, permission, or credential lifetime.
 
@@ -79,9 +79,15 @@ The credential lifetime is fixed at thirty days, matching the existing Host cred
 
 Invalid, expired, or replayed codes all return HTTP 410 with `PAIRING_INVALID_OR_EXPIRED`, without distinguishing which condition occurred. Reused device IDs return `DEVICE_ALREADY_REGISTERED`. Every response contains a correlation ID. Audit records include the pairing/device identifiers and scope but never either bearer secret or its digest.
 
+Enrollment rejects device IDs that resemble bearer tokens, including clients that bypass the Flutter UI. Authorized `identity.devices.manage` users can list device/credential lifecycle metadata and revoke a device through the separate management API. Device listing currently returns `lastAuthenticatedAtUtc: null`; connected state and authenticated-activity history are not yet available. Revocation stops every credential on that device, but a branch-scoped caller cannot revoke a device with an active credential ceiling outside that branch.
+
 ## Verification status
 
-- `dart run test/api_tests.dart`: 64 passed, 0 failed; covers authentication, exact-scope permission, versioning, correlation, no-secret diagnostics, unauthenticated redemption contract, and source rate limiting.
+- `dart run test/api_tests.dart`: 65 passed, 0 failed; covers authentication, exact-scope permission, versioning, correlation, no-secret diagnostics, unauthenticated redemption contract, and source rate limiting.
+- `dart run test/management_devices_api_test.dart`: 8 passed, 0 failed; covers exact-scope authorization, safe inventory projection, and revocation dispatch.
+- Flutter `test/host_device_management_test.dart`: 7 passed, 0 failed; covers inventory, one-time pairing code handling, permission denial, redaction, error correlation, and UI user selection.
+- Full Flutter package suite: 162 passed, 2 environment-gated skips; Flutter package analysis clean.
 - `dart analyze` for `ventio_host_api`: passed.
 - `test/pairing_integration.dart`: added for digest-only storage, target privilege ceiling, cross-branch non-disclosure, one-time redemption/replay/expiry, 30-day credential scope, device role, and audit/diagnostic redaction. It is intentionally NOT RUN while Docker remains stopped.
-- Stage 4 is not accepted based on these local checks; restricted database grants, Recovery Authority, and PostgreSQL integration behavior remain unverified until the database suite runs.
+- Host administrators can create a code for an active scoped user, select that user from the Host user list when separately authorized, view registered devices and credential state, and revoke a device. The UI displays no connection state when Host activity telemetry is absent.
+- Stage 4 is not accepted based on these local checks; restricted database grants, Recovery Authority, and PostgreSQL integration behavior remain unverified until the database suite runs. Credential rotation and authenticated activity history are still outstanding.

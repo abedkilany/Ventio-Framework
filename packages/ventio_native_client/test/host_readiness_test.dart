@@ -274,7 +274,7 @@ void main() {
 
   group('HostOverviewPage', () {
     testWidgets(
-      'shows readiness states, safe guidance and unavailable inventory',
+      'shows readiness states and explains where device inventory is managed',
       (tester) async {
         final client = _FakeReadinessClient(
           identity: _identity(),
@@ -324,12 +324,12 @@ void main() {
         expect(find.text('BLOCKED'), findsOneWidget);
 
         await tester.scrollUntilVisible(
-          find.text('Device and pairing details are not available yet'),
+          find.text('Device inventory is not part of this readiness summary'),
           300,
           scrollable: scrollable,
         );
         expect(
-          find.textContaining('registered or connected device counts'),
+          find.textContaining('Open Host devices & pairing'),
           findsOneWidget,
         );
       },

@@ -9,6 +9,8 @@ export 'src/host_transport.dart';
 export 'src/host_extension_packages.dart';
 export 'src/host_sync_service.dart';
 export 'src/host_user_management.dart';
+export 'src/host_device_management.dart';
+export 'src/device_management_page.dart';
 export 'src/host_readiness.dart';
 export 'src/host_overview_page.dart';
 export 'src/users_permissions_page.dart';

@@ -763,7 +763,8 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.list_approved_extension_packages(text,text,text,text,text,text,integer),
   ventio_security.identity_roles_snapshot(text,text,text),
   ventio_security.identity_users_snapshot(text,text,text),
-  ventio_security.identity_users_audit_snapshot(text,text,text)
+  ventio_security.identity_users_audit_snapshot(text,text,text),
+  ventio_security.identity_devices_snapshot(text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
   ventio_security.admit_recovery(text,text),
@@ -777,6 +778,7 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.scoped_user_admin_change(text,text,text,jsonb),
   ventio_security.scoped_pairing_create(text,text,text,text,text,text),
   ventio_security.scoped_pairing_redeem(text,text,text,text),
+  ventio_security.scoped_device_revoke(text,text,text,text),
   ventio_security.admit_recovery(text,text),
   ventio_security.recovery_snapshot()
   TO ventio_identity_api;

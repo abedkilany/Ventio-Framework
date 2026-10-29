@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
+import 'device_administration.dart';
 import 'extension_packages.dart';
 import 'extension_records.dart';
 import 'management.dart';
@@ -38,6 +39,7 @@ class HostApi {
   final IdentityRoleAdministrationGateway? _identityRoleAdministration;
   final IdentityUserAdministrationGateway? _identityUserAdministration;
   final IdentityPairingGateway? _identityPairing;
+  final IdentityDeviceAdministrationGateway? _identityDeviceAdministration;
   final HostReadinessProvider? _readinessProvider;
   final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
@@ -59,6 +61,7 @@ class HostApi {
     this._identityRoleAdministration,
     this._identityUserAdministration,
     this._identityPairing,
+    this._identityDeviceAdministration,
     this._readinessProvider,
     this._diagnostics,
     this.maxBodyBytes,
@@ -86,6 +89,7 @@ class HostApi {
     IdentityRoleAdministrationGateway? identityRoleAdministration,
     IdentityUserAdministrationGateway? identityUserAdministration,
     IdentityPairingGateway? identityPairing,
+    IdentityDeviceAdministrationGateway? identityDeviceAdministration,
     HostReadinessProvider? readinessProvider,
     ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
@@ -121,6 +125,9 @@ class HostApi {
                     is! AuthoritativeIdentityUserAdministrationGateway) ||
             (identityPairing != null &&
                 identityPairing is! AuthoritativeIdentityPairingGateway) ||
+            (identityDeviceAdministration != null &&
+                identityDeviceAdministration
+                    is! AuthoritativeIdentityDeviceAdministrationGateway) ||
             (readinessProvider != null &&
                 readinessProvider is! AuthoritativeHostReadinessProvider))) {
       throw ArgumentError(
@@ -140,6 +147,7 @@ class HostApi {
       identityRoleAdministration,
       identityUserAdministration,
       identityPairing,
+      identityDeviceAdministration,
       readinessProvider,
       diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
@@ -244,6 +252,30 @@ class HostApi {
         retryable: error.retryable,
         retryAfterSeconds: error.retryAfterSeconds,
       );
+    } on IdentityDeviceAdministrationException catch (error) {
+      await _recordDiagnostic(
+        ManagementDiagnosticEvent(
+          code: error.code,
+          component: 'identity.devices',
+          category: ManagementDiagnosticCategory.authorization,
+          severity: error.statusCode >= 500
+              ? ManagementDiagnosticSeverity.error
+              : ManagementDiagnosticSeverity.warning,
+          occurredAtUtc: DateTime.now().toUtc(),
+          correlationId: correlationId,
+          retryable: false,
+          messageKey: 'host_api.error.${error.code.toLowerCase()}',
+          safeExplanation: 'The device administration request was denied.',
+          recommendedAction:
+              'Check the signed-in user permissions and exact branch scope.',
+        ),
+      );
+      await _error(
+        request,
+        error.statusCode,
+        error.code,
+        correlationId: correlationId,
+      );
     } catch (_) {
       // Never return exception text, database details, tokens, or request bodies.
       // Any execution exception may have an ambiguous commit outcome.
@@ -325,6 +357,7 @@ class HostApi {
     final identityUserRoute = _identityUserAction(request.uri.path);
     final pairingCreateRoute =
         request.uri.path == HostManagementRoutes.pairingCreate;
+    final identityDeviceAction = _identityDeviceAction(request.uri.path);
     final sessionRoute = request.uri.path == '/api/v1/session';
     final readinessRoute = request.uri.path == HostManagementRoutes.readiness;
     if (request.uri.path != '/api/v1/commands' &&
@@ -333,6 +366,7 @@ class HostApi {
         !reportQueryRoute &&
         identityRoleRoute == null &&
         identityUserRoute == null &&
+        identityDeviceAction == null &&
         !pairingCreateRoute &&
         !sessionRoute &&
         !readinessRoute) {
@@ -405,6 +439,7 @@ class HostApi {
             recordQueryRoute ||
             identityRoleRoute != null ||
             identityUserRoute != null ||
+            identityDeviceAction != null ||
             pairingCreateRoute ||
             readinessRoute) &&
         session.credentialDigest == null) {
@@ -414,6 +449,9 @@ class HostApi {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     if (identityUserRoute != null && _identityUserAdministration == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if (identityDeviceAction != null && _identityDeviceAdministration == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     if (readinessRoute && _readinessProvider == null) {
@@ -478,6 +516,16 @@ class HostApi {
       await _handleIdentityUserAdministration(
         request,
         identityUserRoute,
+        json,
+        session,
+        correlationId,
+      );
+      return;
+    }
+    if (identityDeviceAction != null) {
+      await _handleIdentityDeviceAdministration(
+        request,
+        identityDeviceAction,
         json,
         session,
         correlationId,
@@ -623,12 +671,16 @@ class HostApi {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
     final code = json['code'];
-    if (code is! String || !OpaqueToken.isValid(code)) {
+    final deviceId = _boundedIdentifier(json, 'deviceId');
+    if (code is! String ||
+        !OpaqueToken.isValid(code) ||
+        !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$').hasMatch(deviceId) ||
+        RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(deviceId)) {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
     final enrollment = await _identityPairing!.redeem(
       code: code,
-      deviceId: _boundedIdentifier(json, 'deviceId'),
+      deviceId: deviceId,
     );
     _json(request, 201, {
       'apiVersion': 1,
@@ -949,6 +1001,93 @@ class HostApi {
     '/api/v1/management/users/disable' => 'disable',
     _ => null,
   };
+
+  String? _identityDeviceAction(String path) => switch (path) {
+    '${HostManagementRoutes.devices}/list' => 'list',
+    '${HostManagementRoutes.devices}/revoke' => 'revoke',
+    _ => null,
+  };
+
+  Future<void> _handleIdentityDeviceAdministration(
+    HttpRequest request,
+    String action,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+    String correlationId,
+  ) async {
+    final expectedKeys = action == 'list'
+        ? const {'managementApiVersion', 'companyId', 'branchId'}
+        : const {'managementApiVersion', 'companyId', 'branchId', 'deviceId'};
+    if (json.keys.toSet().length != expectedKeys.length ||
+        !json.keys.toSet().containsAll(expectedKeys) ||
+        json['managementApiVersion'] != managementApiVersion) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final principal = session.principal;
+    if (!principal.withinScope(
+      tenantId: principal.tenantId,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: principal.actorId,
+      deviceId: principal.deviceId,
+    )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    if (!principal.allowsInScope(
+      identityDevicesManagePermission,
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+
+    final gateway = _identityDeviceAdministration!;
+    if (action == 'list') {
+      final devices = await gateway.list(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+      );
+      if (!_isSafeDeviceProjection(
+        devices,
+        tenantId: principal.tenantId,
+        companyId: companyId,
+        branchId: branchId,
+      )) {
+        throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true);
+      }
+      if (utf8.encode(jsonEncode(devices)).length > 1024 * 1024) {
+        throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+      }
+      _json(request, 200, {
+        'apiVersion': 1,
+        'managementApiVersion': managementApiVersion,
+        'correlationId': correlationId,
+        'devices': devices,
+      });
+      return;
+    }
+
+    final deviceId = _boundedIdentifier(json, 'deviceId');
+    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(deviceId) ||
+        RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(deviceId)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    await gateway.revoke(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      deviceId: deviceId,
+    );
+    _json(request, 200, {
+      'apiVersion': 1,
+      'managementApiVersion': managementApiVersion,
+      'correlationId': correlationId,
+      'deviceOperation': {'status': 'APPLIED', 'deviceId': deviceId},
+    });
+  }
 
   Future<void> _handleIdentityUserAdministration(
     HttpRequest request,
@@ -1481,6 +1620,92 @@ bool _isSafeAuditProjection(
         !_isSafeAuditLabel(event['subjectId']) ||
         !_isSafeAuditLabel(event['operator'])) {
       return false;
+    }
+  }
+  return true;
+}
+
+bool _isSafeDeviceProjection(
+  Map<String, dynamic> devices, {
+  required String tenantId,
+  required String companyId,
+  required String branchId,
+}) {
+  const snapshotKeys = {'tenantId', 'companyId', 'branchId', 'items'};
+  if (devices.keys.toSet().length != snapshotKeys.length ||
+      !devices.keys.toSet().containsAll(snapshotKeys) ||
+      devices['tenantId'] != tenantId ||
+      devices['companyId'] != companyId ||
+      devices['branchId'] != branchId ||
+      devices['items'] is! List ||
+      (devices['items'] as List).length > 1000) {
+    return false;
+  }
+  bool safeId(Object? value) =>
+      value is String &&
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
+      !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value) &&
+      !RegExp(
+        r'(bearer|password|token|secret|postgres(?:ql)?|credential)',
+        caseSensitive: false,
+      ).hasMatch(value);
+  bool utc(Object? value, {bool nullable = false}) {
+    if (value == null) return nullable;
+    return value is String && _isUtcTimestamp(value);
+  }
+
+  for (final rawItem in devices['items'] as List) {
+    if (rawItem is! Map || rawItem.keys.any((key) => key is! String)) {
+      return false;
+    }
+    final item = Map<String, dynamic>.from(rawItem);
+    const itemKeys = {
+      'deviceId',
+      'actorId',
+      'role',
+      'registrationState',
+      'registeredAtUtc',
+      'lastAuthenticatedAtUtc',
+      'credentials',
+    };
+    if (item.keys.toSet().length != itemKeys.length ||
+        !item.keys.toSet().containsAll(itemKeys) ||
+        !safeId(item['deviceId']) ||
+        !safeId(item['actorId']) ||
+        !const {'HOST', 'CLIENT', 'UNKNOWN'}.contains(item['role']) ||
+        !const {'REGISTERED', 'REVOKED'}.contains(item['registrationState']) ||
+        !utc(item['registeredAtUtc']) ||
+        !utc(item['lastAuthenticatedAtUtc'], nullable: true) ||
+        item['credentials'] is! List ||
+        (item['credentials'] as List).length > 100) {
+      return false;
+    }
+    for (final rawCredential in item['credentials'] as List) {
+      if (rawCredential is! Map ||
+          rawCredential.keys.any((key) => key is! String)) {
+        return false;
+      }
+      final credential = Map<String, dynamic>.from(rawCredential);
+      const credentialKeys = {
+        'credentialId',
+        'state',
+        'expiresAtUtc',
+        'revokedAtUtc',
+      };
+      if (credential.keys.toSet().length != credentialKeys.length ||
+          !credential.keys.toSet().containsAll(credentialKeys) ||
+          !safeId(credential['credentialId']) ||
+          !const {
+            'ACTIVE',
+            'EXPIRED',
+            'REVOKED',
+            'ROTATED',
+            'UNKNOWN',
+          }.contains(credential['state']) ||
+          !utc(credential['expiresAtUtc']) ||
+          !utc(credential['revokedAtUtc'], nullable: true)) {
+        return false;
+      }
     }
   }
   return true;

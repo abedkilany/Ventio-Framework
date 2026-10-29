@@ -3,8 +3,8 @@
 **Run date:** 2026-10-30 (Asia/Beirut)
 **Environment:** Windows x64, Flutter 3.44.1, Inno Setup 6.7.3
 **Package:** [`Ventio-Client-Setup-0.1.0.exe`](../dist/windows/Ventio-Client-Setup-0.1.0.exe)
-**SHA-256:** `38e434a597f5b8ef58ff55969cd13b5f194c0f93bbf2b79cd8e13b34694b60a5`
-**Size:** 14,545,366 bytes
+**SHA-256:** `47cc471db0651a229c51a125909c4b46978a12491e2727bbbf3ceddf3b1dac59`
+**Size:** 14,562,917 bytes
 
 ## Executed checks
 
@@ -18,7 +18,7 @@
 | Test cleanup | PASS | The validator isolated installer and uninstaller temporary files in its unique test root and removed that generated directory. |
 | Artifact checksum manifest | PASS | `dist/windows/SHA256SUMS.txt` matches the package hash above. |
 
-The package was rebuilt from current Flutter source after adding the integrated synchronization page, stored-Host-receipt status, safe Host error references, Host Overview, user identity privacy masking, local Diagnostics Center, and the HTTPS-only Client pairing flow. The install, repeat-install, uninstall, and retention checks above were rerun against this rebuilt artifact.
+The package was rebuilt from current Flutter source after adding the integrated synchronization page, stored-Host-receipt status, safe Host error references, Host Overview, user identity privacy masking, local Diagnostics Center, HTTPS-only Client enrollment, and Host-authorized device/pairing administration. The install, repeat-install, uninstall, and retention checks above were rerun against this rebuilt artifact. It remains Client-only; device administration is available when the signed-in Host user has the required exact-scope permission.
 
 The first compile attempt exposed an unsupported Inno Setup directive. It was removed, then the package compiled successfully. An initial validator run also rejected a Windows path separator in its temp-directory guard; the guard was corrected. A follow-up exposed that Inno Setup's uninstaller creates a separate temporary executable outside the validator's test root. The validator now points `TEMP`/`TMP` at its unique test root while installation and removal run; a second full install/reinstall/uninstall run passed with no residue inside that root.
 

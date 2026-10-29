@@ -1,6 +1,6 @@
 # Host Management API Contract v1
 
-**Status:** implemented readiness, pairing create/redeem contracts, and safe diagnostic event contracts. Device inventory, revocation/rotation, synchronization, and broader administrative APIs remain subsequent work.
+**Status:** readiness, pairing create/redeem, scoped device inventory/revocation and safe diagnostic event contracts are implemented. Live PostgreSQL verification, credential rotation, authenticated activity history, synchronization status, and remaining administrative APIs are still open.
 **API paths:** under `/api/v1`; management payloads carry `managementApiVersion: 1`.
 **Compatibility:** existing `/healthz`, `/api/v1/session`, command and extension routes retain their existing payloads. Every response now also carries an `X-Correlation-ID` response header.
 
@@ -51,13 +51,16 @@ Unexpected Host API failures are recorded in a bounded, process-local buffer as 
 
 `ventio_core/src/management_contracts.dart` defines versioned, Flutter-independent types for readiness snapshots, diagnostic categories/severity, device roles, device registration, credential lifecycle, pairing lifecycle, synchronization summary, and administrative operation state. Credential and pairing inventory projections intentionally contain no bearer token, digest, or one-time pairing code. `HostDeviceRole` is descriptive infrastructure metadata; it grants no user permission.
 
-`POST /api/v1/management/pairing/create` and `POST /api/v1/pairing/redeem` are active. Their versioned request/response and security behavior are documented in [pairing-api-v1.md](pairing-api-v1.md). Other routes reserved in the shared contract file are not active merely because a route constant exists. The PostgreSQL integration suite for pairing has been added but has not been run; local API contract tests do not prove SQL grants, RLS, recovery admission, or replay behavior.
+`POST /api/v1/management/devices/list` and `/revoke` require a persistent Host credential with direct `identity.devices.manage` permission in the exact requested company/branch. Inventory includes registration state, descriptive device role, registration timestamp, credential IDs/status/expiry/revocation timestamps and `lastAuthenticatedAtUtc: null`. The null is explicit: authentication activity is not tracked, and no connected/offline state is inferred. Inventory never includes bearer credentials or digests. Revocation is performed by a scoped PostgreSQL function under Recovery Authority admission; it revokes every credential for the selected device and is denied if an active credential scope extends beyond the requested branch.
+
+`POST /api/v1/management/pairing/create`, `POST /api/v1/pairing/redeem`, and the device list/revoke routes are active. Pairing behavior is documented in [pairing-api-v1.md](pairing-api-v1.md). Other routes reserved in the shared contract file are not active merely because a route constant exists. Pairing and device PostgreSQL integration cases are wired into the disposable database CI suite but have not been run locally; local API contract tests do not prove SQL grants, RLS, recovery admission, cross-branch denial, or replay behavior.
 
 ## Authorization and operational boundaries
 
 - `host.status.read` is checked against the authenticated principal's exact company/branch grant for every readiness request.
 - `identity.pairing.manage` is required directly in the exact branch to create a pairing code. PostgreSQL independently rechecks this permission against the caller credential's exact scope ceiling.
-- Device registration role (`HOST` or `CLIENT`) is not an authorization input.
-- User and role administration use their dedicated exact-scope permissions and restricted database gateway. Pair creation and redemption use the dedicated pairing contract. Device inventory, revocation/rotation, and host-local bootstrap/service operations are not exposed by these routes; protected operator and Recovery Authority paths remain in force.
+- `identity.devices.manage` is a separate direct exact-scope grant for listing and revoking devices. Pairing does not grant it, and role/device metadata does not imply it.
+- Device registration role (`HOST`, `CLIENT`, or legacy `UNKNOWN`) is not an authorization input.
+- User, role and device administration use dedicated exact-scope permissions and restricted database gateways. Pair creation and redemption use the dedicated pairing contract. Credential rotation and host-local bootstrap/service operations remain outside these routes; protected operator and Recovery Authority paths remain in force.
 - No management request accepts an operating-system command, process path, shell string, SQL statement, database URL, or recovery witness value.
 - The readiness contract deliberately does not bypass persistent authentication. If recovery admission prevents authentication, an authenticated remote readiness body cannot be produced; the local Diagnostics Center must explain that failure using safe local evidence.

@@ -83,6 +83,12 @@ Future<void> main() async {
       'pairing-manager',
       company,
       branch,
+      identityDevicesManagePermission,
+    );
+    await operator.grant(
+      'pairing-manager',
+      company,
+      branch,
       'maintenance.create',
     );
     final managerFile = '${temporary.path}/manager-credential.json';
@@ -97,6 +103,7 @@ Future<void> main() async {
           'branchId': branch,
           'permissions': [
             identityPairingManagePermission,
+            identityDevicesManagePermission,
             'maintenance.create',
           ],
         },
@@ -128,6 +135,42 @@ Future<void> main() async {
       'branch-other',
       'maintenance.create',
     );
+    await operator.createUser('pairing-multiscope-target');
+    await operator.grant(
+      'pairing-multiscope-target',
+      company,
+      branch,
+      'maintenance.create',
+    );
+    await operator.grant(
+      'pairing-multiscope-target',
+      company,
+      'branch-other',
+      'maintenance.create',
+    );
+    await operator.registerDevice(
+      'pairing-multiscope-target',
+      'pairing-multiscope-client',
+    );
+    await operator.provisionToFile(
+      actorId: 'pairing-multiscope-target',
+      deviceId: 'pairing-multiscope-client',
+      credentialId: 'pairing-multiscope-credential',
+      expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+      allowedScopes: [
+        {
+          'companyId': company,
+          'branchId': branch,
+          'permissions': ['maintenance.create'],
+        },
+        {
+          'companyId': company,
+          'branchId': 'branch-other',
+          'permissions': ['maintenance.create'],
+        },
+      ],
+      outputPath: '${temporary.path}/multiscope-credential.json',
+    );
 
     Future<pg.Connection> runtimeConnect() =>
         pg.Connection.openFromUrl(runtimeUrl);
@@ -139,6 +182,11 @@ Future<void> main() async {
       ),
       executor: _PairingIntegrationExecutor(),
       identityPairing: PostgresIdentityPairingGateway(
+        connectAdministration: () => pg.Connection.openFromUrl(apiAdminUrl),
+        admission: authority,
+      ),
+      identityDeviceAdministration: PostgresIdentityDeviceAdministrationGateway(
+        connectRuntime: runtimeConnect,
         connectAdministration: () => pg.Connection.openFromUrl(apiAdminUrl),
         admission: authority,
       ),
@@ -278,6 +326,121 @@ Future<void> main() async {
           permissions.contains('maintenance.create') &&
           !permissions.contains(identityPairingManagePermission),
       'Client authentication preserves target permissions without adding pairing authority',
+    );
+
+    final devices = await send(
+      api,
+      path: HostManagementRoutes.devicesList,
+      token: managerToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+      },
+    );
+    final deviceItems = (devices.body['devices']['items'] as List).cast<Map>();
+    final enrolledDevice = deviceItems.singleWhere(
+      (device) => device['deviceId'] == enrollment['deviceId'],
+    );
+    final enrolledCredentials = (enrolledDevice['credentials'] as List)
+        .cast<Map>();
+    check(
+      devices.status == 200 &&
+          devices.body['correlationId'] ==
+              devices.headers.value('X-Correlation-ID') &&
+          enrolledDevice['role'] == 'CLIENT' &&
+          enrolledDevice['registrationState'] == 'REGISTERED' &&
+          enrolledDevice['lastAuthenticatedAtUtc'] == null &&
+          enrolledCredentials.single['credentialId'] ==
+              enrollment['credentialId'] &&
+          enrolledCredentials.single['state'] == 'ACTIVE' &&
+          !jsonEncode(devices.body).contains(rawCredential) &&
+          !jsonEncode(devices.body).contains('tokenDigest'),
+      'Authorized device inventory returns exact branch status without bearer secrets or digests',
+    );
+
+    final ordinaryDeviceRead = await send(
+      api,
+      path: HostManagementRoutes.devicesList,
+      token: rawCredential,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+      },
+    );
+    check(
+      ordinaryDeviceRead.status == 403 &&
+          ordinaryDeviceRead.body['error']['code'] == 'PERMISSION_DENIED',
+      'Enrolling a CLIENT device does not grant device-administration permission',
+    );
+
+    final crossBranchDeviceRevoke = await send(
+      api,
+      path: HostManagementRoutes.devicesRevoke,
+      token: managerToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+        'deviceId': 'pairing-multiscope-client',
+      },
+    );
+    check(
+      crossBranchDeviceRevoke.status == 403 &&
+          crossBranchDeviceRevoke.body['error']['code'] == 'PERMISSION_DENIED',
+      'A branch manager cannot revoke a device credential scoped to another branch',
+    );
+
+    final revoked = await send(
+      api,
+      path: HostManagementRoutes.devicesRevoke,
+      token: managerToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+        'deviceId': enrollment['deviceId'],
+      },
+    );
+    check(
+      revoked.status == 200 &&
+          revoked.body['deviceOperation']['status'] == 'APPLIED' &&
+          revoked.body['deviceOperation']['deviceId'] ==
+              enrollment['deviceId'] &&
+          revoked.body['correlationId'] ==
+              revoked.headers.value('X-Correlation-ID'),
+      'Scoped device revocation returns a correlated Host-applied result',
+    );
+    final revokedState = await audit.execute(
+      pg.Sql.named('''
+        SELECT d.revoked_at IS NOT NULL,c.revoked_at IS NOT NULL
+        FROM public.ventio_identity_devices d
+        JOIN public.ventio_identity_credentials c
+          ON c.tenant_id=d.tenant_id AND c.actor_id=d.actor_id
+          AND c.device_id=d.device_id
+        WHERE d.tenant_id=@tenant AND d.device_id=@device
+          AND c.credential_id=@credential
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'device': enrollment['deviceId'],
+        'credential': enrollment['credentialId'],
+      },
+    );
+    check(
+      revokedState.single[0] == true && revokedState.single[1] == true,
+      'Device revocation atomically invalidates the registered device and its credential',
+    );
+    final revokedAuthentication = await send(
+      api,
+      path: '/api/v1/session',
+      method: 'GET',
+      token: rawCredential,
+    );
+    check(
+      revokedAuthentication.status == 401,
+      'A revoked Client credential is rejected by Host authentication',
     );
 
     final replay = await send(

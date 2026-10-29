@@ -888,6 +888,21 @@ Future<void> main() async {
               FakeIdentityPairingGateway.code,
       'Pairing creation returns a correlated one-time code and fixed CLIENT role',
     );
+    final credentialShapedDeviceId = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingRedeem,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'code': FakeIdentityPairingGateway.code,
+        'deviceId': List.filled(43, 'a').join(),
+      },
+    );
+    check(
+      credentialShapedDeviceId.status == 400 &&
+          credentialShapedDeviceId.body['error']['code'] == 'INVALID_REQUEST' &&
+          pairingGateway.redeemCalls == 0,
+      'Credential-shaped device IDs are rejected before enrollment',
+    );
     final redeemedPairing = await send(
       pairingApi,
       path: HostManagementRoutes.pairingRedeem,

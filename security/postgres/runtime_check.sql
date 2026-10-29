@@ -37,6 +37,8 @@ BEGIN
       has_function_privilege(current_user,
         'ventio_security.scoped_admin_change(text,text,text,jsonb)', 'EXECUTE') OR
       has_function_privilege(current_user,
+        'ventio_security.scoped_device_revoke(text,text,text,text)', 'EXECUTE') OR
+      has_function_privilege(current_user,
         'public.ventio_validate_extension_schema_upgrade(text,text,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected runtime DDL or identity capability';
   END IF;

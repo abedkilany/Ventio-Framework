@@ -9,6 +9,7 @@ import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
 import 'package:ventio_native_client/src/extension_studio_page.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
+import 'package:ventio_native_client/src/host_device_management.dart';
 import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
 import 'package:ventio_native_client/src/local_diagnostics.dart';
@@ -37,11 +38,15 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
     required super.endpoint,
     required super.credentials,
     this.canManageUsers = false,
+    this.canManageDevices = false,
+    this.canManagePairings = false,
     this.canReadHostStatus = false,
     this.roleAdministrationAvailable = true,
   });
 
   final bool canManageUsers;
+  final bool canManageDevices;
+  final bool canManagePairings;
   final bool canReadHostStatus;
   final bool roleAdministrationAvailable;
 
@@ -70,6 +75,16 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
                 .union(
                   canManageUsers
                       ? {identityUsersManagePermission}
+                      : const <String>{},
+                )
+                .union(
+                  canManageDevices
+                      ? {manageHostDevicesPermission}
+                      : const <String>{},
+                )
+                .union(
+                  canManagePairings
+                      ? {manageHostPairingPermission}
                       : const <String>{},
                 )
                 .union(
@@ -1265,6 +1280,68 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Host overview'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Host device entry follows scoped user permissions, independent of device role',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const endpoint = 'https://host.example.test';
+      const profile = HostConnectionProfile(
+        endpoint: endpoint,
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+        deviceId: 'device-1',
+      );
+      await store.saveHostProfile(profile);
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(Uri.parse(endpoint), 'a' * 43);
+
+      Future<Widget> app({
+        required bool canManageDevices,
+        required bool canManagePairings,
+      }) async => MaterialApp(
+        home: ExtensionStudioPage(
+          key: ValueKey((canManageDevices, canManagePairings)),
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    canManageDevices: canManageDevices,
+                    canManagePairings: canManagePairings,
+                  ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        await app(canManageDevices: false, canManagePairings: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host devices & pairing'), findsNothing);
+
+      await tester.pumpWidget(
+        await app(canManageDevices: true, canManagePairings: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host devices & pairing'), findsOneWidget);
+
+      await tester.pumpWidget(
+        await app(canManageDevices: false, canManagePairings: true),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host devices & pairing'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

@@ -44,6 +44,7 @@ External TLS listeners are supported when explicitly configured, but a productio
   and its exact company/branch read grant on every request.
 - `POST /api/v1/identity/roles/*`: persistent-identity role administration when the restricted `VENTIO_HOST_IDENTITY_API_DATABASE_URL` is configured; every operation checks direct authority for the exact branch on Host.
 - `POST /api/v1/management/users/{list,audit,create,grant,revoke,disable}`: exact-scope user inventory, sanitized audit history, unprivileged user creation, direct permission changes, and guarded disablement. Every action requires a direct `identity.users.manage` grant and a matching credential ceiling.
+- `POST /api/v1/management/devices/list` and `/revoke`: exact-scope device and credential metadata plus Host-side device revocation. Both require a direct `identity.devices.manage` grant, matching credential ceiling and Recovery Authority admission; revocation is denied if an active credential scope extends outside the selected branch.
 - `GET /api/v1/session`: authenticated identity discovery for the current
   tenant, device and exact company/branch grants; it never returns credentials.
 - `GET /healthz`: unauthenticated process liveness only, not database readiness.

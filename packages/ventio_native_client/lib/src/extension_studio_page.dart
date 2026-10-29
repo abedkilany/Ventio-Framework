@@ -11,8 +11,10 @@ import 'app_localization.dart';
 import 'client_pairing_page.dart';
 import 'command_id.dart';
 import 'diagnostics_center_page.dart';
+import 'device_management_page.dart';
 import 'extension_store.dart';
 import 'host_credentials.dart';
+import 'host_device_management.dart';
 import 'host_extension_packages.dart';
 import 'host_overview_page.dart';
 import 'host_readiness.dart';
@@ -33,6 +35,7 @@ enum _StudioMenuAction {
   connect,
   sync,
   manageUsers,
+  manageDevices,
   hostOverview,
   pairClient,
   localDiagnostics,
@@ -267,6 +270,69 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           scope.branchId == profile.branchId &&
           scope.permissions.contains(identityUsersManagePermission),
     );
+  }
+
+  bool get _canManageDevices {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    if (profile == null || identity == null || !identity.persistent) {
+      return false;
+    }
+    return identity.scopes.any(
+      (scope) =>
+          scope.companyId == profile.companyId &&
+          scope.branchId == profile.branchId &&
+          scope.permissions.contains(manageHostDevicesPermission),
+    );
+  }
+
+  bool get _canManagePairings {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    if (profile == null || identity == null || !identity.persistent) {
+      return false;
+    }
+    return identity.scopes.any(
+      (scope) =>
+          scope.companyId == profile.companyId &&
+          scope.branchId == profile.branchId &&
+          scope.permissions.contains(manageHostPairingPermission),
+    );
+  }
+
+  Future<void> _openDeviceManagement() async {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    final vault = widget.credentialVault;
+    if ((!_canManageDevices && !_canManagePairings) ||
+        profile == null ||
+        identity == null ||
+        vault == null) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => DeviceManagementPage(
+          client: HostDeviceManagementClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+            verifiedIdentity: identity,
+            companyId: profile.companyId,
+            branchId: profile.branchId,
+          ),
+          userDirectory: _canManageUsers
+              ? HostUserManagementClient(
+                  endpoint: Uri.parse(profile.endpoint),
+                  credentials: vault,
+                  verifiedIdentity: identity,
+                  companyId: profile.companyId,
+                  branchId: profile.branchId,
+                )
+              : null,
+        ),
+      ),
+    );
+    await _refreshHostIdentity();
   }
 
   bool get _canReadHostStatus {
@@ -909,6 +975,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _syncHost();
                   case _StudioMenuAction.manageUsers:
                     _openUserManagement();
+                  case _StudioMenuAction.manageDevices:
+                    _openDeviceManagement();
                   case _StudioMenuAction.hostOverview:
                     _openHostOverview();
                   case _StudioMenuAction.pairClient:
@@ -949,6 +1017,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   const PopupMenuItem(
                     value: _StudioMenuAction.manageUsers,
                     child: VentioText('native.ui.users_permissions'),
+                  ),
+                if (_canManageDevices || _canManagePairings)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.manageDevices,
+                    child: VentioText('native.ui.host_devices'),
                   ),
                 if (_canReadHostStatus)
                   const PopupMenuItem(
@@ -1164,6 +1237,17 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                         label: const VentioText(
                           'native.ui.manage_roles_access',
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (_canManageDevices || _canManagePairings) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.tonalIcon(
+                        onPressed: _openDeviceManagement,
+                        icon: const Icon(Icons.devices_other_outlined),
+                        label: const VentioText('native.ui.host_devices'),
                       ),
                     ),
                     const SizedBox(height: 8),

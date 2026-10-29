@@ -55,9 +55,72 @@ const ventioNativeEnglishMessages = <String, String>{
       'Host version {version} · checked {timestamp}',
   'native.ui.host_readiness_reason_code': 'Safe reason code: {code}',
   'native.ui.device_inventory_unavailable':
-      'Device and pairing details are not available yet',
+      'Device inventory is not part of this readiness summary',
   'native.ui.device_inventory_unavailable_details':
-      'The Host has not exposed device inventory or pairing management APIs yet, so no registered or connected device counts can be shown.',
+      'Open Host devices & pairing to review registered devices when your signed-in identity has the required permission.',
+  'native.ui.host_devices': 'Host devices & pairing',
+  'native.ui.refresh_devices': 'Refresh devices',
+  'native.ui.device_scope_summary': 'Host device administration · exact scope',
+  'native.ui.device_access_required':
+      'Device administration permission required',
+  'native.ui.device_access_required_details':
+      'Ask the Host administrator to grant identity.devices.manage or identity.pairing.manage for this exact branch.',
+  'native.ui.registered_devices': 'Registered devices',
+  'native.ui.no_device_inventory': 'Device inventory has not loaded.',
+  'native.ui.no_registered_devices':
+      'No registered devices are visible in this branch.',
+  'native.ui.generate_pairing_code': 'Generate Client pairing code',
+  'native.ui.pairing_target_help':
+      'Enter the Host user ID that will use this Client. Pairing grants no additional permissions.',
+  'native.ui.pairing_select_active_user':
+      'Choose an active user in this exact Host branch. Pairing grants no additional permissions.',
+  'native.ui.pairing_users_unavailable':
+      'The scoped Host user list could not be loaded. Retry before creating a pairing code.',
+  'native.ui.pairing_no_active_users':
+      'There are no active Host users available in this branch.',
+  'native.ui.pairing_target_user_id': 'Host user ID',
+  'native.ui.pairing_code_once':
+      'Show this single-use code to the Client operator. It is visible only in this screen and expires soon.',
+  'native.ui.pairing_code_expires': 'Expires {timestamp}',
+  'native.ui.clear_code': 'Clear code',
+  'native.ui.revoke_device_title': 'Revoke this device?',
+  'native.ui.revoke_device_confirmation':
+      'Revoke device {deviceId}? Its active credentials will stop working immediately.',
+  'native.ui.revoke_device': 'Revoke device',
+  'native.ui.device_role_and_state': '{role} · {state}',
+  'native.ui.device_registered': 'Registered',
+  'native.ui.device_revoked': 'Revoked',
+  'native.ui.device_registered_at': 'Registered {timestamp}',
+  'native.ui.device_activity_unavailable':
+      'Recent authenticated activity is not available; connection state is unknown.',
+  'native.ui.device_last_authenticated': 'Last authenticated {timestamp}',
+  'native.ui.no_device_credentials':
+      'No credential records are visible in this scope.',
+  'native.ui.device_credential_state':
+      'Credential {id} · {state} · expires {expires}',
+  'native.ui.credential_active': 'Active',
+  'native.ui.credential_expired': 'Expired',
+  'native.ui.credential_revoked': 'Revoked',
+  'native.ui.credential_rotated': 'Rotated',
+  'native.ui.credential_unknown': 'Unknown',
+  'native.ui.device_action_failed': 'Host device operation failed',
+  'native.ui.device_error_permission':
+      'The Host denied this operation for the selected branch. Check the signed-in user permissions and scope.',
+  'native.ui.device_error_network':
+      'The Host could not be reached or did not respond in time. Check the network and Host service, then retry.',
+  'native.ui.device_error_tls':
+      'The Host TLS identity could not be verified. Check the address and trusted certificate; do not bypass validation.',
+  'native.ui.device_error_authentication':
+      'The saved Host credential is missing or no longer valid. Reconnect or ask an administrator to review device access.',
+  'native.ui.device_error_target':
+      'The selected Host user is unavailable in this scope. Check the user ID and branch access.',
+  'native.ui.device_error_rate_limit':
+      'The Host has temporarily limited pairing requests. Wait, then retry.',
+  'native.ui.device_error_not_found':
+      'The device is no longer available in this branch. Refresh the inventory.',
+  'native.ui.device_error_generic':
+      'The Host could not complete the operation. Retry and share the correlation reference with an administrator.',
+  'native.ui.safe_error_code': 'Error code: {code}',
   'native.ui.host_readiness_failed': 'Could not check Host readiness',
   'native.ui.host_status_denied':
       'The Host denied access to readiness for this scope.',

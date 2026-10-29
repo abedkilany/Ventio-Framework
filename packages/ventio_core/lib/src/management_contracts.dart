@@ -18,6 +18,8 @@ abstract final class HostManagementRoutes {
   static const String devices = '/api/v1/management/devices';
   static const String pairing = '/api/v1/management/pairing';
   static const String pairingCreate = '$pairing/create';
+  static const String devicesList = '$devices/list';
+  static const String devicesRevoke = '$devices/revoke';
   static const String pairingRedeem = '/api/v1/pairing/redeem';
   static const String synchronization = '/api/v1/management/synchronization';
 }
@@ -360,7 +362,8 @@ enum ManagementDiagnosticSeverity {
 
 enum HostDeviceRole {
   host('HOST'),
-  client('CLIENT');
+  client('CLIENT'),
+  unknown('UNKNOWN');
 
   const HostDeviceRole(this.wireValue);
 
