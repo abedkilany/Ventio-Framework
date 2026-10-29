@@ -92,6 +92,7 @@ Future<void> runLocalHost({
     PostgresIdentityRoleAdministrationGateway? roleAdministration;
     PostgresIdentityUserAdministrationGateway? userAdministration;
     PostgresIdentityPairingGateway? pairingAdministration;
+    PostgresIdentityDeviceAdministrationGateway? deviceAdministration;
     if (identityApiUrl != null && identityApiUrl.isNotEmpty) {
       final parsedApiUrl = Uri.parse(identityApiUrl);
       final boundedApiUrl = _poolUrl(parsedApiUrl, maxConnections: 4);
@@ -114,6 +115,11 @@ Future<void> runLocalHost({
         admission: admission,
       );
       pairingAdministration = PostgresIdentityPairingGateway(
+        administrationPool: administration,
+        admission: admission,
+      );
+      deviceAdministration = PostgresIdentityDeviceAdministrationGateway(
+        runtimePool: runtime,
         administrationPool: administration,
         admission: admission,
       );
@@ -163,6 +169,7 @@ Future<void> runLocalHost({
       identityRoleAdministration: roleAdministration,
       identityUserAdministration: userAdministration,
       identityPairing: pairingAdministration,
+      identityDeviceAdministration: deviceAdministration,
       readinessProvider: PostgresHostReadinessProvider(
         pool: runtime,
         recoveryAuthority: admission,

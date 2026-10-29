@@ -172,6 +172,24 @@ class FakeIdentityPairingGateway implements IdentityPairingGateway {
   }
 }
 
+class FakeIdentityDeviceAdministrationGateway
+    implements IdentityDeviceAdministrationGateway {
+  @override
+  Future<Map<String, dynamic>> list({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+  }) async => {};
+
+  @override
+  Future<void> revoke({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String deviceId,
+  }) async {}
+}
+
 class FakeReadinessProvider implements HostReadinessProvider {
   FakeReadinessProvider(this.snapshot);
 
@@ -313,6 +331,23 @@ Future<void> main() async {
   check(
     nonAuthoritativePairingRejected,
     'An external TLS listener rejects non-authoritative pairing gateways',
+  );
+
+  var nonAuthoritativeDeviceAdministrationRejected = false;
+  try {
+    await HostApi.bind(
+      listenAddress: InternetAddress.anyIPv4,
+      tlsContext: SecurityContext(withTrustedRoots: true),
+      authenticator: FakePersistentAuthenticator(),
+      executor: FakeAuthoritativeExecutor(),
+      identityDeviceAdministration: FakeIdentityDeviceAdministrationGateway(),
+    );
+  } on ArgumentError {
+    nonAuthoritativeDeviceAdministrationRejected = true;
+  }
+  check(
+    nonAuthoritativeDeviceAdministrationRejected,
+    'An external TLS listener rejects non-authoritative device gateways',
   );
 
   final executor = FakeExecutor();
