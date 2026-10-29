@@ -138,6 +138,19 @@ Future<void> main() async {
       ],
       directGrants: [(companyA, branchA, 'extension.example.item.read')],
     );
+    final statusReaderToken = await provision(
+      actorId: 'status-reader',
+      deviceId: 'status-reader-device',
+      credentialId: 'status-reader-credential',
+      scopes: [
+        {
+          'companyId': companyA,
+          'branchId': branchA,
+          'permissions': [hostStatusReadPermission],
+        },
+      ],
+      directGrants: [(companyA, branchA, hostStatusReadPermission)],
+    );
 
     Future<pg.Connection> connectRuntime() =>
         pg.Connection.openFromUrl(runtimeUrl);
@@ -165,6 +178,10 @@ Future<void> main() async {
         connectRuntime: connectRuntime,
         connectAdministration: connectAdministration,
         admission: authority,
+      ),
+      readinessProvider: PostgresHostReadinessProvider(
+        connect: connectRuntime,
+        recoveryAuthority: authority,
       ),
     );
 
@@ -206,6 +223,45 @@ Future<void> main() async {
       noAccess.status == 403 &&
           noAccess.body['error']['code'] == 'PERMISSION_DENIED',
       'A data reader without a direct management grant cannot list roles',
+    );
+    Future<Reply> readiness(
+      String token, {
+      String company = companyA,
+      String branch = branchA,
+    }) => send(
+      api!,
+      token: token,
+      path: HostManagementRoutes.readiness,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+      },
+    );
+    final deniedReadiness = await readiness(readerToken);
+    check(
+      deniedReadiness.status == 403 &&
+          deniedReadiness.body['error']['code'] == 'PERMISSION_DENIED',
+      'A general data reader cannot inspect Host readiness',
+    );
+    final crossBranchReadiness = await readiness(
+      statusReaderToken,
+      branch: branchB,
+    );
+    check(
+      crossBranchReadiness.status == 403,
+      'Readiness checks cannot cross the credential exact-scope boundary',
+    );
+    final ready = await readiness(statusReaderToken);
+    final readySnapshot = HostReadinessSnapshot.fromJson(
+      ready.body['readiness'],
+    );
+    check(
+      ready.status == 200 &&
+          readySnapshot.overallState == ManagementHealthState.ready &&
+          ready.body['correlationId'] ==
+              ready.headers.value('X-Correlation-ID'),
+      'Persistent scoped identity receives actual PostgreSQL and recovery readiness',
     );
     final crossBranch = await roles(
       directManagerToken,

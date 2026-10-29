@@ -141,6 +141,10 @@ Future<void> runLocalHost({
         admission: admission,
       ),
       identityRoleAdministration: roleAdministration,
+      readinessProvider: PostgresHostReadinessProvider(
+        pool: runtime,
+        recoveryAuthority: admission,
+      ),
       executor: PersistentCommandExecutor(
         pool: runtime,
         admission: admission,

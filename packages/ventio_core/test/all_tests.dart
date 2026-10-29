@@ -2655,6 +2655,140 @@ void main() {
             package.manifest.offlineCommands.isEmpty,
         'Official package must not ship executable handlers');
   });
+  test('Management readiness contract is versioned and self-consistent', () {
+    final checkedAtUtc = DateTime.utc(2026, 10, 29);
+    final ready = HostReadinessSnapshot(
+      checkedAtUtc: checkedAtUtc,
+      hostVersion: '0.1.0',
+      components: ManagementComponent.values
+          .map(
+            (component) => ManagementComponentHealth(
+              component: component,
+              state: ManagementHealthState.ready,
+              checkedAtUtc: checkedAtUtc,
+            ),
+          )
+          .toList(),
+    );
+    final roundTrip = HostReadinessSnapshot.fromJson(ready.toJson());
+    check(
+        roundTrip.overallState == ManagementHealthState.ready &&
+            roundTrip.components.length == ManagementComponent.values.length,
+        'Host readiness round-trip lost a component or status');
+    final inconsistent = changed(ready.toJson())
+      ..['overallState'] = ManagementHealthState.unavailable.wireValue;
+    checkThrows(() => HostReadinessSnapshot.fromJson(inconsistent),
+        'Readiness accepted a summary that disagrees with component details');
+    final unsupported = changed(ready.toJson())
+      ..['secret'] = 'must-not-be-forward-compatible';
+    checkThrows(() => HostReadinessSnapshot.fromJson(unsupported),
+        'Readiness accepted an unsupported field');
+  });
+  test(
+      'Management diagnostics serialize safe fields and reject secret material',
+      () {
+    final event = ManagementDiagnosticEvent(
+      code: 'HOST_UNAVAILABLE',
+      component: 'host_api',
+      category: ManagementDiagnosticCategory.apiExecution,
+      severity: ManagementDiagnosticSeverity.error,
+      occurredAtUtc: DateTime.utc(2026, 10, 29),
+      correlationId: 'cor_0123456789abcdef0123456789abcdef',
+      retryable: true,
+      messageKey: 'host_api.error.host_unavailable',
+      safeExplanation: 'The Host could not complete this request.',
+      recommendedAction: 'Retry safely and share the correlation ID.',
+    );
+    final encoded = jsonEncode(event.toJson());
+    check(
+        event.toJson()['managementApiVersion'] == managementApiVersion &&
+            event.correlationId.startsWith('cor_') &&
+            !encoded.contains('token') &&
+            !encoded.contains('technicalDetails'),
+        'Diagnostic event must serialize only versioned user-safe fields');
+    final apiError = ManagementApiError(
+      code: 'HOST_UNAVAILABLE',
+      messageKey: 'host_api.error.host_unavailable',
+      message: 'Outcome may be unknown. Retry the identical command.',
+      retryable: true,
+      correlationId: event.correlationId,
+    );
+    check(
+        ManagementApiError.fromJson(apiError.toJson()).correlationId ==
+                event.correlationId &&
+            ManagementApiError.fromJson(apiError.toJson()).retryable,
+        'Management error envelope round-trips its code and correlation ID');
+    final extra = changed(apiError.toJson())..['technicalDetails'] = 'private';
+    checkThrows(() => ManagementApiError.fromJson(extra),
+        'Management error contract exposed a technical detail field');
+    checkThrows(
+        () => ManagementDiagnosticEvent(
+              code: 'HOST_UNAVAILABLE',
+              component: 'host_api',
+              category: ManagementDiagnosticCategory.apiExecution,
+              severity: ManagementDiagnosticSeverity.error,
+              occurredAtUtc: DateTime.utc(2026, 10, 29),
+              correlationId: 'cor_0123456789abcdef0123456789abcdef',
+              retryable: true,
+              messageKey: 'host_api.error.host_unavailable',
+              safeExplanation: 'The Host could not complete this request.',
+              recommendedAction: 'Use token=abcdefghijklmnop1234 now.',
+            ),
+        'Diagnostic copy accepted a token-shaped secret');
+  });
+  test('Management inventory and synchronization contracts omit credentials',
+      () {
+    final device = ManagedDeviceSummary(
+      deviceId: 'device-001',
+      actorId: 'user-001',
+      role: HostDeviceRole.client,
+      registrationState: DeviceRegistrationState.registered,
+      registeredAtUtc: DateTime.utc(2026, 10, 29),
+    );
+    final credential = ManagedCredentialSummary(
+      credentialId: 'credential-001',
+      deviceId: 'device-001',
+      state: CredentialLifecycleState.active,
+      expiresAtUtc: DateTime.utc(2026, 11, 29),
+    );
+    final pairing = ManagedPairingSummary(
+      pairingId: 'pairing-001',
+      deviceRole: HostDeviceRole.client,
+      state: PairingLifecycleState.issued,
+      expiresAtUtc: DateTime.utc(2026, 10, 29, 0, 5),
+    );
+    final encoded = jsonEncode([
+      device.toJson(),
+      credential.toJson(),
+      pairing.toJson(),
+      HostSynchronizationSummary(
+        state: SynchronizationState.attentionRequired,
+        pending: 2,
+        accepted: 4,
+        rejected: 1,
+        conflicts: 1,
+        retryable: 1,
+        lastErrorCode: 'HOST_UNAVAILABLE',
+      ).toJson(),
+    ]);
+    check(
+        !encoded.contains('token') &&
+            !encoded.contains('digest') &&
+            !encoded.contains('pairingCode') &&
+            encoded.contains('CLIENT') &&
+            encoded.contains('host.status.read') == false,
+        'Inventory contracts must not carry secrets or derive permissions from device role');
+    checkThrows(
+        () => HostSynchronizationSummary(
+              state: SynchronizationState.idle,
+              pending: -1,
+              accepted: 0,
+              rejected: 0,
+              conflicts: 0,
+              retryable: 0,
+            ),
+        'Synchronization summary accepted a negative count');
+  });
   print('RESULT: $passed passed, $failed failed');
   if (failed > 0) throw StateError('$failed tests failed');
 }

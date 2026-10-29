@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:ventio_core/ventio_core.dart';
@@ -8,6 +9,7 @@ import 'package:ventio_core/ventio_core.dart';
 import 'authentication.dart';
 import 'extension_packages.dart';
 import 'extension_records.dart';
+import 'management.dart';
 import 'role_administration.dart';
 
 abstract interface class CommandExecutor {
@@ -32,6 +34,8 @@ class HostApi {
   final ExtensionRecordQueryGateway? _extensionRecordQueries;
   final ExtensionReportQueryGateway? _extensionReportQueries;
   final IdentityRoleAdministrationGateway? _identityRoleAdministration;
+  final HostReadinessProvider? _readinessProvider;
+  final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
   final Duration bodyTimeout;
@@ -47,6 +51,8 @@ class HostApi {
     this._extensionRecordQueries,
     this._extensionReportQueries,
     this._identityRoleAdministration,
+    this._readinessProvider,
+    this._diagnostics,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
     this.bodyTimeout,
@@ -70,6 +76,8 @@ class HostApi {
     ExtensionRecordQueryGateway? extensionRecordQueries,
     ExtensionReportQueryGateway? extensionReportQueries,
     IdentityRoleAdministrationGateway? identityRoleAdministration,
+    HostReadinessProvider? readinessProvider,
+    ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
     int port = 0,
@@ -97,7 +105,9 @@ class HostApi {
                     is! AuthoritativeExtensionReportQueryGateway) ||
             (identityRoleAdministration != null &&
                 identityRoleAdministration
-                    is! AuthoritativeIdentityRoleAdministrationGateway))) {
+                    is! AuthoritativeIdentityRoleAdministrationGateway) ||
+            (readinessProvider != null &&
+                readinessProvider is! AuthoritativeHostReadinessProvider))) {
       throw ArgumentError(
         'External Host listeners require TLS and authoritative Host services.',
       );
@@ -113,6 +123,8 @@ class HostApi {
       extensionRecordQueries,
       extensionReportQueries,
       identityRoleAdministration,
+      readinessProvider,
+      diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
       maxConcurrentRequests,
       bodyTimeout,
@@ -135,6 +147,8 @@ class HostApi {
   }
 
   Future<void> _handleSafely(HttpRequest request) async {
+    final correlationId = _newCorrelationId();
+    request.response.headers.set('X-Correlation-ID', correlationId);
     // Subscribe immediately so dart:io does not implicitly drain an unbounded
     // unauthenticated body before sending an early error response.
     final iterator = StreamIterator<List<int>>(request);
@@ -142,26 +156,54 @@ class HostApi {
     // Early rejection may never await the first chunk; consume its error too.
     unawaited(firstChunk.then<void>((_) {}, onError: (Object _) {}));
     try {
-      await _handle(request, iterator, firstChunk);
+      await _handle(request, iterator, firstChunk, correlationId);
     } on _ApiError catch (error) {
       await _error(
         request,
         error.status,
         error.code,
+        correlationId: correlationId,
         retryable: error.retryable,
       );
     } on HttpException {
-      await _error(request, 400, 'INVALID_REQUEST');
+      await _error(
+        request,
+        400,
+        'INVALID_REQUEST',
+        correlationId: correlationId,
+      );
     } on FormatException {
-      await _error(request, 400, 'INVALID_REQUEST');
+      await _error(
+        request,
+        400,
+        'INVALID_REQUEST',
+        correlationId: correlationId,
+      );
     } on ContractError {
-      await _error(request, 400, 'INVALID_COMMAND');
+      await _error(
+        request,
+        400,
+        'INVALID_COMMAND',
+        correlationId: correlationId,
+      );
     } on IdentityRoleAdministrationException catch (error) {
-      await _error(request, error.statusCode, error.code);
+      await _error(
+        request,
+        error.statusCode,
+        error.code,
+        correlationId: correlationId,
+      );
     } catch (_) {
       // Never return exception text, database details, tokens, or request bodies.
       // Any execution exception may have an ambiguous commit outcome.
-      await _error(request, 503, 'HOST_UNAVAILABLE', retryable: true);
+      await _recordInternalFailure(correlationId);
+      await _error(
+        request,
+        503,
+        'HOST_UNAVAILABLE',
+        correlationId: correlationId,
+        retryable: true,
+      );
     } finally {
       try {
         await request.response.close();
@@ -178,6 +220,7 @@ class HostApi {
     HttpRequest request,
     StreamIterator<List<int>> iterator,
     Future<bool> firstChunk,
+    String correlationId,
   ) async {
     request.response.headers
       ..set(HttpHeaders.cacheControlHeader, 'no-store')
@@ -208,12 +251,14 @@ class HostApi {
         request.uri.path == '/api/v1/extensions/reports/query';
     final identityRoleRoute = _identityRoleAction(request.uri.path);
     final sessionRoute = request.uri.path == '/api/v1/session';
+    final readinessRoute = request.uri.path == HostManagementRoutes.readiness;
     if (request.uri.path != '/api/v1/commands' &&
         packageRoute == null &&
         !recordQueryRoute &&
         !reportQueryRoute &&
         identityRoleRoute == null &&
-        !sessionRoute) {
+        !sessionRoute &&
+        !readinessRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     final requiredMethod = sessionRoute ? 'GET' : 'POST';
@@ -281,12 +326,16 @@ class HostApi {
     }
     if ((packageRoute != null ||
             recordQueryRoute ||
-            identityRoleRoute != null) &&
+            identityRoleRoute != null ||
+            readinessRoute) &&
         session.credentialDigest == null) {
       throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
     }
     if (identityRoleRoute != null && _identityRoleAdministration == null) {
       throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if (readinessRoute && _readinessProvider == null) {
+      throw const _ApiError(503, 'HOST_STATUS_UNAVAILABLE', retryable: true);
     }
     final contentType = request.headers.contentType;
     if (contentType?.mimeType.toLowerCase() != 'application/json' ||
@@ -323,6 +372,10 @@ class HostApi {
     final text = utf8.decode(bytes.takeBytes());
     _validateNesting(text);
     final json = requireMap(jsonDecode(text), 'command');
+    if (readinessRoute) {
+      await _handleReadiness(request, json, session, correlationId);
+      return;
+    }
     if (identityRoleRoute != null) {
       await _handleIdentityRoleAdministration(
         request,
@@ -571,6 +624,106 @@ class HostApi {
     });
   }
 
+  Future<void> _handleReadiness(
+    HttpRequest request,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+    String correlationId,
+  ) async {
+    const expectedKeys = {'managementApiVersion', 'companyId', 'branchId'};
+    if (json.keys.toSet().length != expectedKeys.length ||
+        !json.keys.toSet().containsAll(expectedKeys) ||
+        json['managementApiVersion'] != managementApiVersion) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    if (!session.principal.withinScope(
+      tenantId: session.principal.tenantId,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: session.principal.actorId,
+      deviceId: session.principal.deviceId,
+    )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    if (!session.principal.allowsInScope(
+      hostStatusReadPermission,
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+    final snapshot = await _readinessProvider!.checkReadiness();
+    if (snapshot.overallState != ManagementHealthState.ready) {
+      await _recordReadinessIssue(snapshot, correlationId);
+    }
+    _json(request, 200, {
+      'apiVersion': 1,
+      'managementApiVersion': managementApiVersion,
+      'correlationId': correlationId,
+      'readiness': snapshot.toJson(),
+    });
+  }
+
+  Future<void> _recordReadinessIssue(
+    HostReadinessSnapshot snapshot,
+    String correlationId,
+  ) async {
+    final firstIssue = snapshot.components.firstWhere(
+      (component) => component.state != ManagementHealthState.ready,
+    );
+    await _recordDiagnostic(
+      ManagementDiagnosticEvent(
+        code: firstIssue.reasonCode ?? 'HOST_NOT_READY',
+        component: firstIssue.component.wireValue,
+        category: switch (firstIssue.component) {
+          ManagementComponent.database => ManagementDiagnosticCategory.database,
+          ManagementComponent.schema => ManagementDiagnosticCategory.schema,
+          ManagementComponent.recoveryAuthority =>
+            ManagementDiagnosticCategory.recovery,
+          ManagementComponent.api => ManagementDiagnosticCategory.hostLifecycle,
+        },
+        severity: firstIssue.state == ManagementHealthState.blocked
+            ? ManagementDiagnosticSeverity.critical
+            : ManagementDiagnosticSeverity.error,
+        occurredAtUtc: DateTime.now().toUtc(),
+        correlationId: correlationId,
+        retryable: false,
+        messageKey: 'host_management.readiness.not_ready',
+        safeExplanation: 'One or more Host services are not ready.',
+        recommendedAction:
+            'Review the readiness summary and contact a Host administrator.',
+      ),
+    );
+  }
+
+  Future<void> _recordInternalFailure(
+    String correlationId,
+  ) => _recordDiagnostic(
+    ManagementDiagnosticEvent(
+      code: 'HOST_UNAVAILABLE',
+      component: 'host_api',
+      category: ManagementDiagnosticCategory.apiExecution,
+      severity: ManagementDiagnosticSeverity.error,
+      occurredAtUtc: DateTime.now().toUtc(),
+      correlationId: correlationId,
+      retryable: true,
+      messageKey: 'host_api.error.host_unavailable',
+      safeExplanation: 'The Host could not complete this request.',
+      recommendedAction:
+          'Retry safely. For command submissions, reuse the same command ID. Share the correlation ID with a Host administrator if the problem continues.',
+    ),
+  );
+
+  Future<void> _recordDiagnostic(ManagementDiagnosticEvent event) async {
+    try {
+      await _diagnostics.record(event);
+    } catch (_) {
+      // Diagnostic collection must never change the request outcome.
+    }
+  }
+
   String? _identityRoleAction(String path) => switch (path) {
     '/api/v1/identity/roles/list' => 'list',
     '/api/v1/identity/roles/create' => 'create',
@@ -761,6 +914,7 @@ class HostApi {
     HttpRequest request,
     int status,
     String code, {
+    required String correlationId,
     bool retryable = false,
   }) async {
     try {
@@ -773,6 +927,7 @@ class HostApi {
         request.response.headers.set(HttpHeaders.retryAfterHeader, '1');
       _json(request, status, {
         'apiVersion': 1,
+        'correlationId': correlationId,
         'error': {
           'code': code,
           'messageKey': 'host_api.error.${code.toLowerCase()}',
@@ -977,4 +1132,13 @@ class _ApiError implements Exception {
   final String code;
   final bool retryable;
   const _ApiError(this.status, this.code, {this.retryable = false});
+}
+
+String _newCorrelationId() {
+  final random = math.Random.secure();
+  final hex = List<int>.generate(
+    16,
+    (_) => random.nextInt(256),
+  ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  return 'cor_$hex';
 }

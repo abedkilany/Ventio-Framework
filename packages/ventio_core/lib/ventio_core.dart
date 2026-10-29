@@ -17,3 +17,4 @@ export 'src/localization.dart';
 export 'src/host.dart';
 export 'src/bootstrap.dart';
 export 'src/installation.dart';
+export 'src/management_contracts.dart';

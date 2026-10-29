@@ -41,6 +41,57 @@ class FakePersistentAuthenticator implements PersistentHostAuthenticator {
   Future<AuthenticatedSession?> authenticate(String token) async => null;
 }
 
+class FailingSessionAuthenticator implements PersistentHostAuthenticator {
+  @override
+  Future<AuthenticatedSession?> authenticate(String token) async {
+    throw StateError('DATABASE_URL=synthetic-secret');
+  }
+}
+
+class FakeAuthoritativeExecutor implements AuthoritativeCommandExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    CommandEnvelope command,
+    AuthenticatedSession session,
+  ) async =>
+      CommandReceipt(commandId: command.commandId, status: 'ACCEPTED').toJson();
+}
+
+class FakeManagementAuthenticator implements PersistentHostAuthenticator {
+  @override
+  Future<AuthenticatedSession?> authenticate(String token) async {
+    if (token != validToken && token != deniedToken) return null;
+    final allowed = token == validToken;
+    final scoped = PrincipalScope(
+      companyId: 'company-001',
+      branchId: 'branch-001',
+      permissions: allowed ? {hostStatusReadPermission} : const {},
+    );
+    final principal = Principal(
+      actorId: 'operator-001',
+      deviceId: 'client-001',
+      tenantId: 'management-test',
+      companyIds: {'company-001'},
+      branchIds: {'branch-001'},
+      permissions: allowed ? {hostStatusReadPermission} : const {},
+      scopeGrants: [scoped],
+    );
+    return AuthenticatedSession.persistent(
+      principal,
+      OpaqueToken.digest(token),
+    );
+  }
+}
+
+class FakeReadinessProvider implements HostReadinessProvider {
+  FakeReadinessProvider(this.snapshot);
+
+  HostReadinessSnapshot snapshot;
+
+  @override
+  Future<HostReadinessSnapshot> checkReadiness() async => snapshot;
+}
+
 class FakeExtensionPackageGateway implements ExtensionPackageGateway {
   int calls = 0;
 
@@ -129,12 +180,43 @@ Future<void> main() async {
     'An external TLS listener rejects non-authoritative executors',
   );
 
+  var nonAuthoritativeReadinessRejected = false;
+  try {
+    await HostApi.bind(
+      listenAddress: InternetAddress.anyIPv4,
+      tlsContext: SecurityContext(withTrustedRoots: true),
+      authenticator: FakePersistentAuthenticator(),
+      executor: FakeAuthoritativeExecutor(),
+      readinessProvider: FakeReadinessProvider(
+        HostReadinessSnapshot(
+          checkedAtUtc: DateTime.now().toUtc(),
+          hostVersion: '0.1.0',
+          components: [
+            ManagementComponentHealth(
+              component: ManagementComponent.api,
+              state: ManagementHealthState.ready,
+              checkedAtUtc: DateTime.now().toUtc(),
+            ),
+          ],
+        ),
+      ),
+    );
+  } on ArgumentError {
+    nonAuthoritativeReadinessRejected = true;
+  }
+  check(
+    nonAuthoritativeReadinessRejected,
+    'An external TLS listener rejects non-authoritative readiness providers',
+  );
+
   final executor = FakeExecutor();
   final fakePackages = FakeExtensionPackageGateway();
+  final diagnostics = ManagementDiagnosticBuffer();
   final api = await HostApi.bind(
     authenticator: authenticator('api-test'),
     executor: executor,
     extensionPackages: fakePackages,
+    diagnostics: diagnostics,
     maxBodyBytes: 4096,
     bodyTimeout: const Duration(milliseconds: 200),
   );
@@ -142,9 +224,13 @@ Future<void> main() async {
   Future<Reply> submit({String? token, Object? json}) =>
       send(api, token: token ?? validToken, body: json ?? body);
   try {
+    final liveness = await send(api, path: '/healthz', method: 'GET');
     check(
-      (await send(api, path: '/healthz', method: 'GET')).status == 200,
-      'Liveness is available without credentials',
+      liveness.status == 200 &&
+          RegExp(
+            r'^cor_[a-f0-9]{32}$',
+          ).hasMatch(liveness.headers.value('X-Correlation-ID') ?? ''),
+      'Liveness is available without credentials and has a correlation header',
     );
     final sessionReply = await send(
       api,
@@ -164,9 +250,16 @@ Future<void> main() async {
               .contains('maintenance.create'),
       'Authenticated session discovery returns only the caller exact-scope grants',
     );
+    final unauthenticatedSession = await send(
+      api,
+      path: '/api/v1/session',
+      method: 'GET',
+    );
     check(
-      (await send(api, path: '/api/v1/session', method: 'GET')).status == 401,
-      'Session discovery requires authentication',
+      unauthenticatedSession.status == 401 &&
+          unauthenticatedSession.body['correlationId'] ==
+              unauthenticatedSession.headers.value('X-Correlation-ID'),
+      'Session discovery requires authentication and returns a matching correlation ID',
     );
     check(
       (await send(
@@ -392,8 +485,19 @@ Future<void> main() async {
     check(
       failed.status == 503 &&
           failed.body['error']['retryable'] == true &&
+          failed.body['correlationId'] ==
+              failed.headers.value('X-Correlation-ID') &&
           !jsonEncode(failed.body).contains('sensitive'),
-      'Execution exception produces no success or diagnostic leak',
+      'Execution exception produces a correlation ID and no diagnostic leak',
+    );
+    check(
+      diagnostics.recent().single.code == 'HOST_UNAVAILABLE' &&
+          diagnostics.recent().single.correlationId ==
+              failed.body['correlationId'] &&
+          !jsonEncode(
+            diagnostics.recent().single.toJson(),
+          ).contains('sensitive'),
+      'Unexpected Host failures are recorded as structured safe diagnostics',
     );
   } finally {
     await api.close();
@@ -425,6 +529,168 @@ Future<void> main() async {
   await closing;
   await bounded.close();
   check(closed, 'Shutdown completes and is idempotent');
+
+  final checkedAtUtc = DateTime.now().toUtc();
+  final readinessProvider = FakeReadinessProvider(
+    HostReadinessSnapshot(
+      checkedAtUtc: checkedAtUtc,
+      hostVersion: hostApiReleaseVersion,
+      components: ManagementComponent.values
+          .map(
+            (component) => ManagementComponentHealth(
+              component: component,
+              state: ManagementHealthState.ready,
+              checkedAtUtc: checkedAtUtc,
+            ),
+          )
+          .toList(),
+    ),
+  );
+  final managementDiagnostics = ManagementDiagnosticBuffer();
+  final managementApi = await HostApi.bind(
+    authenticator: FakeManagementAuthenticator(),
+    executor: FakeExecutor(),
+    readinessProvider: readinessProvider,
+    diagnostics: managementDiagnostics,
+  );
+  try {
+    final unauthorized = await send(
+      managementApi,
+      path: HostManagementRoutes.readiness,
+      token: deniedToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+      },
+    );
+    check(
+      unauthorized.status == 403 &&
+          unauthorized.body['error']['code'] == 'PERMISSION_DENIED',
+      'Readiness requires its dedicated exact-scope permission',
+    );
+
+    final readiness = await send(
+      managementApi,
+      path: HostManagementRoutes.readiness,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+      },
+    );
+    final snapshot = HostReadinessSnapshot.fromJson(
+      readiness.body['readiness'],
+    );
+    check(
+      readiness.status == 200 &&
+          snapshot.overallState == ManagementHealthState.ready &&
+          readiness.body['correlationId'] ==
+              readiness.headers.value('X-Correlation-ID'),
+      'Versioned readiness returns component status and a correlation ID',
+    );
+    final outOfScope = await send(
+      managementApi,
+      path: HostManagementRoutes.readiness,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'another-branch',
+      },
+    );
+    check(
+      outOfScope.status == 403 &&
+          outOfScope.body['error']['code'] == 'SCOPE_DENIED',
+      'A status grant cannot be used outside its exact company/branch pair',
+    );
+
+    readinessProvider.snapshot = HostReadinessSnapshot(
+      checkedAtUtc: checkedAtUtc,
+      hostVersion: hostApiReleaseVersion,
+      components: ManagementComponent.values.map((component) {
+        final blocked = component == ManagementComponent.recoveryAuthority;
+        return ManagementComponentHealth(
+          component: component,
+          state: blocked
+              ? ManagementHealthState.blocked
+              : ManagementHealthState.ready,
+          checkedAtUtc: checkedAtUtc,
+          reasonCode: blocked ? 'RECOVERY_ADMISSION_BLOCKED' : null,
+        );
+      }).toList(),
+    );
+    final notReady = await send(
+      managementApi,
+      path: HostManagementRoutes.readiness,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+      },
+    );
+    check(
+      HostReadinessSnapshot.fromJson(notReady.body['readiness']).overallState ==
+              ManagementHealthState.unavailable &&
+          managementDiagnostics.recent().single.code ==
+              'RECOVERY_ADMISSION_BLOCKED' &&
+          managementDiagnostics.recent().single.correlationId ==
+              notReady.body['correlationId'],
+      'A recovery readiness failure returns safe status and a structured correlated event',
+    );
+    final unsupportedVersion = await send(
+      managementApi,
+      path: HostManagementRoutes.readiness,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion + 1,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+      },
+    );
+    check(
+      unsupportedVersion.body['error']['code'] == 'INVALID_REQUEST' &&
+          unsupportedVersion.body.containsKey('correlationId'),
+      'Readiness rejects unsupported contract versions with correlation',
+    );
+  } finally {
+    await managementApi.close();
+  }
+
+  final sessionFailureDiagnostics = ManagementDiagnosticBuffer();
+  final sessionFailureApi = await HostApi.bind(
+    authenticator: FailingSessionAuthenticator(),
+    executor: FakeExecutor(),
+    diagnostics: sessionFailureDiagnostics,
+  );
+  try {
+    final failedSession = await send(
+      sessionFailureApi,
+      path: '/api/v1/session',
+      method: 'GET',
+      token: validToken,
+    );
+    check(
+      failedSession.status == 503 &&
+          failedSession.body['error']['code'] == 'HOST_UNAVAILABLE' &&
+          failedSession.body['correlationId'] ==
+              failedSession.headers.value('X-Correlation-ID') &&
+          !jsonEncode(failedSession.body).contains('synthetic-secret'),
+      'Authenticated-session HTTP 503 is correlated and hides private failure details',
+    );
+    check(
+      sessionFailureDiagnostics.recent().single.correlationId ==
+              failedSession.body['correlationId'] &&
+          !jsonEncode(
+            sessionFailureDiagnostics.recent().single.toJson(),
+          ).contains('synthetic-secret'),
+      'Session 503 diagnostics retain only a safe code and correlation ID',
+    );
+  } finally {
+    await sessionFailureApi.close();
+  }
 
   final result = await Process.run(
     Platform.resolvedExecutable,
