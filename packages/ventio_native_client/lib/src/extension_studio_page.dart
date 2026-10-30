@@ -997,7 +997,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 PopupMenuItem(
                   value: _StudioMenuAction.connect,
                   child: Text(
-                    _hostProfile == null ? 'Connect Host' : 'Host settings',
+                    _hostProfile == null ? 'Connect Host' : 'Host connection',
                   ),
                 ),
                 PopupMenuItem(
@@ -1084,7 +1084,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               icon: const Icon(Icons.cloud_download_outlined),
             ),
             IconButton(
-              tooltip: _hostProfile == null ? 'Connect Host' : 'Host settings',
+              tooltip: _hostProfile == null ? 'Connect Host' : 'Host connection',
               onPressed: _configureHost,
               icon: const Icon(Icons.cloud_outlined),
             ),
