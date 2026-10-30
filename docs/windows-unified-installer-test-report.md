@@ -21,6 +21,10 @@
 
 The validator runs both types in unique temporary per-user install directories. These tests do not register or start Windows services. They prove installer type selection and file inclusion only; they do not pass the operational Host installation gate.
 
+## Deployment path finding
+
+The Host component is installed below `{app}\host-payload`; `{app}` defaults to `%LOCALAPPDATA%\Programs\Ventio` and the installer uses `PrivilegesRequired=lowest`. The production `provision-postgres-service.ps1 -Apply` path currently accepts the PostgreSQL payload only under `%ProgramFiles%\Ventio\...`. As a result, the current Host installer output cannot be passed directly to the production PostgreSQL provisioner. The test runs above did not detect this because they validate temporary file selection and separately test PostgreSQL process/database behavior. A fixed elevated staging bridge or a revised installer path/elevation design and an end-to-end path-contract test are required before Host provisioning can be accepted.
+
 ## Remaining acceptance work
 
 Host first-run setup, elevation boundary, isolated PostgreSQL service installation, initial administrator bootstrap, Host service registration/start/reboot recovery, authenticated API readiness, Client pairing against the installed Host, upgrade with database backup, explicit service/data-retention uninstall choices and diagnostics export are not implemented or verified. The installer is unsigned. Stage 10 remains FAIL and contributes zero accepted weight.
