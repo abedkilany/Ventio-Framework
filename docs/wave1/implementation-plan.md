@@ -156,3 +156,11 @@ The Flutter local-diagnostics suite now also iterates every stable `ManagementDi
 ### 2026-10-30 update — Windows Host payload
 
 - Added `scripts/windows/build-host-payload.ps1` and `docs/windows-host-payload-build.md`. Windows Host Engine compilation and staging passed. Verified payload: 20,294 files / 981,086,313 bytes; 44 critical SHA-256 entries verified; PostgreSQL reports 16.15; credentials and data-directory flags are false. Running the packaged Host without opt-in exits 2 with a safe generic message. This does not install a Windows service or provision secrets/database and earns no Stage 10 weight; those installer gates remain open.
+
+### 2026-10-30 update — Windows service supervisor build
+
+- Added `installer/windows/host-service/`. `dotnet build` passed with 0 warnings/errors. Self-contained publish passed; the executable returned expected Win32 1063 / exit 2 when invoked outside SCM and emitted no secret-shaped output. Its source restricts the child executable, decrypts a fixed LocalMachine DPAPI config file, validates allowlisted settings and config ACL/reparse points, and discards child output. The full Host payload rebuilt to 20,295 files / 1,048,577,217 bytes; 45 critical hashes and inventory were verified. No Windows service was registered or started. A DPAPI config writer, PostgreSQL service/provisioning, diagnostics, recovery actions, lifecycle integration and real SCM tests remain open; Stage 10 remains at 0% accepted.
+
+### 2026-10-30 update — Windows SCM supervisor
+
+- Added `installer/windows/host-service/` to host a fixed `ventio_host.exe` child as the `VentioHost` SCM service. It consumes a fixed LocalMachine DPAPI config file, checks a strict environment allowlist and ACL/reparse state, avoids child output persistence, and clears parent config dictionaries after launch. .NET build passed with 0 warnings/errors; self-contained publish and expected outside-SCM rejection passed. Host payload rebuilt and verified: 20,295 files / 1,048,577,217 bytes; PostgreSQL 16.15; 45 critical hashes; credentials/database absent. The service has not been registered or lifecycle-tested. No DPAPI writer, PostgreSQL Windows service, setup UI, failure diagnostics, graceful stop verification, reboot, upgrade or uninstall evidence exists. Stage 10 remains 0% accepted.

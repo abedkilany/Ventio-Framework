@@ -39,7 +39,8 @@ if ($LASTEXITCODE -ne 0 -or $versionOutput -ne 'postgres (PostgreSQL) 16.15') {
 
 $migrationDirectory = Join-Path $repoRoot 'migrations\postgres'
 $securityDirectory = Join-Path $repoRoot 'security\postgres'
-foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'))) {
+ $serviceProject = Join-Path $repoRoot 'installer\windows\host-service\VentioHostService.csproj'
+foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $serviceProject)) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Required Host payload input is missing: $path" }
 }
 
@@ -54,6 +55,14 @@ try {
   }
   finally { Pop-Location }
 
+  $serviceOutput = Join-Path $tempDirectory '.service-publish'
+  & dotnet publish $serviceProject -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o $serviceOutput
+  if ($LASTEXITCODE -ne 0) { throw "Windows Host service compilation failed with exit code $LASTEXITCODE." }
+  $serviceExe = Join-Path $serviceOutput 'VentioHostService.exe'
+  if (-not (Test-Path -LiteralPath $serviceExe -PathType Leaf)) { throw 'Windows Host service executable was not published.' }
+  Copy-Item -LiteralPath $serviceExe -Destination (Join-Path $tempDirectory 'VentioHostService.exe')
+  Remove-Item -LiteralPath $serviceOutput -Recurse -Force
+
   Copy-Item -LiteralPath $postgresRoot -Destination (Join-Path $tempDirectory 'postgresql') -Recurse
   Copy-Item -LiteralPath $migrationDirectory -Destination (Join-Path $tempDirectory 'migrations') -Recurse
   Copy-Item -LiteralPath $securityDirectory -Destination (Join-Path $tempDirectory 'security') -Recurse
@@ -63,6 +72,7 @@ try {
   $securityRoot = Join-Path $tempDirectory 'security'
   $verifiedFiles = @(
     Get-Item -LiteralPath $hostExe
+    Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioHostService.exe')
     foreach ($name in $requiredPostgres) { Get-Item -LiteralPath (Join-Path $tempDirectory "postgresql\bin\$name") }
     $payloadFiles | Where-Object {
       $_.Extension -eq '.sql' -and
@@ -80,6 +90,7 @@ try {
   $manifest = [ordered]@{
     formatVersion = 1
     hostExecutable = 'ventio_host.exe'
+    serviceExecutable = 'VentioHostService.exe'
     postgresVersion = '16.15'
     postgresSourceArchiveSha256 = '43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281'
     postgresSourceArchiveLength = 373254386
