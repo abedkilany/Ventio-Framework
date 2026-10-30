@@ -631,13 +631,15 @@ Future<void> main() async {
           !jsonEncode(failed.body).contains('sensitive'),
       'Execution exception produces a correlation ID and no diagnostic leak',
     );
+    final internalFailure = diagnostics.recent().single;
     check(
-      diagnostics.recent().single.code == 'HOST_UNAVAILABLE' &&
-          diagnostics.recent().single.correlationId ==
-              failed.body['correlationId'] &&
-          !jsonEncode(
-            diagnostics.recent().single.toJson(),
-          ).contains('sensitive'),
+      internalFailure.code == 'HOST_UNAVAILABLE' &&
+          internalFailure.correlationId == failed.body['correlationId'] &&
+          internalFailure.protectedFailureType == 'StateError' &&
+          internalFailure.protectedFailureSource == 'FakeExecutor.execute' &&
+          !jsonEncode(internalFailure.toJson()).contains('sensitive') &&
+          !jsonEncode(internalFailure.toJson()).contains('StateError') &&
+          !jsonEncode(internalFailure.toJson()).contains('FakeExecutor'),
       'Unexpected Host failures are recorded as structured safe diagnostics',
     );
   } finally {

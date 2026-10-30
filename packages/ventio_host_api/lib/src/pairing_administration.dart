@@ -220,7 +220,12 @@ class PostgresIdentityPairingGateway
           'INVALID_REQUEST',
           statusCode: 400,
         ),
-        _ => throw error,
+        _ => IdentityPairingException(
+          'PAIRING_STORAGE_FAILURE',
+          statusCode: 503,
+          retryable: true,
+          protectedTechnicalCode: error.code,
+        ),
       };
 
   IdentityPairingException _mapRedeemError(pg.ServerException error) =>
@@ -237,7 +242,12 @@ class PostgresIdentityPairingGateway
           'INVALID_REQUEST',
           statusCode: 400,
         ),
-        _ => throw error,
+        _ => IdentityPairingException(
+          'PAIRING_STORAGE_FAILURE',
+          statusCode: 503,
+          retryable: true,
+          protectedTechnicalCode: error.code,
+        ),
       };
 }
 
@@ -247,12 +257,14 @@ class IdentityPairingException implements Exception {
     required this.statusCode,
     this.retryable = false,
     this.retryAfterSeconds,
+    this.protectedTechnicalCode,
   });
 
   final String code;
   final int statusCode;
   final bool retryable;
   final int? retryAfterSeconds;
+  final String? protectedTechnicalCode;
 }
 
 String _randomHex(int byteCount) {

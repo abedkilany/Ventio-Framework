@@ -782,4 +782,12 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.admit_recovery(text,text),
   ventio_security.recovery_snapshot()
   TO ventio_identity_api;
+-- pgcrypto functions are extension members and may remain owned by the cluster
+-- bootstrap login even though the extension is assigned to ventio_owner. Reset
+-- the temporary SET ROLE before hardening their ACLs. Only SECURITY DEFINER
+-- functions owned by ventio_owner need to call these crypto primitives.
+RESET ROLE;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_crypto
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_crypto TO ventio_owner;
 COMMIT;

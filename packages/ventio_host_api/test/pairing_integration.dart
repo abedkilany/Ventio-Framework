@@ -207,7 +207,7 @@ Future<void> main() async {
     check(
       created.status == 201 &&
           created.body['pairing']['deviceRole'] == 'CLIENT',
-      'Authorized exact-branch manager receives a short-lived CLIENT pairing code',
+      'Authorized exact-branch manager receives a short-lived CLIENT pairing code (HTTP ${created.status}, error ${created.body['error'] is Map ? created.body['error']['code'] : 'none'}, internal code ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedTechnicalCode ?? 'none'}, failure type ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedFailureType ?? 'none'}, source ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedFailureSource ?? 'none'})',
     );
     final privilegedTarget = await send(
       api,
@@ -272,7 +272,7 @@ Future<void> main() async {
       enrolled.status == 201 &&
           enrolled.body['enrollment']['deviceRole'] == 'CLIENT' &&
           enrolled.body['enrollment']['branchId'] == branch,
-      'Single-use redemption atomically registers a client credential and exact branch scope',
+      'Single-use redemption atomically registers a client credential and exact branch scope (HTTP ${enrolled.status}, error ${enrolled.body['error'] is Map ? enrolled.body['error']['code'] : 'none'}, internal code ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedTechnicalCode ?? 'none'}, failure type ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedFailureType ?? 'none'}, source ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedFailureSource ?? 'none'})',
     );
     final enrollment = enrolled.body['enrollment'] as Map<String, dynamic>;
     final rawCredential = enrollment['credential'] as String;
@@ -338,6 +338,10 @@ Future<void> main() async {
         'branchId': branch,
       },
     );
+    check(
+      devices.status == 200,
+      'Authorized device inventory request succeeds (HTTP ${devices.status}, error ${devices.body['error'] is Map ? devices.body['error']['code'] : 'none'}, internal code ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedTechnicalCode ?? 'none'}, failure type ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedFailureType ?? 'none'}, source ${diagnostics.recent().isEmpty ? 'none' : diagnostics.recent().first.protectedFailureSource ?? 'none'})',
+    );
     final deviceItems = (devices.body['devices']['items'] as List).cast<Map>();
     final enrolledDevice = deviceItems.singleWhere(
       (device) => device['deviceId'] == enrollment['deviceId'],
@@ -359,10 +363,70 @@ Future<void> main() async {
       'Authorized device inventory returns exact branch status without bearer secrets or digests',
     );
 
+    final rotatedCredentialId =
+        'pairing-rotated-${DateTime.now().toUtc().microsecondsSinceEpoch}';
+    final rotatedCredentialFile =
+        '${temporary.path}/pairing-rotated-credential.json';
+    await operator.rotateToFile(
+      actorId: enrollment['actorId'] as String,
+      deviceId: enrollment['deviceId'] as String,
+      previousCredentialId: enrollment['credentialId'] as String,
+      previousToken: rawCredential,
+      credentialId: rotatedCredentialId,
+      expiresAt: DateTime.now().toUtc().add(const Duration(days: 10)),
+      outputPath: rotatedCredentialFile,
+    );
+    final rotatedToken =
+        (jsonDecode(await PrivateFiles.read(rotatedCredentialFile))
+                as Map)['token']
+            as String;
+    final inventoryAfterRotation = await send(
+      api,
+      path: HostManagementRoutes.devicesList,
+      token: managerToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+      },
+    );
+    final rotatedDevice =
+        (inventoryAfterRotation.body['devices']['items'] as List)
+            .cast<Map>()
+            .singleWhere(
+              (device) => device['deviceId'] == enrollment['deviceId'],
+            );
+    final rotatedCredentials = (rotatedDevice['credentials'] as List)
+        .cast<Map>();
+    check(
+      inventoryAfterRotation.status == 200 &&
+          rotatedCredentials.singleWhere(
+                (credential) =>
+                    credential['credentialId'] == enrollment['credentialId'],
+              )['state'] ==
+              'ROTATED' &&
+          rotatedCredentials.singleWhere(
+                (credential) =>
+                    credential['credentialId'] == rotatedCredentialId,
+              )['state'] ==
+              'ACTIVE',
+      'Device inventory distinguishes a rotated credential from a revoked credential',
+    );
+    final rotatedAuthentication = await send(
+      api,
+      path: '/api/v1/session',
+      method: 'GET',
+      token: rotatedToken,
+    );
+    check(
+      rotatedAuthentication.status == 200,
+      'Rotated Client credential authenticates with its preserved scope',
+    );
+
     final ordinaryDeviceRead = await send(
       api,
       path: HostManagementRoutes.devicesList,
-      token: rawCredential,
+      token: rotatedToken,
       body: {
         'managementApiVersion': managementApiVersion,
         'companyId': company,
@@ -372,7 +436,7 @@ Future<void> main() async {
     check(
       ordinaryDeviceRead.status == 403 &&
           ordinaryDeviceRead.body['error']['code'] == 'PERMISSION_DENIED',
-      'Enrolling a CLIENT device does not grant device-administration permission',
+      'Enrolling a CLIENT device does not grant device-administration permission (HTTP ${ordinaryDeviceRead.status}, error ${ordinaryDeviceRead.body['error'] is Map ? ordinaryDeviceRead.body['error']['code'] : 'none'})',
     );
 
     final crossBranchDeviceRevoke = await send(
@@ -425,7 +489,7 @@ Future<void> main() async {
       parameters: {
         'tenant': tenant,
         'device': enrollment['deviceId'],
-        'credential': enrollment['credentialId'],
+        'credential': rotatedCredentialId,
       },
     );
     check(
@@ -436,7 +500,7 @@ Future<void> main() async {
       api,
       path: '/api/v1/session',
       method: 'GET',
-      token: rawCredential,
+      token: rotatedToken,
     );
     check(
       revokedAuthentication.status == 401,
@@ -471,7 +535,7 @@ Future<void> main() async {
     final expiringCode = expiringPairing.body['pairing']['code'] as String;
     final expiringPairingId =
         expiringPairing.body['pairing']['pairingId'] as String;
-    await authority.change(migration, (tx) async {
+    await authority.change(audit, (tx) async {
       await tx.execute('SET LOCAL ROLE ventio_owner');
       await tx.execute(
         pg.Sql.named('''

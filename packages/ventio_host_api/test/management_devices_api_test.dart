@@ -46,6 +46,7 @@ class _DeviceGateway
   int listCalls = 0;
   int revokeCalls = 0;
   bool unsafe = false;
+  String credentialId = 'cred_0123456789abcdef0123456789abcdef';
   String? revokedDeviceId;
 
   @override
@@ -69,7 +70,7 @@ class _DeviceGateway
           'lastAuthenticatedAtUtc': unsafe ? 'Bearer synthetic-secret' : null,
           'credentials': [
             {
-              'credentialId': 'cred_0123456789abcdef0123456789abcdef',
+              'credentialId': credentialId,
               'state': 'ACTIVE',
               'expiresAtUtc': '2026-11-29T00:00:00.000Z',
               'revokedAtUtc': null,
@@ -199,6 +200,21 @@ Future<void> main() async {
     check(
       malformed.status == 400 && gateway.revokeCalls == 1,
       'Malformed credential-shaped device IDs are rejected before the gateway',
+    );
+
+    gateway.credentialId = 'pairing-manager-credential';
+    final namedCredential = await send(
+      api,
+      path: HostManagementRoutes.devicesList,
+      token: validToken,
+      body: body(),
+    );
+    check(
+      namedCredential.status == 200 &&
+          namedCredential
+                  .body['devices']['items'][0]['credentials'][0]['credentialId'] ==
+              gateway.credentialId,
+      'A descriptive credential identifier is not mistaken for a bearer secret',
     );
 
     gateway.unsafe = true;

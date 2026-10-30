@@ -2698,13 +2698,22 @@ void main() {
       messageKey: 'host_api.error.host_unavailable',
       safeExplanation: 'The Host could not complete this request.',
       recommendedAction: 'Retry safely and share the correlation ID.',
+      protectedTechnicalCode: '42501',
+      protectedFailureType: 'StateError',
+      protectedFailureSource: 'RecoveryAuthority.change',
     );
     final encoded = jsonEncode(event.toJson());
     check(
         event.toJson()['managementApiVersion'] == managementApiVersion &&
             event.correlationId.startsWith('cor_') &&
+            event.protectedTechnicalCode == '42501' &&
+            event.protectedFailureType == 'StateError' &&
+            event.protectedFailureSource == 'RecoveryAuthority.change' &&
             !encoded.contains('token') &&
-            !encoded.contains('technicalDetails'),
+            !encoded.contains('technicalDetails') &&
+            !encoded.contains('42501') &&
+            !encoded.contains('StateError') &&
+            !encoded.contains('RecoveryAuthority.change'),
         'Diagnostic event must serialize only versioned user-safe fields');
     final apiError = ManagementApiError(
       code: 'HOST_UNAVAILABLE',

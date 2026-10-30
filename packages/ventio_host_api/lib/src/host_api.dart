@@ -242,6 +242,7 @@ class HostApi {
           safeExplanation: 'The device pairing request could not be completed.',
           recommendedAction:
               'Check the pairing state and request a new code if it expired.',
+          protectedTechnicalCode: error.protectedTechnicalCode,
         ),
       );
       await _error(
@@ -276,10 +277,14 @@ class HostApi {
         error.code,
         correlationId: correlationId,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
       // Never return exception text, database details, tokens, or request bodies.
       // Any execution exception may have an ambiguous commit outcome.
-      await _recordInternalFailure(correlationId);
+      await _recordInternalFailure(
+        correlationId,
+        protectedFailureType: error.runtimeType.toString(),
+        protectedFailureSource: _protectedFailureSource(stackTrace),
+      );
       await _error(
         request,
         503,
@@ -955,8 +960,10 @@ class HostApi {
   }
 
   Future<void> _recordInternalFailure(
-    String correlationId,
-  ) => _recordDiagnostic(
+    String correlationId, {
+    String? protectedFailureType,
+    String? protectedFailureSource,
+  }) => _recordDiagnostic(
     ManagementDiagnosticEvent(
       code: 'HOST_UNAVAILABLE',
       component: 'host_api',
@@ -969,8 +976,20 @@ class HostApi {
       safeExplanation: 'The Host could not complete this request.',
       recommendedAction:
           'Retry safely. For command submissions, reuse the same command ID. Share the correlation ID with a Host administrator if the problem continues.',
+      protectedFailureType: protectedFailureType,
+      protectedFailureSource: protectedFailureSource,
     ),
   );
+
+  String? _protectedFailureSource(StackTrace stackTrace) {
+    final frame = RegExp(
+      r'^#\d+\s+(.+?)\s+\(',
+    ).firstMatch(stackTrace.toString().split('\n').first);
+    final symbol = frame?.group(1);
+    if (symbol == null) return null;
+    final safe = symbol.replaceAll(RegExp(r'[^A-Za-z0-9_.$<>]'), '_');
+    return safe.length <= 120 ? safe : safe.substring(0, 120);
+  }
 
   Future<void> _recordDiagnostic(ManagementDiagnosticEvent event) async {
     try {
@@ -1649,6 +1668,12 @@ bool _isSafeDeviceProjection(
         r'(bearer|password|token|secret|postgres(?:ql)?|credential)',
         caseSensitive: false,
       ).hasMatch(value);
+  // Credential IDs are identifiers by contract and may legitimately contain
+  // the word "credential". Still reject values shaped like opaque tokens.
+  bool safeCredentialId(Object? value) =>
+      value is String &&
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
+      !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value);
   bool utc(Object? value, {bool nullable = false}) {
     if (value == null) return nullable;
     return value is String && _isUtcTimestamp(value);
@@ -1694,7 +1719,7 @@ bool _isSafeDeviceProjection(
       };
       if (credential.keys.toSet().length != credentialKeys.length ||
           !credential.keys.toSet().containsAll(credentialKeys) ||
-          !safeId(credential['credentialId']) ||
+          !safeCredentialId(credential['credentialId']) ||
           !const {
             'ACTIVE',
             'EXPIRED',

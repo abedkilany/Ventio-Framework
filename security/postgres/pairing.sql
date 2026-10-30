@@ -217,12 +217,14 @@ BEGIN
   scopes := jsonb_build_array(jsonb_build_object(
     'companyId',pairing_row.company_id,'branchId',pairing_row.branch_id,
     'permissions',to_jsonb(pairing_row.allowed_permissions)));
-  UPDATE public.ventio_identity_pairings
-    SET redeemed_at=now_value,redeemed_device_id=p_device_id
-    WHERE pairing_id=pairing_row.pairing_id;
   INSERT INTO public.ventio_identity_devices
     (tenant_id,actor_id,device_id,device_role)
     VALUES (pairing_row.tenant_id,pairing_row.actor_id,p_device_id,'CLIENT');
+  -- The pairing table references the enrolled device, so create the device
+  -- before recording the redemption. Both writes remain in this transaction.
+  UPDATE public.ventio_identity_pairings
+    SET redeemed_at=now_value,redeemed_device_id=p_device_id
+    WHERE pairing_id=pairing_row.pairing_id;
   INSERT INTO public.ventio_identity_credentials
     (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes)
     VALUES (pairing_row.tenant_id,pairing_row.actor_id,p_device_id,
@@ -325,7 +327,13 @@ BEGIN
         'credentials',coalesce((
           SELECT jsonb_agg(jsonb_build_object(
             'credentialId',c.credential_id,
-            'state',CASE WHEN c.revoked_at IS NOT NULL THEN 'REVOKED'
+            'state',CASE WHEN EXISTS (
+                SELECT FROM public.ventio_identity_audit rotated
+                WHERE rotated.tenant_id=c.tenant_id
+                  AND rotated.action='CREDENTIAL_ROTATED'
+                  AND rotated.details->>'previousCredentialId'=c.credential_id)
+              THEN 'ROTATED'
+              WHEN c.revoked_at IS NOT NULL THEN 'REVOKED'
               WHEN c.expires_at<=clock_timestamp() THEN 'EXPIRED'
               ELSE 'ACTIVE' END,
             'expiresAtUtc',to_char(c.expires_at AT TIME ZONE 'UTC',

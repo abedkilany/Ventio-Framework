@@ -280,8 +280,19 @@ class ManagementDiagnosticEvent {
     required this.messageKey,
     required this.safeExplanation,
     required this.recommendedAction,
+    this.protectedTechnicalCode,
+    this.protectedFailureType,
+    this.protectedFailureSource,
   }) : occurredAtUtc = occurredAtUtc.toUtc() {
     if (!RegExp(r'^[A-Z][A-Z0-9_]{0,79}$').hasMatch(code) ||
+        (protectedTechnicalCode != null &&
+            !RegExp(r'^[0-9A-Z]{5}$').hasMatch(protectedTechnicalCode!)) ||
+        (protectedFailureType != null &&
+            !RegExp(r'^[A-Za-z][A-Za-z0-9_.]{0,79}$')
+                .hasMatch(protectedFailureType!)) ||
+        (protectedFailureSource != null &&
+            !RegExp(r'^[A-Za-z0-9_.$<>]{1,120}$')
+                .hasMatch(protectedFailureSource!)) ||
         !RegExp(r'^[a-z][a-z0-9_.-]{0,79}$').hasMatch(component) ||
         !RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(correlationId) ||
         !RegExp(r'^[a-z][a-z0-9_.-]{0,159}$').hasMatch(messageKey) ||
@@ -308,6 +319,17 @@ class ManagementDiagnosticEvent {
   final String messageKey;
   final String safeExplanation;
   final String recommendedAction;
+
+  /// A bounded internal diagnostic code, such as a SQLSTATE. It is held only
+  /// by protected Host diagnostics and is deliberately omitted from [toJson].
+  final String? protectedTechnicalCode;
+
+  /// Exception class only; messages and values remain outside the user-facing
+  /// diagnostic contract.
+  final String? protectedFailureType;
+
+  /// Sanitized top stack frame symbol, without path, message or source line.
+  final String? protectedFailureSource;
 
   Map<String, Object?> toJson() => {
         'managementApiVersion': managementApiVersion,

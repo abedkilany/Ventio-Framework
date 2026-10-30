@@ -176,6 +176,41 @@ void main() {
       },
     );
 
+    test('preserves rotated credential state from Host inventory', () async {
+      final exchange = _Exchange()
+        ..respond = (request) => _success(
+          request,
+          fields: {
+            'devices': {
+              'tenantId': 'tenant-1',
+              'companyId': 'company-1',
+              'branchId': 'branch-1',
+              'items': [
+                {
+                  ..._device(),
+                  'credentials': [
+                    {
+                      'credentialId': 'cred_old',
+                      'state': 'ROTATED',
+                      'expiresAtUtc': '2026-11-29T12:30:00.000Z',
+                      'revokedAtUtc': null,
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        );
+      final client = await _client(exchange);
+
+      final snapshot = await client.listDevices();
+
+      expect(
+        snapshot.devices.single.credentials.single.state,
+        HostManagedCredentialState.rotated,
+      );
+    });
+
     test(
       'creates a one-time Client code and revokes through Host routes',
       () async {
