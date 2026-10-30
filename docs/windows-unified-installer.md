@@ -11,18 +11,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-window
 
 The installer build validates the Host payload manifest, payload file count and byte count, and each critical SHA-256 before invoking Inno Setup. The Host payload includes PostgreSQL 16.15 runtime `bin`, `lib`, `share` files and license texts. It intentionally excludes PostgreSQL documentation, development headers, pgAdmin 4 and StackBuilder. This reduced the tested Host payload from 1,056,324,801 bytes to 212,081,806 bytes. Database state and credentials are never in the payload.
 
-The resulting artifact is `dist/windows/Ventio-Setup-0.1.0.exe` for the current app version. `dist/windows/Ventio-Setup-SHA256SUMS.txt` contains its checksum. In the installer type page, **Client workstation** installs the shared Flutter application only; **Host server** installs the same app and adds the Host runtime payload. The installer uses a per-user destination and does not request elevation for either choice.
+The resulting artifact is `dist/windows/Ventio-Setup-0.1.0.exe` for the current app version. `dist/windows/Ventio-Setup-SHA256SUMS.txt` contains its checksum. In the installer type page, **Client workstation** installs the shared Flutter application only; **Host server** installs the same app and adds the Host runtime payload. The installer offers administrator/all-users mode and a per-user override. Client can be installed per-user without elevation. Host must be installed in administrator/all-users mode so `{autopf}` resolves to `%ProgramFiles%\Ventio`, the product-owned location required by the PostgreSQL service provisioner. Host selection is rejected in per-user mode. The Flutter app is launched as the original user, not elevated. Service provisioning and Windows service registration will also require administrator rights when the graphical setup flow is integrated.
 
 ## Current verification
 
-`scripts/windows/validate-unified-installer.ps1` installs each type into a unique temporary directory, verifies the selected file set, runs the uninstaller, and confirms an external retention marker survives:
+`scripts/windows/test-unified-installer-path-contract.ps1` checks that Host all-users paths satisfy the PostgreSQL Program Files boundary while Client per-user paths stay in LocalAppData. The current artifact compiled successfully and its Client install/uninstall validation passed. Host all-users install/uninstall validation requires an already elevated PowerShell session and remains unrun on this artifact. The validator's Host test uses a unique subdirectory under `%ProgramFiles%\Ventio`, checks its path before teardown, verifies the selected file set, and confirms an external retention marker survives:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/validate-unified-installer.ps1 -InstallerPath dist/windows/Ventio-Setup-0.1.0.exe -SetupType client
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/validate-unified-installer.ps1 -InstallerPath dist/windows/Ventio-Setup-0.1.0.exe -SetupType host
 ```
 
-Both per-user install/uninstall checks passed. The reduced PostgreSQL payload also passed isolated SCRAM initialization/readiness/authentication, migrations 001–029, security bootstrap, runtime and Identity API login checks, protected DPAPI configuration validation, and the no-mutation service plan check.
+The Client per-user install/uninstall passed on the current artifact. The earlier Host file-selection test used the previous per-user installer and does not validate the changed all-users path. The reduced PostgreSQL payload also passed isolated SCRAM initialization/readiness/authentication, migrations 001–029, security bootstrap, runtime and Identity API login checks, protected DPAPI configuration validation, and the no-mutation service plan check.
 
 ## Not yet provided by this artifact
 

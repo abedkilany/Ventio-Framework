@@ -13,7 +13,22 @@ if (-not $testRoot.StartsWith($tempRoot + '\', [StringComparison]::OrdinalIgnore
     (Split-Path -Leaf $testRoot) -ne $testName) {
   throw 'Unified installer fixture escaped the temporary directory.'
 }
-$installDir = Join-Path $testRoot 'app'
+$isHost = $SetupType -eq 'host'
+$hostValidationRoot = $null
+if ($isHost) {
+  $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+  if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'Host installer validation requires an already elevated PowerShell session; no elevation prompt was started.'
+  }
+  $hostValidationRoot = Join-Path (Join-Path $env:ProgramFiles 'Ventio') ('HostInstallerValidation-' + [guid]::NewGuid().ToString('N'))
+  $installDir = Join-Path $hostValidationRoot 'app'
+  if (-not $hostValidationRoot.StartsWith((Join-Path $env:ProgramFiles 'Ventio') + '\', [StringComparison]::OrdinalIgnoreCase) -or
+      (Test-Path -LiteralPath $hostValidationRoot)) {
+    throw 'Host validation target is unsafe or already exists.'
+  }
+} else {
+  $installDir = Join-Path $testRoot 'app'
+}
 $externalData = Join-Path $testRoot 'retained-data'
 $marker = Join-Path $externalData 'retention-marker.txt'
 $previousTemp = $env:TEMP
@@ -27,9 +42,13 @@ $env:TMP = $testRoot
 try {
   $process = Start-Process -FilePath $installer -ArgumentList @(
     '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-',
-    ("/TYPE=$SetupType"), ('/DIR="' + $installDir + '"'), '/NOICONS'
+    ("/TYPE=$SetupType"), ('/DIR="' + $installDir + '"'), '/NOICONS',
+    $(if ($isHost) { '/ALLUSERS' } else { '/CURRENTUSER' })
   ) -Wait -PassThru
   if ($process.ExitCode -ne 0) { throw "Selected $SetupType installation failed with exit code $($process.ExitCode)." }
+  if ($isHost -and -not $installDir.StartsWith((Join-Path $env:ProgramFiles 'Ventio') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Host installer validation did not install below the PostgreSQL provisioner product root.'
+  }
 
   foreach ($relative in @(
     'ventio_native_client.exe', 'flutter_windows.dll', 'sqlite3.dll',
@@ -89,5 +108,11 @@ finally {
   if ($resolved.StartsWith($tempRoot + '\', [StringComparison]::OrdinalIgnoreCase) -and
       (Split-Path -Leaf $resolved) -eq $testName -and (Test-Path -LiteralPath $resolved)) {
     Remove-Item -LiteralPath $resolved -Recurse -Force
+  }
+  if ($hostValidationRoot -and
+      $hostValidationRoot.StartsWith((Join-Path $env:ProgramFiles 'Ventio') + '\', [StringComparison]::OrdinalIgnoreCase) -and
+      (Split-Path -Leaf $hostValidationRoot) -match '^HostInstallerValidation-[0-9a-f]{32}$' -and
+      (Test-Path -LiteralPath $hostValidationRoot)) {
+    Remove-Item -LiteralPath $hostValidationRoot -Recurse -Force
   }
 }

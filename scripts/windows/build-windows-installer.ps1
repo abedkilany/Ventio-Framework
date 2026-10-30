@@ -15,6 +15,11 @@ $pubspec = Join-Path $clientRoot 'pubspec.yaml'
 
 if (-not (Test-Path -LiteralPath $iscc -PathType Leaf)) { throw 'Inno Setup 6 compiler is unavailable.' }
 if (-not (Test-Path -LiteralPath $installerSource -PathType Leaf)) { throw 'Unified installer source is missing.' }
+$pathContractTest = Join-Path $PSScriptRoot 'test-unified-installer-path-contract.ps1'
+$hostPrivilegeGuardTest = Join-Path $PSScriptRoot 'test-unified-installer-host-privilege-guard.ps1'
+if (-not (Test-Path -LiteralPath $pathContractTest -PathType Leaf)) { throw 'Unified installer path-contract test is missing.' }
+if (-not (Test-Path -LiteralPath $hostPrivilegeGuardTest -PathType Leaf)) { throw 'Unified installer Host privilege-guard test is missing.' }
+& $pathContractTest
 if (-not (Test-Path -LiteralPath (Join-Path $hostPayload 'payload-manifest.json') -PathType Leaf)) {
   throw 'Verified Host payload is missing; run build-host-payload.ps1 first.'
 }
@@ -74,6 +79,7 @@ if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { throw 'Unified ins
 $hash = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
 $manifestPath = Join-Path $installerOutput 'Ventio-Setup-SHA256SUMS.txt'
 Set-Content -LiteralPath $manifestPath -Encoding ascii -Value "$hash  $([IO.Path]::GetFileName($artifact))"
+& $hostPrivilegeGuardTest -InstallerPath $artifact
 Get-Item -LiteralPath $artifact | Select-Object FullName, Length
 Write-Output "SHA256 $hash"
 Write-Output "Embedded Host payload: $($manifest.payloadFileCount) files / $payloadBytes bytes; only installed when Host is selected."

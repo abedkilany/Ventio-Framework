@@ -20,10 +20,11 @@ AppId={{62C74F3A-5420-4E2F-91A3-9178C4E4D8A1}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={localappdata}\Programs\Ventio
+DefaultDirName={autopf}\Ventio
 DefaultGroupName=Ventio
 DisableProgramGroupPage=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#InstallerOutput}
@@ -61,9 +62,29 @@ Name: "{autoprograms}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{ap
 Name: "{autodesktop}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
-; The installer always installs the shared Flutter application. Choosing Host
-; adds only the verified Ventio payload; PostgreSQL data, service registration,
-; user data, SQLite files, credentials, backups and Host setup are managed by
-; the application/provisioning flow and are never silently removed here.
+[Code]
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  if (Lowercase(ExpandConstant('{param:TYPE|}')) = 'host') and
+     (not IsAdminInstallMode) then begin
+    if WizardSilent then
+      Log('HOST_INSTALL_REQUIRES_ADMIN_MODE')
+    else
+      MsgBox('Host installation needs administrator mode to place service files under Program Files. Restart Setup and choose the all-users installation mode.', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectComponents) and
+     (WizardSetupType(False) = 'host') and
+     (not IsAdminInstallMode) then begin
+    MsgBox('Host installation needs administrator mode to place service files under Program Files. Restart Setup and choose the all-users installation mode. Client installation can use per-user mode.', mbError, MB_OK);
+    Result := False;
+  end;
+end;\n
