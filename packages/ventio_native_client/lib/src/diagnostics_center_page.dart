@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+
 import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
@@ -98,7 +100,20 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      final json = await widget.store.exportJson();
+      final localEvents = await widget.store.recent();
+      final json = const JsonEncoder.withIndent('  ').convert({
+        'managementApiVersion': managementApiVersion,
+        'exportedAtUtc': DateTime.now().toUtc().toIso8601String(),
+        'hostDiagnosticsStatus': widget.hostClient == null
+            ? 'not_configured'
+            : _hostLoadError ?? (_hostLoading ? 'pending' : 'available'),
+        'events': [
+          for (final event in localEvents)
+            {'source': 'device', ...event.toJson()},
+          for (final event in _hostEvents)
+            {'source': 'host', ...event.toJson()},
+        ],
+      });
       final handler = widget.exportHandler;
       if (handler == null) {
         await Clipboard.setData(ClipboardData(text: json));
@@ -179,7 +194,9 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
                           ),
                         ),
                         OutlinedButton.icon(
-                          onPressed: _loading || _exporting ? null : _export,
+                          onPressed: _loading || _hostLoading || _exporting
+                              ? null
+                              : _export,
                           icon: _exporting
                               ? const SizedBox.square(
                                   dimension: 16,

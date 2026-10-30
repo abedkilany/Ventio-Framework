@@ -232,11 +232,13 @@ void main() {
         },
       ),
     );
+    String? exported;
     await tester.pumpWidget(
       MaterialApp(
         home: DiagnosticsCenterPage(
           store: _LocalEvents(event),
           hostClient: HostDiagnosticsClient(transport),
+          exportHandler: (json) async => exported = json,
         ),
       ),
     );
@@ -246,6 +248,16 @@ void main() {
     expect(find.text('Host diagnostics'), findsOneWidget);
     expect(find.text('DATABASE_UNAVAILABLE'), findsNWidgets(2));
     expect(find.text('The Host database is unavailable.'), findsNWidgets(2));
+    await tester.tap(find.text('Copy sanitized export'));
+    await tester.pumpAndSettle();
+    final decoded = jsonDecode(exported!) as Map<String, dynamic>;
+    final exportedEvents = decoded['events'] as List;
+    expect(exportedEvents, hasLength(2));
+    expect(exportedEvents[0]['source'], 'device');
+    expect(exportedEvents[1]['source'], 'host');
+    final encoded = jsonEncode(decoded);
+    expect(encoded, isNot(contains('protectedTechnicalCode')));
+    expect(encoded, isNot(contains('08006')));
   });
 }
 
