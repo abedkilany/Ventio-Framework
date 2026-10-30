@@ -11,6 +11,29 @@ String canonicalMigrationSql(String source) =>
 String migrationChecksum(String source) =>
     sha256.convert(utf8.encode(canonicalMigrationSql(source))).toString();
 
+const _legacyMigrationChecksums = <String, Set<String>>{
+  '026_identity_pairing.sql': {
+    'af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421',
+  },
+  '027_identity_pairings.sql': {
+    'a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6',
+  },
+  '028_identity_pairing_rate_index.sql': {
+    '6c975a92942a3e53abe50da9441f94b9fb7b68f2bda5932792c610814dcd6f68',
+  },
+};
+
+/// Recognize the published hashes of the original pairing migrations so hosts
+/// that applied those statements through an earlier deployment process can
+/// upgrade without rewriting their migration ledger.
+bool migrationChecksumIsAccepted({
+  required String filename,
+  required String appliedChecksum,
+  required String currentChecksum,
+}) =>
+    appliedChecksum == currentChecksum ||
+    (_legacyMigrationChecksums[filename]?.contains(appliedChecksum) ?? false);
+
 /// Only application-owned, vetted .sql files are accepted as migrations.
 /// Each file contains precisely ONE SQL statement; never user-provided SQL.
 class PostgresMigrationRunner {
@@ -65,7 +88,12 @@ class PostgresMigrationRunner {
       final known = <String>{};
       for (final row in ledger) {
         final name = row[0] as String;
-        if (!checksums.containsKey(name) || checksums[name] != row[1]) {
+        if (!checksums.containsKey(name) ||
+            !migrationChecksumIsAccepted(
+              filename: name,
+              appliedChecksum: row[1] as String,
+              currentChecksum: checksums[name]!,
+            )) {
           throw StateError(
             'Missing, unknown or modified applied migration: $name',
           );

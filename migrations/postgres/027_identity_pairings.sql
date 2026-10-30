@@ -27,4 +27,4 @@ CREATE TABLE ventio_identity_pairings (
   CHECK (length(trim(branch_id)) BETWEEN 1 AND 256),
   CHECK (expires_at > created_at AND expires_at <= created_at + interval '5 minutes'),
   CHECK ((redeemed_at IS NULL) = (redeemed_device_id IS NULL))
-)
+);

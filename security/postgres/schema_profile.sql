@@ -44,11 +44,16 @@ BEGIN
     ('023_governed_document_state.sql','8c130e7c9071f3a862be3331dad96a3823c3688164419bc9bd9502575ce60e89'),
     ('024_document_number_series.sql','3b07f8e0638e0148bf24500eb026a3ad10f80be0bd576217205a3a2fb965f26a'),
     ('025_identity_audit_scope_index.sql','6462163d7a01ee0abadb1ffad8ac340c468c6b91cc9a403044fe8dc715357bb5'),
-    ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
-    ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),
-    ('028_identity_pairing_rate_index.sql','6c975a92942a3e53abe50da9441f94b9fb7b68f2bda5932792c610814dcd6f68'))
+    ('026_identity_pairing.sql','2f2a71d5086622d4f7fad971e1f7c3404d05e8e5705cc48e418b6c3f34eaa7df'),
+    ('027_identity_pairings.sql','568eb70d6cb2e961da4d4e12e9e6b29764aebda5f1ac7e3acf574a79e677f046'),
+    ('028_identity_pairing_rate_index.sql','42b3a71d92420deb65be566c67d1b8d04d8ed47bfd55b20d0cb0928183eb7ace')),
+    legacy(name,sha256) AS (VALUES
+      ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
+      ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),
+      ('028_identity_pairing_rate_index.sql','6c975a92942a3e53abe50da9441f94b9fb7b68f2bda5932792c610814dcd6f68'))
     SELECT FROM expected e FULL JOIN public.ventio_schema_migrations m USING(name)
-    WHERE e.sha256 IS DISTINCT FROM m.sha256
+    WHERE e.sha256 IS DISTINCT FROM m.sha256 AND NOT EXISTS (
+      SELECT FROM legacy l WHERE l.name=m.name AND l.sha256=m.sha256)
   ) THEN
     RAISE EXCEPTION 'Unsupported Host schema manifest' USING ERRCODE='55000';
   END IF;
