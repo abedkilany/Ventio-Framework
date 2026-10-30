@@ -1,0 +1,134 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
+    [string] $PostgresBinDirectory,
+    [switch] $HostSecuritySuites,
+    [ValidateSet('database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')]
+    [string] $OnlyHostSuite
+)
+
+$ErrorActionPreference = 'Stop'
+if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+    throw 'This disposable PostgreSQL runner is for Windows.'
+}
+
+$workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+$binDirectory = [IO.Path]::GetFullPath($PostgresBinDirectory)
+$postgres = Join-Path $binDirectory 'postgres.exe'
+if (-not (Test-Path -LiteralPath $postgres -PathType Leaf)) {
+    throw 'The supplied PostgreSQL binary directory is incomplete.'
+}
+$version = (& $postgres --version 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') {
+    throw 'The disposable test runner requires verified PostgreSQL 16.15 binaries.'
+}
+
+$runId = ([DateTime]::UtcNow.ToString('yyyyMMddHHmmss') +
+    (Get-Random -Minimum 100 -Maximum 999))
+$attempt = '1'
+$runLabel = "$runId-$attempt"
+$runnerTemp = Join-Path $env:LOCALAPPDATA "VentioFramework\postgres-test-runs\$runLabel"
+if (Test-Path -LiteralPath $runnerTemp) {
+    throw 'The unique disposable test directory already exists.'
+}
+New-Item -ItemType Directory -Path $runnerTemp -Force | Out-Null
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$sid = $identity.User.Value
+$userRule = '*{0}:(OI)(CI)F' -f $sid
+& icacls.exe $runnerTemp /inheritance:r /grant:r $userRule '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not protect the disposable PostgreSQL test environment.'
+}
+
+$envFile = Join-Path $runnerTemp 'github-env.txt'
+New-Item -ItemType File -Path $envFile | Out-Null
+$fileUserRule = '*{0}:F' -f $sid
+& icacls.exe $envFile /inheritance:r /grant:r $fileUserRule '*S-1-5-18:F' '*S-1-5-32-544:F' | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not protect the disposable PostgreSQL test environment file.'
+}
+
+$env:GITHUB_RUN_ID = $runId
+$env:GITHUB_RUN_ATTEMPT = $attempt
+$env:GITHUB_ENV = $envFile
+$env:RUNNER_TEMP = $runnerTemp
+$env:VENTIO_TEST_POSTGRES_BIN_DIR = $binDirectory
+$testExitCode = 99
+$started = $false
+try {
+    & (Join-Path $PSScriptRoot 'start-postgres-test-instance.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The isolated PostgreSQL fixture did not start.'
+    }
+    $started = $true
+
+    foreach ($line in [IO.File]::ReadAllLines($envFile)) {
+        $separator = $line.IndexOf('=')
+        if ($separator -gt 0) {
+            [Environment]::SetEnvironmentVariable(
+                $line.Substring(0, $separator),
+                $line.Substring($separator + 1),
+                [EnvironmentVariableTarget]::Process
+            )
+        }
+    }
+
+    $hostApiDirectory = Join-Path $workspace 'packages\ventio_host_api'
+    if ($HostSecuritySuites) {
+        $env:VENTIO_MIGRATIONS_DIR = Join-Path $workspace 'migrations\postgres'
+        $env:PGPASSWORD = 'ventio_test_only'
+        Push-Location $hostApiDirectory
+        try {
+            & dart run ..\ventio_postgres\bin\migrate.dart
+            if ($LASTEXITCODE -ne 0) { throw 'Host database migrations failed.' }
+            $psql = Join-Path $binDirectory 'psql.exe'
+            & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f (Join-Path $workspace 'security\postgres\bootstrap.sql')
+            if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL least-privilege role bootstrap failed.' }
+            & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio -d ventio_host_test -f (Join-Path $workspace 'security\postgres\test_logins.sql')
+            if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL integration login setup failed.' }
+        }
+        finally {
+            Pop-Location
+            Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+        }
+    }
+
+    Push-Location $hostApiDirectory
+    try {
+        $suites = if ($HostSecuritySuites) {
+            @('database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')
+        } else {
+            @('..\..\packages\ventio_postgres\test\postgres_integration.dart')
+        }
+        if ($OnlyHostSuite) { $suites = @($OnlyHostSuite) }
+        foreach ($suite in $suites) {
+            if ($suite.StartsWith('..')) {
+                & dart run $suite
+            } else {
+                & dart run "test\$suite"
+            }
+            $testExitCode = $LASTEXITCODE
+            if ($testExitCode -ne 0) { break }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    if ($testExitCode -ne 0) {
+        throw "PostgreSQL persistence integration failed with exit code $testExitCode."
+    }
+}
+finally {
+    if ($started) {
+        $fixtureRoot = Join-Path $runnerTemp "ventio-pg-$runLabel"
+        & (Join-Path $PSScriptRoot 'stop-postgres-test-instance.ps1')
+        if (Test-Path -LiteralPath $fixtureRoot) {
+            throw 'The disposable PostgreSQL fixture did not clean up safely.'
+        }
+    }
+    Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
+}
+
+if ($testExitCode -ne 0) {
+    throw "PostgreSQL persistence integration did not pass ($testExitCode)."
+}

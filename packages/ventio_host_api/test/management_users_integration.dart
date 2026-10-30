@@ -589,49 +589,65 @@ Future<void> main() async {
       'User operations retain exact-scope audit details and database actor evidence',
     );
 
-    await auditConnection.execute(
-      pg.Sql.named('''
+    await authority.change(auditConnection, (tx) async {
+      await tx.execute(
+        pg.Sql.named('''
         INSERT INTO ventio_identity_audit
           (tenant_id,operator_label,action,subject_id,details)
         VALUES (@tenant,'Bearer fixture-secret','USER_CREATED',
           'Bearer subject-secret',CAST(@details AS jsonb))
       '''),
-      parameters: {
-        'tenant': tenant,
-        'details': jsonEncode({
-          'companyId': companyA,
-          'branchId': branchA,
-          'operatorActorId': 'Bearer fixture-secret',
-          'token': 'fixture-secret',
-        }),
-      },
-    );
+        parameters: {
+          'tenant': tenant,
+          'details': jsonEncode({
+            'companyId': companyA,
+            'branchId': branchA,
+            'operatorActorId': 'Bearer fixture-secret',
+            'token': 'fixture-secret',
+          }),
+        },
+      );
+    });
     final auditSnapshot = await gateway.audit(
       session: await authenticate(managerToken),
       companyId: companyA,
       branchId: branchA,
     );
     final auditEvents = (auditSnapshot['events'] as List).cast<Map>();
-    final redactedEvent = auditEvents.firstWhere(
-      (event) => event['subjectId'] == '[redacted]',
+    final redactedEvent = auditEvents
+        .where((event) => event['subjectId'] == '[redacted]')
+        .firstOrNull;
+    check(
+      auditEvents.length <= 100,
+      'Audit history remains bounded to one hundred events',
     );
     check(
-      auditEvents.length <= 100 &&
-          redactedEvent['operator'] == 'Host administrator' &&
-          auditEvents.every(
-            (event) =>
-                event.keys.toSet() ==
-                    {
-                      'eventId',
-                      'occurredAtUtc',
-                      'action',
-                      'subjectId',
-                      'operator',
-                    } &&
-                !event.containsKey('details'),
-          ) &&
-          !jsonEncode(auditSnapshot).contains('fixture-secret'),
-      'Audit history is exact-scope, bounded, allowlisted, and suppresses unsafe identity labels and details',
+      redactedEvent != null &&
+          redactedEvent['operator'] == 'Host administrator',
+      'Unsafe audit subject and operator labels are redacted',
+    );
+    final auditEventsAreAllowlisted = auditEvents.every(
+      (event) =>
+          event.keys.length == 5 &&
+          event.keys.toSet().containsAll({
+            'eventId',
+            'occurredAtUtc',
+            'action',
+            'subjectId',
+            'operator',
+          }) &&
+          !event.containsKey('details'),
+    );
+    final auditSnapshotContainsInjectedSecret = jsonEncode(
+      auditSnapshot,
+    ).contains('fixture-secret');
+    check(
+      auditEventsAreAllowlisted,
+      'Audit history returns only allowlisted fields and no details',
+    );
+    check(
+      !auditSnapshotContainsInjectedSecret,
+      'Audit history suppresses the injected secret value',
     );
 
     stdout.writeln('RESULT: $assertions passed, 0 failed');
