@@ -13,6 +13,7 @@ Assert-Contract ($installerSource -match '(?m)^PrivilegesRequired=admin\s*$') 'I
 Assert-Contract ($installerSource -match '(?m)^PrivilegesRequiredOverridesAllowed=dialog\s*$') 'INSTALLER_CLIENT_MUST_ALLOW_PER_USER_MODE'
 Assert-Contract ($installerSource -match '(?m)^Source: "\{#HostPayload\}\\\*"; DestDir: "\{app\}\\host-payload"; Components: host;') 'HOST_PAYLOAD_DESTINATION_MUST_STAY_PRODUCT_OWNED'
 Assert-Contract ($installerSource -match "(?s)function NextButtonClick.*?WizardSetupType\(False\) = 'host'.*?not IsAdminInstallMode") 'HOST_PER_USER_INSTALL_MUST_BE_REJECTED'
+Assert-Contract ($installerSource -match "(?s)function NextButtonClick.*?ExpectedHostDir := ExpandConstant\('\{autopf\}\\Ventio'\).*?CompareText\(SelectedDir, ExpectedHostDir\)") 'HOST_INSTALL_DIRECTORY_MUST_MATCH_PROVISIONER_ROOT'
 Assert-Contract ($installerSource -match "(?s)function InitializeSetup.*?WizardSilent then\s+Log\('HOST_INSTALL_REQUIRES_ADMIN_MODE'\)") 'SILENT_HOST_REJECTION_MUST_BE_NONINTERACTIVE'
 Assert-Contract ($installerSource -match 'runasoriginaluser') 'FLUTTER_APP_MUST_NOT_LAUNCH_ELEVATED'
 Assert-Contract ($postgresProvisioner.Contains("Join-Path `$env:ProgramFiles 'Ventio'")) 'POSTGRES_PROVISIONER_PROGRAM_FILES_BOUNDARY_MISSING'

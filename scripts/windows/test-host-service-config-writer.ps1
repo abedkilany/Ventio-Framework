@@ -40,7 +40,7 @@ try {
       throw 'Plaintext credential material appeared in the protected configuration file.'
     }
   }
-  finally { [Security.Cryptography.CryptographicOperations]::ZeroMemory($fileBytes) }
+  finally { [Array]::Clear($fileBytes, 0, $fileBytes.Length) }
 
   & dotnet run --project (Join-Path $PSScriptRoot '..\..\installer\windows\host-service.tests\HostService.Tests.csproj') `
     -c Release --no-restore -- --validate-file $configPath

@@ -60,7 +60,29 @@ function Set-PostgresDataAcl([string] $Path, [string[]] $ServiceSids) {
       [Security.AccessControl.PropagationFlags]::None,
       [Security.AccessControl.AccessControlType]::Allow))
   }
-  [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($Path), $security)
+  Set-Acl -LiteralPath $Path -AclObject $security
+}
+
+function New-RandomBase64Secret([int] $ByteCount) {
+  $bytes = [byte[]]::new($ByteCount)
+  $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+  try {
+    $generator.GetBytes($bytes)
+    return [Convert]::ToBase64String($bytes)
+  }
+  finally {
+    [Array]::Clear($bytes, 0, $bytes.Length)
+    $generator.Dispose()
+  }
+}
+
+function ConvertTo-WindowsCommandLineArgument([string] $Value) {
+  $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+  $trailingSlashes = [regex]::Match($escaped, '\\+$').Length
+  if ($trailingSlashes -gt 0) {
+    $escaped = $escaped.Substring(0, $escaped.Length - $trailingSlashes) + ('\' * ($trailingSlashes * 2))
+  }
+  return '"' + $escaped + '"'
 }
 
 function Initialize-PostgresCluster([string] $Executable, [string] $DataDirectory, [Security.SecureString] $Secret) {
@@ -75,11 +97,13 @@ function Initialize-PostgresCluster([string] $Executable, [string] $DataDirector
   $processInfo.CreateNoWindow = $true
   $processInfo.RedirectStandardOutput = $true
   $processInfo.RedirectStandardError = $true
+  $arguments = [System.Collections.Generic.List[string]]::new()
   foreach ($argument in @('-D', $DataDirectory, '-U', 'ventio_bootstrap', '-W',
     '--auth-local=scram-sha-256', '--auth-host=scram-sha-256', '--encoding=UTF8', '--no-locale')) {
     if ($argument -eq '-W') { $argument = "--pwfile=$pipePath" }
-    $processInfo.ArgumentList.Add($argument)
+    $arguments.Add((ConvertTo-WindowsCommandLineArgument $argument))
   }
+  $processInfo.Arguments = [string]::Join(' ', $arguments)
 
   $pointer = [IntPtr]::Zero
   $characters = $null
@@ -115,7 +139,7 @@ function Initialize-PostgresCluster([string] $Executable, [string] $DataDirector
     if ($process.ExitCode -ne 0) { throw 'POSTGRES_CLUSTER_INITIALIZATION_FAILED' }
   }
   finally {
-    if ($passwordBytes) { [Security.Cryptography.CryptographicOperations]::ZeroMemory($passwordBytes) }
+    if ($passwordBytes) { [Array]::Clear($passwordBytes, 0, $passwordBytes.Length) }
     if ($characters) { [Array]::Clear($characters, 0, $characters.Length) }
     if ($pointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($pointer) }
     if ($processStarted -and -not $process.HasExited) {
@@ -156,7 +180,7 @@ if ($TestInitDbOnly) {
   $testListener.Start()
   $testPort = ([Net.IPEndPoint]$testListener.LocalEndpoint).Port
   $testListener.Stop()
-  $testPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))
+  $testPassword = New-RandomBase64Secret 36
   $testSecret = ConvertTo-SecureString $testPassword -AsPlainText -Force
   $testStarted = $false
   $oldPassword = $env:PGPASSWORD
@@ -183,8 +207,8 @@ if ($TestInitDbOnly) {
     if ($TestMigrations) {
       $databaseInitializer = Join-Path $PSScriptRoot 'initialize-host-database.ps1'
       if (-not (Test-Path -LiteralPath $databaseInitializer)) { throw 'POSTGRES_TEST_DATABASE_INITIALIZER_MISSING' }
-      $runtimePassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))
-      $identityPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))
+      $runtimePassword = New-RandomBase64Secret 36
+      $identityPassword = New-RandomBase64Secret 36
       $bootstrapCredential = [PSCredential]::new('ventio_bootstrap', $testSecret)
       $runtimeCredential = [PSCredential]::new('ventio_runtime_app', (ConvertTo-SecureString $runtimePassword -AsPlainText -Force))
       $identityCredential = [PSCredential]::new('ventio_identity_api_app', (ConvertTo-SecureString $identityPassword -AsPlainText -Force))
@@ -196,9 +220,18 @@ if ($TestInitDbOnly) {
       } catch {
         $databaseInitOutput = @($_.ToString())
         $databaseInitSucceeded = $false
+        Write-Output ('POSTGRES_TEST_DATABASE_INIT_EXCEPTION=' + $_.Exception.GetType().Name)
+        if ($_.FullyQualifiedErrorId -match '^[A-Z0-9_]+$') {
+          Write-Output ('POSTGRES_TEST_DATABASE_INIT_ERROR_ID=' + $_.FullyQualifiedErrorId)
+        }
       }
       if (-not $databaseInitSucceeded -or $databaseInitOutput -notcontains 'HOST_DATABASE_INITIALIZED' -or
           $databaseInitOutput -notcontains 'HOST_BOOTSTRAP_LOGIN_RETIRED') {
+        $safeStageSignals = @([regex]::Matches(($databaseInitOutput | ForEach-Object { [string]$_ }) -join "`n",
+          '\b(?:HOST|VENTIO)_[A-Z0-9_]+\b') | ForEach-Object { $_.Value } | Select-Object -Unique)
+        if ($safeStageSignals.Count -gt 0) {
+          Write-Output ('POSTGRES_TEST_DATABASE_INIT_SIGNALS=' + ($safeStageSignals -join ','))
+        }
         throw 'POSTGRES_TEST_HOST_DATABASE_INITIALIZATION_FAILED'
       }
       $configWriter = Join-Path $PSScriptRoot 'write-host-service-config.ps1'
@@ -220,7 +253,7 @@ if ($TestInitDbOnly) {
           throw 'POSTGRES_TEST_CONFIG_PLAINTEXT_SECRET'
         }
       }
-      finally { [Security.Cryptography.CryptographicOperations]::ZeroMemory($configBytes) }
+      finally { [Array]::Clear($configBytes, 0, $configBytes.Length) }
       $runtimeCredential = $null
       $identityCredential = $null
       $bootstrapCredential = $null

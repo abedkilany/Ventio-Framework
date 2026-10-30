@@ -20,9 +20,9 @@ if ($isHost) {
   if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'Host installer validation requires an already elevated PowerShell session; no elevation prompt was started.'
   }
-  $hostValidationRoot = Join-Path (Join-Path $env:ProgramFiles 'Ventio') ('HostInstallerValidation-' + [guid]::NewGuid().ToString('N'))
-  $installDir = Join-Path $hostValidationRoot 'app'
-  if (-not $hostValidationRoot.StartsWith((Join-Path $env:ProgramFiles 'Ventio') + '\', [StringComparison]::OrdinalIgnoreCase) -or
+  $hostValidationRoot = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio'))
+  $installDir = $hostValidationRoot
+  if (-not $hostValidationRoot.Equals([IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio')), [StringComparison]::OrdinalIgnoreCase) -or
       (Test-Path -LiteralPath $hostValidationRoot)) {
     throw 'Host validation target is unsafe or already exists.'
   }
@@ -46,7 +46,7 @@ try {
     $(if ($isHost) { '/ALLUSERS' } else { '/CURRENTUSER' })
   ) -Wait -PassThru
   if ($process.ExitCode -ne 0) { throw "Selected $SetupType installation failed with exit code $($process.ExitCode)." }
-  if ($isHost -and -not $installDir.StartsWith((Join-Path $env:ProgramFiles 'Ventio') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+  if ($isHost -and -not $installDir.Equals([IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio')), [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Host installer validation did not install below the PostgreSQL provisioner product root.'
   }
 
@@ -108,11 +108,5 @@ finally {
   if ($resolved.StartsWith($tempRoot + '\', [StringComparison]::OrdinalIgnoreCase) -and
       (Split-Path -Leaf $resolved) -eq $testName -and (Test-Path -LiteralPath $resolved)) {
     Remove-Item -LiteralPath $resolved -Recurse -Force
-  }
-  if ($hostValidationRoot -and
-      $hostValidationRoot.StartsWith((Join-Path $env:ProgramFiles 'Ventio') + '\', [StringComparison]::OrdinalIgnoreCase) -and
-      (Split-Path -Leaf $hostValidationRoot) -match '^HostInstallerValidation-[0-9a-f]{32}$' -and
-      (Test-Path -LiteralPath $hostValidationRoot)) {
-    Remove-Item -LiteralPath $hostValidationRoot -Recurse -Force
   }
 }

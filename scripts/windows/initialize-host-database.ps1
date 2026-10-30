@@ -30,6 +30,15 @@ function Get-SecureText([Security.SecureString] $Secret) {
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($pointer) }
 }
 
+function ConvertTo-WindowsCommandLineArgument([string] $Value) {
+  $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+  $trailingSlashes = [regex]::Match($escaped, '\\+$').Length
+  if ($trailingSlashes -gt 0) {
+    $escaped = $escaped.Substring(0, $escaped.Length - $trailingSlashes) + ('\' * ($trailingSlashes * 2))
+  }
+  return '"' + $escaped + '"'
+}
+
 function Assert-ApplicationCredential([PSCredential] $Credential, [string] $ExpectedName) {
   if (-not $Credential -or $Credential.UserName -cne $ExpectedName -or $Credential.Password.Length -lt 24) {
     throw 'HOST_DATABASE_CREDENTIAL_INVALID'
@@ -48,8 +57,10 @@ function Invoke-Psql([string[]] $Arguments, [string] $SqlInput = $null, [int] $T
   $info.RedirectStandardOutput = $true
   $info.RedirectStandardError = $true
   $info.RedirectStandardInput = ($null -ne $SqlInput)
-  $info.StandardInputEncoding = [Text.UTF8Encoding]::new($false)
-  foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
+  $quotedArguments = foreach ($argument in $Arguments) {
+    ConvertTo-WindowsCommandLineArgument $argument
+  }
+  $info.Arguments = [string]::Join(' ', [string[]]$quotedArguments)
   $process = [Diagnostics.Process]::new()
   $started = $false
   try {

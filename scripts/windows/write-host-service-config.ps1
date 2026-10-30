@@ -16,6 +16,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Security
 $phase = 'arguments'
 $configName = 'service-config.dpapi'
 $programData = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
@@ -73,7 +74,7 @@ function Set-PrivateDirectoryAcl([string] $Path, [string] $ServiceSid, [string] 
       [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit,
       [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
   }
-  [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($Path), $security)
+  Set-Acl -LiteralPath $Path -AclObject $security
 }
 
 function Set-PrivateConfigAcl([string] $Path, [string] $ServiceSid, [string] $OwnerSid) {
@@ -95,7 +96,11 @@ function Set-PrivateConfigAcl([string] $Path, [string] $ServiceSid, [string] $Ow
   }
   $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
     $serviceSecurityId, $serviceRights, [Security.AccessControl.AccessControlType]::Allow))
-  [IO.FileSystemAclExtensions]::SetAccessControl([IO.FileInfo]::new($Path), $security)
+  Set-Acl -LiteralPath $Path -AclObject $security
+}
+
+function Test-FullyQualifiedWindowsPath([string] $Path) {
+  return [IO.Path]::IsPathRooted($Path) -and $Path -match '^(?:[A-Za-z]:\\|\\\\)'
 }
 
 try {
@@ -135,7 +140,7 @@ try {
     throw 'TLS certificate and private key must be provided together.'
   }
   foreach ($tlsPath in @($TlsCertificateFile, $TlsPrivateKeyFile)) {
-    if ($tlsPath -and (-not [IO.Path]::IsPathFullyQualified($tlsPath) -or -not (Test-Path -LiteralPath $tlsPath -PathType Leaf))) {
+    if ($tlsPath -and (-not (Test-FullyQualifiedWindowsPath $tlsPath) -or -not (Test-Path -LiteralPath $tlsPath -PathType Leaf))) {
       throw 'TLS files must exist at absolute local paths.'
     }
   }
@@ -151,7 +156,7 @@ try {
   if (-not $DiagnosticsFile) { $DiagnosticsFile = Join-Path $OutputDirectory 'host-diagnostics.jsonl' }
   if (-not $RecoveryAuthorityFile) { $RecoveryAuthorityFile = Join-Path $OutputDirectory 'recovery.witness' }
   foreach ($path in @($DiagnosticsFile, $RecoveryAuthorityFile)) {
-    if (-not [IO.Path]::IsPathFullyQualified($path)) { throw 'Host diagnostics and Recovery Authority paths must be absolute.' }
+    if (-not (Test-FullyQualifiedWindowsPath $path)) { throw 'Host diagnostics and Recovery Authority paths must be absolute.' }
   }
 
   $phase = 'connection-urls'
@@ -198,8 +203,8 @@ try {
     $tempPath = $null
   }
   finally {
-    if ($plainBytes) { [Security.Cryptography.CryptographicOperations]::ZeroMemory($plainBytes) }
-    if ($protectedBytes) { [Security.Cryptography.CryptographicOperations]::ZeroMemory($protectedBytes) }
+    if ($plainBytes) { [Array]::Clear($plainBytes, 0, $plainBytes.Length) }
+    if ($protectedBytes) { [Array]::Clear($protectedBytes, 0, $protectedBytes.Length) }
     $plainText = $null
     $settings = $null
     if ($tempPath -and (Test-Path -LiteralPath $tempPath)) { Remove-Item -LiteralPath $tempPath -Force }
@@ -209,7 +214,8 @@ try {
 catch {
   $safeFailureType = if ($_.Exception.InnerException) { $_.Exception.InnerException.GetType().Name } else { $_.Exception.GetType().Name }
   if ($safeFailureType -notmatch '^[A-Za-z][A-Za-z0-9]{0,63}$') { $safeFailureType = 'Unknown' }
-  [Console]::Error.WriteLine("HOST_CONFIG_WRITE_FAILED_${phase}_$safeFailureType")
+  $line = [int]$_.InvocationInfo.ScriptLineNumber
+  [Console]::Error.WriteLine("HOST_CONFIG_WRITE_FAILED_${phase}_${safeFailureType}_LINE_$line")
   exit 2
 }
 finally {

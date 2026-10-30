@@ -79,12 +79,23 @@ begin
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  ExpectedHostDir: string;
+  SelectedDir: string;
 begin
   Result := True;
-  if (CurPageID = wpSelectComponents) and
-     (WizardSetupType(False) = 'host') and
-     (not IsAdminInstallMode) then begin
-    MsgBox('Host installation needs administrator mode to place service files under Program Files. Restart Setup and choose the all-users installation mode. Client installation can use per-user mode.', mbError, MB_OK);
-    Result := False;
+  if (CurPageID = wpSelectComponents) and (WizardSetupType(False) = 'host') then begin
+    if not IsAdminInstallMode then begin
+      MsgBox('Host installation needs administrator mode to place service files under Program Files. Restart Setup and choose the all-users installation mode. Client installation can use per-user mode.', mbError, MB_OK);
+      Result := False;
+    end else begin
+      ExpectedHostDir := ExpandConstant('{autopf}\Ventio');
+      SelectedDir := WizardDirValue;
+      if (CompareText(SelectedDir, ExpectedHostDir) <> 0) and
+         (CompareText(SelectedDir, ExpectedHostDir + '\') <> 0) then begin
+        MsgBox('Host files must be installed in the protected Ventio folder under Program Files. Return to the folder page and restore the default Ventio location.', mbError, MB_OK);
+        Result := False;
+      end;
+    end;
   end;
-end;\n
+end;
