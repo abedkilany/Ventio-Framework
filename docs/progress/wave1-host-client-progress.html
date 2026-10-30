@@ -52,7 +52,7 @@
     <div><span class="label">Overall Wave 1 completion</span><span class="metric">13%</span><div class="bar" role="img" aria-label="13 percent complete"><span></span></div><small>13 of 100 stage-weight points accepted</small></div>
     <div><span class="label">Current execution stage</span><strong>Stage 1–2 — PostgreSQL authorization verification</strong><br><span class="status progress">IN PROGRESS</span></div>
     <div><span class="label">Stages</span><strong>2 PASS · 1 FAIL · 2 BLOCKED · 6 IN PROGRESS</strong></div>
-    <div><span class="label">Latest implementation commit</span><strong><code>a0941a0</code></strong><br><small>Persisted safe Host readiness failures locally</small></div>
+    <div><span class="label">Latest implementation commit</span><strong><code>57175ec</code></strong><br><small>Verified Host identity security against local PostgreSQL</small></div>
   </section>
 
   <div class="callout"><strong>Progress rule:</strong> a stage earns its full weight only after implementation and its exit gate pass. No partial credit is assigned. The previous Wave 1 score does not imply that Host/Client management acceptance has passed.</div>
@@ -105,7 +105,7 @@
       <li>Do not use Docker for these tests; the user asked to leave it stopped.</li>
     </ul></section>
     <section class="card"><h3>Latest verification</h3><p><span class="status pass">PASS</span> PostgreSQL migrations 001–029 and security bootstrap completed on a disposable loopback instance. Suites: security/RLS 114/114, users/audit 21/21, roles 20/20, pairing/devices 24/24; fixture was stopped and removed. The PostgreSQL adapter suite previously passed 19/19. These results verify the database authorization slice, not the full Wave 1 experience.</p><p><span class="status progress">IN PROGRESS — NOT ACCEPTED</span> Overall accepted progress remains 13% (Stage 0: 4%, Stage 4: 9%). The final Wave 1 acceptance gate remains BLOCKED.</p></section>
-    <section class="card"><h3>Commit references</h3><p>Baseline: <code>ce5ac6e</code>. Stage 4 accepted slice: <code>ee21fea</code>. Diagnostics/readiness: <code>eddca5c</code>, <code>a0941a0</code>. Current PostgreSQL verification runner, test fixes and updated report/dashboard are in the current change set.</p></section>
+    <section class="card"><h3>Commit references</h3><p>Baseline: <code>ce5ac6e</code>. Stage 4 accepted slice: <code>ee21fea</code>. Diagnostics/readiness: <code>eddca5c</code>, <code>a0941a0</code>. PostgreSQL verification runner, identity test fixes and evidence update: <code>57175ec</code>.</p></section>
   </div>
 
   <h2>Final acceptance gate</h2>
@@ -146,7 +146,7 @@
   <h2>Next planned engineering action</h2>
   <p>Next: close the remaining Stage 1/2 contract and device-role scenarios, then continue the Host service and allowlisted configuration boundary needed by the unified Windows installer. Resolve the protected diagnostics child-process write independently; Docker remains stopped.</p>
 
-  <footer>Last updated: <time datetime="2026-10-30T05:14:48+00:00">2026-10-30 05:14 UTC</time>. This is a manually maintained, static development dashboard; it does not update automatically.</footer>
+  <footer>Last updated: <time datetime="2026-10-30T05:15:48+00:00">2026-10-30 05:15 UTC</time>. This is a manually maintained, static development dashboard; it does not update automatically.</footer>
 </main>
 </body>
 </html>
