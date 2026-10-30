@@ -125,6 +125,7 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
         _readinessLoading = false;
       });
     } on HostReadinessException catch (error) {
+      await _recordReadinessFailure(error);
       if (!mounted) return;
       setState(() {
         _readinessError = error.code;
@@ -132,11 +133,78 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
         _readinessLoading = false;
       });
     } catch (_) {
+      await _recordReadinessFailure(
+        const HostReadinessException('HOST_UNAVAILABLE', retryable: true),
+      );
       if (!mounted) return;
       setState(() {
         _readinessError = 'HOST_UNAVAILABLE';
         _readinessLoading = false;
       });
+    }
+  }
+
+  Future<void> _recordReadinessFailure(HostReadinessException error) async {
+    final category = switch (error.code) {
+      'HOST_TLS_VALIDATION_FAILED' ||
+      'HOST_UNREACHABLE' ||
+      'HOST_REQUEST_TIMEOUT' => ManagementDiagnosticCategory.networkTls,
+      'HOST_CREDENTIAL_MISSING' ||
+      'UNAUTHENTICATED' => ManagementDiagnosticCategory.authentication,
+      'HOST_PERMISSION_DENIED' ||
+      'PERMISSION_DENIED' ||
+      'SCOPE_DENIED' => ManagementDiagnosticCategory.authorization,
+      'DATABASE_UNAVAILABLE' ||
+      'DATABASE_PROFILE_UNAVAILABLE' => ManagementDiagnosticCategory.database,
+      'RECOVERY_ADMISSION_BLOCKED' => ManagementDiagnosticCategory.recovery,
+      _ => ManagementDiagnosticCategory.apiExecution,
+    };
+    final action = switch (category) {
+      ManagementDiagnosticCategory.networkTls =>
+        'Check the Host address and network. Verify its TLS identity without bypassing certificate validation.',
+      ManagementDiagnosticCategory.authentication =>
+        'Reconnect this device with a valid Host credential, then retry.',
+      ManagementDiagnosticCategory.authorization =>
+        'Ask a Host administrator to review access for this exact company and branch scope.',
+      ManagementDiagnosticCategory.database =>
+        'Ask an authorized Host operator to check database readiness.',
+      ManagementDiagnosticCategory.recovery =>
+        'Ask an authorized Host operator to check Recovery Authority readiness.',
+      _ =>
+        'Retry the readiness check and share its correlation reference if it fails again.',
+    };
+    final explanation = switch (category) {
+      ManagementDiagnosticCategory.networkTls =>
+        'The Host could not be reached securely.',
+      ManagementDiagnosticCategory.authentication =>
+        'Host authentication is unavailable for this device.',
+      ManagementDiagnosticCategory.authorization =>
+        'This Host identity is not authorized to read readiness in the selected scope.',
+      ManagementDiagnosticCategory.database =>
+        'The Host database is not ready.',
+      ManagementDiagnosticCategory.recovery =>
+        'Host recovery readiness is blocked.',
+      _ => 'The Host readiness check failed.',
+    };
+    try {
+      final event = await widget.store.record(
+        LocalDiagnosticInput(
+          code: error.code,
+          component: 'client.host_readiness',
+          category: category,
+          severity: ManagementDiagnosticSeverity.error,
+          retryable: error.retryable,
+          messageKey: 'native.diagnostics.host_readiness_failed',
+          safeExplanation: explanation,
+          recommendedAction: action,
+          correlationId: error.correlationId,
+        ),
+      );
+      if (mounted) {
+        setState(() => _events = [event, ..._events].take(100).toList());
+      }
+    } catch (_) {
+      // A local logging failure must not hide the original readiness failure.
     }
   }
 

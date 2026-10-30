@@ -233,10 +233,11 @@ void main() {
       ),
     );
     String? exported;
+    final store = _LocalEvents(event);
     await tester.pumpWidget(
       MaterialApp(
         home: DiagnosticsCenterPage(
-          store: _LocalEvents(event),
+          store: store,
           hostClient: HostDiagnosticsClient(transport),
           exportHandler: (json) async => exported = json,
         ),
@@ -412,10 +413,11 @@ void main() {
       ),
     );
     String? exported;
+    final store = _LocalEvents(event);
     await tester.pumpWidget(
       MaterialApp(
         home: DiagnosticsCenterPage(
-          store: _LocalEvents(event),
+          store: store,
           hostClient: HostDiagnosticsClient(transport),
           exportHandler: (json) async => exported = json,
         ),
@@ -433,13 +435,23 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Reference: $_correlationId'), findsNWidgets(2));
+    expect(find.text('Reference: $_correlationId'), findsNWidgets(3));
     await tester.tap(find.text('Copy sanitized export'));
     await tester.pumpAndSettle();
     final decoded = jsonDecode(exported!) as Map<String, dynamic>;
     expect(decoded['hostReadinessStatus'], 'HOST_UNAVAILABLE');
     expect(decoded['hostReadinessCorrelationId'], _correlationId);
     expect(exported, isNot(contains('must-not-be-shown-or-exported')));
+    expect(store.recorded.single.code, 'HOST_UNAVAILABLE');
+    expect(
+      store.recorded.single.category,
+      ManagementDiagnosticCategory.apiExecution,
+    );
+    expect(store.recorded.single.safeExplanation, isNot(contains('password')));
+    expect(
+      store.recorded.single.recommendedAction,
+      contains('Retry the readiness check'),
+    );
   });
 
   testWidgets('Host diagnostics failure shows and exports its correlation ID', (
@@ -493,13 +505,16 @@ void main() {
 }
 
 class _LocalEvents implements DiagnosticEventSource {
-  const _LocalEvents(this.event);
+  _LocalEvents(this.event);
 
   final ManagementDiagnosticEvent event;
+  final recorded = <LocalDiagnosticInput>[];
 
   @override
-  Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async =>
-      event;
+  Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async {
+    recorded.add(input);
+    return event;
+  }
 
   @override
   Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async => [
