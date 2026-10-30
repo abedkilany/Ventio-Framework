@@ -20,6 +20,8 @@
 | 9 — Final engineering audit (3%) | BLOCKED | This snapshot records current gates; the final audit cannot pass while mandatory earlier gates are open. |
 | 10 — Windows installer/provisioning (20%) | FAIL | The built artifact is Client-only. Host/Client role selection, isolated Host PostgreSQL provisioning, background Host service, bootstrap, reboot recovery, upgrade and retention-choice uninstall are absent. The artifact does not satisfy the unified installer requirement. |
 
+Latest backend regression rerun: `scripts/ci/run-local-postgres-integration.ps1 -HostSecuritySuites` on disposable Windows PostgreSQL run `20261030082456503-1` passed 179/179 (database security 114, user administration 21, role administration 20, pairing/device lifecycle 24). The runner stopped PostgreSQL and removed its run-scoped fixture. This strengthens backend authorization evidence but does not satisfy the open full Flutter/installed-Host scenarios in Stages 2, 5, 8, or 10.
+
 ## Stage 10 acceptance tests
 
 | Required scenario | Status | Evidence |
