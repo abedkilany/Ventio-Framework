@@ -201,6 +201,26 @@ if ($TestInitDbOnly) {
       $identityMembership = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d postgres `
         -v ON_ERROR_STOP=1 -Atc "SELECT pg_has_role('ventio_identity_api_app','ventio_identity_api','MEMBER') AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname='ventio_identity_api_app')"
       if ($LASTEXITCODE -ne 0 -or $identityMembership -ne 't') { throw 'POSTGRES_TEST_IDENTITY_ROLE_INVALID' }
+      $configWriter = Join-Path $PSScriptRoot 'write-host-service-config.ps1'
+      if (-not (Test-Path -LiteralPath $configWriter)) { throw 'POSTGRES_TEST_CONFIG_WRITER_MISSING' }
+      $serviceTests = Join-Path $PSScriptRoot '..\..\installer\windows\host-service.tests\HostService.Tests.csproj'
+      $testServiceSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+      $testConfigDirectory = Join-Path $testRoot 'protected-host-config'
+      & $configWriter -RuntimeCredential $runtimeCredential -IdentityApiCredential $identityCredential `
+        -DatabasePort $testPort -OutputDirectory $testConfigDirectory -TestMode -TestServiceSid $testServiceSid
+      if (-not $?) { throw 'POSTGRES_TEST_CONFIG_WRITE_FAILED' }
+      $protectedConfig = Join-Path $testConfigDirectory 'service-config.dpapi'
+      if (-not (Test-Path -LiteralPath $protectedConfig -PathType Leaf)) { throw 'POSTGRES_TEST_CONFIG_MISSING' }
+      & dotnet run --project $serviceTests -c Release --no-restore -- --validate-file $protectedConfig
+      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_CONFIG_VALIDATION_FAILED' }
+      $configBytes = [IO.File]::ReadAllBytes($protectedConfig)
+      try {
+        $configText = [Text.Encoding]::UTF8.GetString($configBytes)
+        if ($configText.Contains($runtimePassword) -or $configText.Contains($identityPassword)) {
+          throw 'POSTGRES_TEST_CONFIG_PLAINTEXT_SECRET'
+        }
+      }
+      finally { [Security.Cryptography.CryptographicOperations]::ZeroMemory($configBytes) }
       $runtimeCredential = $null
       $identityCredential = $null
       $bootstrapCredential = $null
