@@ -38,6 +38,10 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
   String? _hostLoadError;
   String? _hostLoadCorrelationId;
   bool _hostLoading = false;
+  bool _readinessLoading = false;
+  HostReadinessSnapshot? _readinessSnapshot;
+  String? _readinessError;
+  String? _readinessCorrelationId;
 
   @override
   void initState() {
@@ -99,6 +103,43 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
     }
   }
 
+  Future<void> _runReadinessCheck() async {
+    final client = widget.hostClient;
+    if (client == null ||
+        !client.transport.canReadStatus ||
+        _readinessLoading) {
+      return;
+    }
+    setState(() {
+      _readinessLoading = true;
+      _readinessSnapshot = null;
+      _readinessError = null;
+      _readinessCorrelationId = null;
+    });
+    try {
+      final result = await client.transport.checkReadiness();
+      if (!mounted) return;
+      setState(() {
+        _readinessSnapshot = result.snapshot;
+        _readinessCorrelationId = result.correlationId;
+        _readinessLoading = false;
+      });
+    } on HostReadinessException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _readinessError = error.code;
+        _readinessCorrelationId = error.correlationId;
+        _readinessLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _readinessError = 'HOST_UNAVAILABLE';
+        _readinessLoading = false;
+      });
+    }
+  }
+
   Future<void> _export() async {
     if (_exporting) return;
     setState(() => _exporting = true);
@@ -110,6 +151,14 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
         'hostDiagnosticsStatus': widget.hostClient == null
             ? 'not_configured'
             : _hostLoadError ?? (_hostLoading ? 'pending' : 'available'),
+        'hostReadinessStatus':
+            _readinessError ??
+            _readinessSnapshot?.overallState.wireValue ??
+            (_readinessLoading ? 'pending' : 'not_checked'),
+        if (_readinessSnapshot != null)
+          'hostReadiness': _readinessSnapshot!.toJson(),
+        if (_readinessCorrelationId != null)
+          'hostReadinessCorrelationId': _readinessCorrelationId,
         if (_hostLoadCorrelationId != null)
           'hostDiagnosticsCorrelationId': _hostLoadCorrelationId,
         'events': [
@@ -283,6 +332,82 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
           const SizedBox(height: 8),
           Text(_text('host_explanation')),
           const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed:
+                    _readinessLoading ||
+                        !widget.hostClient!.transport.canReadStatus
+                    ? null
+                    : _runReadinessCheck,
+                icon: _readinessLoading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.health_and_safety_outlined),
+                label: Text(_text('run_readiness_check')),
+              ),
+              if (!widget.hostClient!.transport.canReadStatus)
+                Text(_text('readiness_permission_required')),
+            ],
+          ),
+          if (_readinessError != null) ...[
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.error_outline),
+              title: Text(_text('readiness_failed')),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_hostFailureText(_readinessError!)),
+                  if (_readinessCorrelationId != null)
+                    SelectableText(
+                      _text(
+                        'correlation_line',
+                      ).replaceAll('{correlationId}', _readinessCorrelationId!),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (_readinessSnapshot case final snapshot?) ...[
+            const SizedBox(height: 8),
+            Text(
+              _text('readiness_checked_at').replaceAll(
+                '{timestamp}',
+                snapshot.checkedAtUtc.toIso8601String(),
+              ),
+            ),
+            for (final component in snapshot.components)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  component.state == ManagementHealthState.ready
+                      ? Icons.check_circle_outline
+                      : Icons.warning_amber_outlined,
+                ),
+                title: Text(component.component.wireValue),
+                subtitle: Text(
+                  [
+                    component.state.wireValue,
+                    if (component.reasonCode != null) component.reasonCode!,
+                  ].join(' · '),
+                ),
+              ),
+            if (_readinessCorrelationId != null)
+              SelectableText(
+                _text(
+                  'correlation_line',
+                ).replaceAll('{correlationId}', _readinessCorrelationId!),
+              ),
+          ],
+          const SizedBox(height: 10),
           if (_hostLoading)
             const Center(
               child: Padding(
@@ -417,6 +542,11 @@ const _diagnosticEnglish = <String, String>{
   'host_no_events': 'No recent Host diagnostic events',
   'host_no_events_details':
       'Operational errors recorded by the Host will appear here when available.',
+  'run_readiness_check': 'Run Host readiness check',
+  'readiness_permission_required':
+      'The Host account needs host.status.read in this scope to run readiness checks.',
+  'readiness_failed': 'Host readiness check failed',
+  'readiness_checked_at': 'Checked at {timestamp}',
   'event_count': '{count} recent event(s)',
   'export': 'Copy sanitized export',
   'export_copied': 'Sanitized diagnostics copied.',

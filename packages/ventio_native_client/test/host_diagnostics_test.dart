@@ -260,6 +260,188 @@ void main() {
     expect(encoded, isNot(contains('08006')));
   });
 
+  testWidgets('Diagnostics Center runs the scoped Host readiness check', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final checkedAt = DateTime.utc(2026, 10, 30, 12);
+    final snapshot = HostReadinessSnapshot(
+      checkedAtUtc: checkedAt,
+      hostVersion: '0.1.0',
+      components: [
+        for (final component in ManagementComponent.values)
+          ManagementComponentHealth(
+            component: component,
+            state: component == ManagementComponent.database
+                ? ManagementHealthState.unavailable
+                : ManagementHealthState.ready,
+            checkedAtUtc: checkedAt,
+            reasonCode: component == ManagementComponent.database
+                ? 'DATABASE_UNAVAILABLE'
+                : null,
+          ),
+      ],
+    );
+    final requestedPaths = <String>[];
+    final transport = createClient(
+      permissions: {hostDiagnosticsReadPermission, hostStatusReadPermission},
+      exchange: (uri, _, _) async {
+        requestedPaths.add(uri.path);
+        if (uri.path == HostManagementRoutes.readiness) {
+          return HostReadinessHttpResponse(
+            statusCode: HttpStatus.ok,
+            body: {
+              'apiVersion': 1,
+              'managementApiVersion': managementApiVersion,
+              'correlationId': _correlationId,
+              'readiness': snapshot.toJson(),
+            },
+          );
+        }
+        return HostReadinessHttpResponse(
+          statusCode: HttpStatus.ok,
+          body: {
+            'apiVersion': 1,
+            'managementApiVersion': managementApiVersion,
+            'correlationId': _correlationId,
+            'events': <Object?>[],
+          },
+        );
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiagnosticsCenterPage(
+          store: _LocalEvents(event),
+          hostClient: HostDiagnosticsClient(transport),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Run Host readiness check'));
+    await tester.pumpAndSettle();
+
+    expect(requestedPaths, contains(HostManagementRoutes.readiness));
+    expect(find.text('database'), findsNWidgets(2));
+    expect(find.text('UNAVAILABLE · DATABASE_UNAVAILABLE'), findsOneWidget);
+    expect(find.text('api'), findsOneWidget);
+    expect(find.text('READY'), findsNWidgets(3));
+    expect(find.text('Reference: $_correlationId'), findsNWidgets(2));
+  });
+
+  testWidgets('readiness action is unavailable without scoped status grant', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final requestedPaths = <String>[];
+    final transport = createClient(
+      permissions: {hostDiagnosticsReadPermission},
+      exchange: (uri, _, _) async {
+        requestedPaths.add(uri.path);
+        return HostReadinessHttpResponse(
+          statusCode: HttpStatus.ok,
+          body: {
+            'apiVersion': 1,
+            'managementApiVersion': managementApiVersion,
+            'correlationId': _correlationId,
+            'events': <Object?>[],
+          },
+        );
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiagnosticsCenterPage(
+          store: _LocalEvents(event),
+          hostClient: HostDiagnosticsClient(transport),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final action = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Run Host readiness check'),
+    );
+    expect(action.onPressed, isNull);
+    expect(
+      find.text(
+        'The Host account needs host.status.read in this scope to run readiness checks.',
+      ),
+      findsOneWidget,
+    );
+    expect(requestedPaths, isNot(contains(HostManagementRoutes.readiness)));
+  });
+
+  testWidgets('readiness failure keeps a safe explanation and reference', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final transport = createClient(
+      permissions: {hostDiagnosticsReadPermission, hostStatusReadPermission},
+      exchange: (uri, _, _) async => HostReadinessHttpResponse(
+        statusCode: uri.path == HostManagementRoutes.readiness
+            ? HttpStatus.serviceUnavailable
+            : HttpStatus.ok,
+        body: uri.path == HostManagementRoutes.readiness
+            ? {
+                'apiVersion': 1,
+                'managementApiVersion': managementApiVersion,
+                'correlationId': _correlationId,
+                'error': {
+                  'code': 'HOST_UNAVAILABLE',
+                  'retryable': true,
+                  'message': 'password=must-not-be-shown-or-exported',
+                },
+              }
+            : {
+                'apiVersion': 1,
+                'managementApiVersion': managementApiVersion,
+                'correlationId': _correlationId,
+                'events': <Object?>[],
+              },
+      ),
+    );
+    String? exported;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiagnosticsCenterPage(
+          store: _LocalEvents(event),
+          hostClient: HostDiagnosticsClient(transport),
+          exportHandler: (json) async => exported = json,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Run Host readiness check'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Host readiness check failed'), findsOneWidget);
+    expect(
+      find.text(
+        'The Host could not be reached. Check the connection and retry.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Reference: $_correlationId'), findsNWidgets(2));
+    await tester.tap(find.text('Copy sanitized export'));
+    await tester.pumpAndSettle();
+    final decoded = jsonDecode(exported!) as Map<String, dynamic>;
+    expect(decoded['hostReadinessStatus'], 'HOST_UNAVAILABLE');
+    expect(decoded['hostReadinessCorrelationId'], _correlationId);
+    expect(exported, isNot(contains('must-not-be-shown-or-exported')));
+  });
+
   testWidgets('Host diagnostics failure shows and exports its correlation ID', (
     tester,
   ) async {
