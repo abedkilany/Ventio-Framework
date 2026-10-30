@@ -164,6 +164,7 @@ The Flutter local-diagnostics suite now also iterates every stable `ManagementDi
 ### 2026-10-30 update — Windows SCM supervisor
 
 - Added `installer/windows/host-service/` to host a fixed `ventio_host.exe` child as the `VentioHost` SCM service. It consumes a fixed LocalMachine DPAPI config file, checks a strict environment allowlist and ACL/reparse state, avoids child output persistence, and clears parent config dictionaries after launch. .NET build passed with 0 warnings/errors; self-contained publish and expected outside-SCM rejection passed. Host payload rebuilt and verified: 20,295 files / 1,048,577,217 bytes; PostgreSQL 16.15; 45 critical hashes; credentials/database absent. The service has not been registered or lifecycle-tested. No DPAPI writer, PostgreSQL Windows service, setup UI, failure diagnostics, graceful stop verification, reboot, upgrade or uninstall evidence exists. Stage 10 remains 0% accepted.
+- Added `scripts/windows/test-postgres-payload.ps1`. It passed an isolated test against the packaged PostgreSQL binaries: temporary SCRAM-SHA-256 cluster initialization, loopback startup, readiness and authenticated SQL, followed by stop/removal. This establishes that the staged PostgreSQL distribution can operate as a local process; it does not exercise a service account, persistent data directory, SCM lifecycle, migrations, installer or Host API startup. Stage 10 remains at 0% accepted.
 
 ### 2026-10-30 update — Host service configuration security tests
 
