@@ -152,12 +152,12 @@ internal static class Program
         return 0;
     }
 
-    private static Dictionary<string, string> ReadAndValidateConfiguration(string path)
+    private static Dictionary<string, string> ReadAndValidateConfiguration(string path, string? testServiceSid = null)
     {
         var info = new FileInfo(path);
         if (!info.Exists || info.Length is <= 0 or > MaximumConfigBytes)
             throw new InvalidOperationException("Protected Host configuration is missing or invalid.");
-        ValidatePrivateConfigurationAcl(info);
+        ValidatePrivateConfigurationAcl(info, testServiceSid);
 
         var encrypted = File.ReadAllBytes(path);
         try
@@ -220,6 +220,11 @@ internal static class Program
 
                 ValidateSid(values["VENTIO_RECOVERY_AUTHORITY_OWNER_SID"]);
                 ValidateSid(values["VENTIO_RECOVERY_AUTHORITY_READER_SID"]);
+                var serviceSid = testServiceSid ?? new NTAccount("NT SERVICE", ServiceName)
+                    .Translate(typeof(SecurityIdentifier)).Value;
+                if (values["VENTIO_RECOVERY_AUTHORITY_OWNER_SID"] != serviceSid ||
+                    values["VENTIO_RECOVERY_AUTHORITY_READER_SID"] != serviceSid)
+                    throw new InvalidOperationException("Recovery Authority must be owned by the dedicated Host service identity.");
                 return values;
             }
             finally { CryptographicOperations.ZeroMemory(plaintext); }
@@ -267,7 +272,7 @@ internal static class Program
         finally { Marshal.FreeHGlobal(inputPointer); }
     }
 
-    private static void ValidatePrivateConfigurationAcl(FileInfo file)
+    private static void ValidatePrivateConfigurationAcl(FileInfo file, string? testServiceSid = null)
     {
         if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
             throw new InvalidOperationException("Protected Host configuration path is invalid.");
@@ -275,8 +280,16 @@ internal static class Program
         if ((directory.Attributes & FileAttributes.ReparsePoint) != 0)
             throw new InvalidOperationException("Protected Host configuration directory is invalid.");
 
-        var serviceSid = WindowsIdentity.GetCurrent().User?.Value
-            ?? throw new InvalidOperationException("Host service identity is unavailable.");
+        var serviceSid = testServiceSid;
+        if (serviceSid is null)
+        {
+            serviceSid = new NTAccount("NT SERVICE", ServiceName)
+                .Translate(typeof(SecurityIdentifier)).Value;
+            var identity = WindowsIdentity.GetCurrent();
+            if (identity.User?.Value != serviceSid &&
+                (identity.Groups is null || !identity.Groups.OfType<SecurityIdentifier>().Any(group => group.Value == serviceSid)))
+                throw new InvalidOperationException("Host service SID is not enabled in the service token.");
+        }
         var permitted = new HashSet<string>(StringComparer.Ordinal)
         {
             serviceSid, "S-1-5-18", "S-1-5-32-544", // service SID, SYSTEM, Administrators

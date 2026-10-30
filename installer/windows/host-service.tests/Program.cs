@@ -11,6 +11,13 @@ var parse = Assembly.Load("VentioHostService").GetType("Program")?.GetMethod(
     "ReadAndValidateConfiguration", BindingFlags.NonPublic | BindingFlags.Static)
     ?? throw new InvalidOperationException("Host service validator was not found.");
 
+if (args.Length == 2 && args[0] == "--validate-file")
+{
+    _ = InvokeFile(parse, args[1], WindowsIdentity.GetCurrent().User!.Value);
+    Console.WriteLine("DPAPI-protected Host configuration passed service validation.");
+    return;
+}
+
 var baseConfig = new Dictionary<string, string>(StringComparer.Ordinal)
 {
     ["VENTIO_HOST_DATABASE_URL"] = "postgresql://runtime:secret@127.0.0.1:54329/ventio?sslmode=disable",
@@ -46,7 +53,19 @@ static Dictionary<string, string> Invoke(MethodInfo validator, Dictionary<string
     using var fixture = new ConfigFixture(values);
     try
     {
-        return (Dictionary<string, string>)validator.Invoke(null, [fixture.Path])!;
+        return InvokeFile(validator, fixture.Path, WindowsIdentity.GetCurrent().User!.Value);
+    }
+    catch (TargetInvocationException exception) when (exception.InnerException is InvalidOperationException)
+    {
+        throw exception.InnerException;
+    }
+}
+
+static Dictionary<string, string> InvokeFile(MethodInfo validator, string path, string testServiceSid)
+{
+    try
+    {
+        return (Dictionary<string, string>)validator.Invoke(null, [path, testServiceSid])!;
     }
     catch (TargetInvocationException exception) when (exception.InnerException is InvalidOperationException)
     {
@@ -69,7 +88,7 @@ static void ExpectAclRejected(MethodInfo validator, Dictionary<string, string> v
     using var fixture = new ConfigFixture(values, exposeToUsers: true);
     try
     {
-        _ = validator.Invoke(null, [fixture.Path]);
+        _ = validator.Invoke(null, [fixture.Path, WindowsIdentity.GetCurrent().User!.Value]);
         throw new Exception("Broad Host config ACL was accepted.");
     }
     catch (TargetInvocationException exception) when (exception.InnerException is InvalidOperationException) { }
