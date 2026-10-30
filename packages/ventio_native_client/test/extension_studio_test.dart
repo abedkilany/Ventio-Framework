@@ -1165,7 +1165,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Connect Host'));
+    await tester.tap(find.byTooltip('Host settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('No Host connection configured'), findsOneWidget);
+    await tester.tap(find.text('Configure Host connection'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).at(0), endpoint.toString());
     await tester.enterText(find.byType(TextField).at(1), token);
@@ -1313,6 +1316,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Manage roles & access'), findsOneWidget);
+
+      tester.view.physicalSize = const Size(390, 800);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Workspace actions'));
+      await tester.pumpAndSettle();
+      final roleMenuEntry = find.ancestor(
+        of: find.text('Manage roles & access').last,
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+      );
+      expect(roleMenuEntry, findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -1380,7 +1393,7 @@ void main() {
   );
 
   testWidgets(
-    'local diagnostics entry is available before Host authentication',
+    'local diagnostics and Host settings are available before authentication',
     (tester) async {
       tester.view.physicalSize = const Size(900, 800);
       tester.view.devicePixelRatio = 1;
@@ -1412,7 +1425,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Local diagnostics'), findsOneWidget);
-      expect(find.text('Host settings'), findsNothing);
+      expect(find.byTooltip('Host settings'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Host settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('No Host connection configured'), findsOneWidget);
+      expect(
+        find.text('No permissions are granted for this scope.'),
+        findsNothing,
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Local diagnostics'));
       await tester.pumpAndSettle();

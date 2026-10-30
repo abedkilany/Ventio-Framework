@@ -3,6 +3,40 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.app.title': 'Ventio Extension Builder',
   'native.ui.users_permissions': 'Users & permissions',
   'native.ui.host_overview': 'Host overview',
+  'native.ui.host_settings': 'Host settings',
+  'native.ui.no_host_connection_configured': 'No Host connection configured',
+  'native.ui.host_settings_connection_missing_details':
+      'Configure this device to connect to a Host. Local settings do not change Host-side users or permissions.',
+  'native.ui.device_host_connection': 'Host connection on this device',
+  'native.ui.host_address': 'Host address',
+  'native.ui.tenant': 'Tenant',
+  'native.ui.company': 'Company',
+  'native.ui.branch': 'Branch',
+  'native.ui.host_session_not_verified': 'Host session is not verified',
+  'native.ui.host_settings_session_unavailable_details':
+      'The saved connection profile is visible, but this screen could not verify a current Host identity. No Host permissions are displayed.',
+  'native.ui.selected_host_scope_not_granted':
+      'Selected Host scope is not currently granted',
+  'native.ui.host_settings_scope_unavailable_details':
+      'The Host session does not include the selected company and branch. Reconfigure this device with an authorized scope.',
+  'native.ui.verified_host_session': 'Verified Host session',
+  'native.ui.actor_identifier': 'Actor ID',
+  'native.ui.device_identifier': 'Device ID',
+  'native.ui.credential_storage': 'Credential storage',
+  'native.ui.secure_device_credential_vault':
+      'Protected credential vault on this device',
+  'native.ui.permissions_for_selected_scope':
+      'Permissions for the selected company and branch',
+  'native.ui.no_permissions_for_selected_scope':
+      'No permissions are granted for this scope.',
+  'native.ui.host_connection_security': 'Connection security',
+  'native.ui.host_settings_security_details':
+      'Remote Host connections use HTTPS with standard certificate validation. Stored credentials are never displayed here, and the Host checks authorization on each request.',
+  'native.ui.configure_host_connection': 'Configure Host connection',
+  'native.ui.change_host_connection': 'Change Host connection',
+  'native.ui.host_settings_device_local_notice':
+      'These settings apply to this device. They do not grant Host permissions or change server configuration.',
+  'native.ui.invalid_saved_host_address': 'Invalid saved Host address',
   'native.ui.enroll_client': 'Enroll this device as a Client',
   'native.ui.client_pairing_heading': 'Connect this Client to a Host',
   'native.ui.client_pairing_explanation':

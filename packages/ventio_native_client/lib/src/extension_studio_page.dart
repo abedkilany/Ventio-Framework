@@ -21,6 +21,7 @@ import 'host_overview_page.dart';
 import 'host_readiness.dart';
 import 'host_setup.dart';
 import 'host_setup_page.dart';
+import 'host_settings_page.dart';
 import 'host_user_management.dart';
 import 'host_sync_service.dart';
 import 'host_transport.dart';
@@ -35,9 +36,10 @@ import 'transport_fixture.dart';
 import 'users_permissions_page.dart';
 
 enum _StudioMenuAction {
-  connect,
+  hostSettings,
   sync,
   manageUsers,
+  manageRoles,
   manageDevices,
   hostOverview,
   hostSetup,
@@ -416,6 +418,24 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openHostSettings() async {
+    await _refreshHostIdentity();
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => HostSettingsPage(
+          profile: _hostProfile,
+          identity: _hostIdentity,
+          onConfigure: () {
+            Navigator.of(context).pop();
+            unawaited(_configureHost());
+          },
+        ),
+      ),
+    );
+    await _refreshHostIdentity();
   }
 
   Future<void> _openHostSetup() async {
@@ -1027,12 +1047,14 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               tooltip: context.ventioText('native.ui.workspace_actions'),
               onSelected: (action) {
                 switch (action) {
-                  case _StudioMenuAction.connect:
-                    _configureHost();
+                  case _StudioMenuAction.hostSettings:
+                    _openHostSettings();
                   case _StudioMenuAction.sync:
                     _syncHost();
                   case _StudioMenuAction.manageUsers:
                     _openUserManagement();
+                  case _StudioMenuAction.manageRoles:
+                    _openRoleAdministration();
                   case _StudioMenuAction.manageDevices:
                     _openDeviceManagement();
                   case _StudioMenuAction.hostOverview:
@@ -1055,10 +1077,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               },
               itemBuilder: (context) => [
                 PopupMenuItem(
-                  value: _StudioMenuAction.connect,
-                  child: Text(
-                    _hostProfile == null ? 'Connect Host' : 'Host connection',
-                  ),
+                  value: _StudioMenuAction.hostSettings,
+                  child: const VentioText('native.ui.host_settings'),
                 ),
                 PopupMenuItem(
                   value: _StudioMenuAction.localDiagnostics,
@@ -1082,6 +1102,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   const PopupMenuItem(
                     value: _StudioMenuAction.manageUsers,
                     child: VentioText('native.ui.users_permissions'),
+                  ),
+                if (_canManageRoles)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.manageRoles,
+                    child: VentioText('native.ui.manage_roles_access'),
                   ),
                 if (_canManageDevices || _canManagePairings)
                   const PopupMenuItem(
@@ -1155,11 +1180,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               icon: const Icon(Icons.cloud_download_outlined),
             ),
             IconButton(
-              tooltip: _hostProfile == null
-                  ? 'Connect Host'
-                  : 'Host connection',
-              onPressed: _configureHost,
-              icon: const Icon(Icons.cloud_outlined),
+              tooltip: context.ventioText('native.ui.host_settings'),
+              onPressed: _openHostSettings,
+              icon: const Icon(Icons.settings_outlined),
             ),
             IconButton(
               tooltip: context.ventioText(
@@ -1213,9 +1236,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               label: const VentioText('native.ui.install_from_host'),
             ),
             TextButton.icon(
-              onPressed: _configureHost,
-              icon: const Icon(Icons.cloud_outlined),
-              label: Text(_hostProfile == null ? 'Connect Host' : 'Host'),
+              onPressed: _openHostSettings,
+              icon: const Icon(Icons.settings_outlined),
+              label: const VentioText('native.ui.host_settings'),
             ),
             TextButton.icon(
               onPressed: _installBundle,
