@@ -52,7 +52,7 @@
     <div><span class="label">Overall Wave 1 completion</span><span class="metric">13%</span><div class="bar" role="img" aria-label="13 percent complete"><span></span></div><small>13 of 100 stage-weight points accepted</small></div>
     <div><span class="label">Current execution stage</span><strong>Stage 6 — Comprehensive Diagnostics Center</strong><br><span class="status progress">IN PROGRESS</span></div>
     <div><span class="label">Stages</span><strong>2 PASS · 1 FAIL · 2 BLOCKED · 6 IN PROGRESS</strong></div>
-    <div><span class="label">Latest implementation commit</span><strong><code>57175ec</code></strong><br><small>Verified Host identity security against local PostgreSQL</small></div>
+    <div><span class="label">Latest implementation commit</span><strong><code>b3cd758</code></strong><br><small>Added protected diagnostic child-process regression coverage</small></div>
   </section>
 
   <div class="callout"><strong>Progress rule:</strong> a stage earns its full weight only after implementation and its exit gate pass. No partial credit is assigned. The previous Wave 1 score does not imply that Host/Client management acceptance has passed.</div>
@@ -105,7 +105,7 @@
       <li>Do not use Docker for these tests; the user asked to leave it stopped.</li>
     </ul></section>
     <section class="card"><h3>Latest verification</h3><p><span class="status pass">PASS</span> Windows ACL private-file integration, including protected diagnostic event write from a child Dart process and parent reopen, passed three consecutive runs. Host API contract tests passed 70/70 and <code>dart analyze .</code> reported no issues. PostgreSQL migrations 001–029 and security bootstrap plus database suites (114/114, 21/21, 20/20, 24/24) and adapter suite (19/19) also pass on disposable loopback fixtures.</p><p><span class="status progress">IN PROGRESS — NOT ACCEPTED</span> Overall accepted progress remains 13% (Stage 0: 4%, Stage 4: 9%). The final Wave 1 acceptance gate remains BLOCKED.</p></section>
-    <section class="card"><h3>Commit references</h3><p>Baseline: <code>ce5ac6e</code>. Stage 4 accepted slice: <code>ee21fea</code>. Diagnostics/readiness: <code>eddca5c</code>, <code>a0941a0</code>. PostgreSQL verification runner, identity test fixes and evidence update: <code>57175ec</code>.</p></section>
+    <section class="card"><h3>Commit references</h3><p>Baseline: <code>ce5ac6e</code>. Stage 4 accepted slice: <code>ee21fea</code>. Diagnostics/readiness: <code>eddca5c</code>, <code>a0941a0</code>. PostgreSQL verification runner and identity test fixes: <code>57175ec</code>. Protected child-process diagnostic regression: <code>b3cd758</code>.</p></section>
   </div>
 
   <h2>Final acceptance gate</h2>
@@ -147,7 +147,7 @@
   <h2>Next planned engineering action</h2>
   <p>Next: close the remaining Stage 1/2 contract and device-role scenarios, then continue the Host service and allowlisted configuration boundary needed by the unified Windows installer. Resolve the protected diagnostics child-process write independently; Docker remains stopped.</p>
 
-  <footer>Last updated: <time datetime="2026-10-30T05:19:04+00:00">2026-10-30 05:19 UTC</time>. This is a manually maintained, static development dashboard; it does not update automatically.</footer>
+  <footer>Last updated: <time datetime="2026-10-30T05:19:27+00:00">2026-10-30 05:19 UTC</time>. This is a manually maintained, static development dashboard; it does not update automatically.</footer>
 </main>
 </body>
 </html>
