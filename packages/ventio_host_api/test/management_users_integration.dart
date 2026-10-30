@@ -115,6 +115,24 @@ Future<void> main() async {
               initialHostAdministratorPermissions.length,
       'First Host administrator is created atomically with direct management grants and a digest-only scoped device credential',
     );
+    final initialAdminAudit = await auditConnection.execute(
+      pg.Sql.named('''
+        SELECT action,details::text FROM ventio_identity_audit
+        WHERE tenant_id=@tenant AND action='INITIAL_ADMIN_BOOTSTRAPPED'
+          AND subject_id=@actor
+      '''),
+      parameters: {'tenant': tenant, 'actor': initialAdmin.actorId},
+    );
+    check(
+      initialAdminAudit.length == 1 &&
+          !initialAdminAudit.single[1].toString().contains(
+            initialAdmin.token,
+          ) &&
+          !initialAdminAudit.single[1].toString().contains(
+            OpaqueToken.digest(initialAdmin.token),
+          ),
+      'Initial administrator audit event omits the plaintext token and its digest',
+    );
     var repeatedBootstrapDenied = false;
     try {
       await operator.bootstrapFirstAdministrator(
