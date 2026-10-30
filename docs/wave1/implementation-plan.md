@@ -70,6 +70,11 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 - The Windows artifact was rebuilt from the current Client source, including Devices & Pairing UI, and verified only as a Client package. Fresh install, repeat install/repair, uninstall and external-data-retention checks passed. It does not install PostgreSQL or a Host service and does not satisfy Stage 10. Current package SHA-256: 47cc471db0651a229c51a125909c4b46978a12491e2727bbbf3ceddf3b1dac59 (14,562,917 bytes).
 - At the time this baseline plan was written, PostgreSQL integrations had not run because Docker was left stopped and native binaries were not yet available. Later milestone evidence supersedes that state: native PostgreSQL 16.15 was checksum-verified, loopback fixtures were run and cleaned, migrations/bootstrap passed, pairing lifecycle passed 24/24, and Stage 4's gate is accepted. Wave 1 remains open; accepted progress is 13% (Stage 0: 4%, Stage 4: 9%).
 
+### 2026-10-30 update — Flutter Host diagnostic retrieval
+
+- Commits `0ef6be1` and `7b6af70` integrate scoped Host diagnostic events into the existing Flutter Diagnostics Center. The client uses the existing TLS-validating transport, enforces persistent exact-scope `host.diagnostics.read` grants as a UI gate, validates correlation IDs and public event schemas, and keeps local diagnostics available independently when Host access fails.
+- Verification: four new Host diagnostics client tests and the focused Host readiness, local diagnostics and Extension Studio suites passed **52/52**, including a widget test that displays authorized Host events alongside the local event feed; `flutter analyze` reported no issues. This slice does not earn Stage 6 weight because protected cross-process persistence, full diagnostics coverage and export acceptance remain open.
+
 ## Verification strategy
 
 - Run focused unit/widget tests and static analysis for each changed Dart package after its stage; run contract/schema/localization gates whenever their inputs change.
