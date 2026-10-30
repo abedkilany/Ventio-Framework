@@ -10,6 +10,8 @@ using System.Text.Json;
 internal static class Program
 {
     private const string ServiceName = "VentioHost";
+    internal const string HostReadyMessage = "VENTIO_HOST_READY";
+    private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(90);
     private const int ServiceWin32OwnProcess = 0x00000010;
     private const int ServiceStartPending = 2;
     private const int ServiceRunning = 4;
@@ -92,8 +94,12 @@ internal static class Program
             start.Environment["VENTIO_ENABLE_LOCAL_HOST"] = "yes";
             foreach (var pair in environment) start.Environment[pair.Key] = pair.Value;
 
+            var hostReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var process = new Process { StartInfo = start, EnableRaisingEvents = true };
-            process.OutputDataReceived += (_, _) => { }; // Deliberately discard process output; never persist secrets.
+            process.OutputDataReceived += (_, eventArgs) =>
+            {
+                if (IsHostReadyMessage(eventArgs.Data)) hostReady.TrySetResult();
+            }; // Deliberately discard process output; never persist secrets.
             process.ErrorDataReceived += (_, _) => { };
             lock (Sync)
             {
@@ -122,6 +128,9 @@ internal static class Program
                 throw new InvalidOperationException("Local bootstrap broker did not become ready.");
             brokerReady.Task.GetAwaiter().GetResult();
 
+            var processExit = process.WaitForExitAsync();
+            SetStatus(ServiceStartPending, checkpoint: 2, waitHintMs: 15000);
+            WaitForHostReadiness(hostReady.Task, processExit, brokerTask, brokerCancellation.Token);
             lock (Sync)
             {
                 if (!StopRequested.IsSet)
@@ -129,7 +138,6 @@ internal static class Program
                         controlsAccepted: ServiceAcceptStop | ServiceAcceptShutdown);
             }
 
-            var processExit = process.WaitForExitAsync();
             var completed = Task.WhenAny(processExit, brokerTask).GetAwaiter().GetResult();
             if (completed == brokerTask && !StopRequested.IsSet)
                 brokerTask.GetAwaiter().GetResult();
@@ -161,6 +169,41 @@ internal static class Program
             }
             SetStatus(ServiceStopped, checkpoint: 0, waitHintMs: 0, win32ExitCode: _serviceExitCode);
         }
+    }
+
+    internal static bool IsHostReadyMessage(string? message) =>
+        StringComparer.Ordinal.Equals(message, HostReadyMessage);
+
+    private static void WaitForHostReadiness(
+        Task hostReady,
+        Task processExit,
+        Task brokerTask,
+        CancellationToken cancellationToken)
+    {
+        var timer = Stopwatch.StartNew();
+        var checkpoint = 3;
+        while (timer.Elapsed < HostStartupTimeout)
+        {
+            if (StopRequested.IsSet) return;
+            var poll = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            var completed = Task.WhenAny(hostReady, processExit, brokerTask, poll)
+                .GetAwaiter().GetResult();
+            if (completed == hostReady) return;
+            if (completed == processExit)
+            {
+                processExit.GetAwaiter().GetResult();
+                if (StopRequested.IsSet) return;
+                throw new InvalidOperationException("Host process exited before readiness.");
+            }
+            if (completed == brokerTask)
+            {
+                brokerTask.GetAwaiter().GetResult();
+                throw new InvalidOperationException("Host bootstrap broker exited before readiness.");
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            SetStatus(ServiceStartPending, checkpoint++, waitHintMs: 15000);
+        }
+        throw new TimeoutException("Host readiness timeout.");
     }
 
     private static Dictionary<string, string> CreateBootstrapEnvironment(Dictionary<string, string> configuration)

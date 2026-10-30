@@ -11,6 +11,13 @@ if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Host 
 var parse = Assembly.Load("VentioHostService").GetType("Program")?.GetMethod(
     "ReadAndValidateConfiguration", BindingFlags.NonPublic | BindingFlags.Static)
     ?? throw new InvalidOperationException("Host service validator was not found.");
+var readinessMarker = Assembly.Load("VentioHostService").GetType("Program")?.GetMethod(
+    "IsHostReadyMessage", BindingFlags.NonPublic | BindingFlags.Static)
+    ?? throw new InvalidOperationException("Host readiness marker validator was not found.");
+if (!(bool)readinessMarker.Invoke(null, ["VENTIO_HOST_READY"])! ||
+    (bool)readinessMarker.Invoke(null, ["Persistent Host listening on http://127.0.0.1:8080"])! ||
+    (bool)readinessMarker.Invoke(null, [null])!)
+    throw new Exception("Host service accepted an invalid startup readiness marker.");
 
 if (args.Length == 2 && args[0] == "--validate-file")
 {

@@ -199,6 +199,7 @@ Future<void> runLocalHost({
     stdout.writeln(
       'Persistent Host listening on $scheme://$addressText:${api.port}',
     );
+    stdout.writeln('VENTIO_HOST_READY');
   } catch (error) {
     try {
       await diagnostics.record(

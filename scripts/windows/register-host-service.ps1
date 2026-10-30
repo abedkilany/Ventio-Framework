@@ -12,8 +12,13 @@ $hostExe = Join-Path $payload 'ventio_host.exe'
 $migrationExe = Join-Path $payload 'ventio_migrate.exe'
 $identityBootstrapExe = Join-Path $payload 'ventio_identity_bootstrap.exe'
 $serviceExe = Join-Path $payload 'VentioHostService.exe'
+$expectedPayload = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio\host-payload'))
 $configFile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)) 'Ventio\Host\service-config.dpapi'
 $sc = Join-Path $env:SystemRoot 'System32\sc.exe'
+
+if (-not $payload.Equals($expectedPayload, [StringComparison]::OrdinalIgnoreCase)) {
+  throw 'Host service payload must be the verified machine-wide Ventio installation directory.'
+}
 
 if (-not (Test-Path -LiteralPath $hostExe -PathType Leaf) -or
     -not (Test-Path -LiteralPath $migrationExe -PathType Leaf) -or
@@ -29,6 +34,19 @@ if ($manifest.hostExecutable -ne 'ventio_host.exe' -or $manifest.migrationExecut
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
   throw 'Host payload manifest failed its safe-content checks.'
+}
+
+foreach ($relative in @('ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'VentioHostService.exe')) {
+  $entry = @($manifest.verifiedFiles | Where-Object { $_.path -ceq $relative })
+  $file = Join-Path $payload $relative
+  if ($entry.Count -ne 1 -or -not (Test-Path -LiteralPath $file -PathType Leaf)) {
+    throw 'Host payload manifest is missing a required executable hash.'
+  }
+  $item = Get-Item -LiteralPath $file
+  if ($item.Length -ne [long]$entry[0].length -or
+      (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$entry[0].sha256) {
+    throw 'A required Host executable differs from its payload manifest.'
+  }
 }
 
 $existingHost = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -76,6 +94,16 @@ try {
   if ($Start) {
     & $sc start $serviceName | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Host service start failed; review protected local diagnostics.' }
+    $deadline = [DateTime]::UtcNow.AddSeconds(120)
+    while ($true) {
+      $registeredService = Get-Service -Name $serviceName -ErrorAction Stop
+      if ($registeredService.Status.ToString() -eq 'Running') { break }
+      if ($registeredService.Status.ToString() -eq 'Stopped') {
+        throw 'Host service stopped before its readiness checks completed.'
+      }
+      if ([DateTime]::UtcNow -ge $deadline) { throw 'Host service readiness timed out.' }
+      Start-Sleep -Seconds 1
+    }
   }
   Write-Output 'HOST_SERVICE_REGISTERED'
 }

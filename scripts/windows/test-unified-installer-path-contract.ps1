@@ -19,8 +19,12 @@ Assert-Contract ($installerSource -match 'runasoriginaluser') 'FLUTTER_APP_MUST_
 Assert-Contract ($postgresProvisioner.Contains("Join-Path `$env:ProgramFiles 'Ventio'")) 'POSTGRES_PROVISIONER_PROGRAM_FILES_BOUNDARY_MISSING'
 Assert-Contract ($postgresProvisioner.Contains('$pgRoot.StartsWith((Join-Path $env:ProgramFiles ''Ventio\''), [StringComparison]::OrdinalIgnoreCase)')) 'POSTGRES_APPLY_MUST_ENFORCE_PRODUCT_PAYLOAD_BOUNDARY'
 Assert-Contract ($hostRegistration.Contains("Join-Path `$payload 'ventio_host.exe'")) 'HOST_SERVICE_MUST_USE_SELECTED_VERIFIED_PAYLOAD'
+Assert-Contract ($hostRegistration.Contains("Join-Path `$env:ProgramFiles 'Ventio\host-payload'")) 'HOST_SERVICE_PAYLOAD_MUST_STAY_IN_THE_MACHINE_WIDE_PRODUCT_DIRECTORY'
 Assert-Contract ($hostRegistration.Contains("Join-Path `$payload 'ventio_identity_bootstrap.exe'")) 'HOST_SERVICE_MUST_REQUIRE_THE_FIXED_FIRST_ADMIN_BOOTSTRAP_PAYLOAD'
 Assert-Contract ($hostRegistration.Contains("`$manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe'")) 'HOST_SERVICE_MUST_VALIDATE_THE_FIRST_ADMIN_BOOTSTRAP_MANIFEST_ENTRY'
+Assert-Contract ($hostRegistration.Contains('Get-FileHash -LiteralPath $file -Algorithm SHA256')) 'HOST_SERVICE_MUST_VERIFY_CRITICAL_EXECUTABLE_HASHES'
+Assert-Contract ($hostRegistration.Contains("AddSeconds(120)")) 'HOST_SERVICE_START_MUST_WAIT_FOR_READINESS'
+Assert-Contract ($hostRegistration.Contains("ToString() -eq 'Running'")) 'HOST_SERVICE_START_MUST_CONFIRM_RUNNING_STATE'
 
 $programFiles = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio'))
 $hostPayload = [IO.Path]::GetFullPath((Join-Path $programFiles 'host-payload'))
