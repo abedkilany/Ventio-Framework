@@ -5,6 +5,7 @@ param(
   [PSCredential] $BootstrapCredential,
   [PSCredential] $RuntimeCredential,
   [PSCredential] $IdentityApiCredential,
+  [PSCredential] $MigrationCredential,
   [switch] $Apply,
   [switch] $TestMode
 )
@@ -175,8 +176,10 @@ if (-not $TestMode) {
 if (-not $BootstrapCredential -or $BootstrapCredential.UserName -cne $bootstrapRole) { throw 'HOST_DATABASE_BOOTSTRAP_CREDENTIAL_INVALID' }
 Assert-ApplicationCredential $RuntimeCredential 'ventio_runtime_app'
 Assert-ApplicationCredential $IdentityApiCredential 'ventio_identity_api_app'
+Assert-ApplicationCredential $MigrationCredential 'ventio_migrator_app'
 $runtimeSecret = Get-SecureText $RuntimeCredential.Password
 $identitySecret = Get-SecureText $IdentityApiCredential.Password
+$migrationSecret = Get-SecureText $MigrationCredential.Password
 $bootstrapSecret = Get-SecureText $BootstrapCredential.Password
 $oldPassword = $env:PGPASSWORD
 try {
@@ -184,7 +187,7 @@ try {
   $target = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT current_setting('data_directory')")
   if (-not [IO.Path]::GetFullPath($target).Equals($data, [StringComparison]::OrdinalIgnoreCase)) { throw 'HOST_DATABASE_DATA_DIRECTORY_MISMATCH' }
   $databaseExists = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_database WHERE datname='$databaseName'")
-  $reservedRoles = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_roles WHERE rolname IN ('ventio_owner','ventio_runtime','ventio_identity_admin','ventio_identity_api','ventio_migrator','ventio_runtime_app','ventio_identity_api_app')")
+  $reservedRoles = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_roles WHERE rolname IN ('ventio_owner','ventio_runtime','ventio_identity_admin','ventio_identity_api','ventio_migrator','ventio_runtime_app','ventio_identity_api_app','ventio_migrator_app')")
   if ($databaseExists -ne '0' -or $reservedRoles -ne '0') { throw 'HOST_DATABASE_OR_ROLE_CONFLICT' }
 
   $baseRolesSql = @'
@@ -210,6 +213,8 @@ CREATE ROLE ventio_runtime_app LOGIN PASSWORD '$escapedRuntime' INHERIT NOSUPERU
 GRANT ventio_runtime TO ventio_runtime_app;
 CREATE ROLE ventio_identity_api_app LOGIN PASSWORD '$escapedIdentity' INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 GRANT ventio_identity_api TO ventio_identity_api_app;
+CREATE ROLE ventio_migrator_app LOGIN PASSWORD '$($migrationSecret.Replace("'", "''"))' INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+GRANT ventio_migrator TO ventio_migrator_app;
 "@
   [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-v','ON_ERROR_STOP=1') $loginSql)
 
@@ -219,6 +224,10 @@ GRANT ventio_identity_api TO ventio_identity_api_app;
   $env:PGPASSWORD = $identitySecret
   $identityCheck = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U','ventio_identity_api_app','-d',$databaseName,'-Atc',"SELECT current_user || ':' || (SELECT rolsuper::text FROM pg_roles WHERE rolname=current_user) || ':' || pg_has_role(current_user,'ventio_identity_api','MEMBER')::text")
   if ($identityCheck -ne 'ventio_identity_api_app:false:true') { throw 'HOST_DATABASE_IDENTITY_PROFILE_INVALID' }
+
+  $env:PGPASSWORD = $migrationSecret
+  $migrationCheck = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U','ventio_migrator_app','-d',$databaseName,'-Atc',"SELECT current_user || ':' || rolsuper::text || ':' || rolcreatedb::text || ':' || rolcreaterole::text || ':' || rolreplication::text || ':' || rolbypassrls::text || ':' || pg_has_role(session_user,'ventio_migrator','MEMBER')::text || ':' || pg_has_role(session_user,'ventio_owner','MEMBER')::text FROM pg_roles WHERE rolname=current_user")
+  if ($migrationCheck -ne 'ventio_migrator_app:false:false:false:false:false:true:true') { throw 'HOST_DATABASE_MIGRATION_PROFILE_INVALID' }
 
   $env:PGPASSWORD = $bootstrapSecret
   $migrationCount = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-Atc','SELECT count(*) FROM public.ventio_schema_migrations')
@@ -243,6 +252,7 @@ finally {
   if ($null -eq $oldPassword) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue } else { $env:PGPASSWORD = $oldPassword }
   $runtimeSecret = $null
   $identitySecret = $null
+  $migrationSecret = $null
   $bootstrapSecret = $null
   $RuntimeCredential = $null
   $IdentityApiCredential = $null

@@ -39,6 +39,7 @@ if ($LASTEXITCODE -ne 0 -or $versionOutput -ne 'postgres (PostgreSQL) 16.15') {
 
 $migrationDirectory = Join-Path $repoRoot 'migrations\postgres'
 $securityDirectory = Join-Path $repoRoot 'security\postgres'
+$windowsScriptDirectory = Join-Path $repoRoot 'scripts\windows'
 $migrationPackage = Join-Path $repoRoot 'packages\ventio_postgres'
 $migrationSource = Join-Path $migrationPackage 'bin\migrate.dart'
 $identityBootstrapSource = Join-Path $hostRoot 'bin\bootstrap_first_administrator.dart'
@@ -95,6 +96,21 @@ try {
     Copy-Item -Destination $runtimePostgresRoot
   Copy-Item -LiteralPath $migrationDirectory -Destination (Join-Path $tempDirectory 'migrations') -Recurse
   Copy-Item -LiteralPath $securityDirectory -Destination (Join-Path $tempDirectory 'security') -Recurse
+  $setupDirectory = Join-Path $tempDirectory 'setup'
+  [void](New-Item -ItemType Directory -Path $setupDirectory -Force)
+  foreach ($scriptName in @(
+    'provision-host-installation.ps1', 'provision-postgres-service.ps1',
+    'initialize-host-database.ps1', 'register-host-service.ps1',
+    'write-host-service-config.ps1', 'HostMigrationCredential.psm1',
+    'upgrade-host-database.ps1', 'stop-host-services.ps1',
+    'remove-host-installation.ps1'
+  )) {
+    $scriptPath = Join-Path $windowsScriptDirectory $scriptName
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+      throw "Required Host setup script is missing: $scriptName"
+    }
+    Copy-Item -LiteralPath $scriptPath -Destination $setupDirectory
+  }
 
   $payloadFiles = Get-ChildItem -LiteralPath $tempDirectory -File -Recurse
   $migrationRoot = Join-Path $tempDirectory 'migrations'
@@ -105,6 +121,7 @@ try {
     Get-Item -LiteralPath $identityBootstrapExe
     Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioHostService.exe')
     foreach ($name in $requiredPostgres) { Get-Item -LiteralPath (Join-Path $tempDirectory "postgresql\bin\$name") }
+    Get-ChildItem -LiteralPath $setupDirectory -File
     $payloadFiles | Where-Object {
       $_.Extension -eq '.sql' -and
       ($_.FullName.StartsWith($migrationRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) -or

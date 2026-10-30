@@ -68,7 +68,7 @@ function New-RandomBase64Secret([int] $ByteCount) {
   $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
   try {
     $generator.GetBytes($bytes)
-    return [Convert]::ToBase64String($bytes)
+    return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
   }
   finally {
     [Array]::Clear($bytes, 0, $bytes.Length)
@@ -209,13 +209,15 @@ if ($TestInitDbOnly) {
       if (-not (Test-Path -LiteralPath $databaseInitializer)) { throw 'POSTGRES_TEST_DATABASE_INITIALIZER_MISSING' }
       $runtimePassword = New-RandomBase64Secret 36
       $identityPassword = New-RandomBase64Secret 36
+      $migrationPassword = New-RandomBase64Secret 32
       $bootstrapCredential = [PSCredential]::new('ventio_bootstrap', $testSecret)
       $runtimeCredential = [PSCredential]::new('ventio_runtime_app', (ConvertTo-SecureString $runtimePassword -AsPlainText -Force))
       $identityCredential = [PSCredential]::new('ventio_identity_api_app', (ConvertTo-SecureString $identityPassword -AsPlainText -Force))
+      $migrationCredential = [PSCredential]::new('ventio_migrator_app', (ConvertTo-SecureString $migrationPassword -AsPlainText -Force))
       try {
         $databaseInitOutput = @(& $databaseInitializer -PostgresRoot $pgRoot -DataDirectory $testData -Port $testPort `
           -BootstrapCredential $bootstrapCredential -RuntimeCredential $runtimeCredential `
-          -IdentityApiCredential $identityCredential -Apply -TestMode 2>&1)
+          -IdentityApiCredential $identityCredential -MigrationCredential $migrationCredential -Apply -TestMode 2>&1)
         $databaseInitSucceeded = $?
       } catch {
         $databaseInitOutput = @($_.ToString())
@@ -234,6 +236,68 @@ if ($TestInitDbOnly) {
         }
         throw 'POSTGRES_TEST_HOST_DATABASE_INITIALIZATION_FAILED'
       }
+      $env:VENTIO_DATABASE_URL = "postgresql://ventio_migrator_app:${migrationPassword}@127.0.0.1:${testPort}/ventio_host?sslmode=disable"
+      $env:VENTIO_MIGRATIONS_DIR = $migrationFiles
+      $env:VENTIO_MIGRATION_ROLE = 'ventio_owner'
+      $migrationProcess = [Diagnostics.Process]::new()
+      $migrationProcess.StartInfo = [Diagnostics.ProcessStartInfo]::new($migrationExecutable)
+      $migrationProcess.StartInfo.UseShellExecute = $false
+      $migrationProcess.StartInfo.CreateNoWindow = $true
+      $migrationProcess.StartInfo.RedirectStandardOutput = $true
+      $migrationProcess.StartInfo.RedirectStandardError = $true
+      $migrationProcess.StartInfo.EnvironmentVariables['VENTIO_DATABASE_URL'] = $env:VENTIO_DATABASE_URL
+      $migrationProcess.StartInfo.EnvironmentVariables['VENTIO_MIGRATIONS_DIR'] = $migrationFiles
+      $migrationProcess.StartInfo.EnvironmentVariables['VENTIO_MIGRATION_ROLE'] = 'ventio_owner'
+      $migrationProcess.StartInfo.EnvironmentVariables['PGPASSWORD'] = $migrationPassword
+      if (-not $migrationProcess.Start()) { throw 'POSTGRES_TEST_MIGRATOR_PROCESS_START_FAILED' }
+      $migrationStdoutTask = $migrationProcess.StandardOutput.ReadToEndAsync()
+      $migrationStderrTask = $migrationProcess.StandardError.ReadToEndAsync()
+      $migrationProcess.WaitForExit()
+      $migrationRunText = $migrationStdoutTask.GetAwaiter().GetResult()
+      $migrationErrorText = $migrationStderrTask.GetAwaiter().GetResult().Replace($migrationPassword, '[redacted]')
+      $migrationExitCode = $migrationProcess.ExitCode
+      $migrationProcess.Dispose()
+      if ($migrationExitCode -ne 0 -or $migrationRunText -notmatch 'Applied 0 migration\(s\)') {
+        if ($migrationErrorText) {
+          $safeErrors = @($migrationErrorText -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 6)
+          if ($safeErrors.Count -gt 0) { Write-Output ('POSTGRES_TEST_MIGRATOR_ERROR=' + ($safeErrors -join ' | ')) }
+        }
+        throw 'POSTGRES_TEST_MIGRATOR_UPGRADE_FAILED'
+      }
+      Write-Output 'POSTGRES_MIGRATOR_UPGRADE_TEST_PASS'
+      $migrationCredentialModule = Join-Path $PSScriptRoot 'HostMigrationCredential.psm1'
+      if (-not (Test-Path -LiteralPath $migrationCredentialModule -PathType Leaf)) {
+        throw 'POSTGRES_TEST_MIGRATION_CREDENTIAL_MODULE_MISSING'
+      }
+      Import-Module $migrationCredentialModule -Force
+      $migrationCredentialDirectory = Join-Path $testRoot 'protected-migration-credential'
+      Write-HostMigrationCredential -Credential $migrationCredential -OutputDirectory $migrationCredentialDirectory -TestMode
+      $restoredMigrationCredential = Read-HostMigrationCredential -OutputDirectory $migrationCredentialDirectory -TestMode
+      if ($restoredMigrationCredential.UserName -cne 'ventio_migrator_app' -or
+          $restoredMigrationCredential.GetNetworkCredential().Password -cne $migrationPassword) {
+        throw 'POSTGRES_TEST_MIGRATION_CREDENTIAL_ROUNDTRIP_FAILED'
+      }
+      $databaseUpgrade = Join-Path $PSScriptRoot 'upgrade-host-database.ps1'
+      if (-not (Test-Path -LiteralPath $databaseUpgrade -PathType Leaf)) { throw 'POSTGRES_TEST_DATABASE_UPGRADE_SCRIPT_MISSING' }
+      & $databaseUpgrade -PostgresRoot $pgRoot -Port $testPort -Apply -TestMode -TestDataDirectory $testData
+      if (-not $?) {
+        throw 'POSTGRES_TEST_DATABASE_UPGRADE_FAILED'
+      }
+      $testBackupRoot = Join-Path $testRoot 'ventio-backups'
+      $testBackups = @(Get-ChildItem -LiteralPath $testBackupRoot -Directory -Filter 'ventio-postgresql-before-upgrade-*' -ErrorAction SilentlyContinue)
+      if ($testBackups.Count -ne 1 -or
+          -not (Test-Path -LiteralPath (Join-Path $testBackups[0].FullName 'backup-manifest.json') -PathType Leaf) -or
+          -not (Test-Path -LiteralPath (Join-Path (Join-Path $testBackups[0].FullName 'data') 'PG_VERSION') -PathType Leaf)) {
+        throw 'POSTGRES_TEST_DATABASE_BACKUP_VERIFICATION_FAILED'
+      }
+      $protectedMigrationCredential = Join-Path $migrationCredentialDirectory 'migration-credential.dpapi'
+      $migrationBytes = [IO.File]::ReadAllBytes($protectedMigrationCredential)
+      try {
+        if ([Text.Encoding]::UTF8.GetString($migrationBytes).Contains($migrationPassword)) {
+          throw 'POSTGRES_TEST_MIGRATION_CREDENTIAL_PLAINTEXT_SECRET'
+        }
+      }
+      finally { [Array]::Clear($migrationBytes, 0, $migrationBytes.Length) }
       $configWriter = Join-Path $PSScriptRoot 'write-host-service-config.ps1'
       if (-not (Test-Path -LiteralPath $configWriter)) { throw 'POSTGRES_TEST_CONFIG_WRITER_MISSING' }
       $serviceTests = Join-Path $PSScriptRoot '..\..\installer\windows\host-service.tests\HostService.Tests.csproj'
@@ -249,16 +313,20 @@ if ($TestInitDbOnly) {
       $configBytes = [IO.File]::ReadAllBytes($protectedConfig)
       try {
         $configText = [Text.Encoding]::UTF8.GetString($configBytes)
-        if ($configText.Contains($runtimePassword) -or $configText.Contains($identityPassword)) {
+        if ($configText.Contains($runtimePassword) -or $configText.Contains($identityPassword) -or
+            $configText.Contains($migrationPassword)) {
           throw 'POSTGRES_TEST_CONFIG_PLAINTEXT_SECRET'
         }
       }
       finally { [Array]::Clear($configBytes, 0, $configBytes.Length) }
       $runtimeCredential = $null
       $identityCredential = $null
+      $migrationCredential = $null
+      $restoredMigrationCredential = $null
       $bootstrapCredential = $null
       $runtimePassword = $null
       $identityPassword = $null
+      $migrationPassword = $null
       Write-Output 'POSTGRES_MIGRATION_LEAST_PRIVILEGE_BOOTSTRAP_TEST_PASS'
     } else {
       Write-Output 'POSTGRES_INITDB_SECRET_PIPE_TEST_PASS'

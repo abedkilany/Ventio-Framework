@@ -62,9 +62,13 @@ Name: "{autoprograms}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{ap
 Name: "{autodesktop}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent runasoriginaluser
+Filename: "{app}\{#AppExeName}"; Parameters: "--host-setup"; Description: "Set up Ventio Host"; WorkingDir: "{app}"; Components: host; Flags: postinstall nowait skipifsilent runasoriginaluser
+Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Check: not WizardIsComponentSelected('host'); Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [Code]
+var
+  RemoveVentioHostData: Boolean;
+
 function InitializeSetup(): Boolean;
 begin
   Result := True;
@@ -74,6 +78,80 @@ begin
       Log('HOST_INSTALL_REQUIRES_ADMIN_MODE')
     else
       MsgBox('Host installation needs administrator mode to place service files under Program Files. Restart Setup and choose the all-users installation mode.', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  StopScript: string;
+  PowerShell: string;
+  Parameters: string;
+  HasHostService: Boolean;
+  HasPostgresService: Boolean;
+begin
+  Result := '';
+  if not WizardIsComponentSelected('host') then exit;
+  HasHostService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost');
+  HasPostgresService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres');
+  if not HasHostService and not HasPostgresService then exit;
+  StopScript := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
+  if not FileExists(StopScript) then begin
+    Result := 'An existing Host service was found, but this installation does not contain the reviewed service-stop helper. No upgrade was performed.';
+    exit;
+  end;
+  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + StopScript + '"';
+  if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+    Result := 'Ventio could not safely stop its existing Host services. The installer stopped before replacing files.';
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  PowerShell: string;
+  ScriptPath: string;
+  Parameters: string;
+begin
+  if (CurStep = ssPostInstall) and WizardIsComponentSelected('host') then begin
+    PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+    ScriptPath := ExpandConstant('{app}\host-payload\setup\provision-host-installation.ps1');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -Apply';
+    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+      MsgBox('Ventio Host provisioning did not complete. Any PostgreSQL data created by setup was preserved. Rerun the Host installer to resume or repair installation.', mbError, MB_OK);
+      Abort();
+    end;
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+  PowerShell: string;
+  ScriptPath: string;
+  Parameters: string;
+begin
+  Result := True;
+  ScriptPath := ExpandConstant('{app}\host-payload\setup\remove-host-installation.ps1');
+  if not FileExists(ScriptPath) then begin
+    if RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost') or
+       RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres') then begin
+      MsgBox('Ventio Host services were found, but this installation does not contain the reviewed removal helper. The uninstaller stopped; services and data remain in place.', mbError, MB_OK);
+      Result := False;
+    end;
+    exit;
+  end;
+  RemoveVentioHostData := False;
+  if not UninstallSilent then begin
+    RemoveVentioHostData := (MsgBox('Do you want to permanently delete the Ventio Host database, Recovery Authority data, diagnostics, backups, and protected migration credential? Choose No to retain this data after the services are removed.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES);
+  end;
+  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '"';
+  if RemoveVentioHostData then Parameters := Parameters + ' -RemoveData';
+  if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+    MsgBox('Ventio could not safely remove its Host services. The uninstaller stopped; Host files and data remain in place.', mbError, MB_OK);
     Result := False;
   end;
 end;
