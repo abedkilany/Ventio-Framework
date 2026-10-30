@@ -89,6 +89,7 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 
 - Commit `eddca5c` adds an explicit Host readiness action to the Diagnostics Center. It uses the existing certificate-validating transport and requires the signed-in identity to hold `host.status.read` in the exact active scope; unauthorized users see a disabled action and no readiness request is sent.
 - The page renders API, database, schema and Recovery Authority states, safe reason codes, check time and correlation reference. Sanitized diagnostic export includes only the public readiness snapshot/status and correlation ID. A readiness error clears an older snapshot so stale green status cannot be shown beside a newer failure.
+- Commit `a0941a0` also persists a safe local diagnostic event when the readiness check fails, classifying network/TLS, authentication, authorization, database, recovery and API-execution errors without saving exception text. The event remains visible locally when Host diagnostics cannot be fetched.
 - The focused diagnostics/readiness/local diagnostics/Extension Studio suite passed **56/56**, `flutter analyze` passed, and `git diff --check` passed. These are client contract/widget checks, not evidence of a live Host health check. Stage 6 remains IN PROGRESS pending protected child-process log persistence, full failure-injection coverage and end-to-end diagnostic export.
 
 ## Verification strategy
