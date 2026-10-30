@@ -80,6 +80,11 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 - Commit `da71f97` makes Windows private-file helper errors include only the allowlisted operation and phase (for example, `replace, wait_for_helper`) and tests that a rejected file read does not disclose its path. Same-process ACL-backed Windows file integration passed; Host API tests passed 70/70 and analysis is clean.
 - An isolated child Dart writer opens the protected diagnostics log, but recording fails at `replace, wait_for_helper`. A temporary 30-second helper timeout did not fix it and was reverted. The blocker is narrowed to the PowerShell process not exiting during its replacement request; no unverified replacement workaround was retained.
 
+### 2026-10-30 update — Host diagnostic failure correlation
+
+- Commit `966faf5` carries a validated Host error correlation ID into the Diagnostics Center and sanitized combined export. The UI displays the stable Host failure explanation and reference; a widget test verifies that an HTTP 503 error message containing password-shaped text is excluded from the export.
+- Focused Host diagnostics, readiness, local diagnostics and Extension Studio tests passed **53/53**; `flutter analyze` reported no issues. Stage 6 remains unaccepted pending protected cross-process persistence and broader failure-injection coverage.
+
 ## Verification strategy
 
 - Run focused unit/widget tests and static analysis for each changed Dart package after its stage; run contract/schema/localization gates whenever their inputs change.
