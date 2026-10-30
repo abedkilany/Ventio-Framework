@@ -188,19 +188,19 @@ if ($TestInitDbOnly) {
       $bootstrapCredential = [PSCredential]::new('ventio_bootstrap', $testSecret)
       $runtimeCredential = [PSCredential]::new('ventio_runtime_app', (ConvertTo-SecureString $runtimePassword -AsPlainText -Force))
       $identityCredential = [PSCredential]::new('ventio_identity_api_app', (ConvertTo-SecureString $identityPassword -AsPlainText -Force))
-      & $databaseInitializer -PostgresRoot $pgRoot -DataDirectory $testData -Port $testPort `
-        -BootstrapCredential $bootstrapCredential -RuntimeCredential $runtimeCredential `
-        -IdentityApiCredential $identityCredential -Apply -TestMode
-      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_HOST_DATABASE_INITIALIZATION_FAILED' }
-      $ledger = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d ventio_host `
-        -v ON_ERROR_STOP=1 -Atc 'SELECT count(*) FROM public.ventio_schema_migrations'
-      if ($LASTEXITCODE -ne 0 -or $ledger -ne '29') { throw 'POSTGRES_TEST_MIGRATION_LEDGER_INVALID' }
-      $runtimeMembership = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d postgres `
-        -v ON_ERROR_STOP=1 -Atc "SELECT pg_has_role('ventio_runtime_app','ventio_runtime','MEMBER') AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname='ventio_runtime_app')"
-      if ($LASTEXITCODE -ne 0 -or $runtimeMembership -ne 't') { throw 'POSTGRES_TEST_RUNTIME_ROLE_INVALID' }
-      $identityMembership = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d postgres `
-        -v ON_ERROR_STOP=1 -Atc "SELECT pg_has_role('ventio_identity_api_app','ventio_identity_api','MEMBER') AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname='ventio_identity_api_app')"
-      if ($LASTEXITCODE -ne 0 -or $identityMembership -ne 't') { throw 'POSTGRES_TEST_IDENTITY_ROLE_INVALID' }
+      try {
+        $databaseInitOutput = @(& $databaseInitializer -PostgresRoot $pgRoot -DataDirectory $testData -Port $testPort `
+          -BootstrapCredential $bootstrapCredential -RuntimeCredential $runtimeCredential `
+          -IdentityApiCredential $identityCredential -Apply -TestMode 2>&1)
+        $databaseInitSucceeded = $?
+      } catch {
+        $databaseInitOutput = @($_.ToString())
+        $databaseInitSucceeded = $false
+      }
+      if (-not $databaseInitSucceeded -or $databaseInitOutput -notcontains 'HOST_DATABASE_INITIALIZED' -or
+          $databaseInitOutput -notcontains 'HOST_BOOTSTRAP_LOGIN_RETIRED') {
+        throw 'POSTGRES_TEST_HOST_DATABASE_INITIALIZATION_FAILED'
+      }
       $configWriter = Join-Path $PSScriptRoot 'write-host-service-config.ps1'
       if (-not (Test-Path -LiteralPath $configWriter)) { throw 'POSTGRES_TEST_CONFIG_WRITER_MISSING' }
       $serviceTests = Join-Path $PSScriptRoot '..\..\installer\windows\host-service.tests\HostService.Tests.csproj'

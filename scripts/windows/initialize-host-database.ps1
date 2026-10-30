@@ -208,8 +208,25 @@ GRANT ventio_identity_api TO ventio_identity_api_app;
   $env:PGPASSWORD = $identitySecret
   $identityCheck = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U','ventio_identity_api_app','-d',$databaseName,'-Atc',"SELECT current_user || ':' || (SELECT rolsuper::text FROM pg_roles WHERE rolname=current_user) || ':' || pg_has_role(current_user,'ventio_identity_api','MEMBER')::text")
   if ($identityCheck -ne 'ventio_identity_api_app:false:true') { throw 'HOST_DATABASE_IDENTITY_PROFILE_INVALID' }
+
+  $env:PGPASSWORD = $bootstrapSecret
+  $migrationCount = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-Atc','SELECT count(*) FROM public.ventio_schema_migrations')
+  if ($migrationCount -ne '29') { throw 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' }
+  $bootstrapProfile = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT rolcanlogin::text || ':' || rolsuper::text FROM pg_roles WHERE rolname='$bootstrapRole'")
+  if ($bootstrapProfile -ne 'true:true') { throw 'HOST_DATABASE_BOOTSTRAP_PROFILE_INVALID' }
+  [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-v','ON_ERROR_STOP=1','-c','ALTER ROLE ventio_bootstrap NOLOGIN PASSWORD NULL'))
+  $bootstrapLoginRejected = $false
+  try {
+    [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc','SELECT 1'))
+  }
+  catch {
+    if ($_.Exception.Message -ne 'HOST_DATABASE_SQL_FAILED') { throw 'HOST_DATABASE_BOOTSTRAP_RETIREMENT_VERIFY_FAILED' }
+    $bootstrapLoginRejected = $true
+  }
+  if (-not $bootstrapLoginRejected) { throw 'HOST_DATABASE_BOOTSTRAP_LOGIN_STILL_ALLOWED' }
   Write-Output 'HOST_DATABASE_INITIALIZED'
-  Write-Output 'Migrations, security bootstrap, least-privilege runtime and identity API logins passed verification.'
+  Write-Output 'HOST_BOOTSTRAP_LOGIN_RETIRED'
+  Write-Output 'Migrations, security bootstrap, least-privilege runtime and identity API logins passed verification; temporary cluster bootstrap login is NOLOGIN with no password verifier.'
 }
 finally {
   if ($null -eq $oldPassword) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue } else { $env:PGPASSWORD = $oldPassword }

@@ -1,6 +1,6 @@
 # Wave 1 Host/Client Final Acceptance Report
 
-**Audit snapshot:** 2026-10-30 11:45 Asia/Beirut
+**Audit snapshot:** 2026-10-30 11:50 Asia/Beirut
 **Branch:** `codex/extension-platform`
 **Release decision:** **BLOCKED — Wave 1 remains open.** This is the current requirement-by-requirement acceptance record, not a release approval. No completion is credited for an unexecuted integration gate.
 
@@ -23,6 +23,8 @@
 Latest backend regression rerun: `scripts/ci/run-local-postgres-integration.ps1 -HostSecuritySuites` on disposable Windows PostgreSQL run `20261030082456503-1` passed 179/179 (database security 114, user administration 21, role administration 20, pairing/device lifecycle 24). The runner stopped PostgreSQL and removed its run-scoped fixture. This strengthens backend authorization evidence but does not satisfy the open full Flutter/installed-Host scenarios in Stages 2, 5, 8, or 10.
 
 Latest Windows packaging evidence: reproducible Host payload build excluded unneeded pgAdmin/StackBuilder/docs/headers while retaining PostgreSQL `bin`, `lib`, `share` and license texts. Payload inventory is 1,680 files / 212,081,806 bytes; SCRAM, migrations/security bootstrap, least-privilege login validation, DPAPI config validation and service plan tests passed. Inno Setup 6.7.3 produced `dist/windows/Ventio-Setup-0.1.0.exe` (63,333,166 bytes, SHA-256 `730f597f58c2497e310587009e72645311f6e1993aac2edabcfeedd908a2b0f3`). Temporary per-user Client and Host installs both passed component assertions and uninstall/data-marker checks. No Windows service or production data was provisioned; this is not an operational Host install acceptance.
+
+Latest isolated DB hardening: the Host database initializer now checks all 29 migration entries and authenticates both least-privilege application logins before disabling `ventio_bootstrap` with `NOLOGIN` and clearing its password verifier. The disposable initialization test confirms subsequent authentication with that former cluster-superuser credential is rejected, then validates the DPAPI config. The full reduced-payload PostgreSQL migration/bootstrap/config integration passed. This does not provide the separate controlled migrator credential required for future database upgrades.
 
 ## Stage 10 acceptance tests
 
