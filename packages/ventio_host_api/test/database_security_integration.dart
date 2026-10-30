@@ -265,6 +265,24 @@ Future<void> main() async {
     );
     await denied(
       () => runtime.execute(
+        "SELECT ventio_security.bootstrap_first_admin('{}'::jsonb)",
+      ),
+      'Runtime cannot invoke the dedicated first-administrator bootstrap function',
+    );
+    await denied(
+      () => runtime.execute(
+        "SELECT ventio_security.initialize_first_host_recovery('invalid')",
+      ),
+      'Runtime cannot initialize the first Host recovery authority',
+    );
+    await denied(
+      () => runtime.execute(
+        "SELECT ventio_security.reconcile_pending_first_admin('a','b','c','d','e','f','g','h','i',now())",
+      ),
+      'Runtime cannot reconcile a pending first-administrator transaction',
+    );
+    await denied(
+      () => runtime.execute(
         "SELECT ventio_security.identity_snapshot('x',NULL,NULL)",
       ),
       'Runtime cannot invoke private identity helpers',

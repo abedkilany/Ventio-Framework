@@ -5,6 +5,7 @@ using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
+using System.Text.Json;
 
 internal static class Program
 {
@@ -61,9 +62,15 @@ internal static class Program
         }
 
         SetStatus(ServiceStartPending, checkpoint: 1, waitHintMs: 15000);
+        CancellationTokenSource? brokerCancellation = null;
+        Task? brokerTask = null;
+        Dictionary<string, string>? bootstrapEnvironment = null;
         try
         {
             var environment = ReadAndValidateConfiguration(ConfigPath);
+            var serviceSid = new NTAccount("NT SERVICE", ServiceName)
+                .Translate(typeof(SecurityIdentifier)).Value;
+            bootstrapEnvironment = CreateBootstrapEnvironment(environment);
             var hostExecutable = Path.Combine(AppContext.BaseDirectory, "ventio_host.exe");
             if (!File.Exists(hostExecutable))
             {
@@ -98,6 +105,23 @@ internal static class Program
             start.Environment.Clear();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+
+            var receiptPath = Path.Combine(Path.GetDirectoryName(ConfigPath)!, "bootstrap-receipt.dpapi");
+            var receiptStore = new ProtectedBootstrapReceiptStore(receiptPath, serviceSid);
+            var coordinator = new BootstrapReceiptCoordinator(receiptStore);
+            var broker = new FirstAdminBootstrapBroker(coordinator, (receipt, cancellationToken) =>
+                ExecuteFirstAdministratorBootstrapAsync(receipt, bootstrapEnvironment, cancellationToken));
+            brokerCancellation = new CancellationTokenSource();
+            var brokerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            brokerTask = Task.Run(() => broker.RunAsync(brokerCancellation.Token, brokerReady));
+            var startup = Task.WhenAny(brokerReady.Task, brokerTask, Task.Delay(TimeSpan.FromSeconds(10)))
+                .GetAwaiter().GetResult();
+            if (startup == brokerTask)
+                brokerTask.GetAwaiter().GetResult();
+            if (startup != brokerReady.Task && startup != brokerTask)
+                throw new InvalidOperationException("Local bootstrap broker did not become ready.");
+            brokerReady.Task.GetAwaiter().GetResult();
+
             lock (Sync)
             {
                 if (!StopRequested.IsSet)
@@ -105,7 +129,11 @@ internal static class Program
                         controlsAccepted: ServiceAcceptStop | ServiceAcceptShutdown);
             }
 
-            process.WaitForExit();
+            var processExit = process.WaitForExitAsync();
+            var completed = Task.WhenAny(processExit, brokerTask).GetAwaiter().GetResult();
+            if (completed == brokerTask && !StopRequested.IsSet)
+                brokerTask.GetAwaiter().GetResult();
+            processExit.GetAwaiter().GetResult();
             _serviceExitCode = StopRequested.IsSet ? 0 : (process.ExitCode == 0 ? 2 : process.ExitCode);
         }
         catch
@@ -115,6 +143,13 @@ internal static class Program
         }
         finally
         {
+            brokerCancellation?.Cancel();
+            if (brokerTask is not null)
+            {
+                try { _ = brokerTask.Wait(TimeSpan.FromSeconds(5)); } catch { }
+            }
+            brokerCancellation?.Dispose();
+            bootstrapEnvironment?.Clear();
             lock (Sync)
             {
                 if (_hostProcess is { HasExited: false } process)
@@ -126,6 +161,152 @@ internal static class Program
             }
             SetStatus(ServiceStopped, checkpoint: 0, waitHintMs: 0, win32ExitCode: _serviceExitCode);
         }
+    }
+
+    private static Dictionary<string, string> CreateBootstrapEnvironment(Dictionary<string, string> configuration)
+    {
+        var names = new[]
+        {
+            "VENTIO_HOST_IDENTITY_API_DATABASE_URL",
+            "VENTIO_RECOVERY_AUTHORITY_FILE",
+            "VENTIO_RECOVERY_AUTHORITY_HOST_WRITES",
+            "VENTIO_RECOVERY_AUTHORITY_OWNER_SID",
+            "VENTIO_RECOVERY_AUTHORITY_READER_SID",
+        };
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in names)
+        {
+            if (!configuration.TryGetValue(name, out var value) || string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException("Host bootstrap configuration is incomplete.");
+            result.Add(name, value);
+        }
+        return result;
+    }
+
+    private static async Task ExecuteFirstAdministratorBootstrapAsync(
+        BootstrapReceipt receipt,
+        Dictionary<string, string>? protectedEnvironment,
+        CancellationToken cancellationToken)
+    {
+        var executable = Path.Combine(AppContext.BaseDirectory, "ventio_identity_bootstrap.exe");
+        if (!File.Exists(executable) || protectedEnvironment is null)
+            throw new InvalidOperationException("Host bootstrap payload is incomplete.");
+        var start = new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.Environment.Clear();
+        CopyRequiredSystemEnvironment(start.Environment);
+        start.Environment["PATH"] = Path.Combine(AppContext.BaseDirectory, "postgresql", "bin");
+        foreach (var pair in protectedEnvironment) start.Environment[pair.Key] = pair.Value;
+
+        var request = new
+        {
+            formatVersion = 1,
+            requestId = receipt.RequestId,
+            tenantId = receipt.TenantId,
+            companyId = receipt.CompanyId,
+            branchId = receipt.BranchId,
+            operatorLabel = CreateOperatorLabel(receipt.CallerSid),
+            actorId = receipt.ActorId,
+            deviceId = receipt.DeviceId,
+            credentialId = receipt.CredentialId,
+            token = receipt.Token,
+            expiresAt = receipt.ExpiresAt,
+        };
+        var requestBytes = JsonSerializer.SerializeToUtf8Bytes(request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var process = new Process { StartInfo = start };
+        byte[]? output = null;
+        try
+        {
+            if (!process.Start()) throw new InvalidOperationException("Host bootstrap operation could not start.");
+            start.Environment.Clear();
+            var stderrDrain = DrainAsync(process.StandardError.BaseStream, cancellationToken);
+            var stdoutTask = ReadBoundedAsync(process.StandardOutput.BaseStream, 2048, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            await process.StandardInput.BaseStream.WriteAsync(requestBytes, timeout.Token).ConfigureAwait(false);
+            await process.StandardInput.BaseStream.FlushAsync(timeout.Token).ConfigureAwait(false);
+            process.StandardInput.Close();
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+            output = await stdoutTask.ConfigureAwait(false);
+            await stderrDrain.ConfigureAwait(false);
+            if (process.ExitCode != 0 || !BootstrapHelperSucceeded(output, receipt.ActorId))
+                throw new InvalidOperationException("Host first-administrator bootstrap failed.");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(requestBytes);
+            if (output is not null) CryptographicOperations.ZeroMemory(output);
+            start.Environment.Clear();
+        }
+    }
+
+    private static bool BootstrapHelperSucceeded(byte[] output, string? expectedActorId)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output);
+            var root = document.RootElement;
+            return root.ValueKind == JsonValueKind.Object &&
+                root.EnumerateObject().Count() == 2 &&
+                root.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.True &&
+                root.TryGetProperty("actorId", out var actor) && actor.GetString() == expectedActorId;
+        }
+        catch { return false; }
+    }
+
+    private static string CreateOperatorLabel(string callerSid)
+    {
+        var input = Encoding.UTF8.GetBytes(callerSid);
+        try
+        {
+            var digest = SHA256.HashData(input);
+            try { return "first-admin-setup-" + Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant(); }
+            finally { CryptographicOperations.ZeroMemory(digest); }
+        }
+        finally { CryptographicOperations.ZeroMemory(input); }
+    }
+
+    private static async Task<byte[]> ReadBoundedAsync(Stream stream, int maximumBytes, CancellationToken cancellationToken)
+    {
+        using var output = new MemoryStream();
+        var buffer = new byte[512];
+        try
+        {
+            while (true)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                if (read == 0) return output.ToArray();
+                if (output.Length + read > maximumBytes) throw new InvalidDataException();
+                output.Write(buffer, 0, read);
+            }
+        }
+        finally { CryptographicOperations.ZeroMemory(buffer); }
+    }
+
+    private static async Task DrainAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[512];
+        try
+        {
+            while (await stream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false) != 0) { }
+        }
+        finally { CryptographicOperations.ZeroMemory(buffer); }
     }
 
     private static int HandleControl(int control, int eventType, IntPtr eventData, IntPtr context)

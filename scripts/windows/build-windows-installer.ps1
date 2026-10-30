@@ -28,6 +28,7 @@ $manifest = Get-Content -LiteralPath (Join-Path $hostPayload 'payload-manifest.j
 if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
     $manifest.hostExecutable -ne 'ventio_host.exe' -or
     $manifest.migrationExecutable -ne 'ventio_migrate.exe' -or
+    $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     ($manifest.postgresIncludedComponents -join ',') -ne 'bin,lib,share,*.txt' -or
     ($manifest.postgresExcludedComponents -join ',') -ne 'doc,include,pgAdmin 4,StackBuilder' -or

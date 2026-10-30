@@ -32,12 +32,14 @@ class IdentityAdministration {
   final String tenantId;
   final String operatorLabel;
   final RecoveryAuthority? authority;
+  final pg.Connection? bootstrapConnection;
 
   IdentityAdministration({
     required this.connection,
     required this.tenantId,
     required this.operatorLabel,
     this.authority,
+    this.bootstrapConnection,
   }) {
     _identifier(tenantId);
     _identifier(operatorLabel);
@@ -82,8 +84,14 @@ class IdentityAdministration {
     required String deviceId,
     required String credentialId,
     required DateTime expiresAt,
+    String? requestId,
+    InitialHostAdministratorCredential? credential,
   }) async {
-    if (authority == null) throw StateError('Recovery authority is required');
+    if (authority == null || bootstrapConnection == null) {
+      throw StateError(
+        'Trusted recovery-admitted bootstrap connection is required',
+      );
+    }
     for (final value in [companyId, branchId, deviceId, credentialId]) {
       _identifier(value);
     }
@@ -93,18 +101,41 @@ class IdentityAdministration {
         expiry.isAfter(now.add(const Duration(days: 30)))) {
       throw ArgumentError('Initial administrator credential expiry is invalid');
     }
-    final actorId = 'usr_${OpaqueToken.generate()}';
-    final token = OpaqueToken.generate();
-    await _change('INITIAL_ADMIN_BOOTSTRAPPED', {
-      'actorId': actorId,
+    final bootstrapRequestId = requestId ?? OpaqueToken.generate();
+    if (!OpaqueToken.isValid(bootstrapRequestId)) {
+      throw ArgumentError('Initial administrator request ID is invalid');
+    }
+    final initialCredential =
+        credential ??
+        InitialHostAdministratorCredential(
+          actorId: 'usr_${OpaqueToken.generate()}',
+          token: OpaqueToken.generate(),
+        );
+    _identifier(initialCredential.actorId);
+    if (!OpaqueToken.isValid(initialCredential.token)) {
+      throw ArgumentError('Initial administrator token is invalid');
+    }
+    final request = jsonEncode({
+      'tenantId': tenantId,
+      'operatorLabel': operatorLabel,
+      'actorId': initialCredential.actorId,
       'companyId': companyId,
       'branchId': branchId,
       'deviceId': deviceId,
       'credentialId': credentialId,
-      'tokenDigest': OpaqueToken.digest(token),
+      'tokenDigest': OpaqueToken.digest(initialCredential.token),
+      'requestId': bootstrapRequestId,
       'expiresAt': expiry.toIso8601String(),
     });
-    return InitialHostAdministratorCredential(actorId: actorId, token: token);
+    await authority!.change(bootstrapConnection!, (session) async {
+      await session.execute(
+        pg.Sql.named(
+          'SELECT ventio_security.bootstrap_first_admin(CAST(@request AS jsonb))',
+        ),
+        parameters: {'request': request},
+      );
+    }, requireAdmissionProof: true);
+    return initialCredential;
   }
 
   Future<void> registerBranch(String companyId, String branchId) {

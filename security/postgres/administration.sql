@@ -391,6 +391,123 @@ BEGIN
     VALUES (tenant, label, operation, subject, details);
 END $fn$;
 
+-- The Host service's scoped Identity API login may perform only this
+-- recovery-admitted, one-time bootstrap operation. It cannot call the broad
+-- admin_change function or mutate identity tables directly.
+CREATE OR REPLACE FUNCTION ventio_security.bootstrap_first_admin(p jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE tenant text := p->>'tenantId'; actor text := p->>'actorId';
+  company text := p->>'companyId'; branch text := p->>'branchId';
+  device text := p->>'deviceId'; credential text := p->>'credentialId';
+  request_id text := p->>'requestId';
+  operator_label text := p->>'operatorLabel'; v_expires_at timestamptz := (p->>'expiresAt')::timestamptz;
+  permissions text[] := ARRAY['host.status.read','host.diagnostics.read',
+    'identity.users.manage','identity.devices.manage','identity.pairing.manage',
+    'identity.roles.manage'];
+BEGIN
+  PERFORM pg_catalog.pg_advisory_xact_lock(86744321);
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') THEN
+    RAISE EXCEPTION 'First administrator bootstrap caller is not authorized'
+      USING ERRCODE='42501';
+  END IF;
+  IF NOT EXISTS (SELECT FROM ventio_security.recovery_state
+      WHERE singleton AND enforced IS TRUE) THEN
+    RAISE EXCEPTION 'First administrator bootstrap requires initialized Recovery Authority'
+      USING ERRCODE='28000';
+  END IF;
+  IF NOT ventio_security.recovery_guard() THEN
+    RAISE EXCEPTION 'First administrator bootstrap recovery proof is missing'
+      USING ERRCODE='28000';
+  END IF;
+  IF jsonb_typeof(p) IS DISTINCT FROM 'object' OR
+      p-ARRAY['tenantId','actorId','companyId','branchId','deviceId',
+        'credentialId','operatorLabel','tokenDigest','expiresAt','requestId'] <> '{}'::jsonb OR
+      tenant IS NULL OR length(trim(tenant)) NOT BETWEEN 1 AND 256 OR
+      actor IS NULL OR length(trim(actor)) NOT BETWEEN 1 AND 256 OR
+      company IS NULL OR length(trim(company)) NOT BETWEEN 1 AND 256 OR
+      branch IS NULL OR length(trim(branch)) NOT BETWEEN 1 AND 256 OR
+      device IS NULL OR length(trim(device)) NOT BETWEEN 1 AND 256 OR
+      credential IS NULL OR length(trim(credential)) NOT BETWEEN 1 AND 256 OR
+      operator_label IS NULL OR
+      operator_label !~ '^[A-Za-z0-9][A-Za-z0-9._ -]{0,127}$' OR
+      operator_label ~* '(bearer|password|token|secret|postgresql?://)' OR
+      request_id IS NULL OR request_id !~ '^[A-Za-z0-9_-]{43}$' OR
+      p->>'tokenDigest' IS NULL OR
+      p->>'tokenDigest' !~ '^[0-9a-f]{64}$' OR v_expires_at IS NULL OR
+      v_expires_at <= clock_timestamp() OR
+      v_expires_at > clock_timestamp()+interval '30 days' THEN
+    RAISE EXCEPTION 'Invalid first administrator bootstrap request'
+      USING ERRCODE='22023';
+  END IF;
+  IF EXISTS (SELECT FROM public.ventio_identity_users) THEN
+    IF EXISTS (
+        SELECT FROM public.ventio_identity_users u
+        WHERE u.tenant_id=tenant AND u.actor_id=actor) AND
+        NOT EXISTS (
+          SELECT FROM public.ventio_identity_users u
+          WHERE u.tenant_id IS DISTINCT FROM tenant OR
+            u.actor_id IS DISTINCT FROM actor) AND
+        EXISTS (
+          SELECT FROM public.ventio_identity_branches b
+          WHERE b.tenant_id=tenant AND b.company_id=company AND
+            b.branch_id=branch) AND
+        EXISTS (
+          SELECT FROM public.ventio_identity_devices d
+          WHERE d.tenant_id=tenant AND d.actor_id=actor AND
+            d.device_id=device) AND
+        EXISTS (
+          SELECT FROM public.ventio_identity_credentials c
+          WHERE c.tenant_id=tenant AND c.actor_id=actor AND
+            c.device_id=device AND c.credential_id=credential AND
+            c.token_digest=p->>'tokenDigest' AND c.expires_at=v_expires_at AND
+            c.allowed_scopes=jsonb_build_array(jsonb_build_object(
+              'companyId',company,'branchId',branch,'permissions',to_jsonb(permissions)))) AND
+        (SELECT array_agg(g.permission ORDER BY g.permission)
+          FROM public.ventio_identity_grants g
+          WHERE g.tenant_id=tenant AND g.actor_id=actor AND
+            g.company_id=company AND g.branch_id=branch)=
+          ARRAY['host.diagnostics.read','host.status.read',
+            'identity.devices.manage','identity.pairing.manage',
+            'identity.roles.manage','identity.users.manage']::text[] AND
+        EXISTS (
+          SELECT FROM public.ventio_identity_audit a
+          WHERE a.tenant_id=tenant AND
+            a.action='INITIAL_ADMIN_BOOTSTRAPPED' AND a.subject_id=actor AND
+            a.details->>'bootstrapRequestId'=request_id AND
+            a.details->>'companyId'=company AND
+            a.details->>'branchId'=branch AND
+            a.details->>'deviceId'=device AND
+            a.details->>'credentialId'=credential AND
+            (a.details->>'expiresAt')::timestamptz=v_expires_at) THEN
+      RETURN;
+    END IF;
+    RAISE EXCEPTION 'Initial administrator has already been provisioned'
+      USING ERRCODE='42501';
+  END IF;
+  INSERT INTO public.ventio_identity_users(tenant_id,actor_id)
+    VALUES (tenant,actor);
+  INSERT INTO public.ventio_identity_branches(tenant_id,company_id,branch_id)
+    VALUES (tenant,company,branch) ON CONFLICT DO NOTHING;
+  INSERT INTO public.ventio_identity_devices(tenant_id,actor_id,device_id)
+    VALUES (tenant,actor,device);
+  INSERT INTO public.ventio_identity_grants
+    (tenant_id,actor_id,company_id,branch_id,permission)
+  SELECT tenant,actor,company,branch,permission
+    FROM unnest(permissions) AS grants(permission);
+  INSERT INTO public.ventio_identity_credentials
+    (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes)
+  VALUES (tenant,actor,device,credential,p->>'tokenDigest',v_expires_at,
+    jsonb_build_array(jsonb_build_object('companyId',company,'branchId',branch,
+      'permissions',to_jsonb(permissions))));
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+  VALUES (tenant,operator_label,'INITIAL_ADMIN_BOOTSTRAPPED',actor,
+    jsonb_build_object('companyId',company,'branchId',branch,'deviceId',device,
+      'credentialId',credential,'permissions',to_jsonb(permissions),
+      'expiresAt',v_expires_at,'bootstrapRequestId',request_id));
+END $fn$;
+
 -- The remote administration surface is deliberately narrower than the local
 -- trusted operator function above. It rechecks a direct, credential-bounded
 -- management grant in the same transaction as the mutation.

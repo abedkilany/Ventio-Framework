@@ -4,7 +4,7 @@ param(
     [string] $PostgresBinDirectory,
     [switch] $HostSecuritySuites,
     [switch] $ClientOfflineIntegration,
-    [ValidateSet('database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')]
+    [ValidateSet('first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')]
     [string] $OnlyHostSuite
 )
 

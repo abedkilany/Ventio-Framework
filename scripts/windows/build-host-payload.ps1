@@ -41,8 +41,9 @@ $migrationDirectory = Join-Path $repoRoot 'migrations\postgres'
 $securityDirectory = Join-Path $repoRoot 'security\postgres'
 $migrationPackage = Join-Path $repoRoot 'packages\ventio_postgres'
 $migrationSource = Join-Path $migrationPackage 'bin\migrate.dart'
+$identityBootstrapSource = Join-Path $hostRoot 'bin\bootstrap_first_administrator.dart'
 $serviceProject = Join-Path $repoRoot 'installer\windows\host-service\VentioHostService.csproj'
-foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $serviceProject)) {
+foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $serviceProject)) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Required Host payload input is missing: $path" }
 }
 
@@ -54,6 +55,14 @@ try {
   try {
     & dart compile exe bin/local_host.dart -o $hostExe
     if ($LASTEXITCODE -ne 0) { throw "Host Engine compilation failed with exit code $LASTEXITCODE." }
+  }
+  finally { Pop-Location }
+
+  $identityBootstrapExe = Join-Path $tempDirectory 'ventio_identity_bootstrap.exe'
+  Push-Location $hostRoot
+  try {
+    & dart compile exe bin/bootstrap_first_administrator.dart -o $identityBootstrapExe
+    if ($LASTEXITCODE -ne 0) { throw "Host first-administrator bootstrap compilation failed with exit code $LASTEXITCODE." }
   }
   finally { Pop-Location }
 
@@ -93,6 +102,7 @@ try {
   $verifiedFiles = @(
     Get-Item -LiteralPath $hostExe
     Get-Item -LiteralPath $migrationExe
+    Get-Item -LiteralPath $identityBootstrapExe
     Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioHostService.exe')
     foreach ($name in $requiredPostgres) { Get-Item -LiteralPath (Join-Path $tempDirectory "postgresql\bin\$name") }
     $payloadFiles | Where-Object {
@@ -112,6 +122,7 @@ try {
     formatVersion = 1
     hostExecutable = 'ventio_host.exe'
     migrationExecutable = 'ventio_migrate.exe'
+    identityBootstrapExecutable = 'ventio_identity_bootstrap.exe'
     serviceExecutable = 'VentioHostService.exe'
     postgresVersion = '16.15'
     postgresIncludedComponents = @('bin', 'lib', 'share', '*.txt')

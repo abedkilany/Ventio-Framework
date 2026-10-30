@@ -71,7 +71,7 @@ try {
     }
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     foreach ($relative in @(
-      'ventio_host.exe', 'ventio_migrate.exe', 'VentioHostService.exe',
+      'ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'VentioHostService.exe',
       'postgresql\bin\postgres.exe', 'postgresql\bin\initdb.exe',
       'postgresql\bin\pg_ctl.exe', 'postgresql\bin\psql.exe',
       'migrations\029_identity_device_activity.sql', 'security\bootstrap.sql'

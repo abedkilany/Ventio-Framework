@@ -85,18 +85,121 @@ class RecoveryAuthority {
       ? PrivateFiles.replaceAuthority(path, value, -1, readerSid: readerSid)
       : PrivateFiles.replace(path, value);
 
-  Future<Map<String, dynamic>> _read() async {
+  Future<Map<String, dynamic>> _readStoredState() async {
     final data = jsonDecode(await _readFile()) as Map<String, dynamic>;
     if (data['authorityId'] is! String ||
         !OpaqueToken.isValid(data['authorityId'] as String) ||
         data['version'] != 1 ||
-        data['pending'] != false ||
-        data['fingerprint'] is! String ||
-        !RegExp(r'^[0-9a-f]{64}$').hasMatch(data['fingerprint'] as String)) {
+        data['pending'] is! bool ||
+        (data['fingerprint'] != null &&
+            (data['fingerprint'] is! String ||
+                !RegExp(
+                  r'^[0-9a-f]{64}$',
+                ).hasMatch(data['fingerprint'] as String)))) {
       throw StateError('Recovery admission is quarantined');
     }
     return data;
   }
+
+  Future<Map<String, dynamic>> _read() async {
+    final data = await _readStoredState();
+    if (data['pending'] != false || data['fingerprint'] is! String) {
+      throw StateError('Recovery admission is quarantined');
+    }
+    return data;
+  }
+
+  /// Initializes or safely resumes first-install recovery for the Host service.
+  /// A pending first-admin change is reconciled only when the database still
+  /// matches the prior witness or contains the exact receipt-backed bootstrap.
+  Future<void> prepareFirstAdministratorBootstrap(
+    pg.Connection db, {
+    required String requestId,
+    required String tenantId,
+    required String actorId,
+    required String companyId,
+    required String branchId,
+    required String deviceId,
+    required String credentialId,
+    required String token,
+    required DateTime expiresAt,
+  }) => _exclusive(() async {
+    if (!OpaqueToken.isValid(requestId) ||
+        !OpaqueToken.isValid(token) ||
+        requestId.isEmpty) {
+      throw ArgumentError('First administrator receipt is invalid');
+    }
+    final fileType = await FileSystemEntity.type(path, followLinks: false);
+    if (fileType == FileSystemEntityType.notFound) {
+      final state = <String, dynamic>{
+        'version': 1,
+        'pending': true,
+        'authorityId': OpaqueToken.generate(),
+      };
+      await _create(state);
+      await _initializeFirstHostRecovery(db, state);
+      return;
+    }
+    if (fileType != FileSystemEntityType.file) {
+      throw StateError('Recovery authority path is not a regular file');
+    }
+    final state = await _readStoredState();
+    if (state['pending'] == false) return;
+    if (state['fingerprint'] == null) {
+      await _initializeFirstHostRecovery(db, state);
+      return;
+    }
+    final currentFingerprint = await db.runTx(_snapshotInTransaction);
+    if (currentFingerprint == state['fingerprint']) {
+      await _replace({...state, 'pending': false});
+      return;
+    }
+    final reconciledFingerprint = await db.runTx((tx) async {
+      await tx.execute(
+        pg.Sql.named(
+          'SELECT ventio_security.reconcile_pending_first_admin('
+          '@authority,@request,@tenant,@actor,@company,@branch,@device,'
+          '@credential,@digest,@expiresAt)',
+        ),
+        parameters: {
+          'authority': state['authorityId'],
+          'request': requestId,
+          'tenant': tenantId,
+          'actor': actorId,
+          'company': companyId,
+          'branch': branchId,
+          'device': deviceId,
+          'credential': credentialId,
+          'digest': OpaqueToken.digest(token),
+          'expiresAt': expiresAt.toUtc(),
+        },
+      );
+      return snapshot(tx);
+    });
+    await _replace({
+      ...state,
+      'pending': false,
+      'fingerprint': reconciledFingerprint,
+    });
+  });
+
+  Future<void> _initializeFirstHostRecovery(
+    pg.Connection db,
+    Map<String, dynamic> state,
+  ) async {
+    final fingerprint = await db.runTx((tx) async {
+      await tx.execute(
+        pg.Sql.named(
+          'SELECT ventio_security.initialize_first_host_recovery(@authority)',
+        ),
+        parameters: {'authority': state['authorityId']},
+      );
+      return snapshot(tx);
+    });
+    await _replace({...state, 'pending': false, 'fingerprint': fingerprint});
+  }
+
+  static Future<String> _snapshotInTransaction(pg.TxSession tx) => snapshot(tx);
 
   Future<void> admit(pg.TxSession tx) async {
     final state = await _read();

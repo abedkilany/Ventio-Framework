@@ -804,7 +804,10 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.scoped_device_revoke(text,text,text,text),
   ventio_security.scoped_device_credential_rotate(text,text,text,text,text,text,text),
   ventio_security.admit_recovery(text,text),
-  ventio_security.recovery_snapshot()
+  ventio_security.recovery_snapshot(),
+  ventio_security.initialize_first_host_recovery(text),
+  ventio_security.reconcile_pending_first_admin(text,text,text,text,text,text,text,text,text,timestamp with time zone),
+  ventio_security.bootstrap_first_admin(jsonb)
   TO ventio_identity_api;
 -- pgcrypto functions are extension members and may remain owned by the cluster
 -- bootstrap login even though the extension is assigned to ventio_owner. Reset

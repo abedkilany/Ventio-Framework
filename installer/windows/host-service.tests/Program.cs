@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
@@ -41,6 +42,106 @@ ExpectRejected(parse, Mutate(baseConfig, "VENTIO_HOST_TLS_CERTIFICATE_FILE", "re
 ExpectAclRejected(parse, baseConfig);
 
 Console.WriteLine("Host service configuration tests passed: safe defaults, setting allowlist, identity-admin credential rejection, invalid port, TLS path, external TLS requirement, and broad ACL rejection.");
+
+TestBootstrapPipeAcl();
+TestBootstrapProtocol();
+await TestBootstrapReceiptLifecycleAsync();
+Console.WriteLine("Host first-administrator broker tests passed: protected local pipe ACL, strict protocol validation, durable same-caller retries, caller/request binding, acknowledgement redaction, and DPAPI receipt confidentiality.");
+
+static void TestBootstrapPipeAcl()
+{
+    var security = FirstAdminBootstrapBroker.CreatePipeSecurity(WindowsIdentity.GetCurrent().User!.Value);
+    var rules = security.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<PipeAccessRule>().ToArray();
+    var network = new SecurityIdentifier("S-1-5-2");
+    var administrators = new SecurityIdentifier("S-1-5-32-544");
+    if (!security.AreAccessRulesProtected ||
+        !rules.Any(rule => rule.IdentityReference == network && rule.AccessControlType == AccessControlType.Deny) ||
+        !rules.Any(rule => rule.IdentityReference == administrators && rule.AccessControlType == AccessControlType.Allow) ||
+        rules.Any(rule => rule.IdentityReference.Value == "S-1-5-32-545" && rule.AccessControlType == AccessControlType.Allow))
+        throw new Exception("First-administrator pipe ACL does not enforce the local administrator boundary.");
+}
+
+static void TestBootstrapProtocol()
+{
+    var valid = Encoding.UTF8.GetBytes("{\"operation\":\"bootstrap\",\"tenantId\":\"tenant-a\",\"companyId\":\"company-a\",\"branchId\":\"branch-a\"}");
+    var command = FirstAdminBootstrapBroker.ParseCommand(valid);
+    if (command.Operation != "bootstrap" || command.TenantId != "tenant-a")
+        throw new Exception("Valid first-administrator request was not parsed.");
+    ExpectProtocolRejected(Encoding.UTF8.GetBytes("{\"operation\":\"bootstrap\",\"operation\":\"bootstrap\",\"tenantId\":\"t\",\"companyId\":\"c\",\"branchId\":\"b\"}"));
+    ExpectProtocolRejected(Encoding.UTF8.GetBytes("{\"operation\":\"bootstrap\",\"tenantId\":\"t\",\"companyId\":\"c\",\"branchId\":\"b\",\"token\":\"secret\"}"));
+    ExpectProtocolRejected(Encoding.UTF8.GetBytes("{\"operation\":\"bootstrap\",\"tenantId\":\" \",\"companyId\":\"c\",\"branchId\":\"b\"}"));
+    ExpectProtocolRejected(Encoding.UTF8.GetBytes("{\"operation\":\"acknowledge\",\"requestId\":\"short\"}"));
+}
+
+static void ExpectProtocolRejected(byte[] request)
+{
+    try
+    {
+        _ = FirstAdminBootstrapBroker.ParseCommand(request);
+        throw new Exception("Invalid first-administrator broker request was accepted.");
+    }
+    catch (System.Text.Json.JsonException) { }
+    catch (InvalidDataException) { }
+}
+
+static async Task TestBootstrapReceiptLifecycleAsync()
+{
+    using var fixture = new ReceiptFixture();
+    var currentSid = WindowsIdentity.GetCurrent().User!.Value;
+    var store = new ProtectedBootstrapReceiptStore(fixture.Path, currentSid);
+    var coordinator = new BootstrapReceiptCoordinator(store);
+    var command = new BootstrapCommand("bootstrap", "tenant-a", "company-a", "branch-a");
+    var executions = 0;
+    Task Execute(BootstrapReceipt receipt, CancellationToken _) { executions++; return Task.CompletedTask; }
+
+    var first = await coordinator.BootstrapAsync(command, currentSid, Execute, CancellationToken.None);
+    if (!first.Success || first.Status != "pending" || first.Token is null || first.RequestId is null || executions != 1)
+        throw new Exception("First administrator bootstrap receipt was not created and executed.");
+    var raw = File.ReadAllBytes(fixture.Path);
+    try
+    {
+        var text = Encoding.UTF8.GetString(raw);
+        if (text.Contains(first.Token, StringComparison.Ordinal))
+            throw new Exception("First administrator credential was stored in plaintext.");
+    }
+    finally { CryptographicOperations.ZeroMemory(raw); }
+
+    var retry = await coordinator.BootstrapAsync(command, currentSid, Execute, CancellationToken.None);
+    if (retry.RequestId != first.RequestId || retry.Token != first.Token || executions != 2)
+        throw new Exception("Same-caller bootstrap retry did not reuse its durable receipt.");
+    await ExpectUnauthorizedAsync(() => coordinator.BootstrapAsync(command, "S-1-5-21-999-1001", Execute, CancellationToken.None));
+    await ExpectUnauthorizedAsync(() => coordinator.BootstrapAsync(
+        command with { BranchId = "branch-b" }, currentSid, Execute, CancellationToken.None));
+    await ExpectUnauthorizedAsync(() => Task.FromResult(coordinator.Acknowledge(
+        new BootstrapCommand("acknowledge", RequestId: first.RequestId), "S-1-5-21-999-1001")));
+
+    var acknowledged = coordinator.Acknowledge(new BootstrapCommand("acknowledge", RequestId: first.RequestId), currentSid);
+    if (!acknowledged.Success || acknowledged.Status != "acknowledged" || acknowledged.Token is not null)
+        throw new Exception("Bootstrap acknowledgement did not clear the recoverable credential.");
+    var stored = store.Read() ?? throw new Exception("Acknowledged receipt was not durable.");
+    if (stored.State != "acknowledged" || stored.Token is not null || stored.ActorId is not null)
+        throw new Exception("Acknowledged receipt retained first-administrator credentials.");
+    raw = File.ReadAllBytes(fixture.Path);
+    try
+    {
+        if (Encoding.UTF8.GetString(raw).Contains(first.Token, StringComparison.Ordinal))
+            throw new Exception("Acknowledged credential remained in the protected receipt file.");
+    }
+    finally { CryptographicOperations.ZeroMemory(raw); }
+    var afterAck = await coordinator.BootstrapAsync(command, currentSid, Execute, CancellationToken.None);
+    if (afterAck.Status != "acknowledged" || afterAck.Token is not null || executions != 2)
+        throw new Exception("Acknowledged bootstrap was replayed or exposed its credential again.");
+}
+
+static async Task ExpectUnauthorizedAsync(Func<Task> operation)
+{
+    try
+    {
+        await operation();
+        throw new Exception("Unauthorized first-administrator receipt operation was accepted.");
+    }
+    catch (UnauthorizedAccessException) { }
+}
 
 static Dictionary<string, string> Mutate(Dictionary<string, string> source, string key, string value)
 {
@@ -170,4 +271,27 @@ sealed class ConfigFixture : IDisposable
         IntPtr reserved, IntPtr prompt, int flags, out DataBlob output);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr LocalFree(IntPtr memory);
+}
+
+sealed class ReceiptFixture : IDisposable
+{
+    private readonly string _directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ventio-bootstrap-test-" + Guid.NewGuid().ToString("N"));
+    public string Path => System.IO.Path.Combine(_directory, "bootstrap-receipt.dpapi");
+
+    public ReceiptFixture()
+    {
+        var currentSid = WindowsIdentity.GetCurrent().User!;
+        var security = new DirectorySecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        foreach (var sid in new[] { currentSid, new SecurityIdentifier("S-1-5-18"), new SecurityIdentifier("S-1-5-32-544") })
+            security.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+        Directory.CreateDirectory(_directory);
+        new DirectoryInfo(_directory).SetAccessControl(security);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+    }
 }

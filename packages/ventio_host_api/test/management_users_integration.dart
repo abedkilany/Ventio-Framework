@@ -30,6 +30,7 @@ Future<void> main() async {
   }
 
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
+  final bootstrapConnection = await pg.Connection.openFromUrl(apiAdminUrl);
   final auditConnection = await pg.Connection.openFromUrl(auditUrl);
   final temporary = await createPrivateTestDirectory('ventio-user-api-');
   final authority = RecoveryAuthority('${temporary.path}/authority.json');
@@ -55,6 +56,7 @@ Future<void> main() async {
       tenantId: tenant,
       operatorLabel: 'user-management-test-operator',
       authority: authority,
+      bootstrapConnection: bootstrapConnection,
     );
     final operatorWithoutAuthority = IdentityAdministration(
       connection: adminConnection,
@@ -77,12 +79,34 @@ Future<void> main() async {
       missingAuthorityDenied,
       'Initial administrator bootstrap refuses to run without Recovery Authority',
     );
+    var directApiBootstrapDenied = false;
+    try {
+      await bootstrapConnection.execute(
+        "SELECT ventio_security.bootstrap_first_admin('{}'::jsonb)",
+      );
+    } on pg.ServerException catch (error) {
+      directApiBootstrapDenied = error.code == '28000';
+    }
+    check(
+      directApiBootstrapDenied,
+      'Identity API login cannot bootstrap an administrator without Recovery Authority proof',
+    );
+    final initialBootstrapRequestId = OpaqueToken.generate();
+    final initialAdminCredential = InitialHostAdministratorCredential(
+      actorId: 'usr_${OpaqueToken.generate()}',
+      token: OpaqueToken.generate(),
+    );
+    final initialAdminExpiresAt = DateTime.now().toUtc().add(
+      const Duration(days: 1),
+    );
     final initialAdmin = await operator.bootstrapFirstAdministrator(
       companyId: 'initial-host-company',
       branchId: 'initial-host-branch',
       deviceId: 'initial-host-device',
       credentialId: 'initial-host-credential',
-      expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+      expiresAt: initialAdminExpiresAt,
+      requestId: initialBootstrapRequestId,
+      credential: initialAdminCredential,
     );
     final initialAdminRows = await auditConnection.execute(
       pg.Sql.named('''
@@ -147,7 +171,44 @@ Future<void> main() async {
     }
     check(
       repeatedBootstrapDenied,
-      'A tenant with an existing user cannot run first-administrator bootstrap a second time',
+      'A different first-administrator request cannot create a second credential for the initial tenant',
+    );
+    final replayedInitialAdmin = await operator.bootstrapFirstAdministrator(
+      companyId: 'initial-host-company',
+      branchId: 'initial-host-branch',
+      deviceId: 'initial-host-device',
+      credentialId: 'initial-host-credential',
+      expiresAt: initialAdminExpiresAt,
+      requestId: initialBootstrapRequestId,
+      credential: initialAdminCredential,
+    );
+    check(
+      replayedInitialAdmin.actorId == initialAdmin.actorId &&
+          replayedInitialAdmin.token == initialAdmin.token,
+      'The exact first-administrator request can be retried without creating another credential',
+    );
+    final otherTenantOperator = IdentityAdministration(
+      connection: adminConnection,
+      tenantId: '$tenant-other',
+      operatorLabel: 'user-management-test-operator',
+      authority: authority,
+      bootstrapConnection: bootstrapConnection,
+    );
+    var otherTenantBootstrapDenied = false;
+    try {
+      await otherTenantOperator.bootstrapFirstAdministrator(
+        companyId: companyA,
+        branchId: branchA,
+        deviceId: 'other-tenant-first-device',
+        credentialId: 'other-tenant-first-credential',
+        expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+      );
+    } catch (_) {
+      otherTenantBootstrapDenied = true;
+    }
+    check(
+      otherTenantBootstrapDenied,
+      'A second tenant cannot invoke the one-time first-Host-administrator bootstrap',
     );
     await operator.registerBranch(companyA, branchA);
     await operator.registerBranch(companyB, branchB);
@@ -746,6 +807,7 @@ Future<void> main() async {
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     await auditConnection.close();
+    await bootstrapConnection.close();
     await adminConnection.close();
     await temporary.delete(recursive: true);
   }

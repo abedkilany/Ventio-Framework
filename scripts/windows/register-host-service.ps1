@@ -10,12 +10,14 @@ $databaseServiceName = 'VentioPostgres'
 $payload = [IO.Path]::GetFullPath($PayloadDirectory)
 $hostExe = Join-Path $payload 'ventio_host.exe'
 $migrationExe = Join-Path $payload 'ventio_migrate.exe'
+$identityBootstrapExe = Join-Path $payload 'ventio_identity_bootstrap.exe'
 $serviceExe = Join-Path $payload 'VentioHostService.exe'
 $configFile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)) 'Ventio\Host\service-config.dpapi'
 $sc = Join-Path $env:SystemRoot 'System32\sc.exe'
 
 if (-not (Test-Path -LiteralPath $hostExe -PathType Leaf) -or
     -not (Test-Path -LiteralPath $migrationExe -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $identityBootstrapExe -PathType Leaf) -or
     -not (Test-Path -LiteralPath $serviceExe -PathType Leaf)) {
   throw 'The verified Host payload is incomplete.'
 }
@@ -23,6 +25,7 @@ $manifestPath = Join-Path $payload 'payload-manifest.json'
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'Host payload manifest is missing.' }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.hostExecutable -ne 'ventio_host.exe' -or $manifest.migrationExecutable -ne 'ventio_migrate.exe' -or
+    $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
   throw 'Host payload manifest failed its safe-content checks.'

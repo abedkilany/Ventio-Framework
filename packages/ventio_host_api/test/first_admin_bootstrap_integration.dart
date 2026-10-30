@@ -1,0 +1,262 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:postgres/postgres.dart' as pg;
+import 'package:ventio_host_api/ventio_host_api.dart';
+
+import 'test_support.dart';
+
+Future<void> main() async {
+  final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
+  final apiUrl = Platform.environment['VENTIO_TEST_API_ADMIN_DATABASE_URL'];
+  final auditUrl = Platform.environment['VENTIO_TEST_DATABASE_URL'];
+  if (adminUrl == null ||
+      apiUrl == null ||
+      auditUrl == null ||
+      Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
+      Uri.parse(
+            adminUrl,
+          ).pathSegments.where((part) => part.isNotEmpty).lastOrNull !=
+          'ventio_host_test') {
+    stderr.writeln(
+      'First-administrator bootstrap integration requires the disposable ventio_host_test database and explicit test opt-in.',
+    );
+    exitCode = 2;
+    return;
+  }
+
+  final admin = await pg.Connection.openFromUrl(adminUrl);
+  final api = await pg.Connection.openFromUrl(apiUrl);
+  final audit = await pg.Connection.openFromUrl(auditUrl);
+  final temporary = await createPrivateTestDirectory('ventio-first-admin-');
+  final witnessPath =
+      '${temporary.path}${Platform.pathSeparator}authority.json';
+  final tenant = 'first-admin-${DateTime.now().toUtc().microsecondsSinceEpoch}';
+  const company = 'initial-company';
+  const branch = 'initial-branch';
+  const device = 'initial-device';
+  const credentialId = 'initial-credential';
+  final requestId = OpaqueToken.generate();
+  final credential = InitialHostAdministratorCredential(
+    actorId: 'usr_${OpaqueToken.generate()}',
+    token: OpaqueToken.generate(),
+  );
+  final expiresAt = DateTime.now().toUtc().add(const Duration(days: 1));
+  var assertions = 0;
+  void check(bool condition, String label) {
+    if (!condition) throw StateError('FAIL: $label');
+    assertions++;
+    stdout.writeln('PASS: $label');
+  }
+
+  try {
+    var uninitializedBootstrapDenied = false;
+    try {
+      await api.execute(
+        "SELECT ventio_security.bootstrap_first_admin('{}'::jsonb)",
+      );
+    } on pg.ServerException catch (error) {
+      uninitializedBootstrapDenied = error.code == '28000';
+    }
+    check(
+      uninitializedBootstrapDenied,
+      'Identity API cannot bootstrap an administrator before Recovery Authority initialization',
+    );
+
+    final authority = RecoveryAuthority(witnessPath);
+    await authority.prepareFirstAdministratorBootstrap(
+      api,
+      requestId: requestId,
+      tenantId: tenant,
+      actorId: credential.actorId,
+      companyId: company,
+      branchId: branch,
+      deviceId: device,
+      credentialId: credentialId,
+      token: credential.token,
+      expiresAt: expiresAt,
+    );
+    final witness =
+        jsonDecode(await File(witnessPath).readAsString())
+            as Map<String, dynamic>;
+    final authorityId = witness['authorityId'] as String;
+    check(
+      witness['pending'] == false && witness['fingerprint'] is String,
+      'First-install Recovery Authority is durably initialized from an empty Host database',
+    );
+
+    await api.execute(
+      pg.Sql.named(
+        'SELECT ventio_security.initialize_first_host_recovery(@authority)',
+      ),
+      parameters: {'authority': authorityId},
+    );
+    check(
+      true,
+      'Repeating first-install recovery initialization with the same authority is idempotent',
+    );
+
+    var differentAuthorityDenied = false;
+    try {
+      await api.execute(
+        pg.Sql.named(
+          'SELECT ventio_security.initialize_first_host_recovery(@authority)',
+        ),
+        parameters: {'authority': OpaqueToken.generate()},
+      );
+    } on pg.ServerException catch (error) {
+      differentAuthorityDenied = error.code == '42501';
+    }
+    check(
+      differentAuthorityDenied,
+      'A different Recovery Authority cannot take over first-install state',
+    );
+
+    final crashingAuthority = RecoveryAuthority(
+      witnessPath,
+      testBarrier: (step) {
+        if (step == 'after_commit')
+          throw StateError(
+            'Simulated process interruption after database commit',
+          );
+      },
+    );
+    final administration = IdentityAdministration(
+      connection: admin,
+      bootstrapConnection: api,
+      tenantId: tenant,
+      operatorLabel: 'first-admin-bootstrap-test',
+      authority: crashingAuthority,
+    );
+    var postCommitInterruptionObserved = false;
+    try {
+      await administration.bootstrapFirstAdministrator(
+        companyId: company,
+        branchId: branch,
+        deviceId: device,
+        credentialId: credentialId,
+        expiresAt: expiresAt,
+        requestId: requestId,
+        credential: credential,
+      );
+    } on StateError {
+      postCommitInterruptionObserved = true;
+    }
+    check(
+      postCommitInterruptionObserved,
+      'The test interrupted the process after database commit and before witness completion',
+    );
+    final pendingWitness =
+        jsonDecode(await File(witnessPath).readAsString())
+            as Map<String, dynamic>;
+    check(
+      pendingWitness['pending'] == true,
+      'A post-commit interruption leaves Recovery Authority admission closed',
+    );
+
+    await authority.prepareFirstAdministratorBootstrap(
+      api,
+      requestId: requestId,
+      tenantId: tenant,
+      actorId: credential.actorId,
+      companyId: company,
+      branchId: branch,
+      deviceId: device,
+      credentialId: credentialId,
+      token: credential.token,
+      expiresAt: expiresAt,
+    );
+    final reconciledWitness =
+        jsonDecode(await File(witnessPath).readAsString())
+            as Map<String, dynamic>;
+    check(
+      reconciledWitness['pending'] == false,
+      'A retry reconciles only the exact receipt-backed first-administrator transaction',
+    );
+
+    final readyAdministration = IdentityAdministration(
+      connection: admin,
+      bootstrapConnection: api,
+      tenantId: tenant,
+      operatorLabel: 'first-admin-bootstrap-test',
+      authority: authority,
+    );
+    final replay = await readyAdministration.bootstrapFirstAdministrator(
+      companyId: company,
+      branchId: branch,
+      deviceId: device,
+      credentialId: credentialId,
+      expiresAt: expiresAt,
+      requestId: requestId,
+      credential: credential,
+    );
+    check(
+      replay.actorId == credential.actorId && replay.token == credential.token,
+      'The exact bootstrap request replays without creating a second credential',
+    );
+
+    var differentRequestDenied = false;
+    try {
+      await readyAdministration.bootstrapFirstAdministrator(
+        companyId: company,
+        branchId: branch,
+        deviceId: device,
+        credentialId: credentialId,
+        expiresAt: expiresAt,
+        requestId: OpaqueToken.generate(),
+        credential: credential,
+      );
+    } on pg.ServerException catch (error) {
+      differentRequestDenied = error.code == '42501';
+    }
+    check(
+      differentRequestDenied,
+      'A different first-administrator request cannot replace the durable receipt',
+    );
+
+    final otherTenant = IdentityAdministration(
+      connection: admin,
+      bootstrapConnection: api,
+      tenantId: '$tenant-other',
+      operatorLabel: 'first-admin-bootstrap-test',
+      authority: authority,
+    );
+    var secondTenantDenied = false;
+    try {
+      await otherTenant.bootstrapFirstAdministrator(
+        companyId: company,
+        branchId: branch,
+        deviceId: 'other-device',
+        credentialId: 'other-credential',
+        expiresAt: expiresAt,
+        requestId: OpaqueToken.generate(),
+      );
+    } on pg.ServerException catch (error) {
+      secondTenantDenied = error.code == '42501';
+    }
+    check(
+      secondTenantDenied,
+      'A second tenant cannot create another first administrator on the same Host',
+    );
+
+    final receipt = await audit.execute(
+      pg.Sql.named('''
+        SELECT count(*)::integer FROM public.ventio_identity_users
+        WHERE tenant_id=@tenant
+      '''),
+      parameters: {'tenant': tenant},
+    );
+    check(
+      receipt.single[0] == 1,
+      'First-administrator bootstrap leaves exactly one initial identity',
+    );
+    stdout.writeln(
+      'First-administrator bootstrap integration passed: $assertions assertions.',
+    );
+  } finally {
+    await audit.close();
+    await api.close();
+    await admin.close();
+    await temporary.delete(recursive: true);
+  }
+}
