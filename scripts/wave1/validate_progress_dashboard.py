@@ -90,24 +90,39 @@ def main():
         int(re.fullmatch(r"(\d+)%", row[3]).group(1)) for _, row in stage_rows
     ]
     require(sum(weights) == 100, f"Stage weights total {sum(weights)}%, not 100%.")
+    status_translation = {
+        "مكتمل (PASS)": "PASS",
+        "فشل التحقق (FAIL)": "FAIL",
+        "متوقف بسبب عائق (BLOCKED)": "BLOCKED",
+        "قيد التنفيذ (IN PROGRESS)": "IN PROGRESS",
+    }
     for (_, row), weight, accepted_weight in zip(stage_rows, weights, accepted):
+        require(row[2] in status_translation, f"Unknown stage status: {row[2]}")
+        english_status = status_translation[row[2]]
         require(
-            row[2] in {"PASS", "FAIL", "BLOCKED", "IN PROGRESS", "NOT STARTED"},
-            f"Unknown stage status: {row[2]}",
-        )
-        expected = weight if row[2] == "PASS" else 0
-        require(
-            accepted_weight == expected,
+            accepted_weight == (weight if english_status == "PASS" else 0),
             f"Stage {row[0]} accepted weight does not match its status.",
         )
 
-    status_counts = Counter(row[2] for _, row in stage_rows)
+    status_counts = Counter(status_translation[row[2]] for _, row in stage_rows)
+    arabic_status = {
+        "PASS": "مكتمل (PASS)",
+        "FAIL": "فشل التحقق (FAIL)",
+        "BLOCKED": "متوقف بسبب عائق (BLOCKED)",
+        "IN PROGRESS": "قيد التنفيذ (IN PROGRESS)",
+        "NOT STARTED": "لم يبدأ (NOT STARTED)",
+    }
     expected_status = " · ".join(
-        f"{status_counts[status]} {status}"
+        f"{status_counts[status]} {arabic_status[status]}"
         for status in ("PASS", "FAIL", "BLOCKED", "IN PROGRESS", "NOT STARTED")
         if status_counts.get(status, 0)
     )
     require(expected_status in source, "Summary stage counts do not match the table.")
+    english_status_summary = "; ".join(
+        f"{status_counts[status]} {status}"
+        for status in ("PASS", "FAIL", "BLOCKED", "IN PROGRESS", "NOT STARTED")
+        if status_counts.get(status, 0)
+    )
     metric = re.search(r'<span class="metric">(\d+)%</span>', source)
     require(
         metric is not None and int(metric.group(1)) == sum(accepted),
@@ -117,19 +132,19 @@ def main():
     timestamp = re.search(r"<time datetime=\"([^\"]+)\">", source).group(1)
     datetime.fromisoformat(timestamp)
     required_sections = (
-        "Completed tasks", "Remaining tasks", "Failed tests and checks", "Blocked tasks",
-        "Active risks", "Latest verification", "Commit references", "Final acceptance gate",
-        "Next:", "does not update automatically",
+        "الأعمال المنجزة", "المتطلبات المتبقية", "الاختبارات والتحققات التي تحتاج إلى متابعة",
+        "العوائق الحالية", "المخاطر النشطة", "أحدث تحقق", "مراجع Git",
+        "بوابة القبول النهائي", "الخطوة القادمة:", "لا يتم تحديثها تلقائياً",
     )
     for label in required_sections:
         require(label in source, f"Missing required dashboard field: {label}")
     require(
-        '<html lang="en">' in source
+        '<html lang="ar" dir="rtl">' in source
         and "../wave1/implementation-plan.md" in source,
         "English content and local plan link are required.",
     )
     print(f"PASS: {path}")
-    print(f"PASS: {len(stage_rows)} stages, {sum(weights)}% weighted total, {sum(accepted)}% accepted, status counts {expected_status}.")
+    print(f"PASS: {len(stage_rows)} stages, {sum(weights)}% weighted total, {sum(accepted)}% accepted, status counts {english_status_summary}.")
     print("PASS: no scripts/external assets; required progress and acceptance fields are present.")
 
 
