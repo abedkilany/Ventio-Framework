@@ -55,6 +55,17 @@ Future<void> main() async {
     if (initial['token'] != 'windows-private-test') {
       throw StateError('Protected Windows file round-trip failed');
     }
+    final missingPath =
+        '${directory.path}${Platform.pathSeparator}missing-private-test.json';
+    try {
+      await PrivateFiles.read(missingPath);
+      throw StateError('Missing protected file was unexpectedly readable');
+    } on StateError catch (error) {
+      if (!error.toString().contains('(read, helper_rejected)') ||
+          error.toString().contains(missingPath)) {
+        rethrow;
+      }
+    }
     await PrivateFiles.verifyPrivateFile(file);
     await PrivateFiles.replace(file, {'token': 'rotated-private-test'});
     final rotated = jsonDecode(await PrivateFiles.read(file)) as Map;
