@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
 import 'package:ventio_native_client/src/host_diagnostics.dart';
 import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/host_readiness.dart';
+import 'package:ventio_native_client/src/diagnostics_center_page.dart';
+import 'package:ventio_native_client/src/local_diagnostics.dart';
 
 const _correlationId = 'cor_0123456789abcdef0123456789abcdef';
 const _token = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
@@ -209,4 +212,58 @@ void main() {
       ),
     );
   });
+
+  testWidgets('Diagnostics Center displays authorized Host events', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final transport = createClient(
+      permissions: {hostDiagnosticsReadPermission},
+      exchange: (_, _, _) async => HostReadinessHttpResponse(
+        statusCode: 200,
+        body: {
+          'apiVersion': 1,
+          'managementApiVersion': managementApiVersion,
+          'correlationId': _correlationId,
+          'events': [event.toJson()],
+        },
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiagnosticsCenterPage(
+          store: _LocalEvents(event),
+          hostClient: HostDiagnosticsClient(transport),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Device diagnostics'), findsOneWidget);
+    expect(find.text('Host diagnostics'), findsOneWidget);
+    expect(find.text('DATABASE_UNAVAILABLE'), findsNWidgets(2));
+    expect(find.text('The Host database is unavailable.'), findsNWidgets(2));
+  });
+}
+
+class _LocalEvents implements DiagnosticEventSource {
+  const _LocalEvents(this.event);
+
+  final ManagementDiagnosticEvent event;
+
+  @override
+  Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async =>
+      event;
+
+  @override
+  Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async => [
+    event,
+  ];
+
+  @override
+  Future<String> exportJson({int limit = 100}) async =>
+      '{"events":[${jsonEncode(event.toJson())}]}';
 }
