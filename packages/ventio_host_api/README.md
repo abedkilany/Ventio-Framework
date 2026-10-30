@@ -108,6 +108,11 @@ Set these private environment variables:
 - `VENTIO_DEVELOPMENT_IDENTITY_FILE`: absolute path to a private JSON file outside
   the repository. Restrict access using operating-system file permissions.
 - `VENTIO_HOST_PORT`: optional, defaults to 8080; 0 chooses an available port.
+- `VENTIO_HOST_DIAGNOSTICS_FILE`: optional absolute path to a bounded durable
+  diagnostics ring buffer. The parent directory must already have a protected
+  ACL owned by the Host service identity. Protected SQLSTATE/type/source fields
+  are kept in this file; the public diagnostic JSON omits them. If unset, the
+  launcher uses an in-memory buffer for local development.
 - `VENTIO_HOST_BIND_ADDRESS`: optional, defaults to `127.0.0.1`. Use a specific
   interface address for a remote Host; wildcard addresses still require TLS.
 - `VENTIO_HOST_TLS_CERTIFICATE_FILE` and `VENTIO_HOST_TLS_PRIVATE_KEY_FILE`:

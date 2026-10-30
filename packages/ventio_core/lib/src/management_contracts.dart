@@ -370,6 +370,14 @@ enum ManagementDiagnosticCategory {
   const ManagementDiagnosticCategory(this.wireValue);
 
   final String wireValue;
+
+  static ManagementDiagnosticCategory parse(Object? value) =>
+      ManagementDiagnosticCategory.values.firstWhere(
+        (category) => category.wireValue == value,
+        orElse: () => throw const FormatException(
+          'Unknown management diagnostic category.',
+        ),
+      );
 }
 
 enum ManagementDiagnosticSeverity {
@@ -381,6 +389,14 @@ enum ManagementDiagnosticSeverity {
   const ManagementDiagnosticSeverity(this.wireValue);
 
   final String wireValue;
+
+  static ManagementDiagnosticSeverity parse(Object? value) =>
+      ManagementDiagnosticSeverity.values.firstWhere(
+        (severity) => severity.wireValue == value,
+        orElse: () => throw const FormatException(
+          'Unknown management diagnostic severity.',
+        ),
+      );
 }
 
 enum HostDeviceRole {

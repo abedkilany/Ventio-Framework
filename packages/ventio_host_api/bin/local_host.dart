@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
@@ -24,7 +25,15 @@ Future<void> runLocalHost({
   HostApi? api;
   pg.Pool<dynamic>? runtimePool;
   pg.Pool<dynamic>? identityApiPool;
+  ManagementDiagnosticSink diagnostics = ManagementDiagnosticBuffer();
   try {
+    final diagnosticsPath =
+        Platform.environment['VENTIO_HOST_DIAGNOSTICS_FILE'];
+    if (diagnosticsPath != null && diagnosticsPath.isNotEmpty) {
+      diagnostics = await ProtectedManagementDiagnosticLog.open(
+        diagnosticsPath,
+      );
+    }
     final url = Platform.environment['VENTIO_HOST_DATABASE_URL'];
     if (url == null || url.isEmpty)
       throw StateError('Missing database configuration');
@@ -174,6 +183,7 @@ Future<void> runLocalHost({
         pool: runtime,
         recoveryAuthority: admission,
       ),
+      diagnostics: diagnostics,
       executor: PersistentCommandExecutor(
         pool: runtime,
         admission: admission,
@@ -190,6 +200,33 @@ Future<void> runLocalHost({
       'Persistent Host listening on $scheme://$addressText:${api.port}',
     );
   } catch (error) {
+    try {
+      await diagnostics.record(
+        ManagementDiagnosticEvent(
+          code: 'HOST_STARTUP_FAILED',
+          component: 'host.startup',
+          category: ManagementDiagnosticCategory.hostStartup,
+          severity: ManagementDiagnosticSeverity.critical,
+          occurredAtUtc: DateTime.now().toUtc(),
+          correlationId: _startupCorrelationId(),
+          retryable: true,
+          messageKey: 'native.diagnostics.host_startup_failed',
+          safeExplanation:
+              'The Host service could not complete its startup checks.',
+          recommendedAction:
+              'Review the protected Host diagnostic log and correct the reported component issue.',
+          protectedTechnicalCode: switch (error) {
+            pg.ServerException(:final code)
+                when code != null && RegExp(r'^[0-9A-Z]{5}$').hasMatch(code) =>
+              code,
+            _ => null,
+          },
+          protectedFailureType: error.runtimeType.toString(),
+        ),
+      );
+    } catch (_) {
+      // Diagnostics must never replace the original fail-closed startup result.
+    }
     try {
       await _closePools(identityApiPool, runtimePool);
     } catch (_) {
@@ -234,6 +271,15 @@ Future<void> runLocalHost({
       }
     }
   }
+}
+
+String _startupCorrelationId() {
+  final random = math.Random.secure();
+  final value = List<int>.generate(
+    16,
+    (_) => random.nextInt(256),
+  ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  return 'cor_$value';
 }
 
 String _redactTestDiagnostic(String value) => value
