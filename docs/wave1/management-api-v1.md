@@ -1,6 +1,6 @@
 # Host Management API Contract v1
 
-**Status:** readiness, pairing create/redeem, scoped device inventory/revocation and safe diagnostic event contracts are implemented. Live PostgreSQL verification, credential rotation, authenticated activity history, synchronization status, and remaining administrative APIs are still open.
+**Status:** readiness, pairing create/redeem, scoped device inventory/revocation, safe diagnostic events, and exact-scope authenticated diagnostic-history retrieval are implemented. Live PostgreSQL verification, synchronization status, and remaining administrative APIs are still open.
 **API paths:** under `/api/v1`; management payloads carry `managementApiVersion: 1`.
 **Compatibility:** existing `/healthz`, `/api/v1/session`, command and extension routes retain their existing payloads. Every response now also carries an `X-Correlation-ID` response header.
 
@@ -55,9 +55,16 @@ Unexpected Host API failures are recorded in a bounded, process-local buffer as 
 
 `POST /api/v1/management/pairing/create`, `POST /api/v1/pairing/redeem`, and the device list/revoke routes are active. Pairing behavior is documented in [pairing-api-v1.md](pairing-api-v1.md). Other routes reserved in the shared contract file are not active merely because a route constant exists. Pairing and device PostgreSQL integration cases are wired into the disposable database CI suite but have not been run locally; local API contract tests do not prove SQL grants, RLS, recovery admission, cross-branch denial, or replay behavior.
 
+## Authenticated diagnostic history
+
+`POST /api/v1/management/diagnostics/recent` requires a persistent Host credential and a direct `host.diagnostics.read` grant for the exact requested company/branch pair. The request carries `managementApiVersion`, `companyId`, `branchId`, and a `limit` from 1 through 100. The Host returns only safe diagnostic event fields, newest first, with the request correlation ID. It omits protected SQLSTATE, exception type/source, credentials, connection settings, and any raw exception text. A missing readable diagnostic sink returns `HOST_DIAGNOSTICS_UNAVAILABLE`; callers without the dedicated grant receive `PERMISSION_DENIED`.
+
+The route has local contract coverage for authorization denial, branch-scope denial, bounded pagination, correlation, and omission of protected technical details. Database-backed administration/security suites do not currently verify diagnostic history because its reader is an OS-protected local Host facility.
+
 ## Authorization and operational boundaries
 
 - `host.status.read` is checked against the authenticated principal's exact company/branch grant for every readiness request.
+- `host.diagnostics.read` is a separate direct exact-scope permission for diagnostic history; it does not grant readiness, user, role, device, or pairing administration.
 - `identity.pairing.manage` is required directly in the exact branch to create a pairing code. PostgreSQL independently rechecks this permission against the caller credential's exact scope ceiling.
 - `identity.devices.manage` is a separate direct exact-scope grant for listing and revoking devices. Pairing does not grant it, and role/device metadata does not imply it.
 - Device registration role (`HOST`, `CLIENT`, or legacy `UNKNOWN`) is not an authorization input.

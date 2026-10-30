@@ -117,9 +117,14 @@ abstract interface class ManagementDiagnosticSink {
   Future<void> record(ManagementDiagnosticEvent event);
 }
 
+abstract interface class ManagementDiagnosticReader {
+  List<ManagementDiagnosticEvent> recent({int? limit});
+}
+
 /// Process-local bounded buffer used for safe operational event correlation.
 /// It stores only structured, user-safe contracts, never exception text.
-class ManagementDiagnosticBuffer implements ManagementDiagnosticSink {
+class ManagementDiagnosticBuffer
+    implements ManagementDiagnosticSink, ManagementDiagnosticReader {
   ManagementDiagnosticBuffer({this.capacity = 200}) {
     if (capacity < 1 || capacity > 10000) {
       throw ArgumentError.value(capacity, 'capacity');
@@ -137,6 +142,7 @@ class ManagementDiagnosticBuffer implements ManagementDiagnosticSink {
     }
   }
 
+  @override
   List<ManagementDiagnosticEvent> recent({int? limit}) {
     final boundedLimit = limit ?? (capacity < 100 ? capacity : 100);
     if (boundedLimit < 1 || boundedLimit > capacity) {
@@ -151,7 +157,8 @@ class ManagementDiagnosticBuffer implements ManagementDiagnosticSink {
 /// The file must live in a directory already protected for the Host service
 /// identity. Public exports must be produced from [ManagementDiagnosticEvent.toJson],
 /// which omits the protected technical fields stored here.
-class ProtectedManagementDiagnosticLog implements ManagementDiagnosticSink {
+class ProtectedManagementDiagnosticLog
+    implements ManagementDiagnosticSink, ManagementDiagnosticReader {
   ProtectedManagementDiagnosticLog._({
     required this.path,
     required this.capacity,
@@ -203,6 +210,7 @@ class ProtectedManagementDiagnosticLog implements ManagementDiagnosticSink {
     );
   }
 
+  @override
   List<ManagementDiagnosticEvent> recent({int? limit}) {
     final boundedLimit = limit ?? (capacity < 100 ? capacity : 100);
     if (boundedLimit < 1 || boundedLimit > capacity) {

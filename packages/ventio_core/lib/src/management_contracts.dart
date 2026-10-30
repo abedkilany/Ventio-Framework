@@ -14,6 +14,7 @@ const String identityPairingManagePermission = 'identity.pairing.manage';
 abstract final class HostManagementRoutes {
   static const String readiness = '/api/v1/management/readiness';
   static const String diagnostics = '/api/v1/management/diagnostics';
+  static const String diagnosticsRecent = '$diagnostics/recent';
   static const String users = '/api/v1/management/users';
   static const String devices = '/api/v1/management/devices';
   static const String pairing = '/api/v1/management/pairing';

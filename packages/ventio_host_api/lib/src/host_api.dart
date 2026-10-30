@@ -365,6 +365,8 @@ class HostApi {
     final identityDeviceAction = _identityDeviceAction(request.uri.path);
     final sessionRoute = request.uri.path == '/api/v1/session';
     final readinessRoute = request.uri.path == HostManagementRoutes.readiness;
+    final diagnosticsRoute =
+        request.uri.path == HostManagementRoutes.diagnosticsRecent;
     if (request.uri.path != '/api/v1/commands' &&
         packageRoute == null &&
         !recordQueryRoute &&
@@ -374,7 +376,8 @@ class HostApi {
         identityDeviceAction == null &&
         !pairingCreateRoute &&
         !sessionRoute &&
-        !readinessRoute) {
+        !readinessRoute &&
+        !diagnosticsRoute) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     final requiredMethod = sessionRoute ? 'GET' : 'POST';
@@ -446,7 +449,8 @@ class HostApi {
             identityUserRoute != null ||
             identityDeviceAction != null ||
             pairingCreateRoute ||
-            readinessRoute) &&
+            readinessRoute ||
+            diagnosticsRoute) &&
         session.credentialDigest == null) {
       throw const _ApiError(403, 'PERSISTENT_IDENTITY_REQUIRED');
     }
@@ -461,6 +465,13 @@ class HostApi {
     }
     if (readinessRoute && _readinessProvider == null) {
       throw const _ApiError(503, 'HOST_STATUS_UNAVAILABLE', retryable: true);
+    }
+    if (diagnosticsRoute && _diagnostics is! ManagementDiagnosticReader) {
+      throw const _ApiError(
+        503,
+        'HOST_DIAGNOSTICS_UNAVAILABLE',
+        retryable: true,
+      );
     }
     if (pairingCreateRoute && _identityPairing == null) {
       throw const _ApiError(404, 'NOT_FOUND');
@@ -502,6 +513,10 @@ class HostApi {
     final json = requireMap(jsonDecode(text), 'command');
     if (readinessRoute) {
       await _handleReadiness(request, json, session, correlationId);
+      return;
+    }
+    if (diagnosticsRoute) {
+      _handleDiagnostics(request, json, session, correlationId);
       return;
     }
     if (pairingCreateRoute) {
@@ -924,6 +939,57 @@ class HostApi {
       'managementApiVersion': managementApiVersion,
       'correlationId': correlationId,
       'readiness': snapshot.toJson(),
+    });
+  }
+
+  void _handleDiagnostics(
+    HttpRequest request,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+    String correlationId,
+  ) {
+    const expectedKeys = {
+      'managementApiVersion',
+      'companyId',
+      'branchId',
+      'limit',
+    };
+    if (json.keys.toSet().length != expectedKeys.length ||
+        !json.keys.toSet().containsAll(expectedKeys) ||
+        json['managementApiVersion'] != managementApiVersion) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    final limit = json['limit'];
+    if (limit is! int || limit < 1 || limit > 100) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    if (!session.principal.withinScope(
+      tenantId: session.principal.tenantId,
+      companyId: companyId,
+      branchId: branchId,
+      actorId: session.principal.actorId,
+      deviceId: session.principal.deviceId,
+    )) {
+      throw const _ApiError(403, 'SCOPE_DENIED');
+    }
+    if (!session.principal.allowsInScope(
+      hostDiagnosticsReadPermission,
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+    final reader = _diagnostics as ManagementDiagnosticReader;
+    _json(request, 200, {
+      'apiVersion': 1,
+      'managementApiVersion': managementApiVersion,
+      'correlationId': correlationId,
+      'events': reader
+          .recent(limit: limit)
+          .map((event) => event.toJson())
+          .toList(),
     });
   }
 

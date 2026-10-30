@@ -65,7 +65,9 @@ class FakeManagementAuthenticator implements PersistentHostAuthenticator {
     final scoped = PrincipalScope(
       companyId: 'company-001',
       branchId: 'branch-001',
-      permissions: allowed ? {hostStatusReadPermission} : const {},
+      permissions: allowed
+          ? {hostStatusReadPermission, hostDiagnosticsReadPermission}
+          : const {},
     );
     final principal = Principal(
       actorId: 'operator-001',
@@ -73,7 +75,9 @@ class FakeManagementAuthenticator implements PersistentHostAuthenticator {
       tenantId: 'management-test',
       companyIds: {'company-001'},
       branchIds: {'branch-001'},
-      permissions: allowed ? {hostStatusReadPermission} : const {},
+      permissions: allowed
+          ? {hostStatusReadPermission, hostDiagnosticsReadPermission}
+          : const {},
       scopeGrants: [scoped],
     );
     return AuthenticatedSession.persistent(
@@ -806,6 +810,94 @@ Future<void> main() async {
       unsupportedVersion.body['error']['code'] == 'INVALID_REQUEST' &&
           unsupportedVersion.body.containsKey('correlationId'),
       'Readiness rejects unsupported contract versions with correlation',
+    );
+
+    await managementDiagnostics.record(
+      ManagementDiagnosticEvent(
+        code: 'HOST_UNAVAILABLE',
+        component: 'host_api',
+        category: ManagementDiagnosticCategory.apiExecution,
+        severity: ManagementDiagnosticSeverity.error,
+        occurredAtUtc: checkedAtUtc,
+        correlationId: 'cor_0123456789abcdef0123456789abcdef',
+        retryable: true,
+        messageKey: 'host_api.error.host_unavailable',
+        safeExplanation: 'The Host could not complete this request.',
+        recommendedAction: 'Retry safely and share the correlation ID.',
+        protectedFailureType: 'StateError',
+        protectedFailureSource: 'PersistentPool.execute',
+      ),
+    );
+    final diagnosticsDenied = await send(
+      managementApi,
+      path: HostManagementRoutes.diagnosticsRecent,
+      token: deniedToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'limit': 10,
+      },
+    );
+    check(
+      diagnosticsDenied.status == 403 &&
+          diagnosticsDenied.body['error']['code'] == 'PERMISSION_DENIED',
+      'Diagnostic history requires its dedicated exact-scope permission',
+    );
+    final diagnosticHistory = await send(
+      managementApi,
+      path: HostManagementRoutes.diagnosticsRecent,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'limit': 10,
+      },
+    );
+    final exportedEvents = diagnosticHistory.body['events'] as List;
+    check(
+      diagnosticHistory.status == 200 &&
+          exportedEvents.length == 2 &&
+          diagnosticHistory.body['correlationId'] ==
+              diagnosticHistory.headers.value('X-Correlation-ID') &&
+          !jsonEncode(
+            diagnosticHistory.body,
+          ).contains('protectedFailureType') &&
+          !jsonEncode(diagnosticHistory.body).contains('StateError'),
+      'Authorized diagnostic history is bounded, correlated and omits protected failure details',
+    );
+    final diagnosticsOutOfScope = await send(
+      managementApi,
+      path: HostManagementRoutes.diagnosticsRecent,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'another-branch',
+        'limit': 10,
+      },
+    );
+    check(
+      diagnosticsOutOfScope.status == 403 &&
+          diagnosticsOutOfScope.body['error']['code'] == 'SCOPE_DENIED',
+      'Diagnostic history cannot cross its exact company/branch scope',
+    );
+    final invalidDiagnosticLimit = await send(
+      managementApi,
+      path: HostManagementRoutes.diagnosticsRecent,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'limit': 101,
+      },
+    );
+    check(
+      invalidDiagnosticLimit.status == 400 &&
+          invalidDiagnosticLimit.body['error']['code'] == 'INVALID_REQUEST',
+      'Diagnostic history rejects unbounded page sizes',
     );
   } finally {
     await managementApi.close();
