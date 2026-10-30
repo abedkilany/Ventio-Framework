@@ -104,7 +104,7 @@
     <section class="card"><h3>Blocked tasks</h3><p>Stages 8 and 9 remain BLOCKED until the missing Host provisioning/service path is available and the end-to-end installed Host/Client scenarios can run. Host all-users install/uninstall validation on the current artifact requires an already elevated PowerShell session; the attempted launch was rejected by execution policy before it started, so this gate remains NOT RUN. Physical two-device and Android validation are not demonstrated.</p></section>
     <section class="card"><h3>Active risks</h3><ul>
       <li>The source-level Host/Client path contract now aligns: Host all-users installation is fixed to Program Files\Ventio and Client per-user installation targets LocalAppData. The Host all-users runtime install path has not yet been tested on the current artifact.</li>
-      <li>Host elevation, PostgreSQL SCM provisioning, database/first-admin graphical bootstrap, Host service registration, startup and reboot recovery remain unimplemented. Only the disposable PostgreSQL process and protected config path were verified.</li>
+      <li>The database initializer intentionally retires its temporary superuser and creates no first user or grant. The remaining trusted administration path is a local private-request CLI requiring a database administration URL and Recovery Authority file; there is no graphical first-admin ceremony. Resolve this trust boundary before wiring real Host services. Host elevation, PostgreSQL SCM provisioning, Host service registration, startup and reboot recovery also remain unimplemented.</li>
       <li>Protected child-process persistence now passes repeatable local tests; production Host restart/reboot diagnostics persistence still requires installer/service validation.</li>
       <li>The unified installer is unsigned. Installation types are verified, but Host service-aware upgrades and explicit PostgreSQL/backup retention choices are not implemented.</li>
       <li>Two-physical-device and Android runtime evidence is unavailable.</li>
@@ -172,9 +172,9 @@
     </table>
   </div>
   <h2>Next planned engineering action</h2>
-  <p>Next: implement the graphical fixed-operation provisioning path for PostgreSQL service installation, database/initial-admin bootstrap, DPAPI configuration, Host service registration and recovery diagnostics. Then verify the current Host all-users installer in an already elevated test session.</p>
+  <p>Next: define and implement a trusted local first-administrator ceremony that preserves the Recovery Authority boundary, then connect it to fixed-operation Host provisioning and service installation. Verify the current Host all-users installer in an already elevated test session after that path is reviewable.</p>
 
-    <footer>Last updated: <time datetime="2026-10-30T09:28:39+00:00">2026-10-30 09:28 UTC</time>. This is a manually maintained, static development dashboard; it does not update automatically.</footer>
+    <footer>Last updated: <time datetime="2026-10-30T09:30:33+00:00">2026-10-30 09:30 UTC</time>. This is a manually maintained, static development dashboard; it does not update automatically.</footer>
 </main>
 </body>
 </html>

@@ -28,6 +28,8 @@ Latest isolated DB hardening: the Host database initializer now checks all 29 mi
 
 Latest Windows PowerShell compatibility rerun (2026-10-30 11:25 Asia/Beirut): `provision-postgres-service.ps1 -TestInitDbOnly -TestMigrations` passed on the actual Windows PowerShell runtime after fixing legacy .NET incompatibilities in secure random bytes, process argument quoting, standard-input setup, fully-qualified path checks, DPAPI assembly loading and ACL application. The same run validated migrations 001–029, SCRAM login profiles, retirement of the temporary bootstrap role, DPAPI service configuration and the compiled config validator; the temporary fixture was torn down. `test-postgres-service-plan.ps1` and `test-host-service-config-writer.ps1` passed. No Windows service or product data was created. This remains isolated process evidence, not Host SCM provisioning or an elevated installer test.
 
+First-admin bootstrap audit: `initialize-host-database.ps1` creates `ventio_identity_admin` as `NOLOGIN`, creates only the runtime and restricted Identity API application logins, and retires the temporary cluster bootstrap superuser. It does not provision a user or grant. The only trusted local identity-administration entry point remains `identity_admin.dart`, a private-request-file CLI requiring a management database URL and Recovery Authority context. Therefore the graphical first-admin acceptance gate is FAIL. Installer/service integration must first supply a trusted local operator ceremony without a default admin, credential residue, device-role-derived authority, or an unauthenticated bootstrap route.
+
 ## Stage 10 acceptance tests
 
 | Required scenario | Status | Evidence |
