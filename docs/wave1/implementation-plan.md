@@ -72,7 +72,7 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 
 ### 2026-10-30 update — Flutter Host diagnostic retrieval
 
-- Commits `0ef6be1` and `7b6af70` integrate scoped Host diagnostic events into the existing Flutter Diagnostics Center. The client uses the existing TLS-validating transport, enforces persistent exact-scope `host.diagnostics.read` grants as a UI gate, validates correlation IDs and public event schemas, and keeps local diagnostics available independently when Host access fails.
+- Commits `0ef6be1` and `7b6af70` integrate scoped Host diagnostic events into the existing Flutter Diagnostics Center. The client uses the existing TLS-validating transport, enforces persistent exact-scope `host.diagnostics.read` grants as a UI gate, validates correlation IDs and public event schemas, and keeps local diagnostics available independently when Host access fails. Commit `f7ed490` extends sanitized export to combine local and currently loaded Host events with source labels while excluding protected fields.
 - Verification: four new Host diagnostics client tests and the focused Host readiness, local diagnostics and Extension Studio suites passed **52/52**, including a widget test that displays authorized Host events alongside the local event feed; `flutter analyze` reported no issues. This slice does not earn Stage 6 weight because protected cross-process persistence, full diagnostics coverage and export acceptance remain open.
 
 ## Verification strategy
