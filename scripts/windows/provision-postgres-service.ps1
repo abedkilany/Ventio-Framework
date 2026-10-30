@@ -181,21 +181,32 @@ if ($TestInitDbOnly) {
       -v ON_ERROR_STOP=1 -Atc "select current_user || ':' || current_setting('server_version')"
     if ($LASTEXITCODE -ne 0 -or $result -ne 'ventio_bootstrap:16.15') { throw 'POSTGRES_TEST_AUTHENTICATED_QUERY_FAILED' }
     if ($TestMigrations) {
-      $env:VENTIO_MIGRATIONS_DIR = $migrationFiles
-      Remove-Item Env:VENTIO_MIGRATION_ROLE -ErrorAction SilentlyContinue
-      & (Join-Path $bin 'createdb.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap ventio_host
-      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_DATABASE_CREATE_FAILED' }
-      $encodedPassword = [Uri]::EscapeDataString($testPassword)
-      $env:VENTIO_DATABASE_URL = "postgresql://ventio_bootstrap:${encodedPassword}@127.0.0.1:${testPort}/ventio_host?sslmode=disable"
-      & $migrationExecutable
-      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_MIGRATIONS_FAILED' }
-      & (Join-Path $bin 'psql.exe') -X -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d ventio_host `
-        -v ON_ERROR_STOP=1 -v expected_database=ventio_host -f $bootstrapFile
-      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_SECURITY_BOOTSTRAP_FAILED' }
+      $databaseInitializer = Join-Path $PSScriptRoot 'initialize-host-database.ps1'
+      if (-not (Test-Path -LiteralPath $databaseInitializer)) { throw 'POSTGRES_TEST_DATABASE_INITIALIZER_MISSING' }
+      $runtimePassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))
+      $identityPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))
+      $bootstrapCredential = [PSCredential]::new('ventio_bootstrap', $testSecret)
+      $runtimeCredential = [PSCredential]::new('ventio_runtime_app', (ConvertTo-SecureString $runtimePassword -AsPlainText -Force))
+      $identityCredential = [PSCredential]::new('ventio_identity_api_app', (ConvertTo-SecureString $identityPassword -AsPlainText -Force))
+      & $databaseInitializer -PostgresRoot $pgRoot -DataDirectory $testData -Port $testPort `
+        -BootstrapCredential $bootstrapCredential -RuntimeCredential $runtimeCredential `
+        -IdentityApiCredential $identityCredential -Apply -TestMode
+      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_HOST_DATABASE_INITIALIZATION_FAILED' }
       $ledger = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d ventio_host `
         -v ON_ERROR_STOP=1 -Atc 'SELECT count(*) FROM public.ventio_schema_migrations'
       if ($LASTEXITCODE -ne 0 -or $ledger -ne '29') { throw 'POSTGRES_TEST_MIGRATION_LEDGER_INVALID' }
-      Write-Output 'POSTGRES_MIGRATION_BOOTSTRAP_TEST_PASS'
+      $runtimeMembership = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d postgres `
+        -v ON_ERROR_STOP=1 -Atc "SELECT pg_has_role('ventio_runtime_app','ventio_runtime','MEMBER') AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname='ventio_runtime_app')"
+      if ($LASTEXITCODE -ne 0 -or $runtimeMembership -ne 't') { throw 'POSTGRES_TEST_RUNTIME_ROLE_INVALID' }
+      $identityMembership = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d postgres `
+        -v ON_ERROR_STOP=1 -Atc "SELECT pg_has_role('ventio_identity_api_app','ventio_identity_api','MEMBER') AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname='ventio_identity_api_app')"
+      if ($LASTEXITCODE -ne 0 -or $identityMembership -ne 't') { throw 'POSTGRES_TEST_IDENTITY_ROLE_INVALID' }
+      $runtimeCredential = $null
+      $identityCredential = $null
+      $bootstrapCredential = $null
+      $runtimePassword = $null
+      $identityPassword = $null
+      Write-Output 'POSTGRES_MIGRATION_LEAST_PRIVILEGE_BOOTSTRAP_TEST_PASS'
     } else {
       Write-Output 'POSTGRES_INITDB_SECRET_PIPE_TEST_PASS'
     }
