@@ -148,3 +148,7 @@ The Flutter local-diagnostics suite now also iterates every stable `ManagementDi
 ### 2026-10-30 update — offline synchronization acceptance
 
 - Disposable PostgreSQL run `20261030053227457-1` passed the real Host API + SQLite inventory integration. The test covers offline command durability after an unreachable Host, successful replay and Host receipts after reconnection, retry with the same command ID after a lost response, stale-revision conflict reporting, and persistence across SQLite close/reopen. Synchronization page tests passed 4/4 and `flutter analyze` was clean. Stage 7 is accepted at 7%; accepted total is 20% (Stages 0, 4 and 7). Cross-device propagation remains in Stage 8 and is not included in this gate.
+
+### 2026-10-30 update — PostgreSQL test-tool state
+
+- Verified the local extracted PostgreSQL 16.15 test tools at `%LOCALAPPDATA%\VentioFramework\postgresql-16.15-tools\pgsql\bin`; `postgres.exe --version` reports 16.15 and the archive source size is 373,254,386 bytes (356 MiB). The archive itself is not retained in this cache. Windows service enumeration found no PostgreSQL service. This remains test infrastructure only: the Host installer still needs isolated production provisioning, secret-safe service configuration, service startup and reboot verification.
