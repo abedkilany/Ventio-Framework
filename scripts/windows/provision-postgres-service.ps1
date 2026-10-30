@@ -3,7 +3,8 @@ param(
   [int] $Port = 54329,
   [PSCredential] $BootstrapCredential,
   [switch] $Apply,
-  [switch] $TestInitDbOnly
+  [switch] $TestInitDbOnly,
+  [switch] $TestMigrations
 )
 
 $ErrorActionPreference = 'Stop'
@@ -139,6 +140,15 @@ if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') {
 }
 if ($TestInitDbOnly) {
   if ($Apply) { throw 'POSTGRES_TEST_MODE_CANNOT_APPLY' }
+  if ($TestMigrations) {
+    $payloadRoot = Split-Path -Parent $pgRoot
+    $migrationExecutable = Join-Path $payloadRoot 'ventio_migrate.exe'
+    $migrationFiles = Join-Path $payloadRoot 'migrations'
+    $bootstrapFile = Join-Path $payloadRoot 'security\bootstrap.sql'
+    foreach ($file in @($migrationExecutable, $migrationFiles, $bootstrapFile)) {
+      if (-not (Test-Path -LiteralPath $file)) { throw 'POSTGRES_TEST_HOST_MIGRATION_PAYLOAD_MISSING' }
+    }
+  }
   $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('ventio-pg-initdb-test-' + [guid]::NewGuid().ToString('N'))
   $testData = Join-Path $testRoot 'data'
   $testLog = Join-Path $testRoot 'postgres.log'
@@ -149,6 +159,10 @@ if ($TestInitDbOnly) {
   $testPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))
   $testSecret = ConvertTo-SecureString $testPassword -AsPlainText -Force
   $testStarted = $false
+  $oldPassword = $env:PGPASSWORD
+  $oldDatabaseUrl = $env:VENTIO_DATABASE_URL
+  $oldMigrationDirectory = $env:VENTIO_MIGRATIONS_DIR
+  $oldMigrationRole = $env:VENTIO_MIGRATION_ROLE
   try {
     [void][IO.Directory]::CreateDirectory($testRoot)
     Initialize-PostgresCluster $initdb $testData $testSecret
@@ -166,10 +180,31 @@ if ($TestInitDbOnly) {
     $result = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d postgres `
       -v ON_ERROR_STOP=1 -Atc "select current_user || ':' || current_setting('server_version')"
     if ($LASTEXITCODE -ne 0 -or $result -ne 'ventio_bootstrap:16.15') { throw 'POSTGRES_TEST_AUTHENTICATED_QUERY_FAILED' }
-    Write-Output 'POSTGRES_INITDB_SECRET_PIPE_TEST_PASS'
+    if ($TestMigrations) {
+      $env:VENTIO_MIGRATIONS_DIR = $migrationFiles
+      Remove-Item Env:VENTIO_MIGRATION_ROLE -ErrorAction SilentlyContinue
+      & (Join-Path $bin 'createdb.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap ventio_host
+      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_DATABASE_CREATE_FAILED' }
+      $encodedPassword = [Uri]::EscapeDataString($testPassword)
+      $env:VENTIO_DATABASE_URL = "postgresql://ventio_bootstrap:${encodedPassword}@127.0.0.1:${testPort}/ventio_host?sslmode=disable"
+      & $migrationExecutable
+      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_MIGRATIONS_FAILED' }
+      & (Join-Path $bin 'psql.exe') -X -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d ventio_host `
+        -v ON_ERROR_STOP=1 -v expected_database=ventio_host -f $bootstrapFile
+      if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_SECURITY_BOOTSTRAP_FAILED' }
+      $ledger = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d ventio_host `
+        -v ON_ERROR_STOP=1 -Atc 'SELECT count(*) FROM public.ventio_schema_migrations'
+      if ($LASTEXITCODE -ne 0 -or $ledger -ne '29') { throw 'POSTGRES_TEST_MIGRATION_LEDGER_INVALID' }
+      Write-Output 'POSTGRES_MIGRATION_BOOTSTRAP_TEST_PASS'
+    } else {
+      Write-Output 'POSTGRES_INITDB_SECRET_PIPE_TEST_PASS'
+    }
   }
   finally {
-    Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+    if ($null -eq $oldPassword) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue } else { $env:PGPASSWORD = $oldPassword }
+    if ($null -eq $oldDatabaseUrl) { Remove-Item Env:VENTIO_DATABASE_URL -ErrorAction SilentlyContinue } else { $env:VENTIO_DATABASE_URL = $oldDatabaseUrl }
+    if ($null -eq $oldMigrationDirectory) { Remove-Item Env:VENTIO_MIGRATIONS_DIR -ErrorAction SilentlyContinue } else { $env:VENTIO_MIGRATIONS_DIR = $oldMigrationDirectory }
+    if ($null -eq $oldMigrationRole) { Remove-Item Env:VENTIO_MIGRATION_ROLE -ErrorAction SilentlyContinue } else { $env:VENTIO_MIGRATION_ROLE = $oldMigrationRole }
     $testSecret.Dispose()
     $testPassword = $null
     if ($testStarted) { & $pgCtl -D $testData -m fast -w stop *> $null }

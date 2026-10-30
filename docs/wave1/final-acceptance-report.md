@@ -1,6 +1,6 @@
 # Wave 1 Host/Client Final Acceptance Report
 
-**Audit snapshot:** 2026-10-30 09:36 Asia/Beirut
+**Audit snapshot:** 2026-10-30 09:43 Asia/Beirut
 **Branch:** `codex/extension-platform`
 **Release decision:** **BLOCKED — Wave 1 remains open.** This is the current requirement-by-requirement acceptance record, not a release approval. No completion is credited for an unexecuted integration gate.
 
@@ -73,6 +73,7 @@
 - Packaged PostgreSQL smoke test `scripts/windows/test-postgres-payload.ps1` passed: temporary cluster initialized with SCRAM-SHA-256, started on loopback, reported ready, accepted an authenticated SQL query, and was stopped/removed. This validates the bundled binaries only; it is not a Windows service or installer acceptance test.
 - Host service configuration security slice passed: `scripts/windows/test-host-service-config-writer.ps1` produced a LocalMachine-DPAPI protected file with restrictive ACLs, verified fixture-secret absence, and had it accepted by the compiled service validator. The service configuration test suite passed. `register-host-service.ps1 -PlanOnly` returned `HOST_SERVICE_PLAN_BLOCKED_POSTGRES_MISSING`, and service enumeration found no Host/PostgreSQL services. No system service was installed or modified; Stage 10 remains FAIL.
 - PostgreSQL service preparation source now exists at `scripts/windows/provision-postgres-service.ps1`. Its no-mutation plan test passed; its separate disposable initdb path passed using a current-user-only named pipe, SCRAM, loopback readiness and authenticated SQL, with clean process teardown. The installer-grade `-Apply` branch has not been run. There is still no verified persistent PostgreSQL service, migration/bootstrap sequence, Host service installation, or reboot evidence; Stage 10 remains FAIL.
+- The Windows Host payload now bundles `ventio_migrate.exe` (7,747,584 bytes) with the Host and self-contained service executables. The rebuilt 20,296-file payload totals 1,056,324,801 bytes; all 46 critical manifest hashes and inventory totals verified. On a disposable Windows PostgreSQL cluster, the packaged executable applied migrations 001–029, packaged `security/bootstrap.sql` completed, and a 29-entry ledger was confirmed. The SCRAM password traveled through a current-user-only pipe, not a plaintext password file. The test server stopped and the temporary cluster was removed. Production service registration, login-role provisioning, administrator bootstrap and installer execution remain unverified; Stage 10 remains FAIL.
 
 - The latest Windows payload also includes the compiled self-contained SCM supervisor (67,490,904 bytes). It is fixed to the Host executable and service name, DPAPI-decrypts only a fixed machine-protected configuration, allowlists environment settings, checks config ACL/reparse state, and discards child output. Build passed with no compiler warnings/errors and the outside-SCM guard emitted expected Win32 1063/exit 2. No service installation or start/stop/reboot integration has run. Stage 10 remains FAIL.
 
