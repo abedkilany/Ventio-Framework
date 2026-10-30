@@ -92,6 +92,11 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 - Commit `a0941a0` also persists a safe local diagnostic event when the readiness check fails, classifying network/TLS, authentication, authorization, database, recovery and API-execution errors without saving exception text. The event remains visible locally when Host diagnostics cannot be fetched.
 - The focused diagnostics/readiness/local diagnostics/Extension Studio suite passed **56/56**, `flutter analyze` passed, and `git diff --check` passed. These are client contract/widget checks, not evidence of a live Host health check. Stage 6 remains IN PROGRESS pending protected child-process log persistence, full failure-injection coverage and end-to-end diagnostic export.
 
+### 2026-10-30 update — Protected log child-process isolation
+
+- A temporary Windows differential probe confirmed that a nested Dart process can replace an ordinary ACL-protected file using `PrivateFiles.replace`, but a `ProtectedManagementDiagnosticLog.record` from that child process still fails with the safe phase `replace, wait_for_helper`. The probe directory was removed by its test cleanup; temporary probe source was not retained. The failure is therefore isolated to the protected diagnostic-log write path in a child process, not ordinary child-process replacement.
+- The existing `dart run test/private_files_windows.dart` same-process ACL-backed lifecycle passed before the temporary differential probe. Host API contracts remain 70/70 with clean analysis. Stage 6 stays IN PROGRESS; no unverified workaround or acceptance credit was applied.
+
 ## Verification strategy
 
 - Run focused unit/widget tests and static analysis for each changed Dart package after its stage; run contract/schema/localization gates whenever their inputs change.
