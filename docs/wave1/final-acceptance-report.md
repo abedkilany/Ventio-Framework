@@ -1,6 +1,6 @@
 # Wave 1 Host/Client Final Acceptance Report
 
-**Audit snapshot:** 2026-10-30 07:20 Asia/Beirut
+**Audit snapshot:** 2026-10-30 09:36 Asia/Beirut
 **Branch:** `codex/extension-platform`
 **Release decision:** **BLOCKED — Wave 1 remains open.** This is the current requirement-by-requirement acceptance record, not a release approval. No completion is credited for an unexecuted integration gate.
 
@@ -72,6 +72,7 @@
 - Windows Host payload update: the payload now includes the 8,663,040-byte Host Engine and a self-contained 67,490,904-byte SCM service supervisor, in addition to PostgreSQL 16.15 and reviewed SQL. Full payload: 20,295 files / 1,048,577,217 bytes; inventory and 45 critical hashes verified. The supervisor's source-level guard, DPAPI decryption path, ACL/reparse-point checks and allowlisted environment compile, but only compilation and outside-SCM rejection were run. No service was installed, configured, started, stopped, or reboot-tested; Stage 10 remains FAIL.
 - Packaged PostgreSQL smoke test `scripts/windows/test-postgres-payload.ps1` passed: temporary cluster initialized with SCRAM-SHA-256, started on loopback, reported ready, accepted an authenticated SQL query, and was stopped/removed. This validates the bundled binaries only; it is not a Windows service or installer acceptance test.
 - Host service configuration security slice passed: `scripts/windows/test-host-service-config-writer.ps1` produced a LocalMachine-DPAPI protected file with restrictive ACLs, verified fixture-secret absence, and had it accepted by the compiled service validator. The service configuration test suite passed. `register-host-service.ps1 -PlanOnly` returned `HOST_SERVICE_PLAN_BLOCKED_POSTGRES_MISSING`, and service enumeration found no Host/PostgreSQL services. No system service was installed or modified; Stage 10 remains FAIL.
+- PostgreSQL service preparation source now exists at `scripts/windows/provision-postgres-service.ps1`. Its no-mutation plan test passed; its separate disposable initdb path passed using a current-user-only named pipe, SCRAM, loopback readiness and authenticated SQL, with clean process teardown. The installer-grade `-Apply` branch has not been run. There is still no verified persistent PostgreSQL service, migration/bootstrap sequence, Host service installation, or reboot evidence; Stage 10 remains FAIL.
 
 - The latest Windows payload also includes the compiled self-contained SCM supervisor (67,490,904 bytes). It is fixed to the Host executable and service name, DPAPI-decrypts only a fixed machine-protected configuration, allowlists environment settings, checks config ACL/reparse state, and discards child output. Build passed with no compiler warnings/errors and the outside-SCM guard emitted expected Win32 1063/exit 2. No service installation or start/stop/reboot integration has run. Stage 10 remains FAIL.
 
