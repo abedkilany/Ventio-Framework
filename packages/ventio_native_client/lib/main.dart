@@ -5,10 +5,12 @@ import 'src/app_database.dart';
 import 'src/extension_store.dart';
 import 'src/extension_studio_page.dart';
 import 'src/host_credentials.dart';
+import 'src/host_setup.dart';
+import 'src/host_setup_page.dart';
 import 'src/local_command_queue.dart';
 import 'host_credentials_flutter.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   final queue = await openDefaultCommandQueue();
   final extensionStore = await openDefaultExtensionStore();
@@ -17,6 +19,7 @@ Future<void> main() async {
       queue: queue,
       extensionStore: extensionStore,
       credentialVault: HostCredentialVault(PlatformHostCredentialBackend()),
+      forceHostSetup: args.contains('--host-setup'),
     ),
   );
 }
@@ -27,6 +30,7 @@ class VentioClientApp extends StatefulWidget {
     required this.extensionStore,
     this.credentialVault,
     this.localizations,
+    this.forceHostSetup = false,
     super.key,
   });
 
@@ -34,6 +38,7 @@ class VentioClientApp extends StatefulWidget {
   final LocalExtensionStore extensionStore;
   final HostCredentialVault? credentialVault;
   final VentioLocalizationController? localizations;
+  final bool forceHostSetup;
 
   @override
   State<VentioClientApp> createState() => _VentioClientAppState();
@@ -42,6 +47,9 @@ class VentioClientApp extends StatefulWidget {
 class _VentioClientAppState extends State<VentioClientApp> {
   late final VentioLocalizationController _localizations =
       widget.localizations ?? VentioLocalizationController();
+  late bool _showHostSetup = widget.forceHostSetup;
+
+  void _finishHostSetup() => setState(() => _showHostSetup = false);
 
   @override
   Widget build(BuildContext context) {
@@ -67,11 +75,19 @@ class _VentioClientAppState extends State<VentioClientApp> {
             child: child!,
           ),
         ),
-        home: ExtensionStudioPage(
-          store: widget.extensionStore,
-          queue: widget.queue,
-          credentialVault: widget.credentialVault,
-        ),
+        home: _showHostSetup && widget.credentialVault != null
+            ? HostSetupPage(
+                credentialStore: LocalHostSetupCredentialStore(
+                  credentials: widget.credentialVault!,
+                  store: widget.extensionStore,
+                ),
+                onComplete: _finishHostSetup,
+              )
+            : ExtensionStudioPage(
+                store: widget.extensionStore,
+                queue: widget.queue,
+                credentialVault: widget.credentialVault,
+              ),
       ),
     );
   }

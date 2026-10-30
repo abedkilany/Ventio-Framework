@@ -8,16 +8,41 @@ using System.Text;
 
 if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Host service configuration tests require Windows.");
 
-var parse = Assembly.Load("VentioHostService").GetType("Program")?.GetMethod(
+var serviceProgram = Assembly.Load("VentioHostService").GetType("Program")
+    ?? throw new InvalidOperationException("Host service entry point was not found.");
+var parse = serviceProgram.GetMethod(
     "ReadAndValidateConfiguration", BindingFlags.NonPublic | BindingFlags.Static)
     ?? throw new InvalidOperationException("Host service validator was not found.");
-var readinessMarker = Assembly.Load("VentioHostService").GetType("Program")?.GetMethod(
+var readinessMarker = serviceProgram.GetMethod(
     "IsHostReadyMessage", BindingFlags.NonPublic | BindingFlags.Static)
     ?? throw new InvalidOperationException("Host readiness marker validator was not found.");
 if (!(bool)readinessMarker.Invoke(null, ["VENTIO_HOST_READY"])! ||
     (bool)readinessMarker.Invoke(null, ["Persistent Host listening on http://127.0.0.1:8080"])! ||
     (bool)readinessMarker.Invoke(null, [null])!)
     throw new Exception("Host service accepted an invalid startup readiness marker.");
+var requiresBootstrap = serviceProgram.GetMethod(
+    "RequiresFirstAdministratorBootstrap", BindingFlags.NonPublic | BindingFlags.Static)
+    ?? throw new InvalidOperationException("Host bootstrap-state validator was not found.");
+if (!(bool)requiresBootstrap.Invoke(null, [false, null])! ||
+    !(bool)requiresBootstrap.Invoke(null, [true, "pending"])! ||
+    (bool)requiresBootstrap.Invoke(null, [true, null])! ||
+    (bool)requiresBootstrap.Invoke(null, [true, "acknowledged"])! ||
+    (bool)requiresBootstrap.Invoke(null, [false, "acknowledged"])!)
+    throw new Exception("Host service selected an invalid first-administrator startup state.");
+var waitForReady = serviceProgram.GetMethod(
+    "WaitForHostReadiness", BindingFlags.NonPublic | BindingFlags.Static)
+    ?? throw new InvalidOperationException("Host readiness waiter was not found.");
+var readySignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+readySignal.SetResult();
+var unusedProcessExit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+var unusedBrokerExit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+if (!(bool)waitForReady.Invoke(null,
+        [readySignal.Task, unusedProcessExit.Task, unusedBrokerExit.Task, CancellationToken.None])!)
+    throw new Exception("Host service rejected the explicit readiness marker.");
+if ((bool)waitForReady.Invoke(null,
+        [Task.Delay(Timeout.Infinite), Task.CompletedTask, unusedBrokerExit.Task, CancellationToken.None])!)
+    throw new Exception("Host service accepted a process that exited before readiness.");
+Console.WriteLine("Host service startup tests passed: explicit Host readiness marker, pre-readiness process exit, and pending first-administrator bootstrap state.");
 
 if (args.Length == 2 && args[0] == "--validate-file")
 {

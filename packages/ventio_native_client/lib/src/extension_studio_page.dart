@@ -19,6 +19,8 @@ import 'host_device_management.dart';
 import 'host_extension_packages.dart';
 import 'host_overview_page.dart';
 import 'host_readiness.dart';
+import 'host_setup.dart';
+import 'host_setup_page.dart';
 import 'host_user_management.dart';
 import 'host_sync_service.dart';
 import 'host_transport.dart';
@@ -38,6 +40,7 @@ enum _StudioMenuAction {
   manageUsers,
   manageDevices,
   hostOverview,
+  hostSetup,
   pairClient,
   localDiagnostics,
   synchronization,
@@ -413,6 +416,25 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openHostSetup() async {
+    final vault = widget.credentialVault;
+    if (vault == null) {
+      _message('Secure Host credential storage is unavailable on this build.');
+      return;
+    }
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (context) => HostSetupPage(
+          credentialStore: LocalHostSetupCredentialStore(
+            credentials: vault,
+            store: widget.store,
+          ),
+        ),
+      ),
+    );
+    if (completed == true) await _load();
   }
 
   Future<void> _openClientPairing() async {
@@ -1015,6 +1037,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _openDeviceManagement();
                   case _StudioMenuAction.hostOverview:
                     _openHostOverview();
+                  case _StudioMenuAction.hostSetup:
+                    _openHostSetup();
                   case _StudioMenuAction.pairClient:
                     _openClientPairing();
                   case _StudioMenuAction.localDiagnostics:
@@ -1044,6 +1068,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   const PopupMenuItem(
                     value: _StudioMenuAction.pairClient,
                     child: VentioText('native.ui.enroll_client'),
+                  ),
+                if (widget.credentialVault != null)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.hostSetup,
+                    child: VentioText('native.ui.host_setup_menu'),
                   ),
                 const PopupMenuItem(
                   value: _StudioMenuAction.synchronization,
@@ -1090,6 +1119,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 tooltip: context.ventioText('native.ui.enroll_client'),
                 onPressed: _openClientPairing,
                 icon: const Icon(Icons.phonelink_setup_outlined),
+              ),
+            if (widget.credentialVault != null)
+              IconButton(
+                tooltip: context.ventioText('native.ui.host_setup_menu'),
+                onPressed: _openHostSetup,
+                icon: const Icon(Icons.settings_suggest_outlined),
               ),
             IconButton(
               tooltip: _localDiagnosticsLabel(context),
@@ -1144,6 +1179,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 onPressed: _openClientPairing,
                 icon: const Icon(Icons.phonelink_setup_outlined),
                 label: const VentioText('native.ui.enroll_client'),
+              ),
+            if (widget.credentialVault != null)
+              TextButton.icon(
+                onPressed: _openHostSetup,
+                icon: const Icon(Icons.settings_suggest_outlined),
+                label: const VentioText('native.ui.host_setup_menu'),
               ),
             TextButton.icon(
               onPressed: _openLocalDiagnostics,

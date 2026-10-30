@@ -73,50 +73,17 @@ internal static class Program
             var serviceSid = new NTAccount("NT SERVICE", ServiceName)
                 .Translate(typeof(SecurityIdentifier)).Value;
             bootstrapEnvironment = CreateBootstrapEnvironment(environment);
-            var hostExecutable = Path.Combine(AppContext.BaseDirectory, "ventio_host.exe");
-            if (!File.Exists(hostExecutable))
-            {
-                throw new InvalidOperationException("Host payload executable is missing.");
-            }
-
-            var start = new ProcessStartInfo
-            {
-                FileName = hostExecutable,
-                WorkingDirectory = AppContext.BaseDirectory,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            start.Environment.Clear();
-            CopyRequiredSystemEnvironment(start.Environment);
-            start.Environment["PATH"] = Path.Combine(AppContext.BaseDirectory, "postgresql", "bin");
-            start.Environment["VENTIO_ENABLE_LOCAL_HOST"] = "yes";
-            foreach (var pair in environment) start.Environment[pair.Key] = pair.Value;
-
             var hostReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var process = new Process { StartInfo = start, EnableRaisingEvents = true };
-            process.OutputDataReceived += (_, eventArgs) =>
-            {
-                if (IsHostReadyMessage(eventArgs.Data)) hostReady.TrySetResult();
-            }; // Deliberately discard process output; never persist secrets.
-            process.ErrorDataReceived += (_, _) => { };
-            lock (Sync)
-            {
-                if (StopRequested.IsSet) throw new InvalidOperationException("Host service start was cancelled.");
-                if (!process.Start()) throw new InvalidOperationException("Host process could not start.");
-                _hostProcess = process;
-            }
-            environment.Clear();
-            start.Environment.Clear();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
+            var bootstrapCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var receiptPath = Path.Combine(Path.GetDirectoryName(ConfigPath)!, "bootstrap-receipt.dpapi");
             var receiptStore = new ProtectedBootstrapReceiptStore(receiptPath, serviceSid);
             var coordinator = new BootstrapReceiptCoordinator(receiptStore);
-            var broker = new FirstAdminBootstrapBroker(coordinator, (receipt, cancellationToken) =>
-                ExecuteFirstAdministratorBootstrapAsync(receipt, bootstrapEnvironment, cancellationToken));
+            var broker = new FirstAdminBootstrapBroker(coordinator, async (receipt, cancellationToken) =>
+            {
+                await ExecuteFirstAdministratorBootstrapAsync(
+                    receipt, bootstrapEnvironment, cancellationToken).ConfigureAwait(false);
+                bootstrapCompleted.TrySetResult();
+            });
             brokerCancellation = new CancellationTokenSource();
             var brokerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             brokerTask = Task.Run(() => broker.RunAsync(brokerCancellation.Token, brokerReady));
@@ -128,26 +95,57 @@ internal static class Program
                 throw new InvalidOperationException("Local bootstrap broker did not become ready.");
             brokerReady.Task.GetAwaiter().GetResult();
 
-            var processExit = process.WaitForExitAsync();
-            SetStatus(ServiceStartPending, checkpoint: 2, waitHintMs: 15000);
-            WaitForHostReadiness(hostReady.Task, processExit, brokerTask, brokerCancellation.Token);
-            lock (Sync)
+            var recoveryAuthorityPath = bootstrapEnvironment["VENTIO_RECOVERY_AUTHORITY_FILE"];
+            var recoveryAuthorityExists = File.Exists(recoveryAuthorityPath);
+            var savedReceipt = receiptStore.Read();
+            var setupPending = RequiresFirstAdministratorBootstrap(
+                recoveryAuthorityExists, savedReceipt?.State);
+            if (!setupPending && !recoveryAuthorityExists)
             {
-                if (!StopRequested.IsSet)
-                    SetStatus(ServiceRunning, checkpoint: 0, waitHintMs: 0,
-                        controlsAccepted: ServiceAcceptStop | ServiceAcceptShutdown);
+                throw new InvalidOperationException("Recovery Authority is missing for an initialized Host.");
             }
 
-            var completed = Task.WhenAny(processExit, brokerTask).GetAwaiter().GetResult();
+            if (setupPending)
+            {
+                // A new installation, or a pending recovery witness, needs the
+                // authenticated bootstrap broker before the Host API can start.
+                lock (Sync)
+                {
+                    SetStatus(ServiceRunning, checkpoint: 0, waitHintMs: 0,
+                        controlsAccepted: ServiceAcceptStop | ServiceAcceptShutdown);
+                }
+                var setup = Task.WhenAny(bootstrapCompleted.Task, brokerTask).GetAwaiter().GetResult();
+                if (StopRequested.IsSet) return;
+                if (setup == brokerTask) brokerTask.GetAwaiter().GetResult();
+                bootstrapCompleted.Task.GetAwaiter().GetResult();
+            }
+
+            if (StopRequested.IsSet) return;
+            SetStatus(ServiceStartPending, checkpoint: 2, waitHintMs: 15000);
+            var process = StartHostProcess(environment, hostReady);
+            var processExit = process.WaitForExitAsync();
+            if (!WaitForHostReadiness(
+                hostReady.Task, processExit, brokerTask, brokerCancellation.Token))
+            {
+                if (StopRequested.IsSet) return;
+                throw new InvalidOperationException("Host did not become ready after startup checks.");
+            }
+            lock (Sync)
+            {
+                SetStatus(ServiceRunning, checkpoint: 0, waitHintMs: 0,
+                    controlsAccepted: ServiceAcceptStop | ServiceAcceptShutdown);
+            }
+
+            var completed = Task.WhenAny(processExit!, brokerTask).GetAwaiter().GetResult();
             if (completed == brokerTask && !StopRequested.IsSet)
                 brokerTask.GetAwaiter().GetResult();
-            processExit.GetAwaiter().GetResult();
-            _serviceExitCode = StopRequested.IsSet ? 0 : (process.ExitCode == 0 ? 2 : process.ExitCode);
+            processExit!.GetAwaiter().GetResult();
+            _serviceExitCode = StopRequested.IsSet ? 0 : (process!.ExitCode == 0 ? 2 : process.ExitCode);
         }
         catch
         {
             // Do not write exceptions: they may contain database URLs or local paths.
-            _serviceExitCode = 2;
+            _serviceExitCode = StopRequested.IsSet ? 0 : 2;
         }
         finally
         {
@@ -174,7 +172,13 @@ internal static class Program
     internal static bool IsHostReadyMessage(string? message) =>
         StringComparer.Ordinal.Equals(message, HostReadyMessage);
 
-    private static void WaitForHostReadiness(
+    internal static bool RequiresFirstAdministratorBootstrap(
+        bool recoveryAuthorityExists,
+        string? receiptState) =>
+        StringComparer.Ordinal.Equals(receiptState, "pending") ||
+        (!recoveryAuthorityExists && receiptState is null);
+
+    private static bool WaitForHostReadiness(
         Task hostReady,
         Task processExit,
         Task brokerTask,
@@ -184,16 +188,15 @@ internal static class Program
         var checkpoint = 3;
         while (timer.Elapsed < HostStartupTimeout)
         {
-            if (StopRequested.IsSet) return;
+            if (StopRequested.IsSet) return false;
             var poll = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
             var completed = Task.WhenAny(hostReady, processExit, brokerTask, poll)
                 .GetAwaiter().GetResult();
-            if (completed == hostReady) return;
+            if (completed == hostReady) return true;
             if (completed == processExit)
             {
                 processExit.GetAwaiter().GetResult();
-                if (StopRequested.IsSet) return;
-                throw new InvalidOperationException("Host process exited before readiness.");
+                return false;
             }
             if (completed == brokerTask)
             {
@@ -203,7 +206,48 @@ internal static class Program
             cancellationToken.ThrowIfCancellationRequested();
             SetStatus(ServiceStartPending, checkpoint++, waitHintMs: 15000);
         }
-        throw new TimeoutException("Host readiness timeout.");
+        return false;
+    }
+
+    private static Process StartHostProcess(
+        Dictionary<string, string> environment,
+        TaskCompletionSource hostReady)
+    {
+        var hostExecutable = Path.Combine(AppContext.BaseDirectory, "ventio_host.exe");
+        if (!File.Exists(hostExecutable))
+            throw new InvalidOperationException("Host payload executable is missing.");
+
+        var start = new ProcessStartInfo
+        {
+            FileName = hostExecutable,
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.Environment.Clear();
+        CopyRequiredSystemEnvironment(start.Environment);
+        start.Environment["PATH"] = Path.Combine(AppContext.BaseDirectory, "postgresql", "bin");
+        start.Environment["VENTIO_ENABLE_LOCAL_HOST"] = "yes";
+        foreach (var pair in environment) start.Environment[pair.Key] = pair.Value;
+
+        var process = new Process { StartInfo = start, EnableRaisingEvents = true };
+        process.OutputDataReceived += (_, eventArgs) =>
+        {
+            if (IsHostReadyMessage(eventArgs.Data)) hostReady.TrySetResult();
+        }; // Deliberately discard process output; never persist secrets.
+        process.ErrorDataReceived += (_, _) => { };
+        lock (Sync)
+        {
+            if (StopRequested.IsSet) throw new InvalidOperationException("Host service start was cancelled.");
+            if (!process.Start()) throw new InvalidOperationException("Host process could not start.");
+            _hostProcess = process;
+        }
+        start.Environment.Clear();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        return process;
     }
 
     private static Dictionary<string, string> CreateBootstrapEnvironment(Dictionary<string, string> configuration)

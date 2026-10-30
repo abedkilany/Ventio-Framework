@@ -879,4 +879,69 @@ const ventioNativeEnglishMessages = <String, String>{
       'Use a literal prefix with uppercase letters, numbers, dots, slashes or hyphens.',
   'native.ui.number_zero_padding': 'Number zero-padding width',
   'native.ui.choose_a_width_between_1_and_12': 'Choose a width from 1 to 12.',
+  'native.ui.host_setup_menu': 'Host setup',
+  'native.ui.host_setup_title': 'Host setup',
+  'native.ui.host_setup_admin_required': 'Administrator access required',
+  'native.ui.host_setup_admin_explanation':
+      'Completing Host setup requires Windows Administrator access. Continue in a separate elevated Ventio window; the current window remains unchanged.',
+  'native.ui.host_setup_continue_as_admin':
+      'Continue with Administrator access',
+  'native.ui.host_setup_windows_only':
+      'Host setup is available on a Windows Host installation.',
+  'native.ui.host_setup_postgres': 'PostgreSQL service',
+  'native.ui.host_setup_service': 'Ventio Host service',
+  'native.ui.host_setup_not_installed': 'Not installed',
+  'native.ui.host_setup_stopped': 'Stopped',
+  'native.ui.host_setup_start_pending': 'Starting',
+  'native.ui.host_setup_stop_pending': 'Stopping',
+  'native.ui.host_setup_running': 'Running',
+  'native.ui.host_setup_unknown': 'Status unavailable',
+  'native.ui.host_setup_progress_title': 'Setup progress',
+  'native.ui.host_setup_scope_title': 'Initial Host scope',
+  'native.ui.host_setup_scope_explanation':
+      'Enter the tenant, company and branch identifiers for this Host. The Host grants the first administrator access only to this exact scope.',
+  'native.ui.host_setup_tenant_id': 'Tenant ID',
+  'native.ui.host_setup_company_id': 'Company ID',
+  'native.ui.host_setup_branch_id': 'Branch ID',
+  'native.ui.host_setup_first_admin': 'Create the first Host administrator',
+  'native.ui.host_setup_store_credential':
+      'Store the administrator credential securely',
+  'native.ui.host_setup_readiness': 'Verify Host readiness',
+  'native.ui.host_setup_credential_privacy':
+      'The administrator credential is saved in Windows secure storage and is never shown. The broker receipt is acknowledged only after the credential and Host scope are stored.',
+  'native.ui.host_setup_start': 'Set up Host',
+  'native.ui.host_setup_retry': 'Retry Host setup',
+  'native.ui.host_setup_open_workspace': 'Open Ventio workspace',
+  'native.ui.host_setup_complete':
+      'Host is ready. The initial administrator credential and exact Host scope are stored securely on this device.',
+  'native.ui.host_setup_status_unavailable':
+      'Windows could not confirm the required service status. Check the Host installation and try again.',
+  'native.ui.host_setup_elevation_failed':
+      'The elevated setup window could not be started. Sign in with a Windows Administrator account and try again.',
+  'native.ui.host_setup_scope_invalid':
+      'Enter a tenant, company and branch ID. Each value must be 256 characters or fewer and contain no control characters.',
+  'native.ui.host_setup_failed_generic':
+      'Host setup did not complete. Review the service status and retry. No credential was displayed.',
+  'native.ui.host_setup_install_role_missing':
+      'Host services are not installed. Run the unified Ventio installer and select the Host installation role.',
+  'native.ui.host_setup_service_control_denied':
+      'Windows denied access to the Host services. Continue with Administrator access and retry.',
+  'native.ui.host_setup_service_start_failed':
+      'A Ventio Host service stopped before it became ready. Review Host diagnostics and retry.',
+  'native.ui.host_setup_service_timeout':
+      'A Ventio Host service did not start before the timeout. Review Host diagnostics and retry.',
+  'native.ui.host_setup_existing_profile':
+      'A different Host scope is already configured on this device. Disconnect that Host before setting up this one.',
+  'native.ui.host_setup_credential_save_failed':
+      'The administrator credential could not be saved securely. The broker receipt remains available so setup can be retried.',
+  'native.ui.host_setup_response_invalid':
+      'The local setup broker returned an invalid response. The credential was not accepted.',
+  'native.ui.host_setup_credential_unavailable':
+      'The broker has already acknowledged this setup, but its saved credential is unavailable. Contact the Host administrator.',
+  'native.ui.host_setup_broker_unavailable':
+      'The protected local setup broker is unavailable. Confirm that the Ventio Host service is running.',
+  'native.ui.host_setup_acknowledgement_failed':
+      'The credential was saved, but the broker did not confirm receipt. Retry setup to finish safely.',
+  'native.ui.host_setup_readiness_timeout':
+      'The Host services started, but the Host API did not become ready in time. The saved credential is retained for a safe retry.',
 };

@@ -8,6 +8,7 @@ environment:
 
 dependencies:
   crypto: 3.0.6
+  ffi: 2.2.0
   flutter:
     sdk: flutter
   flutter_secure_storage: 11.2.0
@@ -18,6 +19,7 @@ dependencies:
   sqflite: ^2.4.5
   sqflite_common: ^2.5.14
   sqflite_common_ffi: ^2.4.5
+  win32: 6.4.0
   ventio_core:
     path: ../ventio_core
 
