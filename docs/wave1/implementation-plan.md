@@ -75,6 +75,11 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 - Commits `0ef6be1` and `7b6af70` integrate scoped Host diagnostic events into the existing Flutter Diagnostics Center. The client uses the existing TLS-validating transport, enforces persistent exact-scope `host.diagnostics.read` grants as a UI gate, validates correlation IDs and public event schemas, and keeps local diagnostics available independently when Host access fails. Commit `f7ed490` extends sanitized export to combine local and currently loaded Host events with source labels while excluding protected fields.
 - Verification: four new Host diagnostics client tests and the focused Host readiness, local diagnostics and Extension Studio suites passed **52/52**, including a widget test that displays authorized Host events alongside the local event feed; `flutter analyze` reported no issues. This slice does not earn Stage 6 weight because protected cross-process persistence, full diagnostics coverage and export acceptance remain open.
 
+### 2026-10-30 update — Windows protected-file failure phase
+
+- Commit `da71f97` makes Windows private-file helper errors include only the allowlisted operation and phase (for example, `replace, wait_for_helper`) and tests that a rejected file read does not disclose its path. Same-process ACL-backed Windows file integration passed; Host API tests passed 70/70 and analysis is clean.
+- An isolated child Dart writer opens the protected diagnostics log, but recording fails at `replace, wait_for_helper`. A temporary 30-second helper timeout did not fix it and was reverted. The blocker is narrowed to the PowerShell process not exiting during its replacement request; no unverified replacement workaround was retained.
+
 ## Verification strategy
 
 - Run focused unit/widget tests and static analysis for each changed Dart package after its stage; run contract/schema/localization gates whenever their inputs change.
