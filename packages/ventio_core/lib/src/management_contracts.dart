@@ -10,6 +10,7 @@ const String hostDiagnosticsReadPermission = 'host.diagnostics.read';
 const String identityUsersManagePermission = 'identity.users.manage';
 const String identityDevicesManagePermission = 'identity.devices.manage';
 const String identityPairingManagePermission = 'identity.pairing.manage';
+const String identityRolesManagePermission = 'identity.roles.manage';
 
 abstract final class HostManagementRoutes {
   static const String readiness = '/api/v1/management/readiness';

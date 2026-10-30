@@ -2704,6 +2704,12 @@ void main() {
     );
     final encoded = jsonEncode(event.toJson());
     check(
+        identityRolesManagePermission == 'identity.roles.manage' &&
+            identityUsersManagePermission == 'identity.users.manage' &&
+            identityDevicesManagePermission == 'identity.devices.manage' &&
+            identityPairingManagePermission == 'identity.pairing.manage',
+        'Management permissions expose stable cross-client contracts');
+    check(
         event.toJson()['managementApiVersion'] == managementApiVersion &&
             event.correlationId.startsWith('cor_') &&
             event.protectedTechnicalCode == '42501' &&

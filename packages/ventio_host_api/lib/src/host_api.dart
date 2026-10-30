@@ -833,7 +833,7 @@ class HostApi {
     final companyId = _boundedIdentifier(json, 'companyId');
     final branchId = _boundedIdentifier(json, 'branchId');
     if (!session.principal.allowsInScope(
-      'identity.roles.manage',
+      identityRolesManagePermission,
       companyId,
       branchId,
     )) {

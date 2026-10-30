@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:postgres/postgres.dart' as pg;
+import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
 import 'postgres_connections.dart';
@@ -276,7 +277,7 @@ String _authorizeSnapshot(
     );
   }
   if (!session.principal.allowsInScope(
-    'identity.roles.manage',
+    identityRolesManagePermission,
     companyId,
     branchId,
   )) {
