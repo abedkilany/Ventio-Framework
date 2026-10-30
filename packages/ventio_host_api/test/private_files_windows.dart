@@ -109,6 +109,28 @@ Future<void> main() async {
             'SocketException') {
       throw StateError('Protected diagnostic log did not survive reopening');
     }
+    final childDiagnosticPath =
+        '${directory.path}${Platform.pathSeparator}child-host-diagnostics.json';
+    final childWriter = await Process.run(Platform.resolvedExecutable, [
+      'run',
+      'test/recovery/diagnostic_log_probe.dart',
+      childDiagnosticPath,
+    ]).timeout(const Duration(seconds: 30));
+    if (childWriter.exitCode != 0 ||
+        !(childWriter.stdout as String).contains(
+          'DIAGNOSTIC_EVENT_PERSISTED',
+        )) {
+      throw StateError(
+        'Child-process protected diagnostic persistence failed safely.',
+      );
+    }
+    final childLog = await ProtectedManagementDiagnosticLog.open(
+      childDiagnosticPath,
+      capacity: 2,
+    );
+    if (childLog.recent(limit: 2).single.protectedTechnicalCode != '08006') {
+      throw StateError('Child-process diagnostic event was not persisted.');
+    }
     final witnessDirectory = Directory(
       directory.path + Platform.pathSeparator + 'authority',
     );
