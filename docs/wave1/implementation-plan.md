@@ -85,6 +85,12 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 - Commit `966faf5` carries a validated Host error correlation ID into the Diagnostics Center and sanitized combined export. The UI displays the stable Host failure explanation and reference; a widget test verifies that an HTTP 503 error message containing password-shaped text is excluded from the export.
 - Focused Host diagnostics, readiness, local diagnostics and Extension Studio tests passed **53/53**; `flutter analyze` reported no issues. Stage 6 remains unaccepted pending protected cross-process persistence and broader failure-injection coverage.
 
+### 2026-10-30 update — Manual Host readiness checks in Diagnostics Center
+
+- Commit `eddca5c` adds an explicit Host readiness action to the Diagnostics Center. It uses the existing certificate-validating transport and requires the signed-in identity to hold `host.status.read` in the exact active scope; unauthorized users see a disabled action and no readiness request is sent.
+- The page renders API, database, schema and Recovery Authority states, safe reason codes, check time and correlation reference. Sanitized diagnostic export includes only the public readiness snapshot/status and correlation ID. A readiness error clears an older snapshot so stale green status cannot be shown beside a newer failure.
+- The focused diagnostics/readiness/local diagnostics/Extension Studio suite passed **56/56**, `flutter analyze` passed, and `git diff --check` passed. These are client contract/widget checks, not evidence of a live Host health check. Stage 6 remains IN PROGRESS pending protected child-process log persistence, full failure-injection coverage and end-to-end diagnostic export.
+
 ## Verification strategy
 
 - Run focused unit/widget tests and static analysis for each changed Dart package after its stage; run contract/schema/localization gates whenever their inputs change.
@@ -105,7 +111,7 @@ The original ten-stage weights were recalculated after the mandatory Windows dep
 - Docker is installed (CLI 27.5.1), but a fresh check shows the selected `desktop-linux` engine pipe is absent and the Windows `com.docker.service` is STOPPED/MANUAL. The default engine pipe is also absent. This is an engine/service-not-running condition, rather than Docker being absent; PostgreSQL integration remains unrun.
 - Stage 2 initially exposed raw `ventio_security.admin_change(jsonb)` to the proposed API login. The current source separates the trusted local operator role from the restricted API role, rejects raw administrative/recovery functions and table/sequence access, and generates user IDs inside the scoped transaction. Source review and API contract tests pass, but PostgreSQL privilege, Recovery Authority and RLS behavior remain unverified because no database test ran.
 - The user-administration UI now masks legacy actor identifiers with temporary local labels, and the SQL operation uses the same generic not-found response when a disable action would reveal out-of-branch credential scope. The UI redaction test and SQL integration cases are present; the SQL behavior still needs a real PostgreSQL run.
-- A device-local Diagnostics Center now stores allowlisted local events and supports sanitized JSON export without Host authentication. Remote Host diagnostic-event retrieval, full failure-category coverage and failure-injection acceptance remain outstanding.
+- The shared Diagnostics Center stores allowlisted local events, retrieves authorized Host events, runs a manual exact-scope Host readiness check and exports sanitized public summaries. Full failure-category coverage, failure-injection acceptance and protected child-process persistence remain outstanding.
 - Existing `Ventio-Project-Status-Ar.md`, `deliverables/`, and native-client README/platform scaffolding are untracked user artifacts. Preserve them; stage only files created for this task when committing. An earlier installer smoke run left installer-generated temporary staging under `.installer-validation-temp/`; it contains no database or user data, and the environment policy rejected manual cleanup. The latest validator run isolated and cleaned its own temporary root successfully.
 
 ## Stage 0 acceptance

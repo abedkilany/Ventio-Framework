@@ -1,6 +1,6 @@
 # Wave 1 Host/Client Final Acceptance Report
 
-**Audit snapshot:** 2026-10-30 06:03 Asia/Beirut
+**Audit snapshot:** 2026-10-30 06:22 Asia/Beirut
 **Branch:** `codex/extension-platform`
 **Release decision:** **BLOCKED — Wave 1 remains open.** This is the current requirement-by-requirement acceptance record, not a release approval. No completion is credited for an unexecuted integration gate.
 
@@ -14,7 +14,7 @@
 | 3 — Unified first-run setup (11%) | FAIL | A complete Host setup workflow, headless Host provisioning, and setup resume/rollback are absent. Client pairing UI exists, but a real Host-backed first-run integration has not passed. |
 | 4 — Secure pairing and device management (9%) | PASS | Commit `ee21fea`. Native PostgreSQL run `93010324-1` passed 24/24 across pairing, enrollment, inventory, activity, authorized rotation, immediate prior-token rejection, multi-branch refusal, revocation, expiry, replay and secret redaction. Migration 029 records last-authenticated activity in a dedicated forced-RLS owner-only table; runtime direct access is denied and activity updates do not alter Recovery Authority generation. Flutter displays the timestamp without claiming online status. API 66/66, device API 12/12, Flutter device-management 11/11. |
 | 5 — Integrated Host administration UI (10%) | IN PROGRESS | Host overview, user/permission, device/pairing, diagnostics and synchronization areas are integrated in the shared Flutter app with permission gating. Full Host Settings and real Host authorization evidence remain incomplete. |
-| 6 — Diagnostics Center (10%) | IN PROGRESS | The shared Flutter Diagnostics Center reads exact-scope Host events through the existing TLS-validating transport, preserves correlated Host failures, and exports source-labeled local and Host public events. Six Host diagnostics client/widget tests and the focused readiness, local diagnostics and Extension Studio suites pass 53/53; Flutter analysis is clean. The Windows child-process protected-log write still fails at `replace, wait_for_helper`, so startup persistence, broad failure-class coverage, failure injection and end-to-end diagnostic export remain unaccepted. |
+| 6 — Diagnostics Center (10%) | IN PROGRESS | The shared Flutter Diagnostics Center reads exact-scope Host events, preserves correlated Host failures, and exports source-labeled safe local and Host events. Commit `eddca5c` adds a manual authenticated readiness check requiring exact-scope `host.status.read`; the UI shows API/database/schema/Recovery Authority states and safe reason codes, and exports only the public snapshot/status and correlation reference. Unauthorized actions are disabled before any request; failed rechecks discard an older snapshot. The focused diagnostics/readiness/local diagnostics/Extension Studio suite passed 56/56 and Flutter analysis is clean. The Windows child-process protected-log write still fails at `replace, wait_for_helper`; full failure-class coverage, failure injection and end-to-end diagnostic export remain unaccepted. |
 | 7 — Offline-first synchronization (7%) | IN PROGRESS | Durable SQLite queue behavior and UI states have local test coverage. Real Host acceptance, reconnect/rejection/conflict and cross-device propagation evidence has not passed. |
 | 8 — End-to-end validation (6%) | BLOCKED | The mandatory real Host/PostgreSQL and installed Host/Client scenarios have not run. Android and two-physical-device validation are not demonstrated. |
 | 9 — Final engineering audit (3%) | BLOCKED | This snapshot records current gates; the final audit cannot pass while mandatory earlier gates are open. |
@@ -39,11 +39,11 @@
 
 ## Latest verification evidence
 
-- Latest local run: Flutter Host diagnostics/readiness/local diagnostics/Extension Studio suite 53/53; Flutter analysis clean. Host API 70/70; device API 12/12; Core 81/81; Host API analysis clean. Windows ACL-backed private-file create/read/replace/reopen passed in-process; an isolated child writer still fails with `replace, wait_for_helper`. Dashboard validator passes. Native migrations 001–029, security bootstrap twice and PostgreSQL pairing/activity/rotation integration passed on isolated fixture `93010324-1` (24/24).
+- Latest local run: Flutter Host diagnostics/readiness/local diagnostics/Extension Studio suite **56/56** after commit `eddca5c`; `flutter analyze`, `git diff --check` and the dashboard validator clean. The dashboard reports 11 stages, 100% weights and 13% accepted progress. Host API 70/70; device API 12/12; Core 81/81; Host API analysis clean. Windows ACL-backed private-file create/read/replace/reopen passed in-process; an isolated child writer still fails with `replace, wait_for_helper`. Native migrations 001–029, security bootstrap twice and PostgreSQL pairing/activity/rotation integration passed on isolated fixture `93010324-1` (24/24). A fresh local PostgreSQL 16.15 archive download is currently incomplete and is not counted as a verification result.
 
 - Full Flutter suite: **162 passed, 2 environment-gated skips**; Flutter analysis clean.
 - Core suite: **81 passed** (latest run before the current rotation change).
-- Host API contracts: **70 passed**; device API contracts: **12 passed**; focused device UI/client tests: **11 passed**; focused Host diagnostics/readiness/local diagnostics/Extension Studio tests: **53 passed**.
+- Host API contracts: **70 passed**; device API contracts: **12 passed**; focused device UI/client tests: **11 passed**; focused Host diagnostics/readiness/local diagnostics/Extension Studio tests: **56 passed**.
 - Windows Flutter release build and Inno Setup 6.7.3 compilation passed.
 - Current Client-only installer: 14,562,917 bytes; SHA-256 `47cc471db0651a229c51a125909c4b46978a12491e2727bbbf3ceddf3b1dac59`.
 - Client package smoke checks passed for fresh per-user installation, same-version repeat installation, uninstallation and preservation of data outside the install directory. A separate package-version upgrade check passed, but neither check tests Host provisioning, service lifecycle or database migration.
