@@ -205,6 +205,8 @@ Future<void> verifyIdentityAdministrationConnection(
       has_function_privilege(session_user,
         'ventio_security.scoped_device_revoke(text,text,text,text)','EXECUTE'),
       has_function_privilege(session_user,
+        'ventio_security.scoped_device_credential_rotate(text,text,text,text,text,text,text)','EXECUTE'),
+      has_function_privilege(session_user,
         'ventio_security.admit_recovery(text,text)','EXECUTE'),
       has_function_privilege(session_user,
         'ventio_security.recovery_snapshot()','EXECUTE'),
@@ -224,6 +226,7 @@ Future<void> verifyIdentityAdministrationConnection(
             'ventio_security.scoped_pairing_create(text,text,text,text,text,text)'::regprocedure,
             'ventio_security.scoped_pairing_redeem(text,text,text,text)'::regprocedure,
             'ventio_security.scoped_device_revoke(text,text,text,text)'::regprocedure,
+            'ventio_security.scoped_device_credential_rotate(text,text,text,text,text,text,text)'::regprocedure,
             'ventio_security.admit_recovery(text,text)'::regprocedure,
             'ventio_security.recovery_snapshot()'::regprocedure)),
       NOT EXISTS (SELECT FROM pg_catalog.pg_class t

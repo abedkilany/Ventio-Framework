@@ -1024,6 +1024,7 @@ class HostApi {
   String? _identityDeviceAction(String path) => switch (path) {
     '${HostManagementRoutes.devices}/list' => 'list',
     '${HostManagementRoutes.devices}/revoke' => 'revoke',
+    '${HostManagementRoutes.devices}/rotate-credential' => 'rotate',
     _ => null,
   };
 
@@ -1036,7 +1037,15 @@ class HostApi {
   ) async {
     final expectedKeys = action == 'list'
         ? const {'managementApiVersion', 'companyId', 'branchId'}
-        : const {'managementApiVersion', 'companyId', 'branchId', 'deviceId'};
+        : action == 'revoke'
+        ? const {'managementApiVersion', 'companyId', 'branchId', 'deviceId'}
+        : const {
+            'managementApiVersion',
+            'companyId',
+            'branchId',
+            'deviceId',
+            'credentialId',
+          };
     if (json.keys.toSet().length != expectedKeys.length ||
         !json.keys.toSet().containsAll(expectedKeys) ||
         json['managementApiVersion'] != managementApiVersion) {
@@ -1085,6 +1094,42 @@ class HostApi {
         'managementApiVersion': managementApiVersion,
         'correlationId': correlationId,
         'devices': devices,
+      });
+      return;
+    }
+
+    if (action == 'rotate') {
+      final deviceId = _boundedIdentifier(json, 'deviceId');
+      final credentialId = _boundedIdentifier(json, 'credentialId');
+      if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(deviceId) ||
+          RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(deviceId) ||
+          !RegExp(
+            r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$',
+          ).hasMatch(credentialId) ||
+          RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(credentialId)) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final replacement = await _identityDeviceAdministration.rotateCredential(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        deviceId: deviceId,
+        credentialId: credentialId,
+      );
+      if (!_isSafeDeviceCredentialRotation(
+        replacement,
+        tenantId: principal.tenantId,
+        companyId: companyId,
+        branchId: branchId,
+        deviceId: deviceId,
+      )) {
+        throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true);
+      }
+      _json(request, 200, {
+        'apiVersion': 1,
+        'managementApiVersion': managementApiVersion,
+        'correlationId': correlationId,
+        'deviceCredential': replacement,
       });
       return;
     }
@@ -1734,6 +1779,45 @@ bool _isSafeDeviceProjection(
     }
   }
   return true;
+}
+
+bool _isSafeDeviceCredentialRotation(
+  Map<String, dynamic> credential, {
+  required String tenantId,
+  required String companyId,
+  required String branchId,
+  required String deviceId,
+}) {
+  const keys = {
+    'tenantId',
+    'actorId',
+    'deviceId',
+    'credentialId',
+    'companyId',
+    'branchId',
+    'expiresAtUtc',
+    'credential',
+  };
+  final rawActorId = credential['actorId'];
+  final rawCredentialId = credential['credentialId'];
+  final expiresAt = credential['expiresAtUtc'];
+  final bearer = credential['credential'];
+  bool safeIdentifier(Object? value) =>
+      value is String &&
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
+      !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value);
+  return credential.keys.toSet().length == keys.length &&
+      credential.keys.toSet().containsAll(keys) &&
+      credential['tenantId'] == tenantId &&
+      safeIdentifier(rawActorId) &&
+      credential['deviceId'] == deviceId &&
+      safeIdentifier(rawCredentialId) &&
+      credential['companyId'] == companyId &&
+      credential['branchId'] == branchId &&
+      expiresAt is String &&
+      _isUtcTimestamp(expiresAt) &&
+      bearer is String &&
+      RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(bearer);
 }
 
 bool _isUtcTimestamp(String value) {

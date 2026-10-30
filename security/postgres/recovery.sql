@@ -174,6 +174,8 @@ BEGIN
   RETURN NEW;
 END $fn$;
 
+-- Device-authentication telemetry is intentionally excluded: it is not an
+-- authorization input and must not advance Recovery Authority generations.
 DO $recovery_triggers$
 DECLARE t text;
 BEGIN

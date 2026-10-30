@@ -87,6 +87,15 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.revoke_device_confirmation':
       'Revoke device {deviceId}? Its active credentials will stop working immediately.',
   'native.ui.revoke_device': 'Revoke device',
+  'native.ui.rotate_credential_title': 'Rotate this device credential?',
+  'native.ui.rotate_credential_confirmation':
+      'Replace the active credential for {deviceId}? The old credential will stop working immediately. The new secret is shown once.',
+  'native.ui.rotate_credential': 'Rotate credential',
+  'native.ui.rotated_credential_once':
+      'New device credential — copy it now; it will not be shown again.',
+  'native.ui.device_credential_rotated_details':
+      'Credential for {deviceId} expires {expires}. Provide it securely to that Client and clear this screen after transfer.',
+  'native.ui.clear_credential': 'Clear credential',
   'native.ui.device_role_and_state': '{role} · {state}',
   'native.ui.device_registered': 'Registered',
   'native.ui.device_revoked': 'Revoked',

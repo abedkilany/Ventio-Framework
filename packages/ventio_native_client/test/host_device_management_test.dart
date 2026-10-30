@@ -69,6 +69,18 @@ HostDeviceManagementHttpResponse _success(
         'deviceId': (request['body'] as Map)['deviceId'],
       },
     },
+    '/api/v1/management/devices/rotate-credential' => {
+      'deviceCredential': {
+        'tenantId': 'tenant-1',
+        'actorId': 'admin-1',
+        'deviceId': (request['body'] as Map)['deviceId'],
+        'credentialId': 'rotated_0123456789abcdef0123456789abcdef',
+        'companyId': 'company-1',
+        'branchId': 'branch-1',
+        'expiresAtUtc': '2026-11-29T12:30:00.000Z',
+        'credential': 'A' * 43,
+      },
+    },
     '/api/v1/management/pairing/create' => {
       'pairing': {
         'pairingId': 'pair_0123456789abcdef0123456789abcdef',
@@ -96,13 +108,16 @@ HostDeviceManagementHttpResponse _success(
   );
 }
 
-Map<String, Object?> _device({String deviceId = 'client-device-001'}) => {
+Map<String, Object?> _device({
+  String deviceId = 'client-device-001',
+  String? lastAuthenticatedAtUtc,
+}) => {
   'deviceId': deviceId,
   'actorId': 'usr_0123456789abcdef0123456789abcdef',
   'role': 'CLIENT',
   'registrationState': 'REGISTERED',
   'registeredAtUtc': '2026-10-29T12:30:00.000Z',
-  'lastAuthenticatedAtUtc': null,
+  'lastAuthenticatedAtUtc': lastAuthenticatedAtUtc,
   'credentials': [
     {
       'credentialId': 'cred_0123456789abcdef0123456789abcdef',
@@ -243,6 +258,29 @@ void main() {
       },
     );
 
+    test('rotates credentials through the authorized Host route', () async {
+      final exchange = _Exchange();
+      final client = await _client(exchange);
+
+      final replacement = await client.rotateCredential(
+        deviceId: 'client-device-001',
+        credentialId: 'cred_0123456789abcdef0123456789abcdef',
+      );
+
+      expect(replacement.deviceId, 'client-device-001');
+      expect(replacement.credentialId, startsWith('rotated_'));
+      expect(replacement.credential, 'A' * 43);
+      expect(replacement.correlationId, _correlationId);
+      expect(
+        (exchange.requests.single['uri'] as Uri).path,
+        '/api/v1/management/devices/rotate-credential',
+      );
+      expect(
+        jsonEncode(exchange.requests.single['body']),
+        isNot(contains(replacement.credential)),
+      );
+    });
+
     test('denies by exact user permission before network access', () async {
       final exchange = _Exchange();
       final client = await _client(
@@ -361,6 +399,71 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('device page confirms and displays a rotated credential once', (
+    tester,
+  ) async {
+    final exchange = _Exchange();
+    final client = await _client(exchange);
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceManagementPage(client: client)),
+    );
+    await tester.pumpAndSettle();
+
+    final rotateButton = find.text('Rotate credential');
+    await tester.ensureVisible(rotateButton);
+    await tester.pumpAndSettle();
+    await tester.tap(rotateButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Rotate this device credential?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Rotate credential'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('rotated-device-credential')),
+      findsOneWidget,
+    );
+    expect(find.text('A' * 43), findsOneWidget);
+    expect(find.textContaining(_correlationId), findsOneWidget);
+    expect(
+      exchange.requests.any(
+        (request) =>
+            (request['uri'] as Uri).path ==
+            '/api/v1/management/devices/rotate-credential',
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('device page shows authenticated activity as a timestamp', (
+    tester,
+  ) async {
+    final exchange = _Exchange()
+      ..respond = (request) => _success(
+        request,
+        fields: {
+          'devices': {
+            'tenantId': 'tenant-1',
+            'companyId': 'company-1',
+            'branchId': 'branch-1',
+            'items': [
+              _device(lastAuthenticatedAtUtc: '2026-10-30T12:30:00.000Z'),
+            ],
+          },
+        },
+      );
+    final client = await _client(exchange);
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceManagementPage(client: client)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Last authenticated 2026-10-30 12:30:00 UTC'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('connection state is unknown'), findsNothing);
   });
 
   testWidgets('pairing can target an active Host user from its scoped list', (

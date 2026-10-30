@@ -1,6 +1,6 @@
 # Secure Device Pairing API v1
 
-**Status:** backend contract and integrated Flutter pairing/device-management screen are implemented; deterministic API/UI tests pass. PostgreSQL integration tests are present but NOT RUN. Docker remains stopped by user direction; the CI harness can use native PostgreSQL binaries without Docker, but the local pinned archive transfer was too slow to finish.
+**Status:** pairing, enrollment, device inventory, revocation, Host-authorized credential rotation, and scoped last-authenticated activity are implemented. Focused API/UI tests and native PostgreSQL integration pass. Run `93010324-1` passed 24/24; Docker remains stopped by user direction.
 
 Pairing is a Host-authorized operation. Device role is descriptive metadata and grants no user permission. The Host fixes every authority-bearing value; clients cannot choose a device role, scope, permission, or credential lifetime.
 
@@ -79,15 +79,33 @@ The credential lifetime is fixed at thirty days, matching the existing Host cred
 
 Invalid, expired, or replayed codes all return HTTP 410 with `PAIRING_INVALID_OR_EXPIRED`, without distinguishing which condition occurred. Reused device IDs return `DEVICE_ALREADY_REGISTERED`. Every response contains a correlation ID. Audit records include the pairing/device identifiers and scope but never either bearer secret or its digest.
 
-Enrollment rejects device IDs that resemble bearer tokens, including clients that bypass the Flutter UI. Authorized `identity.devices.manage` users can list device/credential lifecycle metadata and revoke a device through the separate management API. Device listing currently returns `lastAuthenticatedAtUtc: null`; connected state and authenticated-activity history are not yet available. Revocation stops every credential on that device, but a branch-scoped caller cannot revoke a device with an active credential ceiling outside that branch.
+Enrollment rejects device IDs that resemble bearer tokens, including clients that bypass the Flutter UI. Authorized `identity.devices.manage` users can list device/credential lifecycle metadata, review the last successful authentication timestamp, rotate a single-scope credential, and revoke a device. The Host stores the activity summary in a dedicated owner-only table that grants no authority, has forced RLS, is inaccessible directly to runtime/API logins, and is excluded from Recovery Authority generation triggers. Updates are throttled to at most once per minute. The timestamp is informational and does not claim that a device is currently connected. Revocation stops every credential on that device, but a branch-scoped caller cannot revoke a device with an active credential ceiling outside that branch.
+
+## Rotate a device credential
+
+`POST /api/v1/management/devices/rotate-credential` requires a persistent bearer credential with `identity.devices.manage` permission for the exact company/branch. The Host verifies that the target device is active and that its current credential is restricted to exactly that same single branch. Multi-branch credentials cannot be narrowed or widened through rotation. The Host revokes the prior credential and writes a replacement digest and an audit event in the same database transaction.
+
+Request:
+
+```json
+{
+  "managementApiVersion": 1,
+  "companyId": "company-001",
+  "branchId": "branch-001",
+  "deviceId": "client-device-001",
+  "credentialId": "cred_0123456789abcdef0123456789abcdef"
+}
+```
+
+Success is HTTP 200. The new 256-bit bearer is returned once with a fixed thirty-day expiry; only its digest is stored by PostgreSQL. The response includes tenant, actor, device, and exact scope metadata plus a correlation ID. The Flutter page holds the secret in memory, presents it once to the authorized operator, and lets them clear it. It is never sent back in a later request or included in logs, inventory, audit detail, or diagnostics. The old credential is rejected immediately after commit.
 
 ## Verification status
 
 - `dart run test/api_tests.dart`: 66 passed, 0 failed; covers authentication, exact-scope permission, versioning, correlation, no-secret diagnostics, unauthenticated redemption contract, and source rate limiting.
-- `dart run test/management_devices_api_test.dart`: 8 passed, 0 failed; covers exact-scope authorization, safe inventory projection, and revocation dispatch.
-- Flutter `test/host_device_management_test.dart`: 7 passed, 0 failed; covers inventory, one-time pairing code handling, permission denial, redaction, error correlation, and UI user selection.
+- `dart run test/management_devices_api_test.dart`: 12 passed, 0 failed; covers exact-scope authorization, safe inventory projection, revocation, and rotation permission/scope checks.
+- Flutter `test/host_device_management_test.dart`: 11 passed, 0 failed; covers inventory, one-time pairing code handling, permission denial, redaction, error correlation, authorized rotation request, confirmation, one-time display, and last-authenticated activity display.
 - Full Flutter package suite: 162 passed, 2 environment-gated skips; Flutter package analysis clean.
 - `dart analyze` for `ventio_host_api`: passed.
-- `test/pairing_integration.dart`: added for digest-only storage, target privilege ceiling, cross-branch non-disclosure, one-time redemption/replay/expiry, 30-day credential scope, device role, and audit/diagnostic redaction. It is intentionally NOT RUN while Docker remains stopped.
-- Host administrators can create a code for an active scoped user, select that user from the Host user list when separately authorized, view registered devices and credential state, and revoke a device. The UI displays no connection state when Host activity telemetry is absent.
-- Stage 4 is not accepted based on these local checks; restricted database grants, Recovery Authority, and PostgreSQL integration behavior remain unverified until the database suite runs. Credential rotation and authenticated activity history are still outstanding.
+- `test/pairing_integration.dart`: native PostgreSQL run `93010324-1` passed 24/24, covering digest-only storage, target privilege ceiling, exact-scope enrollment, authentication/activity recording, unchanged Recovery Authority generation, one-time authorized credential rotation, previous-token rejection, refusal of multi-branch rotation, revocation, expiry/replay, and redaction.
+- Host administrators can create a code for an active scoped user, select that user from the Host user list when separately authorized, view registered devices and credential status plus last successful authentication time, revoke devices, and rotate a single-scope credential. Flutter `test/host_device_management_test.dart` passes 11/11 including activity display and one-time secret display.
+- Stage 4 passed its focused gate. Broader Wave 1 database authorization, diagnostics, offline propagation and physical-device gates remain open. Docker stays stopped.

@@ -46,7 +46,8 @@ BEGIN
     ('025_identity_audit_scope_index.sql','6462163d7a01ee0abadb1ffad8ac340c468c6b91cc9a403044fe8dc715357bb5'),
     ('026_identity_pairing.sql','2f2a71d5086622d4f7fad971e1f7c3404d05e8e5705cc48e418b6c3f34eaa7df'),
     ('027_identity_pairings.sql','568eb70d6cb2e961da4d4e12e9e6b29764aebda5f1ac7e3acf574a79e677f046'),
-    ('028_identity_pairing_rate_index.sql','42b3a71d92420deb65be566c67d1b8d04d8ed47bfd55b20d0cb0928183eb7ace')),
+    ('028_identity_pairing_rate_index.sql','42b3a71d92420deb65be566c67d1b8d04d8ed47bfd55b20d0cb0928183eb7ace'),
+    ('029_identity_device_activity.sql','f5b1160fa5120c46d095bde4c45ce23460dea9960177f5eafe7a4f5e0423a63b')),
     legacy(name,sha256) AS (VALUES
       ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
       ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),

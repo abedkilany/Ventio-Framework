@@ -20,6 +20,7 @@ abstract final class HostManagementRoutes {
   static const String pairingCreate = '$pairing/create';
   static const String devicesList = '$devices/list';
   static const String devicesRevoke = '$devices/revoke';
+  static const String devicesRotateCredential = '$devices/rotate-credential';
   static const String pairingRedeem = '/api/v1/pairing/redeem';
   static const String synchronization = '/api/v1/management/synchronization';
 }

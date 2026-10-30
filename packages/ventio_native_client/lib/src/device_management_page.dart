@@ -24,6 +24,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   List<HostManagedUser> _users = const [];
   String? _selectedUserId;
   HostPairingCredential? _pairing;
+  HostRotatedDeviceCredential? _rotatedCredential;
   HostDeviceManagementException? _error;
   bool _loading = false;
   bool _loadingUsers = false;
@@ -171,6 +172,53 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     }
   }
 
+  Future<void> _rotateCredential(
+    HostManagedDevice device,
+    HostManagedCredential credential,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.ventioText('native.ui.rotate_credential_title')),
+        content: Text(
+          context.ventioText(
+            'native.ui.rotate_credential_confirmation',
+            params: {'deviceId': device.deviceId},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.ventioText('native.ui.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.ventioText('native.ui.rotate_credential')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _rotatedCredential = null;
+    });
+    try {
+      final replacement = await widget.client.rotateCredential(
+        deviceId: device.deviceId,
+        credentialId: credential.credentialId,
+      );
+      if (!mounted) return;
+      setState(() => _rotatedCredential = replacement);
+      await _loadAfterMutation();
+    } on HostDeviceManagementException catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _loadAfterMutation() async {
     final snapshot = await widget.client.listDevices();
     if (mounted) setState(() => _snapshot = snapshot);
@@ -230,6 +278,8 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
             ],
             if (_busy) const LinearProgressIndicator(),
             if (_error case final error?) _errorCard(context, error),
+            if (_rotatedCredential case final credential?)
+              _rotatedCredentialCard(context, credential),
             if (widget.client.canManageDevices) ...[
               const SizedBox(height: 20),
               Row(
@@ -476,9 +526,10 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                     Text(context.ventioText('native.ui.no_device_credentials'))
                   else
                     for (final credential in device.credentials)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
                           context.ventioText(
                             'native.ui.device_credential_state',
                             params: {
@@ -491,6 +542,23 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                             },
                           ),
                         ),
+                        trailing:
+                            isRegistered &&
+                                credential.state ==
+                                    HostManagedCredentialState.active
+                            ? TextButton.icon(
+                                onPressed: _busy
+                                    ? null
+                                    : () =>
+                                          _rotateCredential(device, credential),
+                                icon: const Icon(Icons.key_outlined),
+                                label: Text(
+                                  context.ventioText(
+                                    'native.ui.rotate_credential',
+                                  ),
+                                ),
+                              )
+                            : null,
                       ),
                 ],
               ),
@@ -501,6 +569,54 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       ),
     );
   }
+
+  Widget _rotatedCredentialCard(
+    BuildContext context,
+    HostRotatedDeviceCredential credential,
+  ) => Card(
+    color: Theme.of(context).colorScheme.primaryContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.ventioText('native.ui.rotated_credential_once'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            credential.credential,
+            key: const ValueKey('rotated-device-credential'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.ventioText(
+              'native.ui.device_credential_rotated_details',
+              params: {
+                'deviceId': credential.deviceId,
+                'expires': _formatUtc(credential.expiresAtUtc),
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
+          SelectableText(
+            context.ventioText(
+              'native.ui.correlation_reference',
+              params: {'correlationId': credential.correlationId},
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => setState(() => _rotatedCredential = null),
+              child: Text(context.ventioText('native.ui.clear_credential')),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   String _credentialState(
     BuildContext context,

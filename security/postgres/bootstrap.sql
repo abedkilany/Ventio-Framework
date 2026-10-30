@@ -58,7 +58,8 @@ BEGIN
     'ventio_identity_users','ventio_identity_devices','ventio_identity_credentials','ventio_identity_branches',
     'ventio_identity_grants','ventio_identity_roles','ventio_identity_role_permissions',
     'ventio_identity_role_assignments','ventio_identity_audit','ventio_extension_packages',
-    'ventio_identity_pairings','ventio_extension_package_events','ventio_document_number_series',
+    'ventio_identity_pairings','ventio_identity_device_activity',
+    'ventio_extension_package_events','ventio_document_number_series',
     'ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
   END LOOP;
@@ -111,7 +112,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY['public.ventio_identity_users','public.ventio_identity_devices',
     'public.ventio_identity_credentials','public.ventio_identity_branches','public.ventio_identity_grants',
     'public.ventio_identity_roles','public.ventio_identity_role_permissions',
-    'public.ventio_identity_role_assignments',
+    'public.ventio_identity_role_assignments','public.ventio_identity_device_activity',
     'public.ventio_identity_audit','public.ventio_identity_pairings',
     'public.ventio_extension_packages',
     'public.ventio_extension_package_events','public.ventio_document_number_series',
@@ -153,6 +154,28 @@ BEGIN
   IF NOT FOUND OR d.revoked_at IS NOT NULL THEN RETURN NULL; END IF;
   SELECT * INTO c FROM public.ventio_identity_credentials WHERE token_digest = p_digest FOR SHARE;
   IF NOT FOUND OR c.revoked_at IS NOT NULL OR c.expires_at <= clock_timestamp() THEN RETURN NULL; END IF;
+  -- Activity is non-authority telemetry stored separately from Recovery-
+  -- protected identity rows, so normal authentication never advances the
+  -- Recovery Authority generation or grants clients table write access.
+  INSERT INTO public.ventio_identity_device_activity AS activity
+    (tenant_id,device_id,actor_id,last_authenticated_at,authentication_count)
+    VALUES (c.tenant_id,c.device_id,c.actor_id,clock_timestamp(),1)
+    ON CONFLICT (tenant_id,device_id) DO UPDATE
+      SET last_authenticated_at=EXCLUDED.last_authenticated_at,
+          authentication_count=activity.authentication_count+1
+      WHERE activity.actor_id=EXCLUDED.actor_id
+        AND activity.last_authenticated_at<clock_timestamp()-interval '1 minute';
+  -- This single-row telemetry table is deliberately not part of the Recovery
+  -- Authority mutation set. It grants no authority and stores no credentials.
+  INSERT INTO public.ventio_identity_device_activity
+    (tenant_id,device_id,actor_id,last_authenticated_at,authentication_count)
+    VALUES (c.tenant_id,c.device_id,c.actor_id,clock_timestamp(),1)
+    ON CONFLICT (tenant_id,device_id) DO UPDATE
+      SET last_authenticated_at=EXCLUDED.last_authenticated_at,
+          authentication_count=public.ventio_identity_device_activity.authentication_count+1
+      WHERE public.ventio_identity_device_activity.actor_id=EXCLUDED.actor_id
+        AND public.ventio_identity_device_activity.last_authenticated_at
+          < clock_timestamp()-interval '1 minute';
   -- Locks prevent an in-flight command from racing a role or grant revocation.
   PERFORM 1 FROM public.ventio_identity_grants
     WHERE tenant_id=c.tenant_id AND actor_id=c.actor_id FOR SHARE;
@@ -779,6 +802,7 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.scoped_pairing_create(text,text,text,text,text,text),
   ventio_security.scoped_pairing_redeem(text,text,text,text),
   ventio_security.scoped_device_revoke(text,text,text,text),
+  ventio_security.scoped_device_credential_rotate(text,text,text,text,text,text,text),
   ventio_security.admit_recovery(text,text),
   ventio_security.recovery_snapshot()
   TO ventio_identity_api;

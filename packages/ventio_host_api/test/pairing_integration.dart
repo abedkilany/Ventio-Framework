@@ -311,12 +311,18 @@ Future<void> main() async {
       'Database records CLIENT as descriptive device role',
     );
 
+    final recoveryGenerationBeforeAuthentication = (await audit.execute(
+      'SELECT generation FROM ventio_security.recovery_state WHERE singleton',
+    )).single[0];
     final authenticated = await send(
       api,
       path: '/api/v1/session',
       method: 'GET',
       token: rawCredential,
     );
+    final recoveryGenerationAfterAuthentication = (await audit.execute(
+      'SELECT generation FROM ventio_security.recovery_state WHERE singleton',
+    )).single[0];
     final permissions =
         ((authenticated.body['identity']['scopes'] as List)
                 .single['permissions']
@@ -324,8 +330,10 @@ Future<void> main() async {
     check(
       authenticated.status == 200 &&
           permissions.contains('maintenance.create') &&
-          !permissions.contains(identityPairingManagePermission),
-      'Client authentication preserves target permissions without adding pairing authority',
+          !permissions.contains(identityPairingManagePermission) &&
+          recoveryGenerationBeforeAuthentication ==
+              recoveryGenerationAfterAuthentication,
+      'Client authentication preserves target permissions and records telemetry without changing Recovery Authority state',
     );
 
     final devices = await send(
@@ -354,7 +362,11 @@ Future<void> main() async {
               devices.headers.value('X-Correlation-ID') &&
           enrolledDevice['role'] == 'CLIENT' &&
           enrolledDevice['registrationState'] == 'REGISTERED' &&
-          enrolledDevice['lastAuthenticatedAtUtc'] == null &&
+          enrolledDevice['lastAuthenticatedAtUtc'] is String &&
+          DateTime.tryParse(
+                enrolledDevice['lastAuthenticatedAtUtc'] as String,
+              )?.isUtc ==
+              true &&
           enrolledCredentials.single['credentialId'] ==
               enrollment['credentialId'] &&
           enrolledCredentials.single['state'] == 'ACTIVE' &&
@@ -363,23 +375,31 @@ Future<void> main() async {
       'Authorized device inventory returns exact branch status without bearer secrets or digests',
     );
 
-    final rotatedCredentialId =
-        'pairing-rotated-${DateTime.now().toUtc().microsecondsSinceEpoch}';
-    final rotatedCredentialFile =
-        '${temporary.path}/pairing-rotated-credential.json';
-    await operator.rotateToFile(
-      actorId: enrollment['actorId'] as String,
-      deviceId: enrollment['deviceId'] as String,
-      previousCredentialId: enrollment['credentialId'] as String,
-      previousToken: rawCredential,
-      credentialId: rotatedCredentialId,
-      expiresAt: DateTime.now().toUtc().add(const Duration(days: 10)),
-      outputPath: rotatedCredentialFile,
+    final rotateResponse = await send(
+      api,
+      path: HostManagementRoutes.devicesRotateCredential,
+      token: managerToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+        'deviceId': enrollment['deviceId'],
+        'credentialId': enrollment['credentialId'],
+      },
     );
-    final rotatedToken =
-        (jsonDecode(await PrivateFiles.read(rotatedCredentialFile))
-                as Map)['token']
-            as String;
+    final rotated = rotateResponse.body['deviceCredential'] as Map;
+    final rotatedCredentialId = rotated['credentialId'] as String;
+    final rotatedToken = rotated['credential'] as String;
+    check(
+      rotateResponse.status == 200 &&
+          rotateResponse.body['correlationId'] ==
+              rotateResponse.headers.value('X-Correlation-ID') &&
+          rotated['deviceId'] == enrollment['deviceId'] &&
+          rotated['companyId'] == company &&
+          rotated['branchId'] == branch &&
+          !jsonEncode(rotateResponse.body).contains('tokenDigest'),
+      'Authorized Host rotation returns one correlated scoped credential without digests',
+    );
     final inventoryAfterRotation = await send(
       api,
       path: HostManagementRoutes.devicesList,
@@ -421,6 +441,42 @@ Future<void> main() async {
     check(
       rotatedAuthentication.status == 200,
       'Rotated Client credential authenticates with its preserved scope',
+    );
+    final previousCredentialAuthentication = await send(
+      api,
+      path: '/api/v1/session',
+      method: 'GET',
+      token: rawCredential,
+    );
+    check(
+      previousCredentialAuthentication.status == 401,
+      'Rotation immediately invalidates the previous device credential',
+    );
+
+    final multiscopeCredential = await audit.execute(
+      pg.Sql.named('''
+        SELECT credential_id FROM public.ventio_identity_credentials
+        WHERE tenant_id=@tenant AND device_id='pairing-multiscope-client'
+          AND revoked_at IS NULL AND expires_at>clock_timestamp()
+      '''),
+      parameters: {'tenant': tenant},
+    );
+    final multiscopeRotation = await send(
+      api,
+      path: HostManagementRoutes.devicesRotateCredential,
+      token: managerToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+        'deviceId': 'pairing-multiscope-client',
+        'credentialId': multiscopeCredential.single[0],
+      },
+    );
+    check(
+      multiscopeRotation.status == 403 &&
+          multiscopeRotation.body['error']['code'] == 'PERMISSION_DENIED',
+      'Credential rotation refuses to narrow or expand a multi-branch credential',
     );
 
     final ordinaryDeviceRead = await send(

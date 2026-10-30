@@ -45,6 +45,7 @@ class _DeviceGateway
     implements AuthoritativeIdentityDeviceAdministrationGateway {
   int listCalls = 0;
   int revokeCalls = 0;
+  int rotateCalls = 0;
   bool unsafe = false;
   String credentialId = 'cred_0123456789abcdef0123456789abcdef';
   String? revokedDeviceId;
@@ -90,6 +91,27 @@ class _DeviceGateway
   }) async {
     revokeCalls++;
     revokedDeviceId = deviceId;
+  }
+
+  @override
+  Future<Map<String, dynamic>> rotateCredential({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String deviceId,
+    required String credentialId,
+  }) async {
+    rotateCalls++;
+    return {
+      'tenantId': session.principal.tenantId,
+      'actorId': 'usr_0123456789abcdef0123456789abcdef',
+      'deviceId': deviceId,
+      'credentialId': 'cred_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'companyId': companyId,
+      'branchId': branchId,
+      'expiresAtUtc': '2026-11-29T00:00:00.000Z',
+      'credential': List.filled(43, 'a').join(),
+    };
   }
 }
 
@@ -189,6 +211,61 @@ Future<void> main() async {
     check(
       deniedRevoke.status == 403 && gateway.revokeCalls == 1,
       'An ordinary user on a Host cannot revoke devices',
+    );
+
+    final rotated = await send(
+      api,
+      path: HostManagementRoutes.devicesRotateCredential,
+      token: validToken,
+      body: body(
+        extra: {
+          'deviceId': 'client-device-001',
+          'credentialId': 'cred_0123456789abcdef0123456789abcdef',
+        },
+      ),
+    );
+    check(
+      rotated.status == 200 &&
+          rotated.body['deviceCredential']['deviceId'] == 'client-device-001' &&
+          rotated.body['deviceCredential']['credential'] ==
+              List.filled(43, 'a').join() &&
+          rotated.body['correlationId'] ==
+              rotated.headers.value('X-Correlation-ID') &&
+          gateway.rotateCalls == 1,
+      'Authorized credential rotation returns one scoped replacement with correlation',
+    );
+
+    final deniedRotation = await send(
+      api,
+      path: HostManagementRoutes.devicesRotateCredential,
+      token: deniedToken,
+      body: body(
+        extra: {
+          'deviceId': 'client-device-001',
+          'credentialId': 'cred_0123456789abcdef0123456789abcdef',
+        },
+      ),
+    );
+    check(
+      deniedRotation.status == 403 && gateway.rotateCalls == 1,
+      'An ordinary user on a Host cannot rotate device credentials',
+    );
+
+    final crossBranchRotation = await send(
+      api,
+      path: HostManagementRoutes.devicesRotateCredential,
+      token: validToken,
+      body: body(
+        branch: 'branch-other',
+        extra: {
+          'deviceId': 'client-device-001',
+          'credentialId': 'cred_0123456789abcdef0123456789abcdef',
+        },
+      ),
+    );
+    check(
+      crossBranchRotation.status == 403 && gateway.rotateCalls == 1,
+      'Credential rotation cannot cross the authenticated branch scope',
     );
 
     final malformed = await send(

@@ -188,6 +188,15 @@ class FakeIdentityDeviceAdministrationGateway
     required String branchId,
     required String deviceId,
   }) async {}
+
+  @override
+  Future<Map<String, dynamic>> rotateCredential({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String deviceId,
+    required String credentialId,
+  }) async => {};
 }
 
 class FakeReadinessProvider implements HostReadinessProvider {

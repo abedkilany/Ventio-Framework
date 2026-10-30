@@ -84,6 +84,24 @@ class HostPairingCredential {
   final String correlationId;
 }
 
+/// Returned only once after a Host-authorized device credential rotation.
+/// Callers must keep it in memory and clear it after transfer to the Client.
+class HostRotatedDeviceCredential {
+  const HostRotatedDeviceCredential({
+    required this.deviceId,
+    required this.credentialId,
+    required this.credential,
+    required this.expiresAtUtc,
+    required this.correlationId,
+  });
+
+  final String deviceId;
+  final String credentialId;
+  final String credential;
+  final DateTime expiresAtUtc;
+  final String correlationId;
+}
+
 class HostDeviceManagementException implements Exception {
   const HostDeviceManagementException(
     this.code, {
@@ -320,6 +338,65 @@ class HostDeviceManagementClient {
         operation['deviceId'] != deviceId) {
       throw _invalidResponse(response);
     }
+  }
+
+  Future<HostRotatedDeviceCredential> rotateCredential({
+    required String deviceId,
+    required String credentialId,
+  }) async {
+    if (!_safeIdentifier(deviceId) || !_safeIdentifier(credentialId)) {
+      throw const HostDeviceManagementException('INVALID_DEVICE_ID');
+    }
+    final response = await _post('rotate-credential', {
+      'deviceId': deviceId,
+      'credentialId': credentialId,
+    });
+    if (response.statusCode != HttpStatus.ok) throw _error(response);
+    const envelopeKeys = {
+      'apiVersion',
+      'managementApiVersion',
+      'correlationId',
+      'deviceCredential',
+    };
+    if (response.body.length != envelopeKeys.length ||
+        response.body.keys.any((key) => !envelopeKeys.contains(key))) {
+      throw _invalidResponse(response);
+    }
+    final raw = response.body['deviceCredential'];
+    if (raw is! Map) throw _invalidResponse(response);
+    final value = Map<String, dynamic>.from(raw);
+    const keys = {
+      'tenantId',
+      'actorId',
+      'deviceId',
+      'credentialId',
+      'companyId',
+      'branchId',
+      'expiresAtUtc',
+      'credential',
+    };
+    final expiry = _utc(value['expiresAtUtc']);
+    final token = value['credential'];
+    if (value.length != keys.length ||
+        value.keys.any((key) => !keys.contains(key)) ||
+        value['tenantId'] != verifiedIdentity.tenantId ||
+        !_safeIdentifier(value['actorId']) ||
+        value['deviceId'] != deviceId ||
+        !_safeIdentifier(value['credentialId']) ||
+        value['companyId'] != companyId ||
+        value['branchId'] != branchId ||
+        expiry == null ||
+        token is! String ||
+        !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(token)) {
+      throw _invalidResponse(response);
+    }
+    return HostRotatedDeviceCredential(
+      deviceId: deviceId,
+      credentialId: value['credentialId'] as String,
+      credential: token,
+      expiresAtUtc: expiry,
+      correlationId: response.correlationId,
+    );
   }
 
   Future<HostPairingCredential> createPairing(String actorId) async {
