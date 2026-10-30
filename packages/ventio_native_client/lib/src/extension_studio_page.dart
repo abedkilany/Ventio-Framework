@@ -255,7 +255,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       (scope) =>
           scope.companyId == profile.companyId &&
           scope.branchId == profile.branchId &&
-          scope.permissions.contains('identity.roles.manage'),
+          scope.permissions.contains(identityRolesManagePermission),
     );
   }
 
