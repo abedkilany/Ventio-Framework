@@ -1,6 +1,6 @@
 # Wave 1 Host/Client Final Acceptance Report
 
-**Audit snapshot:** 2026-10-30 02:42 Asia/Beirut
+**Audit snapshot:** 2026-10-30 02:43 Asia/Beirut
 **Branch:** `codex/extension-platform`
 **Release decision:** **BLOCKED — Wave 1 remains open.** This is the current requirement-by-requirement acceptance record, not a release approval. No completion is credited for an unexecuted integration gate.
 
@@ -48,7 +48,7 @@
 - Current Client-only installer: 14,562,917 bytes; SHA-256 `47cc471db0651a229c51a125909c4b46978a12491e2727bbbf3ceddf3b1dac59`.
 - Client package smoke checks passed for fresh per-user installation, same-version repeat installation, uninstallation and preservation of data outside the install directory. A separate package-version upgrade check passed, but neither check tests Host provisioning, service lifecycle or database migration.
 - Client package upgrade smoke test passed: the validator compiled the same current Flutter payload as package 0.1.1, installed 0.1.0, upgraded in place, confirmed the registered 0.1.1 version, retained the application and external-data marker, then uninstalled while retaining that marker. This is not Host database or SQLite schema-upgrade evidence.
-- Host API launcher change is committed as `e110126`; device management slice as `8baa866`; the native CI PostgreSQL process scripts are `scripts/ci/install-postgres-tools.ps1` and `scripts/ci/start-postgres-test-instance.ps1`.
+- Host API launcher change is committed as `e110126`; PostgreSQL pairing lifecycle hardening as `07a484b`; device management slice as `8baa866`; the native CI PostgreSQL process scripts are `scripts/ci/install-postgres-tools.ps1` and `scripts/ci/start-postgres-test-instance.ps1`.
 - Disposable native PostgreSQL 16.15 was started and stopped through the repository scripts on loopback. The 28 migrations and security bootstrap passed, and pairing lifecycle integration passed 21/21 in run `93010317-1`. Docker remains stopped and is not a product prerequisite.
 
 ## Security review snapshot
