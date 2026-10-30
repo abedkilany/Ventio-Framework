@@ -66,3 +66,5 @@
 ## Release gate
 
 **Wave 1 is not complete.** Do not describe the current Client installer as the unified Host/Client installer. The next engineering work is to define and implement the Windows Host provisioning boundary using a dedicated service identity, isolated PostgreSQL data directory, protected configuration and the existing independent Recovery Authority. Run database integrations through the native isolated CI harness when available; keep Docker stopped unless the user changes that instruction.
+
+- Windows Host payload build evidence: `scripts/windows/build-host-payload.ps1` produced a 20,294-file, 981,086,313-byte payload containing the compiled Host Engine, PostgreSQL 16.15, migrations, and security SQL. Post-build validation verified 44 critical hashes and database/credential absence; the executable's fail-closed opt-in launch guard returned exit 2 with no secret-shaped output. This is not an installer or service test; Stage 10 remains FAIL.

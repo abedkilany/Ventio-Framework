@@ -152,3 +152,7 @@ The Flutter local-diagnostics suite now also iterates every stable `ManagementDi
 ### 2026-10-30 update — PostgreSQL test-tool state
 
 - Verified the local extracted PostgreSQL 16.15 test tools at `%LOCALAPPDATA%\VentioFramework\postgresql-16.15-tools\pgsql\bin`; `postgres.exe --version` reports 16.15 and the archive source size is 373,254,386 bytes (356 MiB). The archive itself is not retained in this cache. Windows service enumeration found no PostgreSQL service. This remains test infrastructure only: the Host installer still needs isolated production provisioning, secret-safe service configuration, service startup and reboot verification.
+
+### 2026-10-30 update — Windows Host payload
+
+- Added `scripts/windows/build-host-payload.ps1` and `docs/windows-host-payload-build.md`. Windows Host Engine compilation and staging passed. Verified payload: 20,294 files / 981,086,313 bytes; 44 critical SHA-256 entries verified; PostgreSQL reports 16.15; credentials and data-directory flags are false. Running the packaged Host without opt-in exits 2 with a safe generic message. This does not install a Windows service or provision secrets/database and earns no Stage 10 weight; those installer gates remain open.
