@@ -73,7 +73,17 @@ try {
   Copy-Item -LiteralPath $serviceExe -Destination (Join-Path $tempDirectory 'VentioHostService.exe')
   Remove-Item -LiteralPath $serviceOutput -Recurse -Force
 
-  Copy-Item -LiteralPath $postgresRoot -Destination (Join-Path $tempDirectory 'postgresql') -Recurse
+  $runtimePostgresRoot = Join-Path $tempDirectory 'postgresql'
+  [void](New-Item -ItemType Directory -Path $runtimePostgresRoot -Force)
+  foreach ($runtimeDirectory in @('bin', 'lib', 'share')) {
+    $source = Join-Path $postgresRoot $runtimeDirectory
+    if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+      throw "Required PostgreSQL runtime directory is missing: $runtimeDirectory"
+    }
+    Copy-Item -LiteralPath $source -Destination $runtimePostgresRoot -Recurse
+  }
+  Get-ChildItem -LiteralPath $postgresRoot -File -Filter '*.txt' |
+    Copy-Item -Destination $runtimePostgresRoot
   Copy-Item -LiteralPath $migrationDirectory -Destination (Join-Path $tempDirectory 'migrations') -Recurse
   Copy-Item -LiteralPath $securityDirectory -Destination (Join-Path $tempDirectory 'security') -Recurse
 
@@ -104,6 +114,8 @@ try {
     migrationExecutable = 'ventio_migrate.exe'
     serviceExecutable = 'VentioHostService.exe'
     postgresVersion = '16.15'
+    postgresIncludedComponents = @('bin', 'lib', 'share', '*.txt')
+    postgresExcludedComponents = @('doc', 'include', 'pgAdmin 4', 'StackBuilder')
     postgresSourceArchiveSha256 = '43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281'
     postgresSourceArchiveLength = 373254386
     migrationsDirectory = 'migrations'
