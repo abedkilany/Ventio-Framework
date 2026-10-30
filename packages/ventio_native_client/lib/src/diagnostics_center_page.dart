@@ -36,6 +36,7 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
   String? _loadError;
   List<ManagementDiagnosticEvent> _hostEvents = const [];
   String? _hostLoadError;
+  String? _hostLoadCorrelationId;
   bool _hostLoading = false;
 
   @override
@@ -73,6 +74,7 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
     setState(() {
       _hostLoading = true;
       _hostLoadError = null;
+      _hostLoadCorrelationId = null;
     });
     try {
       final result = await client.recent();
@@ -85,6 +87,7 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
       if (!mounted) return;
       setState(() {
         _hostLoadError = error.code;
+        _hostLoadCorrelationId = error.correlationId;
         _hostLoading = false;
       });
     } catch (_) {
@@ -107,6 +110,8 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
         'hostDiagnosticsStatus': widget.hostClient == null
             ? 'not_configured'
             : _hostLoadError ?? (_hostLoading ? 'pending' : 'available'),
+        if (_hostLoadCorrelationId != null)
+          'hostDiagnosticsCorrelationId': _hostLoadCorrelationId,
         'events': [
           for (final event in localEvents)
             {'source': 'device', ...event.toJson()},
@@ -290,7 +295,18 @@ class _DiagnosticsCenterPageState extends State<DiagnosticsCenterPage> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.error_outline),
               title: Text(_text('host_load_failed')),
-              subtitle: Text(_hostFailureText(_hostLoadError!)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_hostFailureText(_hostLoadError!)),
+                  if (_hostLoadCorrelationId != null)
+                    SelectableText(
+                      _text(
+                        'correlation_line',
+                      ).replaceAll('{correlationId}', _hostLoadCorrelationId!),
+                    ),
+                ],
+              ),
             )
           else if (_hostEvents.isEmpty)
             ListTile(

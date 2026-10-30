@@ -259,6 +259,55 @@ void main() {
     expect(encoded, isNot(contains('protectedTechnicalCode')));
     expect(encoded, isNot(contains('08006')));
   });
+
+  testWidgets('Host diagnostics failure shows and exports its correlation ID', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final transport = createClient(
+      permissions: {hostDiagnosticsReadPermission},
+      exchange: (_, _, _) async => HostReadinessHttpResponse(
+        statusCode: 503,
+        body: {
+          'apiVersion': 1,
+          'correlationId': _correlationId,
+          'error': {
+            'code': 'HOST_UNAVAILABLE',
+            'retryable': true,
+            'message': 'password=must-not-be-exported',
+          },
+        },
+      ),
+    );
+    String? exported;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiagnosticsCenterPage(
+          store: _LocalEvents(event),
+          hostClient: HostDiagnosticsClient(transport),
+          exportHandler: (json) async => exported = json,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'The Host could not be reached. Check the connection and retry.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Reference: $_correlationId'), findsNWidgets(2));
+    await tester.tap(find.text('Copy sanitized export'));
+    await tester.pumpAndSettle();
+    final decoded = jsonDecode(exported!) as Map<String, dynamic>;
+    expect(decoded['hostDiagnosticsStatus'], 'HOST_UNAVAILABLE');
+    expect(decoded['hostDiagnosticsCorrelationId'], _correlationId);
+    expect(exported, isNot(contains('must-not-be-exported')));
+  });
 }
 
 class _LocalEvents implements DiagnosticEventSource {
