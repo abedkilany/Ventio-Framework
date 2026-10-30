@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:postgres/postgres.dart' as pg;
@@ -236,6 +237,31 @@ Future<void> main() async {
     await denied(
       () => runtime.execute("SELECT ventio_security.admin_change('{}')"),
       'Runtime cannot invoke administrative operations',
+    );
+    await denied(
+      () => runtime.execute(
+        pg.Sql.named(
+          'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
+        ),
+        parameters: {
+          'change': jsonEncode({
+            'tenantId': 'runtime-bootstrap-attempt',
+            'operatorLabel': 'runtime-bootstrap-test',
+            'action': 'INITIAL_ADMIN_BOOTSTRAPPED',
+            'actorId': 'forged-admin',
+            'companyId': 'forged-company',
+            'branchId': 'forged-branch',
+            'deviceId': 'forged-device',
+            'credentialId': 'forged-credential',
+            'tokenDigest': List.filled(64, 'a').join(),
+            'expiresAt': DateTime.now()
+                .toUtc()
+                .add(const Duration(days: 1))
+                .toIso8601String(),
+          }),
+        },
+      ),
+      'Runtime cannot invoke the trusted first-administrator bootstrap operation',
     );
     await denied(
       () => runtime.execute(

@@ -222,6 +222,51 @@ BEGIN
     END IF;
     subject := package_module;
   ELSE
+    IF operation = 'INITIAL_ADMIN_BOOTSTRAPPED' THEN
+      IF NOT pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+          p-ARRAY['tenantId','operatorLabel','action','actorId','companyId',
+            'branchId','deviceId','credentialId','tokenDigest','expiresAt'] <> '{}'::jsonb OR
+          actor IS NULL OR company IS NULL OR branch IS NULL OR device IS NULL OR
+          credential IS NULL OR p->>'tokenDigest' IS NULL OR
+          p->>'tokenDigest' !~ '^[0-9a-f]{64}$' OR
+          p->>'expiresAt' IS NULL OR
+          (p->>'expiresAt')::timestamptz <= clock_timestamp() OR
+          (p->>'expiresAt')::timestamptz > clock_timestamp()+interval '30 days' THEN
+        RAISE EXCEPTION 'Invalid first administrator bootstrap request'
+          USING ERRCODE='22023';
+      END IF;
+      IF EXISTS (SELECT FROM public.ventio_identity_users WHERE tenant_id=tenant) THEN
+        RAISE EXCEPTION 'Initial administrator has already been provisioned'
+          USING ERRCODE='42501';
+      END IF;
+      INSERT INTO public.ventio_identity_users(tenant_id,actor_id)
+        VALUES (tenant,actor);
+      INSERT INTO public.ventio_identity_branches(tenant_id,company_id,branch_id)
+        VALUES (tenant,company,branch) ON CONFLICT DO NOTHING;
+      INSERT INTO public.ventio_identity_devices(tenant_id,actor_id,device_id)
+        VALUES (tenant,actor,device);
+      INSERT INTO public.ventio_identity_grants
+        (tenant_id,actor_id,company_id,branch_id,permission)
+      SELECT tenant,actor,company,branch,permission
+      FROM unnest(ARRAY[
+        'host.status.read','host.diagnostics.read','identity.users.manage',
+        'identity.devices.manage','identity.pairing.manage','identity.roles.manage'
+      ]::text[]) AS permissions(permission);
+      INSERT INTO public.ventio_identity_credentials
+        (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes)
+      VALUES (tenant,actor,device,credential,p->>'tokenDigest',
+        (p->>'expiresAt')::timestamptz,
+        jsonb_build_array(jsonb_build_object('companyId',company,'branchId',branch,
+          'permissions',jsonb_build_array('host.status.read','host.diagnostics.read',
+            'identity.users.manage','identity.devices.manage','identity.pairing.manage',
+            'identity.roles.manage'))));
+      subject := actor;
+      details := jsonb_build_object('companyId',company,'branchId',branch,
+        'deviceId',device,'credentialId',credential,
+        'permissions',jsonb_build_array('host.status.read','host.diagnostics.read',
+          'identity.users.manage','identity.devices.manage','identity.pairing.manage',
+          'identity.roles.manage'),'expiresAt',p->>'expiresAt');
+    ELSE
     IF operation = 'DEVICE_REVOKED' THEN
       SELECT actor_id INTO actor FROM public.ventio_identity_devices WHERE tenant_id = tenant AND device_id = device;
     ELSIF operation IN ('CREDENTIAL_REVOKED','CREDENTIAL_ROTATED') THEN
@@ -336,6 +381,7 @@ BEGIN
       details := jsonb_build_object('companyId',company,'branchId',branch);
     ELSE RAISE EXCEPTION 'Unknown administrative operation';
     END CASE;
+    END IF;
   END IF;
   -- session_user remains the authenticated DB login across SECURITY DEFINER.
   IF p->>'operatorActorId' IS NOT NULL THEN

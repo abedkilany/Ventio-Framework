@@ -6,6 +6,25 @@ import 'authentication.dart';
 import 'private_files.dart';
 import 'recovery_authority.dart';
 
+const List<String> initialHostAdministratorPermissions = [
+  'host.status.read',
+  'host.diagnostics.read',
+  'identity.users.manage',
+  'identity.devices.manage',
+  'identity.pairing.manage',
+  'identity.roles.manage',
+];
+
+class InitialHostAdministratorCredential {
+  const InitialHostAdministratorCredential({
+    required this.actorId,
+    required this.token,
+  });
+
+  final String actorId;
+  final String token;
+}
+
 /// Server maintenance facade. The DB login needs only EXECUTE on admin_change;
 /// direct identity DML and DDL are denied. Every change and audit is one DB call.
 class IdentityAdministration {
@@ -51,6 +70,41 @@ class IdentityAdministration {
   Future<void> createUser(String actorId) {
     _identifier(actorId);
     return _change('USER_CREATED', {'actorId': actorId});
+  }
+
+  /// Atomically seeds the first scoped Host administrator for a tenant.
+  /// This method is for a trusted local bootstrap broker only: it creates one
+  /// user, branch, device, direct management grants and a scoped credential.
+  /// The caller receives the raw token once; it is never stored in PostgreSQL.
+  Future<InitialHostAdministratorCredential> bootstrapFirstAdministrator({
+    required String companyId,
+    required String branchId,
+    required String deviceId,
+    required String credentialId,
+    required DateTime expiresAt,
+  }) async {
+    if (authority == null) throw StateError('Recovery authority is required');
+    for (final value in [companyId, branchId, deviceId, credentialId]) {
+      _identifier(value);
+    }
+    final expiry = expiresAt.toUtc();
+    final now = DateTime.now().toUtc();
+    if (!expiry.isAfter(now) ||
+        expiry.isAfter(now.add(const Duration(days: 30)))) {
+      throw ArgumentError('Initial administrator credential expiry is invalid');
+    }
+    final actorId = 'usr_${OpaqueToken.generate()}';
+    final token = OpaqueToken.generate();
+    await _change('INITIAL_ADMIN_BOOTSTRAPPED', {
+      'actorId': actorId,
+      'companyId': companyId,
+      'branchId': branchId,
+      'deviceId': deviceId,
+      'credentialId': credentialId,
+      'tokenDigest': OpaqueToken.digest(token),
+      'expiresAt': expiry.toIso8601String(),
+    });
+    return InitialHostAdministratorCredential(actorId: actorId, token: token);
   }
 
   Future<void> registerBranch(String companyId, String branchId) {

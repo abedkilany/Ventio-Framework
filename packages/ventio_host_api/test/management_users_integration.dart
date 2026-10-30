@@ -56,6 +56,81 @@ Future<void> main() async {
       operatorLabel: 'user-management-test-operator',
       authority: authority,
     );
+    final operatorWithoutAuthority = IdentityAdministration(
+      connection: adminConnection,
+      tenantId: '$tenant-no-authority',
+      operatorLabel: 'user-management-test-operator',
+    );
+    var missingAuthorityDenied = false;
+    try {
+      await operatorWithoutAuthority.bootstrapFirstAdministrator(
+        companyId: companyA,
+        branchId: branchA,
+        deviceId: 'missing-authority-device',
+        credentialId: 'missing-authority-credential',
+        expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+      );
+    } on StateError {
+      missingAuthorityDenied = true;
+    }
+    check(
+      missingAuthorityDenied,
+      'Initial administrator bootstrap refuses to run without Recovery Authority',
+    );
+    final initialAdmin = await operator.bootstrapFirstAdministrator(
+      companyId: 'initial-host-company',
+      branchId: 'initial-host-branch',
+      deviceId: 'initial-host-device',
+      credentialId: 'initial-host-credential',
+      expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+    );
+    final initialAdminRows = await auditConnection.execute(
+      pg.Sql.named('''
+        SELECT c.token_digest,c.allowed_scopes::text,
+          (SELECT array_agg(g.permission ORDER BY g.permission)::text
+           FROM ventio_identity_grants g
+           WHERE g.tenant_id=c.tenant_id AND g.actor_id=c.actor_id
+             AND g.company_id='initial-host-company'
+             AND g.branch_id='initial-host-branch')
+        FROM ventio_identity_credentials c
+        WHERE c.tenant_id=@tenant AND c.actor_id=@actor
+          AND c.device_id='initial-host-device'
+      '''),
+      parameters: {'tenant': tenant, 'actor': initialAdmin.actorId},
+    );
+    final initialAdminScopes =
+        jsonDecode(initialAdminRows.single[1] as String) as List;
+    check(
+      initialAdmin.actorId.startsWith('usr_') &&
+          OpaqueToken.isValid(initialAdmin.token) &&
+          initialAdminRows.single[0] ==
+              OpaqueToken.digest(initialAdmin.token) &&
+          (initialAdminRows.single[2] as String).contains(
+            'identity.users.manage',
+          ) &&
+          initialAdminScopes.length == 1 &&
+          (initialAdminScopes.single as Map)['companyId'] ==
+              'initial-host-company' &&
+          ((initialAdminScopes.single as Map)['permissions'] as List).length ==
+              initialHostAdministratorPermissions.length,
+      'First Host administrator is created atomically with direct management grants and a digest-only scoped device credential',
+    );
+    var repeatedBootstrapDenied = false;
+    try {
+      await operator.bootstrapFirstAdministrator(
+        companyId: 'initial-host-company',
+        branchId: 'initial-host-branch',
+        deviceId: 'second-host-device',
+        credentialId: 'second-host-credential',
+        expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+      );
+    } catch (_) {
+      repeatedBootstrapDenied = true;
+    }
+    check(
+      repeatedBootstrapDenied,
+      'A tenant with an existing user cannot run first-administrator bootstrap a second time',
+    );
     await operator.registerBranch(companyA, branchA);
     await operator.registerBranch(companyB, branchB);
 
