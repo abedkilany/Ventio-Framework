@@ -94,6 +94,46 @@ void main() {
     },
   );
 
+  test('persists and exports every stable diagnostic category', () async {
+    final categories = ManagementDiagnosticCategory.values;
+    for (final category in categories) {
+      await store.record(
+        LocalDiagnosticInput(
+          code: 'DIAGNOSTIC_${category.name.toUpperCase()}',
+          component: 'test.${category.wireValue}',
+          category: category,
+          severity: ManagementDiagnosticSeverity.error,
+          retryable: false,
+          messageKey: 'native.diagnostics.test_failure',
+          safeExplanation: 'A representative ${category.wireValue} failure.',
+          recommendedAction: 'Review the relevant diagnostics and retry.',
+        ),
+      );
+    }
+
+    final events = await store.recent(limit: categories.length);
+    final restoredCategories = events.map((event) => event.category).toSet();
+    expect(restoredCategories, hasLength(categories.length));
+    expect(restoredCategories, containsAll(categories));
+
+    final exported =
+        jsonDecode(await store.exportJson(limit: categories.length))
+            as Map<String, dynamic>;
+    final exportedEvents = (exported['events'] as List).cast<Map>();
+    final exportedCategories = exportedEvents
+        .map((event) => event['category'])
+        .toSet();
+    expect(exportedCategories, hasLength(categories.length));
+    expect(
+      exportedCategories,
+      containsAll(categories.map((value) => value.wireValue)),
+    );
+    expect(
+      exportedEvents.every((event) => !event.containsKey('technicalDetails')),
+      isTrue,
+    );
+  });
+
   testWidgets('diagnostics center loads and exports without Host credentials', (
     tester,
   ) async {
