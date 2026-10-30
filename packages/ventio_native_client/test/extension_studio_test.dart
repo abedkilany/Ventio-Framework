@@ -42,6 +42,7 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
     this.canManagePairings = false,
     this.canReadHostStatus = false,
     this.roleAdministrationAvailable = true,
+    this.canManageRoles = false,
   });
 
   final bool canManageUsers;
@@ -49,6 +50,7 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
   final bool canManagePairings;
   final bool canReadHostStatus;
   final bool roleAdministrationAvailable;
+  final bool canManageRoles;
 
   HostApprovedPackagePage registryPage = HostApprovedPackagePage(
     packages: const [],
@@ -90,6 +92,11 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
                 .union(
                   canReadHostStatus
                       ? {hostStatusReadPermission}
+                      : const <String>{},
+                )
+                .union(
+                  canManageRoles
+                      ? {identityRolesManagePermission}
                       : const <String>{},
                 ),
       ),
@@ -1229,7 +1236,7 @@ void main() {
   );
 
   testWidgets(
-    'Host overview entry requires exact status permission regardless of device role',
+    'Host overview and role admin entries require exact scoped permissions',
     (tester) async {
       tester.view.physicalSize = const Size(900, 800);
       tester.view.devicePixelRatio = 1;
@@ -1252,9 +1259,14 @@ void main() {
       Future<Widget> app({
         required bool canReadHostStatus,
         required bool roleAdministrationAvailable,
+        required bool canManageRoles,
       }) async => MaterialApp(
         home: ExtensionStudioPage(
-          key: ValueKey((canReadHostStatus, roleAdministrationAvailable)),
+          key: ValueKey((
+            canReadHostStatus,
+            roleAdministrationAvailable,
+            canManageRoles,
+          )),
           store: store,
           queue: queue,
           credentialVault: vault,
@@ -1265,21 +1277,42 @@ void main() {
                     credentials: credentials,
                     canReadHostStatus: canReadHostStatus,
                     roleAdministrationAvailable: roleAdministrationAvailable,
+                    canManageRoles: canManageRoles,
                   ),
         ),
       );
 
       await tester.pumpWidget(
-        await app(canReadHostStatus: false, roleAdministrationAvailable: true),
+        await app(
+          canReadHostStatus: false,
+          roleAdministrationAvailable: true,
+          canManageRoles: false,
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Host overview'), findsNothing);
+      expect(find.text('Manage roles & access'), findsNothing);
 
       await tester.pumpWidget(
-        await app(canReadHostStatus: true, roleAdministrationAvailable: false),
+        await app(
+          canReadHostStatus: true,
+          roleAdministrationAvailable: false,
+          canManageRoles: true,
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Host overview'), findsOneWidget);
+      expect(find.text('Manage roles & access'), findsNothing);
+
+      await tester.pumpWidget(
+        await app(
+          canReadHostStatus: true,
+          roleAdministrationAvailable: true,
+          canManageRoles: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Manage roles & access'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
