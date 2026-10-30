@@ -56,7 +56,7 @@
     </div>
     <div>
       <span class="label">المهمة الهندسية الحالية</span>
-      <strong>Task 07 — التحقق الشامل للمنتج</strong><br>
+      <strong>Task 08 — التدقيق النهائي وبوابة الإصدار</strong><br>
       <span class="status progress">قيد التنفيذ (IN PROGRESS)</span>
     </div>
     <div>
@@ -64,9 +64,9 @@
       <strong>3 مكتمل (PASS) · 1 فشل التحقق (FAIL) · 2 متوقف بسبب عائق (BLOCKED) · 5 قيد التنفيذ (IN PROGRESS)</strong>
     </div>
     <div>
-      <span class="label">مرجع Git الحالي</span>
-      <strong><code>HEAD: f437a5b</code></strong><br>
-      <small>الفرع <code>codex/extension-platform</code>؛ تثبيت صفحة Host Settings ومراجعة صلاحيات واجهة الهاتف في Task 06.</small>
+      <span class="label">مرجع Git للمصدر المختبر</span>
+      <strong><code>f437a5b</code></strong><br>
+      <small>الفرع <code>codex/extension-platform</code>؛ بُني التطبيق وHost payload من هذا المصدر، ثم اختُبر المثبت على المخرجات الناتجة.</small>
     </div>
   </section>
 
@@ -87,7 +87,7 @@
         <tr><td>7 — التكامل غير المتصل والمزامنة</td><td>7%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>7%</td><td>تحقق اتصال Host وPostgreSQL مع SQLite من بقاء الأوامر المعلقة، وإيصالات Host، وثبات هوية الأمر عند إعادة المحاولة، وإظهار تعارضات الإصدارات القديمة وحفظها بعد إعادة فتح SQLite.</td></tr>
         <tr><td>8 — التحقق الشامل والتقوية</td><td>6%</td><td><span class="status blocked">متوقف بسبب عائق (BLOCKED)</span></td><td>0%</td><td>اختبارات Host/Client المثبتين وانتشار التغييرات بين جهازين تعتمد على إكمال التهيئة والخدمات والمثبت. لم يتم إثبات التحقق على جهاز Android فعلي.</td></tr>
         <tr><td>9 — التدقيق النهائي وبوابة الإصدار</td><td>3%</td><td><span class="status blocked">متوقف بسبب عائق (BLOCKED)</span></td><td>0%</td><td>تبقى بوابة الإصدار متوقفة حتى اجتياز المراحل الإلزامية المفتوحة؛ لا يُعلن اكتمال Wave 1 قبل ذلك.</td></tr>
-        <tr><td>10 — مثبت Windows الموحد والتهيئة والنشر</td><td>20%</td><td><span class="status progress">قيد التنفيذ (IN PROGRESS)</span></td><td>0%</td><td>أُضيفت تهيئة Host والترحيلات المحدودة الصلاحيات ونسخة ما قبل الترقية وخيارات الاحتفاظ أو الحذف الآمن. اجتاز PostgreSQL المعزول واختبار المسارات، لكن ملف Inno لم يُعَد بناؤه ولم تُختبر خدمات SCM أو دورة التثبيت الفعلية؛ الوزن المقبول صفر.</td></tr>
+        <tr><td>10 — مثبت Windows الموحد والتهيئة والنشر</td><td>20%</td><td><span class="status progress">قيد التنفيذ (IN PROGRESS)</span></td><td>0%</td><td>أُعيد بناء Inno Setup 6.7.3 إلى مسار مؤقت معزول؛ اجتاز اختبار تثبيت Client وإزالته ورفض تثبيت Host بوضع per-user. لم يُختبر تثبيت Host بصلاحيات إدارية أو دورة خدمات SCM أو الترقية والإصلاح؛ لذلك يبقى الوزن المقبول صفراً.</td></tr>
       </tbody>
     </table>
   </div>
@@ -104,13 +104,16 @@
       <li>في Task 04 أُضيف معالج Host داخل التطبيق المشترك وربطه بتهيئة المدير الأول عبر broker محلي؛ اجتازت اختبارات Flutter المحددة 7/7 وبناء Windows Release.</li>
       <li>في Task 05 أُضيفت تهيئة Host والترحيلات وبيانات اعتماد migrator المحمية والنسخ الاحتياطي قبل الترقية والإزالة مع اختيار الاحتفاظ؛ ثُبتت التغييرات في <code>844ed05</code>.</li>
       <li>في Task 06 أُضيفت صفحة Host Settings لعرض الإعداد المحلي والنطاق الموثق وصلاحيات النطاق المحدد فقط؛ تُحدّث هوية Host قبل عرضها ولا تكشف بيانات الاعتماد.</li>
+      <li>في Task 07 بُني Host payload حديث يحوي 1,690 ملفاً وPostgreSQL 16.15 بلا قاعدة بيانات أو بيانات اعتماد؛ اجتاز Flutter Windows Release وبناء المثبت المعزول وفحص بصمات payload.</li>
+      <li>اجتاز المثبت الموحد تثبيت Client وإزالته مع الحفاظ على بيانات خارج مجلد التطبيق، كما رفض Host في وضع per-user دون إنشاء مجلد أو تغيير حالة الخدمات.</li>
     </ul></section>
     <section class="card"><h3>المتطلبات المتبقية</h3><ul>
       <li>Task 03: اختبار تسجيل PostgreSQL وVentioHost فعلياً والتحقق من البدء والإيقاف والاستعادة بعد الفشل وإعادة التشغيل في بيئة Windows مخولة.</li>
       <li>Task 04: التحقق من تدفق المعالج مع Host مثبت، بما في ذلك إنشاء المدير الأول والاستئناف الآمن بعد الانقطاع.</li>
-      <li>Task 05: إعادة بناء المثبت الموحد والتحقق من التثبيت والترقية والإصلاح والإزالة الفعلية؛ يلزم Inno Setup وبيئة Windows مرتفعة الصلاحيات.</li>
+      <li>Task 05 و10: التحقق من ترقية وإصلاح المثبت الموحد، وتثبيت Host بصلاحيات إدارية، وتشغيل خدمات PostgreSQL وVentioHost واستعادتها بعد إعادة التشغيل.</li>
       <li>Task 06: بقي قبول المراحل الرسمية 1 و2 و5 و6 مفتوحاً رغم نجاح الاختبارات البرمجية؛ يلزم التحقق التشغيلي على Host مثبت.</li>
-      <li>Task 07–08: تحقق Host/Client المثبت بين جهازين، ثم مراجعة الأدلة والبوابة النهائية.</li>
+      <li>Task 07: تحقق Host/Client المثبت والاقتران والمزامنة بين جهازين؛ يتطلب تثبيت Host مرتفع الصلاحيات وأجهزة إضافية.</li>
+      <li>Task 08: تدقيق جميع بوابات المراحل وإصدار قرار نهائي يستند إلى الأدلة المتاحة.</li>
     </ul></section>
     <section class="card"><h3>الاختبارات والتحققات التي تحتاج إلى متابعة</h3><ul>
       <li>محاولة أولى لاختبار التهيئة كشفت التباساً في SQL حول <code>expires_at</code>؛ صُحح الاسم وأُعيد الاختبار بنجاح.</li>
@@ -134,11 +137,14 @@
       <li><code>dotnet run --project installer/windows/host-service.tests/HostService.Tests.csproj -c Release --no-restore</code>: نجاح اختبارات إعداد الخدمة والوسيط وDPAPI.</li>
       <li><code>dart analyze</code> للملفات المتأثرة، وفحص صياغة PowerShell، وتجميع أداة تهيئة المدير الأول: نجاح.</li>
       <li>اختبار PostgreSQL المعزول أعاد التحقق من migrations وDPAPI ونسخة بيانات ما قبل الترقية؛ أعيد تشغيل قاعدة البيانات واجتازت اختبارات الخدمة وتهيئة DPAPI.</li>
-      <li>اختبار عقد مسارات Host/Client والإزالة: نجاح؛ لم يُشغّل المثبت أو Windows Services في هذه البيئة.</li>
+      <li>Flutter Windows Release: نجاح؛ بُني المثبت الموحد الحالي في مجلد مؤقت خارج <code>dist</code>، الحجم 63,735,235 بايت، SHA-256 <code>fba5e52e0e99b43dddad9938bba84ed3e69c05653240249266e666a8f26b8e74</code>.</li>
+      <li>حمولة Host: 1,690 ملفاً و220,033,904 بايت من PostgreSQL 16.15؛ أكد manifest غياب بيانات الاعتماد وقاعدة البيانات.</li>
+      <li>اجتاز <code>test-unified-installer-path-contract.ps1</code> و<code>test-unified-installer-host-privilege-guard.ps1</code> و<code>validate-unified-installer.ps1 -SetupType client</code>.</li>
+      <li>أظهر <code>flutter devices --machine</code> أجهزة Windows وChrome وEdge فقط؛ لا يوجد جهاز Android ظاهر للاختبار الفعلي.</li>
       <li>واجهة Host Settings: 2/2؛ Extension Studio: 37/37؛ إدارة المستخدمين: 12/12؛ الأدوار: 1/1؛ Host diagnostics: 9/9؛ التشخيص المحلي: 4/4. تحليل Dart بلا أخطاء.</li>
     </ul></section>
     <section class="card"><h3>مراجع Git</h3><ul>
-      <li>الرأس الحالي: <code>f437a5b99901cdbee6036717326cc99329e9aef6</code> على الفرع <code>codex/extension-platform</code>.</li>
+      <li>مصدر التطبيق المختبر: <code>f437a5b99901cdbee6036717326cc99329e9aef6</code> على الفرع <code>codex/extension-platform</code>.</li>
       <li>Task 02: <code>69e1a10</code>؛ Task 03: <code>c0273bf</code>؛ Task 05: <code>844ed05</code>؛ Task 06: <code>f437a5b</code>. بقيت ملفات المستخدم الأخرى خارج هذه commits.</li>
       <li>تفاصيل الأدلة السابقة في <a href="../wave1/final-acceptance-report.md">تقرير القبول</a> و<a href="../wave1/implementation-plan.md">خطة التنفيذ</a>.</li>
     </ul></section>
@@ -156,14 +162,15 @@
         <tr><td>2026-10-30 17:27</td><td>أُضيف انتظار إشارة جاهزية Host وفحص بصمات الملفات عند تسجيل الخدمة؛ اجتازت اختبارات .NET وDart وPowerShell المحددة وفحص مخطط PostgreSQL.</td><td>لم تُختبر دورة الخدمة الفعلية أو إعادة التشغيل بسبب غياب صلاحيات Windows المرتفعة؛ بقيت النسبة المقبولة 20%.</td><td><code>c0273bf</code> — Task 03</td></tr>
         <tr><td>2026-10-30 20:28</td><td>اكتملت تهيئة Host والترقية ونسخة PostgreSQL قبل الترقية والإزالة الآمنة على مستوى السكربتات؛ اجتاز PostgreSQL المعزول واختبارات DPAPI وC# والعقود.</td><td>لا تغيير في القبول الرسمي. لم يُبنَ المثبت ولم تُختبر الخدمات أو دورة التثبيت الفعلية؛ Stage 10 يبقى 0%.</td><td><code>844ed05</code> — Task 05</td></tr>
         <tr><td>2026-10-30 20:39</td><td>أُضيفت صفحة Host Settings محلية مع عرض الصلاحيات للنطاق المحدد فقط، وأُتيحت إدارة الأدوار في القائمة المضغوطة. اجتازت اختبارات Flutter المحددة والتحليل.</td><td>لا تغيير في القبول الرسمي؛ بقي الإجمالي 20% حتى التحقق التشغيلي على Host مثبت.</td><td><code>f437a5b</code> — Task 06</td></tr>
+        <tr><td>2026-10-30 20:45</td><td>أُعيد بناء Flutter Windows Release وHost payload والمثبت الموحد إلى مخرجات معزولة؛ اجتاز تثبيت Client وإزالته ورفض Host بوضع per-user.</td><td>تعذر التحقق من تثبيت Host والخدمات الفعلية لغياب صلاحيات الإدارة؛ لا اختبار Android أو جهازين. بقي Stage 10 بلا وزن إضافي، والإجمالي 20%.</td><td><code>C:\Users\User\AppData\Local\Temp\VentioTask07Installer-bcc91ceddeb64199977d4ea8726ddbdc\Ventio-Setup-0.1.0.exe</code>; SHA-256 <code>fba5e52e0e99b43dddad9938bba84ed3e69c05653240249266e666a8f26b8e74</code></td></tr>
       </tbody>
     </table>
   </div>
 
-  <h2>الخطوة القادمة: Task 07 — التحقق الشامل للمنتج</h2>
-  <p>يلزم تشغيل Host وClient مثبتين والتحقق من الاقتران والإبطال والمزامنة وانتشار التغييرات بين جهازين. يبقى هذا التحقق متوقفاً إلى حين توفر artifact حديث وبيئة Windows مخولة، مع توفر الأجهزة المطلوبة.</p>
+  <h2>الخطوة القادمة: Task 08 — التدقيق النهائي وبوابة الإصدار</h2>
+  <p>تُراجع الآن أدلة المراحل والاختبارات المتاحة. يظل اختبار Host المثبت ودورة الخدمات والترقية والاقتران بين جهازين خارج هذا التحقق بسبب عدم توفر جلسة Windows مرتفعة الصلاحيات أو أجهزة Android/Client إضافية.</p>
 
-  <footer>آخر تحديث: <time datetime="2026-10-30T20:39:00+02:00">2026-10-30 20:39 بتوقيت بيروت</time>. هذه لوحة ثابتة تُحدّث يدوياً ولا يتم تحديثها تلقائياً.</footer>
+  <footer>آخر تحديث: <time datetime="2026-10-30T20:45:17+02:00">2026-10-30 20:45 بتوقيت بيروت</time>. هذه لوحة ثابتة تُحدّث يدوياً ولا يتم تحديثها تلقائياً.</footer>
 </main>
 </body>
 </html>
