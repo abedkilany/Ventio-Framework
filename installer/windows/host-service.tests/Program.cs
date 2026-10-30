@@ -34,12 +34,13 @@ if (valid["VENTIO_HOST_BIND_ADDRESS"] != "127.0.0.1" || valid["VENTIO_HOST_PORT"
     throw new Exception("Safe listener defaults were not applied.");
 
 ExpectRejected(parse, Mutate(baseConfig, "VENTIO_HOST_DATABASE_PASSWORD", "secret"));
+ExpectRejected(parse, Mutate(baseConfig, "VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL", "postgresql://identity-admin@127.0.0.1/ventio"));
 ExpectRejected(parse, Mutate(baseConfig, "VENTIO_HOST_PORT", "0"));
 ExpectRejected(parse, Mutate(baseConfig, "VENTIO_HOST_BIND_ADDRESS", "0.0.0.0"));
 ExpectRejected(parse, Mutate(baseConfig, "VENTIO_HOST_TLS_CERTIFICATE_FILE", "relative.pem"));
 ExpectAclRejected(parse, baseConfig);
 
-Console.WriteLine("Host service configuration tests passed: safe defaults, setting allowlist, invalid port, TLS path, external TLS requirement, and broad ACL rejection.");
+Console.WriteLine("Host service configuration tests passed: safe defaults, setting allowlist, identity-admin credential rejection, invalid port, TLS path, external TLS requirement, and broad ACL rejection.");
 
 static Dictionary<string, string> Mutate(Dictionary<string, string> source, string key, string value)
 {
