@@ -17,6 +17,7 @@ The script accepts `-PostgresBinDirectory` when the verified PostgreSQL tools ar
 - The current payload contains **20,295 files** totaling **1,048,577,217 bytes** (about 1000 MiB unpacked).
 - The Host executable is 8,663,040 bytes; self-contained Windows service executable is 67,490,904 bytes. Packaged PostgreSQL reports `postgres (PostgreSQL) 16.15`.
 - The Host executable was launched without its explicit opt-in setting; it exited with code 2 and the safe message `Local Host requires explicit opt-in.` The service executable was launched outside SCM; it returned code 2 / Win32 error 1063 with a safe message. No connection string, password, or token pattern appeared.
+- `dotnet run --project installer/windows/host-service.tests/HostService.Tests.csproj -c Release --no-restore` passed: safe loopback defaults, key allowlist, invalid port rejection, external-listener TLS requirement, absolute TLS paths, and broad Users ACL rejection. Test data used temporary machine-DPAPI blobs and protected temporary directories; it did not install a service or modify system service configuration.
 - No credentials, initialized database, service registration, or system configuration is included or changed by this build.
 
 ## Scope limit

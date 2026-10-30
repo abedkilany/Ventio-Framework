@@ -203,10 +203,17 @@ internal static class Program
                     throw new InvalidOperationException("Invalid Host write-authority setting.");
                 if (!values.TryGetValue("VENTIO_HOST_BIND_ADDRESS", out var address) || string.IsNullOrWhiteSpace(address))
                     values["VENTIO_HOST_BIND_ADDRESS"] = "127.0.0.1";
-                if (!values.TryGetValue("VENTIO_HOST_PORT", out var port) || !int.TryParse(port, out var portNumber) || portNumber is < 1 or > 65535)
+                if (!values.TryGetValue("VENTIO_HOST_PORT", out var port))
                     values["VENTIO_HOST_PORT"] = "8080";
+                else if (!int.TryParse(port, out var portNumber) || portNumber is < 1 or > 65535)
+                    throw new InvalidOperationException("Host listener port is invalid.");
                 if (values.ContainsKey("VENTIO_HOST_TLS_PRIVATE_KEY_FILE") != values.ContainsKey("VENTIO_HOST_TLS_CERTIFICATE_FILE"))
                     throw new InvalidOperationException("Both TLS certificate and private key are required together.");
+                foreach (var tlsPath in new[] { "VENTIO_HOST_TLS_PRIVATE_KEY_FILE", "VENTIO_HOST_TLS_CERTIFICATE_FILE" })
+                {
+                    if (values.TryGetValue(tlsPath, out var configuredPath) && !Path.IsPathFullyQualified(configuredPath))
+                        throw new InvalidOperationException("TLS paths must be absolute.");
+                }
                 if (values["VENTIO_HOST_BIND_ADDRESS"] != "127.0.0.1" &&
                     (!values.ContainsKey("VENTIO_HOST_TLS_PRIVATE_KEY_FILE") || !values.ContainsKey("VENTIO_HOST_TLS_CERTIFICATE_FILE")))
                     throw new InvalidOperationException("External Host listeners require TLS.");
