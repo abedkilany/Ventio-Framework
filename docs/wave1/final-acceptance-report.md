@@ -1,6 +1,6 @@
 # Wave 1 Host/Client Final Acceptance Report
 
-**Audit snapshot:** 2026-10-30 09:43 Asia/Beirut
+**Audit snapshot:** 2026-10-30 11:45 Asia/Beirut
 **Branch:** `codex/extension-platform`
 **Release decision:** **BLOCKED — Wave 1 remains open.** This is the current requirement-by-requirement acceptance record, not a release approval. No completion is credited for an unexecuted integration gate.
 
@@ -18,9 +18,11 @@
 | 7 — Offline-first synchronization (7%) | PASS | On disposable PostgreSQL 16.15 run `20261030053227457-1`, `official_inventory_host_sqlite_integration_test.dart` passed against a real Host API and SQLite stores. It verifies unreachable-Host retry leaves both commands durably pending without receipts, reconnection delivers real Host receipts, lost-response recovery retries the same command ID, stale revision returns a Host conflict, and the conflict plus confirmed receipts survive closing/reopening SQLite. `synchronization_page_test.dart` passed 4/4 with explicit rejected/conflict visibility and correct Host-confirmed counts; `flutter analyze` clean. Stage weight accepted: 7%. |
 | 8 — End-to-end validation (6%) | BLOCKED | The mandatory real Host/PostgreSQL and installed Host/Client scenarios have not run. Android and two-physical-device validation are not demonstrated. |
 | 9 — Final engineering audit (3%) | BLOCKED | This snapshot records current gates; the final audit cannot pass while mandatory earlier gates are open. |
-| 10 — Windows installer/provisioning (20%) | FAIL | The built artifact is Client-only. Host/Client role selection, isolated Host PostgreSQL provisioning, background Host service, bootstrap, reboot recovery, upgrade and retention-choice uninstall are absent. The artifact does not satisfy the unified installer requirement. |
+| 10 — Windows installer/provisioning (20%) | FAIL | A unified `Ventio-Setup-0.1.0.exe` now offers Client workstation or Host server installation types and passed isolated install/uninstall checks for both. Client selection omits PostgreSQL; Host selection stages PostgreSQL 16.15 and the Host payload. Host selection does not yet provision the database/service, bootstrap an administrator, register or start the Host service, or implement reboot recovery. Upgrade and service-aware retention-choice uninstall remain unverified; the operational Stage 10 gate is therefore FAIL. |
 
 Latest backend regression rerun: `scripts/ci/run-local-postgres-integration.ps1 -HostSecuritySuites` on disposable Windows PostgreSQL run `20261030082456503-1` passed 179/179 (database security 114, user administration 21, role administration 20, pairing/device lifecycle 24). The runner stopped PostgreSQL and removed its run-scoped fixture. This strengthens backend authorization evidence but does not satisfy the open full Flutter/installed-Host scenarios in Stages 2, 5, 8, or 10.
+
+Latest Windows packaging evidence: reproducible Host payload build excluded unneeded pgAdmin/StackBuilder/docs/headers while retaining PostgreSQL `bin`, `lib`, `share` and license texts. Payload inventory is 1,680 files / 212,081,806 bytes; SCRAM, migrations/security bootstrap, least-privilege login validation, DPAPI config validation and service plan tests passed. Inno Setup 6.7.3 produced `dist/windows/Ventio-Setup-0.1.0.exe` (63,333,166 bytes, SHA-256 `730f597f58c2497e310587009e72645311f6e1993aac2edabcfeedd908a2b0f3`). Temporary per-user Client and Host installs both passed component assertions and uninstall/data-marker checks. No Windows service or production data was provisioned; this is not an operational Host install acceptance.
 
 ## Stage 10 acceptance tests
 
@@ -30,7 +32,7 @@ Latest backend regression rerun: `scripts/ci/run-local-postgres-integration.ps1 
 | Host service starts automatically, survives UI exit, and starts after reboot | FAIL | Host launcher is a foreground process; no Windows Host service is installed. |
 | PostgreSQL and API operational readiness | BLOCKED | The PostgreSQL 16.15 distribution embedded in the Host payload passed a new isolated SCRAM initialization, loopback startup, readiness check and authenticated SQL query (`scripts/windows/test-postgres-payload.ps1`). Migrations/bootstrap have also passed in separate disposable fixtures. API readiness as an installed production Host service and SCM recovery remain unverified. Docker remains stopped. |
 | Initial administrator bootstrap | FAIL | No graphical production Host bootstrap workflow exists. |
-| Client-only installation without PostgreSQL | PASS | Current Client-only Inno Setup artifact installs the Flutter application without PostgreSQL; fresh per-user install and required-file checks passed. |
+| Client-only installation without PostgreSQL | PASS | The unified Inno Setup `client` type installed the Flutter application without any Host/PostgreSQL payload. `validate-unified-installer.ps1 -SetupType client` verified the selected files and uninstall/data-retention marker in a temporary per-user install. |
 | Client pairing with a temporary Host-generated token and authenticated connection | PASS | Native PostgreSQL 16.15 pairing integration passed 24/24, including temporary-code issuance, atomic enrollment, device credential authentication, digest-only storage, expiry, replay prevention and revocation. |
 | Admin on Client and ordinary user on Host receive correct permissions | BLOCKED | UI/API permission-gating checks exist, but live server authorization, RLS and scope integration were not run. |
 | Offline SQLite operation and subsequent Host synchronization | PASS | The real Host/PostgreSQL/SQLite integration now proves unreachable Host leaves commands pending, reconnection receives Host receipts, same-ID replay handles a lost response, and a stale revision is reported and remains visible after SQLite restart. Cross-device propagation is tracked separately under Stage 8. |
