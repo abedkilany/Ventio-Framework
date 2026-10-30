@@ -102,6 +102,98 @@ class HostReadinessClient {
             scope.permissions.contains(hostStatusReadPermission),
       );
 
+  bool canReadManagementPermission(String permission) =>
+      verifiedIdentity.persistent &&
+      verifiedIdentity.tenantId.trim().isNotEmpty &&
+      verifiedIdentity.scopes.any(
+        (scope) =>
+            scope.companyId == companyId &&
+            scope.branchId == branchId &&
+            scope.permissions.contains(permission),
+      );
+
+  /// Sends only supported, versioned management requests through the same
+  /// certificate-validating transport used by readiness checks.
+  Future<HostReadinessHttpResponse> postManagement({
+    required String path,
+    required String permission,
+    required Map<String, Object?> payload,
+  }) async {
+    if (!{
+      HostManagementRoutes.readiness,
+      HostManagementRoutes.diagnosticsRecent,
+    }.contains(path)) {
+      throw const HostReadinessException('HOST_UNSUPPORTED_MANAGEMENT_ROUTE');
+    }
+    if (permission != hostStatusReadPermission &&
+        permission != hostDiagnosticsReadPermission) {
+      throw const HostReadinessException('HOST_UNSUPPORTED_PERMISSION');
+    }
+    if (!canReadManagementPermission(permission)) {
+      throw const HostReadinessException('HOST_PERMISSION_DENIED');
+    }
+    final token = await credentials.read(endpoint);
+    if (token == null) {
+      throw const HostReadinessException('HOST_CREDENTIAL_MISSING');
+    }
+    final body = canonicalJson(payload);
+    try {
+      final response = await (exchange ?? _httpExchange)(
+        uri: endpoint.replace(path: path),
+        headers: {
+          HttpHeaders.acceptHeader: 'application/json',
+          HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
+          HttpHeaders.authorizationHeader: 'Bearer $token',
+        },
+        body: body,
+        timeout: timeout,
+        maxResponseBytes: maxResponseBytes,
+      ).timeout(timeout);
+      final correlationId = _validCorrelationId(
+        response.body['correlationId'] ??
+            response.headers['x-correlation-id'] ??
+            response.headers['X-Correlation-ID'],
+      );
+      if (correlationId == null) {
+        throw HostReadinessException(
+          'HOST_INVALID_RESPONSE',
+          statusCode: response.statusCode,
+        );
+      }
+      if (response.body['apiVersion'] != hostApiVersion ||
+          (response.statusCode == HttpStatus.ok &&
+              response.body['managementApiVersion'] != managementApiVersion)) {
+        throw HostReadinessException(
+          'HOST_API_VERSION_MISMATCH',
+          statusCode: response.statusCode,
+          correlationId: correlationId,
+        );
+      }
+      return HostReadinessHttpResponse(
+        statusCode: response.statusCode,
+        body: response.body,
+        headers: {...response.headers, 'x-correlation-id': correlationId},
+      );
+    } on HostReadinessException {
+      rethrow;
+    } on TimeoutException {
+      throw const HostReadinessException(
+        'HOST_REQUEST_TIMEOUT',
+        retryable: true,
+      );
+    } on SocketException {
+      throw const HostReadinessException('HOST_UNREACHABLE', retryable: true);
+    } on TlsException {
+      throw const HostReadinessException('HOST_TLS_VALIDATION_FAILED');
+    } on HttpException {
+      throw const HostReadinessException('HOST_INVALID_RESPONSE');
+    } on FormatException {
+      throw const HostReadinessException('HOST_INVALID_RESPONSE');
+    } catch (_) {
+      throw const HostReadinessException('HOST_UNAVAILABLE', retryable: true);
+    }
+  }
+
   Future<HostReadinessResult> checkReadiness() async {
     final response = await _post();
     if (response.statusCode != HttpStatus.ok) throw _error(response);

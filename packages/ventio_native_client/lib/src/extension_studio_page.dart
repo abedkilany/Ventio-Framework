@@ -14,6 +14,7 @@ import 'diagnostics_center_page.dart';
 import 'device_management_page.dart';
 import 'extension_store.dart';
 import 'host_credentials.dart';
+import 'host_diagnostics.dart';
 import 'host_device_management.dart';
 import 'host_extension_packages.dart';
 import 'host_overview_page.dart';
@@ -349,6 +350,20 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     );
   }
 
+  bool get _canReadHostDiagnostics {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    if (profile == null || identity == null || !identity.persistent) {
+      return false;
+    }
+    return identity.scopes.any(
+      (scope) =>
+          scope.companyId == profile.companyId &&
+          scope.branchId == profile.branchId &&
+          scope.permissions.contains(hostDiagnosticsReadPermission),
+    );
+  }
+
   Future<void> _openUserManagement() async {
     final profile = _hostProfile;
     final identity = _hostIdentity;
@@ -428,9 +443,30 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         source = ownedStore;
       }
       if (!mounted) return;
+      final profile = _hostProfile;
+      final identity = _hostIdentity;
+      final vault = widget.credentialVault;
+      final HostDiagnosticsClient? hostClient;
+      if (_canReadHostDiagnostics &&
+          profile != null &&
+          identity != null &&
+          vault != null) {
+        hostClient = HostDiagnosticsClient(
+          HostReadinessClient(
+            endpoint: Uri.parse(profile.endpoint),
+            credentials: vault,
+            verifiedIdentity: identity,
+            companyId: profile.companyId,
+            branchId: profile.branchId,
+          ),
+        );
+      } else {
+        hostClient = null;
+      }
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (context) => DiagnosticsCenterPage(store: source!),
+          builder: (context) =>
+              DiagnosticsCenterPage(store: source!, hostClient: hostClient),
         ),
       );
     } catch (_) {
@@ -1084,7 +1120,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               icon: const Icon(Icons.cloud_download_outlined),
             ),
             IconButton(
-              tooltip: _hostProfile == null ? 'Connect Host' : 'Host connection',
+              tooltip: _hostProfile == null
+                  ? 'Connect Host'
+                  : 'Host connection',
               onPressed: _configureHost,
               icon: const Icon(Icons.cloud_outlined),
             ),

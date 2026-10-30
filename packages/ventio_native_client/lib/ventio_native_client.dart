@@ -12,6 +12,7 @@ export 'src/host_user_management.dart';
 export 'src/host_device_management.dart';
 export 'src/device_management_page.dart';
 export 'src/host_readiness.dart';
+export 'src/host_diagnostics.dart';
 export 'src/host_overview_page.dart';
 export 'src/users_permissions_page.dart';
 export 'src/client_pairing.dart';

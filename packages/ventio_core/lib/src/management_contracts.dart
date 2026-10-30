@@ -346,6 +346,48 @@ class ManagementDiagnosticEvent {
         'safeExplanation': safeExplanation,
         'recommendedAction': recommendedAction,
       };
+
+  factory ManagementDiagnosticEvent.fromJson(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      throw const FormatException('Diagnostic event must be an object.');
+    }
+    const expectedKeys = {
+      'managementApiVersion',
+      'code',
+      'component',
+      'category',
+      'severity',
+      'occurredAtUtc',
+      'correlationId',
+      'retryable',
+      'messageKey',
+      'safeExplanation',
+      'recommendedAction',
+    };
+    if (value.length != expectedKeys.length ||
+        !value.keys.toSet().containsAll(expectedKeys) ||
+        value['managementApiVersion'] != managementApiVersion ||
+        value['retryable'] is! bool) {
+      throw const FormatException('Diagnostic event contract is invalid.');
+    }
+    final occurredAt =
+        DateTime.tryParse(value['occurredAtUtc'] as String? ?? '');
+    if (occurredAt == null || !occurredAt.isUtc) {
+      throw const FormatException('Diagnostic timestamp must be UTC.');
+    }
+    return ManagementDiagnosticEvent(
+      code: value['code'] as String? ?? '',
+      component: value['component'] as String? ?? '',
+      category: ManagementDiagnosticCategory.parse(value['category']),
+      severity: ManagementDiagnosticSeverity.parse(value['severity']),
+      occurredAtUtc: occurredAt,
+      correlationId: value['correlationId'] as String? ?? '',
+      retryable: value['retryable'] as bool,
+      messageKey: value['messageKey'] as String? ?? '',
+      safeExplanation: value['safeExplanation'] as String? ?? '',
+      recommendedAction: value['recommendedAction'] as String? ?? '',
+    );
+  }
 }
 
 enum ManagementDiagnosticCategory {
