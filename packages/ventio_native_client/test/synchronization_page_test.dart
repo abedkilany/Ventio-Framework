@@ -30,15 +30,18 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  CommandEnvelope makeCommand() => CommandEnvelope.fromJson({
+  CommandEnvelope makeCommand({
+    String commandId = '25b88df5-6332-41c2-9fb4-81bf7d70f20e',
+    String aggregateId = 'record-1',
+  }) => CommandEnvelope.fromJson({
     'protocolVersion': 0,
-    'commandId': '25b88df5-6332-41c2-9fb4-81bf7d70f20e',
+    'commandId': commandId,
     'type': 'extension.example.create',
     'typeVersion': 1,
     'tenantId': 'tenant-1',
     'companyId': 'company-1',
     'branchId': 'branch-1',
-    'aggregateId': 'record-1',
+    'aggregateId': aggregateId,
     'expectedRevision': null,
     'dependsOn': <String>[],
     'payload': <String, Object?>{'name': 'Queued work'},
@@ -109,6 +112,69 @@ void main() {
     expect(find.text('Host confirmed: 1'), findsOneWidget);
     expect(find.text('Confirmed by Host · 1 attempt(s)'), findsOneWidget);
     expect(find.text('Pending: 0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Host rejections and revision conflicts stay visible', (
+    tester,
+  ) async {
+    final rejected = makeCommand(
+      commandId: '25b88df5-6332-41c2-9fb4-81bf7d70f201',
+      aggregateId: 'record-rejected',
+    );
+    final conflict = makeCommand(
+      commandId: '25b88df5-6332-41c2-9fb4-81bf7d70f202',
+      aggregateId: 'record-conflict',
+    );
+    await queue.enqueue(rejected);
+    await queue.recordAttempt(rejected.commandId);
+    await queue.recordHostReceipt(
+      rejected.commandId,
+      TransportResponse(
+        apiVersion: hostApiVersion,
+        source: TransportSource.host,
+        receipt: CommandReceipt(
+          commandId: rejected.commandId,
+          status: 'REJECTED',
+          serverTimestamp: '2026-10-29T18:00:00Z',
+          reasonCode: 'INVALID_PAYLOAD',
+        ).toJson(),
+      ),
+    );
+    await queue.enqueue(conflict);
+    await queue.recordAttempt(conflict.commandId);
+    await queue.recordHostReceipt(
+      conflict.commandId,
+      TransportResponse(
+        apiVersion: hostApiVersion,
+        source: TransportSource.host,
+        receipt: CommandReceipt(
+          commandId: conflict.commandId,
+          status: 'CONFLICT',
+          serverTimestamp: '2026-10-29T18:00:00Z',
+          reasonCode: 'REVISION_CONFLICT',
+          currentRevision: 2,
+        ).toJson(),
+      ),
+    );
+
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rejected: 1'), findsOneWidget);
+    expect(find.text('Conflicts: 1'), findsOneWidget);
+    expect(find.text('Host confirmed: 0'), findsOneWidget);
+    await tester.tap(
+      find.byKey(
+        const ValueKey('sync-command-25b88df5-6332-41c2-9fb4-81bf7d70f202'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Conflict reported by Host · 1 attempt(s)'),
+      findsOneWidget,
+    );
+    expect(find.text('Host reason code: REVISION_CONFLICT'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

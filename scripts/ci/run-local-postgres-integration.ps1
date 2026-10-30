@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $PostgresBinDirectory,
     [switch] $HostSecuritySuites,
+    [switch] $ClientOfflineIntegration,
     [ValidateSet('database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')]
     [string] $OnlyHostSuite
 )
@@ -74,7 +75,7 @@ try {
     }
 
     $hostApiDirectory = Join-Path $workspace 'packages\ventio_host_api'
-    if ($HostSecuritySuites) {
+    if ($HostSecuritySuites -or $ClientOfflineIntegration) {
         $env:VENTIO_MIGRATIONS_DIR = Join-Path $workspace 'migrations\postgres'
         $env:PGPASSWORD = 'ventio_test_only'
         Push-Location $hostApiDirectory
@@ -101,14 +102,25 @@ try {
             @('..\..\packages\ventio_postgres\test\postgres_integration.dart')
         }
         if ($OnlyHostSuite) { $suites = @($OnlyHostSuite) }
-        foreach ($suite in $suites) {
-            if ($suite.StartsWith('..')) {
-                & dart run $suite
-            } else {
-                & dart run "test\$suite"
+        if ($ClientOfflineIntegration) {
+            Push-Location (Join-Path $workspace 'packages\ventio_native_client')
+            try {
+                & flutter test test\official_inventory_host_sqlite_integration_test.dart
+                $testExitCode = $LASTEXITCODE
             }
-            $testExitCode = $LASTEXITCODE
-            if ($testExitCode -ne 0) { break }
+            finally {
+                Pop-Location
+            }
+        } else {
+            foreach ($suite in $suites) {
+                if ($suite.StartsWith('..')) {
+                    & dart run $suite
+                } else {
+                    & dart run "test\$suite"
+                }
+                $testExitCode = $LASTEXITCODE
+                if ($testExitCode -ne 0) { break }
+            }
         }
     }
     finally {

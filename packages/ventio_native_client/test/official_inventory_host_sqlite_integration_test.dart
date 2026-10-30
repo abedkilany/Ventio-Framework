@@ -8,6 +8,9 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
+import 'package:ventio_native_client/src/host_credentials.dart';
+import 'package:ventio_native_client/src/host_sync_service.dart';
+import 'package:ventio_native_client/src/host_transport.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
 import 'package:ventio_native_client/src/print_format_renderer.dart';
 import 'package:ventio_native_client/src/queued_record_reconciliation.dart';
@@ -17,6 +20,23 @@ import 'package:ventio_postgres/ventio_postgres.dart'
 
 import '../../ventio_host_api/test/test_support.dart'
     show createPrivateTestDirectory, send;
+
+class _MemoryCredentialBackend implements HostCredentialBackend {
+  final values = <String, String>{};
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    values.remove(key);
+  }
+}
 
 void main() {
   setUpAll(sqfliteFfiInit);
@@ -240,6 +260,7 @@ void main() {
         const amendSubmitId = '85000000-0000-4000-8000-000000000006';
         const amendCancelId = '85000000-0000-4000-8000-000000000007';
         const movementUpdateId = '85000000-0000-4000-8000-000000000008';
+        const staleUpdateId = '85000000-0000-4000-8000-000000000009';
 
         final localProduct = await store!.createRecord(
           moduleId: moduleId,
@@ -307,6 +328,58 @@ void main() {
           scope: scope,
           commandId: movementCreateId,
           operation: 'create',
+        );
+
+        final offlineEndpoint = Uri.parse('http://127.0.0.1:1');
+        final credentials = HostCredentialVault(_MemoryCredentialBackend());
+        await credentials.save(offlineEndpoint, token);
+        final syncIdentity = HostSyncIdentity(
+          tenantId: tenant,
+          companyId: company,
+          branchId: branch,
+          actorId: actor,
+          deviceId: device,
+        );
+        await expectLater(
+          HostSyncService(
+            queue: queue!,
+            identity: syncIdentity,
+            transport: HttpHostCommandTransport(
+              endpoint: offlineEndpoint,
+              credentials: credentials,
+              timeout: const Duration(seconds: 3),
+            ),
+          ).syncPending(),
+          throwsA(
+            isA<HostTransportException>()
+                .having((error) => error.code, 'code', 'HOST_UNREACHABLE')
+                .having((error) => error.retryable, 'retryable', isTrue),
+          ),
+        );
+        final offlineQueue = await queue!.list(limit: 100);
+        expect(offlineQueue, hasLength(2));
+        expect(offlineQueue.every((entry) => entry.isPending), isTrue);
+        expect(
+          offlineQueue.every((entry) => entry.hostReceipt == null),
+          isTrue,
+        );
+
+        final onlineEndpoint = Uri.parse('http://127.0.0.1:${activeApi.port}');
+        await credentials.save(onlineEndpoint, token);
+        final reconnectedCount = await HostSyncService(
+          queue: queue!,
+          identity: syncIdentity,
+          transport: HttpHostCommandTransport(
+            endpoint: onlineEndpoint,
+            credentials: credentials,
+          ),
+        ).syncPending();
+        expect(reconnectedCount, 2);
+        expect(
+          (await queue!.list(
+            limit: 100,
+          )).every((entry) => entry.isHostConfirmed),
+          isTrue,
         );
 
         Future<CommandReceipt> sendQueued(
@@ -381,9 +454,14 @@ void main() {
           return receipt;
         }
 
-        final productReceipt = await sendQueued(productCreateId);
+        await reconcileQueuedRecords(store!, queue!);
+        final productReceipt = (await queue!.getById(
+          productCreateId,
+        ))!.hostReceipt!;
         expect(productReceipt.hostRevision, 1);
-        final movementReceipt = await sendQueued(movementCreateId);
+        final movementReceipt = (await queue!.getById(
+          movementCreateId,
+        ))!.hostReceipt!;
         expect(movementReceipt.hostRevision, 1);
 
         final offlineEdit = await store!.updateRecord(
@@ -681,6 +759,61 @@ void main() {
         expect(amendmentAfterCancel?.values['documentNumber'], 'INV-000002');
         expect(amendmentAfterCancel?.documentStatus, 2);
 
+        final staleBase = await store!.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: movementId,
+          scope: scope,
+        );
+        final staleUpdate = ExtensionRecordCommand.update(
+          commandId: staleUpdateId,
+          tenantId: tenant,
+          companyId: company,
+          branchId: branch,
+          recordId: movementId,
+          expectedRevision: 1,
+          actorId: actor,
+          deviceId: device,
+          moduleId: moduleId,
+          moduleVersion: bundle.version,
+          docType: 'Movement',
+          schemaVersion: 1,
+          values: {'lines': staleBase!.values['lines']},
+        );
+        await queue!.enqueue(staleUpdate.envelope);
+        await queue!.recordAttempt(staleUpdateId);
+        final conflictResponse = await send(
+          activeApi,
+          token: token,
+          body: staleUpdate.envelope.original,
+        );
+        final conflictReceipt = CommandReceipt.fromJson(
+          Map<String, dynamic>.from(conflictResponse.body['receipt'] as Map),
+        );
+        expect(conflictResponse.status, 409);
+        expect(conflictReceipt.status, 'CONFLICT');
+        expect(conflictReceipt.reasonCode, 'REVISION_CONFLICT');
+        expect(conflictReceipt.currentRevision, 4);
+        await queue!.recordHostReceipt(
+          staleUpdateId,
+          TransportResponse(
+            apiVersion: hostApiVersion,
+            source: TransportSource.host,
+            receipt: conflictReceipt.toJson(),
+          ),
+        );
+        await reconcileQueuedRecords(store!, queue!);
+        final conflictEntry = await queue!.getById(staleUpdateId);
+        final conflictedMovement = await store!.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: movementId,
+          scope: scope,
+        );
+        expect(conflictEntry?.hostStatus, HostCommandStatus.conflict);
+        expect(conflictEntry?.hostReceipt?.currentRevision, 4);
+        expect(conflictedMovement?.authorityState, 'CONFLICT');
+
         await queue!.close();
         queue = null;
         await store!.close();
@@ -702,11 +835,25 @@ void main() {
         expect(restored?.hostRevision, greaterThanOrEqualTo(3));
         expect(restored?.documentStatus, 2);
         expect(restored?.values['documentNumber'], 'INV-000002');
-        expect(recoveredCommands, hasLength(8));
+        expect(recoveredCommands, hasLength(9));
         expect(
-          recoveredCommands.every((entry) => entry.isHostConfirmed),
+          recoveredCommands
+              .where((entry) => entry.envelope.commandId != staleUpdateId)
+              .every((entry) => entry.isHostConfirmed),
           isTrue,
         );
+        final recoveredConflict = recoveredCommands.singleWhere(
+          (entry) => entry.envelope.commandId == staleUpdateId,
+        );
+        expect(recoveredConflict.hostStatus, HostCommandStatus.conflict);
+        expect(recoveredConflict.hostReceipt?.currentRevision, 4);
+        final persistedConflict = await store!.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: movementId,
+          scope: scope,
+        );
+        expect(persistedConflict?.authorityState, 'CONFLICT');
 
         await activeApi.close();
         activeApi = await bindHost();
