@@ -225,21 +225,25 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         endpoint: Uri.parse(profile.endpoint),
         vault: vault,
       ).session();
-      if (!mounted || _hostProfile?.endpoint != profile.endpoint) return;
-      final selectedScopeIsStillGranted = identity.scopes.any(
-        (scope) =>
-            scope.companyId == profile.companyId &&
-            scope.branchId == profile.branchId,
+      final verifiedProfile = bindHostProfileToIdentity(
+        profile: profile,
+        identity: identity,
       );
+      if (!mounted || !_sameHostProfile(_hostProfile, profile)) return;
+      final persistedProfile = await widget.store.getHostProfile();
+      if (!_sameHostProfile(persistedProfile, profile) ||
+          (persistedProfile?.deviceId != null &&
+              persistedProfile!.deviceId != identity.deviceId)) {
+        setState(() => _hostIdentity = null);
+        return;
+      }
+      if (persistedProfile!.deviceId == null) {
+        await widget.store.saveHostProfile(verifiedProfile);
+      }
+      if (!mounted || !_sameHostProfile(_hostProfile, profile)) return;
       setState(() {
-        _hostIdentity =
-            identity.persistent &&
-                identity.tenantId == profile.tenantId &&
-                identity.actorId == profile.actorId &&
-                identity.deviceId == profile.deviceId &&
-                selectedScopeIsStillGranted
-            ? identity
-            : null;
+        _hostProfile = verifiedProfile;
+        _hostIdentity = identity;
       });
     } catch (_) {
       if (mounted && _hostProfile?.endpoint == profile.endpoint) {
@@ -247,6 +251,17 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       }
     }
   }
+
+  bool _sameHostProfile(
+    HostConnectionProfile? current,
+    HostConnectionProfile expected,
+  ) =>
+      current != null &&
+      current.endpoint == expected.endpoint &&
+      current.tenantId == expected.tenantId &&
+      current.companyId == expected.companyId &&
+      current.branchId == expected.branchId &&
+      current.actorId == expected.actorId;
 
   bool get _canManageRoles {
     final profile = _hostProfile;

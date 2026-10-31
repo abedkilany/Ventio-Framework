@@ -1453,6 +1453,101 @@ void main() {
   );
 
   testWidgets(
+    'Host Settings binds a legacy profile to the authenticated admin device',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const profile = HostConnectionProfile(
+        endpoint: 'https://host.example.test',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+      );
+      await store.saveHostProfile(profile);
+      final backend = _MemoryCredentialBackend();
+      final vault = HostCredentialVault(backend);
+      await vault.save(Uri.parse(profile.endpoint), 'a' * 43);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(
+            store: store,
+            queue: queue,
+            credentialVault: vault,
+            hostPackageClientFactory:
+                ({required endpoint, required credentials}) =>
+                    _FakeHostPackageClient(
+                      endpoint: endpoint,
+                      credentials: credentials,
+                      canManageUsers: true,
+                      canManageDevices: true,
+                      canManagePairings: true,
+                      canReadHostStatus: true,
+                      canManageRoles: true,
+                    ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect((await store.getHostProfile())?.deviceId, 'device-1');
+      await tester.tap(find.byTooltip('Host settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Verified Host session'), findsOneWidget);
+      expect(find.text('device-1'), findsOneWidget);
+      expect(find.text('identity.users.manage'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Host Settings rejects a mismatched saved device identity', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      actorId: 'user-1',
+      deviceId: 'another-device',
+    );
+    await store.saveHostProfile(profile);
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(Uri.parse(profile.endpoint), 'a' * 43);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                  ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Host settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Host session is not verified'), findsOneWidget);
+    expect((await store.getHostProfile())?.deviceId, 'another-device');
+  });
+
+  testWidgets(
     'Client enrollment entry is available without deriving permissions from device role',
     (tester) async {
       tester.view.physicalSize = const Size(900, 800);

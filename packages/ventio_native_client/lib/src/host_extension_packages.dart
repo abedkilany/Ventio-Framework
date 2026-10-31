@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:ventio_core/ventio_core.dart';
 
+import 'extension_store.dart';
 import 'host_credentials.dart';
 import 'transport_fixture.dart';
 
@@ -36,6 +37,62 @@ class HostSessionIdentity {
   final bool persistent;
   final bool roleAdministrationAvailable;
   final List<HostScopeGrant> scopes;
+}
+
+class HostSessionIdentityException implements Exception {
+  const HostSessionIdentityException(this.code);
+
+  final String code;
+}
+
+/// Binds a device-local Host profile to the identity returned by the Host API.
+/// The profile supplies only the expected tenant, actor, and selected scope;
+/// the Host remains authoritative for the device ID and permissions.
+HostConnectionProfile bindHostProfileToIdentity({
+  required HostConnectionProfile profile,
+  required HostSessionIdentity identity,
+  bool requireHostAdministration = false,
+}) {
+  final actorId = profile.actorId;
+  final deviceId = profile.deviceId;
+  final matchingScopes = identity.scopes
+      .where(
+        (scope) =>
+            scope.companyId == profile.companyId &&
+            scope.branchId == profile.branchId,
+      )
+      .toList(growable: false);
+  if (!identity.persistent ||
+      profile.tenantId != identity.tenantId ||
+      actorId == null ||
+      actorId != identity.actorId ||
+      (deviceId != null && deviceId != identity.deviceId) ||
+      identity.deviceId.trim().isEmpty ||
+      matchingScopes.length != 1) {
+    throw const HostSessionIdentityException('HOST_SESSION_IDENTITY_MISMATCH');
+  }
+  if (requireHostAdministration &&
+      (!identity.roleAdministrationAvailable ||
+          !matchingScopes.single.permissions.containsAll(const {
+            hostStatusReadPermission,
+            hostDiagnosticsReadPermission,
+            identityUsersManagePermission,
+            identityDevicesManagePermission,
+            identityPairingManagePermission,
+            identityRolesManagePermission,
+          }))) {
+    throw const HostSessionIdentityException(
+      'HOST_FIRST_ADMINISTRATOR_PERMISSIONS_MISSING',
+    );
+  }
+  return HostConnectionProfile(
+    endpoint: profile.endpoint,
+    tenantId: profile.tenantId,
+    companyId: profile.companyId,
+    branchId: profile.branchId,
+    actorId: identity.actorId,
+    deviceId: identity.deviceId,
+  );
 }
 
 class HostIdentityRole {
