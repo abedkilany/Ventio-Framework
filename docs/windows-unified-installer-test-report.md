@@ -1,6 +1,11 @@
 # Windows Unified Installer Test Report
 
 **Date:** 2026-10-30 (UTC)  
+
+## Latest Host standalone update — 2026-10-31
+
+The latest development installer is `dist/windows/host-standalone-readiness-20261031/Ventio-Setup-0.1.0.exe` (84,906,485 bytes; SHA-256 `4697ae82da0993494b14979a842c9a2083312b9fef5ea5e8f18aaceb6234c6f7`). It compiles with Host provisioning deferred until Host is selected and includes PostgreSQL 16.15 without a database or credentials. It is unsigned and has not been installed on a clean VM. The current Host standalone milestone remains BLOCKED pending clean-VM UAC/setup, reboot and network TLS checks; see `docs/wave1/host-standalone-readiness-20261031.md`. The test matrix below records the earlier 2026-10-30 artifact and remains historical evidence for those checks.
+
 **Artifact:** `dist/windows/Ventio-Setup-0.1.0.exe`  
 **SHA-256:** `23483ab386aaaa4910e1a60ecda7f0cb90b06bab87348ecad56cb1370b9a638d`
 **Size:** 63,333,918 bytes
