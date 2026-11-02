@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
@@ -11,6 +12,7 @@ internal static class Program
 {
     private const string ServiceName = "VentioHost";
     internal const string HostReadyMessage = "VENTIO_HOST_READY";
+    internal const int FirstAdministratorHelperTimeoutSeconds = 60;
     private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(90);
     private const int ServiceWin32OwnProcess = 0x00000010;
     private const int ServiceStartPending = 2;
@@ -23,12 +25,22 @@ internal static class Program
     private const int ControlShutdown = 5;
     private const int DpapiLocalMachine = 4;
     private const uint MaximumConfigBytes = 64 * 1024;
+    private static readonly HashSet<string> FirstAdminFailureCodes = new(StringComparer.Ordinal)
+    {
+        "HOST_FIRST_ADMIN_REQUEST_INVALID",
+        "HOST_FIRST_ADMIN_DATABASE_CONNECTION_FAILED",
+        "HOST_FIRST_ADMIN_RECOVERY_AUTHORITY_FAILED",
+        "HOST_FIRST_ADMIN_IDENTITY_BOOTSTRAP_FAILED",
+        "HOST_FIRST_ADMIN_HELPER_TIMEOUT",
+        "HOST_FIRST_ADMIN_RESULT_INVALID",
+    };
 
     private static readonly string ConfigPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "Ventio", "Host", "service-config.dpapi");
 
     private static readonly ManualResetEventSlim StopRequested = new(false);
+    private static readonly TaskCompletionSource StopSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static readonly object Sync = new();
     private static readonly ServiceMainCallback ServiceMainThunk = ServiceMain;
     private static readonly HandlerCallback HandlerThunk = HandleControl;
@@ -37,8 +49,18 @@ internal static class Program
     private static ServiceStatus _status;
     private static int _serviceExitCode;
 
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (args.Length > 0)
+        {
+            if (args.Length == 1 && args[0] == "--provision-lan-certificate")
+                return HostLanCertificateProvisioner.Run();
+            if (args.Length == 2 && args[0] == "--set-lan-listener-status" &&
+                args[1] is "enabled" or "disabled")
+                return HostLanCertificateProvisioner.SetListenerStatus(args[1] == "enabled");
+            return 2;
+        }
+
         var table = new[]
         {
             new ServiceTableEntry { ServiceName = ServiceName, ServiceMain = ServiceMainThunk },
@@ -114,7 +136,8 @@ internal static class Program
                     SetStatus(ServiceRunning, checkpoint: 0, waitHintMs: 0,
                         controlsAccepted: ServiceAcceptStop | ServiceAcceptShutdown);
                 }
-                var setup = Task.WhenAny(bootstrapCompleted.Task, brokerTask).GetAwaiter().GetResult();
+                var setup = WaitForAnyOrStop(bootstrapCompleted.Task, brokerTask, StopSignal.Task)
+                    .GetAwaiter().GetResult();
                 if (StopRequested.IsSet) return;
                 if (setup == brokerTask) brokerTask.GetAwaiter().GetResult();
                 bootstrapCompleted.Task.GetAwaiter().GetResult();
@@ -136,7 +159,9 @@ internal static class Program
                     controlsAccepted: ServiceAcceptStop | ServiceAcceptShutdown);
             }
 
-            var completed = Task.WhenAny(processExit!, brokerTask).GetAwaiter().GetResult();
+            var completed = WaitForAnyOrStop(processExit!, brokerTask, StopSignal.Task)
+                .GetAwaiter().GetResult();
+            if (StopRequested.IsSet) return;
             if (completed == brokerTask && !StopRequested.IsSet)
                 brokerTask.GetAwaiter().GetResult();
             processExit!.GetAwaiter().GetResult();
@@ -171,6 +196,9 @@ internal static class Program
 
     internal static bool IsHostReadyMessage(string? message) =>
         StringComparer.Ordinal.Equals(message, HostReadyMessage);
+
+    internal static Task<Task> WaitForAnyOrStop(Task primary, Task secondary, Task stopRequested) =>
+        Task.WhenAny(primary, secondary, stopRequested);
 
     internal static bool RequiresFirstAdministratorBootstrap(
         bool recoveryAuthorityExists,
@@ -314,10 +342,11 @@ internal static class Program
         {
             if (!process.Start()) throw new InvalidOperationException("Host bootstrap operation could not start.");
             start.Environment.Clear();
-            var stderrDrain = DrainAsync(process.StandardError.BaseStream, cancellationToken);
+            var failureCodeTask = ReadSanitizedBootstrapFailureCodeAsync(
+                process.StandardError.BaseStream, cancellationToken);
             var stdoutTask = ReadBoundedAsync(process.StandardOutput.BaseStream, 2048, cancellationToken);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            timeout.CancelAfter(TimeSpan.FromSeconds(FirstAdministratorHelperTimeoutSeconds));
             await process.StandardInput.BaseStream.WriteAsync(requestBytes, timeout.Token).ConfigureAwait(false);
             await process.StandardInput.BaseStream.FlushAsync(timeout.Token).ConfigureAwait(false);
             process.StandardInput.Close();
@@ -325,15 +354,23 @@ internal static class Program
             {
                 await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new FirstAdministratorBootstrapFailureException("HOST_FIRST_ADMIN_HELPER_TIMEOUT");
+            }
             catch
             {
                 try { process.Kill(entireProcessTree: true); } catch { }
                 throw;
             }
             output = await stdoutTask.ConfigureAwait(false);
-            await stderrDrain.ConfigureAwait(false);
-            if (process.ExitCode != 0 || !BootstrapHelperSucceeded(output, receipt.ActorId))
-                throw new InvalidOperationException("Host first-administrator bootstrap failed.");
+            var failureCode = await failureCodeTask.ConfigureAwait(false);
+            if (process.ExitCode != 0)
+                throw new FirstAdministratorBootstrapFailureException(
+                    failureCode ?? "HOST_FIRST_ADMIN_HELPER_FAILED");
+            if (!BootstrapHelperSucceeded(output, receipt.ActorId))
+                throw new FirstAdministratorBootstrapFailureException("HOST_FIRST_ADMIN_RESULT_INVALID");
         }
         finally
         {
@@ -386,12 +423,43 @@ internal static class Program
         finally { CryptographicOperations.ZeroMemory(buffer); }
     }
 
-    private static async Task DrainAsync(Stream stream, CancellationToken cancellationToken)
+    internal static string? ValidateFirstAdministratorFailureCode(string? failureCode) =>
+        failureCode is not null && FirstAdminFailureCodes.Contains(failureCode)
+            ? failureCode
+            : null;
+
+    private static async Task<string?> ReadSanitizedBootstrapFailureCodeAsync(
+        Stream stream,
+        CancellationToken cancellationToken)
     {
         var buffer = new byte[512];
+        using var output = new MemoryStream();
+        var oversized = false;
         try
         {
-            while (await stream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false) != 0) { }
+            while (true)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                if (read == 0) break;
+                if (output.Length + read > 256)
+                {
+                    oversized = true;
+                    continue;
+                }
+                if (!oversized) output.Write(buffer, 0, read);
+            }
+            if (oversized) return null;
+            var bytes = output.ToArray();
+            try
+            {
+                var candidate = new UTF8Encoding(false, true).GetString(bytes).TrimEnd('\r', '\n');
+                return ValidateFirstAdministratorFailureCode(candidate);
+            }
+            catch (DecoderFallbackException)
+            {
+                return null;
+            }
+            finally { CryptographicOperations.ZeroMemory(bytes); }
         }
         finally { CryptographicOperations.ZeroMemory(buffer); }
     }
@@ -400,6 +468,7 @@ internal static class Program
     {
         if (control is not (ControlStop or ControlShutdown)) return 0;
         StopRequested.Set();
+        StopSignal.TrySetResult();
         lock (Sync) SetStatus(ServiceStopPending, checkpoint: 1, waitHintMs: 20000);
         _ = Task.Run(() =>
         {
@@ -447,6 +516,8 @@ internal static class Program
                     "VENTIO_HOST_PORT",
                     "VENTIO_HOST_TLS_CERTIFICATE_FILE",
                     "VENTIO_HOST_TLS_PRIVATE_KEY_FILE",
+                    "VENTIO_HOST_LAN_BIND_ADDRESS",
+                    "VENTIO_HOST_LAN_PORT",
                 };
                 var values = new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
@@ -485,6 +556,25 @@ internal static class Program
                 if (values["VENTIO_HOST_BIND_ADDRESS"] != "127.0.0.1" &&
                     (!values.ContainsKey("VENTIO_HOST_TLS_PRIVATE_KEY_FILE") || !values.ContainsKey("VENTIO_HOST_TLS_CERTIFICATE_FILE")))
                     throw new InvalidOperationException("External Host listeners require TLS.");
+                if (values.ContainsKey("VENTIO_HOST_LAN_BIND_ADDRESS") != values.ContainsKey("VENTIO_HOST_LAN_PORT"))
+                    throw new InvalidOperationException("Both LAN listener settings are required together.");
+                if (values.TryGetValue("VENTIO_HOST_LAN_BIND_ADDRESS", out var lanAddress))
+                {
+                    if (lanAddress != IPAddress.Any.ToString() ||
+                        !int.TryParse(values["VENTIO_HOST_LAN_PORT"], out var lanPort) || lanPort != 8443 ||
+                        values["VENTIO_HOST_BIND_ADDRESS"] != "127.0.0.1" ||
+                        !values.ContainsKey("VENTIO_HOST_TLS_PRIVATE_KEY_FILE") ||
+                        !values.ContainsKey("VENTIO_HOST_TLS_CERTIFICATE_FILE"))
+                        throw new InvalidOperationException("Protected LAN listener configuration is invalid.");
+                    var hostDirectory = Path.GetFullPath(Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Ventio", "Host"));
+                    foreach (var tlsPath in new[] { values["VENTIO_HOST_TLS_PRIVATE_KEY_FILE"], values["VENTIO_HOST_TLS_CERTIFICATE_FILE"] })
+                    {
+                        var fullTlsPath = Path.GetFullPath(tlsPath);
+                        if (!fullTlsPath.StartsWith(hostDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidOperationException("LAN TLS files must stay in protected Host storage.");
+                    }
+                }
 
                 ValidateSid(values["VENTIO_RECOVERY_AUTHORITY_OWNER_SID"]);
                 ValidateSid(values["VENTIO_RECOVERY_AUTHORITY_READER_SID"]);
@@ -649,4 +739,16 @@ internal static class Program
         IntPtr reserved, IntPtr prompt, int flags, out DataBlob output);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr LocalFree(IntPtr memory);
+}
+
+internal sealed class FirstAdministratorBootstrapFailureException : Exception
+{
+    internal FirstAdministratorBootstrapFailureException(string failureCode)
+        : base("Host first-administrator bootstrap did not complete.")
+    {
+        FailureCode = Program.ValidateFirstAdministratorFailureCode(failureCode)
+            ?? "HOST_FIRST_ADMIN_HELPER_FAILED";
+    }
+
+    internal string FailureCode { get; }
 }

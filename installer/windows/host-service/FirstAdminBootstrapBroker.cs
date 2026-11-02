@@ -21,7 +21,11 @@ internal sealed record BootstrapReply(
     string? RequestId = null,
     string? ActorId = null,
     string? Token = null,
-    string? ExpiresAt = null);
+    string? ExpiresAt = null,
+    string? FailureCode = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] BootstrapScope? Scope = null);
+
+internal sealed record BootstrapScope(string TenantId, string CompanyId, string BranchId);
 
 internal sealed record BootstrapReceipt(
     int FormatVersion,
@@ -40,6 +44,8 @@ internal sealed record BootstrapReceipt(
 internal sealed class FirstAdminBootstrapBroker
 {
     internal const string PipeName = "Ventio.Host.FirstAdmin.v1";
+    internal static readonly TimeSpan RequestReadTimeout = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan BootstrapOperationTimeout = TimeSpan.FromSeconds(90);
     private const int MaximumRequestBytes = 8192;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly BootstrapReceiptCoordinator _coordinator;
@@ -56,15 +62,15 @@ internal sealed class FirstAdminBootstrapBroker
     internal async Task RunAsync(CancellationToken cancellationToken, TaskCompletionSource ready)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
-        using var pipe = CreateServerPipe();
-        ready.TrySetResult();
         while (!cancellationToken.IsCancellationRequested)
         {
+            using var pipe = CreateServerPipe();
+            ready.TrySetResult();
             try
             {
                 await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
                 using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                requestTimeout.CancelAfter(TimeSpan.FromSeconds(30));
+                requestTimeout.CancelAfter(RequestReadTimeout);
                 BootstrapReply reply;
                 try
                 {
@@ -73,13 +79,20 @@ internal sealed class FirstAdminBootstrapBroker
                     try { command = ParseCommand(requestBytes); }
                     finally { CryptographicOperations.ZeroMemory(requestBytes); }
                     var callerSid = GetAuthorizedClientSid(pipe);
+                    using var operationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    operationTimeout.CancelAfter(BootstrapOperationTimeout);
                     reply = command.Operation switch
                     {
                         "bootstrap" => await _coordinator.BootstrapAsync(
-                            command, callerSid, _executeBootstrap, requestTimeout.Token).ConfigureAwait(false),
+                            command, callerSid, _executeBootstrap, operationTimeout.Token).ConfigureAwait(false),
                         "acknowledge" => _coordinator.Acknowledge(command, callerSid),
+                        "status" => _coordinator.InspectStatus(callerSid),
                         _ => throw new InvalidDataException(),
                     };
+                }
+                catch (FirstAdministratorBootstrapFailureException exception)
+                {
+                    reply = new BootstrapReply(false, "failed", FailureCode: exception.FailureCode);
                 }
                 catch
                 {
@@ -89,15 +102,12 @@ internal sealed class FirstAdminBootstrapBroker
                 var responseBytes = JsonSerializer.SerializeToUtf8Bytes(reply, JsonOptions);
                 try
                 {
-                    await pipe.WriteAsync(responseBytes, cancellationToken).ConfigureAwait(false);
-                    await pipe.WriteAsync("\n"u8.ToArray(), cancellationToken).ConfigureAwait(false);
-                    await pipe.FlushAsync(cancellationToken).ConfigureAwait(false);
+                    await WriteReplyAndAwaitClientCloseAsync(pipe, responseBytes, cancellationToken).ConfigureAwait(false);
                 }
                 finally
                 {
                     CryptographicOperations.ZeroMemory(responseBytes);
                 }
-                pipe.Disconnect();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -105,7 +115,6 @@ internal sealed class FirstAdminBootstrapBroker
             }
             catch
             {
-                if (pipe.IsConnected) pipe.Disconnect();
                 if (cancellationToken.IsCancellationRequested) break;
             }
         }
@@ -128,6 +137,7 @@ internal sealed class FirstAdminBootstrapBroker
         }
 
         if (!fields.TryGetValue("operation", out var operation)) throw new InvalidDataException();
+        if (operation == "status" && fields.Count == 1) return new BootstrapCommand(operation);
         if (operation == "bootstrap" &&
             fields.Count == 4 &&
             fields.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(["operation", "tenantId", "companyId", "branchId"]))
@@ -146,6 +156,20 @@ internal sealed class FirstAdminBootstrapBroker
             return new BootstrapCommand(operation, RequestId: fields["requestId"]);
         }
         throw new InvalidDataException();
+    }
+
+    internal static async Task WriteReplyAndAwaitClientCloseAsync(
+        Stream pipe, byte[] responseBytes, CancellationToken cancellationToken)
+    {
+        await pipe.WriteAsync(responseBytes, cancellationToken).ConfigureAwait(false);
+        await pipe.WriteAsync("\n"u8.ToArray(), cancellationToken).ConfigureAwait(false);
+        await pipe.FlushAsync(cancellationToken).ConfigureAwait(false);
+        // Disconnect discards unread Windows pipe data. Existing clients close
+        // the connection after consuming one reply, which also bounds delivery.
+        using var deliveryTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deliveryTimeout.CancelAfter(TimeSpan.FromSeconds(10));
+        try { _ = await pipe.ReadAsync(new byte[1], deliveryTimeout.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
     }
 
     internal static PipeSecurity CreatePipeSecurity(string serviceSid)
@@ -251,6 +275,20 @@ internal sealed class BootstrapReceiptCoordinator
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     internal BootstrapReceiptCoordinator(ProtectedBootstrapReceiptStore store) => _store = store;
+
+    internal BootstrapReply InspectStatus(string callerSid)
+    {
+        _gate.Wait();
+        try
+        {
+            var receipt = _store.Read();
+            if (receipt is null) return new BootstrapReply(true, "not-started");
+            if (!StringComparer.Ordinal.Equals(receipt.CallerSid, callerSid)) throw new UnauthorizedAccessException();
+            return new BootstrapReply(true, receipt.State, Scope: new BootstrapScope(
+                receipt.TenantId, receipt.CompanyId, receipt.BranchId));
+        }
+        finally { _gate.Release(); }
+    }
 
     internal async Task<BootstrapReply> BootstrapAsync(
         BootstrapCommand command,

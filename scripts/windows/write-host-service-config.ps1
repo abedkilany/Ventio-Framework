@@ -188,6 +188,10 @@ try {
       $plainBytes, $null, [Security.Cryptography.DataProtectionScope]::LocalMachine)
     if (-not $TestMode) { Assert-PrivateAncestors (Split-Path -Parent $OutputDirectory) }
     $phase = 'directory-acl'
+    if (-not $TestMode) {
+      Import-Module (Join-Path $PSScriptRoot 'HostProductDataRoot.psm1') -Force
+      Protect-HostProductDataRoot
+    }
     Set-PrivateDirectoryAcl $OutputDirectory $serviceSid $serviceSid
     $targetPath = Join-Path $OutputDirectory $configName
     $tempPath = Join-Path $OutputDirectory ('.service-config-' + [guid]::NewGuid().ToString('N') + '.tmp')
@@ -215,8 +219,9 @@ catch {
   $safeFailureType = if ($_.Exception.InnerException) { $_.Exception.InnerException.GetType().Name } else { $_.Exception.GetType().Name }
   if ($safeFailureType -notmatch '^[A-Za-z][A-Za-z0-9]{0,63}$') { $safeFailureType = 'Unknown' }
   $line = [int]$_.InvocationInfo.ScriptLineNumber
-  [Console]::Error.WriteLine("HOST_CONFIG_WRITE_FAILED_${phase}_${safeFailureType}_LINE_$line")
-  exit 2
+  $failureCode = "HOST_CONFIG_WRITE_FAILED_${phase}_${safeFailureType}_LINE_$line"
+  [Console]::Error.WriteLine($failureCode)
+  throw $failureCode
 }
 finally {
   $RuntimeCredential = $null

@@ -13,15 +13,8 @@ $buildRoot = [IO.Path]::GetFullPath((Join-Path $hostRoot 'build'))
 if (-not $OutputDirectory.StartsWith($buildRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
   throw 'Host payload output must stay under packages/ventio_host_api/build.'
 }
-$stagingParent = [IO.Path]::GetFullPath((Split-Path -Parent $OutputDirectory))
-$stagingPrefix = $stagingParent.TrimEnd('\') + '\'
-foreach ($stale in Get-ChildItem -LiteralPath $stagingParent -Directory -Filter '.host-payload-*' -Force -ErrorAction SilentlyContinue) {
-  $resolvedStale = [IO.Path]::GetFullPath($stale.FullName)
-  if ($resolvedStale -eq $OutputDirectory) { continue }
-  if (-not $resolvedStale.StartsWith($stagingPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Refusing to remove stale staging data outside the Host payload build directory.'
-  }
-  Remove-Item -LiteralPath $resolvedStale -Recurse -Force
+if (Test-Path -LiteralPath $OutputDirectory) {
+  throw 'Host payload output already exists; choose a new isolated output directory to preserve existing artifacts.'
 }
 
 $postgresBin = [IO.Path]::GetFullPath($PostgresBinDirectory)
@@ -44,7 +37,8 @@ $migrationPackage = Join-Path $repoRoot 'packages\ventio_postgres'
 $migrationSource = Join-Path $migrationPackage 'bin\migrate.dart'
 $identityBootstrapSource = Join-Path $hostRoot 'bin\bootstrap_first_administrator.dart'
 $serviceProject = Join-Path $repoRoot 'installer\windows\host-service\VentioHostService.csproj'
-foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $serviceProject)) {
+$setupBrokerProject = Join-Path $repoRoot 'installer\windows\setup-broker\VentioSetupBroker.csproj'
+foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $serviceProject, $setupBrokerProject)) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Required Host payload input is missing: $path" }
 }
 
@@ -83,6 +77,14 @@ try {
   Copy-Item -LiteralPath $serviceExe -Destination (Join-Path $tempDirectory 'VentioHostService.exe')
   Remove-Item -LiteralPath $serviceOutput -Recurse -Force
 
+  $setupBrokerOutput = Join-Path $tempDirectory '.setup-broker-publish'
+  & dotnet publish $setupBrokerProject -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o $setupBrokerOutput
+  if ($LASTEXITCODE -ne 0) { throw "Windows Host setup broker compilation failed with exit code $LASTEXITCODE." }
+  $setupBrokerExe = Join-Path $setupBrokerOutput 'VentioSetupBroker.exe'
+  if (-not (Test-Path -LiteralPath $setupBrokerExe -PathType Leaf)) { throw 'Windows Host setup broker executable was not published.' }
+  Copy-Item -LiteralPath $setupBrokerExe -Destination (Join-Path $tempDirectory 'VentioSetupBroker.exe')
+  Remove-Item -LiteralPath $setupBrokerOutput -Recurse -Force
+
   $runtimePostgresRoot = Join-Path $tempDirectory 'postgresql'
   [void](New-Item -ItemType Directory -Path $runtimePostgresRoot -Force)
   foreach ($runtimeDirectory in @('bin', 'lib', 'share')) {
@@ -101,7 +103,9 @@ try {
   foreach ($scriptName in @(
     'provision-host-installation.ps1', 'provision-postgres-service.ps1',
     'initialize-host-database.ps1', 'register-host-service.ps1',
-    'write-host-service-config.ps1', 'HostMigrationCredential.psm1',
+    'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1',
+    'enable-host-lan-listener.ps1',
+    'recover-host-database-credentials.ps1',
     'upgrade-host-database.ps1', 'stop-host-services.ps1',
     'remove-host-installation.ps1'
   )) {
@@ -120,6 +124,7 @@ try {
     Get-Item -LiteralPath $migrationExe
     Get-Item -LiteralPath $identityBootstrapExe
     Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioHostService.exe')
+    Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioSetupBroker.exe')
     foreach ($name in $requiredPostgres) { Get-Item -LiteralPath (Join-Path $tempDirectory "postgresql\bin\$name") }
     Get-ChildItem -LiteralPath $setupDirectory -File
     $payloadFiles | Where-Object {
@@ -128,9 +133,14 @@ try {
        $_.FullName.StartsWith($securityRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase))
     }
   ) | Sort-Object FullName -Unique
+  $payloadRootPrefix = [IO.Path]::GetFullPath($tempDirectory).TrimEnd('\') + '\'
   $files = $verifiedFiles | ForEach-Object {
+    $fullPath = [IO.Path]::GetFullPath($_.FullName)
+    if (-not $fullPath.StartsWith($payloadRootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+      throw 'Verified Host payload file escaped its isolated staging directory.'
+    }
     [pscustomobject]@{
-      path = [IO.Path]::GetRelativePath($tempDirectory, $_.FullName).Replace('\', '/')
+      path = $fullPath.Substring($payloadRootPrefix.Length).Replace('\', '/')
       length = $_.Length
       sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
@@ -141,6 +151,7 @@ try {
     migrationExecutable = 'ventio_migrate.exe'
     identityBootstrapExecutable = 'ventio_identity_bootstrap.exe'
     serviceExecutable = 'VentioHostService.exe'
+    setupBrokerExecutable = 'VentioSetupBroker.exe'
     postgresVersion = '16.15'
     postgresIncludedComponents = @('bin', 'lib', 'share', '*.txt')
     postgresExcludedComponents = @('doc', 'include', 'pgAdmin 4', 'StackBuilder')
@@ -157,13 +168,6 @@ try {
   $json = $manifest | ConvertTo-Json -Depth 5
   [IO.File]::WriteAllText((Join-Path $tempDirectory 'payload-manifest.json'), $json, [Text.UTF8Encoding]::new($false))
 
-  if (Test-Path -LiteralPath $OutputDirectory) {
-    $resolvedOutput = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $OutputDirectory).Path)
-    if (-not $resolvedOutput.StartsWith($buildRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-      throw 'Refusing to replace a Host payload outside the package build directory.'
-    }
-    Remove-Item -LiteralPath $resolvedOutput -Recurse -Force
-  }
   Move-Item -LiteralPath $tempDirectory -Destination $OutputDirectory
   Write-Output "Host payload created at $OutputDirectory"
   Write-Output "PostgreSQL tools: $versionOutput"

@@ -16,6 +16,34 @@ $expectedPayload = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio\h
 $configFile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)) 'Ventio\Host\service-config.dpapi'
 $sc = Join-Path $env:SystemRoot 'System32\sc.exe'
 
+function ConvertTo-WindowsCommandLineArgument([string] $Value) {
+  $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+  $trailingSlashes = [regex]::Match($escaped, '\\+$').Length
+  if ($trailingSlashes -gt 0) {
+    $escaped = $escaped.Substring(0, $escaped.Length - $trailingSlashes) + ('\' * ($trailingSlashes * 2))
+  }
+  return '"' + $escaped + '"'
+}
+
+function Invoke-ServiceControl([string[]] $CommandArguments) {
+  if ($CommandArguments.Count -lt 1) { throw 'HOST_SERVICE_CONTROL_ARGUMENTS_INVALID' }
+  $startInfo = [Diagnostics.ProcessStartInfo]::new()
+  $startInfo.FileName = $sc
+  $startInfo.Arguments = (($CommandArguments | ForEach-Object {
+    ConvertTo-WindowsCommandLineArgument ([string]$_)
+  }) -join ' ')
+  $startInfo.UseShellExecute = $false
+  $startInfo.CreateNoWindow = $true
+  $process = [Diagnostics.Process]::Start($startInfo)
+  if ($null -eq $process) { throw 'HOST_SERVICE_CONTROL_START_FAILED' }
+  try {
+    $process.WaitForExit()
+    return [int]$process.ExitCode
+  } finally {
+    $process.Dispose()
+  }
+}
+
 if (-not $payload.Equals($expectedPayload, [StringComparison]::OrdinalIgnoreCase)) {
   throw 'Host service payload must be the verified machine-wide Ventio installation directory.'
 }
@@ -82,18 +110,38 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $created = $false
 try {
-  & $sc create $serviceName 'binPath=' "`"$serviceExe`"" 'start=' 'auto' 'obj=' 'NT SERVICE\VentioHost' 'depend=' $databaseServiceName 'DisplayName=' 'Ventio Host Engine'
-  if ($LASTEXITCODE -ne 0) { throw 'SCM service creation failed.' }
+  $createArguments = @(
+    'create', $serviceName, 'binPath=', ('"' + $serviceExe + '"'),
+    'start=', 'auto', 'obj=', 'NT SERVICE\VentioHost',
+    'depend=', $databaseServiceName, 'DisplayName=', 'Ventio Host Engine'
+  )
+  if ((Invoke-ServiceControl $createArguments) -ne 0) { throw 'SCM service creation failed.' }
   $created = $true
-  & $sc sidtype $serviceName 'unrestricted'
-  if ($LASTEXITCODE -ne 0) { throw 'Could not enable the dedicated Host service SID.' }
-  & $sc failure $serviceName 'reset=' '86400' 'actions=' 'restart/5000/restart/30000/restart/60000'
-  if ($LASTEXITCODE -ne 0) { throw 'Could not configure Host service recovery actions.' }
-  & $sc config $serviceName 'failureflag=' '1'
-  if ($LASTEXITCODE -ne 0) { throw 'Could not enable service failure recovery.' }
+  $serviceReadbackDeadline = [DateTime]::UtcNow.AddSeconds(15)
+  $registeredService = $null
+  while ($null -eq $registeredService -and [DateTime]::UtcNow -lt $serviceReadbackDeadline) {
+    $registeredService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+    if ($null -eq $registeredService) { Start-Sleep -Milliseconds 200 }
+  }
+  $expectedImagePath = '"' + $serviceExe + '"'
+  if ($null -eq $registeredService -or
+      $registeredService.StartName -cne 'NT SERVICE\VentioHost' -or
+      $registeredService.PathName -cne $expectedImagePath) {
+    throw 'HOST_SERVICE_IMAGE_PATH_VERIFICATION_FAILED'
+  }
+  if ((Invoke-ServiceControl @('sidtype', $serviceName, 'unrestricted')) -ne 0) {
+    throw 'Could not enable the dedicated Host service SID.'
+  }
+  if ((Invoke-ServiceControl @('failure', $serviceName, 'reset=', '86400', 'actions=', 'restart/5000/restart/30000/restart/60000')) -ne 0) {
+    throw 'Could not configure Host service recovery actions.'
+  }
+  if ((Invoke-ServiceControl @('failureflag', $serviceName, '1')) -ne 0) {
+    throw 'Could not enable service failure recovery.'
+  }
   if ($Start) {
-    & $sc start $serviceName | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Host service start failed; review protected local diagnostics.' }
+    if ((Invoke-ServiceControl @('start', $serviceName)) -ne 0) {
+      throw 'Host service start failed; review protected local diagnostics.'
+    }
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     while ($true) {
       $registeredService = Get-Service -Name $serviceName -ErrorAction Stop
@@ -109,9 +157,9 @@ try {
 }
 catch {
   if ($created) {
-    & $sc stop $serviceName *> $null
-    & $sc delete $serviceName *> $null
+    try { [void](Invoke-ServiceControl @('stop', $serviceName)) } catch { }
+    try { [void](Invoke-ServiceControl @('delete', $serviceName)) } catch { }
   }
   [Console]::Error.WriteLine('HOST_SERVICE_REGISTRATION_FAILED')
-  exit 2
+  throw 'HOST_SERVICE_REGISTRATION_FAILED'
 }

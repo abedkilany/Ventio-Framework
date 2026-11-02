@@ -45,12 +45,15 @@ function Assert-NoReparseAncestors([string] $Path, [string] $Boundary) {
   throw 'POSTGRES_INSTALL_PATH_OUTSIDE_BOUNDARY'
 }
 
-function Set-PostgresDataAcl([string] $Path, [string[]] $ServiceSids) {
+function Set-PostgresDataAcl(
+  [string] $Path,
+  [string[]] $ServiceSids,
+  [string] $OwnerSid = 'S-1-5-32-544'
+) {
   $security = [Security.AccessControl.DirectorySecurity]::new()
   $security.SetAccessRuleProtection($true, $false)
-  $adminSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
-  $systemSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
-  $security.SetOwner($adminSid)
+  $owner = [Security.Principal.SecurityIdentifier]::new($OwnerSid)
+  $security.SetOwner($owner)
   foreach ($sid in @('S-1-5-32-544', 'S-1-5-18') + $ServiceSids) {
     $sidObject = [Security.Principal.SecurityIdentifier]::new($sid)
     $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
@@ -136,7 +139,10 @@ function Initialize-PostgresCluster([string] $Executable, [string] $DataDirector
     if (-not $process.WaitForExit(90000)) { throw 'POSTGRES_INITIALIZER_TIMEOUT' }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
-    if ($process.ExitCode -ne 0) { throw 'POSTGRES_CLUSTER_INITIALIZATION_FAILED' }
+    if ($process.ExitCode -ne 0) {
+      $global:VentioProvisioningFailureDetail = [string]$stderr
+      throw 'POSTGRES_CLUSTER_INITIALIZATION_FAILED'
+    }
   }
   finally {
     if ($passwordBytes) { [Array]::Clear($passwordBytes, 0, $passwordBytes.Length) }
@@ -189,6 +195,9 @@ if ($TestInitDbOnly) {
   $oldMigrationRole = $env:VENTIO_MIGRATION_ROLE
   try {
     [void][IO.Directory]::CreateDirectory($testRoot)
+    [void][IO.Directory]::CreateDirectory($testData)
+    $testUserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    Set-PostgresDataAcl $testData @($testUserSid) $testUserSid
     Initialize-PostgresCluster $initdb $testData $testSecret
     & $pgCtl -D $testData -l $testLog -o "-h 127.0.0.1 -p $testPort -c listen_addresses=127.0.0.1" -w start
     if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_TEST_SERVER_START_FAILED' }
@@ -404,7 +413,10 @@ $serviceRegistered = $false
 $secretPointer = [IntPtr]::Zero
 $password = $null
 try {
+  Import-Module (Join-Path $PSScriptRoot 'HostProductDataRoot.psm1') -Force
+  Protect-HostProductDataRoot
   [void][IO.Directory]::CreateDirectory($ventioRoot)
+  Set-PostgresDataAcl $ventioRoot @()
   if (-not (Test-Path -LiteralPath $dataDirectory)) {
     [void][IO.Directory]::CreateDirectory($dataDirectory)
     $createdDirectory = $true
@@ -418,9 +430,16 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_SERVICE_SID_CONFIGURATION_FAILED' }
   $serviceSid = ([Security.Principal.NTAccount]::new('NT SERVICE', $serviceName)).Translate(
     [Security.Principal.SecurityIdentifier]).Value
-  Set-PostgresDataAcl $dataDirectory @($serviceSid)
-
-  Initialize-PostgresCluster $initdb $dataDirectory $BootstrapCredential.Password
+  Protect-HostProductDataRoot
+  Set-PostgresDataAcl $ventioRoot @($serviceSid)
+  $installerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  Set-PostgresDataAcl $dataDirectory @($serviceSid, $installerSid)
+  try {
+    Initialize-PostgresCluster $initdb $dataDirectory $BootstrapCredential.Password
+  }
+  finally {
+    Set-PostgresDataAcl $dataDirectory @($serviceSid)
+  }
 
   $configPath = Join-Path $dataDirectory 'postgresql.conf'
   [IO.File]::AppendAllText($configPath, "`n# Ventio-managed local-only settings`nlisten_addresses = '127.0.0.1'`nport = $Port`npassword_encryption = 'scram-sha-256'`n", [Text.UTF8Encoding]::new($false))

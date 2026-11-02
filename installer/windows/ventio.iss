@@ -21,10 +21,10 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultDirName={autopf}\Ventio
+DisableDirPage=yes
 DefaultGroupName=Ventio
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#InstallerOutput}
@@ -42,45 +42,29 @@ UsePreviousAppDir=yes
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Types]
-Name: "client"; Description: "Client workstation"
-Name: "host"; Description: "Host server"
-Name: "custom"; Description: "Custom installation"; Flags: iscustom
-
-[Components]
-Name: "host"; Description: "Host infrastructure (PostgreSQL 16.15 and Ventio Host Engine)"; Types: host; Flags: fixed
-
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Files]
 Source: "{#BuildOutput}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#HostPayload}\*"; DestDir: "{app}\host-payload"; Components: host; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#HostPayload}\*"; DestDir: "{app}\host-payload"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#HostPayload}\setup\stop-host-services.ps1"; Flags: dontcopy
+Source: "{#HostPayload}\setup\HostMigrationCredential.psm1"; Flags: dontcopy
 
 [Icons]
 Name: "{autoprograms}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Parameters: "--host-setup"; Description: "Set up Ventio Host"; WorkingDir: "{app}"; Components: host; Flags: postinstall nowait skipifsilent runasoriginaluser
-Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Check: not WizardIsComponentSelected('host'); Flags: postinstall nowait skipifsilent runasoriginaluser
+Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [Code]
 var
   RemoveVentioHostData: Boolean;
-
-function InitializeSetup(): Boolean;
-begin
-  Result := True;
-  if (Lowercase(ExpandConstant('{param:TYPE|}')) = 'host') and
-     (not IsAdminInstallMode) then begin
-    if WizardSilent then
-      Log('HOST_INSTALL_REQUIRES_ADMIN_MODE')
-    else
-      MsgBox('Host installation needs administrator mode to place service files under Program Files. Restart Setup and choose the all-users installation mode.', mbError, MB_OK);
-    Result := False;
-  end;
-end;
+  HostRecoveryHelpersExtracted: Boolean;
+  HostServicesStoppedForUpgrade: Boolean;
+  ExistingHostServiceFound: Boolean;
+  ExistingPostgresServiceFound: Boolean;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
@@ -92,36 +76,100 @@ var
   HasPostgresService: Boolean;
 begin
   Result := '';
-  if not WizardIsComponentSelected('host') then exit;
   HasHostService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost');
   HasPostgresService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres');
+  ExistingHostServiceFound := HasHostService;
+  ExistingPostgresServiceFound := HasPostgresService;
   if not HasHostService and not HasPostgresService then exit;
-  StopScript := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
+  ExtractTemporaryFile('stop-host-services.ps1');
+  ExtractTemporaryFile('HostMigrationCredential.psm1');
+  HostRecoveryHelpersExtracted := True;
+  StopScript := ExpandConstant('{tmp}\stop-host-services.ps1');
   if not FileExists(StopScript) then begin
     Result := 'An existing Host service was found, but this installation does not contain the reviewed service-stop helper. No upgrade was performed.';
     exit;
   end;
   PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + StopScript + '"';
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + StopScript + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -AllowPostgresOnlyRecovery';
   if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
     Result := 'Ventio could not safely stop its existing Host services. The installer stopped before replacing files.';
+  end else begin
+    HostServicesStoppedForUpgrade := True;
+  end;
+end;
+procedure DeinitializeSetup();
+var
+  ResultCode: Integer;
+  PowerShell: string;
+  ResumeScript: string;
+  Parameters: string;
+begin
+  if not HostServicesStoppedForUpgrade then exit;
+  try
+    if not HostRecoveryHelpersExtracted then begin
+      ExtractTemporaryFile('stop-host-services.ps1');
+      ExtractTemporaryFile('HostMigrationCredential.psm1');
+      HostRecoveryHelpersExtracted := True;
+    end;
+    PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+    ResumeScript := ExpandConstant('{tmp}\stop-host-services.ps1');
+    if ExistingHostServiceFound and ExistingPostgresServiceFound then
+      Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumeServices'
+    else
+      Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumePostgresOnly';
+    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+      Log('HOST_POSTGRES_RESUME_AFTER_FAILED_INSTALL_DID_NOT_COMPLETE');
+    end;
+  except
+    Log('HOST_POSTGRES_RESUME_HELPER_UNAVAILABLE');
   end;
 end;
 
-procedure CurStepChanged(CurStep: TSetupStep);
+procedure CurStepChanged(CurrentStep: TSetupStep);
 var
   ResultCode: Integer;
   PowerShell: string;
   ScriptPath: string;
   Parameters: string;
 begin
-  if (CurStep = ssPostInstall) and WizardIsComponentSelected('host') then begin
-    PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-    ScriptPath := ExpandConstant('{app}\host-payload\setup\provision-host-installation.ps1');
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -Apply';
-    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-      MsgBox('Ventio Host provisioning did not complete. Any PostgreSQL data created by setup was preserved. Rerun the Host installer to resume or repair installation.', mbError, MB_OK);
-      Abort();
+  if (CurrentStep <> ssPostInstall) or not HostServicesStoppedForUpgrade then exit;
+  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
+    ScriptPath := ExpandConstant('{app}\host-payload\setup\enable-host-lan-listener.ps1');
+    if not FileExists(ScriptPath) then begin
+      MsgBox('Ventio was updated, but the LAN HTTPS setup helper is missing. The existing Host will be restarted in local-only mode.', mbError, MB_OK);
+      exit;
+    end;
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -RestartServices';
+  end else begin
+    ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly';
+  end;
+  if Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then begin
+    HostServicesStoppedForUpgrade := False;
+  end else begin
+    MsgBox('Ventio updated its application files, but could not complete Host network setup or service restart. The Host will remain local-only if recovery succeeds. Check that Windows Firewall is enabled and this PC has a network marked Private, then retry the update. No database reset was performed.', mbError, MB_OK);
+  end;
+end;
+
+function ConfirmHostDataRemoval(var DeleteData: Boolean): Boolean; forward;
+
+function IsSafeRemovalFailureCode(const Code: string): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := (Pos('HOST_', Code) = 1) or (Pos('POSTGRES_', Code) = 1);
+  if (not Result) or (Length(Code) > 104) then begin
+    Result := False;
+    exit;
+  end;
+  for I := 1 to Length(Code) do begin
+    C := Code[I];
+    if not (((C >= 'A') and (C <= 'Z')) or
+            ((C >= '0') and (C <= '9')) or (C = '_')) then begin
+      Result := False;
+      exit;
     end;
   end;
 end;
@@ -132,48 +180,111 @@ var
   PowerShell: string;
   ScriptPath: string;
   Parameters: string;
+  FailureCodePath: string;
+  FailureCode: string;
+  FailureCodeLines: TArrayOfString;
 begin
   Result := True;
   ScriptPath := ExpandConstant('{app}\host-payload\setup\remove-host-installation.ps1');
   if not FileExists(ScriptPath) then begin
-    if RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost') or
+    if DirExists(ExpandConstant('{commonappdata}\Ventio')) or
+       RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost') or
        RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres') then begin
-      MsgBox('Ventio Host services were found, but this installation does not contain the reviewed removal helper. The uninstaller stopped; services and data remain in place.', mbError, MB_OK);
+      MsgBox('Ventio Host data or services were found, but this installation does not contain the reviewed removal helper. The uninstaller stopped; services and data remain in place.', mbError, MB_OK);
       Result := False;
     end;
     exit;
   end;
   RemoveVentioHostData := False;
-  if not UninstallSilent then begin
-    RemoveVentioHostData := (MsgBox('Do you want to permanently delete the Ventio Host database, Recovery Authority data, diagnostics, backups, and protected migration credential? Choose No to retain this data after the services are removed.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES);
+  if not UninstallSilent and
+     (DirExists(ExpandConstant('{commonappdata}\Ventio')) or
+      RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost') or
+      RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres')) then begin
+    if not ConfirmHostDataRemoval(RemoveVentioHostData) then begin
+      Result := False;
+      exit;
+    end;
   end;
   PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  FailureCodePath := ExpandConstant('{tmp}\ventio-host-removal-failure.txt');
+  DeleteFile(FailureCodePath);
   Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '"';
   if RemoveVentioHostData then Parameters := Parameters + ' -RemoveData';
+  Parameters := Parameters + ' -FailureCodePath "' + FailureCodePath + '"';
   if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-    MsgBox('Ventio could not safely remove its Host services. The uninstaller stopped; Host files and data remain in place.', mbError, MB_OK);
+    FailureCode := '';
+    if FileExists(FailureCodePath) then begin
+      if LoadStringsFromFile(FailureCodePath, FailureCodeLines) and
+         (GetArrayLength(FailureCodeLines) > 0) then
+        FailureCode := FailureCodeLines[0];
+    end;
+    DeleteFile(FailureCodePath);
+    FailureCode := Trim(FailureCode);
+    if IsSafeRemovalFailureCode(FailureCode) then
+      MsgBox('Ventio could not safely complete Host removal. Uninstallation stopped; any Host data that was not removed remains on this device. Error code: ' + FailureCode + '. Retry the uninstall or contact an administrator.', mbError, MB_OK)
+    else
+      MsgBox('Ventio could not safely complete Host removal. Uninstallation stopped; any Host data that was not removed remains on this device. Retry the uninstall or contact an administrator.', mbError, MB_OK);
     Result := False;
+  end else begin
+    DeleteFile(FailureCodePath);
   end;
 end;
 
-function NextButtonClick(CurPageID: Integer): Boolean;
+function ConfirmHostDataRemoval(var DeleteData: Boolean): Boolean;
 var
-  ExpectedHostDir: string;
-  SelectedDir: string;
+  Form: TSetupForm;
+  Description: TNewStaticText;
+  DeleteCheckBox: TNewCheckBox;
+  UninstallButton: TNewButton;
+  CancelButton: TNewButton;
+  ButtonWidth: Integer;
+  ButtonTop: Integer;
 begin
-  Result := True;
-  if (CurPageID = wpSelectComponents) and (WizardSetupType(False) = 'host') then begin
-    if not IsAdminInstallMode then begin
-      MsgBox('Host installation needs administrator mode to place service files under Program Files. Restart Setup and choose the all-users installation mode. Client installation can use per-user mode.', mbError, MB_OK);
-      Result := False;
-    end else begin
-      ExpectedHostDir := ExpandConstant('{autopf}\Ventio');
-      SelectedDir := WizardDirValue;
-      if (CompareText(SelectedDir, ExpectedHostDir) <> 0) and
-         (CompareText(SelectedDir, ExpectedHostDir + '\') <> 0) then begin
-        MsgBox('Host files must be installed in the protected Ventio folder under Program Files. Return to the folder page and restore the default Ventio location.', mbError, MB_OK);
-        Result := False;
-      end;
+  Result := False;
+  DeleteData := False;
+  Form := CreateCustomForm(520, 224, False, False);
+  try
+    Form.Caption := 'Uninstall Ventio';
+    Form.BorderStyle := bsDialog;
+    Form.BorderIcons := [biSystemMenu];
+    Form.Position := poScreenCenter;
+
+    Description := TNewStaticText.Create(Form);
+    Description.Parent := Form;
+    Description.SetBounds(ScaleX(16), ScaleY(16), Form.ClientWidth - ScaleX(32), ScaleY(78));
+    Description.AutoSize := False;
+    Description.WordWrap := True;
+    Description.Caption := 'Ventio application files will be uninstalled and any Host services will be removed. The Host database, configuration, recovery evidence, diagnostics, backups, and other data under ProgramData\Ventio will stay on this device unless you select the option below. Deleting this data cannot be undone.';
+
+    DeleteCheckBox := TNewCheckBox.Create(Form);
+    DeleteCheckBox.Parent := Form;
+    DeleteCheckBox.SetBounds(ScaleX(16), ScaleY(108), Form.ClientWidth - ScaleX(32), ScaleY(28));
+    DeleteCheckBox.Caption := 'Permanently delete all Ventio Host data and backups';
+    DeleteCheckBox.Checked := False;
+
+    ButtonWidth := Form.CalculateButtonWidth(['Uninstall', 'Cancel']);
+    ButtonTop := Form.ClientHeight - ScaleY(40);
+
+    UninstallButton := TNewButton.Create(Form);
+    UninstallButton.Parent := Form;
+    UninstallButton.Caption := 'Uninstall';
+    UninstallButton.SetBounds(Form.ClientWidth - ScaleX(16) - ButtonWidth * 2 - ScaleX(8), ButtonTop, ButtonWidth, ScaleY(26));
+    UninstallButton.ModalResult := mrOk;
+
+    CancelButton := TNewButton.Create(Form);
+    CancelButton.Parent := Form;
+    CancelButton.Caption := 'Cancel';
+    CancelButton.SetBounds(Form.ClientWidth - ScaleX(16) - ButtonWidth, ButtonTop, ButtonWidth, ScaleY(26));
+    CancelButton.ModalResult := mrCancel;
+    CancelButton.Cancel := True;
+    CancelButton.Default := True;
+    Form.ActiveControl := CancelButton;
+
+    if Form.ShowModal = mrOk then begin
+      Result := True;
+      DeleteData := DeleteCheckBox.Checked;
     end;
+  finally
+    Form.Free;
   end;
 end;
