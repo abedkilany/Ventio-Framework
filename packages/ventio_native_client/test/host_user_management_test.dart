@@ -168,6 +168,7 @@ void main() {
         permission: 'maintenance.create',
       );
       await client.disableUser(actorId: 'new-user');
+      await client.enableUser(actorId: 'new-user');
 
       expect(snapshot.users.single.actorId, 'operator-1');
       expect(snapshot.users.single.roles, ['branch-reader']);
@@ -186,6 +187,7 @@ void main() {
         '/api/v1/management/users/grant',
         '/api/v1/management/users/revoke',
         '/api/v1/management/users/disable',
+        '/api/v1/management/users/enable',
       ]);
       for (final request in exchange.requests) {
         final headers = request['headers'] as Map<String, String>;
@@ -199,7 +201,6 @@ void main() {
         'managementApiVersion': 1,
         'companyId': 'company-1',
         'branchId': 'branch-1',
-        'limit': 100,
       });
       expect(exchange.requests[2]['body'], {
         'managementApiVersion': 1,
@@ -382,13 +383,68 @@ void main() {
       },
     );
 
+    test('accepts only the Host safe audit redaction labels', () async {
+      final exchange = _FakeExchange()
+        ..respond = (_) => _success({
+          'audit': {
+            'tenantId': 'tenant-1',
+            'companyId': 'company-1',
+            'branchId': 'branch-1',
+            'events': [
+              {
+                'eventId': '102',
+                'occurredAtUtc': '2026-10-29T12:30:00.000Z',
+                'action': 'USER_CREATED',
+                'subjectId': '[redacted]',
+                'operator': 'Host administrator',
+              },
+            ],
+          },
+        });
+      final client = await _newClient(exchange);
+
+      final audit = await client.listAudit();
+
+      expect(audit.events, hasLength(1));
+      expect(audit.events.single.subjectId, '[redacted]');
+      expect(audit.events.single.operatorId, 'Host administrator');
+
+      final unsafeExchange = _FakeExchange()
+        ..respond = (_) => _success({
+          'audit': {
+            'tenantId': 'tenant-1',
+            'companyId': 'company-1',
+            'branchId': 'branch-1',
+            'events': [
+              {
+                'eventId': '103',
+                'occurredAtUtc': '2026-10-29T12:30:00.000Z',
+                'action': 'USER_CREATED',
+                'subjectId': 'Bearer fixture-secret',
+                'operator': 'admin-1',
+              },
+            ],
+          },
+        });
+      final unsafeClient = await _newClient(unsafeExchange);
+      await expectLater(
+        unsafeClient.listAudit(),
+        throwsA(
+          isA<HostUserManagementException>().having(
+            (error) => error.code,
+            'code',
+            'HOST_INVALID_RESPONSE',
+          ),
+        ),
+      );
+    });
+
     test('returns a safe error code and Host correlation reference', () async {
       final exchange = _FakeExchange()
         ..respond = (_) => HostUserManagementHttpResponse(
           statusCode: 403,
           body: {
             'apiVersion': 1,
-            'managementApiVersion': 1,
             'correlationId': _correlationId,
             'error': {
               'code': 'PERMISSION_DENIED',
@@ -502,9 +558,7 @@ void main() {
       });
     });
 
-    testWidgets('requires confirmation before disabling a user', (
-      tester,
-    ) async {
+    testWidgets('confirms both disabling and enabling a user', (tester) async {
       final client = _FakeUserClient(identity: _identity());
       await tester.pumpWidget(
         MaterialApp(home: UsersPermissionsPage(client: client)),
@@ -518,7 +572,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.text(
-          'Disable user Legacy identity 1 in this Host scope? The account will no longer be active.',
+          'Disable user Legacy identity 1 in this Host scope? Login will be suspended. Existing permissions and unrevoked credentials are preserved and may become active again if the user is re-enabled.',
         ),
         findsOneWidget,
       );
@@ -540,6 +594,35 @@ void main() {
         'actorId': 'operator-1',
       });
       expect(find.textContaining('Disabled'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('User actions').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enable user').first);
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Re-enable user Legacy identity 1 in this Host scope? Existing permissions and unrevoked, unexpired credentials will work again. Revoke compromised device credentials separately.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(
+        client.requests.where((request) => request['action'] == 'enable'),
+        isEmpty,
+      );
+
+      await tester.tap(find.byTooltip('User actions').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enable user').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Enable user'));
+      await tester.pumpAndSettle();
+      expect(client.requests.last, {
+        'action': 'enable',
+        'actorId': 'operator-1',
+      });
+      expect(find.textContaining('Active'), findsOneWidget);
     });
 
     testWidgets('shows only allowlisted audit fields and UTC time', (
@@ -588,8 +671,8 @@ void main() {
             eventId: 'audit-safe',
             occurredAtUtc: DateTime.utc(2026, 10, 29, 12, 30),
             action: 'USER_CREATED',
-            subjectId: sensitiveIdentifier,
-            operatorId: sensitiveIdentifier,
+            subjectId: '[redacted]',
+            operatorId: 'Host administrator',
           ),
         ];
       await tester.pumpWidget(
@@ -697,6 +780,18 @@ class _FakeUserClient extends HostUserManagementClient {
     users[actorId] = HostManagedUser(
       actorId: actorId,
       state: HostManagedUserState.disabled,
+      directPermissions: user.directPermissions,
+      roles: user.roles,
+    );
+  }
+
+  @override
+  Future<void> enableUser({required String actorId}) async {
+    requests.add({'action': 'enable', 'actorId': actorId});
+    final user = users[actorId]!;
+    users[actorId] = HostManagedUser(
+      actorId: actorId,
+      state: HostManagedUserState.active,
       directPermissions: user.directPermissions,
       roles: user.roles,
     );

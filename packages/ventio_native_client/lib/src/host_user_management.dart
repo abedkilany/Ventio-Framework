@@ -23,6 +23,7 @@ class HostManagedUser {
        roles = List.unmodifiable(roles);
 
   final String actorId;
+
   /// New Host-generated IDs are opaque and safe to display. Older operator
   /// supplied identifiers may contain private data, so expose only a generic
   /// label here; the page adds a temporary per-session discriminator.
@@ -59,8 +60,8 @@ class HostUserAuditEvent {
     required this.operatorId,
   }) : occurredAtUtc = occurredAtUtc.toUtc() {
     if (!_validAuditIdentifier(eventId) ||
-        !_validAuditIdentifier(subjectId) ||
-        !_validAuditIdentifier(operatorId) ||
+        !_validAuditLabel(subjectId) ||
+        !_validAuditLabel(operatorId) ||
         !RegExp(r'^[A-Z][A-Z0-9_]{0,63}$').hasMatch(action)) {
       throw ArgumentError('Invalid safe audit event.');
     }
@@ -275,7 +276,7 @@ class HostUserManagementClient {
   }
 
   Future<HostUserAuditSnapshot> listAudit() async {
-    final response = await _post('audit', const {'limit': 100});
+    final response = await _post('audit', const {});
     if (response.statusCode != HttpStatus.ok) throw _error(response);
     const envelopeKeys = {
       'apiVersion',
@@ -335,9 +336,16 @@ class HostUserManagementClient {
             return value;
           }
 
+          String auditLabel(Object? value) {
+            if (value is! String || !_validAuditLabel(value)) {
+              throw _invalidResponse(response);
+            }
+            return value;
+          }
+
           final eventId = auditIdentifier(event['eventId']);
-          final subjectId = auditIdentifier(event['subjectId']);
-          final operatorId = auditIdentifier(event['operator']);
+          final subjectId = auditLabel(event['subjectId']);
+          final operatorId = auditLabel(event['operator']);
           final action = event['action'];
           final timestamp = event['occurredAtUtc'];
           final occurredAtUtc = timestamp is String && timestamp.endsWith('Z')
@@ -403,6 +411,11 @@ class HostUserManagementClient {
   Future<void> disableUser({required String actorId}) async {
     _validateIdentifier(actorId, 'actorId');
     await _mutate('disable', {'actorId': actorId.trim()});
+  }
+
+  Future<void> enableUser({required String actorId}) async {
+    _validateIdentifier(actorId, 'actorId');
+    await _mutate('enable', {'actorId': actorId.trim()});
   }
 
   static bool isGrantableNonManagementPermission(String value) =>
@@ -495,7 +508,10 @@ class HostUserManagementClient {
         );
       }
       if (envelope['apiVersion'] != hostUserManagementApiVersion ||
-          envelope['managementApiVersion'] != hostUserManagementApiVersion) {
+          (response.statusCode >= HttpStatus.ok &&
+              response.statusCode < HttpStatus.multipleChoices &&
+              envelope['managementApiVersion'] !=
+                  hostUserManagementApiVersion)) {
         throw HostUserManagementException(
           'HOST_API_VERSION_MISMATCH',
           statusCode: response.statusCode,
@@ -537,7 +553,11 @@ class HostUserManagementClient {
     required int maxResponseBytes,
   }) async {
     final watch = Stopwatch()..start();
-    final client = _clientFactory()..connectionTimeout = timeout;
+    final client = await credentials.createHttpClient(
+      endpoint,
+      fallbackFactory: _clientFactory,
+    );
+    client.connectionTimeout = timeout;
     try {
       final request = await client.openUrl('POST', uri).timeout(timeout);
       request
@@ -640,6 +660,17 @@ bool _validAuditIdentifier(String value) =>
     value.length <= 128 &&
     RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$').hasMatch(value) &&
     !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value);
+
+bool _validAuditLabel(String value) {
+  if (value == '[redacted]' || value == 'Host administrator') return true;
+  return value.length <= 128 &&
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$').hasMatch(value) &&
+      !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value) &&
+      !RegExp(
+        r'(bearer|password|token|secret|postgres(?:ql)?|credential)',
+        caseSensitive: false,
+      ).hasMatch(value);
+}
 
 void _validateIdentifier(String value, String field) {
   if (value.trim().isEmpty || value.length > 256) {

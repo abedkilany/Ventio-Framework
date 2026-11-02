@@ -12,23 +12,159 @@ import 'host_credentials.dart';
 import 'host_setup.dart';
 
 class WindowsHostSetupPlatform implements HostSetupPlatform {
-  static const _pipeName = r'\\.\pipe\Ventio.Host.FirstAdmin.v1';
   static const _serviceNames = {'VentioPostgres', 'VentioHost'};
+  static const _allowedPhases = {
+    'PAYLOAD_VALIDATION',
+    'POSTGRES_SERVICE_PROVISIONING',
+    'DATABASE_INITIALIZATION',
+    'MIGRATION_CREDENTIAL_PROTECTION',
+    'HOST_SERVICE_REGISTRATION',
+    'HOST_CONFIGURATION_PROTECTION',
+    'HOST_LAN_CONFIGURATION',
+    'HOST_SERVICE_STARTUP',
+    'HOST_READINESS',
+    'FIRST_ADMINISTRATOR_BOOTSTRAP',
+    'BOOTSTRAP_CREDENTIAL_PROTECTION',
+  };
   static const _hostEndpoint = 'http://127.0.0.1:8080/healthz';
 
   @override
   bool get supportsHostSetup => Platform.isWindows;
 
   @override
-  Future<bool> isAdministrator() async {
+  Future<bool> currentProcessIsElevated() async {
     if (!Platform.isWindows) return false;
-    return Isolate.run(_isAdministrator);
+    return Isolate.run(_currentProcessIsElevated);
   }
 
   @override
-  Future<bool> requestAdministratorSetup() async {
+  Future<String> currentUserSid() async {
+    if (!Platform.isWindows) {
+      throw const HostSetupException('HOST_SETUP_WINDOWS_ONLY');
+    }
+    return Isolate.run(_currentUserSid);
+  }
+
+  @override
+  Future<HostSetupPendingOperation?> readPendingOperation() async {
+    if (!Platform.isWindows) return null;
+    return _readPendingOperation();
+  }
+
+  @override
+  Future<void> savePendingOperation(HostSetupPendingOperation operation) async {
+    if (!Platform.isWindows) {
+      throw const HostSetupException('HOST_SETUP_WINDOWS_ONLY');
+    }
+    _writePendingOperation(operation);
+  }
+
+  @override
+  Future<void> clearPendingOperation() async {
+    if (!Platform.isWindows) return;
+    final file = _pendingOperationFile();
+    if (await FileSystemEntity.type(file.path, followLinks: false) ==
+        FileSystemEntityType.file) {
+      await file.delete();
+    }
+  }
+
+  @override
+  Future<bool> requestAdministratorSetup(
+    HostSetupPendingOperation operation,
+  ) async {
     if (!Platform.isWindows) return false;
-    return Isolate.run(_requestAdministratorSetup);
+    return Isolate.run(() => _requestAdministratorSetup(operation));
+  }
+
+  @override
+  Future<HostSetupOperationStatus> setupOperationStatus(
+    String operationId,
+  ) async {
+    if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(operationId)) {
+      throw const HostSetupException('HOST_SETUP_OPERATION_INVALID');
+    }
+    final file = File('${_statusDirectory().path}\\$operationId.json');
+    if (await FileSystemEntity.type(file.path, followLinks: false) ==
+        FileSystemEntityType.notFound) {
+      return const HostSetupOperationStatus(
+        state: HostSetupOperationState.pending,
+      );
+    }
+    if (await FileSystemEntity.type(file.path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      throw const HostSetupException('HOST_SETUP_STATUS_UNAVAILABLE');
+    }
+    try {
+      final content = await file.readAsString();
+      if (content.length > 2048) throw const FormatException();
+      final decoded = jsonDecode(content);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException();
+      }
+      final statusDocument = HostSetupOperationStatus.normalizeJson(decoded);
+      if (statusDocument.length != decoded.length ||
+          statusDocument['formatVersion'] != 1 ||
+          statusDocument['operationId'] != operationId ||
+          statusDocument['state'] is! String) {
+        throw const FormatException();
+      }
+      final state = switch (statusDocument['state']) {
+        'running' => HostSetupOperationState.running,
+        'complete' => HostSetupOperationState.complete,
+        'failed' => HostSetupOperationState.failed,
+        _ => throw const FormatException(),
+      };
+      final phase = statusDocument['phase'];
+      final failureCode = statusDocument['failureCode'];
+      final updatedAtText = statusDocument['updatedAtUtc'];
+      final updatedAtUtc = updatedAtText is String
+          ? DateTime.tryParse(updatedAtText)
+          : null;
+      if ((phase != null &&
+              (phase is! String || !_allowedPhases.contains(phase))) ||
+          (failureCode != null &&
+              (failureCode is! String ||
+                  !RegExp(r'^[A-Z0-9_]{1,96}$').hasMatch(failureCode))) ||
+          updatedAtUtc == null) {
+        throw const FormatException();
+      }
+      return HostSetupOperationStatus(
+        state: state,
+        phase: phase as String?,
+        failureCode: failureCode as String?,
+        updatedAtUtc: updatedAtUtc,
+      );
+    } on HostSetupException {
+      rethrow;
+    } on Object {
+      throw const HostSetupException('HOST_SETUP_STATUS_UNAVAILABLE');
+    }
+  }
+
+  @override
+  Future<HostFirstAdministratorReply> readBootstrapResult(
+    String operationId,
+  ) async {
+    if (!Platform.isWindows ||
+        !RegExp(r'^[a-f0-9]{32}$').hasMatch(operationId)) {
+      throw const HostSetupException('HOST_SETUP_OPERATION_INVALID');
+    }
+    return Isolate.run(() => _readBootstrapResult(operationId));
+  }
+
+  @override
+  Future<void> clearBootstrapResult(String operationId) async {
+    if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(operationId)) {
+      throw const HostSetupException('HOST_SETUP_OPERATION_INVALID');
+    }
+    final file = File(
+      '${_statusDirectory().path}\\$operationId.credential.dpapi',
+    );
+    if (await FileSystemEntity.type(file.path, followLinks: false) ==
+        FileSystemEntityType.file) {
+      await file.delete();
+    }
   }
 
   @override
@@ -36,54 +172,6 @@ class WindowsHostSetupPlatform implements HostSetupPlatform {
     _validateServiceName(serviceName);
     if (!Platform.isWindows) return HostWindowsServiceState.notInstalled;
     return Isolate.run(() => _queryServiceState(serviceName));
-  }
-
-  @override
-  Future<void> startService(String serviceName) async {
-    _validateServiceName(serviceName);
-    if (!Platform.isWindows) {
-      throw const HostSetupException('HOST_SETUP_WINDOWS_ONLY');
-    }
-    await Isolate.run(() => _startService(serviceName));
-  }
-
-  @override
-  Future<HostFirstAdministratorReply> bootstrapFirstAdministrator(
-    HostSetupScope scope,
-  ) async {
-    if (!Platform.isWindows) {
-      throw const HostSetupException('HOST_SETUP_WINDOWS_ONLY');
-    }
-    final request = jsonEncode({
-      'operation': 'bootstrap',
-      'tenantId': scope.tenantId,
-      'companyId': scope.companyId,
-      'branchId': scope.branchId,
-    });
-    final response = await Isolate.run(() => _exchangeWithBroker(request));
-    return _parseReply(response);
-  }
-
-  @override
-  Future<void> acknowledgeFirstAdministrator(String requestId) async {
-    if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(requestId)) {
-      throw const HostSetupException(
-        'HOST_FIRST_ADMINISTRATOR_RESPONSE_INVALID',
-      );
-    }
-    final request = jsonEncode({
-      'operation': 'acknowledge',
-      'requestId': requestId,
-    });
-    final response = _parseReply(
-      await Isolate.run(() => _exchangeWithBroker(request)),
-    );
-    if (!response.success ||
-        response.status != 'acknowledged' ||
-        response.requestId != requestId ||
-        response.token != null) {
-      throw const HostSetupException('HOST_BOOTSTRAP_ACKNOWLEDGEMENT_FAILED');
-    }
   }
 
   @override
@@ -132,35 +220,153 @@ class WindowsHostSetupPlatform implements HostSetupPlatform {
     }
   }
 
-  static bool _isAdministrator() {
-    final shell = DynamicLibrary.open('shell32.dll');
-    final isUserAnAdmin = shell
-        .lookupFunction<Int32 Function(), int Function()>('IsUserAnAdmin');
-    return isUserAnAdmin() != 0;
+  static Directory _statusDirectory() {
+    final programFiles = Platform.environment['ProgramFiles'];
+    if (programFiles == null || programFiles.isEmpty) {
+      throw const HostSetupException('HOST_SETUP_STATUS_UNAVAILABLE');
+    }
+    return Directory('$programFiles\\Ventio\\SetupStatus');
   }
 
-  static bool _requestAdministratorSetup() {
-    final executable = Platform.resolvedExecutable;
-    if (!File(executable).isAbsolute || !File(executable).existsSync()) {
+  static File _pendingOperationFile() {
+    final localAppData = Platform.environment['LOCALAPPDATA'];
+    if (localAppData == null || localAppData.isEmpty) {
+      throw const HostSetupException('HOST_SETUP_STATE_UNAVAILABLE');
+    }
+    return File('$localAppData\\VentioFramework\\host-setup-pending.json');
+  }
+
+  static Future<HostSetupPendingOperation?> _readPendingOperation() async {
+    final file = _pendingOperationFile();
+    final type = await FileSystemEntity.type(file.path, followLinks: false);
+    if (type == FileSystemEntityType.notFound) return null;
+    if (type != FileSystemEntityType.file) {
+      throw const HostSetupException('HOST_SETUP_STATE_UNAVAILABLE');
+    }
+    try {
+      final source = await file.readAsString();
+      if (source.length > 4096) throw const FormatException();
+      final value = jsonDecode(source);
+      if (value is! Map<String, dynamic> ||
+          value.keys.toSet().difference({
+            'formatVersion',
+            'operationId',
+            'requesterSid',
+            'tenantId',
+            'companyId',
+            'branchId',
+          }).isNotEmpty ||
+          value['formatVersion'] != 1 ||
+          value['operationId'] is! String ||
+          value['requesterSid'] is! String ||
+          value['tenantId'] is! String ||
+          value['companyId'] is! String ||
+          value['branchId'] is! String) {
+        throw const FormatException();
+      }
+      return HostSetupPendingOperation(
+        operationId: value['operationId'] as String,
+        requesterSid: value['requesterSid'] as String,
+        scope: HostSetupScope(
+          tenantId: value['tenantId'] as String,
+          companyId: value['companyId'] as String,
+          branchId: value['branchId'] as String,
+        ),
+      );
+    } on Object {
+      throw const HostSetupException('HOST_SETUP_STATE_UNAVAILABLE');
+    }
+  }
+
+  static Future<void> _writePendingOperation(
+    HostSetupPendingOperation operation,
+  ) async {
+    if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(operation.operationId) ||
+        !RegExp(r'^S-1-\d+(?:-\d+)+$').hasMatch(operation.requesterSid)) {
+      throw const HostSetupException('HOST_SETUP_OPERATION_INVALID');
+    }
+    final file = _pendingOperationFile();
+    final directory = file.parent;
+    await directory.create(recursive: true);
+    if (await FileSystemEntity.type(file.path, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      throw const HostSetupException('HOST_SETUP_STATE_ALREADY_EXISTS');
+    }
+    final temporary = File('${file.path}.tmp');
+    if (await FileSystemEntity.type(temporary.path, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      throw const HostSetupException('HOST_SETUP_STATE_UNAVAILABLE');
+    }
+    final contents = jsonEncode({
+      'formatVersion': 1,
+      'operationId': operation.operationId,
+      'requesterSid': operation.requesterSid,
+      'tenantId': operation.scope.tenantId,
+      'companyId': operation.scope.companyId,
+      'branchId': operation.scope.branchId,
+    });
+    try {
+      await temporary.writeAsString(contents, flush: true);
+      await temporary.rename(file.path);
+    } on Object {
+      if (await FileSystemEntity.type(temporary.path, followLinks: false) ==
+          FileSystemEntityType.file) {
+        await temporary.delete();
+      }
+      throw const HostSetupException('HOST_SETUP_STATE_UNAVAILABLE');
+    }
+  }
+
+  static bool _requestAdministratorSetup(HostSetupPendingOperation operation) {
+    if (_currentUserSid() != operation.requesterSid) {
+      throw const HostSetupException('HOST_SETUP_REQUESTER_IDENTITY_MISMATCH');
+    }
+    final programFiles = Platform.environment['ProgramFiles'];
+    if (programFiles == null || programFiles.isEmpty) {
+      throw const HostSetupException('HOST_SETUP_BROKER_UNAVAILABLE');
+    }
+    final executable = File(
+      '$programFiles\\Ventio\\host-payload\\VentioSetupBroker.exe',
+    );
+    if (!executable.isAbsolute || !executable.existsSync()) {
+      throw const HostSetupException('HOST_SETUP_BROKER_UNAVAILABLE');
+    }
+    if (![
+      operation.scope.tenantId,
+      operation.scope.companyId,
+      operation.scope.branchId,
+    ].every(
+      (value) => RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$').hasMatch(value),
+    )) {
       return false;
     }
-    final arguments = '--host-setup'.toNativeUtf16();
-    final operation = 'runas'.toNativeUtf16();
-    final file = executable.toNativeUtf16();
-    final workingDirectory = File(executable).parent.path.toNativeUtf16();
+    final commandLine = [
+      '--setup-new-host',
+      operation.operationId,
+      operation.scope.tenantId,
+      operation.scope.companyId,
+      operation.scope.branchId,
+      operation.requesterSid,
+    ].join(' ');
+    final arguments = commandLine.toNativeUtf16();
+    final verb = 'runas'.toNativeUtf16();
+    final file = executable.path.toNativeUtf16();
+    final workingDirectory = executable.parent.path.toNativeUtf16();
     try {
       final result = ShellExecute(
         HWND(nullptr),
-        PCWSTR(operation),
+        PCWSTR(verb),
         PCWSTR(file),
         PCWSTR(arguments),
         PCWSTR(workingDirectory),
         SW_SHOWNORMAL,
       );
-      return result.address > 32;
+      if (result.address > 32) return true;
+      if (result.address == 1223) return false;
+      throw const HostSetupException('HOST_SETUP_BROKER_UNAVAILABLE');
     } finally {
       malloc.free(arguments);
-      malloc.free(operation);
+      malloc.free(verb);
       malloc.free(file);
       malloc.free(workingDirectory);
     }
@@ -196,62 +402,6 @@ class WindowsHostSetupPlatform implements HostSetupPlatform {
     });
   }
 
-  static void _startService(String serviceName) {
-    using((arena) {
-      final manager = OpenSCManager(null, null, SC_MANAGER_CONNECT);
-      if (!manager.value.isValid) {
-        throw const HostSetupException('HOST_SERVICE_CONTROL_UNAVAILABLE');
-      }
-      try {
-        final name = serviceName.toNativeUtf16(allocator: arena);
-        final service = OpenService(
-          manager.value,
-          PCWSTR(name),
-          SERVICE_QUERY_STATUS | SERVICE_START,
-        );
-        if (!service.value.isValid) {
-          throw HostSetupException(
-            service.error.code == ERROR_SERVICE_DOES_NOT_EXIST.code
-                ? 'HOST_SERVICE_NOT_INSTALLED'
-                : 'HOST_SERVICE_CONTROL_UNAVAILABLE',
-          );
-        }
-        try {
-          final status = arena<SERVICE_STATUS>();
-          final current = QueryServiceStatus(service.value, status);
-          if (!current.value) {
-            throw const HostSetupException('HOST_SERVICE_STATUS_UNAVAILABLE');
-          }
-          if (status.ref.dwCurrentState != SERVICE_RUNNING) {
-            final started = StartService(service.value, 0, nullptr);
-            if (!started.value &&
-                started.error.code != ERROR_SERVICE_ALREADY_RUNNING.code) {
-              throw const HostSetupException('HOST_SERVICE_START_FAILED');
-            }
-          }
-
-          final deadline = DateTime.now().add(const Duration(seconds: 180));
-          while (DateTime.now().isBefore(deadline)) {
-            final queried = QueryServiceStatus(service.value, status);
-            if (!queried.value) {
-              throw const HostSetupException('HOST_SERVICE_STATUS_UNAVAILABLE');
-            }
-            if (status.ref.dwCurrentState == SERVICE_RUNNING) return;
-            if (status.ref.dwCurrentState == SERVICE_STOPPED) {
-              throw const HostSetupException('HOST_SERVICE_START_FAILED');
-            }
-            Sleep(250);
-          }
-          throw const HostSetupException('HOST_SERVICE_START_TIMEOUT');
-        } finally {
-          CloseServiceHandle(service.value);
-        }
-      } finally {
-        CloseServiceHandle(manager.value);
-      }
-    });
-  }
-
   static HostWindowsServiceState _mapServiceState(
     SERVICE_STATUS_CURRENT_STATE state,
   ) => switch (state) {
@@ -262,143 +412,268 @@ class WindowsHostSetupPlatform implements HostSetupPlatform {
     _ => HostWindowsServiceState.unknown,
   };
 
-  static String _exchangeWithBroker(String request) {
+  static String _currentUserSid() {
     final kernel = DynamicLibrary.open('kernel32.dll');
-    final waitNamedPipe = kernel
-        .lookupFunction<
-          Int32 Function(Pointer<Utf16>, Uint32),
-          int Function(Pointer<Utf16>, int)
-        >('WaitNamedPipeW');
-    final pipePath = _pipeName.toNativeUtf16();
-    final deadline = DateTime.now().add(const Duration(seconds: 20));
-    HANDLE? pipe;
-    try {
-      while (DateTime.now().isBefore(deadline)) {
-        final ready = waitNamedPipe(pipePath, 1000);
-        if (ready != 0) {
-          final opened = CreateFile(
-            PCWSTR(pipePath),
-            0x80000000 | 0x40000000,
-            FILE_SHARE_NONE,
-            nullptr,
-            OPEN_EXISTING,
-            FILE_FLAGS_AND_ATTRIBUTES(0),
-            null,
-          );
-          if (opened.value.isValid) {
-            pipe = opened.value;
-            break;
-          }
-        }
-        Sleep(100);
-      }
-      if (pipe == null) {
-        throw const HostSetupException('HOST_BOOTSTRAP_BROKER_UNAVAILABLE');
-      }
-
-      final mode = calloc<Uint32>()..value = 1;
-      try {
-        if (!SetNamedPipeHandleState(pipe, mode, nullptr, nullptr).value) {
-          throw const HostSetupException('HOST_BOOTSTRAP_BROKER_UNAVAILABLE');
-        }
-      } finally {
-        calloc.free(mode);
-      }
-
-      final requestBytes = Uint8List.fromList([...utf8.encode(request), 0x0a]);
-      final writtenCount = calloc<Uint32>();
-      final requestBuffer = calloc<Uint8>(requestBytes.length);
-      try {
-        requestBuffer.asTypedList(requestBytes.length).setAll(0, requestBytes);
-        final wrote = WriteFile(
-          pipe,
-          requestBuffer,
-          requestBytes.length,
-          writtenCount,
-          nullptr,
+    final advapi = DynamicLibrary.open('advapi32.dll');
+    final getCurrentProcess = kernel
+        .lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
+          'GetCurrentProcess',
         );
-        if (!wrote.value || writtenCount.value != requestBytes.length) {
-          throw const HostSetupException('HOST_BOOTSTRAP_REQUEST_FAILED');
-        }
-      } finally {
-        requestBytes.fillRange(0, requestBytes.length, 0);
-        calloc.free(requestBuffer);
-        calloc.free(writtenCount);
-      }
-
-      final response = BytesBuilder(copy: false);
-      final responseBuffer = calloc<Uint8>();
-      final readCount = calloc<Uint32>();
-      final responseDeadline = DateTime.now().add(const Duration(seconds: 70));
-      try {
-        while (response.length < 8192 &&
-            DateTime.now().isBefore(responseDeadline)) {
-          final read = ReadFile(pipe, responseBuffer, 1, readCount, nullptr);
-          if (read.value && readCount.value == 1) {
-            final byte = responseBuffer.value;
-            if (byte == 0x0a) return utf8.decode(response.takeBytes());
-            response.addByte(byte);
-            continue;
-          }
-          if (!read.value && read.error.code == ERROR_NO_DATA.code) {
-            Sleep(20);
-            continue;
-          }
-          throw const HostSetupException('HOST_BOOTSTRAP_RESPONSE_FAILED');
-        }
-        throw const HostSetupException('HOST_BOOTSTRAP_RESPONSE_TIMEOUT');
-      } finally {
-        final remainder = response.takeBytes();
-        remainder.fillRange(0, remainder.length, 0);
-        calloc.free(responseBuffer);
-        calloc.free(readCount);
-      }
-    } finally {
-      if (pipe != null) CloseHandle(pipe);
-      malloc.free(pipePath);
-    }
-  }
-
-  static HostFirstAdministratorReply _parseReply(String response) {
+    final openProcessToken = advapi
+        .lookupFunction<
+          Int32 Function(Pointer<Void>, Uint32, Pointer<Pointer<Void>>),
+          int Function(Pointer<Void>, int, Pointer<Pointer<Void>>)
+        >('OpenProcessToken');
+    final getTokenInformation = advapi
+        .lookupFunction<
+          Int32 Function(
+            Pointer<Void>,
+            Uint32,
+            Pointer<Void>,
+            Uint32,
+            Pointer<Uint32>,
+          ),
+          int Function(Pointer<Void>, int, Pointer<Void>, int, Pointer<Uint32>)
+        >('GetTokenInformation');
+    final convertSid = advapi
+        .lookupFunction<
+          Int32 Function(Pointer<Void>, Pointer<Pointer<Utf16>>),
+          int Function(Pointer<Void>, Pointer<Pointer<Utf16>>)
+        >('ConvertSidToStringSidW');
+    final closeHandle = kernel
+        .lookupFunction<
+          Int32 Function(Pointer<Void>),
+          int Function(Pointer<Void>)
+        >('CloseHandle');
+    final localFree = kernel
+        .lookupFunction<
+          Pointer<Void> Function(Pointer<Void>),
+          Pointer<Void> Function(Pointer<Void>)
+        >('LocalFree');
+    final token = calloc<Pointer<Void>>();
+    final buffer = calloc<Uint8>(4096);
+    final requiredLength = calloc<Uint32>();
+    final sidString = calloc<Pointer<Utf16>>();
     try {
-      final decoded = jsonDecode(response);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException();
+      if (openProcessToken(getCurrentProcess(), 0x0008, token) == 0 ||
+          token.value == nullptr) {
+        throw const HostSetupException('HOST_SETUP_IDENTITY_UNAVAILABLE');
       }
-      const allowed = {
-        'success',
-        'status',
-        'requestId',
-        'actorId',
-        'token',
-        'expiresAt',
-      };
-      if (decoded.keys.any((key) => !allowed.contains(key)) ||
-          decoded['success'] is! bool ||
-          decoded['status'] is! String) {
-        throw const FormatException();
+      if (getTokenInformation(
+            token.value,
+            1,
+            buffer.cast(),
+            4096,
+            requiredLength,
+          ) ==
+          0) {
+        throw const HostSetupException('HOST_SETUP_IDENTITY_UNAVAILABLE');
       }
-      String? optionalString(String key) {
-        final value = decoded[key];
-        if (value == null) return null;
-        if (value is! String) throw const FormatException();
-        return value;
+      final sid = buffer.cast<Pointer<Void>>().value;
+      if (sid == nullptr ||
+          convertSid(sid, sidString) == 0 ||
+          sidString.value == nullptr) {
+        throw const HostSetupException('HOST_SETUP_IDENTITY_UNAVAILABLE');
       }
-
-      return HostFirstAdministratorReply(
-        success: decoded['success'] as bool,
-        status: decoded['status'] as String,
-        requestId: optionalString('requestId'),
-        actorId: optionalString('actorId'),
-        token: optionalString('token'),
-        expiresAt: optionalString('expiresAt'),
-      );
+      return sidString.value.toDartString();
     } on HostSetupException {
       rethrow;
     } on Object {
-      throw const HostSetupException('HOST_BOOTSTRAP_RESPONSE_INVALID');
+      throw const HostSetupException('HOST_SETUP_IDENTITY_UNAVAILABLE');
+    } finally {
+      if (sidString.value != nullptr) localFree(sidString.value.cast());
+      if (token.value != nullptr) closeHandle(token.value);
+      calloc.free(sidString);
+      calloc.free(requiredLength);
+      calloc.free(buffer);
+      calloc.free(token);
     }
   }
+
+  static bool _currentProcessIsElevated() {
+    final kernel = DynamicLibrary.open('kernel32.dll');
+    final advapi = DynamicLibrary.open('advapi32.dll');
+    final getCurrentProcess = kernel
+        .lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
+          'GetCurrentProcess',
+        );
+    final openProcessToken = advapi
+        .lookupFunction<
+          Int32 Function(Pointer<Void>, Uint32, Pointer<Pointer<Void>>),
+          int Function(Pointer<Void>, int, Pointer<Pointer<Void>>)
+        >('OpenProcessToken');
+    final getTokenInformation = advapi
+        .lookupFunction<
+          Int32 Function(
+            Pointer<Void>,
+            Uint32,
+            Pointer<Void>,
+            Uint32,
+            Pointer<Uint32>,
+          ),
+          int Function(Pointer<Void>, int, Pointer<Void>, int, Pointer<Uint32>)
+        >('GetTokenInformation');
+    final closeHandle = kernel
+        .lookupFunction<
+          Int32 Function(Pointer<Void>),
+          int Function(Pointer<Void>)
+        >('CloseHandle');
+    final token = calloc<Pointer<Void>>();
+    final elevation = calloc<Uint32>();
+    final requiredLength = calloc<Uint32>();
+    try {
+      if (openProcessToken(getCurrentProcess(), 0x0008, token) == 0 ||
+          token.value == nullptr ||
+          getTokenInformation(
+                token.value,
+                20,
+                elevation.cast(),
+                sizeOf<Uint32>(),
+                requiredLength,
+              ) ==
+              0) {
+        throw const HostSetupException('HOST_SETUP_IDENTITY_UNAVAILABLE');
+      }
+      return elevation.value != 0;
+    } on HostSetupException {
+      rethrow;
+    } on Object {
+      throw const HostSetupException('HOST_SETUP_IDENTITY_UNAVAILABLE');
+    } finally {
+      if (token.value != nullptr) closeHandle(token.value);
+      calloc.free(requiredLength);
+      calloc.free(elevation);
+      calloc.free(token);
+    }
+  }
+
+  static HostFirstAdministratorReply _readBootstrapResult(String operationId) {
+    final path = File(
+      '${_statusDirectory().path}\\$operationId.credential.dpapi',
+    );
+    if (FileSystemEntity.typeSync(path.path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      throw const HostSetupException('HOST_BOOTSTRAP_CREDENTIAL_UNAVAILABLE');
+    }
+    final encrypted = path.readAsBytesSync();
+    if (encrypted.isEmpty || encrypted.length > 16384) {
+      encrypted.fillRange(0, encrypted.length, 0);
+      throw const HostSetupException('HOST_BOOTSTRAP_CREDENTIAL_UNAVAILABLE');
+    }
+    final entropyBytes = Uint8List.fromList(utf8.encode(operationId));
+    final input = calloc<_DataBlob>();
+    final entropy = calloc<_DataBlob>();
+    final output = calloc<_DataBlob>();
+    final description = calloc<Pointer<Utf16>>();
+    final inputBytes = calloc<Uint8>(encrypted.length);
+    final entropyBuffer = calloc<Uint8>(entropyBytes.length);
+    final crypt32 = DynamicLibrary.open('crypt32.dll');
+    final kernel = DynamicLibrary.open('kernel32.dll');
+    final unprotect = crypt32
+        .lookupFunction<
+          Int32 Function(
+            Pointer<_DataBlob>,
+            Pointer<Pointer<Utf16>>,
+            Pointer<_DataBlob>,
+            Pointer<Void>,
+            Pointer<Void>,
+            Uint32,
+            Pointer<_DataBlob>,
+          ),
+          int Function(
+            Pointer<_DataBlob>,
+            Pointer<Pointer<Utf16>>,
+            Pointer<_DataBlob>,
+            Pointer<Void>,
+            Pointer<Void>,
+            int,
+            Pointer<_DataBlob>,
+          )
+        >('CryptUnprotectData');
+    final localFree = kernel
+        .lookupFunction<
+          Pointer<Void> Function(Pointer<Void>),
+          Pointer<Void> Function(Pointer<Void>)
+        >('LocalFree');
+    try {
+      inputBytes.asTypedList(encrypted.length).setAll(0, encrypted);
+      entropyBuffer.asTypedList(entropyBytes.length).setAll(0, entropyBytes);
+      input.ref.length = encrypted.length;
+      input.ref.data = inputBytes;
+      entropy.ref.length = entropyBytes.length;
+      entropy.ref.data = entropyBuffer;
+      if (unprotect(input, description, entropy, nullptr, nullptr, 1, output) ==
+              0 ||
+          output.ref.data == nullptr ||
+          output.ref.length <= 0 ||
+          output.ref.length > 8192) {
+        throw const HostSetupException('HOST_BOOTSTRAP_CREDENTIAL_UNAVAILABLE');
+      }
+      final plaintext = Uint8List(output.ref.length);
+      plaintext.setRange(
+        0,
+        plaintext.length,
+        output.ref.data.asTypedList(output.ref.length),
+      );
+      try {
+        final decoded = jsonDecode(utf8.decode(plaintext));
+        if (decoded is! Map<String, dynamic> ||
+            decoded.keys.toSet().difference({
+              'formatVersion',
+              'operationId',
+              'requestId',
+              'actorId',
+              'token',
+              'expiresAt',
+            }).isNotEmpty ||
+            decoded['formatVersion'] != 1 ||
+            decoded['operationId'] != operationId ||
+            decoded['requestId'] is! String ||
+            decoded['actorId'] is! String ||
+            decoded['token'] is! String ||
+            decoded['expiresAt'] is! String) {
+          throw const FormatException();
+        }
+        return HostFirstAdministratorReply(
+          success: true,
+          status: 'pending',
+          requestId: decoded['requestId'] as String,
+          actorId: decoded['actorId'] as String,
+          token: decoded['token'] as String,
+          expiresAt: decoded['expiresAt'] as String,
+        );
+      } finally {
+        plaintext.fillRange(0, plaintext.length, 0);
+      }
+    } on HostSetupException {
+      rethrow;
+    } on Object {
+      throw const HostSetupException('HOST_BOOTSTRAP_CREDENTIAL_UNAVAILABLE');
+    } finally {
+      if (output.ref.data != nullptr && output.ref.length > 0) {
+        output.ref.data
+            .asTypedList(output.ref.length)
+            .fillRange(0, output.ref.length, 0);
+      }
+      if (output.ref.data != nullptr) localFree(output.ref.data.cast());
+      if (description.value != nullptr) localFree(description.value.cast());
+      encrypted.fillRange(0, encrypted.length, 0);
+      entropyBytes.fillRange(0, entropyBytes.length, 0);
+      calloc.free(entropyBuffer);
+      calloc.free(inputBytes);
+      calloc.free(description);
+      calloc.free(output);
+      calloc.free(entropy);
+      calloc.free(input);
+    }
+  }
+}
+
+final class _DataBlob extends Struct {
+  @Uint32()
+  external int length;
+
+  external Pointer<Uint8> data;
 }
 
 HostSetupPlatform createHostSetupPlatform() => WindowsHostSetupPlatform();

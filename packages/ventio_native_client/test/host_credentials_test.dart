@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
 
@@ -80,5 +82,57 @@ void main() {
       throwsArgumentError,
     );
     expect(backend.values, isEmpty);
+  });
+
+  test(
+    'TLS certificate pins are keyed by origin and integrity checked',
+    () async {
+      final der = <int>[1, 2, 3, 4, 5, 6];
+      final fingerprint = HostCredentialVault.certificateFingerprint(der);
+      await vault.saveTrustedCertificate(
+        Uri.parse('https://host.example:443/'),
+        der,
+      );
+
+      final saved = await vault.readTrustedCertificate(
+        Uri.parse('https://HOST.example'),
+      );
+      expect(saved?.der, der);
+      expect(saved?.fingerprint, fingerprint);
+      expect(
+        HostCredentialVault.normalizeFingerprint(fingerprint.toUpperCase()),
+        fingerprint,
+      );
+      expect(HostCredentialVault.normalizeFingerprint('invalid'), isNull);
+
+      await vault.deleteTrustedCertificate(Uri.parse('https://host.example'));
+      expect(
+        await vault.readTrustedCertificate(Uri.parse('https://host.example')),
+        isNull,
+      );
+    },
+  );
+
+  test('corrupt TLS pin fails closed instead of using system roots', () async {
+    await vault.saveTrustedCertificate(Uri.parse('https://host.example'), [
+      1,
+      2,
+      3,
+    ]);
+    final key = backend.values.keys.single;
+    backend.values[key] = '{"fingerprint":"wrong"}';
+    var fallbackUsed = false;
+
+    await expectLater(
+      vault.createHttpClient(
+        Uri.parse('https://host.example'),
+        fallbackFactory: () {
+          fallbackUsed = true;
+          return HttpClient();
+        },
+      ),
+      throwsA(isA<TlsException>()),
+    );
+    expect(fallbackUsed, isFalse);
   });
 }

@@ -9,9 +9,9 @@ import 'transport_fixture.dart';
 
 /// Authenticated HTTPS transport for an approved Host endpoint.
 ///
-/// TLS certificate validation is provided by dart:io defaults. This class
-/// never follows redirects and never accepts a caller-provided certificate
-/// bypass. Plain HTTP remains limited to loopback development Hosts.
+/// TLS uses platform trust roots until the user explicitly pins a Host
+/// certificate during Client enrollment. Pinned Hosts are constrained to that
+/// exact certificate. This class never follows redirects or bypasses TLS.
 class HttpHostCommandTransport implements CommandTransport {
   HttpHostCommandTransport({
     required Uri endpoint,
@@ -44,7 +44,11 @@ class HttpHostCommandTransport implements CommandTransport {
 
     final uri = endpoint.replace(path: '/api/v1/commands');
     final watch = Stopwatch()..start();
-    final client = _clientFactory()..connectionTimeout = timeout;
+    final client = await credentials.createHttpClient(
+      endpoint,
+      fallbackFactory: _clientFactory,
+    );
+    client.connectionTimeout = timeout;
     try {
       final request = await client.postUrl(uri).timeout(_remaining(watch));
       request.followRedirects = false;

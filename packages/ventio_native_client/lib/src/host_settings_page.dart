@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_localization.dart';
 import 'extension_store.dart';
 import 'host_credentials.dart';
 import 'host_extension_packages.dart';
+import 'host_lan_info.dart';
 
 class HostSettingsPage extends StatelessWidget {
   const HostSettingsPage({
@@ -38,6 +40,18 @@ class HostSettingsPage extends StatelessWidget {
       return context.ventioText('native.ui.invalid_saved_host_address');
     } on ArgumentError {
       return context.ventioText('native.ui.invalid_saved_host_address');
+    }
+  }
+
+  bool _usesLocalHost(String endpoint) {
+    try {
+      final uri = HostCredentialVault.normalizeEndpoint(Uri.parse(endpoint));
+      return uri.port == 8080 &&
+          (uri.host == '127.0.0.1' || uri.host.toLowerCase() == 'localhost');
+    } on FormatException {
+      return false;
+    } on ArgumentError {
+      return false;
     }
   }
 
@@ -92,6 +106,93 @@ class HostSettingsPage extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (_usesLocalHost(selectedProfile.endpoint))
+                  FutureBuilder<HostLanEndpointInfo?>(
+                    future: HostLanEndpointInfo.loadForWindows(),
+                    builder: (context, snapshot) {
+                      final lan = snapshot.data;
+                      if (lan == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: _sectionCard(
+                          context,
+                          title: context.ventioText(
+                            'native.ui.lan_host_listener',
+                          ),
+                          icon: Icons.wifi_tethering_outlined,
+                          children: [
+                            _detail(
+                              context.ventioText('native.ui.lan_endpoint'),
+                              lan.endpoint,
+                            ),
+                            if (lan.alternativeEndpoints.isNotEmpty)
+                              _detail(
+                                context.ventioText(
+                                  'native.ui.lan_ip_endpoints',
+                                ),
+                                lan.alternativeEndpoints.join('\n'),
+                              ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        context.ventioText(
+                                          'native.ui.lan_certificate_fingerprint',
+                                        ),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                      SelectableText(lan.certificateSha256),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: context.ventioText(
+                                    'native.ui.copy_tls_fingerprint',
+                                  ),
+                                  onPressed: () async {
+                                    final messenger = ScaffoldMessenger.of(
+                                      context,
+                                    );
+                                    final copiedMessage = context.ventioText(
+                                      'native.ui.tls_fingerprint_copied',
+                                    );
+                                    await Clipboard.setData(
+                                      ClipboardData(
+                                        text: lan.certificateSha256,
+                                      ),
+                                    );
+                                    messenger.showSnackBar(
+                                      SnackBar(content: Text(copiedMessage)),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.copy_outlined),
+                                ),
+                              ],
+                            ),
+                            _detail(
+                              context.ventioText(
+                                'native.ui.lan_public_certificate',
+                              ),
+                              lan.certificatePath,
+                            ),
+                            Text(
+                              context.ventioText(
+                                'native.ui.lan_certificate_trust_notice',
+                              ),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 12),
                 if (session == null)
                   _noticeCard(

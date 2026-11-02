@@ -280,6 +280,11 @@ void main() {
         matching: find.byType(EditableText),
       );
       expect(tester.widget<EditableText>(codeInput).obscureText, isTrue);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('client-pairing-submit')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.byKey(const ValueKey('client-pairing-submit')));
       await tester.pumpAndSettle();
 
@@ -335,6 +340,11 @@ void main() {
       await tester.enterText(
         find.byKey(const ValueKey('client-pairing-code')),
         _pairingCode,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('client-pairing-submit')),
+        300,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(find.byKey(const ValueKey('client-pairing-submit')));
       await tester.pumpAndSettle();

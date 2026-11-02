@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -273,6 +274,33 @@ void main() {
   });
 
   group('HostOverviewPage', () {
+    testWidgets('shows loading until Host readiness returns', (tester) async {
+      final deferred = Completer<HostReadinessResult>();
+      final client = _FakeReadinessClient(
+        identity: _identity(),
+        result: HostReadinessResult(
+          snapshot: _snapshot(),
+          correlationId: _correlationId,
+        ),
+        deferred: deferred,
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: HostOverviewPage(client: client)),
+      );
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      deferred.complete(
+        HostReadinessResult(
+          snapshot: _snapshot(),
+          correlationId: _correlationId,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('Authenticated Host API'), findsOneWidget);
+    });
+
     testWidgets(
       'shows readiness states and explains where device inventory is managed',
       (tester) async {
@@ -384,6 +412,7 @@ class _FakeReadinessClient extends HostReadinessClient {
     required HostSessionIdentity identity,
     required this.result,
     this.error,
+    this.deferred,
   }) : super(
          endpoint: Uri.https('host.example'),
          credentials: HostCredentialVault(_MemoryCredentials()),
@@ -394,11 +423,13 @@ class _FakeReadinessClient extends HostReadinessClient {
 
   final HostReadinessResult result;
   final HostReadinessException? error;
+  final Completer<HostReadinessResult>? deferred;
   int calls = 0;
 
   @override
   Future<HostReadinessResult> checkReadiness() async {
     calls++;
+    if (deferred != null) return deferred!.future;
     if (error != null) throw error!;
     return result;
   }

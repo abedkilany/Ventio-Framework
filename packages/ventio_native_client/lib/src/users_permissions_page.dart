@@ -241,6 +241,36 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
     );
   }
 
+  Future<void> _enableUser(HostManagedUser user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.ventioText('native.ui.enable_user')),
+        content: Text(
+          context.ventioText(
+            'native.ui.enable_user_confirmation',
+            params: {'displayName': _displayIdentity(user.actorId)},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.ventioText('native.ui.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.ventioText('native.ui.enable_user')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _mutate(
+      () => widget.client.enableUser(actorId: user.actorId),
+      successKey: 'native.ui.user_enabled',
+    );
+  }
+
   void _message(String value) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -455,21 +485,26 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
       subtitle: SelectableText(
         '${_displayIdentity(user.actorId)} · ${context.ventioText(user.state == HostManagedUserState.active ? 'native.ui.user_active' : 'native.ui.user_disabled_state')}',
       ),
-      trailing: user.state == HostManagedUserState.active
-          ? PopupMenuButton<String>(
-              tooltip: context.ventioText('native.ui.user_actions'),
-              enabled: !_saving && widget.client.canManageUsers,
-              onSelected: (action) {
-                if (action == 'disable') _disableUser(user);
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'disable',
-                  child: Text(context.ventioText('native.ui.disable_user')),
-                ),
-              ],
+      trailing: PopupMenuButton<String>(
+        tooltip: context.ventioText('native.ui.user_actions'),
+        enabled: !_saving && widget.client.canManageUsers,
+        onSelected: (action) {
+          if (action == 'disable') _disableUser(user);
+          if (action == 'enable') _enableUser(user);
+        },
+        itemBuilder: (context) => [
+          if (user.state == HostManagedUserState.active)
+            PopupMenuItem(
+              value: 'disable',
+              child: Text(context.ventioText('native.ui.disable_user')),
             )
-          : null,
+          else
+            PopupMenuItem(
+              value: 'enable',
+              child: Text(context.ventioText('native.ui.enable_user')),
+            ),
+        ],
+      ),
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       children: [
         Align(
@@ -616,6 +651,7 @@ String _auditActionTitle(BuildContext context, String action) =>
     context.ventioText(switch (action) {
       'USER_CREATED' => 'native.ui.audit_user_created',
       'USER_DISABLED' => 'native.ui.audit_user_disabled',
+      'USER_ENABLED' => 'native.ui.audit_user_enabled',
       'PERMISSION_GRANTED' => 'native.ui.audit_permission_granted',
       'PERMISSION_REVOKED' => 'native.ui.audit_permission_revoked',
       'ROLE_CREATED' => 'native.ui.audit_role_created',

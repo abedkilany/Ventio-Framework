@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_localization.dart';
 import 'host_device_management.dart';
@@ -68,6 +69,13 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
             correlationId: error.correlationId,
             retryable: error.retryable,
           );
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _userDirectoryFailed = true;
+          _error = const HostDeviceManagementException('HOST_INVALID_RESPONSE');
         });
       }
     } finally {
@@ -299,7 +307,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                   padding: EdgeInsets.symmetric(vertical: 40),
                   child: Center(child: CircularProgressIndicator()),
                 )
-              else if (_snapshot == null && _error == null)
+              else if (_snapshot == null)
                 Card(
                   child: ListTile(
                     title: Text(
@@ -429,6 +437,17 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                     pairing.code,
                     key: const ValueKey('generated-pairing-code'),
                     style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      key: const ValueKey('copy-generated-pairing-code'),
+                      onPressed: () => _copySecretToClipboard(pairing.code),
+                      icon: const Icon(Icons.copy_outlined),
+                      label: Text(
+                        context.ventioText('native.ui.copy_pairing_code'),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -589,6 +608,17 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
             credential.credential,
             key: const ValueKey('rotated-device-credential'),
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const ValueKey('copy-rotated-device-credential'),
+              onPressed: () => _copySecretToClipboard(credential.credential),
+              icon: const Icon(Icons.copy_outlined),
+              label: Text(
+                context.ventioText('native.ui.copy_device_credential'),
+              ),
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             context.ventioText(
@@ -617,6 +647,28 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       ),
     ),
   );
+
+  Future<void> _copySecretToClipboard(String value) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: value));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.ventioText('native.ui.copy_to_clipboard_failed'),
+          ),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.ventioText('native.ui.copied_to_clipboard')),
+      ),
+    );
+  }
 
   String _credentialState(
     BuildContext context,

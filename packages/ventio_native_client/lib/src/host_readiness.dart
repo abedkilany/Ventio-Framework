@@ -308,7 +308,11 @@ class HostReadinessClient {
     required int maxResponseBytes,
   }) async {
     final watch = Stopwatch()..start();
-    final client = _clientFactory()..connectionTimeout = timeout;
+    final client = await credentials.createHttpClient(
+      endpoint,
+      fallbackFactory: _clientFactory,
+    );
+    client.connectionTimeout = timeout;
     try {
       final request = await client.openUrl('POST', uri).timeout(timeout);
       request

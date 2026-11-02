@@ -94,6 +94,120 @@ void main() {
     },
   );
 
+  test(
+    'persists protected failure context locally and excludes it from export',
+    () async {
+      await store.record(
+        _input(
+          protectedFailureType: 'PostgresException',
+          protectedFailureSource: 'HostSetupCoordinator.run',
+          protectedTechnicalCode: '08006',
+        ),
+      );
+
+      final stored = (await store.recent()).single;
+      expect(stored.protectedFailureType, 'PostgresException');
+      expect(stored.protectedFailureSource, 'HostSetupCoordinator.run');
+      expect(stored.protectedTechnicalCode, '08006');
+
+      final exported = await store.exportJson();
+      for (final protectedValue in [
+        'PostgresException',
+        'HostSetupCoordinator.run',
+        '08006',
+        'protectedFailureType',
+        'protectedFailureSource',
+        'protectedTechnicalCode',
+      ]) {
+        expect(exported, isNot(contains(protectedValue)));
+      }
+      expect(exported, contains('HOST_UNREACHABLE'));
+      expect(exported, contains('cor_0123456789abcdef0123456789abcdef'));
+    },
+  );
+
+  test('limits retained exception context to type and symbol', () {
+    expect(
+      safeDiagnosticFailureType(StateError('password=private-value')),
+      'StateError',
+    );
+    final source = safeDiagnosticFailureSource(
+      StackTrace.fromString(
+        r'#0 HostSetupCoordinator.run (package:ventio_native_client/host_setup.dart:42:7; C:\Users\Alice\private.dart)',
+      ),
+    );
+    expect(source, 'HostSetupCoordinator.run');
+    expect(source, isNot(contains(r'C:\Users')));
+  });
+
+  test('upgrades the existing version 1 diagnostics database safely', () async {
+    final path = '${directory.path}${Platform.pathSeparator}legacy.sqlite3';
+    final legacy = await databaseFactoryFfi.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (database, version) async {
+          await database.execute('''
+            CREATE TABLE local_diagnostic_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              code TEXT NOT NULL,
+              component TEXT NOT NULL,
+              category TEXT NOT NULL,
+              severity TEXT NOT NULL,
+              occurred_at_utc TEXT NOT NULL,
+              correlation_id TEXT NOT NULL,
+              retryable INTEGER NOT NULL CHECK (retryable IN (0, 1)),
+              message_key TEXT NOT NULL,
+              safe_explanation TEXT NOT NULL,
+              recommended_action TEXT NOT NULL
+            )
+          ''');
+          await database.execute('''
+            CREATE INDEX local_diagnostic_events_recent
+            ON local_diagnostic_events(id DESC)
+          ''');
+          await database.insert('local_diagnostic_events', {
+            'code': 'HOST_UNREACHABLE',
+            'component': 'host.connection',
+            'category': 'network_tls',
+            'severity': 'ERROR',
+            'occurred_at_utc': '2026-10-29T18:00:00.000Z',
+            'correlation_id': 'cor_0123456789abcdef0123456789abcdef',
+            'retryable': 1,
+            'message_key': 'native.diagnostics.host_unreachable',
+            'safe_explanation': 'Host is not reachable from this device.',
+            'recommended_action': 'Check the network address and retry.',
+          });
+        },
+      ),
+    );
+    await legacy.close();
+
+    final upgraded = await LocalDiagnosticsStore.open(
+      factory: databaseFactoryFfi,
+      path: path,
+    );
+    try {
+      final events = await upgraded.recent();
+      expect(events, hasLength(1));
+      expect(events.single.code, 'HOST_UNREACHABLE');
+      expect(events.single.protectedFailureType, isNull);
+
+      await upgraded.record(
+        _input(
+          protectedFailureType: 'HostSetupException',
+          protectedFailureSource: 'HostSetupCoordinator.run',
+        ),
+      );
+      expect(
+        (await upgraded.recent()).first.protectedFailureType,
+        'HostSetupException',
+      );
+    } finally {
+      await upgraded.close();
+    }
+  });
+
   test('persists and exports every stable diagnostic category', () async {
     final categories = ManagementDiagnosticCategory.values;
     for (final category in categories) {
@@ -215,6 +329,9 @@ ManagementDiagnosticEvent _event() => ManagementDiagnosticEvent(
 LocalDiagnosticInput _input({
   String safeExplanation = 'Host is not reachable from this device.',
   String recommendedAction = 'Check the network address and retry.',
+  String? protectedTechnicalCode,
+  String? protectedFailureType,
+  String? protectedFailureSource,
 }) => LocalDiagnosticInput(
   code: 'HOST_UNREACHABLE',
   component: 'host.connection',
@@ -226,4 +343,7 @@ LocalDiagnosticInput _input({
   messageKey: 'native.diagnostics.host_unreachable',
   safeExplanation: safeExplanation,
   recommendedAction: recommendedAction,
+  protectedTechnicalCode: protectedTechnicalCode,
+  protectedFailureType: protectedFailureType,
+  protectedFailureSource: protectedFailureSource,
 );

@@ -1,19 +1,31 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
 import 'host_setup.dart';
 import 'host_setup_windows.dart';
+import 'local_diagnostics.dart';
+
+typedef HostSetupDiagnosticExportHandler = Future<void> Function(String json);
 
 class HostSetupPage extends StatefulWidget {
   const HostSetupPage({
     required this.credentialStore,
     this.platform,
+    this.diagnosticEventSource,
+    this.diagnosticExportHandler,
     this.onComplete,
     super.key,
   });
 
   final HostSetupPlatform? platform;
   final HostSetupCredentialStore credentialStore;
+  final DiagnosticEventSource? diagnosticEventSource;
+  final HostSetupDiagnosticExportHandler? diagnosticExportHandler;
   final VoidCallback? onComplete;
 
   @override
@@ -28,13 +40,19 @@ class _HostSetupPageState extends State<HostSetupPage> {
   final _companyId = TextEditingController();
   final _branchId = TextEditingController();
   bool _checking = true;
-  bool _isAdministrator = false;
+  bool _restoringPendingScope = true;
+  bool _pendingOperationFound = false;
+  bool _pendingScopeMismatch = false;
   bool _busy = false;
   bool _complete = false;
   HostWindowsServiceState _postgresState = HostWindowsServiceState.unknown;
   HostWindowsServiceState _hostState = HostWindowsServiceState.unknown;
   HostSetupStep? _currentStep;
   String? _errorKey;
+  ManagementDiagnosticEvent? _setupDiagnostic;
+  LocalDiagnosticsStore? _ownedDiagnosticStore;
+  bool _diagnosticPersistenceFailed = false;
+  bool _exportingDiagnostic = false;
 
   @override
   void initState() {
@@ -43,6 +61,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
     _companyId.addListener(_scopeChanged);
     _branchId.addListener(_scopeChanged);
     _refreshStatus();
+    _restorePendingScope();
   }
 
   @override
@@ -53,11 +72,56 @@ class _HostSetupPageState extends State<HostSetupPage> {
     _tenantId.dispose();
     _companyId.dispose();
     _branchId.dispose();
+    final store = _ownedDiagnosticStore;
+    if (store != null) unawaited(store.close());
     super.dispose();
   }
 
   void _scopeChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _restorePendingScope() async {
+    try {
+      final pending = await _platform.readPendingOperation();
+      if (!mounted || pending == null) return;
+      _pendingOperationFound = true;
+      if (pending.requesterSid != await _platform.currentUserSid()) {
+        setState(() {
+          _pendingScopeMismatch = true;
+          _errorKey = 'native.ui.host_setup_pending_mismatch';
+        });
+        return;
+      }
+      _tenantId.text = pending.scope.tenantId;
+      _companyId.text = pending.scope.companyId;
+      _branchId.text = pending.scope.branchId;
+    } on HostSetupException catch (error, stack) {
+      final event = await _captureSetupFailure(
+        error.code,
+        failure: error,
+        stack: stack,
+        phase: error.phase,
+      );
+      if (!mounted) return;
+      setState(() {
+        _errorKey = _errorMessageKey(error.code);
+        _setupDiagnostic = event;
+      });
+    } on Object catch (error, stack) {
+      final event = await _captureSetupFailure(
+        'HOST_SETUP_STATE_UNAVAILABLE',
+        failure: error,
+        stack: stack,
+      );
+      if (!mounted) return;
+      setState(() {
+        _errorKey = 'native.ui.host_setup_state_unavailable';
+        _setupDiagnostic = event;
+      });
+    } finally {
+      if (mounted) setState(() => _restoringPendingScope = false);
+    }
   }
 
   Future<void> _refreshStatus() async {
@@ -66,42 +130,26 @@ class _HostSetupPageState extends State<HostSetupPage> {
       return;
     }
     try {
-      final isAdministrator = await _platform.isAdministrator();
       final postgres = await _platform.serviceState('VentioPostgres');
       final host = await _platform.serviceState('VentioHost');
       if (!mounted) return;
       setState(() {
-        _isAdministrator = isAdministrator;
         _postgresState = postgres;
         _hostState = host;
         _checking = false;
       });
-    } on Object {
+    } on Object catch (error, stack) {
+      final event = await _captureSetupFailure(
+        'HOST_SETUP_STATUS_UNAVAILABLE',
+        failure: error,
+        stack: stack,
+        phase: 'HOST_READINESS',
+      );
       if (!mounted) return;
       setState(() {
         _checking = false;
         _errorKey = 'native.ui.host_setup_status_unavailable';
-      });
-    }
-  }
-
-  Future<void> _requestElevation() async {
-    setState(() {
-      _busy = true;
-      _errorKey = null;
-    });
-    try {
-      final started = await _platform.requestAdministratorSetup();
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        if (!started) _errorKey = 'native.ui.host_setup_elevation_failed';
-      });
-    } on Object {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _errorKey = 'native.ui.host_setup_elevation_failed';
+        _setupDiagnostic = event;
       });
     }
   }
@@ -112,6 +160,8 @@ class _HostSetupPageState extends State<HostSetupPage> {
       _errorKey = null;
       _complete = false;
       _currentStep = HostSetupStep.administratorAccess;
+      _setupDiagnostic = null;
+      _diagnosticPersistenceFailed = false;
     });
     try {
       final scope = HostSetupScope(
@@ -133,11 +183,18 @@ class _HostSetupPageState extends State<HostSetupPage> {
         _complete = true;
       });
       await _refreshStatus();
-    } on HostSetupException catch (error) {
+    } on HostSetupException catch (error, stack) {
+      final event = await _captureSetupFailure(
+        error.code,
+        failure: error,
+        stack: stack,
+        phase: error.phase,
+      );
       if (!mounted) return;
       setState(() {
         _busy = false;
         _errorKey = _errorMessageKey(error.code);
+        _setupDiagnostic = event;
       });
     } on ArgumentError {
       if (!mounted) return;
@@ -145,13 +202,172 @@ class _HostSetupPageState extends State<HostSetupPage> {
         _busy = false;
         _errorKey = 'native.ui.host_setup_scope_invalid';
       });
-    } on Object {
+    } on Object catch (error, stack) {
+      final event = await _captureSetupFailure(
+        'HOST_SETUP_UNEXPECTED_FAILURE',
+        failure: error,
+        stack: stack,
+      );
       if (!mounted) return;
       setState(() {
         _busy = false;
         _errorKey = 'native.ui.host_setup_failed_generic';
+        _setupDiagnostic = event;
       });
     }
+  }
+
+  Future<ManagementDiagnosticEvent> _captureSetupFailure(
+    String code, {
+    required Object failure,
+    required StackTrace stack,
+    String? phase,
+  }) async {
+    final safeCode = RegExp(r'^[A-Z][A-Z0-9_]{0,79}$').hasMatch(code)
+        ? code
+        : 'HOST_SETUP_UNEXPECTED_FAILURE';
+    final safePhase = _safeDiagnosticPhase(phase);
+    final category = _diagnosticCategory(safeCode);
+    final correlationId = newLocalCorrelationId();
+    final occurredAtUtc = DateTime.now().toUtc();
+    final input = LocalDiagnosticInput(
+      code: safeCode,
+      component: 'client.host_setup.${safePhase.toLowerCase()}',
+      category: category,
+      severity: safeCode == 'HOST_SETUP_ELEVATION_CANCELLED'
+          ? ManagementDiagnosticSeverity.warning
+          : ManagementDiagnosticSeverity.error,
+      retryable: _isRetryableDiagnostic(safeCode),
+      messageKey: 'native.diagnostics.host_setup_failed',
+      safeExplanation:
+          'Host setup failed during ${safePhase.replaceAll('_', ' ').toLowerCase()}.',
+      recommendedAction:
+          'Keep existing Host data intact. Share this sanitized report with an authorized Host operator before attempting recovery.',
+      occurredAtUtc: occurredAtUtc,
+      correlationId: correlationId,
+      protectedFailureType: safeDiagnosticFailureType(failure),
+      protectedFailureSource: safeDiagnosticFailureSource(stack),
+    );
+    final fallback = ManagementDiagnosticEvent(
+      code: input.code,
+      component: input.component,
+      category: input.category,
+      severity: input.severity,
+      occurredAtUtc: occurredAtUtc,
+      correlationId: correlationId,
+      retryable: input.retryable,
+      messageKey: input.messageKey,
+      safeExplanation: input.safeExplanation,
+      recommendedAction: input.recommendedAction,
+      protectedFailureType: input.protectedFailureType,
+      protectedFailureSource: input.protectedFailureSource,
+    );
+
+    try {
+      final source = await _diagnosticSource();
+      final event = await source.record(input);
+      if (event.code != safeCode || event.correlationId != correlationId) {
+        throw const FormatException('Diagnostic event identity mismatch.');
+      }
+      _diagnosticPersistenceFailed = false;
+      return event;
+    } on Object {
+      _diagnosticPersistenceFailed = true;
+      return fallback;
+    }
+  }
+
+  Future<DiagnosticEventSource> _diagnosticSource() async {
+    final supplied = widget.diagnosticEventSource;
+    if (supplied != null) return supplied;
+    return _ownedDiagnosticStore ??= await openDefaultLocalDiagnosticsStore();
+  }
+
+  String _safeDiagnosticPhase(String? phase) {
+    const allowed = {
+      'ADMINISTRATOR_ACCESS',
+      'PAYLOAD_VALIDATION',
+      'POSTGRES_SERVICE_PROVISIONING',
+      'DATABASE_INITIALIZATION',
+      'MIGRATION_CREDENTIAL_PROTECTION',
+      'HOST_SERVICE_REGISTRATION',
+      'HOST_CONFIGURATION_PROTECTION',
+      'HOST_LAN_CONFIGURATION',
+      'HOST_SERVICE_STARTUP',
+      'HOST_READINESS',
+      'FIRST_ADMINISTRATOR_BOOTSTRAP',
+      'BOOTSTRAP_CREDENTIAL_PROTECTION',
+    };
+    if (phase != null && allowed.contains(phase)) return phase;
+    return switch (_currentStep) {
+      HostSetupStep.administratorAccess => 'ADMINISTRATOR_ACCESS',
+      HostSetupStep.postgresService => 'POSTGRES_SERVICE_PROVISIONING',
+      HostSetupStep.hostService => 'HOST_SERVICE_REGISTRATION',
+      HostSetupStep.firstAdministrator => 'FIRST_ADMINISTRATOR_BOOTSTRAP',
+      HostSetupStep.credentialStorage => 'BOOTSTRAP_CREDENTIAL_PROTECTION',
+      HostSetupStep.hostReadiness || HostSetupStep.complete => 'HOST_READINESS',
+      null => 'HOST_READINESS',
+    };
+  }
+
+  ManagementDiagnosticCategory _diagnosticCategory(String code) {
+    if (code.contains('RECOVERY')) {
+      return ManagementDiagnosticCategory.recovery;
+    }
+    if (code.contains('DATABASE') || code.contains('POSTGRES')) {
+      return ManagementDiagnosticCategory.database;
+    }
+    if (code.contains('CREDENTIAL') || code.contains('TOKEN')) {
+      return ManagementDiagnosticCategory.credentials;
+    }
+    if (code.contains('AUTHORIZATION') || code.contains('PERMISSION')) {
+      return ManagementDiagnosticCategory.authorization;
+    }
+    return ManagementDiagnosticCategory.hostStartup;
+  }
+
+  bool _isRetryableDiagnostic(String code) => const {
+    'HOST_SETUP_STATUS_UNAVAILABLE',
+    'HOST_SETUP_BROKER_START_TIMEOUT',
+    'HOST_SETUP_OPERATION_TIMEOUT',
+    'HOST_SERVICE_START_TIMEOUT',
+    'HOST_READINESS_TIMEOUT',
+  }.contains(code);
+
+  Future<void> _exportSetupDiagnostic() async {
+    final event = _setupDiagnostic;
+    if (event == null || _exportingDiagnostic) return;
+    setState(() => _exportingDiagnostic = true);
+    try {
+      final json = const JsonEncoder.withIndent('  ').convert({
+        'managementApiVersion': managementApiVersion,
+        'exportedAtUtc': DateTime.now().toUtc().toIso8601String(),
+        'events': [
+          {'source': 'device', ...event.toJson()},
+        ],
+      });
+      final handler = widget.diagnosticExportHandler;
+      if (handler == null) {
+        await Clipboard.setData(ClipboardData(text: json));
+      } else {
+        await handler(json);
+      }
+      if (mounted) {
+        _showDiagnosticMessage('native.ui.host_setup_diagnostic_copy_success');
+      }
+    } on Object {
+      if (mounted) {
+        _showDiagnosticMessage('native.ui.host_setup_diagnostic_copy_failed');
+      }
+    } finally {
+      if (mounted) setState(() => _exportingDiagnostic = false);
+    }
+  }
+
+  void _showDiagnosticMessage(String key) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(context.ventioText(key))));
   }
 
   void _finish() {
@@ -189,7 +405,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        'This guided setup starts the installed PostgreSQL and Host services, creates the first Host administrator through the protected local broker, stores its credential securely, and checks Host readiness.',
+                        'This guided setup provisions PostgreSQL, applies Host migrations, registers the Windows services, creates the first Host administrator through the trusted local service, stores its credential securely, and verifies readiness. Windows requests Administrator approval only for the protected setup component.',
                       ),
                     ],
                   ),
@@ -201,10 +417,8 @@ class _HostSetupPageState extends State<HostSetupPage> {
                   icon: Icons.desktop_windows_outlined,
                   messageKey: 'native.ui.host_setup_windows_only',
                 )
-              else if (_checking)
+              else if (_checking || _restoringPendingScope)
                 const Center(child: CircularProgressIndicator())
-              else if (!_isAdministrator)
-                _administratorCard()
               else ...[
                 _serviceCard(
                   context,
@@ -232,6 +446,48 @@ class _HostSetupPageState extends State<HostSetupPage> {
                     messageKey: _errorKey!,
                     isError: true,
                   ),
+                  if (_setupDiagnostic != null) ...[
+                    const SizedBox(height: 8),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            VentioText(
+                              'native.ui.host_setup_diagnostic_reference',
+                              params: {
+                                'referenceId': _setupDiagnostic!.correlationId,
+                              },
+                            ),
+                            if (_diagnosticPersistenceFailed) ...[
+                              const SizedBox(height: 6),
+                              const VentioText(
+                                'native.ui.host_setup_diagnostic_not_saved',
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              onPressed: _exportingDiagnostic
+                                  ? null
+                                  : _exportSetupDiagnostic,
+                              icon: _exportingDiagnostic
+                                  ? const SizedBox.square(
+                                      dimension: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.content_copy_outlined),
+                              label: const VentioText(
+                                'native.ui.host_setup_copy_diagnostics',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
                 if (_complete) ...[
                   const SizedBox(height: 12),
@@ -242,7 +498,9 @@ class _HostSetupPageState extends State<HostSetupPage> {
                 ],
                 const SizedBox(height: 20),
                 FilledButton.icon(
-                  onPressed: _busy || !_scopeIsValid ? null : _runSetup,
+                  onPressed: _busy || _pendingScopeMismatch || !_scopeIsValid
+                      ? null
+                      : _runSetup,
                   icon: _busy
                       ? const SizedBox.square(
                           dimension: 18,
@@ -251,7 +509,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
                       : const Icon(Icons.rocket_launch_outlined),
                   label: VentioText(
                     _complete
-                        ? 'native.ui.host_setup_retry'
+                        ? 'native.ui.host_setup_check_readiness'
                         : 'native.ui.host_setup_start',
                   ),
                 ),
@@ -273,42 +531,6 @@ class _HostSetupPageState extends State<HostSetupPage> {
     );
   }
 
-  Widget _administratorCard() => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.admin_panel_settings_outlined),
-              SizedBox(width: 10),
-              Expanded(
-                child: VentioText('native.ui.host_setup_admin_required'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const VentioText('native.ui.host_setup_admin_explanation'),
-          if (_errorKey != null) ...[
-            const SizedBox(height: 12),
-            _messageCard(
-              icon: Icons.error_outline,
-              messageKey: _errorKey!,
-              isError: true,
-            ),
-          ],
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _busy ? null : _requestElevation,
-            icon: const Icon(Icons.lock_open_outlined),
-            label: const VentioText('native.ui.host_setup_continue_as_admin'),
-          ),
-        ],
-      ),
-    ),
-  );
-
   Widget _serviceCard(
     BuildContext context, {
     required String titleKey,
@@ -323,6 +545,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
 
   Widget _setupSteps(BuildContext context) {
     const steps = [
+      HostSetupStep.administratorAccess,
       HostSetupStep.postgresService,
       HostSetupStep.hostService,
       HostSetupStep.firstAdministrator,
@@ -381,7 +604,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
           const SizedBox(height: 12),
           TextField(
             controller: _tenantId,
-            enabled: !_busy,
+            enabled: !_busy && !_pendingOperationFound,
             maxLength: 256,
             decoration: InputDecoration(
               labelText: context.ventioText('native.ui.host_setup_tenant_id'),
@@ -389,7 +612,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
           ),
           TextField(
             controller: _companyId,
-            enabled: !_busy,
+            enabled: !_busy && !_pendingOperationFound,
             maxLength: 256,
             decoration: InputDecoration(
               labelText: context.ventioText('native.ui.host_setup_company_id'),
@@ -397,7 +620,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
           ),
           TextField(
             controller: _branchId,
-            enabled: !_busy,
+            enabled: !_busy && !_pendingOperationFound,
             maxLength: 256,
             decoration: InputDecoration(
               labelText: context.ventioText('native.ui.host_setup_branch_id'),
@@ -488,7 +711,56 @@ class _HostSetupPageState extends State<HostSetupPage> {
       (_stepOrder(step) / 6).clamp(0.0, 1.0).toDouble();
 
   String _errorMessageKey(String code) => switch (code) {
-    'HOST_SETUP_REQUIRES_ADMINISTRATOR' =>
+    'HOST_SETUP_APPLICATION_ELEVATED' =>
+      'native.ui.host_setup_application_elevated',
+    'HOST_SETUP_ELEVATION_CANCELLED' =>
+      'native.ui.host_setup_elevation_cancelled',
+    'HOST_SETUP_BROKER_START_TIMEOUT' =>
+      'native.ui.host_setup_broker_start_timeout',
+    'HOST_SETUP_OPERATION_TIMEOUT' => 'native.ui.host_setup_operation_timeout',
+    'HOST_SETUP_PENDING_OPERATION_MISMATCH' =>
+      'native.ui.host_setup_pending_mismatch',
+    'HOST_EXISTING_INSTALLATION_REQUIRES_RECOVERY' =>
+      'native.ui.host_setup_existing_installation',
+    'HOST_EXISTING_SERVICES_REQUIRE_RECOVERY' =>
+      'native.ui.host_setup_existing_installation',
+    'HOST_EXISTING_DATA_REQUIRES_REPAIR' =>
+      'native.ui.host_setup_existing_installation',
+    'HOST_PARTIAL_SERVICE_INSTALLATION' =>
+      'native.ui.host_setup_existing_installation',
+    'HOST_SERVICE_IDENTITY_CONFLICT' =>
+      'native.ui.host_setup_service_identity_conflict',
+    'HOST_SETUP_ALREADY_RUNNING' => 'native.ui.host_setup_already_running',
+    'HOST_SETUP_INTERRUPTED_REQUIRES_RECOVERY' =>
+      'native.ui.host_setup_interrupted_requires_recovery',
+    'HOST_SETUP_SCRIPT_HASH_INVALID' =>
+      'native.ui.host_setup_payload_verification_failed',
+    'HOST_SETUP_PAYLOAD_MANIFEST_INVALID' =>
+      'native.ui.host_setup_payload_verification_failed',
+    'HOST_SETUP_STATUS_UNAVAILABLE' =>
+      'native.ui.host_setup_status_unavailable',
+    'HOST_FIRST_ADMIN_REQUEST_INVALID' =>
+      'native.ui.host_setup_first_admin_request_invalid',
+    'HOST_FIRST_ADMIN_DATABASE_CONNECTION_FAILED' =>
+      'native.ui.host_setup_first_admin_database_failed',
+    'HOST_FIRST_ADMIN_RECOVERY_AUTHORITY_FAILED' =>
+      'native.ui.host_setup_first_admin_recovery_failed',
+    'HOST_FIRST_ADMIN_IDENTITY_BOOTSTRAP_FAILED' =>
+      'native.ui.host_setup_first_admin_identity_failed',
+    'HOST_FIRST_ADMIN_HELPER_TIMEOUT' =>
+      'native.ui.host_setup_first_admin_helper_timeout',
+    'HOST_FIRST_ADMIN_RESULT_INVALID' =>
+      'native.ui.host_setup_first_admin_result_invalid',
+    'HOST_FIRST_ADMIN_HELPER_FAILED' =>
+      'native.ui.host_setup_first_admin_helper_failed',
+    'HOST_SETUP_STATE_UNAVAILABLE' => 'native.ui.host_setup_state_unavailable',
+    'HOST_SETUP_STATE_ALREADY_EXISTS' =>
+      'native.ui.host_setup_state_unavailable',
+    'HOST_SETUP_IDENTITY_UNAVAILABLE' =>
+      'native.ui.host_setup_identity_unavailable',
+    'HOST_SETUP_BROKER_UNAVAILABLE' =>
+      'native.ui.host_setup_broker_unavailable',
+    'HOST_SETUP_ADMIN_ELEVATION_REQUIRED' =>
       'native.ui.host_setup_admin_required',
     'HOST_SERVICE_NOT_INSTALLED' => 'native.ui.host_setup_install_role_missing',
     'HOST_SERVICE_CONTROL_UNAVAILABLE' =>
@@ -511,6 +783,8 @@ class _HostSetupPageState extends State<HostSetupPage> {
       'native.ui.host_setup_acknowledgement_failed',
     'HOST_READINESS_TIMEOUT' => 'native.ui.host_setup_readiness_timeout',
     'HOST_SETUP_WINDOWS_ONLY' => 'native.ui.host_setup_windows_only',
+    'HOST_SETUP_REQUESTER_IDENTITY_MISMATCH' =>
+      'native.ui.host_setup_requester_identity_mismatch',
     _ => 'native.ui.host_setup_failed_generic',
   };
 }

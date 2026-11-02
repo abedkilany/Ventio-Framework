@@ -30,8 +30,10 @@ abstract interface class DiagnosticEventSource {
 /// can happen before the Client reaches an authenticated Host.
 ///
 /// Only the allowlisted fields from [ManagementDiagnosticEvent] are stored.
-/// Technical exceptions, request bodies, SQL parameters, credentials, and
-/// filesystem paths are not accepted by this API.
+/// Exception messages, request bodies, SQL parameters, credentials, and
+/// filesystem paths are not accepted by this API. A bounded exception class
+/// and symbol-only source frame may be retained locally for support; those
+/// protected fields are omitted from every export.
 class LocalDiagnosticsStore implements DiagnosticEventSource {
   LocalDiagnosticsStore._(this._database, this._clock);
 
@@ -47,7 +49,7 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -66,13 +68,32 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
               retryable INTEGER NOT NULL CHECK (retryable IN (0, 1)),
               message_key TEXT NOT NULL,
               safe_explanation TEXT NOT NULL,
-              recommended_action TEXT NOT NULL
+              recommended_action TEXT NOT NULL,
+              protected_technical_code TEXT,
+              protected_failure_type TEXT,
+              protected_failure_source TEXT
             )
           ''');
           await database.execute('''
             CREATE INDEX local_diagnostic_events_recent
             ON local_diagnostic_events(id DESC)
           ''');
+        },
+        onUpgrade: (database, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await database.execute(
+              'ALTER TABLE local_diagnostic_events '
+              'ADD COLUMN protected_technical_code TEXT',
+            );
+            await database.execute(
+              'ALTER TABLE local_diagnostic_events '
+              'ADD COLUMN protected_failure_type TEXT',
+            );
+            await database.execute(
+              'ALTER TABLE local_diagnostic_events '
+              'ADD COLUMN protected_failure_source TEXT',
+            );
+          }
         },
       ),
     );
@@ -95,6 +116,9 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
       messageKey: input.messageKey,
       safeExplanation: explanation,
       recommendedAction: action,
+      protectedTechnicalCode: input.protectedTechnicalCode,
+      protectedFailureType: input.protectedFailureType,
+      protectedFailureSource: input.protectedFailureSource,
     );
     await _database.insert('local_diagnostic_events', {
       'code': event.code,
@@ -107,6 +131,9 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
       'message_key': event.messageKey,
       'safe_explanation': event.safeExplanation,
       'recommended_action': event.recommendedAction,
+      'protected_technical_code': event.protectedTechnicalCode,
+      'protected_failure_type': event.protectedFailureType,
+      'protected_failure_source': event.protectedFailureSource,
     });
     await _database.execute(
       '''
@@ -169,6 +196,9 @@ class LocalDiagnosticInput {
     required this.messageKey,
     required this.safeExplanation,
     required this.recommendedAction,
+    this.protectedTechnicalCode,
+    this.protectedFailureType,
+    this.protectedFailureSource,
     this.occurredAtUtc,
     this.correlationId,
   });
@@ -181,6 +211,9 @@ class LocalDiagnosticInput {
   final String messageKey;
   final String safeExplanation;
   final String recommendedAction;
+  final String? protectedTechnicalCode;
+  final String? protectedFailureType;
+  final String? protectedFailureSource;
   final DateTime? occurredAtUtc;
   final String? correlationId;
 }
@@ -191,6 +224,28 @@ String newLocalCorrelationId() {
   final random = Random.secure();
   final bytes = List<int>.generate(16, (_) => random.nextInt(256));
   return 'cor_${bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join()}';
+}
+
+/// Returns a validated exception type without its message, values, or stack.
+String? safeDiagnosticFailureType(Object? failure) {
+  if (failure == null) return null;
+  final value = failure.runtimeType.toString();
+  if (!RegExp(r'^[A-Za-z][A-Za-z0-9_.]{0,79}$').hasMatch(value)) {
+    return null;
+  }
+  return value;
+}
+
+/// Extracts one bounded Dart symbol from a stack without retaining paths,
+/// source lines, arguments, or exception text.
+String? safeDiagnosticFailureSource(StackTrace? stack) {
+  if (stack == null) return null;
+  final symbolPattern = RegExp(r'^\s*#\d+\s+([A-Za-z0-9_.$<>]{1,120})');
+  for (final line in stack.toString().split('\n')) {
+    final match = symbolPattern.firstMatch(line);
+    if (match != null) return match.group(1);
+  }
+  return null;
 }
 
 /// Redacts common credential formats and private Windows paths before text is
@@ -268,5 +323,8 @@ ManagementDiagnosticEvent _eventFromRow(Map<String, Object?> row) {
     messageKey: row['message_key']! as String,
     safeExplanation: row['safe_explanation']! as String,
     recommendedAction: row['recommended_action']! as String,
+    protectedTechnicalCode: row['protected_technical_code'] as String?,
+    protectedFailureType: row['protected_failure_type'] as String?,
+    protectedFailureSource: row['protected_failure_source'] as String?,
   );
 }

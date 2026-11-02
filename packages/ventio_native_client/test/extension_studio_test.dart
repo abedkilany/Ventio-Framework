@@ -1185,7 +1185,7 @@ void main() {
     expect(profile?.companyId, 'company-1');
     expect(profile?.branchId, 'branch-1');
     expect(backend.values.values, contains(token));
-    expect(find.textContaining('Host connected'), findsOneWidget);
+    expect(find.textContaining('Host profile selected'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

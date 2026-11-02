@@ -33,6 +33,7 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
   late final TextEditingController _endpoint = TextEditingController(
     text: widget.initialEndpoint ?? '',
   );
+  final TextEditingController _fingerprint = TextEditingController();
   final TextEditingController _code = TextEditingController();
   ClientPairingException? _error;
   ClientPairingResult? _result;
@@ -41,6 +42,7 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
   @override
   void dispose() {
     _endpoint.dispose();
+    _fingerprint.dispose();
     _code.dispose();
     super.dispose();
   }
@@ -51,6 +53,7 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
         endpoint: endpoint,
         credentials: widget.credentials,
         store: widget.store,
+        expectedCertificateFingerprint: _fingerprint.text,
       );
 
   Future<void> _enroll() async {
@@ -69,6 +72,13 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
     if (code.trim().isEmpty) {
       setState(() {
         _error = const ClientPairingException('PAIRING_CODE_REQUIRED');
+      });
+      return;
+    }
+    if (widget.clientFactory == null &&
+        HostCredentialVault.normalizeFingerprint(_fingerprint.text) == null) {
+      setState(() {
+        _error = const ClientPairingException('HOST_TLS_FINGERPRINT_REQUIRED');
       });
       return;
     }
@@ -144,6 +154,7 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
           source ?? (ownedStore = await openDefaultLocalDiagnosticsStore());
       final category = switch (safeCode) {
         'HOST_TLS_VALIDATION_FAILED' ||
+        'HOST_TLS_FINGERPRINT_REQUIRED' ||
         'HOST_HTTPS_REQUIRED' ||
         'HOST_UNREACHABLE' ||
         'HOST_REQUEST_TIMEOUT' => ManagementDiagnosticCategory.networkTls,
@@ -163,6 +174,8 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
           'The pairing code is invalid, expired, or already used.',
         'HOST_TLS_VALIDATION_FAILED' =>
           'The Host certificate could not be validated.',
+        'HOST_TLS_FINGERPRINT_REQUIRED' =>
+          'A valid Host TLS certificate SHA-256 fingerprint is required.',
         'HOST_HTTPS_REQUIRED' =>
           'Client enrollment requires an HTTPS Host address.',
         'CLIENT_CREDENTIAL_STORAGE_FAILED' || 'CLIENT_ENROLLMENT_SAVE_FAILED' =>
@@ -178,6 +191,8 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
           'Use a fresh Client device setup or ask the Host administrator to review the registered device.',
         'HOST_TLS_VALIDATION_FAILED' =>
           'Check the Host address and its trusted TLS certificate. Do not bypass certificate checks.',
+        'HOST_TLS_FINGERPRINT_REQUIRED' =>
+          'Copy the SHA-256 fingerprint from Host Settings and enter it before enrolling.',
         'HOST_UNREACHABLE' || 'HOST_REQUEST_TIMEOUT' =>
           'Check the network and Host service, then retry with a current pairing code.',
         'CLIENT_CREDENTIAL_STORAGE_FAILED' || 'CLIENT_ENROLLMENT_SAVE_FAILED' =>
@@ -213,6 +228,7 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
   static String _safeCode(String code) =>
       const {
         'HOST_HTTPS_REQUIRED',
+        'HOST_TLS_FINGERPRINT_REQUIRED',
         'HOST_TLS_VALIDATION_FAILED',
         'HOST_UNREACHABLE',
         'HOST_REQUEST_TIMEOUT',
@@ -238,6 +254,8 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
   String _errorText(ClientPairingException error) {
     final key = switch (error.code) {
       'HOST_HTTPS_REQUIRED' => 'native.ui.client_pairing_https_required',
+      'HOST_TLS_FINGERPRINT_REQUIRED' =>
+        'native.ui.client_pairing_fingerprint_required',
       'PAIRING_CODE_REQUIRED' ||
       'PAIRING_CODE_INVALID_FORMAT' => 'native.ui.client_pairing_code_invalid',
       'PAIRING_INVALID_OR_EXPIRED' => 'native.ui.client_pairing_code_expired',
@@ -308,6 +326,22 @@ class _ClientPairingPageState extends State<ClientPairingPage> {
                     hintText: 'https://ventio-host.example.com:8443',
                     helperText: context.ventioText(
                       'native.ui.client_pairing_https_only',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const ValueKey('client-pairing-fingerprint'),
+                  controller: _fingerprint,
+                  enabled: !_submitting,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: InputDecoration(
+                    labelText: context.ventioText(
+                      'native.ui.client_pairing_fingerprint',
+                    ),
+                    helperText: context.ventioText(
+                      'native.ui.client_pairing_fingerprint_help',
                     ),
                   ),
                 ),

@@ -825,7 +825,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     if (confirmed != true) return;
     final vault = widget.credentialVault;
     if (vault != null) {
-      await vault.delete(Uri.parse(profile.endpoint));
+      final endpoint = Uri.parse(profile.endpoint);
+      await vault.delete(endpoint);
+      await vault.deleteTrustedCertificate(endpoint);
     }
     await widget.store.clearHostProfile();
     if (mounted) setState(() => _hostIdentity = null);
@@ -1057,6 +1059,44 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       appBar: AppBar(
         title: const VentioText('native.ui.ventio_extension_builder'),
         actions: [
+          if (width >= 600 &&
+              (_canManageUsers ||
+                  _canManageRoles ||
+                  _canManageDevices ||
+                  _canManagePairings))
+            PopupMenuButton<_StudioMenuAction>(
+              tooltip: context.ventioText('native.ui.host_administration'),
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              onSelected: (action) {
+                switch (action) {
+                  case _StudioMenuAction.manageUsers:
+                    _openUserManagement();
+                  case _StudioMenuAction.manageRoles:
+                    _openRoleAdministration();
+                  case _StudioMenuAction.manageDevices:
+                    _openDeviceManagement();
+                  default:
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                if (_canManageUsers)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.manageUsers,
+                    child: VentioText('native.ui.users_permissions'),
+                  ),
+                if (_canManageRoles)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.manageRoles,
+                    child: VentioText('native.ui.manage_roles_access'),
+                  ),
+                if (_canManageDevices || _canManagePairings)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.manageDevices,
+                    child: VentioText('native.ui.host_devices'),
+                  ),
+              ],
+            ),
           if (width < 600)
             PopupMenuButton<_StudioMenuAction>(
               tooltip: context.ventioText('native.ui.workspace_actions'),
@@ -1280,10 +1320,10 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 _LocalOnlyNotice(
                   title: _hostProfile == null
                       ? 'Device workspace'
-                      : 'Host connected · ${_hostProfile!.tenantId}',
+                      : 'Host profile selected · ${_hostProfile!.tenantId}',
                   body: _hostProfile == null
                       ? 'Extension definitions and preview records are stored on this device. Connect to an authenticated Host to submit packages for review or install approved packages.'
-                      : 'Selected scope: ${_hostProfile!.companyId} / ${_hostProfile!.branchId}. Local drafts and records stay provisional; only Host-approved packages can be installed from the registry.',
+                      : 'Selected scope: ${_hostProfile!.companyId} / ${_hostProfile!.branchId}. Host access requires a verified session. Local drafts and records stay provisional; only Host-approved packages can be installed from the registry.',
                   icon: _hostProfile == null
                       ? Icons.phonelink_setup_outlined
                       : Icons.cloud_done_outlined,

@@ -915,7 +915,11 @@ class HostExtensionPackageClient {
       throw const HostPackageTransportException('HOST_CREDENTIAL_MISSING');
     }
     final watch = Stopwatch()..start();
-    final client = _clientFactory()..connectionTimeout = timeout;
+    final client = await credentials.createHttpClient(
+      endpoint,
+      fallbackFactory: _clientFactory,
+    );
+    client.connectionTimeout = timeout;
     try {
       final uri = endpoint.replace(path: path);
       final request = await client

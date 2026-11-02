@@ -76,6 +76,7 @@ class ClientPairingClient {
     required Uri endpoint,
     required this.credentials,
     required this.store,
+    this.expectedCertificateFingerprint,
     String Function()? deviceIdFactory,
     DateTime Function()? clock,
     this.exchange,
@@ -92,6 +93,7 @@ class ClientPairingClient {
   final Uri endpoint;
   final HostCredentialVault credentials;
   final LocalExtensionStore store;
+  final String? expectedCertificateFingerprint;
   final ClientPairingExchange? exchange;
   final Duration timeout;
   final int maxResponseBytes;
@@ -122,7 +124,43 @@ class ClientPairingClient {
     // Check local persistence before consuming the single-use Host code.
     final previousProfile = await _readExistingProfile();
     final previousCredential = await _readPreviousCredential();
-    final response = await _post(pairingCode, deviceId);
+    final previousCertificate = await credentials.readTrustedCertificate(
+      endpoint,
+    );
+    List<int>? trustedCertificateDer;
+    if (exchange == null) {
+      final expected = expectedCertificateFingerprint == null
+          ? null
+          : HostCredentialVault.normalizeFingerprint(
+              expectedCertificateFingerprint!,
+            );
+      if (expected == null) {
+        throw const ClientPairingException('HOST_TLS_FINGERPRINT_REQUIRED');
+      }
+      try {
+        trustedCertificateDer = await credentials
+            .verifyAndFetchCertificate(endpoint, expected, timeout: timeout)
+            .timeout(timeout);
+      } on TimeoutException {
+        throw const ClientPairingException(
+          'HOST_REQUEST_TIMEOUT',
+          retryable: true,
+        );
+      } on SocketException {
+        throw const ClientPairingException('HOST_UNREACHABLE', retryable: true);
+      } on TlsException {
+        throw const ClientPairingException('HOST_TLS_VALIDATION_FAILED');
+      } on FormatException {
+        throw const ClientPairingException('HOST_TLS_FINGERPRINT_REQUIRED');
+      } catch (_) {
+        throw const ClientPairingException('HOST_TLS_VALIDATION_FAILED');
+      }
+    }
+    final response = await _post(
+      pairingCode,
+      deviceId,
+      trustedCertificateDer: trustedCertificateDer,
+    );
     if (response.statusCode != HttpStatus.created) {
       throw _apiError(response);
     }
@@ -147,6 +185,12 @@ class ClientPairingClient {
     // passed version, shape, role, scope, expiry, and token validation.
     try {
       await credentials.save(endpoint, enrollment.credential);
+      if (trustedCertificateDer != null) {
+        await credentials.saveTrustedCertificate(
+          endpoint,
+          trustedCertificateDer,
+        );
+      }
       await store.saveHostProfile(profile);
     } catch (_) {
       try {
@@ -154,6 +198,16 @@ class ClientPairingClient {
           await credentials.delete(endpoint);
         } else {
           await credentials.save(endpoint, previousCredential);
+        }
+        if (trustedCertificateDer != null) {
+          if (previousCertificate == null) {
+            await credentials.deleteTrustedCertificate(endpoint);
+          } else {
+            await credentials.saveTrustedCertificate(
+              endpoint,
+              previousCertificate.der,
+            );
+          }
         }
       } catch (_) {
         // Do not expose platform-storage exceptions or credential material.
@@ -167,7 +221,9 @@ class ClientPairingClient {
     final oldEndpoint = previousProfile?.endpoint;
     if (oldEndpoint != null && oldEndpoint != endpoint.toString()) {
       try {
-        await credentials.delete(Uri.parse(oldEndpoint));
+        final parsedOldEndpoint = Uri.parse(oldEndpoint);
+        await credentials.delete(parsedOldEndpoint);
+        await credentials.deleteTrustedCertificate(parsedOldEndpoint);
       } catch (_) {
         // Profile and new credential are committed; stale-key cleanup is best effort.
       }
@@ -282,22 +338,41 @@ class ClientPairingClient {
     );
   }
 
-  Future<_PairingResponse> _post(String code, String deviceId) async {
+  Future<_PairingResponse> _post(
+    String code,
+    String deviceId, {
+    required List<int>? trustedCertificateDer,
+  }) async {
     try {
-      final response = await (exchange ?? _httpExchange)(
-        uri: endpoint.replace(path: HostManagementRoutes.pairingRedeem),
-        headers: const {
-          HttpHeaders.acceptHeader: 'application/json',
-          HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
-        },
-        body: canonicalJson({
-          'managementApiVersion': clientPairingManagementApiVersion,
-          'code': code,
-          'deviceId': deviceId,
-        }),
-        timeout: timeout,
-        maxResponseBytes: maxResponseBytes,
-      ).timeout(timeout);
+      final args = {
+        'managementApiVersion': clientPairingManagementApiVersion,
+        'code': code,
+        'deviceId': deviceId,
+      };
+      final uri = endpoint.replace(path: HostManagementRoutes.pairingRedeem);
+      final headers = const {
+        HttpHeaders.acceptHeader: 'application/json',
+        HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
+      };
+      final body = canonicalJson(args);
+      final response =
+          await (exchange == null
+                  ? _httpExchange(
+                      uri: uri,
+                      headers: headers,
+                      body: body,
+                      timeout: timeout,
+                      maxResponseBytes: maxResponseBytes,
+                      trustedCertificateDer: trustedCertificateDer,
+                    )
+                  : exchange!(
+                      uri: uri,
+                      headers: headers,
+                      body: body,
+                      timeout: timeout,
+                      maxResponseBytes: maxResponseBytes,
+                    ))
+              .timeout(timeout);
       final correlationId = _validCorrelationId(
         response.body['correlationId'] ??
             response.headers['x-correlation-id'] ??
@@ -356,9 +431,21 @@ class ClientPairingClient {
     required String body,
     required Duration timeout,
     required int maxResponseBytes,
+    required List<int>? trustedCertificateDer,
   }) async {
     final stopwatch = Stopwatch()..start();
-    final client = HttpClient()..connectionTimeout = timeout;
+    final pinnedFingerprint = trustedCertificateDer == null
+        ? null
+        : HostCredentialVault.certificateFingerprint(trustedCertificateDer);
+    final context = trustedCertificateDer == null
+        ? null
+        : SecurityContext(withTrustedRoots: false);
+    final client = HttpClient(context: context)
+      ..connectionTimeout = timeout
+      ..badCertificateCallback = (certificate, _, _) =>
+          pinnedFingerprint != null &&
+          HostCredentialVault.certificateFingerprint(certificate.der) ==
+              pinnedFingerprint;
     try {
       final request = await client.openUrl('POST', uri).timeout(timeout);
       request

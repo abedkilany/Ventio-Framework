@@ -228,8 +228,8 @@ class HostDeviceManagementClient {
           };
           if (item.length != keys.length ||
               item.keys.any((key) => !keys.contains(key)) ||
-              !_safeIdentifier(item['deviceId']) ||
-              !_safeIdentifier(item['actorId']) ||
+              !_safeDeviceManagementDeviceId(item['deviceId']) ||
+              !_safeDeviceManagementActorId(item['actorId']) ||
               !const {'HOST', 'CLIENT', 'UNKNOWN'}.contains(item['role']) ||
               item['credentials'] is! List) {
             throw _invalidResponse(response);
@@ -260,7 +260,9 @@ class HostDeviceManagementClient {
                     credential.keys.any(
                       (key) => !credentialKeys.contains(key),
                     ) ||
-                    !_safeIdentifier(credential['credentialId'])) {
+                    !_safeDeviceManagementCredentialId(
+                      credential['credentialId'],
+                    )) {
                   throw _invalidResponse(response);
                 }
                 final expires = _utc(credential['expiresAtUtc']);
@@ -316,7 +318,7 @@ class HostDeviceManagementClient {
   }
 
   Future<void> revoke(String deviceId) async {
-    if (!_safeIdentifier(deviceId)) {
+    if (!_safeDeviceManagementDeviceId(deviceId)) {
       throw const HostDeviceManagementException('INVALID_DEVICE_ID');
     }
     final response = await _post('revoke', {'deviceId': deviceId});
@@ -344,7 +346,8 @@ class HostDeviceManagementClient {
     required String deviceId,
     required String credentialId,
   }) async {
-    if (!_safeIdentifier(deviceId) || !_safeIdentifier(credentialId)) {
+    if (!_safeDeviceManagementDeviceId(deviceId) ||
+        !_safeDeviceManagementCredentialId(credentialId)) {
       throw const HostDeviceManagementException('INVALID_DEVICE_ID');
     }
     final response = await _post('rotate-credential', {
@@ -380,9 +383,9 @@ class HostDeviceManagementClient {
     if (value.length != keys.length ||
         value.keys.any((key) => !keys.contains(key)) ||
         value['tenantId'] != verifiedIdentity.tenantId ||
-        !_safeIdentifier(value['actorId']) ||
+        !_safeDeviceManagementActorId(value['actorId']) ||
         value['deviceId'] != deviceId ||
-        !_safeIdentifier(value['credentialId']) ||
+        !_safeDeviceManagementCredentialId(value['credentialId']) ||
         value['companyId'] != companyId ||
         value['branchId'] != branchId ||
         expiry == null ||
@@ -400,7 +403,7 @@ class HostDeviceManagementClient {
   }
 
   Future<HostPairingCredential> createPairing(String actorId) async {
-    if (!_safeIdentifier(actorId)) {
+    if (!_safeDeviceManagementActorId(actorId)) {
       throw const HostDeviceManagementException('INVALID_ACTOR_ID');
     }
     final response = await _postPairing(actorId);
@@ -547,7 +550,11 @@ class HostDeviceManagementClient {
     required int maxResponseBytes,
   }) async {
     final watch = Stopwatch()..start();
-    final client = _clientFactory()..connectionTimeout = timeout;
+    final client = await credentials.createHttpClient(
+      endpoint,
+      fallbackFactory: _clientFactory,
+    );
+    client.connectionTimeout = timeout;
     try {
       final request = await client.openUrl('POST', uri).timeout(timeout);
       request
@@ -659,6 +666,20 @@ bool _safeIdentifier(Object? value) =>
       r'(bearer|password|token|secret|postgres(?:ql)?|credential)',
       caseSensitive: false,
     ).hasMatch(value);
+
+bool _isTypedOpaqueManagementId(Object? value, String prefix) =>
+    value is String &&
+    value.startsWith(prefix) &&
+    RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value.substring(prefix.length));
+
+bool _safeDeviceManagementDeviceId(Object? value) =>
+    _isTypedOpaqueManagementId(value, 'dev_') || _safeIdentifier(value);
+
+bool _safeDeviceManagementActorId(Object? value) =>
+    _isTypedOpaqueManagementId(value, 'usr_') || _safeIdentifier(value);
+
+bool _safeDeviceManagementCredentialId(Object? value) =>
+    _isTypedOpaqueManagementId(value, 'cred_') || _safeIdentifier(value);
 
 void _validateScopeIdentifier(String value) {
   if (value.trim().isEmpty || value.length > 256) {

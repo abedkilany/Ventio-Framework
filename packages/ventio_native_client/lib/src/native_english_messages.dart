@@ -1,9 +1,22 @@
 // First-party English UI fallbacks. Keys are stable message identifiers.
 const ventioNativeEnglishMessages = <String, String>{
+  'native.ui.first_run_title': 'Welcome to Ventio',
+  'native.ui.first_run_heading': 'Choose how to use this device',
+  'native.ui.first_run_explanation':
+      'Set up a Host for your organization or connect this device to an existing Host.',
+  'native.ui.first_run_host_title': 'Set up this device as Host',
+  'native.ui.first_run_host_details':
+      'This device will run the shared Host services and store authoritative business data.',
+  'native.ui.first_run_continue': 'Continue',
+  'native.ui.first_run_client_title': 'Connect this device to an existing Host',
+  'native.ui.first_run_client_details':
+      'Use the Host address and a one-time pairing code from its administrator. This Client will not install local Host services.',
+  'native.ui.first_run_connect': 'Connect',
   'native.app.title': 'Ventio Extension Builder',
   'native.ui.users_permissions': 'Users & permissions',
   'native.ui.host_overview': 'Host overview',
   'native.ui.host_settings': 'Host settings',
+  'native.ui.host_administration': 'Host administration',
   'native.ui.no_host_connection_configured': 'No Host connection configured',
   'native.ui.host_settings_connection_missing_details':
       'Configure this device to connect to a Host. Local settings do not change Host-side users or permissions.',
@@ -30,6 +43,16 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.no_permissions_for_selected_scope':
       'No permissions are granted for this scope.',
   'native.ui.host_connection_security': 'Connection security',
+  'native.ui.lan_host_listener': 'LAN Host listener',
+  'native.ui.lan_endpoint': 'HTTPS endpoint',
+  'native.ui.lan_ip_endpoints': 'Current private IP endpoints',
+  'native.ui.lan_certificate_fingerprint':
+      'TLS certificate SHA-256 fingerprint',
+  'native.ui.copy_tls_fingerprint': 'Copy TLS fingerprint',
+  'native.ui.tls_fingerprint_copied': 'TLS fingerprint copied.',
+  'native.ui.lan_public_certificate': 'Public TLS certificate',
+  'native.ui.lan_certificate_trust_notice':
+      'The certificate is self-signed. A Client must verify and explicitly trust its fingerprint before pairing.',
   'native.ui.host_settings_security_details':
       'Remote Host connections use HTTPS with standard certificate validation. Stored credentials are never displayed here, and the Host checks authorization on each request.',
   'native.ui.configure_host_connection': 'Configure Host connection',
@@ -44,7 +67,11 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.client_role_is_not_permission':
       'CLIENT identifies this device role only. It grants no user permissions; access is determined by the Host-authenticated user identity.',
   'native.ui.client_pairing_https_only':
-      'HTTPS is required. The Host certificate is verified by the device.',
+      'HTTPS is required. The Host certificate is verified by its SHA-256 fingerprint.',
+  'native.ui.client_pairing_fingerprint':
+      'Host TLS certificate SHA-256 fingerprint',
+  'native.ui.client_pairing_fingerprint_help':
+      'Copy the fingerprint from Host Settings. The certificate is checked before the one-time code is sent.',
   'native.ui.client_pairing_code': 'Temporary pairing code',
   'native.ui.client_pairing_single_use':
       'This code can be used once and expires after a short time.',
@@ -59,6 +86,8 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.client_pairing_failed_title': 'Enrollment did not complete',
   'native.ui.client_pairing_https_required':
       'Enter a valid HTTPS Host address. Certificate validation cannot be bypassed.',
+  'native.ui.client_pairing_fingerprint_required':
+      'Enter the Host TLS certificate SHA-256 fingerprint shown in Host Settings.',
   'native.ui.client_pairing_code_invalid':
       'Enter a valid pairing code supplied by the Host administrator.',
   'native.ui.client_pairing_code_expired':
@@ -115,6 +144,10 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.pairing_target_user_id': 'Host user ID',
   'native.ui.pairing_code_once':
       'Show this single-use code to the Client operator. It is visible only in this screen and expires soon.',
+  'native.ui.copy_pairing_code': 'Copy pairing code',
+  'native.ui.copy_device_credential': 'Copy device credential',
+  'native.ui.copied_to_clipboard': 'Copied to clipboard.',
+  'native.ui.copy_to_clipboard_failed': 'Could not copy to clipboard.',
   'native.ui.pairing_code_expires': 'Expires {timestamp}',
   'native.ui.clear_code': 'Clear code',
   'native.ui.revoke_device_title': 'Revoke this device?',
@@ -213,7 +246,10 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.revoke_permission': 'Revoke permission',
   'native.ui.disable_user': 'Disable user',
   'native.ui.disable_user_confirmation':
-      'Disable user {displayName} in this Host scope? The account will no longer be active.',
+      'Disable user {displayName} in this Host scope? Login will be suspended. Existing permissions and unrevoked credentials are preserved and may become active again if the user is re-enabled.',
+  'native.ui.enable_user': 'Enable user',
+  'native.ui.enable_user_confirmation':
+      'Re-enable user {displayName} in this Host scope? Existing permissions and unrevoked, unexpired credentials will work again. Revoke compromised device credentials separately.',
   'native.ui.refresh_users': 'Refresh users',
   'native.ui.users_scope_summary': 'Host tenant: {tenantId}',
   'native.ui.host_checks_user_management_permission':
@@ -231,6 +267,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.user_permission_granted': 'Permission granted by Host.',
   'native.ui.user_permission_revoked': 'Permission revoked by Host.',
   'native.ui.user_disabled': 'Host disabled the user.',
+  'native.ui.user_enabled': 'Host enabled the user.',
   'native.ui.recent_user_activity': 'Recent administrative activity',
   'native.ui.no_recent_user_activity': 'No recent activity is available.',
   'native.ui.audit_activity_load_failed':
@@ -239,6 +276,7 @@ const ventioNativeEnglishMessages = <String, String>{
       'User {subjectId} · Operator {operator} · {timestamp}',
   'native.ui.audit_user_created': 'User created',
   'native.ui.audit_user_disabled': 'User disabled',
+  'native.ui.audit_user_enabled': 'User enabled',
   'native.ui.audit_permission_granted': 'Permission granted',
   'native.ui.audit_permission_revoked': 'Permission revoked',
   'native.ui.audit_role_created': 'Role created',
@@ -582,6 +620,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.sync_failure_code': 'Safe error code: {code}',
   'native.ui.sync_failure_reference': 'Reference: {correlationId}',
   'native.diagnostics.host_sync_failed': 'Host synchronization failed',
+  'native.diagnostics.host_setup_failed': 'Host setup failed',
   'native.ui.local_host_revision':
       'Local revision {localRevision} · Host revision {hostRevision} · {syncState}',
   'native.ui.local_value': 'Local · {value}',
@@ -915,9 +954,9 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.choose_a_width_between_1_and_12': 'Choose a width from 1 to 12.',
   'native.ui.host_setup_menu': 'Host setup',
   'native.ui.host_setup_title': 'Host setup',
-  'native.ui.host_setup_admin_required': 'Administrator access required',
+  'native.ui.host_setup_admin_required': 'Request Windows setup approval',
   'native.ui.host_setup_admin_explanation':
-      'Completing Host setup requires Windows Administrator access. Continue in a separate elevated Ventio window; the current window remains unchanged.',
+      'Completing Host setup requires Windows Administrator approval. Continue to authorize only the protected setup component; Ventio itself stays at normal user privileges.',
   'native.ui.host_setup_continue_as_admin':
       'Continue with Administrator access',
   'native.ui.host_setup_windows_only':
@@ -942,18 +981,44 @@ const ventioNativeEnglishMessages = <String, String>{
       'Store the administrator credential securely',
   'native.ui.host_setup_readiness': 'Verify Host readiness',
   'native.ui.host_setup_credential_privacy':
-      'The administrator credential is saved in Windows secure storage and is never shown. The broker receipt is acknowledged only after the credential and Host scope are stored.',
+      'Ventio runs as your normal Windows user. Windows requests Administrator approval only for the protected Host provisioning component. The first administrator credential is stored in Windows secure storage and is never shown.',
+  'native.ui.host_setup_diagnostic_reference':
+      'Diagnostic reference: {referenceId}',
+  'native.ui.host_setup_diagnostic_not_saved':
+      'This report could not be saved on this device, but you can still copy the safe summary.',
+  'native.ui.host_setup_copy_diagnostics': 'Copy sanitized setup report',
+  'native.ui.host_setup_diagnostic_copy_success':
+      'Sanitized Host setup report copied.',
+  'native.ui.host_setup_diagnostic_copy_failed':
+      'The sanitized Host setup report could not be copied.',
   'native.ui.host_setup_start': 'Set up Host',
   'native.ui.host_setup_retry': 'Retry Host setup',
+  'native.ui.host_setup_check_readiness': 'Check Host readiness',
   'native.ui.host_setup_open_workspace': 'Open Ventio workspace',
   'native.ui.host_setup_complete':
       'Host is ready. The initial administrator credential and exact Host scope are stored securely on this device.',
   'native.ui.host_setup_status_unavailable':
       'Windows could not confirm the required service status. Check the Host installation and try again.',
+  'native.ui.host_setup_first_admin_request_invalid':
+      'The protected Host setup request could not be validated. Existing setup data was preserved.',
+  'native.ui.host_setup_first_admin_database_failed':
+      'The Host service could not connect to its PostgreSQL database while creating the first administrator. Existing setup data was preserved; review protected diagnostics before retrying.',
+  'native.ui.host_setup_first_admin_recovery_failed':
+      'The protected Recovery Authority could not complete first-administrator setup. Existing setup data was preserved; do not reset or remove the Host data.',
+  'native.ui.host_setup_first_admin_identity_failed':
+      'The Host could not commit the first administrator to its identity database. Existing setup data was preserved; review protected diagnostics before retrying.',
+  'native.ui.host_setup_first_admin_helper_timeout':
+      'The first-administrator helper exceeded its time limit. Existing setup data was preserved; review protected diagnostics before retrying.',
+  'native.ui.host_setup_first_admin_result_invalid':
+      'The first-administrator setup returned an invalid result. No credential was accepted, and existing setup data was preserved.',
+  'native.ui.host_setup_first_admin_helper_failed':
+      'The trusted first-administrator helper failed without a safe diagnostic code. Existing setup data was preserved.',
   'native.ui.host_setup_elevation_failed':
-      'The elevated setup window could not be started. Sign in with a Windows Administrator account and try again.',
+      'Windows did not start the protected Host setup component. Confirm the machine-wide Ventio installation and try again.',
+  'native.ui.host_setup_broker_start_timeout':
+      'Windows accepted the Host setup request, but Ventio did not receive a protected progress record. Keep the setup data intact and review diagnostics before retrying.',
   'native.ui.host_setup_scope_invalid':
-      'Enter a tenant, company and branch ID. Each value must be 256 characters or fewer and contain no control characters.',
+      'Enter a tenant, company and branch ID using letters, numbers, periods, underscores, colons or hyphens. Each value must be 256 characters or fewer.',
   'native.ui.host_setup_failed_generic':
       'Host setup did not complete. Review the service status and retry. No credential was displayed.',
   'native.ui.host_setup_install_role_missing':
@@ -967,15 +1032,39 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.host_setup_existing_profile':
       'A different Host scope is already configured on this device. Disconnect that Host before setting up this one.',
   'native.ui.host_setup_credential_save_failed':
-      'The administrator credential could not be saved securely. The broker receipt remains available so setup can be retried.',
+      'The administrator credential could not be saved securely. The protected setup result was preserved so setup can resume safely.',
   'native.ui.host_setup_response_invalid':
       'The local setup broker returned an invalid response. The credential was not accepted.',
   'native.ui.host_setup_credential_unavailable':
-      'The broker has already acknowledged this setup, but its saved credential is unavailable. Contact the Host administrator.',
+      'The protected first administrator result is unavailable to this Windows account. Keep the setup data intact and contact the Host administrator.',
   'native.ui.host_setup_broker_unavailable':
-      'The protected local setup broker is unavailable. Confirm that the Ventio Host service is running.',
+      'The protected local setup component is unavailable. Confirm that Ventio is installed machine-wide, then try again.',
   'native.ui.host_setup_acknowledgement_failed':
-      'The credential was saved, but the broker did not confirm receipt. Retry setup to finish safely.',
+      'Ventio could not confirm that the protected setup result was saved. The setup data was preserved.',
   'native.ui.host_setup_readiness_timeout':
       'The Host services started, but the Host API did not become ready in time. The saved credential is retained for a safe retry.',
+  'native.ui.host_setup_elevation_cancelled':
+      'Host setup needs Administrator approval to register and start Windows services. No Host data was changed.',
+  'native.ui.host_setup_application_elevated':
+      'Ventio is running as Administrator. Close it and launch Ventio normally before starting Host setup.',
+  'native.ui.host_setup_operation_timeout':
+      'Host setup is still running or its progress record is unavailable. Keep this window open and check again before retrying.',
+  'native.ui.host_setup_pending_mismatch':
+      'A pending Host setup belongs to another Windows account or scope. Its data was preserved and was not resumed.',
+  'native.ui.host_setup_existing_installation':
+      'Ventio Host services or data already exist on this computer. Setup stopped to protect them; use the reviewed recovery workflow.',
+  'native.ui.host_setup_service_identity_conflict':
+      'A Windows service using a Ventio service name does not match this installation. Setup stopped without changing it. Have an administrator review the existing service before continuing.',
+  'native.ui.host_setup_already_running':
+      'Another Host setup operation is still active. Leave its data unchanged and check its progress again before retrying.',
+  'native.ui.host_setup_interrupted_requires_recovery':
+      'The previous Host setup stopped or its progress record is stale. Ventio will not restart provisioning automatically because partial database changes may exist. Preserve the Host data and use the reviewed recovery process.',
+  'native.ui.host_setup_payload_verification_failed':
+      'Ventio could not verify the protected Host setup files. Setup did not continue. Repair the machine-wide Ventio installation before trying again.',
+  'native.ui.host_setup_state_unavailable':
+      'Ventio could not read or save the local setup checkpoint. No existing Host data was changed.',
+  'native.ui.host_setup_identity_unavailable':
+      'Ventio could not verify the current Windows account needed to protect the setup result.',
+  'native.ui.host_setup_requester_identity_mismatch':
+      'Windows started setup under a different account from the one that requested it. Setup stopped without returning credentials.',
 };
