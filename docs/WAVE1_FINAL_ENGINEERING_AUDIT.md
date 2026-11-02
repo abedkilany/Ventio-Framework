@@ -1,4 +1,6 @@
-# Wave 1 Final Engineering Audit & Windows Release Candidate
+# Historical Wave 1 Engineering Audit & Windows Release Candidate
+
+> **Historical scope correction (2026-11-02):** This 2026-10-28 report belongs to the earlier Extension Builder / 23-capability acceptance checkpoint. Its statement that “Wave 1 dashboard's 100%” was accepted does **not** describe the current Host/Client Wave 1, which has eleven weighted stages and is formally accepted at **50%**. The authoritative current ledger is [`docs/wave1/final-acceptance-report.md`](wave1/final-acceptance-report.md); do not use this historical report to infer current Host/Client stage acceptance.
 
 Date: 2026-10-28
 Branch: `codex/extension-platform`
@@ -7,7 +9,7 @@ Initial audit checkpoint: `6ef9ca7747ec81236a7c3ed7a79a53a824b41fe9`
 Latest reviewed code/test checkpoint: `35100a159b917319be76df6259c91019bdc10fb2`
 The final audit report and progress dashboard are published in the following documentation checkpoint on this branch.
 
-This audit does not start Wave 2 and does not declare commercial production readiness. The Wave 1 dashboard's 100% remains the accepted implementation status; this document records a separate release-readiness review.
+This historical audit does not start Wave 2 and does not declare commercial production readiness. Its 100% value referred to the prior capability checkpoint only; it is not a current Host/Client release-readiness statement.
 
 ## Branch and review scope
 
@@ -66,7 +68,7 @@ The localization scanner's stated coverage is static text/source/JSON inspection
 
 ## Windows Release Candidate
 
-- `flutter build windows --release --no-pub` succeeded from an isolated copy of the reviewed workspace under a short path (`C:\Users\User\v1\p`) to avoid Windows MAX_PATH failures in generated MSBuild paths. Exit code: **0**.
+- `flutter build windows --release --no-pub` succeeded from an isolated copy of the reviewed workspace under a short path (`a short temporary path`) to avoid Windows MAX_PATH failures in generated MSBuild paths. Exit code: **0**.
 - The Release output includes `ventio_native_client.exe`, Flutter runtime DLL, secure-storage / printing / SQLite plugin DLLs, `pdfium.dll`, and `data` with Flutter assets, `app.so`, and `icudtl.dat`.
 - Packaged at `deliverables/Ventio-Wave1-RC-20261028.zip` (17,747,631 bytes). SHA-256: `EEA867650BE6BB57DE4F979C7A98B93CC26E78294A635BFA24A06A8592A92EE5`.
 - The ZIP was extracted to a fresh temporary directory. Launching the extracted EXE left the process alive after eight seconds and produced a native window handle with title `ventio_native_client`. This is a startup smoke test, not a full interactive/manual application acceptance run.
