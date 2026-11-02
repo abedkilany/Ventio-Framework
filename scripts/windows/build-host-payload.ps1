@@ -96,6 +96,17 @@ try {
   }
   Get-ChildItem -LiteralPath $postgresRoot -File -Filter '*.txt' |
     Copy-Item -Destination $runtimePostgresRoot
+  $payloadRootPrefix = [IO.Path]::GetFullPath($tempDirectory).TrimEnd('\') + '\'
+  $stackBuilderExecutable = [IO.Path]::GetFullPath((Join-Path $runtimePostgresRoot 'bin\stackbuilder.exe'))
+  if (-not $stackBuilderExecutable.StartsWith($payloadRootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'PostgreSQL component exclusion escaped the isolated Host payload directory.'
+  }
+  if (Test-Path -LiteralPath $stackBuilderExecutable) {
+    Remove-Item -LiteralPath $stackBuilderExecutable -Force
+  }
+  if (Test-Path -LiteralPath $stackBuilderExecutable) {
+    throw 'StackBuilder executable remains in the Host payload.'
+  }
   Copy-Item -LiteralPath $migrationDirectory -Destination (Join-Path $tempDirectory 'migrations') -Recurse
   Copy-Item -LiteralPath $securityDirectory -Destination (Join-Path $tempDirectory 'security') -Recurse
   $setupDirectory = Join-Path $tempDirectory 'setup'

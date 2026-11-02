@@ -18,6 +18,8 @@ $firstRunPage = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_n
 $nativeApp = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_native_client\lib\main.dart') -Raw
 $nativeHostSetup = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_native_client\lib\src\host_setup_windows.dart') -Raw
 $payloadBuilder = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'build-host-payload.ps1') -Raw
+$installerBuilder = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'build-windows-installer.ps1') -Raw
+$installerValidator = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'validate-unified-installer.ps1') -Raw
 
 function Assert-Contract([bool] $Condition, [string] $Code) {
   if (-not $Condition) { throw $Code }
@@ -70,6 +72,10 @@ Assert-Contract ($setupBroker.Contains('Environment.SpecialFolder.ProgramFiles')
 Assert-Contract ($nativeHostSetup.Contains("Platform.environment['ProgramFiles']") -and $nativeHostSetup.Contains('Ventio\\SetupStatus')) 'FLUTTER_SETUP_STATUS_PATH_MUST_MATCH_THE_PRIVILEGED_BROKER'
 Assert-Contract ($setupBroker.Contains('identity.User.Value')) 'SETUP_STATUS_ACL_MUST_REJECT_DIRECT_REQUESTER_WRITE_ACCESS'
 Assert-Contract ($payloadBuilder.Contains('VentioSetupBroker.exe')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_SETUP_BROKER'
+Assert-Contract ($payloadBuilder.Contains("bin\stackbuilder.exe") -and $payloadBuilder.Contains('StackBuilder executable remains in the Host payload.')) 'HOST_PAYLOAD_MUST_EXCLUDE_THE_STACKBUILDER_EXECUTABLE'
+Assert-Contract ($payloadBuilder.Contains('PostgreSQL component exclusion escaped the isolated Host payload directory.')) 'POSTGRES_COMPONENT_EXCLUSION_MUST_STAY_WITHIN_ISOLATED_PAYLOAD'
+Assert-Contract ($installerBuilder.Contains('StackBuilder') -and $installerBuilder.Contains('stackbuilder\.exe')) 'HOST_INSTALLER_BUILD_MUST_REJECT_STACKBUILDER_FILES'
+Assert-Contract ($installerValidator.Contains('postgresql\bin\stackbuilder.exe')) 'HOST_INSTALLER_VALIDATION_MUST_REJECT_STACKBUILDER_EXECUTABLE'
 Assert-Contract ($installerSource -match '(?s)Source: "\{#HostPayload\}\\\*"; DestDir: "\{app\}\\host-payload"; Flags:') 'HOST_PAYLOAD_MUST_BE_INSTALLED_WITHOUT_PROVISIONING_SERVICES'
 Assert-Contract ($hostProvisioning.Contains('HOST_INSTALL_RECOVERY_PLAN_VALID')) 'HOST_PARTIAL_INSTALL_MUST_HAVE_A_READ_ONLY_RECOVERY_PLAN'
 Assert-Contract ($hostRegistration.Contains('Get-FileHash -LiteralPath $file -Algorithm SHA256')) 'HOST_SERVICE_MUST_VERIFY_CRITICAL_EXECUTABLE_HASHES'

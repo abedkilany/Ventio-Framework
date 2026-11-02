@@ -75,7 +75,8 @@ try {
   if ($manifest.postgresVersion -ne '16.15' -or $manifest.credentialsIncluded -ne $false -or
       $manifest.databaseIncluded -ne $false -or
       (Test-Path -LiteralPath (Join-Path $hostRoot 'postgresql\pgAdmin 4')) -or
-      (Test-Path -LiteralPath (Join-Path $hostRoot 'postgresql\StackBuilder'))) {
+      (Test-Path -LiteralPath (Join-Path $hostRoot 'postgresql\StackBuilder')) -or
+      (Test-Path -LiteralPath (Join-Path $hostRoot 'postgresql\bin\stackbuilder.exe'))) {
     throw 'Installed Host payload differs from the safe runtime-only manifest.'
   }
   if ((Test-Path -LiteralPath $databaseDirectory) -or

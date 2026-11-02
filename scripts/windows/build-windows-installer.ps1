@@ -42,6 +42,10 @@ if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
 $payloadManifestPath = [IO.Path]::GetFullPath((Join-Path $hostPayload 'payload-manifest.json'))
 $payloadFiles = @(Get-ChildItem -LiteralPath $hostPayload -File -Recurse |
   Where-Object { -not $_.FullName.Equals($payloadManifestPath, [StringComparison]::OrdinalIgnoreCase) })
+if (@($payloadFiles | Where-Object { $_.FullName -match '(?i)[\\/]stackbuilder\.exe$' }).Count -gt 0 -or
+    (Test-Path -LiteralPath (Join-Path $hostPayload 'postgresql\StackBuilder'))) {
+  throw 'Host payload contains a PostgreSQL component declared as excluded.'
+}
 $payloadBytes = [long](($payloadFiles | Measure-Object Length -Sum).Sum)
 if ($payloadFiles.Count -ne [int]$manifest.payloadFileCount -or $payloadBytes -ne [long]$manifest.payloadBytes) {
   throw 'Host payload file inventory does not match its manifest.'
