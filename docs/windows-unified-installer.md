@@ -2,7 +2,7 @@
 
 ## Reproducible build
 
-Prerequisites for maintainers are Flutter's Windows desktop toolchain, the .NET 8 SDK, Inno Setup 6.7.3, Windows PowerShell 5.1 or later, and the pinned PostgreSQL tools described below. The verified local toolchain for the 2026-11-02 development build was Flutter 3.44.1 (Dart 3.12.1), .NET SDK 8.0.421, and Inno Setup 6.7.3.
+Prerequisites for maintainers are Flutter's Windows desktop toolchain, Visual Studio Build Tools with the Desktop development with C++ workload and Windows SDK, the .NET 8 SDK, Inno Setup 6.7.3, Windows PowerShell 5.1 or later, and the pinned PostgreSQL tools described below. Follow [Flutter's Windows setup guide](https://docs.flutter.dev/platform-integration/windows/setup) and verify the Windows toolchain with `flutter doctor -v` before building. The verified local toolchain for the 2026-11-02 development build was Flutter 3.44.1 (Dart 3.12.1), Visual Studio Build Tools 2026 18.4.0 with Windows SDK 10.0.26100.0, .NET SDK 8.0.421, and Inno Setup 6.7.3.
 
 The Host payload build requires the EDB PostgreSQL 16.15-5 Windows x64 binaries archive. It is a build-time dependency; it is not stored in Git and is not downloaded by the end-user installer. The official archive is [postgresql-16.15-5-windows-x64-binaries.zip](https://get.enterprisedb.com/postgresql/postgresql-16.15-5-windows-x64-binaries.zip), 373,254,386 bytes, pinned to SHA-256 `43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281`. The default expected directory is `%LOCALAPPDATA%\VentioFramework\postgresql-16.15-tools\pgsql\bin`; the directory must contain the PostgreSQL 16.15 executables. When using another verified extraction path, pass it with `-PostgresBinDirectory`.
 
