@@ -367,6 +367,11 @@ class IdentityAdministration {
     _identifier(actorId);
     return _change('USER_DISABLED', {'actorId': actorId});
   }
+
+  Future<void> enableUser(String actorId) {
+    _identifier(actorId);
+    return _change('USER_ENABLED', {'actorId': actorId});
+  }
 }
 
 void _identifier(String value) {

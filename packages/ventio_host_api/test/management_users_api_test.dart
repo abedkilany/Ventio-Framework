@@ -197,6 +197,7 @@ Future<void> main() async {
         'USER_DISABLED',
         <String, Object?>{'actorId': 'new-user-001'},
       ),
+      ('enable', 'USER_ENABLED', <String, Object?>{'actorId': 'new-user-001'}),
     ]) {
       final response = await send(
         api,
@@ -307,7 +308,7 @@ Future<void> main() async {
     check(
       callerChosenUserId.status == 400 &&
           callerChosenUserId.body['error']['code'] == 'INVALID_REQUEST' &&
-          gateway.changes.length == 4,
+          gateway.changes.length == 5,
       'User creation rejects a caller-controlled global actor ID before database access',
     );
 
@@ -325,7 +326,7 @@ Future<void> main() async {
     check(
       reservedPermission.status == 422 &&
           reservedPermission.body['error']['code'] == 'RESERVED_PERMISSION' &&
-          gateway.changes.length == 4,
+          gateway.changes.length == 5,
       'Management permissions cannot be delegated by the user API',
     );
 

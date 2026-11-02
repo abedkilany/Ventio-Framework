@@ -7,6 +7,15 @@ import 'package:ventio_host_api/ventio_host_api.dart';
 
 import 'test_support.dart';
 
+class _UserAdministrationIntegrationExecutor implements CommandExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    CommandEnvelope command,
+    AuthenticatedSession session,
+  ) async =>
+      CommandReceipt(commandId: command.commandId, status: 'ACCEPTED').toJson();
+}
+
 Future<void> main() async {
   final auditUrl = Platform.environment['VENTIO_TEST_DATABASE_URL'];
   final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
@@ -40,6 +49,7 @@ Future<void> main() async {
   const companyB = 'company-b';
   const branchB = 'branch-b';
   var assertions = 0;
+  HostApi? api;
   void check(bool condition, String label) {
     if (!condition) throw StateError('FAIL: $label');
     assertions++;
@@ -319,11 +329,194 @@ Future<void> main() async {
       connectAdministration: connectAdministration,
       admission: authority,
     );
+    api = await HostApi.bind(
+      authenticator: authenticator,
+      executor: _UserAdministrationIntegrationExecutor(),
+      identityUserAdministration: gateway,
+    );
+    Future<Reply> userApi(
+      String token,
+      String action, {
+      String company = companyA,
+      String branch = branchA,
+      Map<String, Object?> fields = const {},
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/management/users/$action',
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+        ...fields,
+      },
+    );
     Future<AuthenticatedSession> authenticate(String token) async {
       final session = await authenticator.authenticate(token);
       if (session == null) throw StateError('Test credential was not accepted');
       return session;
     }
+
+    final httpInventory = await userApi(managerToken, 'list');
+    final httpUsers = httpInventory.body['users'] as Map<String, dynamic>;
+    check(
+      httpInventory.status == 200 &&
+          httpInventory.body['correlationId'] ==
+              httpInventory.headers.value('X-Correlation-ID') &&
+          httpUsers['tenantId'] == tenant &&
+          httpUsers['companyId'] == companyA &&
+          httpUsers['branchId'] == branchA &&
+          httpUsers['items'] is List,
+      'A real Host API lists users through the restricted PostgreSQL runtime with correlated exact scope',
+    );
+    check(
+      !jsonEncode(httpInventory.body).contains(managerToken),
+      'The real Host user inventory response contains no credential material',
+    );
+    final httpReaderDenied = await userApi(readerToken, 'list');
+    check(
+      httpReaderDenied.status == 403 &&
+          httpReaderDenied.body['error']['code'] == 'PERMISSION_DENIED',
+      'The real Host API denies user inventory to an ordinary data reader',
+    );
+    final httpCrossScopeDenied = await userApi(
+      managerToken,
+      'list',
+      company: companyB,
+      branch: branchB,
+    );
+    check(
+      httpCrossScopeDenied.status == 403 &&
+          httpCrossScopeDenied.body['error']['code'] == 'SCOPE_DENIED',
+      'The real Host API denies user inventory outside the authenticated branch',
+    );
+    final httpCreate = await userApi(managerToken, 'create');
+    final httpCreateOperation =
+        httpCreate.body['userOperation'] as Map<String, dynamic>;
+    final httpCreatedActorId = httpCreateOperation['actorId'] as String;
+    check(
+      httpCreate.status == 200 &&
+          httpCreateOperation['status'] == 'APPLIED' &&
+          RegExp(r'^usr_[0-9a-f]{32}$').hasMatch(httpCreatedActorId) &&
+          httpCreate.body['correlationId'] ==
+              httpCreate.headers.value('X-Correlation-ID'),
+      'The real Host API creates a database-generated scoped user without caller-controlled authority',
+    );
+    final httpGrant = await userApi(
+      managerToken,
+      'grant',
+      fields: {'actorId': httpCreatedActorId, 'permission': 'maintenance.read'},
+    );
+    final httpRevoke = await userApi(
+      managerToken,
+      'revoke',
+      fields: {'actorId': httpCreatedActorId, 'permission': 'maintenance.read'},
+    );
+    check(
+      httpGrant.status == 200 && httpRevoke.status == 200,
+      'The real Host API grants and revokes a normal permission through PostgreSQL',
+    );
+    await operator.registerDevice(httpCreatedActorId, 'http-enable-device');
+    await operator.grant(
+      httpCreatedActorId,
+      companyA,
+      branchA,
+      'maintenance.read',
+    );
+    final httpEnabledCredentialPath =
+        '${temporary.path}/http-enabled-user.json';
+    await operator.provisionToFile(
+      actorId: httpCreatedActorId,
+      deviceId: 'http-enable-device',
+      credentialId: 'http-enable-credential',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': companyA,
+          'branchId': branchA,
+          'permissions': ['maintenance.read'],
+        },
+      ],
+      outputPath: httpEnabledCredentialPath,
+    );
+    final httpEnabledToken =
+        (jsonDecode(await PrivateFiles.read(httpEnabledCredentialPath))
+                as Map)['token']
+            as String;
+    check(
+      (await authenticate(httpEnabledToken)).principal.actorId ==
+          httpCreatedActorId,
+      'A newly created Host user authenticates with its scoped database credential',
+    );
+    final httpAudit = await userApi(managerToken, 'audit');
+    final httpAuditEvents =
+        (httpAudit.body['audit'] as Map<String, dynamic>)['events'] as List;
+    check(
+      httpAudit.status == 200 &&
+          httpAuditEvents.any(
+            (event) =>
+                (event as Map)['action'] == 'USER_CREATED' &&
+                event['subjectId'] == httpCreatedActorId,
+          ) &&
+          !jsonEncode(httpAudit.body).contains(managerToken),
+      'The real Host API returns scoped allowlisted audit events without credentials',
+    );
+    final httpDisable = await userApi(
+      managerToken,
+      'disable',
+      fields: {'actorId': httpCreatedActorId},
+    );
+    final httpAfterDisable = await userApi(managerToken, 'list');
+    final httpDisabledUser =
+        ((httpAfterDisable.body['users'] as Map<String, dynamic>)['items']
+                as List)
+            .cast<Map>()
+            .singleWhere((item) => item['actorId'] == httpCreatedActorId);
+    check(
+      httpDisable.status == 200 && httpDisabledUser['state'] == 'DISABLED',
+      'A real Host API disable operation is reflected by subsequent database-backed inventory',
+    );
+    check(
+      await authenticator.authenticate(httpEnabledToken) == null,
+      'User disablement immediately blocks its existing persistent credential',
+    );
+    final httpEnable = await userApi(
+      managerToken,
+      'enable',
+      fields: {'actorId': httpCreatedActorId},
+    );
+    final httpAfterEnable = await userApi(managerToken, 'list');
+    final httpEnabledUser =
+        ((httpAfterEnable.body['users'] as Map<String, dynamic>)['items']
+                as List)
+            .cast<Map>()
+            .singleWhere((item) => item['actorId'] == httpCreatedActorId);
+    final reenabledSession = await authenticate(httpEnabledToken);
+    check(
+      httpEnable.status == 200 &&
+          httpEnabledUser['state'] == 'ACTIVE' &&
+          reenabledSession.principal.actorId == httpCreatedActorId &&
+          reenabledSession.principal.allowsInScope(
+            'maintenance.read',
+            companyA,
+            branchA,
+          ),
+      'A real Host API enable operation reactivates the user and its preserved, unrevoked exact-scope credential',
+    );
+    final httpAuditAfterEnable = await userApi(managerToken, 'audit');
+    final httpAuditAfterEnableEvents =
+        (httpAuditAfterEnable.body['audit'] as Map<String, dynamic>)['events']
+            as List;
+    check(
+      httpAuditAfterEnable.status == 200 &&
+          httpAuditAfterEnableEvents.any(
+            (event) =>
+                (event as Map)['action'] == 'USER_ENABLED' &&
+                event['subjectId'] == httpCreatedActorId,
+          ) &&
+          !jsonEncode(httpAuditAfterEnable.body).contains(httpEnabledToken),
+      'The real Host audit API records the re-enabled user without exposing its credential',
+    );
 
     final manager = await authenticate(managerToken);
     final before = await gateway.list(
@@ -600,7 +793,7 @@ Future<void> main() async {
         }),
       );
     }
-    for (final action in ['USER_DISABLED']) {
+    for (final action in ['USER_DISABLED', 'USER_ENABLED']) {
       crossBranchResults.add(
         await attemptScopedChange({
           'action': action,
@@ -620,7 +813,7 @@ Future<void> main() async {
           unknownActorResults.every(
             (result) => result == (404, 'USER_NOT_FOUND'),
           ),
-      'Grant, revoke, and disable disclose no difference between an unknown ID and a user active only in another branch',
+      'Grant, revoke, disable, and enable disclose no difference between an unknown ID and a user active only in another branch',
     );
 
     await provision(
@@ -806,6 +999,7 @@ Future<void> main() async {
 
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
+    await api?.close();
     await auditConnection.close();
     await bootstrapConnection.close();
     await adminConnection.close();

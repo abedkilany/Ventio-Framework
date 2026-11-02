@@ -1145,6 +1145,7 @@ Future<void> main() async {
       'ventio_identity_roles',
       'ventio_identity_grants',
       'ventio_identity_credentials',
+      'ventio_identity_device_activity',
       'ventio_identity_devices',
       'ventio_identity_users',
       'ventio_identity_branches',

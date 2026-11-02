@@ -23,6 +23,7 @@ Future<void> runLocalHost({
     return;
   }
   HostApi? api;
+  HostApi? lanApi;
   pg.Pool<dynamic>? runtimePool;
   pg.Pool<dynamic>? identityApiPool;
   ManagementDiagnosticSink diagnostics = ManagementDiagnosticBuffer();
@@ -141,6 +142,13 @@ Future<void> runLocalHost({
         Platform.environment['VENTIO_HOST_BIND_ADDRESS'] ?? '127.0.0.1';
     final address = InternetAddress.tryParse(addressText);
     if (address == null) throw StateError('Invalid Host bind address');
+    final lanAddressText = Platform.environment['VENTIO_HOST_LAN_BIND_ADDRESS'];
+    final lanPortText = Platform.environment['VENTIO_HOST_LAN_PORT'];
+    final lanListenerConfigured = lanAddressText != null || lanPortText != null;
+    if ((lanAddressText == null) != (lanPortText == null) ||
+        (lanListenerConfigured && !address.isLoopback)) {
+      throw StateError('LAN listener configuration is invalid');
+    }
     SecurityContext? tlsContext;
     final certificate =
         Platform.environment['VENTIO_HOST_TLS_CERTIFICATE_FILE'];
@@ -159,48 +167,90 @@ Future<void> runLocalHost({
         ..useCertificateChain(certificate)
         ..usePrivateKey(privateKey);
     }
+    final localTlsContext = lanListenerConfigured ? null : tlsContext;
+    final authenticator = PersistentTokenAuthenticator(
+      pool: runtime,
+      admission: admission,
+    );
+    final extensionPackages = PostgresExtensionPackageGateway(
+      pool: runtime,
+      admission: admission,
+    );
+    final extensionRecordQueries = PostgresExtensionRecordQueryGateway(
+      pool: runtime,
+      admission: admission,
+    );
+    final readinessProvider = PostgresHostReadinessProvider(
+      pool: runtime,
+      recoveryAuthority: admission,
+    );
+    final executor = PersistentCommandExecutor(
+      pool: runtime,
+      admission: admission,
+      // The production Host is an extension platform. Business command
+      // bindings are supplied only by trusted platform deployments; this
+      // launcher starts with the generic metadata-backed record engine.
+      modules: modules ?? ModuleRegistry(),
+      docTypes: docTypes ?? DocTypeRegistry(),
+      bindings: bindings,
+    );
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
       listenAddress: address,
-      tlsContext: tlsContext,
-      authenticator: PersistentTokenAuthenticator(
-        pool: runtime,
-        admission: admission,
-      ),
-      extensionPackages: PostgresExtensionPackageGateway(
-        pool: runtime,
-        admission: admission,
-      ),
-      extensionRecordQueries: PostgresExtensionRecordQueryGateway(
-        pool: runtime,
-        admission: admission,
-      ),
+      tlsContext: localTlsContext,
+      authenticator: authenticator,
+      extensionPackages: extensionPackages,
+      extensionRecordQueries: extensionRecordQueries,
       identityRoleAdministration: roleAdministration,
       identityUserAdministration: userAdministration,
       identityPairing: pairingAdministration,
       identityDeviceAdministration: deviceAdministration,
-      readinessProvider: PostgresHostReadinessProvider(
-        pool: runtime,
-        recoveryAuthority: admission,
-      ),
+      readinessProvider: readinessProvider,
       diagnostics: diagnostics,
-      executor: PersistentCommandExecutor(
-        pool: runtime,
-        admission: admission,
-        // The production Host is an extension platform. Business command
-        // bindings are supplied only by trusted platform deployments; this
-        // launcher starts with the generic metadata-backed record engine.
-        modules: modules ?? ModuleRegistry(),
-        docTypes: docTypes ?? DocTypeRegistry(),
-        bindings: bindings,
-      ),
+      executor: executor,
     );
-    final scheme = tlsContext == null ? 'http' : 'https';
+    final scheme = localTlsContext == null ? 'http' : 'https';
     stdout.writeln(
       'Persistent Host listening on $scheme://$addressText:${api.port}',
     );
+    if (lanAddressText != null && lanPortText != null) {
+      final lanAddress = InternetAddress.tryParse(lanAddressText);
+      final lanPort = int.tryParse(lanPortText);
+      if (lanAddress == null ||
+          lanAddress.isLoopback ||
+          lanPort == null ||
+          lanPort < 1 ||
+          lanPort > 65535 ||
+          tlsContext == null) {
+        throw StateError('Invalid protected LAN listener configuration');
+      }
+      lanApi = await HostApi.bind(
+        port: lanPort,
+        listenAddress: lanAddress,
+        tlsContext: tlsContext,
+        authenticator: authenticator,
+        extensionPackages: extensionPackages,
+        extensionRecordQueries: extensionRecordQueries,
+        identityRoleAdministration: roleAdministration,
+        identityUserAdministration: userAdministration,
+        identityPairing: pairingAdministration,
+        identityDeviceAdministration: deviceAdministration,
+        readinessProvider: readinessProvider,
+        diagnostics: diagnostics,
+        executor: executor,
+      );
+      stdout.writeln(
+        'Persistent Host LAN listener ready on https://$lanAddressText:${lanApi.port}',
+      );
+    }
     stdout.writeln('VENTIO_HOST_READY');
   } catch (error) {
+    try {
+      await lanApi?.close();
+      await api?.close();
+    } catch (_) {
+      // Startup failure remains fail-closed; preserve the original result.
+    }
     try {
       await diagnostics.record(
         ManagementDiagnosticEvent(
@@ -262,6 +312,7 @@ Future<void> runLocalHost({
   }
   await shutdown.future;
   try {
+    await lanApi?.close();
     await api.close();
   } finally {
     try {

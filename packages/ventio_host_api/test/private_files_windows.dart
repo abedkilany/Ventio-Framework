@@ -66,6 +66,45 @@ Future<void> main() async {
         rethrow;
       }
     }
+    final inaccessiblePath =
+        '${directory.path}${Platform.pathSeparator}inaccessible-diagnostics.json';
+    await PrivateFiles.create(inaccessiblePath, {
+      'formatVersion': 1,
+      'events': const <Object?>[],
+    });
+    final denyRead = await Process.run('icacls.exe', [
+      inaccessiblePath,
+      '/deny',
+      '*$sid:(R)',
+    ]);
+    if (denyRead.exitCode != 0) {
+      throw StateError('Could not prepare the isolated inaccessible-log case');
+    }
+    try {
+      Object? inaccessibleFailure;
+      try {
+        await ProtectedManagementDiagnosticLog.open(inaccessiblePath);
+      } on Object catch (error) {
+        inaccessibleFailure = error;
+      }
+      final inaccessibleFailureText = inaccessibleFailure?.toString() ?? '';
+      if (inaccessibleFailure == null ||
+          inaccessibleFailureText.contains(inaccessiblePath) ||
+          inaccessibleFailureText.contains('windows-private-test')) {
+        throw StateError(
+          'An inaccessible protected diagnostic log was accepted or leaked its path (failure=${inaccessibleFailure?.runtimeType ?? 'none'}, pathLeaked=${inaccessibleFailureText.contains(inaccessiblePath)})',
+        );
+      }
+    } finally {
+      final restoreAcl = await Process.run('icacls.exe', [
+        inaccessiblePath,
+        '/remove:d',
+        '*$sid',
+      ]);
+      if (restoreAcl.exitCode != 0) {
+        throw StateError('Could not restore the isolated diagnostics test ACL');
+      }
+    }
     await PrivateFiles.verifyPrivateFile(file);
     await PrivateFiles.replace(file, {'token': 'rotated-private-test'});
     final rotated = jsonDecode(await PrivateFiles.read(file)) as Map;

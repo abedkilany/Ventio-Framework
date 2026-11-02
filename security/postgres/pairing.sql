@@ -93,7 +93,7 @@ BEGIN
             AND a.company_id=p_company AND a.branch_id=p_branch) AND
        NOT EXISTS (SELECT FROM public.ventio_identity_audit e
           WHERE e.tenant_id=credential_row.tenant_id AND e.subject_id=p_actor
-            AND e.action IN ('USER_CREATED','USER_DISABLED','PERMISSION_GRANTED',
+            AND e.action IN ('USER_CREATED','USER_DISABLED','USER_ENABLED','PERMISSION_GRANTED',
               'PERMISSION_REVOKED','ROLE_ASSIGNED','ROLE_UNASSIGNED')
             AND e.details->>'companyId'=p_company
             AND e.details->>'branchId'=p_branch)) THEN

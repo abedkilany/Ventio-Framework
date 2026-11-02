@@ -42,6 +42,7 @@ Future<void> main() async {
   final branch = 'branch-one';
   final actor = 'host-operator';
   final device = 'windows-client';
+  const pairingTargetActor = 'client-enrollment-target';
   const moduleId = 'com.example.windows_records';
   const packageVersion = '1.0.0';
   const readPermission = 'extension.com_example_windows_records.item.read';
@@ -51,6 +52,11 @@ Future<void> main() async {
     'identity.roles.manage',
     'extension.package.submit',
     'extension.package.read',
+    hostStatusReadPermission,
+    hostDiagnosticsReadPermission,
+    identityUsersManagePermission,
+    identityDevicesManagePermission,
+    identityPairingManagePermission,
     readPermission,
     createPermission,
     updatePermission,
@@ -88,7 +94,7 @@ Future<void> main() async {
     await identity.provisionToFile(
       actorId: actor,
       deviceId: device,
-      credentialId: 'host-process-credential',
+      credentialId: 'host-proc-cred-001',
       expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
       allowedScopes: [
         {
@@ -109,7 +115,7 @@ Future<void> main() async {
     await identity.provisionToFile(
       actorId: 'host-reader',
       deviceId: 'windows-reader-device',
-      credentialId: 'host-reader-credential',
+      credentialId: 'host-reader-cred-001',
       expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
       allowedScopes: [
         {
@@ -119,6 +125,13 @@ Future<void> main() async {
         },
       ],
       outputPath: readerCredentialPath,
+    );
+    await identity.createUser(pairingTargetActor);
+    await identity.grant(
+      pairingTargetActor,
+      company,
+      branch,
+      readPermission,
     );
     final credential =
         jsonDecode(await PrivateFiles.read(credentialPath))
@@ -141,7 +154,22 @@ Future<void> main() async {
       'VENTIO_RECOVERY_AUTHORITY_OWNER_SID': sid,
       'VENTIO_RECOVERY_AUTHORITY_READER_SID': sid,
       'VENTIO_RECOVERY_AUTHORITY_HOST_WRITES': 'yes',
+      'VENTIO_HOST_DIAGNOSTICS_FILE':
+          '${directory.path}${Platform.pathSeparator}host-diagnostics.json',
     };
+    if (Platform.environment['VENTIO_HOST_DIAGNOSTICS_PROCESS_TEST'] == 'yes') {
+      await _verifyDiagnosticProcessLifecycle(
+        processEnvironment: processEnvironment,
+        runtimeUrl: runtimeUrl,
+        tenant: tenant,
+        company: company,
+        branch: branch,
+        authorizedToken: token,
+        unauthorizedToken: readerToken,
+      );
+      stdout.writeln('RESULT: $assertions passed, 0 failed');
+      return;
+    }
     runningHost = await _startHost(processEnvironment);
     final port = runningHost.port;
     check(
@@ -179,6 +207,116 @@ Future<void> main() async {
           (scopes.single as Map)['branchId'] == branch,
       'Persistent Windows Host returns the authenticated exact branch scope',
     );
+
+    final unauthorizedUserRead = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/management/users/list',
+      token: readerToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+      },
+    );
+    check(
+      unauthorizedUserRead.status == 403 &&
+          (unauthorizedUserRead.body['error'] as Map)['code'] ==
+              'PERMISSION_DENIED',
+      'Persistent Host denies user administration without its scoped permission',
+    );
+
+    final crossScopeUserRead = await _request(
+      client,
+      port,
+      'POST',
+      '/api/v1/management/users/list',
+      token: token,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': 'branch-outside-grant',
+      },
+    );
+    check(
+      crossScopeUserRead.status == 403 &&
+          (crossScopeUserRead.body['error'] as Map)['code'] == 'SCOPE_DENIED',
+      'Persistent Host denies user administration outside the authenticated branch',
+    );
+
+    if (Platform.environment['VENTIO_HOST_ADMIN_UI_ONLY'] == 'yes') {
+      final userProbeCreate = await _request(
+        client,
+        port,
+        'POST',
+        '/api/v1/management/users/create',
+        token: token,
+        body: {
+          'managementApiVersion': managementApiVersion,
+          'companyId': company,
+          'branchId': branch,
+        },
+      );
+      final userProbeId =
+          ((userProbeCreate.body['userOperation'] as Map)['actorId']) as String;
+      final userProbeGrant = await _request(
+        client,
+        port,
+        'POST',
+        '/api/v1/management/users/grant',
+        token: token,
+        body: {
+          'managementApiVersion': managementApiVersion,
+          'companyId': company,
+          'branchId': branch,
+          'actorId': userProbeId,
+          'permission': 'maintenance.read',
+        },
+      );
+      final userProbeInventory = await _request(
+        client,
+        port,
+        'POST',
+        '/api/v1/management/users/list',
+        token: token,
+        body: {
+          'managementApiVersion': managementApiVersion,
+          'companyId': company,
+          'branchId': branch,
+        },
+      );
+      final userProbe =
+          ((userProbeInventory.body['users'] as Map)['items'] as List)
+              .cast<Map>()
+              .singleWhere((user) => user['actorId'] == userProbeId);
+      check(
+        userProbeCreate.status == 200 &&
+            userProbeGrant.status == 200 &&
+            (userProbe['directPermissions'] as List).contains(
+              'maintenance.read',
+            ),
+        'Persistent Host lists a direct permission after its real API grant',
+      );
+      final hostUiFlow = await _runFlutterHostAdministrationUiFlow(
+        endpoint: 'http://127.0.0.1:$port',
+        writerToken: token,
+        readerToken: readerToken,
+        tenant: tenant,
+        company: company,
+        branch: branch,
+        actor: actor,
+        device: device,
+      );
+      stdout.write(hostUiFlow.stdout);
+      if (hostUiFlow.exitCode != 0) stderr.write(hostUiFlow.stderr);
+      check(
+        hostUiFlow.exitCode == 0,
+        'Native Windows Flutter administration UI reads the real Host and gates navigation by exact permissions',
+      );
+      stdout.writeln('RESULT: $assertions passed, 0 failed');
+      return;
+    }
 
     final legacyBusinessCommand = await _request(
       client,
@@ -602,6 +740,83 @@ Future<void> main() async {
       'Flutter client validates the trusted certificate over the network address',
     );
 
+    final certificateProbe = await SecureSocket.connect(
+      networkAddress,
+      tlsPort,
+      timeout: const Duration(seconds: 5),
+      onBadCertificate: (_) => true,
+    );
+    final peerCertificate = certificateProbe.peerCertificate;
+    if (peerCertificate == null) {
+      certificateProbe.destroy();
+      throw StateError('The test Host did not present its TLS certificate.');
+    }
+    final certificateFingerprint = sha256
+        .convert(peerCertificate.der)
+        .toString();
+    certificateProbe.destroy();
+
+    final pairingContext = SecurityContext(withTrustedRoots: false)
+      ..setTrustedCertificates(tlsFiles.certificatePath);
+    final pairingApiClient = HttpClient(context: pairingContext)
+      ..connectionTimeout = const Duration(seconds: 5);
+    late final _HttpResult pairingCreated;
+    try {
+      pairingCreated = await _requestAtEndpoint(
+        pairingApiClient,
+        scheme: 'https',
+        hostAddress: networkAddress,
+        port: tlsPort,
+        method: 'POST',
+        path: HostManagementRoutes.pairingCreate,
+        token: token,
+        body: {
+          'managementApiVersion': managementApiVersion,
+          'companyId': company,
+          'branchId': branch,
+          'actorId': pairingTargetActor,
+        },
+      );
+    } finally {
+      pairingApiClient.close(force: true);
+    }
+    if (pairingCreated.status != HttpStatus.created ||
+        pairingCreated.body['pairing'] is! Map<String, dynamic>) {
+      final rawError = pairingCreated.body['error'];
+      final errorCode = rawError is Map ? rawError['code'] : null;
+      throw StateError(
+        'Host denied the disposable Client pairing request (${errorCode is String ? errorCode : 'unknown'}).',
+      );
+    }
+    final pairing = pairingCreated.body['pairing'] as Map<String, dynamic>;
+    final pairingCode = pairing['code'] as String;
+    check(
+      pairingCreated.status == 201 &&
+          pairing['actorId'] == pairingTargetActor &&
+          pairing['deviceRole'] == 'CLIENT' &&
+          pairing['companyId'] == company &&
+          pairing['branchId'] == branch &&
+          RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(pairingCode),
+      'Live Host issues a single-scope Client enrollment code for the selected user',
+    );
+
+    final enrollmentUiFlow = await _runFlutterHostClientEnrollmentUiFlow(
+      endpoint: 'https://$networkAddress:$tlsPort',
+      pairingCode: pairingCode,
+      certificateFingerprint: certificateFingerprint,
+      certificatePath: tlsFiles.certificatePath,
+      tenant: tenant,
+      actor: pairingTargetActor,
+      company: company,
+      branch: branch,
+    );
+    stdout.write(enrollmentUiFlow.stdout);
+    if (enrollmentUiFlow.exitCode != 0) stderr.write(enrollmentUiFlow.stderr);
+    check(
+      enrollmentUiFlow.exitCode == 0,
+      'Native Flutter Client pairing UI enrolls a new Client against the live Host over pinned HTTPS',
+    );
+
     if (Platform.environment['VENTIO_RUN_ANDROID_HOST_INTEGRATION'] == 'yes') {
       final androidPort = runningHost.port;
       check(
@@ -633,12 +848,210 @@ Future<void> main() async {
         'Android emulator reaches the Windows Host network address over TLS, retries offline work, and reads accepted data',
       );
     }
+
+    await runningHost.stop();
+    final dualListenerPort = await _unusedTcpPort();
+    final dualListenerEnvironment = {
+      ...processEnvironment,
+      'VENTIO_HOST_LAN_BIND_ADDRESS': '0.0.0.0',
+      'VENTIO_HOST_LAN_PORT': '$dualListenerPort',
+      'VENTIO_HOST_TLS_CERTIFICATE_FILE': tlsFiles.certificatePath,
+      'VENTIO_HOST_TLS_PRIVATE_KEY_FILE': tlsFiles.privateKeyPath,
+    };
+    runningHost = await _startHost(dualListenerEnvironment);
+    check(
+      runningHost.scheme == 'http' &&
+          runningHost.address == '127.0.0.1' &&
+          runningHost.port > 0,
+      'Host keeps its local administration listener on loopback HTTP',
+    );
+    await _waitForTcpEndpoint(networkAddress, dualListenerPort);
+    final trustedContext = SecurityContext(withTrustedRoots: false)
+      ..setTrustedCertificates(tlsFiles.certificatePath);
+    final lanClient = HttpClient(context: trustedContext)
+      ..connectionTimeout = const Duration(seconds: 5);
+    try {
+      final lanSession = await _requestAtEndpoint(
+        lanClient,
+        scheme: 'https',
+        hostAddress: networkAddress,
+        port: dualListenerPort,
+        method: 'GET',
+        path: '/api/v1/session',
+        token: token,
+      );
+      final lanIdentity = lanSession.body['identity'] as Map<String, dynamic>;
+      check(
+        lanSession.status == 200 && lanIdentity['actorId'] == actor,
+        'LAN HTTPS listener shares authenticated Host identity while local admin remains available',
+      );
+      final localSession = await _request(
+        lanClient,
+        runningHost.port,
+        'GET',
+        '/api/v1/session',
+        token: token,
+      );
+      check(
+        localSession.status == 200,
+        'Loopback administration remains available alongside LAN HTTPS',
+      );
+    } finally {
+      lanClient.close(force: true);
+    }
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     client?.close(force: true);
     await runningHost?.stop();
     await administrationConnection.close();
     await directory.delete(recursive: true);
+  }
+}
+
+Future<void> _verifyDiagnosticProcessLifecycle({
+  required Map<String, String> processEnvironment,
+  required String runtimeUrl,
+  required String tenant,
+  required String company,
+  required String branch,
+  required String authorizedToken,
+  required String unauthorizedToken,
+}) async {
+  final diagnosticsPath = processEnvironment['VENTIO_HOST_DIAGNOSTICS_FILE']!;
+  final rejectedDatabaseUrl = runtimeUrl.replaceFirst(
+    'runtime_test_only',
+    'invalid_runtime_test_only',
+  );
+  if (rejectedDatabaseUrl == runtimeUrl) {
+    throw StateError('Could not prepare a disposable database failure case.');
+  }
+
+  var startupFailed = false;
+  try {
+    await _startHost({
+      ...processEnvironment,
+      'VENTIO_HOST_DATABASE_URL': rejectedDatabaseUrl,
+    });
+  } on StateError {
+    startupFailed = true;
+  }
+  check(startupFailed, 'Injected database failure stops Host startup safely');
+  check(
+    await File(diagnosticsPath).exists(),
+    'Host safely initializes the missing protected diagnostics log before recording its startup failure',
+  );
+
+  final persistedLog = await ProtectedManagementDiagnosticLog.open(
+    diagnosticsPath,
+  );
+  final startupEvents = persistedLog.recent(limit: 100);
+  final startupEvent = startupEvents.firstWhere(
+    (event) => event.code == 'HOST_STARTUP_FAILED',
+  );
+  check(
+    startupEvent.category == ManagementDiagnosticCategory.hostStartup &&
+        startupEvent.protectedFailureType != null &&
+        startupEvent.correlationId.startsWith('cor_'),
+    'Failed Host process persisted a correlated protected startup event',
+  );
+  final publicStartupEvent = jsonEncode(startupEvent.toJson());
+  check(
+    !publicStartupEvent.contains('protectedFailureType') &&
+        !publicStartupEvent.contains('ServerException'),
+    'Public Host startup event omits protected failure details',
+  );
+
+  for (final processGeneration in [1, 2]) {
+    final host = await _startHost(processEnvironment);
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+    try {
+      final response = await _request(
+        client,
+        host.port,
+        'POST',
+        HostManagementRoutes.diagnosticsRecent,
+        token: authorizedToken,
+        body: {
+          'managementApiVersion': managementApiVersion,
+          'companyId': company,
+          'branchId': branch,
+          'limit': 20,
+        },
+      );
+      final events = response.body['events'] as List;
+      final restoredEvent = events.cast<Map<String, dynamic>>().firstWhere(
+        (event) => event['code'] == 'HOST_STARTUP_FAILED',
+      );
+      check(
+        response.status == 200 &&
+            restoredEvent['correlationId'] == startupEvent.correlationId &&
+            !jsonEncode(response.body).contains('protectedFailureType') &&
+            !jsonEncode(response.body).contains('ServerException') &&
+            !jsonEncode(response.body).contains('invalid_runtime_test_only'),
+        'Host process $processGeneration retrieves the persisted safe event after restart',
+      );
+
+      final denied = await _request(
+        client,
+        host.port,
+        'POST',
+        HostManagementRoutes.diagnosticsRecent,
+        token: unauthorizedToken,
+        body: {
+          'managementApiVersion': managementApiVersion,
+          'companyId': company,
+          'branchId': branch,
+          'limit': 20,
+        },
+      );
+      check(
+        denied.status == 403 &&
+            denied.body['error']['code'] == 'PERMISSION_DENIED',
+        'Host process $processGeneration refuses diagnostics without an exact-scope grant',
+      );
+
+      final outOfScope = await _request(
+        client,
+        host.port,
+        'POST',
+        HostManagementRoutes.diagnosticsRecent,
+        token: authorizedToken,
+        body: {
+          'managementApiVersion': managementApiVersion,
+          'companyId': company,
+          'branchId': 'branch-outside-grant',
+          'limit': 20,
+        },
+      );
+      check(
+        outOfScope.status == 403 &&
+            outOfScope.body['error']['code'] == 'SCOPE_DENIED',
+        'Host process $processGeneration refuses diagnostic reads outside the credential scope',
+      );
+    } finally {
+      client.close(force: true);
+      await host.stop();
+    }
+  }
+
+  final uiHost = await _startHost(processEnvironment);
+  try {
+    final uiResult = await _runFlutterHostDiagnosticsUiFlow(
+      endpoint: '${uiHost.scheme}://${uiHost.address}:${uiHost.port}',
+      token: authorizedToken,
+      tenant: tenant,
+      company: company,
+      branch: branch,
+      expectedCorrelation: startupEvent.correlationId,
+    );
+    stdout.write(uiResult.stdout);
+    if (uiResult.exitCode != 0) stderr.write(uiResult.stderr);
+    check(
+      uiResult.exitCode == 0,
+      'Native Flutter Diagnostics Center retrieves the protected Host failure and exports sanitized local/Host events',
+    );
+  } finally {
+    await uiHost.stop();
   }
 }
 
@@ -738,6 +1151,125 @@ Future<ProcessResult> _runFlutterClientFlow({
       'VENTIO_CLIENT_HOST_BRANCH': branch,
       if (trustedCertificatePath != null)
         'VENTIO_CLIENT_HOST_TRUSTED_CERTIFICATE': trustedCertificatePath,
+    },
+    runInShell: true,
+  );
+}
+
+Future<ProcessResult> _runFlutterHostAdministrationUiFlow({
+  required String endpoint,
+  required String writerToken,
+  required String readerToken,
+  required String tenant,
+  required String company,
+  required String branch,
+  required String actor,
+  required String device,
+}) {
+  final clientDirectory = Directory(
+    '${Directory.current.parent.path}${Platform.pathSeparator}'
+    'ventio_native_client',
+  );
+  return Process.run(
+    'flutter',
+    [
+      'test',
+      'integration_test/host_administration_ui_test.dart',
+      '--device-id',
+      'windows',
+      '--no-pub',
+      '--reporter',
+      'expanded',
+    ],
+    workingDirectory: clientDirectory.path,
+    environment: {
+      ...Platform.environment,
+      'VENTIO_HOST_UI_ENDPOINT': endpoint,
+      'VENTIO_HOST_UI_WRITER_TOKEN': writerToken,
+      'VENTIO_HOST_UI_READER_TOKEN': readerToken,
+      'VENTIO_HOST_UI_TENANT': tenant,
+      'VENTIO_HOST_UI_COMPANY': company,
+      'VENTIO_HOST_UI_BRANCH': branch,
+      'VENTIO_HOST_UI_ACTOR': actor,
+      'VENTIO_HOST_UI_DEVICE': device,
+    },
+    runInShell: true,
+  );
+}
+
+Future<ProcessResult> _runFlutterHostDiagnosticsUiFlow({
+  required String endpoint,
+  required String token,
+  required String tenant,
+  required String company,
+  required String branch,
+  required String expectedCorrelation,
+}) {
+  final clientDirectory = Directory(
+    '${Directory.current.parent.path}${Platform.pathSeparator}'
+    'ventio_native_client',
+  );
+  return Process.run(
+    'flutter',
+    [
+      'test',
+      'integration_test/host_diagnostics_ui_test.dart',
+      '--device-id',
+      'windows',
+      '--no-pub',
+      '--reporter',
+      'expanded',
+    ],
+    workingDirectory: clientDirectory.path,
+    environment: {
+      ...Platform.environment,
+      'VENTIO_DIAGNOSTICS_ENDPOINT': endpoint,
+      'VENTIO_DIAGNOSTICS_TOKEN': token,
+      'VENTIO_DIAGNOSTICS_TENANT': tenant,
+      'VENTIO_DIAGNOSTICS_COMPANY': company,
+      'VENTIO_DIAGNOSTICS_BRANCH': branch,
+      'VENTIO_DIAGNOSTICS_EXPECTED_CORRELATION': expectedCorrelation,
+    },
+    runInShell: true,
+  );
+}
+
+Future<ProcessResult> _runFlutterHostClientEnrollmentUiFlow({
+  required String endpoint,
+  required String pairingCode,
+  required String certificateFingerprint,
+  required String certificatePath,
+  required String tenant,
+  required String actor,
+  required String company,
+  required String branch,
+}) {
+  final clientDirectory = Directory(
+    '${Directory.current.parent.path}${Platform.pathSeparator}'
+    'ventio_native_client',
+  );
+  return Process.run(
+    'flutter',
+    [
+      'test',
+      'integration_test/host_client_enrollment_ui_test.dart',
+      '--device-id',
+      'windows',
+      '--no-pub',
+      '--reporter',
+      'expanded',
+    ],
+    workingDirectory: clientDirectory.path,
+    environment: {
+      ...Platform.environment,
+      'VENTIO_CLIENT_PAIRING_ENDPOINT': endpoint,
+      'VENTIO_CLIENT_PAIRING_CODE': pairingCode,
+      'VENTIO_CLIENT_PAIRING_FINGERPRINT': certificateFingerprint,
+      'VENTIO_CLIENT_PAIRING_CERTIFICATE': certificatePath,
+      'VENTIO_CLIENT_PAIRING_TENANT': tenant,
+      'VENTIO_CLIENT_PAIRING_ACTOR': actor,
+      'VENTIO_CLIENT_PAIRING_COMPANY': company,
+      'VENTIO_CLIENT_PAIRING_BRANCH': branch,
     },
     runInShell: true,
   );
@@ -846,6 +1378,7 @@ if ($null -ne $config) {
     Where-Object { $_ -match '^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)' } |
     Select-Object -First 1
 }
+
 ''';
     final routed = await Process.run('powershell.exe', [
       '-NoLogo',
@@ -878,6 +1411,33 @@ if ($null -ne $config) {
     throw StateError('No usable non-loopback IPv4 address is available.');
   }
   return addresses.where(_isPrivateIpv4).firstOrNull ?? addresses.first;
+}
+
+Future<int> _unusedTcpPort() async {
+  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final port = socket.port;
+  await socket.close();
+  return port;
+}
+
+Future<void> _waitForTcpEndpoint(String address, int port) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 20));
+  while (DateTime.now().isBefore(deadline)) {
+    try {
+      final socket = await Socket.connect(
+        address,
+        port,
+        timeout: const Duration(seconds: 1),
+      );
+      socket.destroy();
+      return;
+    } on SocketException {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    } on TimeoutException {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+  }
+  throw TimeoutException('Host LAN listener did not accept a TCP connection.');
 }
 
 bool _isPrivateIpv4(String address) =>
@@ -991,9 +1551,31 @@ Future<_HttpResult> _request(
   String? token,
   Map<String, Object?>? body,
 }) async {
+  return _requestAtEndpoint(
+    client,
+    scheme: 'http',
+    hostAddress: '127.0.0.1',
+    port: port,
+    method: method,
+    path: path,
+    token: token,
+    body: body,
+  );
+}
+
+Future<_HttpResult> _requestAtEndpoint(
+  HttpClient client, {
+  required String scheme,
+  required String hostAddress,
+  required int port,
+  required String method,
+  required String path,
+  String? token,
+  Map<String, Object?>? body,
+}) async {
   final request = await client.openUrl(
     method,
-    Uri.parse('http://127.0.0.1:$port$path'),
+    Uri(scheme: scheme, host: hostAddress, port: port, path: path),
   );
   if (token != null) {
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');

@@ -276,7 +276,7 @@ BEGIN
     SELECT disabled_at INTO is_disabled FROM public.ventio_identity_users
       WHERE tenant_id = tenant AND actor_id = actor FOR UPDATE;
     IF NOT FOUND OR (is_disabled IS NOT NULL AND operation NOT IN
-        ('USER_DISABLED','DEVICE_REVOKED','CREDENTIAL_REVOKED','PERMISSION_REVOKED')) THEN
+        ('USER_ENABLED','USER_DISABLED','DEVICE_REVOKED','CREDENTIAL_REVOKED','PERMISSION_REVOKED')) THEN
       RAISE EXCEPTION 'Unknown or disabled user';
     END IF;
     CASE operation
@@ -375,6 +375,13 @@ BEGIN
     WHEN 'USER_DISABLED' THEN
       UPDATE public.ventio_identity_users SET disabled_at = clock_timestamp()
         WHERE tenant_id = tenant AND actor_id = actor AND disabled_at IS NULL;
+      GET DIAGNOSTICS changed = ROW_COUNT;
+      IF changed = 0 THEN RETURN; END IF;
+      subject := actor;
+      details := jsonb_build_object('companyId',company,'branchId',branch);
+    WHEN 'USER_ENABLED' THEN
+      UPDATE public.ventio_identity_users SET disabled_at = NULL
+        WHERE tenant_id = tenant AND actor_id = actor AND disabled_at IS NOT NULL;
       GET DIAGNOSTICS changed = ROW_COUNT;
       IF changed = 0 THEN RETURN; END IF;
       subject := actor;
@@ -777,7 +784,7 @@ BEGIN
             AND e.details->>'branchId'=p_branch)
         OR EXISTS (SELECT FROM public.ventio_identity_audit e
           WHERE e.tenant_id=u.tenant_id
-            AND e.action IN ('USER_DISABLED','PERMISSION_GRANTED',
+            AND e.action IN ('USER_DISABLED','USER_ENABLED','PERMISSION_GRANTED',
               'PERMISSION_REVOKED','ROLE_ASSIGNED','ROLE_UNASSIGNED')
             AND e.subject_id=u.actor_id
             AND e.details->>'companyId'=p_company
@@ -839,7 +846,7 @@ BEGIN
       AND e.details->>'companyId'=p_company
       AND e.details->>'branchId'=p_branch
       AND e.action IN (
-        'USER_CREATED','USER_DISABLED','PERMISSION_GRANTED','PERMISSION_REVOKED',
+        'USER_CREATED','USER_DISABLED','USER_ENABLED','PERMISSION_GRANTED','PERMISSION_REVOKED',
         'ROLE_CREATED','ROLE_RENAMED','ROLE_DELETED',
         'ROLE_PERMISSION_GRANTED','ROLE_PERMISSION_REVOKED',
         'ROLE_ASSIGNED','ROLE_UNASSIGNED')
@@ -895,7 +902,7 @@ BEGIN
       pg_has_role(session_user,'ventio_migrator','MEMBER') OR
       jsonb_typeof(p_change) IS DISTINCT FROM 'object' OR
       operation IS NULL OR operation NOT IN
-        ('USER_CREATED','PERMISSION_GRANTED','PERMISSION_REVOKED','USER_DISABLED') OR
+        ('USER_CREATED','PERMISSION_GRANTED','PERMISSION_REVOKED','USER_DISABLED','USER_ENABLED') OR
       p_change ?| ARRAY['tenantId','operatorLabel','operatorActorId','deviceId',
         'credentialId','tokenDigest','allowedScopes','expiresAt','package',
         'packageSha256','companyId','branchId'] OR
@@ -906,7 +913,7 @@ BEGIN
       (operation<>'USER_CREATED' AND
         (target_actor IS NULL OR
          length(trim(target_actor)) NOT BETWEEN 1 AND 256)) OR
-      (operation IN ('USER_CREATED','USER_DISABLED') AND
+      (operation IN ('USER_CREATED','USER_DISABLED','USER_ENABLED') AND
         (p_change ? 'permission' OR p_change ? 'extra')) OR
       (operation IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
         (permission_name IS NULL OR
@@ -921,7 +928,7 @@ BEGIN
       p_change-ARRAY['action']<>'{}'::jsonb) OR
      (operation IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
       p_change-ARRAY['action','actorId','permission']<>'{}'::jsonb) OR
-     (operation='USER_DISABLED' AND
+     (operation IN ('USER_DISABLED','USER_ENABLED') AND
       p_change-ARRAY['action','actorId']<>'{}'::jsonb) THEN
     RAISE EXCEPTION 'Unexpected user administration field' USING ERRCODE='22023';
   END IF;
@@ -970,19 +977,20 @@ BEGIN
           AND a.company_id=p_company AND a.branch_id=p_branch) AND
        NOT EXISTS (SELECT FROM public.ventio_identity_audit e
         WHERE e.tenant_id=credential_row.tenant_id AND e.subject_id=target_actor
-          AND e.action IN ('USER_CREATED','USER_DISABLED','PERMISSION_GRANTED',
+          AND e.action IN ('USER_CREATED','USER_DISABLED','USER_ENABLED','PERMISSION_GRANTED',
             'PERMISSION_REVOKED','ROLE_ASSIGNED','ROLE_UNASSIGNED')
           AND e.details->>'companyId'=p_company
           AND e.details->>'branchId'=p_branch) THEN
       RAISE EXCEPTION 'User not found' USING ERRCODE='P0002';
     END IF;
-    IF target_disabled IS NOT NULL THEN
+    IF (operation='USER_ENABLED' AND target_disabled IS NULL) OR
+       (operation<>'USER_ENABLED' AND target_disabled IS NOT NULL) THEN
       RAISE EXCEPTION 'User not found or disabled' USING ERRCODE='P0002';
     END IF;
   END IF;
 
-  IF operation='USER_DISABLED' THEN
-    IF target_actor=credential_row.actor_id THEN
+  IF operation IN ('USER_DISABLED','USER_ENABLED') THEN
+    IF operation='USER_DISABLED' AND target_actor=credential_row.actor_id THEN
       RAISE EXCEPTION 'An administrator cannot disable their own account'
         USING ERRCODE='42501';
     END IF;

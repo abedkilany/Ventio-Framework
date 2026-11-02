@@ -6,6 +6,7 @@ import 'package:ventio_host_api/ventio_host_api.dart';
 
 Future<void> main(List<String> args) async {
   pg.Connection? connection;
+  var failureCode = 'HOST_FIRST_ADMIN_REQUEST_INVALID';
   try {
     if (args.isNotEmpty) throw const FormatException();
     final requestBytes = await stdin.fold<List<int>>(<int>[], (buffer, chunk) {
@@ -87,7 +88,9 @@ Future<void> main(List<String> args) async {
       readerSid: readerSid,
       allowHostMutations: true,
     );
+    failureCode = 'HOST_FIRST_ADMIN_DATABASE_CONNECTION_FAILED';
     connection = await pg.Connection.openFromUrl(databaseUrl);
+    failureCode = 'HOST_FIRST_ADMIN_RECOVERY_AUTHORITY_FAILED';
     await authority.prepareFirstAdministratorBootstrap(
       connection,
       requestId: requestId,
@@ -100,6 +103,7 @@ Future<void> main(List<String> args) async {
       token: token,
       expiresAt: expiresAt,
     );
+    failureCode = 'HOST_FIRST_ADMIN_IDENTITY_BOOTSTRAP_FAILED';
     final administration = IdentityAdministration(
       connection: connection,
       bootstrapConnection: connection,
@@ -119,11 +123,16 @@ Future<void> main(List<String> args) async {
         token: token,
       ),
     );
+    failureCode = 'HOST_FIRST_ADMIN_RESULT_INVALID';
     stdout.write(jsonEncode({'success': true, 'actorId': credential.actorId}));
   } catch (_) {
-    stderr.writeln('FIRST_ADMIN_BOOTSTRAP_FAILED');
+    stderr.writeln(failureCode);
     exitCode = 1;
   } finally {
-    await connection?.close();
+    try {
+      await connection?.close();
+    } catch (_) {
+      // Closing a committed bootstrap connection must not invalidate success.
+    }
   }
 }

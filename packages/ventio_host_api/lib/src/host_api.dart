@@ -1084,6 +1084,7 @@ class HostApi {
     '/api/v1/management/users/grant' => 'grant',
     '/api/v1/management/users/revoke' => 'revoke',
     '/api/v1/management/users/disable' => 'disable',
+    '/api/v1/management/users/enable' => 'enable',
     _ => null,
   };
 
@@ -1167,12 +1168,8 @@ class HostApi {
     if (action == 'rotate') {
       final deviceId = _boundedIdentifier(json, 'deviceId');
       final credentialId = _boundedIdentifier(json, 'credentialId');
-      if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(deviceId) ||
-          RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(deviceId) ||
-          !RegExp(
-            r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$',
-          ).hasMatch(credentialId) ||
-          RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(credentialId)) {
+      if (!_isSafeDeviceManagementDeviceId(deviceId) ||
+          !_isSafeDeviceManagementCredentialId(credentialId)) {
         throw const _ApiError(400, 'INVALID_REQUEST');
       }
       final replacement = await _identityDeviceAdministration.rotateCredential(
@@ -1201,8 +1198,7 @@ class HostApi {
     }
 
     final deviceId = _boundedIdentifier(json, 'deviceId');
-    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(deviceId) ||
-        RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(deviceId)) {
+    if (!_isSafeDeviceManagementDeviceId(deviceId)) {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
     await gateway.revoke(
@@ -1230,7 +1226,7 @@ class HostApi {
       'list' ||
       'audit' => const {'managementApiVersion', 'companyId', 'branchId'},
       'create' => const {'managementApiVersion', 'companyId', 'branchId'},
-      'disable' => const {
+      'disable' || 'enable' => const {
         'managementApiVersion',
         'companyId',
         'branchId',
@@ -1328,6 +1324,7 @@ class HostApi {
         'grant' => 'PERMISSION_GRANTED',
         'revoke' => 'PERMISSION_REVOKED',
         'disable' => 'USER_DISABLED',
+        'enable' => 'USER_ENABLED',
         _ => throw const _ApiError(404, 'NOT_FOUND'),
       },
     };
@@ -1696,6 +1693,7 @@ class HostApi {
 const _safeAuditActions = <String>{
   'USER_CREATED',
   'USER_DISABLED',
+  'USER_ENABLED',
   'PERMISSION_GRANTED',
   'PERMISSION_REVOKED',
   'ROLE_CREATED',
@@ -1755,6 +1753,34 @@ bool _isSafeAuditProjection(
   return true;
 }
 
+bool _isTypedOpaqueManagementId(Object? value, String prefix) =>
+    value is String &&
+    value.startsWith(prefix) &&
+    RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value.substring(prefix.length));
+
+bool _isSafeLegacyDeviceManagementId(Object? value) =>
+    value is String &&
+    RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
+    !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value) &&
+    !RegExp(
+      r'(bearer|password|token|secret|postgres(?:ql)?|credential)',
+      caseSensitive: false,
+    ).hasMatch(value);
+
+bool _isSafeDeviceManagementDeviceId(Object? value) =>
+    _isTypedOpaqueManagementId(value, 'dev_') ||
+    _isSafeLegacyDeviceManagementId(value);
+
+bool _isSafeDeviceManagementActorId(Object? value) =>
+    _isTypedOpaqueManagementId(value, 'usr_') ||
+    _isSafeLegacyDeviceManagementId(value);
+
+bool _isSafeDeviceManagementCredentialId(Object? value) =>
+    _isTypedOpaqueManagementId(value, 'cred_') ||
+    (value is String &&
+        RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
+        !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value));
+
 bool _isSafeDeviceProjection(
   Map<String, dynamic> devices, {
   required String tenantId,
@@ -1771,20 +1797,6 @@ bool _isSafeDeviceProjection(
       (devices['items'] as List).length > 1000) {
     return false;
   }
-  bool safeId(Object? value) =>
-      value is String &&
-      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
-      !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value) &&
-      !RegExp(
-        r'(bearer|password|token|secret|postgres(?:ql)?|credential)',
-        caseSensitive: false,
-      ).hasMatch(value);
-  // Credential IDs are identifiers by contract and may legitimately contain
-  // the word "credential". Still reject values shaped like opaque tokens.
-  bool safeCredentialId(Object? value) =>
-      value is String &&
-      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
-      !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value);
   bool utc(Object? value, {bool nullable = false}) {
     if (value == null) return nullable;
     return value is String && _isUtcTimestamp(value);
@@ -1806,8 +1818,8 @@ bool _isSafeDeviceProjection(
     };
     if (item.keys.toSet().length != itemKeys.length ||
         !item.keys.toSet().containsAll(itemKeys) ||
-        !safeId(item['deviceId']) ||
-        !safeId(item['actorId']) ||
+        !_isSafeDeviceManagementDeviceId(item['deviceId']) ||
+        !_isSafeDeviceManagementActorId(item['actorId']) ||
         !const {'HOST', 'CLIENT', 'UNKNOWN'}.contains(item['role']) ||
         !const {'REGISTERED', 'REVOKED'}.contains(item['registrationState']) ||
         !utc(item['registeredAtUtc']) ||
@@ -1830,7 +1842,7 @@ bool _isSafeDeviceProjection(
       };
       if (credential.keys.toSet().length != credentialKeys.length ||
           !credential.keys.toSet().containsAll(credentialKeys) ||
-          !safeCredentialId(credential['credentialId']) ||
+          !_isSafeDeviceManagementCredentialId(credential['credentialId']) ||
           !const {
             'ACTIVE',
             'EXPIRED',
@@ -1868,16 +1880,12 @@ bool _isSafeDeviceCredentialRotation(
   final rawCredentialId = credential['credentialId'];
   final expiresAt = credential['expiresAtUtc'];
   final bearer = credential['credential'];
-  bool safeIdentifier(Object? value) =>
-      value is String &&
-      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
-      !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value);
   return credential.keys.toSet().length == keys.length &&
       credential.keys.toSet().containsAll(keys) &&
       credential['tenantId'] == tenantId &&
-      safeIdentifier(rawActorId) &&
+      _isSafeDeviceManagementActorId(rawActorId) &&
       credential['deviceId'] == deviceId &&
-      safeIdentifier(rawCredentialId) &&
+      _isSafeDeviceManagementCredentialId(rawCredentialId) &&
       credential['companyId'] == companyId &&
       credential['branchId'] == branchId &&
       expiresAt is String &&

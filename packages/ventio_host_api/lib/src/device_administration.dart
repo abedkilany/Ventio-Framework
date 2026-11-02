@@ -113,8 +113,7 @@ class PostgresIdentityDeviceAdministrationGateway
     required String deviceId,
   }) async {
     final digest = _authorize(session, companyId, branchId);
-    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(deviceId) ||
-        RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(deviceId)) {
+    if (!_safeDeviceId(deviceId)) {
       throw const IdentityDeviceAdministrationException(
         'INVALID_REQUEST',
         statusCode: 400,
@@ -304,14 +303,20 @@ String _authorize(
   return digest;
 }
 
+bool _safeTypedOpaqueId(String value, String prefix) =>
+    value.startsWith(prefix) &&
+    RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value.substring(prefix.length));
+
 bool _safeDeviceId(String value) =>
-    RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
-    !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value);
+    _safeTypedOpaqueId(value, 'dev_') ||
+    (RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$').hasMatch(value) &&
+        !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value));
 
 bool _safeCredentialId(String value) =>
-    value.isNotEmpty &&
-    value.length <= 256 &&
-    !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value);
+    _safeTypedOpaqueId(value, 'cred_') ||
+    (value.isNotEmpty &&
+        value.length <= 256 &&
+        !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(value));
 
 String _randomHex(int byteCount) {
   final random = math.Random.secure();

@@ -4,11 +4,16 @@ param(
     [string] $PostgresBinDirectory,
     [switch] $HostSecuritySuites,
     [switch] $ClientOfflineIntegration,
-    [ValidateSet('first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')]
+    [switch] $HostProcessIntegration,
+    [switch] $HostDiagnosticsProcessIntegration,
+    [ValidateSet('api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')]
     [string] $OnlyHostSuite
 )
 
 $ErrorActionPreference = 'Stop'
+if (@($HostSecuritySuites, $ClientOfflineIntegration, $HostProcessIntegration, $HostDiagnosticsProcessIntegration).Where({ $_ }).Count -gt 1) {
+    throw 'Select exactly one local PostgreSQL integration mode.'
+}
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
     throw 'This disposable PostgreSQL runner is for Windows.'
 }
@@ -75,7 +80,7 @@ try {
     }
 
     $hostApiDirectory = Join-Path $workspace 'packages\ventio_host_api'
-    if ($HostSecuritySuites -or $ClientOfflineIntegration) {
+    if ($HostSecuritySuites -or $ClientOfflineIntegration -or $HostProcessIntegration -or $HostDiagnosticsProcessIntegration) {
         $env:VENTIO_MIGRATIONS_DIR = Join-Path $workspace 'migrations\postgres'
         $env:PGPASSWORD = 'ventio_test_only'
         Push-Location $hostApiDirectory
@@ -102,10 +107,17 @@ try {
             @('..\..\packages\ventio_postgres\test\postgres_integration.dart')
         }
         if ($OnlyHostSuite) { $suites = @($OnlyHostSuite) }
-        if ($ClientOfflineIntegration) {
+        if ($HostDiagnosticsProcessIntegration -or $HostProcessIntegration) {
+            if ($HostDiagnosticsProcessIntegration) {
+                $env:VENTIO_HOST_DIAGNOSTICS_PROCESS_TEST = 'yes'
+            }
+            & dart run 'test\local_host_role_process_integration.dart'
+            $testExitCode = $LASTEXITCODE
+        } elseif ($ClientOfflineIntegration) {
             Push-Location (Join-Path $workspace 'packages\ventio_native_client')
             try {
-                & flutter test test\official_inventory_host_sqlite_integration_test.dart
+                $clientIntegration = 'test\official_inventory_host_sqlite_integration_test.dart'
+                & flutter test --reporter expanded $clientIntegration
                 $testExitCode = $LASTEXITCODE
             }
             finally {
@@ -139,6 +151,20 @@ finally {
         }
     }
     Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
+    $resolvedRunnerTemp = [IO.Path]::GetFullPath($runnerTemp)
+    $expectedRunnerRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'VentioFramework\postgres-test-runs')).TrimEnd('\') + '\'
+    if ($resolvedRunnerTemp.StartsWith($expectedRunnerRoot, [StringComparison]::OrdinalIgnoreCase) -and
+        (Split-Path -Leaf $resolvedRunnerTemp) -ceq $runLabel -and
+        $runLabel -match '^\d{17}-1$' -and
+        (Test-Path -LiteralPath $resolvedRunnerTemp -PathType Container)) {
+        $runnerAttributes = [IO.File]::GetAttributes($resolvedRunnerTemp)
+        $runnerEntries = @(Get-ChildItem -LiteralPath $resolvedRunnerTemp -Force)
+        if (($runnerAttributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 -and $runnerEntries.Count -eq 0) {
+            Remove-Item -LiteralPath $resolvedRunnerTemp -Force
+        } else {
+            Write-Warning 'POSTGRES_TEST_RUN_DIRECTORY_PRESERVED_NONEMPTY_OR_UNSAFE'
+        }
+    }
 }
 
 if ($testExitCode -ne 0) {
