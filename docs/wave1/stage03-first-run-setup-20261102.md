@@ -36,3 +36,9 @@ The owner-provided Windows 11 setup/reboot screenshots remain useful external ev
 ## Decision
 
 No Stage 3 points are awarded. The local UI, broker, PostgreSQL, first-admin, Recovery Authority, pairing and live Client enrollment results are implementation and test evidence, not proof of the complete installed acceptance gate. Formal Wave 1 acceptance remains **50%**.
+
+## 2026-11-04 defect closure addendum
+
+The PostgreSQL setup failure is now traced to the initializer's hard-coded 29-entry ledger check against the packaged 30 migrations. A later retry's protected diagnostic identified `DATABASE_INITIALIZATION` / `HOST_DATABASE_MIGRATION_LEDGER_INVALID`; the original generic event and the later diagnostic have separate correlation IDs. The 30-migration disposable PostgreSQL regression now passes, and the project owner confirms Host installation succeeds with the fix. See [Host Setup Provisioning Defect Closure](host-setup-provisioning-defect-closure-20261104.md) for diagnostic provenance, tests, and the source-linked installer.
+
+This adds evidence for database initialization, safe failure reporting, and the owner-confirmed run. It does not satisfy Stage 3's remaining installed elevated resume/interruption/repeat, first-administrator/Recovery Authority, failure-export, service-identity/ACL, and reboot criteria. Stage 3 remains IN PROGRESS with no points awarded; formal acceptance remains **50%**.

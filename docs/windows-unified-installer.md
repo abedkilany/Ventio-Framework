@@ -69,3 +69,7 @@ The installer package itself stages the shared Flutter application and verified 
 Historical package size (2026-10-30): the reduced PostgreSQL payload contained 1,680 files totaling 212,081,806 bytes, and that earlier unified installer was 63,333,918 bytes. Those counts do not describe the latest artifact identified above. The 373,254,386-byte PostgreSQL tools archive is a separate build/test source and is not downloaded during end-user installation. The current package has not been installed as a persistent Windows service.
 
 The current unified installer lifecycle, including installed-service removal and explicit data-retention choices, has not been run on a clean elevated Windows host. The Stage 10 acceptance record tracks those checks as open.
+
+## Host provisioning defect closure — 2026-11-04
+
+The fixed Windows Release and Host payload were built from source commit `9bb95852c46eb6159bb56419d03cef2ce7d32259`. The unified installer `dist/windows/host-setup-defect-closure-9bb9585/Ventio-Setup-0.1.1.exe` is 84,868,040 bytes with SHA-256 `e5f5b206c50230283baad4cc35a5f4fed82f42bd360cf78dbc38000e52da3f66`; its signature status is `NotSigned`. The 30-migration disposable database regression and installer static/build checks passed, and the owner confirms Host installation now succeeds. This provides bounded Stage 10 evidence only; clean elevated install/uninstall, SCM lifecycle, reboot, recovery and data-retention gates remain open. Full details are in [the defect closure record](wave1/host-setup-provisioning-defect-closure-20261104.md).
