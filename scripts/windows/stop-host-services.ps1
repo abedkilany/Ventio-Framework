@@ -66,9 +66,7 @@ function Assert-IncompleteHostRecoveryState {
   $diagnosticsDirectory = Join-Path $installerStateDirectory 'ProvisioningDiagnostics'
   $migrationCredentialFile = Join-Path $installerStateDirectory 'migration-credential.dpapi'
   if (-not (Test-Path -LiteralPath $diagnosticsDirectory -PathType Container) -or
-      -not (Test-Path -LiteralPath $migrationCredentialFile -PathType Leaf) -or
-      -not (Test-ProtectedRecoveryRecordAcl $diagnosticsDirectory) -or
-      -not (Test-ProtectedRecoveryRecordAcl $migrationCredentialFile)) {
+      -not (Test-ProtectedRecoveryRecordAcl $diagnosticsDirectory)) {
     throw 'HOST_RECOVERY_INSTALLER_STATE_INVALID'
   }
   foreach ($entry in $entries) {
@@ -86,12 +84,33 @@ function Assert-IncompleteHostRecoveryState {
       throw 'HOST_RECOVERY_DIAGNOSTICS_INVALID'
     }
   }
-  $credentialModule = Join-Path $PSScriptRoot 'HostMigrationCredential.psm1'
-  if (-not (Test-Path -LiteralPath $credentialModule -PathType Leaf)) { throw 'HOST_RECOVERY_CREDENTIAL_MODULE_MISSING' }
-  Import-Module $credentialModule -Force
-  $credential = Read-HostMigrationCredential -OutputDirectory $installerStateDirectory
-  if ($credential.Password) { $credential.Password.Dispose() }
-  $credential = $null
+  if (Test-Path -LiteralPath $migrationCredentialFile -PathType Leaf) {
+    if ($entries.Count -ne 2 -or
+        (Get-Item -LiteralPath $migrationCredentialFile -ErrorAction Stop).Length -gt 4096 -or
+        -not (Test-ProtectedRecoveryRecordAcl $migrationCredentialFile)) {
+      throw 'HOST_RECOVERY_INSTALLER_STATE_INVALID'
+    }
+    $credentialModule = Join-Path $PSScriptRoot 'HostMigrationCredential.psm1'
+    if (-not (Test-Path -LiteralPath $credentialModule -PathType Leaf)) { throw 'HOST_RECOVERY_CREDENTIAL_MODULE_MISSING' }
+    Import-Module $credentialModule -Force
+    $credential = Read-HostMigrationCredential -OutputDirectory $installerStateDirectory
+    if ($credential.Password) { $credential.Password.Dispose() }
+    $credential = $null
+    return
+  }
+
+  $recognizedLedgerFailure = $false
+  foreach ($record in $diagnosticRecords) {
+    $document = Get-Content -LiteralPath $record.FullName -Raw -ErrorAction Stop | ConvertFrom-Json
+    if ([string]$document.phase -ceq 'DATABASE_INITIALIZATION' -and
+        [string]$document.failureCode -ceq 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' -and
+        [string]$document.scriptName -ceq 'initialize-host-database.ps1') {
+      $recognizedLedgerFailure = $true
+    }
+  }
+  if ($entries.Count -ne 1 -or -not $recognizedLedgerFailure) {
+    throw 'HOST_RECOVERY_INSTALLER_STATE_INVALID'
+  }
 }
 
 function Get-ValidatedService([string] $Name, [string] $Account, [string] $Executable, [string] $DataPath) {

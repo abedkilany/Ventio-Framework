@@ -231,7 +231,10 @@ GRANT ventio_migrator TO ventio_migrator_app;
 
   $env:PGPASSWORD = $bootstrapSecret
   $migrationCount = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-Atc','SELECT count(*) FROM public.ventio_schema_migrations')
-  if ($migrationCount -ne '29') { throw 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' }
+  $expectedMigrationCount = @(Get-ChildItem -LiteralPath $migrations -File -Filter '*.sql').Count
+  if ($expectedMigrationCount -lt 1 -or $migrationCount -ne [string]$expectedMigrationCount) {
+    throw 'HOST_DATABASE_MIGRATION_LEDGER_INVALID'
+  }
   $bootstrapProfile = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT rolcanlogin::text || ':' || rolsuper::text FROM pg_roles WHERE rolname='$bootstrapRole'")
   if ($bootstrapProfile -ne 'true:true') { throw 'HOST_DATABASE_BOOTSTRAP_PROFILE_INVALID' }
   [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-v','ON_ERROR_STOP=1','-c','ALTER ROLE ventio_bootstrap NOLOGIN PASSWORD NULL'))

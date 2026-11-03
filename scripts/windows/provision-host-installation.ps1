@@ -460,11 +460,17 @@ try {
   Write-Output 'HOST_INSTALL_SERVICES_READY_FOR_FIRST_ADMIN'
 } catch {
   $failed = $true
+  $failure = $_
+  $failureCode = [string]$failure.Exception.Message
+  if ($failureCode -notmatch '^(HOST|POSTGRES)_[A-Z0-9_]{1,96}$') {
+    $failureCode = 'HOST_INSTALL_PROVISIONING_FAILED'
+  }
   $diagnosticsDirectory = Join-Path $installerStateDirectory 'ProvisioningDiagnostics'
   $failureRecord = Write-HostProvisioningFailureRecord -DataRoot $programData `
-    -DiagnosticsDirectory $diagnosticsDirectory -Phase $phase -Failure $_ `
+    -DiagnosticsDirectory $diagnosticsDirectory -Phase $phase -Failure $failure `
     -Detail ([string]$global:VentioProvisioningFailureDetail)
   $global:VentioProvisioningFailureDetail = $null
+  [Console]::Error.WriteLine('HOST_SETUP_SAFE_FAILURE=' + $failureCode)
   [Console]::Error.WriteLine('HOST_INSTALL_FAILED_DATA_PRESERVED')
   if ($failureRecord) { [Console]::Error.WriteLine('HOST_INSTALL_DIAGNOSTIC_RECORD_AVAILABLE') }
   throw 'HOST_INSTALL_PROVISIONING_FAILED'

@@ -194,6 +194,36 @@ function Test-ProtectedRecoveryRecordAcl([string] $Path) {
   }
 }
 
+function Test-TrustedInstallerStateDirectoryAcl([string] $Path) {
+  try {
+    $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
+    $trustedSids = @('S-1-5-32-544', 'S-1-5-18')
+    $writeAccess = [Security.AccessControl.FileSystemRights]::WriteData -bor
+      [Security.AccessControl.FileSystemRights]::AppendData -bor
+      [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+      [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+      [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+      [Security.AccessControl.FileSystemRights]::Delete -bor
+      [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+      [Security.AccessControl.FileSystemRights]::TakeOwnership
+    $genericWrite = 0x40000000
+    $genericAll = 0x10000000
+    foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+      if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+          $rule.IdentityReference.Value -notin $trustedSids) {
+        $rights = [int]$rule.FileSystemRights
+        if (($rights -band ($genericWrite -bor $genericAll)) -ne 0 -or
+            ($rights -band [int]$writeAccess) -ne 0) {
+          return $false
+        }
+      }
+    }
+    return $true
+  } catch {
+    return $false
+  }
+}
+
 function Set-ProtectedRecoveryEvidenceAcl([string] $Path, [bool] $IsDirectory) {
   if ($IsDirectory) {
     $acl = [Security.AccessControl.DirectorySecurity]::new()
@@ -314,25 +344,35 @@ function Assert-PostgresOnlyFailedInstallation {
   }
 
   $stateEntries = @(Get-ChildItem -LiteralPath $installerData -Force -ErrorAction Stop)
-  if ($stateEntries.Count -ne 2) { throw 'HOST_PARTIAL_INSTALLATION_STATE_INVALID' }
   $diagnosticsDirectory = Join-Path $installerData 'ProvisioningDiagnostics'
   $migrationCredential = Join-Path $installerData 'migration-credential.dpapi'
+  $hasMigrationCredential = Test-Path -LiteralPath $migrationCredential -PathType Leaf
+  $installerStateAclValid = if ($hasMigrationCredential) {
+    Test-ProtectedRecoveryRecordAcl $installerData
+  } else {
+    Test-TrustedInstallerStateDirectoryAcl $installerData
+  }
   if (-not (Test-Path -LiteralPath $diagnosticsDirectory -PathType Container) -or
-      -not (Test-Path -LiteralPath $migrationCredential -PathType Leaf) -or
-      (Get-Item -LiteralPath $migrationCredential -ErrorAction Stop).Length -gt 4096 -or
-      -not (Test-ProtectedRecoveryRecordAcl $installerData) -or
-      -not (Test-ProtectedRecoveryRecordAcl $diagnosticsDirectory) -or
-      -not (Test-ProtectedRecoveryRecordAcl $migrationCredential)) {
+      -not $installerStateAclValid -or
+      -not (Test-ProtectedRecoveryRecordAcl $diagnosticsDirectory)) {
     throw 'HOST_PARTIAL_INSTALLATION_STATE_INVALID'
   }
   foreach ($entry in $stateEntries) {
-    if ($entry.Name -cne 'ProvisioningDiagnostics' -and
-        $entry.Name -cne 'migration-credential.dpapi') {
+    if ($entry.Name -cne 'ProvisioningDiagnostics' -and $entry.Name -cne 'migration-credential.dpapi') {
       throw 'HOST_PARTIAL_INSTALLATION_STATE_INVALID'
     }
     if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
       throw 'HOST_PARTIAL_INSTALLATION_STATE_INVALID'
     }
+  }
+  if ($hasMigrationCredential -and
+      ($stateEntries.Count -ne 2 -or
+       (Get-Item -LiteralPath $migrationCredential -ErrorAction Stop).Length -gt 4096 -or
+       -not (Test-ProtectedRecoveryRecordAcl $migrationCredential))) {
+    throw 'HOST_PARTIAL_INSTALLATION_STATE_INVALID'
+  }
+  if (-not $hasMigrationCredential -and $stateEntries.Count -ne 1) {
+    throw 'HOST_PARTIAL_INSTALLATION_STATE_INVALID'
   }
 
   $records = @(Get-ChildItem -LiteralPath $diagnosticsDirectory -Force -ErrorAction Stop)
@@ -340,6 +380,7 @@ function Assert-PostgresOnlyFailedInstallation {
     throw 'HOST_PARTIAL_INSTALLATION_DIAGNOSTICS_INVALID'
   }
   $hasConfirmedFailure = $false
+  $hasInitialLedgerFailure = $false
   foreach ($record in $records) {
     if ($record.PSIsContainer -or
         $record.Name -notmatch '^host-provisioning-\d{8}T\d{9}Z-[0-9a-f]{32}\.json$' -or
@@ -352,8 +393,17 @@ function Assert-PostgresOnlyFailedInstallation {
     if ([string]$document.failureCode -ceq 'HOST_DATABASE_RECOVERY_ROLE_ROTATION_FAILED') {
       $hasConfirmedFailure = $true
     }
+    if ([string]$document.phase -ceq 'DATABASE_INITIALIZATION' -and
+        [string]$document.failureCode -ceq 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' -and
+        [string]$document.scriptName -ceq 'initialize-host-database.ps1') {
+      $hasInitialLedgerFailure = $true
+    }
   }
-  if (-not $hasConfirmedFailure) { throw 'HOST_PARTIAL_INSTALLATION_FAILURE_NOT_RECOGNIZED' }
+  if ($hasMigrationCredential) {
+    if (-not $hasConfirmedFailure) { throw 'HOST_PARTIAL_INSTALLATION_FAILURE_NOT_RECOGNIZED' }
+  } elseif (-not $hasInitialLedgerFailure) {
+    throw 'HOST_PARTIAL_INSTALLATION_FAILURE_NOT_RECOGNIZED'
+  }
 }
 
 function Stop-ValidatedService([string] $Name) {

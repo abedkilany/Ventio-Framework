@@ -730,6 +730,8 @@ class _HostSetupPageState extends State<HostSetupPage> {
       'native.ui.host_setup_existing_installation',
     'HOST_SERVICE_IDENTITY_CONFLICT' =>
       'native.ui.host_setup_service_identity_conflict',
+    'HOST_DATABASE_MIGRATION_LEDGER_INVALID' =>
+      'native.ui.host_setup_migration_ledger_invalid',
     'HOST_SETUP_ALREADY_RUNNING' => 'native.ui.host_setup_already_running',
     'HOST_SETUP_INTERRUPTED_REQUIRES_RECOVERY' =>
       'native.ui.host_setup_interrupted_requires_recovery',

@@ -35,6 +35,7 @@ internal static class Program
         "HOST_EXISTING_DATA_REQUIRES_REPAIR",
         "HOST_PARTIAL_SERVICE_INSTALLATION",
         "HOST_SERVICE_IDENTITY_CONFLICT",
+        "HOST_DATABASE_MIGRATION_LEDGER_INVALID",
         "HOST_INSTALL_ADMIN_ELEVATION_REQUIRED",
         "HOST_SETUP_REQUESTER_IDENTITY_MISMATCH",
         "HOST_SETUP_SCRIPT_HASH_INVALID",
@@ -165,7 +166,7 @@ internal static class Program
 
         var safeFailure = SafeFailureCodes.FirstOrDefault(code =>
             stderr.Contains(code, StringComparison.Ordinal));
-        WriteStatus(request, "failed", safeFailure ?? "HOST_SETUP_PROVISIONING_FAILED", null);
+        WriteStatus(request, "failed", safeFailure ?? "HOST_SETUP_PROVISIONING_FAILED", progress.CurrentPhase);
         return 5;
     }
 

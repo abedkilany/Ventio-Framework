@@ -1053,6 +1053,8 @@ const ventioNativeEnglishMessages = <String, String>{
       'A pending Host setup belongs to another Windows account or scope. Its data was preserved and was not resumed.',
   'native.ui.host_setup_existing_installation':
       'Ventio Host services or data already exist on this computer. Setup stopped to protect them; use the reviewed recovery workflow.',
+  'native.ui.host_setup_migration_ledger_invalid':
+      'The Host database migration ledger does not match the bundled migrations. Keep the Host data intact and review the diagnostic report before retrying.',
   'native.ui.host_setup_service_identity_conflict':
       'A Windows service using a Ventio service name does not match this installation. Setup stopped without changing it. Have an administrator review the existing service before continuing.',
   'native.ui.host_setup_already_running':

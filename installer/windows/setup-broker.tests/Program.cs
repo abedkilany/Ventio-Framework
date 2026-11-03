@@ -19,7 +19,8 @@ if (!BrokerProgram.IsAllowedBootstrapPeerState(2) || !BrokerProgram.IsAllowedBoo
     BrokerProgram.IsAllowedBootstrapPeerState(1) || BrokerProgram.IsAllowedBootstrapPeerState(3) || BrokerProgram.IsAllowedBootstrapPeerState(7))
     throw new InvalidOperationException("Bootstrap acknowledgement did not handle only live startup and running service states.");
 
-if (!BrokerProgram.IsSafeFailureCode("HOST_FIRST_ADMIN_DATABASE_CONNECTION_FAILED") ||
+if (!BrokerProgram.IsSafeFailureCode("HOST_DATABASE_MIGRATION_LEDGER_INVALID") ||
+    !BrokerProgram.IsSafeFailureCode("HOST_FIRST_ADMIN_DATABASE_CONNECTION_FAILED") ||
     !BrokerProgram.IsSafeFailureCode("HOST_FIRST_ADMIN_HELPER_TIMEOUT") ||
     BrokerProgram.IsSafeFailureCode("postgresql://user:secret@127.0.0.1/database") ||
     BrokerProgram.IsSafeFailureCode("Exception: permission denied"))
