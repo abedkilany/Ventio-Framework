@@ -589,10 +589,10 @@ const _diagnosticEnglish = <String, String>{
   'refresh': 'Refresh diagnostics',
   'local_title': 'Device diagnostics',
   'local_explanation':
-      'These safe local events remain available when the Host cannot be reached or authentication is unavailable. Technical exception details are not stored here.',
+      'These safe local events remain available when the Host cannot be reached or authentication is unavailable. Use Refresh diagnostics to reload device and Host event feeds. Technical exception details are not stored here.',
   'host_title': 'Host diagnostics',
   'host_explanation':
-      'These Host events require the dedicated diagnostic permission. The Host returns safe event details only; protected technical details stay on the Host.',
+      'These Host events require the dedicated diagnostic permission. Refresh Host diagnostics reloads this event history. Run Host readiness check separately to query all four current readiness components. Protected technical details stay on the Host.',
   'refresh_host': 'Refresh Host diagnostics',
   'host_load_failed': 'Host diagnostics could not be loaded',
   'host_permission_denied':

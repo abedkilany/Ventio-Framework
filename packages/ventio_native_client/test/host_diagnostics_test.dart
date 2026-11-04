@@ -261,6 +261,128 @@ void main() {
     expect(encoded, isNot(contains('08006')));
   });
 
+  testWidgets(
+    'manual diagnostics refresh recovers in the same Flutter session',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      var hostAvailable = false;
+      final requestedPaths = <String>[];
+      final checkedAt = DateTime.utc(2026, 10, 30, 12);
+      final readiness = HostReadinessSnapshot(
+        checkedAtUtc: checkedAt,
+        hostVersion: '0.1.0',
+        components: [
+          for (final component in ManagementComponent.values)
+            ManagementComponentHealth(
+              component: component,
+              state: ManagementHealthState.ready,
+              checkedAtUtc: checkedAt,
+            ),
+        ],
+      );
+      final transport = createClient(
+        permissions: {hostDiagnosticsReadPermission, hostStatusReadPermission},
+        exchange: (uri, _, _) async {
+          requestedPaths.add(uri.path);
+          if (uri.path == HostManagementRoutes.readiness) {
+            return HostReadinessHttpResponse(
+              statusCode: HttpStatus.ok,
+              body: {
+                'apiVersion': 1,
+                'managementApiVersion': managementApiVersion,
+                'correlationId': _correlationId,
+                'readiness': readiness.toJson(),
+              },
+            );
+          }
+          if (!hostAvailable) {
+            return HostReadinessHttpResponse(
+              statusCode: HttpStatus.serviceUnavailable,
+              body: {
+                'apiVersion': 1,
+                'correlationId': _correlationId,
+                'error': {'code': 'HOST_UNAVAILABLE', 'retryable': true},
+              },
+            );
+          }
+          return HostReadinessHttpResponse(
+            statusCode: HttpStatus.ok,
+            body: {
+              'apiVersion': 1,
+              'managementApiVersion': managementApiVersion,
+              'correlationId': _correlationId,
+              'events': [event.toJson()],
+            },
+          );
+        },
+      );
+      final store = _LocalEvents(event);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DiagnosticsCenterPage(
+            store: store,
+            hostClient: HostDiagnosticsClient(transport),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(requestedPaths, [HostManagementRoutes.diagnosticsRecent]);
+      expect(
+        find.text(
+          'The Host could not be reached. Check the connection and retry.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('DATABASE_UNAVAILABLE'), findsOneWidget);
+
+      // Simulate the Host service returning after a disconnect. The page and
+      // its authenticated client remain alive; the app-bar action re-reads
+      // both event feeds without restarting Flutter.
+      hostAvailable = true;
+      await tester.tap(find.byTooltip('Refresh diagnostics'));
+      await tester.pumpAndSettle();
+
+      expect(requestedPaths, [
+        HostManagementRoutes.diagnosticsRecent,
+        HostManagementRoutes.diagnosticsRecent,
+      ]);
+      expect(store.recentCalls, 2);
+      expect(find.text('DATABASE_UNAVAILABLE'), findsNWidgets(2));
+
+      // Host-only refresh does not reload device history, and readiness is a
+      // separate scoped status request rather than a diagnostic-event fetch.
+      hostAvailable = false;
+      await tester.tap(find.byTooltip('Refresh Host diagnostics'));
+      await tester.pumpAndSettle();
+      expect(store.recentCalls, 2);
+      expect(find.text('DATABASE_UNAVAILABLE'), findsOneWidget);
+
+      hostAvailable = true;
+      await tester.tap(find.byTooltip('Refresh Host diagnostics'));
+      await tester.pumpAndSettle();
+      expect(store.recentCalls, 2);
+      expect(find.text('DATABASE_UNAVAILABLE'), findsNWidgets(2));
+
+      await tester.tap(find.text('Run Host readiness check'));
+      await tester.pumpAndSettle();
+      expect(requestedPaths.last, HostManagementRoutes.readiness);
+      expect(
+        requestedPaths.where(
+          (path) => path == HostManagementRoutes.diagnosticsRecent,
+        ),
+        hasLength(4),
+      );
+      expect(find.text('READY'), findsNWidgets(4));
+      expect(find.text('DATABASE_UNAVAILABLE'), findsNWidgets(2));
+    },
+  );
+
   testWidgets('Diagnostics Center runs the scoped Host readiness check', (
     tester,
   ) async {
@@ -509,6 +631,7 @@ class _LocalEvents implements DiagnosticEventSource {
 
   final ManagementDiagnosticEvent event;
   final recorded = <LocalDiagnosticInput>[];
+  int recentCalls = 0;
 
   @override
   Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async {
@@ -517,9 +640,10 @@ class _LocalEvents implements DiagnosticEventSource {
   }
 
   @override
-  Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async => [
-    event,
-  ];
+  Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async {
+    recentCalls++;
+    return [event];
+  }
 
   @override
   Future<String> exportJson({int limit = 100}) async =>
