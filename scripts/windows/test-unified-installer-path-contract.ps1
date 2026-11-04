@@ -6,6 +6,8 @@ $hostRegistration = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'register-
 $hostConfigWriter = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'write-host-service-config.ps1') -Raw
 $hostLanListener = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'enable-host-lan-listener.ps1') -Raw
 $hostProvisioning = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'provision-host-installation.ps1') -Raw
+$localHostEngine = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_host_api\bin\local_host.dart') -Raw
+$hostLanInfo = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_native_client\lib\src\host_lan_info.dart') -Raw
 $hostServiceStop = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'stop-host-services.ps1') -Raw
 $hostRemoval = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'remove-host-installation.ps1') -Raw
 $databaseUpgrade = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'upgrade-host-database.ps1') -Raw
@@ -43,8 +45,21 @@ Assert-Contract ($installerSource.Contains('-AllowPostgresOnlyRecovery')) 'HOST_
 Assert-Contract ($installerSource -match '(?s)procedure DeinitializeSetup.*?-ResumePostgresOnly') 'HOST_INSTALL_FAILURE_MUST_RESTART_THE_VERIFIED_POSTGRES_SERVICE'
 Assert-Contract ($installerSource -notmatch 'provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_MUST_NOT_PROVISION_OR_RECOVER_HOST_DATABASE'
 Assert-Contract ($installerSource -match '(?s)procedure CurStepChanged.*?enable-host-lan-listener\.ps1.*?-RestartServices') 'EXISTING_HOST_UPDATE_MUST_CONFIGURE_THE_LAN_LISTENER'
+Assert-Contract ($installerSource.Contains('-FailureCodePath') -and $installerSource.Contains('IsSafeHostLanFailureCode') -and $installerSource.Contains('Error code: ')) 'HOST_LAN_UPGRADE_FAILURE_MUST_SURFACE_ONLY_A_VALIDATED_FAILURE_CODE'
 Assert-Contract ($installerSource -notmatch '(?s)procedure CurStepChanged.*?provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_NETWORK_UPDATE_MUST_NOT_PROVISION_OR_RECOVER_DATABASE'
-Assert-Contract ($hostLanListener.Contains('-RemoteAddress LocalSubnet') -and $hostLanListener.Contains('-Profile Private')) 'HOST_LAN_FIREWALL_MUST_BE_LIMITED_TO_PRIVATE_LOCAL_SUBNET'
+Assert-Contract ($hostProvisioning.Contains('& $hostLanListener -PayloadDirectory $payload -RestartServices')) 'FIRST_RUN_HOST_SETUP_MUST_ENABLE_THE_LAN_LISTENER'
+Assert-Contract ($localHostEngine.Contains("Platform.environment['VENTIO_HOST_LAN_BIND_ADDRESS']") -and $localHostEngine.Contains('listenAddress: lanAddress') -and $localHostEngine.Contains('tlsContext: tlsContext')) 'HOST_ENGINE_MUST_BIND_THE_SEPARATE_LAN_ENDPOINT_WITH_TLS'
+Assert-Contract ($localHostEngine.Contains("Platform.environment['VENTIO_HOST_BIND_ADDRESS'] ?? '127.0.0.1'") -and $localHostEngine.Contains('final localTlsContext = lanListenerConfigured ? null : tlsContext;') -and $localHostEngine.Contains('tlsContext: localTlsContext')) 'LOCAL_HTTP_MANAGEMENT_MUST_REMAIN_LOOPBACK_ONLY'
+Assert-Contract ($hostLanInfo.Contains("listenerEnabled != true") -and $hostLanInfo.Contains("RegExp(r'^[0-9a-f]{64}$')")) 'HOST_SETTINGS_MUST_REQUIRE_ENABLED_LISTENER_AND_DISCOVER_A_VALID_FINGERPRINT'
+Assert-Contract ($installerSource.Contains('Private or authenticated Domain network') -and $installerSource.Contains('Public networks are not enabled')) 'UPGRADE_FAILURE_MESSAGE_MUST_EXPLAIN_TRUSTED_NETWORK_REQUIREMENTS'
+Assert-Contract ($hostLanListener.Contains("'DomainAuthenticated' { if (-not `$profiles.Contains('Domain'))") -and $hostLanListener.Contains("'Private' { if (-not `$profiles.Contains('Private'))")) 'HOST_LAN_MUST_SUPPORT_DOMAIN_AND_PRIVATE_NETWORK_CATEGORIES'
+Assert-Contract ($hostLanListener.Contains("throw 'HOST_LAN_TRUSTED_NETWORK_REQUIRED'") -and $hostLanListener.Contains('-RemoteAddress LocalSubnet') -and $hostLanListener.Contains("-Profile (`$FirewallProfiles -join ',')")) 'HOST_LAN_FIREWALL_MUST_REJECT_PUBLIC_ONLY_NETWORKS_AND_STAY_LOCAL_SUBNET_SCOPED'
+Assert-Contract ($hostLanListener.Contains('function Write-LanFailureCode') -and $hostLanListener.Contains('ventio-host-lan-failure.txt') -and $hostLanListener.Contains('HOST_LAN_[A-Z0-9_]{1,96}')) 'HOST_LAN_FAILURE_DIAGNOSTIC_MUST_PERSIST_ONLY_A_CLASSIFIED_CODE'
+Assert-Contract ($hostLanListener.Contains('$normalizedPhase') -and $hostLanListener.Contains('.ToUpperInvariant()')) 'HOST_LAN_FALLBACK_PHASE_CODE_MUST_USE_A_STABLE_UPPERCASE_CONTRACT'
+Assert-Contract ($hostLanListener.Contains('HOST_LAN_FIREWALL_RULE_DUPLICATE') -and $hostLanListener.Contains('HOST_LAN_FIREWALL_RULE_CONFLICT_EXISTING_PROFILE') -and $hostLanListener.Contains('HOST_LAN_FIREWALL_RULE_CONFLICT_${Context}_$conflict') -and $hostLanListener.Contains("Assert-HostLanFirewallRule `$effective[0] `$Executable `$FirewallProfiles 'ACTIVE'")) 'HOST_LAN_FIREWALL_CONFLICTS_MUST_REPORT_SAFE_STAGE_AND_FILTER_CODES'
+Assert-Contract ($hostLanListener.Contains("-PolicyStore ActiveStore") -and $hostLanListener.Contains('HOST_LAN_FIREWALL_RULE_NOT_EFFECTIVE')) 'HOST_LAN_SETUP_MUST_VERIFY_THE_EFFECTIVE_FIREWALL_RULE'
+Assert-Contract ($hostLanListener.Contains('function Test-HostLanRemoteAddressScope') -and $hostLanListener.Contains("'LocalSubnet', 'LocalSubnet4', 'LocalSubnet6'")) 'HOST_LAN_FIREWALL_MUST_ACCEPT_ONLY_LOCAL_SUBNET_KEYWORD_VARIANTS'
+Assert-Contract ($hostLanListener.Contains('if (-not $TestMode -and $createdFirewallRule)') -and $hostLanListener.Contains('elseif (-not $TestMode -and $firewallRuleModified)') -and $hostLanListener -notmatch 'removeFirewallOnRollback') 'HOST_LAN_ROLLBACK_MUST_PRESERVE_PREEXISTING_CONFLICTING_RULES'
 Assert-Contract ($hostLanListener.Contains('HOST_LAN_HOST_SERVICE_MUST_BE_STOPPED') -and $hostLanListener.Contains('service-config.dpapi.pre-lan.bak')) 'HOST_LAN_UPDATE_MUST_REQUIRE_STOPPED_SERVICE_AND_PRESERVE_ORIGINAL_PROTECTED_CONFIG'
 Assert-Contract ($hostLanListener -notmatch 'SkipCertificateCheck|TrustAllCerts') 'HOST_LAN_SETUP_MUST_NOT_DISABLE_CERTIFICATE_VALIDATION'
 Assert-Contract ($hostLanListener.Contains('Read-HostLanCertificate') -and $hostLanListener.Contains('[Convert]::FromBase64String') -and $hostLanListener -notmatch 'X509Certificate2\]::CreateFromPemFile') 'HOST_LAN_TLS_SELF_TEST_MUST_SUPPORT_WINDOWS_POWERSHELL_5'

@@ -125,30 +125,64 @@ begin
   end;
 end;
 
+function IsSafeHostLanFailureCode(const Code: string): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := (Pos('HOST_LAN_', Code) = 1) and (Length(Code) <= 105);
+  if not Result then exit;
+  for I := 1 to Length(Code) do begin
+    C := Code[I];
+    if not (((C >= 'A') and (C <= 'Z')) or
+            ((C >= '0') and (C <= '9')) or (C = '_')) then begin
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
 procedure CurStepChanged(CurrentStep: TSetupStep);
 var
   ResultCode: Integer;
   PowerShell: string;
   ScriptPath: string;
   Parameters: string;
+  FailureCodePath: string;
+  FailureCode: string;
+  FailureCodeLines: TArrayOfString;
 begin
   if (CurrentStep <> ssPostInstall) or not HostServicesStoppedForUpgrade then exit;
   PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  FailureCodePath := ExpandConstant('{tmp}\ventio-host-lan-failure.txt');
+  DeleteFile(FailureCodePath);
   if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
     ScriptPath := ExpandConstant('{app}\host-payload\setup\enable-host-lan-listener.ps1');
     if not FileExists(ScriptPath) then begin
       MsgBox('Ventio was updated, but the LAN HTTPS setup helper is missing. The existing Host will be restarted in local-only mode.', mbError, MB_OK);
       exit;
     end;
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -RestartServices';
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -RestartServices -FailureCodePath "' + FailureCodePath + '"';
   end else begin
     ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
     Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly';
   end;
   if Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then begin
     HostServicesStoppedForUpgrade := False;
+    DeleteFile(FailureCodePath);
   end else begin
-    MsgBox('Ventio updated its application files, but could not complete Host network setup or service restart. The Host will remain local-only if recovery succeeds. Check that Windows Firewall is enabled and this PC has a network marked Private, then retry the update. No database reset was performed.', mbError, MB_OK);
+    FailureCode := '';
+    if ExistingHostServiceFound and ExistingPostgresServiceFound and FileExists(FailureCodePath) then begin
+      if LoadStringsFromFile(FailureCodePath, FailureCodeLines) and
+         (GetArrayLength(FailureCodeLines) > 0) then
+        FailureCode := FailureCodeLines[0];
+    end;
+    DeleteFile(FailureCodePath);
+    FailureCode := Trim(FailureCode);
+    if IsSafeHostLanFailureCode(FailureCode) then
+      MsgBox('Ventio updated its application files, but could not complete Host network setup or service restart. The Host will remain local-only if recovery succeeds. Check that Windows Firewall is enabled and this PC is connected to a Private or authenticated Domain network allowed by local security policy, then retry the update. Public networks are not enabled for Host access. No database reset was performed. Error code: ' + FailureCode + '.', mbError, MB_OK)
+    else
+      MsgBox('Ventio updated its application files, but could not complete Host network setup or service restart. The Host will remain local-only if recovery succeeds. Check that Windows Firewall is enabled and this PC is connected to a Private or authenticated Domain network allowed by local security policy, then retry the update. Public networks are not enabled for Host access. No database reset was performed.', mbError, MB_OK);
   end;
 end;
 

@@ -1029,6 +1029,10 @@ const ventioNativeEnglishMessages = <String, String>{
       'A Ventio Host service stopped before it became ready. Review Host diagnostics and retry.',
   'native.ui.host_setup_service_timeout':
       'A Ventio Host service did not start before the timeout. Review Host diagnostics and retry.',
+  'native.ui.host_setup_lan_network_required':
+      'Host LAN HTTPS requires a Private or authenticated Domain network. Public networks stay closed. Connect this PC to a trusted network and retry.',
+  'native.ui.host_setup_lan_firewall_failed':
+      'Windows Firewall or organization policy did not accept the scoped Host HTTPS rule. Do not disable the firewall or allow the Public profile; ask an administrator to review the active network policy.',
   'native.ui.host_setup_existing_profile':
       'A different Host scope is already configured on this device. Disconnect that Host before setting up this one.',
   'native.ui.host_setup_credential_save_failed':

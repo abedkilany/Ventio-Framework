@@ -739,6 +739,13 @@ class _HostSetupPageState extends State<HostSetupPage> {
       'native.ui.host_setup_payload_verification_failed',
     'HOST_SETUP_PAYLOAD_MANIFEST_INVALID' =>
       'native.ui.host_setup_payload_verification_failed',
+    'HOST_LAN_PRIVATE_NETWORK_REQUIRED' ||
+    'HOST_LAN_TRUSTED_NETWORK_REQUIRED' =>
+      'native.ui.host_setup_lan_network_required',
+    'HOST_LAN_FIREWALL_BASELINE_UNSAFE' ||
+    'HOST_LAN_FIREWALL_RULE_CONFLICT' ||
+    'HOST_LAN_FIREWALL_RULE_NOT_EFFECTIVE' =>
+      'native.ui.host_setup_lan_firewall_failed',
     'HOST_SETUP_STATUS_UNAVAILABLE' =>
       'native.ui.host_setup_status_unavailable',
     'HOST_FIRST_ADMIN_REQUEST_INVALID' =>

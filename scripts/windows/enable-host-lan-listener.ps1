@@ -4,7 +4,9 @@ param(
   [switch] $RestartServices,
   [switch] $TestMode,
   [string] $TestDirectory,
-  [string] $TestServiceSid
+  [string] $TestServiceSid,
+  [string[]] $TestNetworkCategories = @('Private'),
+  [string] $FailureCodePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +20,8 @@ $configurationBackupPath = Join-Path $hostDirectory 'service-config.dpapi.pre-la
 $firewallRuleName = 'Ventio Host HTTPS LAN'
 $port = 8443
 $createdFirewallRule = $false
-$removeFirewallOnRollback = $false
+$firewallRuleModified = $false
+$originalFirewallProfiles = @()
 $originalProtectedConfiguration = $null
 $configurationReplaced = $false
 $phase = 'preflight'
@@ -54,6 +57,20 @@ function Get-ExpectedServiceSid {
   }
   return ([Security.Principal.NTAccount]::new('NT SERVICE', 'VentioHost')).Translate(
     [Security.Principal.SecurityIdentifier]).Value
+}
+
+function Write-LanFailureCode([string] $FailureCode) {
+  try {
+    if ([string]::IsNullOrWhiteSpace($FailureCodePath) -or
+        $FailureCode -notmatch '^HOST_LAN_[A-Z0-9_]{1,96}$') { return }
+    $fullPath = [IO.Path]::GetFullPath($FailureCodePath)
+    $temporaryPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    if (-not $fullPath.StartsWith($temporaryPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+        [IO.Path]::GetFileName($fullPath) -cne 'ventio-host-lan-failure.txt') { return }
+    $bytes = [Text.Encoding]::ASCII.GetBytes($FailureCode)
+    $stream = [IO.File]::Open($fullPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+    try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+  } catch { }
 }
 
 function Read-Configuration([string] $Path) {
@@ -180,41 +197,117 @@ function Assert-PrivateHostDirectoryAcl([string] $Path, [string] $ServiceSid) {
   }
 }
 
-function Assert-PrivateFirewallProfile {
+function Resolve-HostLanFirewallProfiles([string[]] $NetworkCategories) {
+  $profiles = [Collections.Generic.List[string]]::new()
+  foreach ($category in $NetworkCategories) {
+    switch ($category) {
+      'Private' { if (-not $profiles.Contains('Private')) { $profiles.Add('Private') } }
+      'DomainAuthenticated' { if (-not $profiles.Contains('Domain')) { $profiles.Add('Domain') } }
+    }
+  }
+  $resolved = @($profiles.ToArray() | Sort-Object)
+  if ($resolved.Count -eq 0) { throw 'HOST_LAN_TRUSTED_NETWORK_REQUIRED' }
+  return ,$resolved
+}
+
+function Get-NormalizedFirewallProfiles([object] $Value) {
+  $profiles = @(
+    foreach ($entry in @($Value)) {
+      foreach ($profile in ([string]$entry -split ',')) {
+        $clean = $profile.Trim()
+        if ($clean.Length -gt 0) { $clean }
+      }
+    }
+  )
+  return @($profiles | Sort-Object -Unique)
+}
+
+function Test-HostLanRemoteAddressScope([object] $RemoteAddress) {
+  $addresses = @(
+    foreach ($entry in @($RemoteAddress)) {
+      foreach ($address in ([string]$entry -split ',')) {
+        $clean = $address.Trim()
+        if ($clean.Length -gt 0) { $clean }
+      }
+    }
+  ) | Sort-Object -Unique
+  $localSubnetKeywords = @('LocalSubnet', 'LocalSubnet4', 'LocalSubnet6')
+  return $addresses.Count -gt 0 -and
+    @($addresses | Where-Object { $_ -notin $localSubnetKeywords }).Count -eq 0
+}
+
+function Assert-HostLanFirewallProfile {
   $profiles = @(Get-NetFirewallProfile -PolicyStore ActiveStore -ErrorAction Stop)
   if ($profiles.Count -lt 3 -or
       @($profiles | Where-Object { -not $_.Enabled -or $_.DefaultInboundAction -eq 'Allow' }).Count -gt 0) {
     throw 'HOST_LAN_FIREWALL_BASELINE_UNSAFE'
   }
-  $privateProfile = @($profiles | Where-Object { $_.Name -eq 'Private' })
-  if ($privateProfile.Count -ne 1) { throw 'HOST_LAN_PRIVATE_FIREWALL_DISABLED' }
-  $privateNetwork = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue |
-    Where-Object { $_.NetworkCategory -eq 'Private' })
-  if ($privateNetwork.Count -eq 0) { throw 'HOST_LAN_PRIVATE_NETWORK_REQUIRED' }
+  $networkCategories = @(
+    Get-NetConnectionProfile -ErrorAction SilentlyContinue |
+      ForEach-Object { [string]$_.NetworkCategory }
+  )
+  return Resolve-HostLanFirewallProfiles $networkCategories
 }
 
-function Ensure-FirewallRule([string] $Executable) {
+function Assert-HostLanFirewallRule(
+  [object] $Rule,
+  [string] $Executable,
+  [string[]] $FirewallProfiles,
+  [string] $Context
+) {
+  $portFilter = $Rule | Get-NetFirewallPortFilter
+  $addressFilter = $Rule | Get-NetFirewallAddressFilter
+  $applicationFilter = $Rule | Get-NetFirewallApplicationFilter
+  $actualProfiles = Get-NormalizedFirewallProfiles $Rule.Profile
+  $expectedProfiles = @(Get-NormalizedFirewallProfiles $FirewallProfiles)
+  $conflict = if ($Rule.Direction -ne 'Inbound') { 'DIRECTION' }
+    elseif ($Rule.Action -ne 'Allow') { 'ACTION' }
+    elseif ($Rule.Enabled -ne 'True') { 'ENABLED' }
+    elseif ($portFilter.Protocol -ne 'TCP') { 'PROTOCOL' }
+    elseif ($portFilter.LocalPort -ne [string]$port) { 'LOCAL_PORT' }
+    elseif (-not (Test-HostLanRemoteAddressScope $addressFilter.RemoteAddress)) { 'REMOTE_ADDRESS' }
+    elseif ($applicationFilter.Program -cne $Executable) { 'PROGRAM' }
+    elseif ($Rule.EdgeTraversalPolicy -ne 'Block') { 'EDGE_TRAVERSAL' }
+    elseif (($actualProfiles -join ',') -cne ($expectedProfiles -join ',')) { 'PROFILE' }
+    else { $null }
+  if ($null -ne $conflict) { throw "HOST_LAN_FIREWALL_RULE_CONFLICT_${Context}_$conflict" }
+}
+
+function Ensure-FirewallRule([string] $Executable, [string[]] $FirewallProfiles) {
   $existing = @(Get-NetFirewallRule -Name $firewallRuleName -ErrorAction SilentlyContinue)
-  if ($existing.Count -gt 1) { throw 'HOST_LAN_FIREWALL_RULE_CONFLICT' }
+  if ($existing.Count -gt 1) { throw 'HOST_LAN_FIREWALL_RULE_DUPLICATE' }
   if ($existing.Count -eq 1) {
     $rule = $existing[0]
-    $portFilter = $rule | Get-NetFirewallPortFilter
-    $addressFilter = $rule | Get-NetFirewallAddressFilter
-    $applicationFilter = $rule | Get-NetFirewallApplicationFilter
-    if ($rule.Direction -ne 'Inbound' -or $rule.Action -ne 'Allow' -or
-        $rule.Enabled -ne 'True' -or $rule.Profile -ne 'Private' -or
-        $portFilter.Protocol -ne 'TCP' -or $portFilter.LocalPort -ne [string]$port -or
-        $addressFilter.RemoteAddress -notcontains 'LocalSubnet' -or
-        $applicationFilter.Program -cne $Executable) {
-      throw 'HOST_LAN_FIREWALL_RULE_CONFLICT'
+    $actualProfiles = Get-NormalizedFirewallProfiles $rule.Profile
+    $safeProfiles = @('Domain', 'Private')
+    if ($actualProfiles.Count -eq 0 -or
+        @($actualProfiles | Where-Object { $_ -notin $safeProfiles }).Count -gt 0) {
+      throw 'HOST_LAN_FIREWALL_RULE_CONFLICT_EXISTING_PROFILE'
     }
+    # A previous trusted-profile rule may need to follow this machine from a
+    # Private network to an authenticated Domain network. Never widen to Public
+    # or Any; validate every other rule boundary before updating its profile.
+    $script:originalFirewallProfiles = $actualProfiles
+    # Validate the exact LocalSubnet / executable / port boundary separately
+    # because the existing trusted profile may differ from this installation.
+    Assert-HostLanFirewallRule $rule $Executable $actualProfiles 'EXISTING'
+    if (($actualProfiles -join ',') -cne (@(Get-NormalizedFirewallProfiles $FirewallProfiles) -join ',')) {
+      Set-NetFirewallRule -Name $firewallRuleName -Profile ($FirewallProfiles -join ',') -ErrorAction Stop | Out-Null
+      $script:firewallRuleModified = $true
+    }
+    $effective = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name $firewallRuleName -ErrorAction SilentlyContinue)
+    if ($effective.Count -ne 1) { throw 'HOST_LAN_FIREWALL_RULE_NOT_EFFECTIVE' }
+    Assert-HostLanFirewallRule $effective[0] $Executable $FirewallProfiles 'ACTIVE'
     return
   }
   New-NetFirewallRule -Name $firewallRuleName -DisplayName 'Ventio Host HTTPS LAN' `
     -Group 'Ventio Host' -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port `
-    -RemoteAddress LocalSubnet -Profile Private -Program $Executable -EdgeTraversalPolicy Block `
+    -RemoteAddress LocalSubnet -Profile ($FirewallProfiles -join ',') -Program $Executable -EdgeTraversalPolicy Block `
     -Enabled True -ErrorAction Stop | Out-Null
   $script:createdFirewallRule = $true
+  $effective = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name $firewallRuleName -ErrorAction SilentlyContinue)
+  if ($effective.Count -ne 1) { throw 'HOST_LAN_FIREWALL_RULE_NOT_EFFECTIVE' }
+  Assert-HostLanFirewallRule $effective[0] $Executable $FirewallProfiles 'ACTIVE'
 }
 
 function Start-ValidatedService([string] $Name) {
@@ -319,13 +412,14 @@ try {
         $postgres.PathName -notmatch [regex]::Escape($postgresExecutable) -or
         $postgres.PathName -notmatch [regex]::Escape($dataDirectory)) { throw 'HOST_LAN_POSTGRES_IDENTITY_INVALID' }
     Assert-NoReparseAncestors $hostDirectory $programData
-    Assert-PrivateFirewallProfile
+    $lanFirewallProfiles = Assert-HostLanFirewallProfile
   }
   else {
     if (-not $TestDirectory -or -not $TestServiceSid) { throw 'HOST_LAN_TEST_ARGUMENTS_INVALID' }
     $hostDirectory = [IO.Path]::GetFullPath($TestDirectory)
     $configurationPath = Join-Path $hostDirectory 'service-config.dpapi'
     $configurationBackupPath = Join-Path $hostDirectory 'service-config.dpapi.pre-lan.bak'
+    $lanFirewallProfiles = Resolve-HostLanFirewallProfiles $TestNetworkCategories
   }
 
   $phase = 'configuration-validation'
@@ -357,11 +451,10 @@ try {
     if ($RestartServices -and (Test-Path -LiteralPath $configurationBackupPath -PathType Leaf)) {
       $originalProtectedConfiguration = [IO.File]::ReadAllBytes($configurationBackupPath)
       $configurationReplaced = $true
-      $removeFirewallOnRollback = $true
     }
-    Assert-PrivateFirewallProfile
+    $lanFirewallProfiles = Assert-HostLanFirewallProfile
     $phase = 'firewall'
-    Ensure-FirewallRule $engineExecutable
+    Ensure-FirewallRule $engineExecutable $lanFirewallProfiles
     $phase = 'configuration-write'
     if (-not $values.Contains('VENTIO_HOST_LAN_BIND_ADDRESS')) {
       if (Test-Path -LiteralPath $configurationBackupPath) {
@@ -381,7 +474,6 @@ try {
       $values['VENTIO_HOST_TLS_PRIVATE_KEY_FILE'] = $privateKeyPath
       Set-ProtectedConfiguration $values $configurationPath $serviceSid
       $configurationReplaced = $true
-      $removeFirewallOnRollback = $true
     }
     if ($RestartServices) {
       $phase = 'service-start'
@@ -395,12 +487,23 @@ try {
     }
   }
   else {
+    if (-not $values.Contains('VENTIO_HOST_LAN_BIND_ADDRESS')) {
+      if (Test-Path -LiteralPath $configurationBackupPath) {
+        $currentHash = (Get-FileHash -LiteralPath $configurationPath -Algorithm SHA256).Hash
+        $backupHash = (Get-FileHash -LiteralPath $configurationBackupPath -Algorithm SHA256).Hash
+        if ($currentHash -cne $backupHash) { throw 'HOST_LAN_CONFIGURATION_BACKUP_CONFLICT' }
+      } else {
+        [IO.File]::Copy($configurationPath, $configurationBackupPath, $false)
+        Set-ConfigurationFileAcl $configurationBackupPath $serviceSid
+      }
+    }
     $values['VENTIO_HOST_LAN_BIND_ADDRESS'] = '0.0.0.0'
     $values['VENTIO_HOST_LAN_PORT'] = [string]$port
     $values['VENTIO_HOST_TLS_CERTIFICATE_FILE'] = Join-Path $hostDirectory 'host-lan-certificate.pem'
     $values['VENTIO_HOST_TLS_PRIVATE_KEY_FILE'] = Join-Path $hostDirectory 'host-lan-private-key.pem'
     Set-ProtectedConfiguration $values $configurationPath $serviceSid
     $configurationReplaced = $true
+    Write-Output ('HOST_LAN_TEST_FIREWALL_PROFILES=' + ($lanFirewallProfiles -join ','))
   }
 
   if ($originalProtectedConfiguration) { [Array]::Clear($originalProtectedConfiguration, 0, $originalProtectedConfiguration.Length) }
@@ -420,7 +523,6 @@ catch {
       $hostStoppedForRollback = $true
     } catch { [Console]::Error.WriteLine('HOST_LAN_HOST_STOP_FOR_ROLLBACK_FAILED') }
   }
-  if ($TestMode) { [Console]::Error.WriteLine("HOST_LAN_TEST_FAILURE $($_.Exception.GetType().Name) $($_.Exception.Message)") }
   if (-not $TestMode -and $configurationReplaced -and $originalProtectedConfiguration) {
     try {
       $restore = Join-Path $hostDirectory ('.service-config-restore-' + [guid]::NewGuid().ToString('N') + '.tmp')
@@ -432,11 +534,15 @@ catch {
       if (Test-Path -LiteralPath $restore) { [IO.File]::Delete($restore) }
     } catch { [Console]::Error.WriteLine('HOST_LAN_CONFIGURATION_ROLLBACK_FAILED') }
   }
-  if (-not $TestMode -and ($createdFirewallRule -or $removeFirewallOnRollback)) {
+  if (-not $TestMode -and $createdFirewallRule) {
     try {
       $rollbackRules = @(Get-NetFirewallRule -Name $firewallRuleName -ErrorAction SilentlyContinue)
       if ($rollbackRules.Count -gt 0) { $rollbackRules | Remove-NetFirewallRule -ErrorAction Stop }
     } catch { [Console]::Error.WriteLine('HOST_LAN_FIREWALL_ROLLBACK_FAILED') }
+  } elseif (-not $TestMode -and $firewallRuleModified) {
+    try {
+      Set-NetFirewallRule -Name $firewallRuleName -Profile ($originalFirewallProfiles -join ',') -ErrorAction Stop | Out-Null
+    } catch { [Console]::Error.WriteLine('HOST_LAN_FIREWALL_PROFILE_ROLLBACK_FAILED') }
   }
   if (-not $TestMode -and $RestartServices) {
     try {
@@ -451,7 +557,10 @@ catch {
     } catch { [Console]::Error.WriteLine('HOST_LAN_LOCAL_SERVICE_RESTORE_FAILED') }
   }
   if ($originalProtectedConfiguration) { [Array]::Clear($originalProtectedConfiguration, 0, $originalProtectedConfiguration.Length) }
-  $code = if ($_.Exception.Message -match '^HOST_LAN_[A-Z0-9_]+$') { $_.Exception.Message } else { "HOST_LAN_SETUP_FAILED_$phase" }
+  $normalizedPhase = [regex]::Replace($phase, '[^A-Za-z0-9_]', '_').ToUpperInvariant()
+  $code = if ($_.Exception.Message -match '^HOST_LAN_[A-Z0-9_]+$') { $_.Exception.Message } else { "HOST_LAN_SETUP_FAILED_$normalizedPhase" }
+  Write-LanFailureCode $code
+  if ($TestMode) { throw $code }
   [Console]::Error.WriteLine($code)
   exit 1
 }

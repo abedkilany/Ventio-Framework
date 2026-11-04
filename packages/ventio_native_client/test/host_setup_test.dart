@@ -14,6 +14,33 @@ const _requestId = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 const _token = 'BCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefgh';
 const _actorId = 'usr_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 
+Future<void> _submitMinimalHostSetup(WidgetTester tester) async {
+  final list = find.byType(ListView);
+  for (
+    var attempt = 0;
+    attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+    attempt++
+  ) {
+    await tester.drag(list, const Offset(0, -300));
+    await tester.pumpAndSettle();
+  }
+  final fields = find.byType(TextField);
+  await tester.enterText(fields.at(0), 'tenant-lan-test');
+  await tester.enterText(fields.at(1), 'company-lan-test');
+  await tester.enterText(fields.at(2), 'branch-lan-test');
+  tester.testTextInput.hide();
+  for (
+    var attempt = 0;
+    attempt < 8 && find.text('Set up Host').evaluate().isEmpty;
+    attempt++
+  ) {
+    await tester.drag(list, const Offset(0, -300));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.text('Set up Host'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   group('HostSetupOperationStatus JSON', () {
     test('accepts the current camelCase status contract', () {
@@ -623,6 +650,38 @@ void main() {
       expect(exported, isNot(contains('tenant-ui')));
       expect(exported, isNot(contains(_token)));
       expect(find.text('Sanitized Host setup report copied.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'explains that LAN setup requires a trusted Windows network profile',
+    (tester) async {
+      final platform = _FakePlatform()
+        ..status = const HostSetupOperationStatus(
+          state: HostSetupOperationState.failed,
+          phase: 'HOST_LAN_CONFIGURATION',
+          failureCode: 'HOST_LAN_TRUSTED_NETWORK_REQUIRED',
+        );
+      final diagnostics = _MemorySetupDiagnosticSource();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HostSetupPage(
+            credentialStore: _MemorySetupStore(),
+            platform: platform,
+            diagnosticEventSource: diagnostics,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _submitMinimalHostSetup(tester);
+
+      expect(
+        find.textContaining('Private or authenticated Domain network'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Public networks stay closed'), findsOneWidget);
+      expect(diagnostics.lastEvent?.code, 'HOST_LAN_TRUSTED_NETWORK_REQUIRED');
     },
   );
 
