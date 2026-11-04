@@ -1,11 +1,11 @@
 # Stage 6 — Diagnostics Center Acceptance Evidence
 
-**Status:** IN PROGRESS — 0 / 10 points accepted<br>
+**Status:** CLOSED / PASS — 10 / 10 points accepted<br>
 **Weight:** 10%<br>
-**Formal Wave 1 acceptance:** 50 / 100<br>
+**Formal Wave 1 acceptance:** 60 / 100<br>
 **Branch:** `codex/extension-platform`
 
-Stage 6 receives no partial credit. The evidence below accepts all currently demonstrated requirements except persistence of an installed Host diagnostic event across a Windows reboot after that event was created. The owner explicitly confirmed that the previous reboot preceded creation of the reported Host pairing event.
+Stage 6 receives no partial credit. The acceptance gate is now fully satisfied by the previously recorded automated and installed-service evidence plus the owner's final post-event Windows reboot verification below.
 
 ## Existing automated evidence
 
@@ -27,6 +27,18 @@ The owner verified the following on the installed Windows Host; no repeated serv
 - Submitting an invalid Client pairing code over HTTPS generated a protected Host event with `source=host`, code `PAIRING_INVALID_OR_EXPIRED`, and correlation ID `cor_132a87155648e6f9a83eefefaa0a9318`.
 - After an actual `VentioHost` service restart, a fresh readiness check returned READY and that same Host event remained available. This accepts installed service-restart persistence under the service lifecycle.
 - The earlier Windows reboot verification occurred before creation of this specific Host pairing event. It proves service startup and readiness after reboot, but does **not** prove that this Host diagnostic event persisted across a subsequent Windows reboot.
+
+## Final post-event Windows reboot acceptance — 2026-11-04
+
+The owner completed the outstanding acceptance check on the actual Windows Host after updating it to Ventio 0.1.7. The original protected event remained available after a Windows reboot with its original code, source, and correlation ID:
+
+- Event: `PAIRING_INVALID_OR_EXPIRED`, `source=host`, correlation ID `cor_132a87155648e6f9a83eefefaa0a9318`.
+- Original event time: `2026-11-04T12:03:37.241465Z`.
+- Windows last boot reported by the owner: `2026-11-04 16:51:54` (Asia/Beirut).
+- Fresh readiness check: `2026-11-04T15:09:18.993214Z`; Host was `READY` with all four components.
+- The original event was still retrievable with the identical correlation ID after that reboot, and sanitized diagnostics export succeeded.
+
+This is owner-provided installed-system acceptance evidence; the reboot was performed on the test installation, not by this repository session. No reinstall, database reset, or destructive diagnostic test was performed.
 
 ## Pre-API Host Setup failure review
 
@@ -61,11 +73,9 @@ Current verification:
 | Real failure injection | PASS | Disposable PostgreSQL Host startup failure plus owner-observed pairing rejection and setup failure. |
 | Installed Host event persistence across SCM service restart | PASS | Owner verified the same Host pairing event remains after actual `VentioHost` restart and a fresh READY check. |
 | Same-session diagnostics refresh after Host disconnection/recovery | PASS | Clarified action scopes and added a Flutter widget regression; fresh retrieval succeeds without restarting the page. No refresh logic defect reproduced. The historical incident's exact request cause remains unidentifiable because no safe error reference was retained. |
-| Protected Host event persists across Windows reboot after event creation | NOT VERIFIED | The owner rebooted before this Host event was created. No post-event reboot evidence is available, and this workstation was not rebooted. |
+| Protected Host event persists across Windows reboot after event creation | PASS | Owner verified the same `PAIRING_INVALID_OR_EXPIRED` Host event and correlation ID remained available after the 2026-11-04 Windows reboot; all four readiness components returned READY and sanitized export succeeded. |
 | Useful sanitized setup failure reporting before Host API readiness | PASS | Real setup failure and sanitized export, correlated protected retry record, and existing Flutter setup diagnostic/export/storage-failure tests. The two attempt correlations remain distinct. |
 
-## Remaining acceptance gate
+## Stage 6 closure
 
-Stage 6 remains **IN PROGRESS — 0 / 10 points accepted**. The only mandatory Stage 6 assertion not verified is that an installed protected Host diagnostic event created before shutdown is still retrievable after Windows reboots and the Host service becomes READY again.
-
-Least-disruptive verification: on the already-working Host, retain the existing pairing event; perform one planned Windows reboot when the owner can tolerate the downtime; after services return, confirm all four readiness components, refresh Host diagnostics, and confirm the same event code, `source=host`, and correlation ID `cor_132a87155648e6f9a83eefefaa0a9318`. Export the sanitized report or capture the Diagnostics Center result. Do not reinstall, stop PostgreSQL separately, clear logs, or alter Host data. Until this assertion is supplied, formal Wave 1 acceptance remains **50 / 100** and Stage 6 receives no points.
+All mandatory Stage 6 requirements in the acceptance matrix are **PASS**. Stage 6 is formally **CLOSED / PASS — 10 / 10**. The accepted Wave 1 total is **60 / 100** (Stages 0, 1, 2, 4, 5, 6, and 7). Wave 1 remains open; this Stage 6 closure does not accept Stages 3, 8, 9, or 10.
