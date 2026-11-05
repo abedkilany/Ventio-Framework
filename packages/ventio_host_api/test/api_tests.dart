@@ -48,6 +48,14 @@ class FailingSessionAuthenticator implements PersistentHostAuthenticator {
   }
 }
 
+class RecoveryAdmissionUnavailableAuthenticator
+    implements PersistentHostAuthenticator {
+  @override
+  Future<AuthenticatedSession?> authenticate(String token) async {
+    throw const RecoveryAdmissionUnavailable();
+  }
+}
+
 class FakeAuthoritativeExecutor implements AuthoritativeCommandExecutor {
   @override
   Future<Map<String, dynamic>> execute(
@@ -118,31 +126,44 @@ class FakeIdentityPairingGateway implements IdentityPairingGateway {
   static final code = List.filled(43, 'e').join();
   static final credential = List.filled(43, 'f').join();
   bool failRedeem = false;
+  bool failCreate = false;
   int createCalls = 0;
   int redeemCalls = 0;
   String? lastRedeemedCode;
   String? lastDeviceId;
+  String? lastRequestId;
 
   @override
-  Future<Map<String, dynamic>> create({
+  Future<IdentityPairingCreateResult> create({
     required AuthenticatedSession session,
     required String companyId,
     required String branchId,
     required String actorId,
+    required String requestId,
   }) async {
     createCalls++;
-    return {
-      'pairingId': 'pair_${List.filled(32, '1').join()}',
-      'actorId': actorId,
-      'deviceRole': 'CLIENT',
-      'code': code,
-      'companyId': companyId,
-      'branchId': branchId,
-      'expiresAtUtc': DateTime.now()
-          .toUtc()
-          .add(const Duration(minutes: 5))
-          .toIso8601String(),
-    };
+    lastRequestId = requestId;
+    if (failCreate) throw StateError('PAIRING_DB_PASSWORD=synthetic-secret');
+    return IdentityPairingCreateResult(
+      pairing: {
+        'pairingId': 'pair_${List.filled(32, '1').join()}',
+        'actorId': actorId,
+        'deviceRole': 'CLIENT',
+        'code': code,
+        'companyId': companyId,
+        'branchId': branchId,
+        'expiresAtUtc': DateTime.now()
+            .toUtc()
+            .add(const Duration(minutes: 5))
+            .toIso8601String(),
+      },
+      timings: PairingCreateTimings(
+        connectionAcquisitionMs: 0,
+        connectionSetupMs: 0,
+        recovery: RecoveryMutationTimings(),
+        totalMs: 1,
+      ),
+    );
   }
 
   @override
@@ -936,6 +957,49 @@ Future<void> main() async {
     await sessionFailureApi.close();
   }
 
+  final recoveryAdmissionDiagnostics = ManagementDiagnosticBuffer();
+  final recoveryAdmissionApi = await HostApi.bind(
+    authenticator: RecoveryAdmissionUnavailableAuthenticator(),
+    executor: FakeExecutor(),
+    diagnostics: recoveryAdmissionDiagnostics,
+  );
+  try {
+    const recoveryCorrelation = 'cor_abcdef0123456789abcdef0123456789';
+    final rejectedDuringRecovery = await send(
+      recoveryAdmissionApi,
+      path: HostManagementRoutes.pairingCreateV2,
+      token: validToken,
+      headers: {'X-Correlation-ID': recoveryCorrelation},
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+        'requestId': recoveryCorrelation,
+      },
+    );
+    check(
+      rejectedDuringRecovery.status == 503 &&
+          rejectedDuringRecovery.body['error']['code'] ==
+              'RECOVERY_AUTHORITY_UNAVAILABLE' &&
+          rejectedDuringRecovery.body['error']['retryable'] == true &&
+          rejectedDuringRecovery.body['correlationId'] == recoveryCorrelation,
+      'Pairing authentication during a pending Recovery Authority window returns a safe, retryable recovery-specific error',
+    );
+    check(
+      recoveryAdmissionDiagnostics.recent().single.category ==
+              ManagementDiagnosticCategory.recovery &&
+          recoveryAdmissionDiagnostics.recent().single.correlationId ==
+              recoveryCorrelation &&
+          !jsonEncode(
+            recoveryAdmissionDiagnostics.recent().single.toJson(),
+          ).contains('witness'),
+      'Recovery admission rejection is correlated and contains no protected witness detail',
+    );
+  } finally {
+    await recoveryAdmissionApi.close();
+  }
+
   final pairingGateway = FakeIdentityPairingGateway();
   final pairingDiagnostics = ManagementDiagnosticBuffer();
   final pairingApi = await HostApi.bind(
@@ -1026,6 +1090,78 @@ Future<void> main() async {
               FakeIdentityPairingGateway.code,
       'Pairing creation returns a correlated one-time code and fixed CLIENT role',
     );
+    const pairingRequestId = 'cor_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    final idempotentContractPairing = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreateV2,
+      token: validToken,
+      headers: const {'X-Correlation-ID': pairingRequestId},
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+        'requestId': pairingRequestId,
+      },
+    );
+    check(
+      idempotentContractPairing.status == 201 &&
+          pairingGateway.lastRequestId == pairingRequestId &&
+          idempotentContractPairing.body['correlationId'] == pairingRequestId,
+      'Version 2 pairing contract binds the authenticated request reference to Host correlation',
+    );
+    final mismatchedPairingReference = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreateV2,
+      token: validToken,
+      headers: const {
+        'X-Correlation-ID': 'cor_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      },
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+        'requestId': 'cor_cccccccccccccccccccccccccccccccc',
+      },
+    );
+    check(
+      mismatchedPairingReference.status == 400 &&
+          mismatchedPairingReference.body['error']['code'] ==
+              'INVALID_REQUEST' &&
+          pairingGateway.createCalls == 2,
+      'Version 2 rejects mismatched request and correlation references before mutation',
+    );
+    pairingGateway.failCreate = true;
+    const uncertainPairingRequestId = 'cor_dddddddddddddddddddddddddddddddd';
+    final uncertainPairing = await send(
+      pairingApi,
+      path: HostManagementRoutes.pairingCreateV2,
+      token: validToken,
+      headers: const {'X-Correlation-ID': uncertainPairingRequestId},
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': 'company-001',
+        'branchId': 'branch-001',
+        'actorId': 'user-001',
+        'requestId': uncertainPairingRequestId,
+      },
+    );
+    final uncertainDiagnostic = pairingDiagnostics.recent().first;
+    check(
+      uncertainPairing.status == 503 &&
+          uncertainPairing.body['error']['code'] == 'PAIRING_OUTCOME_UNKNOWN' &&
+          uncertainPairing.body['correlationId'] == uncertainPairingRequestId &&
+          uncertainDiagnostic.code == 'PAIRING_OUTCOME_UNKNOWN' &&
+          uncertainDiagnostic.category ==
+              ManagementDiagnosticCategory.pairing &&
+          uncertainDiagnostic.protectedFailureType == 'StateError' &&
+          !jsonEncode(
+            uncertainDiagnostic.toJson(),
+          ).contains('synthetic-secret'),
+      'Unexpected pairing processing failures return a correlated unknown outcome without exposing private details',
+    );
+    pairingGateway.failCreate = false;
     final credentialShapedDeviceId = await send(
       pairingApi,
       path: HostManagementRoutes.pairingRedeem,

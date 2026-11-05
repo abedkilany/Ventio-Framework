@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:postgres/postgres.dart' as pg;
@@ -10,17 +12,47 @@ import 'recovery_authority.dart';
 import 'role_administration.dart';
 
 abstract interface class IdentityPairingGateway {
-  Future<Map<String, dynamic>> create({
+  Future<IdentityPairingCreateResult> create({
     required AuthenticatedSession session,
     required String companyId,
     required String branchId,
     required String actorId,
+    required String requestId,
   });
 
   Future<Map<String, dynamic>> redeem({
     required String code,
     required String deviceId,
   });
+}
+
+class IdentityPairingCreateResult {
+  const IdentityPairingCreateResult({
+    required this.pairing,
+    required this.timings,
+  });
+
+  final Map<String, dynamic> pairing;
+  final PairingCreateTimings timings;
+}
+
+class PairingCreateTimings {
+  const PairingCreateTimings({
+    required this.connectionAcquisitionMs,
+    required this.connectionSetupMs,
+    required this.recovery,
+    required this.totalMs,
+  });
+
+  final int connectionAcquisitionMs;
+  final int connectionSetupMs;
+  final RecoveryMutationTimings recovery;
+  final int totalMs;
+
+  String toSafeSummary() =>
+      'connection_acquisition=${connectionAcquisitionMs}ms, '
+      'connection_setup=${connectionSetupMs}ms, '
+      '${recovery.toSafeSummary()}, total=${totalMs}ms';
 }
 
 /// Required before pairing can be served outside a loopback-only test Host.
@@ -43,49 +75,216 @@ class PostgresIdentityPairingGateway
   final RecoveryAuthority admission;
 
   @override
-  Future<Map<String, dynamic>> create({
+  Future<IdentityPairingCreateResult> create({
     required AuthenticatedSession session,
     required String companyId,
     required String branchId,
     required String actorId,
+    required String requestId,
   }) async {
+    if (!RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(requestId)) {
+      throw const IdentityPairingException('INVALID_REQUEST', statusCode: 400);
+    }
     final digest = _authorize(session, companyId, branchId);
     final code = OpaqueToken.generate();
-    final pairingId = 'pair_${_randomHex(16)}';
+    // The client-generated request reference is the stable identity of this
+    // logical issuance. PostgreSQL's existing primary key prevents a retry
+    // from minting a second code without adding a plaintext-secret recovery
+    // path or a schema migration.
+    final pairingId = 'pair_${requestId.substring(4)}';
     final pairingDigest = OpaqueToken.digest(code);
+    final totalWatch = Stopwatch()..start();
+    var connectionAcquisitionMs = 0;
+    var connectionSetupMs = 0;
+    RecoveryMutationTimings? recoveryTimings;
     try {
-      final expiresAt = await _mutate((tx) async {
-        final rows = await tx.execute(
-          pg.Sql.named('''
-            SELECT ventio_security.scoped_pairing_create(
-              @digest,@company,@branch,@actor,@pairingId,@pairingDigest)
-          '''),
-          parameters: {
-            'digest': digest,
-            'company': companyId,
-            'branch': branchId,
-            'actor': actorId,
-            'pairingId': pairingId,
-            'pairingDigest': pairingDigest,
-          },
-        );
-        final raw = rows.single[0];
-        if (raw is! DateTime) {
-          throw StateError('Host returned an invalid pairing expiry.');
-        }
-        return raw.toUtc();
-      });
-      return {
-        'pairingId': pairingId,
-        'actorId': actorId,
-        'deviceRole': HostDeviceRole.client.wireValue,
-        'code': code,
-        'companyId': companyId,
-        'branchId': branchId,
-        'expiresAtUtc': expiresAt.toIso8601String(),
-      };
+      final expiresAt = await withPostgresConnection(
+        connect: connectAdministration,
+        pool: administrationPool,
+        action: (connection) async {
+          connectionAcquisitionMs = totalWatch.elapsedMilliseconds;
+          var setupWatch = Stopwatch()..start();
+          await verifyIdentityAdministrationConnection(connection);
+          await connection.execute("SET statement_timeout = '15s'");
+          await connection.execute("SET lock_timeout = '5s'");
+          connectionSetupMs = setupWatch.elapsedMilliseconds;
+
+          DateTime? mutationExpiry;
+          recoveryTimings = await admission.changeMeasured(
+            connection,
+            (tx) async {
+              final rows = await tx.execute(
+                pg.Sql.named('''
+                  SELECT ventio_security.scoped_pairing_create(
+                    @digest,@company,@branch,@actor,@pairingId,
+                    @pairingDigest)
+                '''),
+                parameters: {
+                  'digest': digest,
+                  'company': companyId,
+                  'branch': branchId,
+                  'actor': actorId,
+                  'pairingId': pairingId,
+                  'pairingDigest': pairingDigest,
+                },
+              );
+              final raw = rows.single[0];
+              if (raw is! DateTime) {
+                throw StateError('Host returned an invalid pairing outcome.');
+              }
+              mutationExpiry = raw.toUtc();
+            },
+            requireAdmissionProof: true,
+            lockTimeout: const Duration(seconds: 30),
+            onTimings: (value) => recoveryTimings = value,
+          );
+          return mutationExpiry!;
+        },
+      );
+      final timings = PairingCreateTimings(
+        connectionAcquisitionMs: connectionAcquisitionMs,
+        connectionSetupMs: connectionSetupMs,
+        recovery: recoveryTimings!,
+        totalMs: totalWatch.elapsedMilliseconds,
+      );
+      return IdentityPairingCreateResult(
+        pairing: {
+          'pairingId': pairingId,
+          'actorId': actorId,
+          'deviceRole': HostDeviceRole.client.wireValue,
+          'code': code,
+          'companyId': companyId,
+          'branchId': branchId,
+          'expiresAtUtc': expiresAt.toIso8601String(),
+        },
+        timings: timings,
+      );
     } on pg.ServerException catch (error) {
-      throw _mapCreateError(error);
+      final mapped = _mapCreateError(error);
+      throw IdentityPairingException(
+        mapped.code,
+        statusCode: mapped.statusCode,
+        retryable: mapped.retryable,
+        retryAfterSeconds: mapped.retryAfterSeconds,
+        protectedTechnicalCode: mapped.protectedTechnicalCode,
+        safeTimingSummary: _safeTimingSummary(
+          connectionAcquisitionMs,
+          connectionSetupMs,
+          recoveryTimings,
+          totalWatch.elapsedMilliseconds,
+        ),
+      );
+    } on RecoveryMutationOutcomeUnknown catch (error) {
+      throw IdentityPairingException(
+        'PAIRING_OUTCOME_UNKNOWN',
+        statusCode: 503,
+        retryable: true,
+        safeTimingSummary: _safeTimingSummary(
+          connectionAcquisitionMs,
+          connectionSetupMs,
+          error.timings,
+          totalWatch.elapsedMilliseconds,
+        ),
+      );
+    } on RecoveryAuthorityBusy {
+      throw IdentityPairingException(
+        'RECOVERY_AUTHORITY_BUSY',
+        statusCode: 503,
+        retryable: true,
+        safeTimingSummary: _safeTimingSummary(
+          connectionAcquisitionMs,
+          connectionSetupMs,
+          recoveryTimings,
+          totalWatch.elapsedMilliseconds,
+        ),
+      );
+    } on RecoveryAdmissionUnavailable {
+      throw IdentityPairingException(
+        'RECOVERY_AUTHORITY_UNAVAILABLE',
+        statusCode: 503,
+        retryable: false,
+        safeTimingSummary: _safeTimingSummary(
+          connectionAcquisitionMs,
+          connectionSetupMs,
+          recoveryTimings,
+          totalWatch.elapsedMilliseconds,
+        ),
+      );
+    } on TimeoutException {
+      if (recoveryTimings != null) {
+        throw IdentityPairingException(
+          'PAIRING_OUTCOME_UNKNOWN',
+          statusCode: 503,
+          retryable: true,
+          safeTimingSummary: _safeTimingSummary(
+            connectionAcquisitionMs,
+            connectionSetupMs,
+            recoveryTimings,
+            totalWatch.elapsedMilliseconds,
+          ),
+        );
+      }
+      throw IdentityPairingException(
+        'PAIRING_DATABASE_UNAVAILABLE',
+        statusCode: 503,
+        retryable: true,
+        safeTimingSummary: _safeTimingSummary(
+          connectionAcquisitionMs,
+          connectionSetupMs,
+          recoveryTimings,
+          totalWatch.elapsedMilliseconds,
+        ),
+      );
+    } on SocketException {
+      if (recoveryTimings != null) {
+        throw IdentityPairingException(
+          'PAIRING_OUTCOME_UNKNOWN',
+          statusCode: 503,
+          retryable: true,
+          safeTimingSummary: _safeTimingSummary(
+            connectionAcquisitionMs,
+            connectionSetupMs,
+            recoveryTimings,
+            totalWatch.elapsedMilliseconds,
+          ),
+        );
+      }
+      throw IdentityPairingException(
+        'PAIRING_DATABASE_UNAVAILABLE',
+        statusCode: 503,
+        retryable: true,
+        safeTimingSummary: _safeTimingSummary(
+          connectionAcquisitionMs,
+          connectionSetupMs,
+          recoveryTimings,
+          totalWatch.elapsedMilliseconds,
+        ),
+      );
+    } on pg.PgException {
+      if (recoveryTimings != null) {
+        throw IdentityPairingException(
+          'PAIRING_OUTCOME_UNKNOWN',
+          statusCode: 503,
+          retryable: true,
+          safeTimingSummary: _safeTimingSummary(
+            connectionAcquisitionMs,
+            connectionSetupMs,
+            recoveryTimings,
+            totalWatch.elapsedMilliseconds,
+          ),
+        );
+      }
+      throw IdentityPairingException(
+        'PAIRING_DATABASE_UNAVAILABLE',
+        statusCode: 503,
+        retryable: true,
+        safeTimingSummary: _safeTimingSummary(
+          connectionAcquisitionMs,
+          connectionSetupMs,
+          recoveryTimings,
+          totalWatch.elapsedMilliseconds,
+        ),
+      );
     }
   }
 
@@ -213,7 +412,7 @@ class PostgresIdentityPairingGateway
           retryAfterSeconds: 900,
         ),
         '23505' => const IdentityPairingException(
-          'PAIRING_CONFLICT',
+          'PAIRING_CODE_UNAVAILABLE',
           statusCode: 409,
         ),
         '22023' || '23514' => const IdentityPairingException(
@@ -258,6 +457,8 @@ class IdentityPairingException implements Exception {
     this.retryable = false,
     this.retryAfterSeconds,
     this.protectedTechnicalCode,
+    this.pairingExpiresAtUtc,
+    this.safeTimingSummary,
   });
 
   final String code;
@@ -265,7 +466,20 @@ class IdentityPairingException implements Exception {
   final bool retryable;
   final int? retryAfterSeconds;
   final String? protectedTechnicalCode;
+  final DateTime? pairingExpiresAtUtc;
+  final String? safeTimingSummary;
 }
+
+String _safeTimingSummary(
+  int connectionAcquisitionMs,
+  int connectionSetupMs,
+  RecoveryMutationTimings? recovery,
+  int totalMs,
+) =>
+    'connection_acquisition=${connectionAcquisitionMs}ms, '
+    'connection_setup=${connectionSetupMs}ms, '
+    '${recovery?.toSafeSummary() ?? 'recovery_stage_unavailable'}, '
+    'total=${totalMs}ms';
 
 String _randomHex(int byteCount) {
   final random = math.Random.secure();

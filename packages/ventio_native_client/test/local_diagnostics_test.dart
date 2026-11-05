@@ -59,6 +59,37 @@ void main() {
   );
 
   test(
+    'persists pairing reconciliation identity without a pairing secret',
+    () async {
+      final identityKey = List.filled(64, 'a').join();
+      const requestId = 'cor_0123456789abcdef0123456789abcdef';
+      const actorId = 'usr_0123456789abcdef0123456789abcdef';
+      await store.savePendingPairingOperation(identityKey, requestId, actorId);
+
+      final pending = await store.pendingPairingOperation(identityKey);
+      expect(pending?.requestId, requestId);
+      expect(pending?.actorId, actorId);
+
+      final export = await store.exportJson();
+      expect(export, isNot(contains(requestId)));
+      expect(export, isNot(contains(actorId)));
+      expect(export, isNot(contains('pairing_operations')));
+
+      await store.close();
+      store = await LocalDiagnosticsStore.open(
+        factory: databaseFactoryFfi,
+        path: '${directory.path}${Platform.pathSeparator}diagnostics.sqlite3',
+      );
+      expect(
+        (await store.pendingPairingOperation(identityKey))?.actorId,
+        actorId,
+      );
+      await store.clearPendingPairingOperation(identityKey);
+      expect(await store.pendingPairingOperation(identityKey), isNull);
+    },
+  );
+
+  test(
     'sanitizes credential formats and private paths in stored export',
     () async {
       await store.record(

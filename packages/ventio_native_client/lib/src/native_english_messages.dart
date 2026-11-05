@@ -133,6 +133,10 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.no_registered_devices':
       'No registered devices are visible in this branch.',
   'native.ui.generate_pairing_code': 'Generate Client pairing code',
+  'native.ui.check_pairing_request_safely':
+      'Check previous pairing request safely',
+  'native.ui.pairing_replacement_after_expiry':
+      'Replacement available after {timestamp}',
   'native.ui.pairing_target_help':
       'Enter the Host user ID that will use this Client. Pairing grants no additional permissions.',
   'native.ui.pairing_select_active_user':
@@ -142,6 +146,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.pairing_no_active_users':
       'There are no active Host users available in this branch.',
   'native.ui.pairing_target_user_id': 'Host user ID',
+  'native.ui.pairing_pending_target': 'Pending pairing target',
   'native.ui.pairing_code_once':
       'Show this single-use code to the Client operator. It is visible only in this screen and expires soon.',
   'native.ui.copy_pairing_code': 'Copy pairing code',
@@ -494,7 +499,23 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.invalid_role_change': 'Host rejected the role details.',
   'native.ui.host_unreachable':
       'Host is unreachable. Try again when connected.',
-  'native.ui.host_request_timeout': 'Host did not respond in time. Try again.',
+  'native.ui.host_request_timeout':
+      'Host did not respond before the request deadline.',
+  'native.ui.device_error_pairing_unknown':
+      'The Host may have created the pairing, but the one-time code was not received. Retry only with the same request reference. If Host already accepted it, the code cannot be recovered.',
+  'native.ui.device_error_pairing_code_unavailable':
+      'This pairing request was already accepted. Its one-time code cannot be recovered; wait at least five minutes from this response before issuing a replacement.',
+  'native.ui.device_error_pairing_database':
+      'The Host database could not be reached before pairing began. Check Host readiness and retry with the same request reference.',
+  'native.ui.device_error_pairing_api_unsupported':
+      'This Host does not support the safe pairing request protocol. Update the Host before generating Client pairing codes.',
+  'native.ui.device_error_local_pairing_state':
+      'Ventio could not safely save the pending pairing reference on this device. No pairing request was sent.',
+  'native.ui.device_error_recovery_authority':
+      'Recovery Authority could not safely admit this request. Check Host readiness before trying again.',
+  'native.ui.device_error_recovery_authority_busy':
+      'Recovery Authority is processing another protected operation. Retry with the same request reference.',
+  'native.ui.diagnostics.pairing_request': 'Client pairing request status',
   'native.ui.host_request_failed_with_code': 'Host request failed ({code}).',
   'native.ui.extension_review_submission':
       '{displayName}\n{moduleId} · {version}\n\nThis sends declarative metadata to the selected Host. It remains a candidate until a trusted Host operator reviews and approves it.',

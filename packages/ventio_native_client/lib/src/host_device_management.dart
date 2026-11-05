@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:ventio_core/ventio_core.dart';
 
@@ -108,12 +109,20 @@ class HostDeviceManagementException implements Exception {
     this.statusCode,
     this.correlationId,
     this.retryable = false,
+    this.requestId,
+    this.pairingExpiresAtUtc,
+    this.elapsedMs,
   });
 
   final String code;
   final int? statusCode;
   final String? correlationId;
   final bool retryable;
+  final String? requestId;
+  final DateTime? pairingExpiresAtUtc;
+  final int? elapsedMs;
+
+  bool get outcomeUnknown => code == 'PAIRING_OUTCOME_UNKNOWN';
 
   @override
   String toString() =>
@@ -153,12 +162,15 @@ class HostDeviceManagementClient {
     HttpClient Function()? clientFactory,
     this.exchange,
     this.timeout = const Duration(seconds: 15),
+    this.pairingTimeout = const Duration(seconds: 120),
     this.maxResponseBytes = 1024 * 1024,
   }) : endpoint = HostCredentialVault.normalizeEndpoint(endpoint),
        _clientFactory = clientFactory ?? HttpClient.new {
     _validateScopeIdentifier(companyId);
     _validateScopeIdentifier(branchId);
-    if (timeout <= Duration.zero || maxResponseBytes < 1) {
+    if (timeout <= Duration.zero ||
+        pairingTimeout <= Duration.zero ||
+        maxResponseBytes < 1) {
       throw ArgumentError('Host device-management limits must be positive.');
     }
   }
@@ -171,6 +183,7 @@ class HostDeviceManagementClient {
   final HttpClient Function() _clientFactory;
   final HostDeviceManagementExchange? exchange;
   final Duration timeout;
+  final Duration pairingTimeout;
   final int maxResponseBytes;
 
   bool get canManageDevices => _hasPermission(manageHostDevicesPermission);
@@ -402,11 +415,18 @@ class HostDeviceManagementClient {
     );
   }
 
-  Future<HostPairingCredential> createPairing(String actorId) async {
+  Future<HostPairingCredential> createPairing(
+    String actorId, {
+    String? requestId,
+  }) async {
     if (!_safeDeviceManagementActorId(actorId)) {
       throw const HostDeviceManagementException('INVALID_ACTOR_ID');
     }
-    final response = await _postPairing(actorId);
+    final pairingRequestId = requestId ?? newPairingRequestId();
+    if (!_safePairingRequestId(pairingRequestId)) {
+      throw const HostDeviceManagementException('INVALID_REQUEST');
+    }
+    final response = await _postPairing(actorId, pairingRequestId);
     if (response.statusCode != HttpStatus.created) throw _error(response);
     const envelopeKeys = {
       'apiVersion',
@@ -460,48 +480,85 @@ class HostDeviceManagementClient {
         permission: manageHostDevicesPermission,
       );
 
-  Future<_DeviceResponse> _postPairing(String actorId) => _request(
-    HostManagementRoutes.pairingCreate,
-    {'actorId': actorId},
-    permission: manageHostPairingPermission,
-  );
+  Future<_DeviceResponse> _postPairing(String actorId, String requestId) =>
+      _request(
+        HostManagementRoutes.pairingCreateV2,
+        {'actorId': actorId, 'requestId': requestId},
+        permission: manageHostPairingPermission,
+        requestId: requestId,
+      );
 
   Future<_DeviceResponse> _request(
     String path,
     Map<String, Object?> fields, {
     required String permission,
+    String? requestId,
   }) async {
     _requirePermission(permission);
     final token = await credentials.read(endpoint);
     if (token == null) {
       throw const HostDeviceManagementException('HOST_CREDENTIAL_MISSING');
     }
+    final operationTimeout = requestId == null ? timeout : pairingTimeout;
+    final requestWatch = Stopwatch()..start();
     try {
-      final response = await (exchange ?? _httpExchange)(
-        uri: endpoint.replace(path: path),
-        headers: {
-          HttpHeaders.acceptHeader: 'application/json',
-          HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
-          HttpHeaders.authorizationHeader: 'Bearer $token',
-        },
-        body: canonicalJson({
-          'managementApiVersion': hostDeviceManagementApiVersion,
-          'companyId': companyId,
-          'branchId': branchId,
-          ...fields,
-        }),
-        timeout: timeout,
-        maxResponseBytes: maxResponseBytes,
-      ).timeout(timeout);
+      final headers = <String, String>{
+        HttpHeaders.acceptHeader: 'application/json',
+        HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
+        HttpHeaders.authorizationHeader: 'Bearer $token',
+        'X-Correlation-ID': ?requestId,
+      };
+      final uri = endpoint.replace(path: path);
+      final body = canonicalJson({
+        'managementApiVersion': hostDeviceManagementApiVersion,
+        'companyId': companyId,
+        'branchId': branchId,
+        ...fields,
+      });
+      final HostDeviceManagementHttpResponse response;
+      if (exchange != null) {
+        // A custom exchange does not expose its send boundary, so a pairing
+        // timeout is conservatively treated as an unknown mutation outcome.
+        response = await exchange!(
+          uri: uri,
+          headers: headers,
+          body: body,
+          timeout: operationTimeout,
+          maxResponseBytes: maxResponseBytes,
+        ).timeout(operationTimeout);
+      } else {
+        response = await _httpExchange(
+          uri: uri,
+          headers: headers,
+          body: body,
+          timeout: operationTimeout,
+          maxResponseBytes: maxResponseBytes,
+        );
+      }
       final id = _correlationId(
         response.body['correlationId'] ??
             response.headers['x-correlation-id'] ??
             response.headers['X-Correlation-ID'],
       );
       if (id == null) {
+        throw _invalidResponse(
+          _DeviceResponse(
+            response.statusCode,
+            response.body,
+            requestId ?? '',
+            requestId,
+            requestWatch.elapsedMilliseconds,
+          ),
+        );
+      }
+      if (requestId != null && id != requestId) {
         throw HostDeviceManagementException(
-          'HOST_INVALID_RESPONSE',
+          'PAIRING_OUTCOME_UNKNOWN',
           statusCode: response.statusCode,
+          correlationId: id,
+          retryable: true,
+          requestId: requestId,
+          elapsedMs: requestWatch.elapsedMilliseconds,
         );
       }
       if (response.body['apiVersion'] != managementApiVersion ||
@@ -510,34 +567,62 @@ class HostDeviceManagementClient {
               response.body['managementApiVersion'] !=
                   hostDeviceManagementApiVersion)) {
         throw HostDeviceManagementException(
-          'HOST_API_VERSION_MISMATCH',
+          requestId != null &&
+                  response.statusCode >= 200 &&
+                  response.statusCode < 300
+              ? 'PAIRING_OUTCOME_UNKNOWN'
+              : 'HOST_API_VERSION_MISMATCH',
           statusCode: response.statusCode,
           correlationId: id,
+          requestId: requestId,
+          elapsedMs: requestWatch.elapsedMilliseconds,
         );
       }
-      return _DeviceResponse(response.statusCode, response.body, id);
+      return _DeviceResponse(
+        response.statusCode,
+        response.body,
+        id,
+        requestId,
+        requestWatch.elapsedMilliseconds,
+      );
     } on HostDeviceManagementException {
       rethrow;
     } on TimeoutException {
-      throw const HostDeviceManagementException(
+      throw _transportFailure(
         'HOST_REQUEST_TIMEOUT',
-        retryable: true,
+        requestId,
+        requestWatch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestId != null,
       );
     } on SocketException {
-      throw const HostDeviceManagementException(
+      throw _transportFailure(
         'HOST_UNREACHABLE',
-        retryable: true,
+        requestId,
+        requestWatch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestId != null,
       );
     } on TlsException {
       throw const HostDeviceManagementException('HOST_TLS_VALIDATION_FAILED');
     } on HttpException {
-      throw const HostDeviceManagementException('HOST_INVALID_RESPONSE');
+      throw _transportFailure(
+        'HOST_INVALID_RESPONSE',
+        requestId,
+        requestWatch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestId != null,
+      );
     } on FormatException {
-      throw const HostDeviceManagementException('HOST_INVALID_RESPONSE');
+      throw _transportFailure(
+        'HOST_INVALID_RESPONSE',
+        requestId,
+        requestWatch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestId != null,
+      );
     } catch (_) {
-      throw const HostDeviceManagementException(
+      throw _transportFailure(
         'HOST_UNAVAILABLE',
-        retryable: true,
+        requestId,
+        requestWatch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestId != null,
       );
     }
   }
@@ -554,15 +639,39 @@ class HostDeviceManagementClient {
       endpoint,
       fallbackFactory: _clientFactory,
     );
-    client.connectionTimeout = timeout;
+    const connectionLimit = Duration(seconds: 10);
+    client.connectionTimeout = timeout < connectionLimit
+        ? timeout
+        : connectionLimit;
+    final operationId = headers['X-Correlation-ID'];
+    var requestMayHaveReachedHost = false;
+    var connecting = true;
     try {
-      final request = await client.openUrl('POST', uri).timeout(timeout);
+      final request = await client
+          .openUrl('POST', uri)
+          .timeout(
+            _remaining(
+              watch,
+              timeout,
+              requestId: operationId,
+              timeoutCode: 'HOST_CONNECTION_TIMEOUT',
+            ),
+          );
+      connecting = false;
       request
         ..followRedirects = false
         ..maxRedirects = 0;
       headers.forEach(request.headers.set);
       request.write(body);
-      final response = await request.close().timeout(_remaining(watch));
+      requestMayHaveReachedHost = true;
+      final response = await request.close().timeout(
+        _remaining(
+          watch,
+          timeout,
+          requestId: operationId,
+          requestMayHaveReachedHost: requestMayHaveReachedHost,
+        ),
+      );
       if (response.headers.contentType?.mimeType.toLowerCase() !=
           'application/json') {
         throw const HostDeviceManagementException('HOST_INVALID_RESPONSE');
@@ -580,7 +689,14 @@ class HostDeviceManagementClient {
             buffer.addAll(chunk);
             return buffer;
           })
-          .timeout(_remaining(watch));
+          .timeout(
+            _remaining(
+              watch,
+              timeout,
+              requestId: operationId,
+              requestMayHaveReachedHost: requestMayHaveReachedHost,
+            ),
+          );
       final decoded = jsonDecode(utf8.decode(bytes));
       if (decoded is! Map) {
         throw const HostDeviceManagementException('HOST_INVALID_RESPONSE');
@@ -591,6 +707,39 @@ class HostDeviceManagementClient {
         headers: {
           'x-correlation-id': ?response.headers.value('x-correlation-id'),
         },
+      );
+    } on HostDeviceManagementException catch (error) {
+      if (operationId != null &&
+          requestMayHaveReachedHost &&
+          error.code != 'HOST_TLS_VALIDATION_FAILED') {
+        throw _transportFailure(
+          'HOST_INVALID_RESPONSE',
+          operationId,
+          watch.elapsedMilliseconds,
+          outcomeMayBeUnknown: true,
+        );
+      }
+      rethrow;
+    } on TimeoutException {
+      throw _transportFailure(
+        connecting ? 'HOST_CONNECTION_TIMEOUT' : 'HOST_REQUEST_TIMEOUT',
+        operationId,
+        watch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestMayHaveReachedHost,
+      );
+    } on SocketException {
+      throw _transportFailure(
+        'HOST_UNREACHABLE',
+        operationId,
+        watch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestMayHaveReachedHost,
+      );
+    } on HttpException {
+      throw _transportFailure(
+        'HOST_INVALID_RESPONSE',
+        operationId,
+        watch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestMayHaveReachedHost,
       );
     } finally {
       client.close(force: true);
@@ -603,12 +752,20 @@ class HostDeviceManagementClient {
     }
   }
 
-  Duration _remaining(Stopwatch watch) {
+  Duration _remaining(
+    Stopwatch watch,
+    Duration timeout, {
+    String? requestId,
+    bool requestMayHaveReachedHost = false,
+    String timeoutCode = 'HOST_REQUEST_TIMEOUT',
+  }) {
     final remaining = timeout - watch.elapsed;
     if (remaining <= Duration.zero) {
-      throw const HostDeviceManagementException(
-        'HOST_REQUEST_TIMEOUT',
-        retryable: true,
+      throw _transportFailure(
+        timeoutCode,
+        requestId,
+        watch.elapsedMilliseconds,
+        outcomeMayBeUnknown: requestMayHaveReachedHost,
       );
     }
     return remaining;
@@ -618,33 +775,94 @@ class HostDeviceManagementClient {
     final raw = response.body['error'];
     final error = raw is Map ? Map<String, dynamic>.from(raw) : const {};
     final value = error['code'];
-    final code =
+    final parsedCode =
         value is String && RegExp(r'^[A-Z][A-Z0-9_]{0,79}$').hasMatch(value)
         ? value
         : 'HOST_HTTP_ERROR';
+    final serverCode =
+        response.requestId != null &&
+            response.statusCode == HttpStatus.notFound &&
+            parsedCode == 'NOT_FOUND'
+        ? 'HOST_PAIRING_IDEMPOTENCY_UNSUPPORTED'
+        : parsedCode;
+    const knownPreMutationFailures = {
+      'PAIRING_DATABASE_UNAVAILABLE',
+      'RECOVERY_AUTHORITY_UNAVAILABLE',
+      'RECOVERY_AUTHORITY_BUSY',
+    };
+    final code =
+        response.requestId != null &&
+            response.statusCode >= 500 &&
+            !knownPreMutationFailures.contains(serverCode)
+        ? 'PAIRING_OUTCOME_UNKNOWN'
+        : serverCode;
     return HostDeviceManagementException(
       code,
       statusCode: response.statusCode,
       correlationId: response.correlationId,
       retryable: error['retryable'] == true || response.statusCode >= 500,
+      requestId: response.requestId,
+      pairingExpiresAtUtc: _utc(error['pairingExpiresAtUtc']),
+      elapsedMs: response.elapsedMs,
     );
   }
 
   HostDeviceManagementException _invalidResponse(_DeviceResponse response) =>
       HostDeviceManagementException(
-        'HOST_INVALID_RESPONSE',
+        response.requestId != null &&
+                (response.statusCode >= 500 ||
+                    (response.statusCode >= 200 && response.statusCode < 300))
+            ? 'PAIRING_OUTCOME_UNKNOWN'
+            : 'HOST_INVALID_RESPONSE',
         statusCode: response.statusCode,
         correlationId: response.correlationId,
+        retryable: response.requestId != null,
+        requestId: response.requestId,
+        elapsedMs: response.elapsedMs,
       );
 }
 
 class _DeviceResponse {
-  const _DeviceResponse(this.statusCode, this.body, this.correlationId);
+  const _DeviceResponse(
+    this.statusCode,
+    this.body,
+    this.correlationId,
+    this.requestId,
+    this.elapsedMs,
+  );
 
   final int statusCode;
   final Map<String, dynamic> body;
   final String correlationId;
+  final String? requestId;
+  final int elapsedMs;
 }
+
+HostDeviceManagementException _transportFailure(
+  String code,
+  String? requestId,
+  int elapsedMs, {
+  required bool outcomeMayBeUnknown,
+}) => HostDeviceManagementException(
+  outcomeMayBeUnknown && requestId != null ? 'PAIRING_OUTCOME_UNKNOWN' : code,
+  correlationId: requestId,
+  retryable:
+      outcomeMayBeUnknown ||
+      code == 'HOST_UNREACHABLE' ||
+      code == 'HOST_REQUEST_TIMEOUT' ||
+      code == 'HOST_UNAVAILABLE',
+  requestId: requestId,
+  elapsedMs: elapsedMs,
+);
+
+String newPairingRequestId() {
+  final random = math.Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  return 'cor_${bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join()}';
+}
+
+bool _safePairingRequestId(String value) =>
+    RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(value);
 
 String? _correlationId(Object? value) =>
     value is String && RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(value)

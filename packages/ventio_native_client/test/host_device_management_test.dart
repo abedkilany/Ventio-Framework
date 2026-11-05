@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/device_management_page.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
 import 'package:ventio_native_client/src/host_device_management.dart';
 import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/host_user_management.dart';
+import 'package:ventio_native_client/src/local_diagnostics.dart';
 
 const _token = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 const _correlationId = 'cor_0123456789abcdef0123456789abcdef';
@@ -28,7 +31,9 @@ class _MemoryCredentials implements HostCredentialBackend {
 
 class _Exchange {
   final requests = <Map<String, Object?>>[];
-  HostDeviceManagementHttpResponse Function(Map<String, Object?> request)?
+  FutureOr<HostDeviceManagementHttpResponse> Function(
+    Map<String, Object?> request,
+  )?
   respond;
 
   Future<HostDeviceManagementHttpResponse> call({
@@ -42,9 +47,36 @@ class _Exchange {
       'uri': uri,
       'headers': headers,
       'body': jsonDecode(body),
+      'timeout': timeout,
     };
     requests.add(request);
-    return respond?.call(request) ?? _success(request);
+    return await respond?.call(request) ?? _success(request);
+  }
+}
+
+class _MemoryPairingStateStore implements PairingRequestStateStore {
+  final operations = <String, PendingPairingOperation>{};
+
+  @override
+  Future<PendingPairingOperation?> pendingPairingOperation(
+    String identityKey,
+  ) async => operations[identityKey];
+
+  @override
+  Future<void> savePendingPairingOperation(
+    String identityKey,
+    String requestId,
+    String actorId,
+  ) async {
+    operations[identityKey] = PendingPairingOperation(
+      requestId: requestId,
+      actorId: actorId,
+    );
+  }
+
+  @override
+  Future<void> clearPendingPairingOperation(String identityKey) async {
+    operations.remove(identityKey);
   }
 }
 
@@ -81,7 +113,7 @@ HostDeviceManagementHttpResponse _success(
         'credential': 'A' * 43,
       },
     },
-    '/api/v1/management/pairing/create' => {
+    HostManagementRoutes.pairingCreateV2 => {
       'pairing': {
         'pairingId': 'pair_0123456789abcdef0123456789abcdef',
         'actorId': (request['body'] as Map)['actorId'],
@@ -95,13 +127,16 @@ HostDeviceManagementHttpResponse _success(
     _ => const <String, Object?>{},
   };
   final resolvedStatus =
-      status ?? (path == '/api/v1/management/pairing/create' ? 201 : 200);
+      status ?? (path == HostManagementRoutes.pairingCreateV2 ? 201 : 200);
+  final correlationId =
+      ((request['headers'] as Map)['X-Correlation-ID'] as String?) ??
+      _correlationId;
   return HostDeviceManagementHttpResponse(
     statusCode: resolvedStatus,
     body: {
       'apiVersion': 1,
       'managementApiVersion': 1,
-      'correlationId': _correlationId,
+      'correlationId': correlationId,
       ...defaults,
       ...fields,
     },
@@ -152,6 +187,7 @@ HostSessionIdentity _identity({
 Future<HostDeviceManagementClient> _client(
   _Exchange exchange, {
   HostSessionIdentity? identity,
+  Duration? pairingTimeout,
 }) async {
   final endpoint = Uri.https('host.example');
   final vault = HostCredentialVault(_MemoryCredentials());
@@ -163,6 +199,7 @@ Future<HostDeviceManagementClient> _client(
     companyId: 'company-1',
     branchId: 'branch-1',
     exchange: exchange.call,
+    pairingTimeout: pairingTimeout ?? const Duration(seconds: 120),
   );
 }
 
@@ -239,14 +276,28 @@ void main() {
 
         expect(pairing.code, _pairingCode);
         expect(pairing.actorId, 'usr_0123456789abcdef0123456789abcdef');
-        expect(pairing.correlationId, _correlationId);
+        final pairingRequest = exchange.requests.first;
+        expect(
+          pairing.correlationId,
+          (pairingRequest['headers'] as Map)['X-Correlation-ID'],
+        );
+        expect(
+          (pairingRequest['uri'] as Uri).path,
+          HostManagementRoutes.pairingCreateV2,
+        );
+        expect(
+          (pairingRequest['body'] as Map)['requestId'],
+          (pairingRequest['headers'] as Map)['X-Correlation-ID'],
+        );
         expect(
           exchange.requests.map((request) => (request['uri'] as Uri).path),
           [
-            '/api/v1/management/pairing/create',
+            HostManagementRoutes.pairingCreateV2,
             '/api/v1/management/devices/revoke',
           ],
         );
+        expect(exchange.requests[0]['timeout'], const Duration(seconds: 120));
+        expect(exchange.requests[1]['timeout'], const Duration(seconds: 15));
         expect(
           jsonEncode(
             exchange.requests.map((request) => request['body']).toList(),
@@ -257,6 +308,107 @@ void main() {
         );
       },
     );
+
+    test(
+      'reports a Host that predates the safe pairing request route',
+      () async {
+        final exchange = _Exchange()
+          ..respond = (request) => _success(
+            request,
+            status: 404,
+            fields: {
+              'error': {'code': 'NOT_FOUND'},
+            },
+          );
+        final client = await _client(exchange);
+
+        await expectLater(
+          () => client.createPairing(
+            'usr_0123456789abcdef0123456789abcdef',
+            requestId: _correlationId,
+          ),
+          throwsA(
+            isA<HostDeviceManagementException>().having(
+              (error) => error.code,
+              'code',
+              'HOST_PAIRING_IDEMPOTENCY_UNSUPPORTED',
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'preserves definite pre-mutation pairing failure categories',
+      () async {
+        for (final code in [
+          'PAIRING_DATABASE_UNAVAILABLE',
+          'RECOVERY_AUTHORITY_UNAVAILABLE',
+          'RECOVERY_AUTHORITY_BUSY',
+        ]) {
+          final exchange = _Exchange()
+            ..respond = (request) {
+              final correlationId =
+                  (request['headers'] as Map)['X-Correlation-ID'] as String;
+              return HostDeviceManagementHttpResponse(
+                statusCode: 503,
+                body: {
+                  'apiVersion': 1,
+                  'correlationId': correlationId,
+                  'error': {'code': code, 'retryable': true},
+                },
+              );
+            };
+          final client = await _client(exchange);
+
+          await expectLater(
+            () => client.createPairing(
+              'usr_0123456789abcdef0123456789abcdef',
+              requestId: _correlationId,
+            ),
+            throwsA(
+              isA<HostDeviceManagementException>().having(
+                (error) => error.code,
+                'code',
+                code,
+              ),
+            ),
+          );
+        }
+      },
+    );
+
+    test('classifies a slow pairing response as an unknown outcome', () async {
+      final exchange = _Exchange()
+        ..respond = (request) async {
+          await Future<void>.delayed(const Duration(milliseconds: 80));
+          return _success(request);
+        };
+      final client = await _client(
+        exchange,
+        pairingTimeout: const Duration(milliseconds: 20),
+      );
+
+      await expectLater(
+        () => client.createPairing(
+          'usr_0123456789abcdef0123456789abcdef',
+          requestId: _correlationId,
+        ),
+        throwsA(
+          isA<HostDeviceManagementException>()
+              .having((error) => error.code, 'code', 'PAIRING_OUTCOME_UNKNOWN')
+              .having((error) => error.requestId, 'requestId', _correlationId),
+        ),
+      );
+      expect(
+        (exchange.requests.single['body'] as Map)['requestId'],
+        _correlationId,
+      );
+      expect(
+        exchange.requests.single['timeout'],
+        const Duration(milliseconds: 20),
+      );
+    });
 
     test('rotates credentials through the authorized Host route', () async {
       final exchange = _Exchange();
@@ -376,8 +528,14 @@ void main() {
   ) async {
     final exchange = _Exchange();
     final client = await _client(exchange);
+    final stateStore = _MemoryPairingStateStore();
     await tester.pumpWidget(
-      MaterialApp(home: DeviceManagementPage(client: client)),
+      MaterialApp(
+        home: DeviceManagementPage(
+          client: client,
+          pairingRequestStateStore: stateStore,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -400,6 +558,118 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'unknown pairing outcome keeps the same durable request and target for retry',
+    (tester) async {
+      var pairingAttempt = 0;
+      final exchange = _Exchange()
+        ..respond = (request) async {
+          if ((request['uri'] as Uri).path ==
+              HostManagementRoutes.pairingCreateV2) {
+            pairingAttempt++;
+            if (pairingAttempt == 1) {
+              await Future<void>.delayed(const Duration(milliseconds: 80));
+            }
+            if (pairingAttempt == 2) {
+              final correlationId =
+                  (request['headers'] as Map)['X-Correlation-ID'] as String;
+              return HostDeviceManagementHttpResponse(
+                statusCode: 503,
+                body: {
+                  'apiVersion': 1,
+                  'correlationId': correlationId,
+                  'error': {'code': 'HOST_UNAVAILABLE', 'retryable': true},
+                },
+              );
+            }
+          }
+          return _success(request);
+        };
+      final client = await _client(
+        exchange,
+        pairingTimeout: const Duration(milliseconds: 20),
+      );
+      final stateStore = _MemoryPairingStateStore();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DeviceManagementPage(
+            client: client,
+            pairingRequestStateStore: stateStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      const actorId = 'usr_0123456789abcdef0123456789abcdef';
+      await tester.enterText(
+        find.byKey(const ValueKey('pairing-target-actor')),
+        actorId,
+      );
+      await tester.tap(find.byKey(const ValueKey('generate-pairing-code')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('may have created the pairing'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('pairing-target-actor')), findsNothing);
+      expect(stateStore.operations, hasLength(1));
+      final pending = stateStore.operations.values.single;
+      expect(pending.actorId, actorId);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DeviceManagementPage(
+            client: client,
+            pairingRequestStateStore: stateStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Check previous pairing request safely'),
+        findsOneWidget,
+      );
+      expect(find.text(actorId), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('generate-pairing-code')));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('may have created the pairing'),
+        findsOneWidget,
+      );
+      expect(stateStore.operations, hasLength(1));
+
+      await tester.tap(find.byKey(const ValueKey('generate-pairing-code')));
+      await tester.pumpAndSettle();
+      final pairingRequests = exchange.requests
+          .where(
+            (request) =>
+                (request['uri'] as Uri).path ==
+                HostManagementRoutes.pairingCreateV2,
+          )
+          .toList();
+      expect(pairingRequests, hasLength(3));
+      expect(
+        pairingRequests
+            .map((request) => (request['body'] as Map)['requestId'])
+            .toSet(),
+        {pending.requestId},
+      );
+      expect(
+        pairingRequests.every(
+          (request) => (request['body'] as Map)['actorId'] == actorId,
+        ),
+        isTrue,
+      );
+      expect(find.text(_pairingCode), findsOneWidget);
+      expect(stateStore.operations, isEmpty);
+    },
+  );
 
   testWidgets('device page confirms and displays a rotated credential once', (
     tester,
@@ -478,6 +748,7 @@ void main() {
     );
     final exchange = _Exchange();
     final deviceClient = await _client(exchange, identity: identity);
+    final stateStore = _MemoryPairingStateStore();
     final userDirectory = HostUserManagementClient(
       endpoint: Uri.https('host.example'),
       credentials: deviceClient.credentials,
@@ -518,6 +789,7 @@ void main() {
         home: DeviceManagementPage(
           client: deviceClient,
           userDirectory: userDirectory,
+          pairingRequestStateStore: stateStore,
         ),
       ),
     );

@@ -195,6 +195,7 @@ Future<Reply> send(
   Object? body,
   String contentType = 'application/json',
   bool chunked = false,
+  Map<String, String> headers = const {},
 }) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
   try {
@@ -203,6 +204,7 @@ Future<Reply> send(
       Uri.parse('http://127.0.0.1:${api.port}$path'),
     );
     if (token != null) request.headers.set('Authorization', 'Bearer $token');
+    headers.forEach(request.headers.set);
     request.headers.set('Content-Type', contentType);
     if (body != null) {
       final bytes = utf8.encode(body is String ? body : jsonEncode(body));

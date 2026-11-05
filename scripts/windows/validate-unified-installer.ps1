@@ -73,7 +73,7 @@ try {
     'VentioSetupBroker.exe', 'postgresql\bin\postgres.exe', 'postgresql\bin\initdb.exe',
     'postgresql\bin\pg_ctl.exe', 'postgresql\bin\psql.exe',
     'migrations\029_identity_device_activity.sql', 'migrations\030_identity_user_enable.sql',
-    'security\bootstrap.sql'
+    'security\bootstrap.sql', 'security\pairing_create.sql'
   )) {
     if (-not (Test-Path -LiteralPath (Join-Path $hostRoot $relative) -PathType Leaf)) {
       throw 'Unified installer is missing a required Host runtime component.'

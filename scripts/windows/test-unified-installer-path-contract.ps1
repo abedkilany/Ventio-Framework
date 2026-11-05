@@ -15,6 +15,7 @@ $hostLanInfo = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_na
 $hostServiceStop = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'stop-host-services.ps1') -Raw
 $hostRemoval = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'remove-host-installation.ps1') -Raw
 $databaseUpgrade = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'upgrade-host-database.ps1') -Raw
+$pairingCreateContract = Get-Content -LiteralPath (Join-Path $repoRoot 'security\postgres\pairing_create.sql') -Raw
 $setupBroker = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\Program.cs') -Raw
 $setupBrokerProject = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\VentioSetupBroker.csproj') -Raw
 $setupBrokerManifest = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\VentioSetupBroker.manifest') -Raw
@@ -138,6 +139,14 @@ Assert-Contract ($hostRemoval -match '(?s)if \(\$RemoveData\) \{\s*\[void\]\(Ass
 Assert-Contract ($hostRemoval -match '(?m)^\s*if \(\$null -eq \$postgres -and \$null -ne \$hostService\)') 'HOST_UNINSTALL_MUST_STILL_REJECT_HOST_ONLY_PARTIAL_SERVICE_STATE'
 Assert-Contract ($databaseUpgrade.Contains('Get-HostDataInventory')) 'HOST_UPGRADE_MUST_CREATE_A_VERIFIED_POSTGRES_BACKUP'
 Assert-Contract ($databaseUpgrade.Contains('$migrationRole')) 'HOST_UPGRADE_MUST_USE_A_DEDICATED_MIGRATOR_LOGIN'
+Assert-Contract ($databaseUpgrade.Contains('security\pairing_create.sql') -and
+  $databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_UPDATE_FAILED') -and
+  $databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_VERIFICATION_FAILED') -and
+  $databaseUpgrade.Contains('SET ROLE ventio_owner')) 'HOST_UPGRADE_MUST_APPLY_AND_VERIFY_THE_VERSIONED_PAIRING_CONTRACT_AS_OWNER'
+$pairingReplayIndex = $pairingCreateContract.IndexOf('Pairing request was already accepted', [StringComparison]::Ordinal)
+$pairingRateIndex = $pairingCreateContract.IndexOf('Pairing issue rate limit reached', [StringComparison]::Ordinal)
+Assert-Contract ($pairingReplayIndex -ge 0 -and $pairingRateIndex -gt $pairingReplayIndex -and
+  $pairingCreateContract.Contains('created_by_actor_id=credential_row.actor_id')) 'PAIRING_REPLAY_MUST_BE_SCOPED_AND_RECONCILED_BEFORE_RATE_LIMIT'
 
 $programFiles = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio'))
 $hostPayload = [IO.Path]::GetFullPath((Join-Path $programFiles 'host-payload'))

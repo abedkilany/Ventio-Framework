@@ -40,6 +40,18 @@ Success is HTTP 201. The random 256-bit pairing code appears only in this respon
 
 The PostgreSQL table stores only the SHA-256 digest of the pairing code. Pair issuance is limited to ten codes per creator, company, and branch in a fifteen-minute window. The code and digest are excluded from audit details and diagnostics.
 
+## Idempotent pairing creation v2
+
+The current Flutter Client uses `POST /api/v2/management/pairing/create`. It retains the v1 authorization rules and requires the same persistent bearer credential and exact-scope `identity.pairing.manage` grant. The Client generates a random `cor_<32 lowercase hex>` request reference before sending the mutation and stores that reference plus its target in its local SQLite state. It sends the value in both the `requestId` JSON field and the `X-Correlation-ID` header; the Host rejects a mismatch before mutation.
+
+The request reference determines the existing pairing primary key. PostgreSQL serialization and the primary key therefore prevent a retry from issuing another code for the same logical request. No new plaintext secret or code-recovery table is introduced. The first accepted request still returns the random code once. A replay after acceptance returns HTTP 409 `PAIRING_CODE_UNAVAILABLE`; the Host cannot reconstruct the code from its stored digest. The Client preserves the reference after a timeout or ambiguous server failure, retries only with the same reference and target, and waits for the prior five-minute pairing window to expire before requesting a replacement when the code cannot be recovered. Existing issuance rate limits remain in force for new request references; a replay of an already accepted reference is resolved before the limit check.
+
+The general device-management timeout remains 15 seconds. Pairing administration uses a bounded 120-second request timeout, with a 10-second maximum connection timeout. A connection failure before request transmission is reported as `HOST_CONNECTION_TIMEOUT` or `HOST_UNREACHABLE`; a transport timeout, malformed response, or unexpected 5xx after transmission is reported as `PAIRING_OUTCOME_UNKNOWN`. Explicit pre-mutation failures such as `PAIRING_DATABASE_UNAVAILABLE`, `RECOVERY_AUTHORITY_UNAVAILABLE`, and `RECOVERY_AUTHORITY_BUSY` remain distinct. The timeout does not cancel an in-progress Host transaction.
+
+The existing v1 creation route remains available for older clients. It does not provide request-reference deduplication. Upgrade the Host before using a Client build that sends v2; the Client does not fall back to unsafe v1 issuance when the Host lacks the v2 route.
+
+The SQL function contract is shared by initial bootstrap and the safe database-upgrade path. On upgrade, the installer first creates and verifies its protected PostgreSQL data backup, applies any migrations, then replaces and verifies the scoped pairing function using the dedicated migrator role temporarily set to `ventio_owner`. No pairing-table schema migration is required.
+
 ## Redeem a pairing code
 
 `POST /api/v1/pairing/redeem` is unauthenticated by design: possession of the short-lived code is the enrollment proof. Production network listeners require TLS at HostApi binding. The request is bounded, JSON-only, and subject to a ten-attempt per-source one-minute in-memory limit. The code is single-use and is consumed in the same admitted database transaction that creates the device and credential.

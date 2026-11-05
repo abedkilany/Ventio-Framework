@@ -26,6 +26,30 @@ abstract interface class DiagnosticEventSource {
   Future<String> exportJson({int limit = 100});
 }
 
+/// Durable, identity-bound recovery state for a pairing request whose response
+/// may have been lost. It stores only a random request reference, never a code.
+abstract interface class PairingRequestStateStore {
+  Future<PendingPairingOperation?> pendingPairingOperation(String identityKey);
+
+  Future<void> savePendingPairingOperation(
+    String identityKey,
+    String requestId,
+    String actorId,
+  );
+
+  Future<void> clearPendingPairingOperation(String identityKey);
+}
+
+class PendingPairingOperation {
+  const PendingPairingOperation({
+    required this.requestId,
+    required this.actorId,
+  });
+
+  final String requestId;
+  final String actorId;
+}
+
 /// Local, authentication-independent diagnostic persistence for failures that
 /// can happen before the Client reaches an authenticated Host.
 ///
@@ -34,7 +58,8 @@ abstract interface class DiagnosticEventSource {
 /// filesystem paths are not accepted by this API. A bounded exception class
 /// and symbol-only source frame may be retained locally for support; those
 /// protected fields are omitted from every export.
-class LocalDiagnosticsStore implements DiagnosticEventSource {
+class LocalDiagnosticsStore
+    implements DiagnosticEventSource, PairingRequestStateStore {
   LocalDiagnosticsStore._(this._database, this._clock);
 
   final Database _database;
@@ -49,7 +74,7 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 4,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -78,6 +103,17 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
             CREATE INDEX local_diagnostic_events_recent
             ON local_diagnostic_events(id DESC)
           ''');
+          await database.execute('''
+            CREATE TABLE local_pairing_operations (
+              identity_key TEXT PRIMARY KEY CHECK (length(identity_key) = 64),
+              request_id TEXT NOT NULL CHECK (
+                substr(request_id, 1, 4) = 'cor_' AND
+                length(request_id) = 36 AND
+                substr(request_id, 5) NOT GLOB '*[^a-f0-9]*'
+              ),
+              actor_id TEXT NOT NULL CHECK (length(trim(actor_id)) BETWEEN 1 AND 256)
+            )
+          ''');
         },
         onUpgrade: (database, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -93,6 +129,25 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
               'ALTER TABLE local_diagnostic_events '
               'ADD COLUMN protected_failure_source TEXT',
             );
+          }
+          if (oldVersion < 3) {
+            await database.execute('''
+              CREATE TABLE local_pairing_operations (
+                identity_key TEXT PRIMARY KEY CHECK (length(identity_key) = 64),
+                request_id TEXT NOT NULL CHECK (
+                  substr(request_id, 1, 4) = 'cor_' AND
+                  length(request_id) = 36 AND
+                  substr(request_id, 5) NOT GLOB '*[^a-f0-9]*'
+                ),
+                actor_id TEXT NOT NULL CHECK (length(trim(actor_id)) BETWEEN 1 AND 256)
+              )
+            ''');
+          }
+          if (oldVersion < 4 && oldVersion >= 3) {
+            await database.execute('''
+              ALTER TABLE local_pairing_operations
+              ADD COLUMN actor_id TEXT NOT NULL DEFAULT ''
+            ''');
           }
         },
       ),
@@ -173,6 +228,58 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
     });
   }
 
+  @override
+  Future<PendingPairingOperation?> pendingPairingOperation(
+    String identityKey,
+  ) async {
+    _ensureOpen();
+    _validatePairingIdentityKey(identityKey);
+    final rows = await _database.query(
+      'local_pairing_operations',
+      columns: ['request_id', 'actor_id'],
+      where: 'identity_key = ?',
+      whereArgs: [identityKey],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return PendingPairingOperation(
+      requestId: rows.single['request_id']! as String,
+      actorId: rows.single['actor_id']! as String,
+    );
+  }
+
+  @override
+  Future<void> savePendingPairingOperation(
+    String identityKey,
+    String requestId,
+    String actorId,
+  ) async {
+    _ensureOpen();
+    _validatePairingIdentityKey(identityKey);
+    if (!RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(requestId)) {
+      throw ArgumentError('Invalid pending pairing request reference.');
+    }
+    if (actorId.trim().isEmpty || actorId.length > 256) {
+      throw ArgumentError('Invalid pending pairing target.');
+    }
+    await _database.insert('local_pairing_operations', {
+      'identity_key': identityKey,
+      'request_id': requestId,
+      'actor_id': actorId,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
+  Future<void> clearPendingPairingOperation(String identityKey) async {
+    _ensureOpen();
+    _validatePairingIdentityKey(identityKey);
+    await _database.delete(
+      'local_pairing_operations',
+      where: 'identity_key = ?',
+      whereArgs: [identityKey],
+    );
+  }
+
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
@@ -181,6 +288,12 @@ class LocalDiagnosticsStore implements DiagnosticEventSource {
 
   void _ensureOpen() {
     if (_closed) throw StateError('Local diagnostics store is closed.');
+  }
+}
+
+void _validatePairingIdentityKey(String identityKey) {
+  if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(identityKey)) {
+    throw ArgumentError('Invalid pairing identity key.');
   }
 }
 

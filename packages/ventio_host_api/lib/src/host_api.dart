@@ -12,6 +12,7 @@ import 'extension_packages.dart';
 import 'extension_records.dart';
 import 'management.dart';
 import 'pairing_administration.dart';
+import 'recovery_authority.dart';
 import 'role_administration.dart';
 import 'user_administration.dart';
 
@@ -172,7 +173,9 @@ class HostApi {
   }
 
   Future<void> _handleSafely(HttpRequest request) async {
-    final correlationId = _newCorrelationId();
+    final correlationId = _isPairingCreatePath(request.uri.path)
+        ? _pairingCorrelationId(request) ?? _newCorrelationId()
+        : _newCorrelationId();
     request.response.headers.set('X-Correlation-ID', correlationId);
     // Subscribe immediately so dart:io does not implicitly drain an unbounded
     // unauthenticated body before sending an early error response.
@@ -239,9 +242,8 @@ class HostApi {
           correlationId: correlationId,
           retryable: error.retryable,
           messageKey: 'host_api.error.${error.code.toLowerCase()}',
-          safeExplanation: 'The device pairing request could not be completed.',
-          recommendedAction:
-              'Check the pairing state and request a new code if it expired.',
+          safeExplanation: _pairingFailureExplanation(error),
+          recommendedAction: _pairingFailureAction(error),
           protectedTechnicalCode: error.protectedTechnicalCode,
         ),
       );
@@ -252,6 +254,31 @@ class HostApi {
         correlationId: correlationId,
         retryable: error.retryable,
         retryAfterSeconds: error.retryAfterSeconds,
+        pairingExpiresAtUtc: error.pairingExpiresAtUtc,
+      );
+    } on RecoveryAdmissionUnavailable {
+      await _recordDiagnostic(
+        ManagementDiagnosticEvent(
+          code: 'RECOVERY_AUTHORITY_UNAVAILABLE',
+          component: 'recovery.authority',
+          category: ManagementDiagnosticCategory.recovery,
+          severity: ManagementDiagnosticSeverity.warning,
+          occurredAtUtc: DateTime.now().toUtc(),
+          correlationId: correlationId,
+          retryable: true,
+          messageKey: 'host_api.error.recovery_authority_unavailable',
+          safeExplanation:
+              'Recovery Authority admission is pending or unavailable; no request was accepted.',
+          recommendedAction:
+              'Wait for protected Recovery Authority readiness, then retry the same operation reference.',
+        ),
+      );
+      await _error(
+        request,
+        503,
+        'RECOVERY_AUTHORITY_UNAVAILABLE',
+        correlationId: correlationId,
+        retryable: true,
       );
     } on IdentityDeviceAdministrationException catch (error) {
       await _recordDiagnostic(
@@ -280,15 +307,37 @@ class HostApi {
     } catch (error, stackTrace) {
       // Never return exception text, database details, tokens, or request bodies.
       // Any execution exception may have an ambiguous commit outcome.
-      await _recordInternalFailure(
-        correlationId,
-        protectedFailureType: error.runtimeType.toString(),
-        protectedFailureSource: _protectedFailureSource(stackTrace),
-      );
+      final pairingOutcomeUnknown = _isPairingCreatePath(request.uri.path);
+      if (pairingOutcomeUnknown) {
+        await _recordDiagnostic(
+          ManagementDiagnosticEvent(
+            code: 'PAIRING_OUTCOME_UNKNOWN',
+            component: 'identity.pairing',
+            category: ManagementDiagnosticCategory.pairing,
+            severity: ManagementDiagnosticSeverity.error,
+            occurredAtUtc: DateTime.now().toUtc(),
+            correlationId: correlationId,
+            retryable: true,
+            messageKey: 'host_api.error.pairing_outcome_unknown',
+            safeExplanation:
+                'Pairing processing failed unexpectedly; Host acceptance cannot be confirmed.',
+            recommendedAction:
+                'Retry only with the same request reference and target.',
+            protectedFailureType: error.runtimeType.toString(),
+            protectedFailureSource: _protectedFailureSource(stackTrace),
+          ),
+        );
+      } else {
+        await _recordInternalFailure(
+          correlationId,
+          protectedFailureType: error.runtimeType.toString(),
+          protectedFailureSource: _protectedFailureSource(stackTrace),
+        );
+      }
       await _error(
         request,
         503,
-        'HOST_UNAVAILABLE',
+        pairingOutcomeUnknown ? 'PAIRING_OUTCOME_UNKNOWN' : 'HOST_UNAVAILABLE',
         correlationId: correlationId,
         retryable: true,
       );
@@ -360,7 +409,10 @@ class HostApi {
         request.uri.path == '/api/v1/extensions/reports/query';
     final identityRoleRoute = _identityRoleAction(request.uri.path);
     final identityUserRoute = _identityUserAction(request.uri.path);
+    final pairingCreateV2Route =
+        request.uri.path == HostManagementRoutes.pairingCreateV2;
     final pairingCreateRoute =
+        pairingCreateV2Route ||
         request.uri.path == HostManagementRoutes.pairingCreate;
     final identityDeviceAction = _identityDeviceAction(request.uri.path);
     final sessionRoute = request.uri.path == '/api/v1/session';
@@ -520,7 +572,13 @@ class HostApi {
       return;
     }
     if (pairingCreateRoute) {
-      await _handlePairingCreate(request, json, session, correlationId);
+      await _handlePairingCreate(
+        request,
+        json,
+        session,
+        correlationId,
+        requireRequestId: pairingCreateV2Route,
+      );
       return;
     }
     if (identityRoleRoute != null) {
@@ -644,14 +702,32 @@ class HostApi {
     HttpRequest request,
     Map<String, dynamic> json,
     AuthenticatedSession session,
-    String correlationId,
-  ) async {
-    const keys = {'managementApiVersion', 'companyId', 'branchId', 'actorId'};
-    if (json.keys.toSet().length != keys.length ||
-        !json.keys.toSet().containsAll(keys) ||
+    String correlationId, {
+    required bool requireRequestId,
+  }) async {
+    const requiredKeys = {
+      'managementApiVersion',
+      'companyId',
+      'branchId',
+      'actorId',
+    };
+    final allowedKeys = requireRequestId
+        ? {...requiredKeys, 'requestId'}
+        : requiredKeys;
+    if (!json.keys.toSet().containsAll(requiredKeys) ||
+        json.keys.any((key) => !allowedKeys.contains(key)) ||
         json['managementApiVersion'] != managementApiVersion) {
       throw const _ApiError(400, 'INVALID_REQUEST');
     }
+    final requestIdValue = json['requestId'];
+    if ((requireRequestId && requestIdValue == null) ||
+        (requestIdValue != null &&
+            (requestIdValue is! String ||
+                !RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(requestIdValue) ||
+                requestIdValue != correlationId))) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final requestId = requestIdValue as String? ?? correlationId;
     final companyId = _boundedIdentifier(json, 'companyId');
     final branchId = _boundedIdentifier(json, 'branchId');
     final actorId = _boundedIdentifier(json, 'actorId');
@@ -665,19 +741,98 @@ class HostApi {
         statusCode: 403,
       );
     }
-    final pairing = await _identityPairing!.create(
+    final totalWatch = Stopwatch()..start();
+    await _recordDiagnostic(
+      ManagementDiagnosticEvent(
+        code: 'PAIRING_REQUEST_STARTED',
+        component: 'identity.pairing',
+        category: ManagementDiagnosticCategory.pairing,
+        severity: ManagementDiagnosticSeverity.info,
+        occurredAtUtc: DateTime.now().toUtc(),
+        correlationId: correlationId,
+        retryable: false,
+        messageKey: 'host_api.pairing.request_started',
+        safeExplanation: 'An authorized Host pairing request started.',
+        recommendedAction: 'No pairing secret or request body is retained.',
+      ),
+    );
+    final result = await _identityPairing!.create(
       session: session,
       companyId: companyId,
       branchId: branchId,
       actorId: actorId,
+      requestId: requestId,
+    );
+    await _recordDiagnostic(
+      ManagementDiagnosticEvent(
+        code: 'PAIRING_CREATED',
+        component: 'identity.pairing',
+        category: ManagementDiagnosticCategory.pairing,
+        severity: ManagementDiagnosticSeverity.info,
+        occurredAtUtc: DateTime.now().toUtc(),
+        correlationId: correlationId,
+        retryable: false,
+        messageKey: 'host_api.pairing.created',
+        safeExplanation:
+            'The Host committed a pairing request in '
+            '${totalWatch.elapsedMilliseconds}ms '
+            '(${result.timings.toSafeSummary()}).',
+        recommendedAction:
+            'The one-time code is returned only in the authenticated response.',
+      ),
     );
     _json(request, 201, {
       'apiVersion': 1,
       'managementApiVersion': managementApiVersion,
       'correlationId': correlationId,
-      'pairing': pairing,
+      'pairing': result.pairing,
     });
   }
+
+  String? _pairingCorrelationId(HttpRequest request) {
+    final values = request.headers['X-Correlation-ID'];
+    if (values == null || values.length != 1) return null;
+    final value = values.single;
+    return RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(value) ? value : null;
+  }
+
+  bool _isPairingCreatePath(String path) =>
+      path == HostManagementRoutes.pairingCreate ||
+      path == HostManagementRoutes.pairingCreateV2;
+
+  String _pairingFailureExplanation(IdentityPairingException error) {
+    final explanation = switch (error.code) {
+      'PAIRING_CODE_UNAVAILABLE' =>
+        'A prior request was accepted, but its one-time code cannot be recovered. The prior code expires within five minutes of its creation.',
+      'PAIRING_DATABASE_UNAVAILABLE' =>
+        'The Host could not acquire or connect an administration database session before pairing mutation.',
+      'PAIRING_OUTCOME_UNKNOWN' =>
+        'The pairing mutation outcome could not be confirmed; Recovery Authority remains fail-closed.',
+      'RECOVERY_AUTHORITY_UNAVAILABLE' =>
+        'Recovery Authority rejected or could not admit the pairing mutation.',
+      'RECOVERY_AUTHORITY_BUSY' =>
+        'Recovery Authority serialization reached its bounded wait limit.',
+      _ => 'The device pairing request could not be completed.',
+    };
+    final timing = error.safeTimingSummary;
+    return timing == null ? explanation : '$explanation Timing: $timing.';
+  }
+
+  String _pairingFailureAction(
+    IdentityPairingException error,
+  ) => switch (error.code) {
+    'PAIRING_CODE_UNAVAILABLE' =>
+      'Keep the same request reference. The original one-time code cannot be retrieved; wait at least five minutes from this response before requesting a replacement.',
+    'PAIRING_DATABASE_UNAVAILABLE' =>
+      'Check Host database readiness, then retry using the same request reference if this operation was previously attempted.',
+    'PAIRING_OUTCOME_UNKNOWN' =>
+      'Retry only with the same request reference. Do not create a replacement until the outcome is reconciled.',
+    'RECOVERY_AUTHORITY_BUSY' =>
+      'Wait briefly, then retry with the same request reference.',
+    'RECOVERY_AUTHORITY_UNAVAILABLE' =>
+      'Check protected Recovery Authority readiness before issuing another pairing request.',
+    _ => 'Check the pairing state and request a new code if it expired.',
+  };
 
   Future<void> _handlePairingRedeem(
     HttpRequest request,
@@ -1547,6 +1702,7 @@ class HostApi {
     required String correlationId,
     bool retryable = false,
     int? retryAfterSeconds,
+    DateTime? pairingExpiresAtUtc,
   }) async {
     try {
       if (status == 401)
@@ -1578,6 +1734,14 @@ class HostApi {
               'The pairing code is invalid, expired, or already used.',
             'PAIRING_RATE_LIMITED' =>
               'Too many pairing attempts were made. Wait and try again.',
+            'PAIRING_OUTCOME_UNKNOWN' =>
+              'The pairing request may have been accepted. Retry only with the same request reference.',
+            'PAIRING_CODE_UNAVAILABLE' =>
+              'This request was already accepted. Its one-time pairing code cannot be recovered.',
+            'RECOVERY_AUTHORITY_UNAVAILABLE' =>
+              'Recovery Authority could not safely admit the pairing request.',
+            'RECOVERY_AUTHORITY_BUSY' =>
+              'Recovery Authority is busy. Retry with the same request reference.',
             'DEVICE_ALREADY_REGISTERED' =>
               'This device identity is already registered.',
             'PAIRING_TARGET_UNAVAILABLE' =>
@@ -1585,6 +1749,10 @@ class HostApi {
             _ => 'The request could not be processed.',
           },
           'retryable': retryable,
+          if (pairingExpiresAtUtc != null)
+            'pairingExpiresAtUtc': pairingExpiresAtUtc
+                .toUtc()
+                .toIso8601String(),
         },
       });
     } catch (_) {

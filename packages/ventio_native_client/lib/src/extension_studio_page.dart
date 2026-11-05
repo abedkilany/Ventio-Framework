@@ -331,28 +331,48 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         vault == null) {
       return;
     }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (context) => DeviceManagementPage(
-          client: HostDeviceManagementClient(
-            endpoint: Uri.parse(profile.endpoint),
-            credentials: vault,
-            verifiedIdentity: identity,
-            companyId: profile.companyId,
-            branchId: profile.branchId,
+    DiagnosticEventSource? diagnosticSource = widget.diagnosticEventSource;
+    LocalDiagnosticsStore? ownedDiagnosticsStore;
+    if (diagnosticSource == null) {
+      try {
+        ownedDiagnosticsStore = await openDefaultLocalDiagnosticsStore();
+        diagnosticSource = ownedDiagnosticsStore;
+      } catch (_) {
+        // Device administration remains available if local diagnostics cannot
+        // be opened; unknown operations still stay safe within this session.
+      }
+    }
+    if (!mounted) {
+      await ownedDiagnosticsStore?.close();
+      return;
+    }
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (context) => DeviceManagementPage(
+            client: HostDeviceManagementClient(
+              endpoint: Uri.parse(profile.endpoint),
+              credentials: vault,
+              verifiedIdentity: identity,
+              companyId: profile.companyId,
+              branchId: profile.branchId,
+            ),
+            diagnosticEventSource: diagnosticSource,
+            userDirectory: _canManageUsers
+                ? HostUserManagementClient(
+                    endpoint: Uri.parse(profile.endpoint),
+                    credentials: vault,
+                    verifiedIdentity: identity,
+                    companyId: profile.companyId,
+                    branchId: profile.branchId,
+                  )
+                : null,
           ),
-          userDirectory: _canManageUsers
-              ? HostUserManagementClient(
-                  endpoint: Uri.parse(profile.endpoint),
-                  credentials: vault,
-                  verifiedIdentity: identity,
-                  companyId: profile.companyId,
-                  branchId: profile.branchId,
-                )
-              : null,
         ),
-      ),
-    );
+      );
+    } finally {
+      await ownedDiagnosticsStore?.close();
+    }
     await _refreshHostIdentity();
   }
 

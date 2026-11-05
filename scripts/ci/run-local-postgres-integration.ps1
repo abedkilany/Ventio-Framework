@@ -6,7 +6,7 @@ param(
     [switch] $ClientOfflineIntegration,
     [switch] $HostProcessIntegration,
     [switch] $HostDiagnosticsProcessIntegration,
-    [ValidateSet('api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart')]
+    [ValidateSet('api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'recovery_integration.dart')]
     [string] $OnlyHostSuite
 )
 
@@ -92,6 +92,14 @@ try {
             if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL least-privilege role bootstrap failed.' }
             & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio -d ventio_host_test -f (Join-Path $workspace 'security\postgres\test_logins.sql')
             if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL integration login setup failed.' }
+            $env:PGPASSWORD = 'migration_test_only'
+            $pairingCreateContract = Join-Path $workspace 'security\postgres\pairing_create.sql'
+            & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio_migration_test -d ventio_host_test -v ON_ERROR_STOP=1 -c 'SET ROLE ventio_owner' -f $pairingCreateContract
+            if ($LASTEXITCODE -ne 0) { throw 'Restricted pairing contract upgrade failed.' }
+            $pairingContractReady = & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio_migration_test -d ventio_host_test -Atc "SET ROLE ventio_owner; SELECT position('Pairing request was already accepted' IN pg_get_functiondef('ventio_security.scoped_pairing_create(text,text,text,text,text,text)'::regprocedure)) > 0"
+            $pairingContractMatch = [regex]::Match([string]::Join(' ', @($pairingContractReady)).Trim(), '(?:^|\s)(t|f)$')
+            if ($LASTEXITCODE -ne 0 -or -not $pairingContractMatch.Success -or $pairingContractMatch.Groups[1].Value -cne 't') { throw 'Restricted pairing contract upgrade verification failed.' }
+            Write-Output 'PASS: The restricted migrator applies and verifies the pairing request idempotency contract.'
         }
         finally {
             Pop-Location

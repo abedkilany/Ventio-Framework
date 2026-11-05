@@ -7,6 +7,67 @@ import 'package:postgres/postgres.dart' as pg;
 import 'authentication.dart';
 import 'private_files.dart';
 
+/// Bounded, non-sensitive timings for one recovery-admitted mutation.
+/// Durations may be included in protected diagnostics; witness contents and
+/// database fingerprints are deliberately absent.
+class RecoveryMutationTimings {
+  int authorityLockAcquisitionMs = 0;
+  int authorityQueueWaitMs = 0;
+  int authorityLockFileSetupMs = 0;
+  int authorityOsLockWaitMs = 0;
+  int witnessReadMs = 0;
+  int witnessPendingWriteMs = 0;
+  int databaseAdvisoryLockMs = 0;
+  int databaseFingerprintBeforeMs = 0;
+  int databaseMutationMs = 0;
+  int databaseFingerprintAfterMs = 0;
+  int databaseTransactionMs = 0;
+  int witnessFinalizeMs = 0;
+
+  /// Residual transaction time not attributed to the measured queries. The
+  /// PostgreSQL driver does not expose a separate COMMIT round-trip timer.
+  int get databaseTransactionResidualMs {
+    final measured =
+        databaseAdvisoryLockMs +
+        databaseFingerprintBeforeMs +
+        databaseMutationMs +
+        databaseFingerprintAfterMs;
+    return (databaseTransactionMs - measured).clamp(0, 1 << 31);
+  }
+
+  String toSafeSummary() =>
+      'authority_lock_acquisition=${authorityLockAcquisitionMs}ms, '
+      'authority_queue_wait=${authorityQueueWaitMs}ms, '
+      'authority_lockfile_setup=${authorityLockFileSetupMs}ms, '
+      'authority_os_lock_wait=${authorityOsLockWaitMs}ms, '
+      'witness_read=${witnessReadMs}ms, '
+      'witness_pending_write=${witnessPendingWriteMs}ms, '
+      'db_lock=${databaseAdvisoryLockMs}ms, '
+      'db_fingerprint_before=${databaseFingerprintBeforeMs}ms, '
+      'db_mutation=${databaseMutationMs}ms, '
+      'db_fingerprint_after=${databaseFingerprintAfterMs}ms, '
+      'db_transaction_residual=${databaseTransactionResidualMs}ms, '
+      'witness_finalize=${witnessFinalizeMs}ms';
+}
+
+/// PostgreSQL may have committed, but the caller could not confirm the result
+/// or finalize the independent witness. Recovery admission remains fail-closed.
+class RecoveryMutationOutcomeUnknown implements Exception {
+  const RecoveryMutationOutcomeUnknown(this.timings);
+
+  final RecoveryMutationTimings timings;
+}
+
+/// Recovery admission failed before the mutation commit was attempted.
+class RecoveryAdmissionUnavailable implements Exception {
+  const RecoveryAdmissionUnavailable();
+}
+
+/// The bounded Recovery Authority serialization window was exhausted.
+class RecoveryAuthorityBusy implements Exception {
+  const RecoveryAuthorityBusy();
+}
+
 /// A latest-state witness kept OUTSIDE the database and its backup/rollback domain.
 /// Its directory and update authority are trusted operator infrastructure. A copy
 /// stored/restored with PostgreSQL is not an independent recovery authority.
@@ -202,7 +263,17 @@ class RecoveryAuthority {
   static Future<String> _snapshotInTransaction(pg.TxSession tx) => snapshot(tx);
 
   Future<void> admit(pg.TxSession tx) async {
-    final state = await _read();
+    final Map<String, dynamic> state;
+    try {
+      state = await _read();
+    } on RecoveryAdmissionUnavailable {
+      rethrow;
+    } catch (_) {
+      // A pending, missing, malformed, or inaccessible independent witness
+      // must reject admission as a typed safe failure. It is not a database
+      // authorization result and must not be surfaced as a generic Host error.
+      throw const RecoveryAdmissionUnavailable();
+    }
     await _admitState(tx, state);
   }
 
@@ -222,17 +293,46 @@ class RecoveryAuthority {
           )).single[0]
           as String;
 
-  Future<T> _exclusive<T>(Future<T> Function() body) async {
+  Future<T> _exclusive<T>(
+    Future<T> Function() body, {
+    Duration? timeout,
+    RecoveryMutationTimings? timings,
+  }) async {
+    if (timeout != null && timeout <= Duration.zero) {
+      throw ArgumentError('Recovery lock timeout must be positive.');
+    }
+    final acquisitionWatch = Stopwatch()..start();
+    final queueWatch = Stopwatch()..start();
     final previous = _tails[path] ?? Future<void>.value();
     final release = Completer<void>();
     _tails[path] = release.future;
-    await previous;
+    var enteredQueue = false;
+    var acquired = false;
     RandomAccessFile? lock;
     try {
+      try {
+        if (timeout == null) {
+          await previous;
+        } else {
+          await previous.timeout(timeout);
+        }
+        enteredQueue = true;
+      } on TimeoutException {
+        if (timings != null) {
+          timings.authorityQueueWaitMs = queueWatch.elapsedMilliseconds;
+          timings.authorityLockAcquisitionMs =
+              acquisitionWatch.elapsedMilliseconds;
+        }
+        throw const RecoveryAuthorityBusy();
+      }
+      if (timings != null) {
+        timings.authorityQueueWaitMs = queueWatch.elapsedMilliseconds;
+      }
       if ((trustedOwnerUid != null || trustedOwnerSid != null) &&
           !allowHostMutations)
         throw StateError('Read-only Host cannot administer authority');
       final lockPath = '$path.lock';
+      final lockFileSetupWatch = Stopwatch()..start();
       try {
         if (readerGroupId == null && readerSid == null) {
           await PrivateFiles.create(lockPath, {'lock': 1});
@@ -258,16 +358,66 @@ class RecoveryAuthority {
       }
       // OS lock serializes independent administration processes; the queue above
       // also serializes separate authority objects in this Dart process.
-      lock = await File(lockPath).open(mode: FileMode.append);
-      await lock.lock(FileLock.blockingExclusive);
+      final openedLock = await File(lockPath).open(mode: FileMode.append);
+      lock = openedLock;
+      if (timings != null) {
+        timings.authorityLockFileSetupMs =
+            lockFileSetupWatch.elapsedMilliseconds;
+      }
+      final osLockWatch = Stopwatch()..start();
+      if (timeout == null) {
+        await openedLock.lock(FileLock.exclusive);
+      } else {
+        final lockWatch = Stopwatch()..start();
+        while (true) {
+          try {
+            await openedLock.lock(FileLock.exclusive);
+            break;
+          } on FileSystemException catch (error) {
+            final code = error.osError?.errorCode;
+            if (code != 11 && code != 32 && code != 33) rethrow;
+            if (lockWatch.elapsed >= timeout) {
+              throw const RecoveryAuthorityBusy();
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+          }
+        }
+      }
+      if (timings != null) {
+        timings.authorityOsLockWaitMs = osLockWatch.elapsedMilliseconds;
+        timings.authorityLockAcquisitionMs =
+            acquisitionWatch.elapsedMilliseconds;
+      }
+      acquired = true;
       return await body();
+    } catch (_) {
+      if (timings != null && !acquired) {
+        timings.authorityLockAcquisitionMs =
+            acquisitionWatch.elapsedMilliseconds;
+      }
+      rethrow;
     } finally {
       if (lock != null) {
-        await lock.unlock();
+        try {
+          await lock.unlock();
+        } catch (_) {
+          // Closing the handle releases a platform file lock if unlock failed.
+        }
         await lock.close();
       }
-      release.complete();
-      if (identical(_tails[path], release.future)) _tails.remove(path);
+      if (enteredQueue) {
+        release.complete();
+        if (identical(_tails[path], release.future)) _tails.remove(path);
+      } else {
+        // Preserve queue order after a timed-out waiter; it must not let later
+        // operations enter while the operation ahead of it still holds the lock.
+        unawaited(
+          previous.whenComplete(() {
+            if (!release.isCompleted) release.complete();
+            if (identical(_tails[path], release.future)) _tails.remove(path);
+          }),
+        );
+      }
     }
   }
 
@@ -312,43 +462,128 @@ class RecoveryAuthority {
     pg.Connection db,
     Future<void> Function(pg.TxSession) action, {
     bool requireAdmissionProof = false,
-  }) => _exclusive(() async {
-    final state = await _read();
-    // Validate under the SAME exclusive DB lock as the mutation. Another
-    // admin process using raw RPCs cannot slip a stale change in between.
-    await _replace({...state, 'pending': true});
-    await testBarrier?.call('before_database');
+  }) async {
+    await changeMeasured(
+      db,
+      action,
+      requireAdmissionProof: requireAdmissionProof,
+    );
+  }
+
+  /// Performs the same crash-consistent, serialized mutation as [change] and
+  /// returns stage timings for protected diagnostics. It never weakens the
+  /// independent witness or database fingerprint checks.
+  Future<RecoveryMutationTimings> changeMeasured(
+    pg.Connection db,
+    Future<void> Function(pg.TxSession) action, {
+    bool requireAdmissionProof = false,
+    Duration? lockTimeout,
+    void Function(RecoveryMutationTimings timings)? onTimings,
+  }) async {
+    final timings = RecoveryMutationTimings();
+    Map<String, dynamic>? priorState;
     var rejectedBeforeCommit = false;
-    late String fingerprint;
+    var commitAttempted = false;
+    var databaseCommitted = false;
     try {
-      fingerprint = await db.runTx((tx) async {
-        await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
-        if (await snapshot(tx) != state['fingerprint']) {
-          throw StateError('Recovery evidence does not match database');
-        }
-        if (requireAdmissionProof) await _admitState(tx, state);
-        try {
-          await action(tx);
-        } on pg.ServerException {
-          rejectedBeforeCommit = true;
-          rethrow;
-        }
-        await testBarrier?.call('before_commit');
-        return snapshot(tx);
-      });
-    } catch (_) {
-      if (rejectedBeforeCommit) {
-        // No COMMIT was sent: restore ready evidence only when the exact
-        // previously trusted state is still present after rollback.
-        final unchanged = await db.runTx((tx) async {
-          await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
-          return await snapshot(tx) == state['fingerprint'];
-        });
-        if (unchanged) await _replace(state);
-      }
+      return await _exclusive(
+        () async {
+          var stageWatch = Stopwatch()..start();
+          final state = await _read();
+          priorState = state;
+          timings.witnessReadMs = stageWatch.elapsedMilliseconds;
+
+          stageWatch = Stopwatch()..start();
+          await _replace({...state, 'pending': true});
+          timings.witnessPendingWriteMs = stageWatch.elapsedMilliseconds;
+          await testBarrier?.call('before_database');
+
+          stageWatch = Stopwatch()..start();
+          final fingerprint = await db.runTx((tx) async {
+            var queryWatch = Stopwatch()..start();
+            await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
+            timings.databaseAdvisoryLockMs = queryWatch.elapsedMilliseconds;
+
+            queryWatch = Stopwatch()..start();
+            final before = await snapshot(tx);
+            timings.databaseFingerprintBeforeMs =
+                queryWatch.elapsedMilliseconds;
+            if (before != state['fingerprint']) {
+              throw StateError('Recovery evidence does not match database');
+            }
+            if (requireAdmissionProof) await _admitState(tx, state);
+
+            queryWatch = Stopwatch()..start();
+            try {
+              await action(tx);
+            } on pg.ServerException {
+              rejectedBeforeCommit = true;
+              rethrow;
+            }
+            timings.databaseMutationMs = queryWatch.elapsedMilliseconds;
+            await testBarrier?.call('before_commit');
+
+            queryWatch = Stopwatch()..start();
+            final after = await snapshot(tx);
+            timings.databaseFingerprintAfterMs = queryWatch.elapsedMilliseconds;
+            // A failure after this point can leave COMMIT's result ambiguous.
+            commitAttempted = true;
+            return after;
+          });
+          timings.databaseTransactionMs = stageWatch.elapsedMilliseconds;
+          databaseCommitted = true;
+
+          try {
+            await testBarrier?.call('after_commit');
+            stageWatch = Stopwatch()..start();
+            await _replace({
+              ...state,
+              'pending': false,
+              'fingerprint': fingerprint,
+            });
+            timings.witnessFinalizeMs = stageWatch.elapsedMilliseconds;
+          } catch (_) {
+            throw RecoveryMutationOutcomeUnknown(timings);
+          }
+          return timings;
+        },
+        timeout: lockTimeout,
+        timings: timings,
+      );
+    } on RecoveryMutationOutcomeUnknown {
       rethrow;
+    } catch (error, stackTrace) {
+      if (commitAttempted || databaseCommitted) {
+        throw RecoveryMutationOutcomeUnknown(timings);
+      }
+      if (rejectedBeforeCommit && priorState != null) {
+        try {
+          // No COMMIT was sent: restore ready evidence only when PostgreSQL
+          // still matches the exact previously trusted snapshot.
+          final unchanged = await db.runTx((tx) async {
+            await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
+            return await snapshot(tx) == priorState!['fingerprint'];
+          });
+          if (unchanged) {
+            await _replace(priorState!);
+          } else {
+            throw const RecoveryAdmissionUnavailable();
+          }
+        } catch (_) {
+          throw const RecoveryAdmissionUnavailable();
+        }
+      }
+      if (error is pg.ServerException) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      if (error is RecoveryAuthorityBusy) rethrow;
+      throw const RecoveryAdmissionUnavailable();
+    } finally {
+      try {
+        onTimings?.call(timings);
+      } catch (_) {
+        // Observability callbacks never alter a recovery mutation outcome.
+      }
     }
-    await testBarrier?.call('after_commit');
-    await _replace({...state, 'pending': false, 'fingerprint': fingerprint});
-  });
+  }
 }

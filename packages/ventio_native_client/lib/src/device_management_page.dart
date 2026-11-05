@@ -1,19 +1,29 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
 import 'host_device_management.dart';
 import 'host_user_management.dart';
+import 'local_diagnostics.dart';
 
 class DeviceManagementPage extends StatefulWidget {
   const DeviceManagementPage({
     required this.client,
     this.userDirectory,
+    this.diagnosticEventSource,
+    this.pairingRequestStateStore,
     super.key,
   });
 
   final HostDeviceManagementClient client;
   final HostUserManagementClient? userDirectory;
+  final DiagnosticEventSource? diagnosticEventSource;
+  final PairingRequestStateStore? pairingRequestStateStore;
 
   @override
   State<DeviceManagementPage> createState() => _DeviceManagementPageState();
@@ -31,12 +41,106 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   bool _loadingUsers = false;
   bool _userDirectoryFailed = false;
   bool _busy = false;
+  bool _restoringPairingRequest = false;
+  String? _pairingRequestId;
+  String? _pendingPairingActorId;
+  DateTime? _pairingCodeExpiresAtUtc;
+  Timer? _pairingExpiryTimer;
 
   @override
   void initState() {
     super.initState();
+    if (_pairingStateStore != null) {
+      _restoringPairingRequest = true;
+      _restorePairingRequest();
+    }
     if (widget.client.canManageDevices) _load();
     if (widget.userDirectory?.canManageUsers ?? false) _loadUsers();
+  }
+
+  Future<void> _restorePairingRequest() async {
+    try {
+      final store = _pairingStateStore;
+      if (store != null) {
+        final pending = await store.pendingPairingOperation(
+          _pairingIdentityKey,
+        );
+        if (mounted && pending != null) {
+          final validActor = _safePairingActorId(pending.actorId)
+              ? pending.actorId
+              : null;
+          setState(() {
+            _pairingRequestId = pending.requestId;
+            _pendingPairingActorId = validActor;
+            if (validActor == null) {
+              // A request written by an older app version did not preserve its
+              // target. Keep it unretryable until the full code lifetime has
+              // elapsed, then allow a safe replacement.
+              _pairingCodeExpiresAtUtc = DateTime.now().toUtc().add(
+                const Duration(minutes: 5),
+              );
+            } else {
+              _actorId.text = validActor;
+            }
+          });
+          if (validActor == null) {
+            _schedulePairingExpiryRefresh(_pairingCodeExpiresAtUtc);
+          }
+        }
+      }
+    } catch (_) {
+      // Pairing remains available when the optional diagnostic store cannot be
+      // read; the in-memory request ID still makes same-session retries safe.
+    } finally {
+      if (mounted) setState(() => _restoringPairingRequest = false);
+    }
+  }
+
+  String get _pairingIdentityKey => sha256
+      .convert(
+        utf8.encode(
+          [
+            widget.client.endpoint.toString(),
+            widget.client.verifiedIdentity.tenantId,
+            widget.client.verifiedIdentity.actorId,
+            widget.client.verifiedIdentity.deviceId,
+            widget.client.companyId,
+            widget.client.branchId,
+          ].join('\n'),
+        ),
+      )
+      .toString();
+
+  PairingRequestStateStore? get _pairingStateStore =>
+      widget.pairingRequestStateStore ??
+      (widget.diagnosticEventSource is PairingRequestStateStore
+          ? widget.diagnosticEventSource! as PairingRequestStateStore
+          : null);
+
+  Future<void> _savePairingRequestId(String requestId) async {
+    final store = _pairingStateStore;
+    if (store != null) {
+      final actorId = _pendingPairingActorId;
+      if (actorId == null) {
+        throw StateError('Pending pairing target is missing.');
+      }
+      await store.savePendingPairingOperation(
+        _pairingIdentityKey,
+        requestId,
+        actorId,
+      );
+      return;
+    }
+    throw StateError('Durable pending pairing storage is unavailable.');
+  }
+
+  Future<void> _clearPairingRequestId() async {
+    final store = _pairingStateStore;
+    if (store != null) {
+      await store.clearPendingPairingOperation(_pairingIdentityKey);
+      return;
+    }
+    throw StateError('Durable pending pairing storage is unavailable.');
   }
 
   Future<void> _loadUsers() async {
@@ -85,8 +189,19 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
 
   @override
   void dispose() {
+    _pairingExpiryTimer?.cancel();
     _actorId.dispose();
     super.dispose();
+  }
+
+  void _schedulePairingExpiryRefresh(DateTime? expiresAtUtc) {
+    _pairingExpiryTimer?.cancel();
+    if (expiresAtUtc == null) return;
+    final delay = expiresAtUtc.toUtc().difference(DateTime.now().toUtc());
+    if (delay <= Duration.zero) return;
+    _pairingExpiryTimer = Timer(delay, () {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _load() async {
@@ -114,33 +229,231 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   }
 
   Future<void> _createPairing() async {
-    final actorId = widget.userDirectory?.canManageUsers == true
+    if (_busy || _restoringPairingRequest || !widget.client.canCreatePairings) {
+      return;
+    }
+    if (_pairingStateStore == null) {
+      if (mounted) {
+        setState(
+          () => _error = const HostDeviceManagementException(
+            'LOCAL_PAIRING_STATE_UNAVAILABLE',
+          ),
+        );
+      }
+      return;
+    }
+    final previousRequestId = _pairingRequestId;
+    final now = DateTime.now().toUtc();
+    final previousWindowExpired =
+        previousRequestId != null &&
+        _pairingCodeExpiresAtUtc != null &&
+        !_pairingCodeExpiresAtUtc!.isAfter(now);
+    final actorId = previousRequestId != null && !previousWindowExpired
+        ? (_pendingPairingActorId ?? '')
+        : widget.userDirectory?.canManageUsers == true
         ? (_selectedUserId ?? '')
         : _actorId.text.trim();
-    if (_busy || !widget.client.canCreatePairings) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _pairing = null;
-    });
+    if (previousRequestId != null &&
+        _pairingCodeExpiresAtUtc?.isAfter(now) == true) {
+      return;
+    }
+    if (previousWindowExpired) {
+      await _recordPairingDiagnostic(
+        code: 'PAIRING_REQUEST_ABANDONED',
+        correlationId: previousRequestId,
+        severity: ManagementDiagnosticSeverity.info,
+        retryable: false,
+        safeExplanation:
+            'The previous one-time pairing window expired before a replacement was requested.',
+        recommendedAction: 'No pairing secret is stored in local diagnostics.',
+      );
+    }
+    final requestId = previousWindowExpired
+        ? newPairingRequestId()
+        : previousRequestId ?? newPairingRequestId();
     try {
-      final pairing = await widget.client.createPairing(actorId);
-      if (!mounted) return;
-      setState(() => _pairing = pairing);
-    } on HostDeviceManagementException catch (error) {
-      if (mounted) setState(() => _error = error);
+      _pendingPairingActorId = actorId;
+      await _savePairingRequestId(requestId);
     } catch (_) {
       if (mounted) {
         setState(
           () => _error = const HostDeviceManagementException(
-            'HOST_INVALID_RESPONSE',
+            'LOCAL_PAIRING_STATE_UNAVAILABLE',
           ),
         );
       }
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+      _pairing = null;
+      _pairingRequestId = requestId;
+      _pairingCodeExpiresAtUtc = null;
+    });
+    _pairingExpiryTimer?.cancel();
+    await _recordPairingDiagnostic(
+      code: 'PAIRING_REQUEST_STARTED',
+      correlationId: requestId,
+      severity: ManagementDiagnosticSeverity.info,
+      retryable: false,
+      safeExplanation: 'A Client pairing request started from this device.',
+      recommendedAction:
+          'Use the same request reference to reconcile an unknown outcome.',
+    );
+    final requestWatch = Stopwatch()..start();
+    try {
+      final pairing = await widget.client.createPairing(
+        actorId,
+        requestId: requestId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _pairing = pairing;
+        _pairingRequestId = null;
+        _pendingPairingActorId = null;
+        _pairingCodeExpiresAtUtc = null;
+      });
+      try {
+        await _clearPairingRequestId();
+      } catch (_) {
+        // The code remains available in memory. A stale durable request ID is
+        // safe: the Host will refuse to create a second code for that ID.
+      }
+      await _recordPairingDiagnostic(
+        code: 'PAIRING_CREATED',
+        correlationId: requestId,
+        severity: ManagementDiagnosticSeverity.info,
+        retryable: false,
+        safeExplanation:
+            'Host returned a one-time pairing code after ${requestWatch.elapsedMilliseconds}ms.',
+        recommendedAction:
+            'The code is displayed once and is not included in diagnostics.',
+      );
+    } on HostDeviceManagementException catch (error) {
+      if (mounted) {
+        final unavailableExpiry = error.code == 'PAIRING_CODE_UNAVAILABLE'
+            ? error.pairingExpiresAtUtc ??
+                  DateTime.now().toUtc().add(const Duration(minutes: 5))
+            : null;
+        setState(() {
+          _error = error;
+          final unresolved =
+              error.outcomeUnknown ||
+              error.code == 'PAIRING_CODE_UNAVAILABLE' ||
+              previousRequestId != null;
+          if (unresolved) {
+            _pairingRequestId = requestId;
+            _pendingPairingActorId = actorId;
+            _pairingCodeExpiresAtUtc = unavailableExpiry;
+          } else {
+            _pairingRequestId = null;
+            _pendingPairingActorId = null;
+            _pairingCodeExpiresAtUtc = null;
+          }
+        });
+      }
+      if (error.code == 'PAIRING_CODE_UNAVAILABLE' && mounted) {
+        _schedulePairingExpiryRefresh(_pairingCodeExpiresAtUtc);
+      }
+      final unknown =
+          error.outcomeUnknown ||
+          error.code == 'PAIRING_CODE_UNAVAILABLE' ||
+          previousRequestId != null;
+      if (!unknown) {
+        try {
+          await _clearPairingRequestId();
+        } catch (_) {
+          // Reusing this reference is safe if local cleanup must be retried.
+        }
+      }
+      await _recordPairingDiagnostic(
+        code: unknown
+            ? error.code == 'PAIRING_CODE_UNAVAILABLE'
+                  ? 'PAIRING_CODE_UNAVAILABLE'
+                  : 'PAIRING_OUTCOME_UNKNOWN'
+            : 'PAIRING_REQUEST_REJECTED',
+        correlationId: requestId,
+        severity: unknown
+            ? ManagementDiagnosticSeverity.error
+            : ManagementDiagnosticSeverity.warning,
+        retryable: error.retryable,
+        safeExplanation: unknown
+            ? 'The Host may have accepted the pairing request, but the one-time code was not received or the existing request could not be reconciled.'
+            : 'The Host did not create a pairing code for this request.',
+        recommendedAction: unknown
+            ? 'Keep the same request reference and target when checking again. If the Host reports that the code is unavailable, wait for its five-minute validity window before issuing a replacement.'
+            : 'Resolve the reported Host or Recovery Authority error before creating another request.',
+        elapsedMs: error.elapsedMs ?? requestWatch.elapsedMilliseconds,
+      );
+    } catch (_) {
+      final unknown = HostDeviceManagementException(
+        'PAIRING_OUTCOME_UNKNOWN',
+        correlationId: requestId,
+        retryable: true,
+        requestId: requestId,
+        elapsedMs: requestWatch.elapsedMilliseconds,
+      );
+      if (mounted) {
+        setState(() {
+          _pairingRequestId = requestId;
+          _pendingPairingActorId = actorId;
+          _pairingCodeExpiresAtUtc = null;
+          _error = unknown;
+        });
+      }
+      await _recordPairingDiagnostic(
+        code: 'PAIRING_OUTCOME_UNKNOWN',
+        correlationId: requestId,
+        severity: ManagementDiagnosticSeverity.error,
+        retryable: true,
+        safeExplanation:
+            'The pairing operation did not return a validated result; the Host may have accepted it.',
+        recommendedAction:
+            'Keep the same request reference and target when checking again. Do not create a replacement until the outcome is reconciled.',
+        elapsedMs: requestWatch.elapsedMilliseconds,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  Future<void> _recordPairingDiagnostic({
+    required String code,
+    required String correlationId,
+    required ManagementDiagnosticSeverity severity,
+    required bool retryable,
+    required String safeExplanation,
+    required String recommendedAction,
+    int? elapsedMs,
+  }) async {
+    final source = widget.diagnosticEventSource;
+    if (source == null) return;
+    try {
+      await source.record(
+        LocalDiagnosticInput(
+          code: code,
+          component: 'client.pairing',
+          category: ManagementDiagnosticCategory.pairing,
+          severity: severity,
+          retryable: retryable,
+          messageKey: 'native.diagnostics.pairing_request',
+          safeExplanation: elapsedMs == null
+              ? safeExplanation
+              : '$safeExplanation Duration: ${elapsedMs}ms.',
+          recommendedAction: recommendedAction,
+          correlationId: correlationId,
+        ),
+      );
+    } catch (_) {
+      // Local diagnostics are helpful but never become pairing authority.
+    }
+  }
+
+  bool _safePairingActorId(String value) =>
+      value.length <= 256 &&
+      value.trim().isNotEmpty &&
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$').hasMatch(value);
 
   Future<void> _revoke(HostManagedDevice device) async {
     final confirmed = await showDialog<bool>(
@@ -338,146 +651,187 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     ),
   );
 
-  Widget _pairingCard(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            context.ventioText('native.ui.generate_pairing_code'),
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            context.ventioText(
-              widget.userDirectory?.canManageUsers == true
-                  ? 'native.ui.pairing_select_active_user'
-                  : 'native.ui.pairing_target_help',
+  Widget _pairingCard(BuildContext context) {
+    final waitForExpiry =
+        _pairingRequestId != null &&
+        _pairingCodeExpiresAtUtc?.isAfter(DateTime.now().toUtc()) == true;
+    final pairingActionKey = waitForExpiry
+        ? 'native.ui.pairing_replacement_after_expiry'
+        : _pairingRequestId != null
+        ? 'native.ui.check_pairing_request_safely'
+        : 'native.ui.generate_pairing_code';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.ventioText('native.ui.generate_pairing_code'),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ),
-          const SizedBox(height: 12),
-          if (widget.userDirectory?.canManageUsers == true) ...[
-            if (_loadingUsers)
-              const LinearProgressIndicator()
-            else if (_userDirectoryFailed)
+            const SizedBox(height: 6),
+            Text(
+              context.ventioText(
+                widget.userDirectory?.canManageUsers == true
+                    ? 'native.ui.pairing_select_active_user'
+                    : 'native.ui.pairing_target_help',
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_pairingRequestId != null &&
+                _pairingCodeExpiresAtUtc?.isAfter(DateTime.now().toUtc()) !=
+                    false) ...[
               ListTile(
-                leading: const Icon(Icons.person_search_outlined),
+                contentPadding: EdgeInsets.zero,
                 title: Text(
-                  context.ventioText('native.ui.pairing_users_unavailable'),
+                  context.ventioText('native.ui.pairing_pending_target'),
                 ),
-                trailing: IconButton(
-                  tooltip: context.ventioText('native.ui.retry'),
-                  onPressed: _busy ? null : _loadUsers,
-                  icon: const Icon(Icons.refresh),
+                subtitle: Text(
+                  _pendingPairingActorId ??
+                      context.ventioText(
+                        'native.ui.device_error_pairing_unknown',
+                      ),
                 ),
-              )
-            else if (_users.isEmpty)
-              Text(context.ventioText('native.ui.pairing_no_active_users'))
-            else
-              DropdownButtonFormField<String>(
-                key: const ValueKey('pairing-target-user'),
-                initialValue: _selectedUserId,
+              ),
+            ] else if (widget.userDirectory?.canManageUsers == true) ...[
+              if (_loadingUsers)
+                const LinearProgressIndicator()
+              else if (_userDirectoryFailed)
+                ListTile(
+                  leading: const Icon(Icons.person_search_outlined),
+                  title: Text(
+                    context.ventioText('native.ui.pairing_users_unavailable'),
+                  ),
+                  trailing: IconButton(
+                    tooltip: context.ventioText('native.ui.retry'),
+                    onPressed: _busy ? null : _loadUsers,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                )
+              else if (_users.isEmpty)
+                Text(context.ventioText('native.ui.pairing_no_active_users'))
+              else
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('pairing-target-user'),
+                  initialValue: _selectedUserId,
+                  decoration: InputDecoration(
+                    labelText: context.ventioText(
+                      'native.ui.pairing_target_user_id',
+                    ),
+                  ),
+                  items: [
+                    for (final entry in _users.indexed)
+                      DropdownMenuItem(
+                        value: entry.$2.actorId,
+                        child: Text(_safeUserLabel(entry.$2, entry.$1)),
+                      ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _selectedUserId = value),
+                ),
+            ] else
+              TextField(
+                key: const ValueKey('pairing-target-actor'),
+                controller: _actorId,
+                enabled:
+                    !_busy &&
+                    !(_pairingRequestId != null &&
+                        _pairingCodeExpiresAtUtc?.isAfter(
+                              DateTime.now().toUtc(),
+                            ) !=
+                            false),
+                autocorrect: false,
                 decoration: InputDecoration(
                   labelText: context.ventioText(
                     'native.ui.pairing_target_user_id',
                   ),
                 ),
-                items: [
-                  for (final entry in _users.indexed)
-                    DropdownMenuItem(
-                      value: entry.$2.actorId,
-                      child: Text(_safeUserLabel(entry.$2, entry.$1)),
-                    ),
-                ],
-                onChanged: _busy
-                    ? null
-                    : (value) => setState(() => _selectedUserId = value),
               ),
-          ] else
-            TextField(
-              key: const ValueKey('pairing-target-actor'),
-              controller: _actorId,
-              enabled: !_busy,
-              autocorrect: false,
-              decoration: InputDecoration(
-                labelText: context.ventioText(
-                  'native.ui.pairing_target_user_id',
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              key: const ValueKey('generate-pairing-code'),
+              onPressed:
+                  _busy ||
+                      _restoringPairingRequest ||
+                      waitForExpiry ||
+                      _loadingUsers ||
+                      _userDirectoryFailed ||
+                      (widget.userDirectory?.canManageUsers == true &&
+                          _selectedUserId == null)
+                  ? null
+                  : _createPairing,
+              icon: const Icon(Icons.phonelink_setup_outlined),
+              label: Text(
+                context.ventioText(
+                  pairingActionKey,
+                  params: {
+                    if (waitForExpiry && _pairingCodeExpiresAtUtc != null)
+                      'timestamp': _formatUtc(_pairingCodeExpiresAtUtc!),
+                  },
                 ),
               ),
             ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            key: const ValueKey('generate-pairing-code'),
-            onPressed:
-                _busy ||
-                    _loadingUsers ||
-                    _userDirectoryFailed ||
-                    (widget.userDirectory?.canManageUsers == true &&
-                        _selectedUserId == null)
-                ? null
-                : _createPairing,
-            icon: const Icon(Icons.phonelink_setup_outlined),
-            label: Text(context.ventioText('native.ui.generate_pairing_code')),
-          ),
-          if (_pairing case final pairing?) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(context.ventioText('native.ui.pairing_code_once')),
-                  const SizedBox(height: 8),
-                  SelectableText(
-                    pairing.code,
-                    key: const ValueKey('generated-pairing-code'),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      key: const ValueKey('copy-generated-pairing-code'),
-                      onPressed: () => _copySecretToClipboard(pairing.code),
-                      icon: const Icon(Icons.copy_outlined),
-                      label: Text(
-                        context.ventioText('native.ui.copy_pairing_code'),
+            if (_pairing case final pairing?) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(context.ventioText('native.ui.pairing_code_once')),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      pairing.code,
+                      key: const ValueKey('generated-pairing-code'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        key: const ValueKey('copy-generated-pairing-code'),
+                        onPressed: () => _copySecretToClipboard(pairing.code),
+                        icon: const Icon(Icons.copy_outlined),
+                        label: Text(
+                          context.ventioText('native.ui.copy_pairing_code'),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.ventioText(
-                      'native.ui.pairing_code_expires',
-                      params: {'timestamp': _formatUtc(pairing.expiresAtUtc)},
+                    const SizedBox(height: 8),
+                    Text(
+                      context.ventioText(
+                        'native.ui.pairing_code_expires',
+                        params: {'timestamp': _formatUtc(pairing.expiresAtUtc)},
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  SelectableText(
-                    context.ventioText(
-                      'native.ui.correlation_reference',
-                      params: {'correlationId': pairing.correlationId},
+                    const SizedBox(height: 4),
+                    SelectableText(
+                      context.ventioText(
+                        'native.ui.correlation_reference',
+                        params: {'correlationId': pairing.correlationId},
+                      ),
                     ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => setState(() => _pairing = null),
-                      child: Text(context.ventioText('native.ui.clear_code')),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => setState(() => _pairing = null),
+                        child: Text(context.ventioText('native.ui.clear_code')),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _deviceCard(BuildContext context, HostManagedDevice device) {
     final isRegistered = device.state == HostManagedDeviceState.registered;
@@ -686,28 +1040,39 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       ? 'Legacy identity ${index + 1}'
       : user.displayName;
 
-  Widget _errorCard(
-    BuildContext context,
-    HostDeviceManagementException error,
-  ) => Card(
-    color: Theme.of(context).colorScheme.errorContainer,
-    child: ListTile(
-      leading: const Icon(Icons.error_outline),
-      title: Text(context.ventioText('native.ui.device_action_failed')),
-      subtitle: SelectableText(
-        '${context.ventioText(_errorExplanation(error.code))}\n'
-        '${context.ventioText('native.ui.safe_error_code', params: {'code': error.code})}'
-        '${error.correlationId == null ? '' : '\n${context.ventioText('native.ui.correlation_reference', params: {'correlationId': error.correlationId!})}'}',
+  Widget _errorCard(BuildContext context, HostDeviceManagementException error) {
+    final pairingAwaitingExpiry =
+        _pairingRequestId != null &&
+        _pairingCodeExpiresAtUtc?.isAfter(DateTime.now().toUtc()) == true;
+    return Card(
+      color: Theme.of(context).colorScheme.errorContainer,
+      child: ListTile(
+        leading: const Icon(Icons.error_outline),
+        title: Text(context.ventioText('native.ui.device_action_failed')),
+        subtitle: SelectableText(
+          '${context.ventioText(_errorExplanation(error.code))}\n'
+          '${context.ventioText('native.ui.safe_error_code', params: {'code': error.code})}'
+          '${error.pairingExpiresAtUtc == null ? '' : '\n${context.ventioText('native.ui.pairing_code_expires', params: {'timestamp': _formatUtc(error.pairingExpiresAtUtc!)})}'}'
+          '${error.correlationId == null ? '' : '\n${context.ventioText('native.ui.correlation_reference', params: {'correlationId': error.correlationId!})}'}',
+        ),
+        trailing: widget.client.canManageDevices
+            ? IconButton(
+                tooltip: context.ventioText(
+                  _pairingRequestId == null
+                      ? 'native.ui.retry'
+                      : 'native.ui.check_pairing_request_safely',
+                ),
+                onPressed: _busy || _loading || pairingAwaitingExpiry
+                    ? null
+                    : _pairingRequestId == null
+                    ? _load
+                    : _createPairing,
+                icon: const Icon(Icons.refresh),
+              )
+            : null,
       ),
-      trailing: widget.client.canManageDevices
-          ? IconButton(
-              tooltip: context.ventioText('native.ui.retry'),
-              onPressed: _busy || _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-            )
-          : null,
-    ),
-  );
+    );
+  }
 }
 
 String _errorExplanation(String code) => switch (code) {
@@ -715,8 +1080,20 @@ String _errorExplanation(String code) => switch (code) {
   'HOST_PERMISSION_DENIED' ||
   'SCOPE_DENIED' => 'native.ui.device_error_permission',
   'HOST_UNREACHABLE' ||
+  'HOST_CONNECTION_TIMEOUT' ||
   'HOST_REQUEST_TIMEOUT' ||
   'HOST_UNAVAILABLE' => 'native.ui.device_error_network',
+  'PAIRING_OUTCOME_UNKNOWN' => 'native.ui.device_error_pairing_unknown',
+  'PAIRING_CODE_UNAVAILABLE' =>
+    'native.ui.device_error_pairing_code_unavailable',
+  'PAIRING_DATABASE_UNAVAILABLE' => 'native.ui.device_error_pairing_database',
+  'HOST_PAIRING_IDEMPOTENCY_UNSUPPORTED' =>
+    'native.ui.device_error_pairing_api_unsupported',
+  'LOCAL_PAIRING_STATE_UNAVAILABLE' =>
+    'native.ui.device_error_local_pairing_state',
+  'RECOVERY_AUTHORITY_UNAVAILABLE' =>
+    'native.ui.device_error_recovery_authority',
+  'RECOVERY_AUTHORITY_BUSY' => 'native.ui.device_error_recovery_authority_busy',
   'HOST_TLS_VALIDATION_FAILED' => 'native.ui.device_error_tls',
   'HOST_CREDENTIAL_MISSING' ||
   'UNAUTHENTICATED' => 'native.ui.device_error_authentication',

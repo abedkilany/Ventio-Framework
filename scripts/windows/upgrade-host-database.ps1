@@ -22,6 +22,7 @@ $pgCtl = Join-Path $bin 'pg_ctl.exe'
 $robocopy = Join-Path $env:SystemRoot 'System32\robocopy.exe'
 $migrationExe = Join-Path $payloadRoot 'ventio_migrate.exe'
 $migrations = Join-Path $payloadRoot 'migrations'
+$pairingCreateContract = Join-Path $payloadRoot 'security\pairing_create.sql'
 $credentialModule = Join-Path $payloadRoot 'setup\HostMigrationCredential.psm1'
 if ($TestMode -and -not (Test-Path -LiteralPath $credentialModule -PathType Leaf)) {
   $credentialModule = Join-Path $PSScriptRoot 'HostMigrationCredential.psm1'
@@ -221,7 +222,7 @@ function Copy-HostPostgresData([string] $Source, [string] $Destination) {
 }
 
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'HOST_DATABASE_PORT_INVALID' }
-foreach ($file in @($psql, $pgCtl, $migrationExe, $migrations, $credentialModule)) {
+foreach ($file in @($psql, $pgCtl, $migrationExe, $migrations, $pairingCreateContract, $credentialModule)) {
   if (-not (Test-Path -LiteralPath $file)) { throw 'HOST_DATABASE_UPGRADE_PAYLOAD_INCOMPLETE' }
 }
 if (-not $TestMode -and -not (Test-Path -LiteralPath $robocopy -PathType Leaf)) { throw 'HOST_DATABASE_BACKUP_TOOL_MISSING' }
@@ -330,6 +331,19 @@ try {
   }
   $migrationOutput = Invoke-HostDatabaseTool $migrationExe @() $migrationEnvironment 300000 'HOST_DATABASE_MIGRATION_FAILED' -TestMode:$TestMode
   if ($migrationOutput -notmatch 'Applied \d+ migration\(s\):') { throw 'HOST_DATABASE_MIGRATION_RESULT_INVALID' }
+  [void](Invoke-HostDatabaseTool $psql @(
+    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+    '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
+    '-f', $pairingCreateContract
+  ) $envVars 60000 'HOST_PAIRING_CONTRACT_UPDATE_FAILED' -TestMode:$TestMode)
+  $pairingContractReady = Invoke-HostDatabaseTool $psql @(
+    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+    '-d', $databaseName, '-Atc', "SET ROLE ventio_owner; SELECT position('Pairing request was already accepted' IN pg_get_functiondef('ventio_security.scoped_pairing_create(text,text,text,text,text,text)'::regprocedure)) > 0"
+  ) $envVars 30000 'HOST_PAIRING_CONTRACT_VERIFICATION_FAILED' -TestMode:$TestMode
+  $pairingContractMatch = [regex]::Match($pairingContractReady.Trim(), '(?:^|\s)(t|f)$')
+  if (-not $pairingContractMatch.Success -or $pairingContractMatch.Groups[1].Value -cne 't') {
+    throw 'HOST_PAIRING_CONTRACT_VERIFICATION_FAILED'
+  }
   $ledger = Invoke-HostDatabaseTool $psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,'-d',$databaseName,'-Atc','SET ROLE ventio_owner; SELECT count(*) FROM public.ventio_schema_migrations') $envVars 30000 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' -TestMode:$TestMode
   $ledgerCounts = @($ledger -split "`r?`n" | Where-Object { $_ -match '^\d+$' })
   if ($ledgerCounts.Count -ne 1 -or [int]$ledgerCounts[0] -ne $migrationFiles.Count) {
