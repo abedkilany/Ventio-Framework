@@ -80,6 +80,7 @@ var
   HostServicesStoppedForUpgrade: Boolean;
   ExistingHostServiceFound: Boolean;
   ExistingPostgresServiceFound: Boolean;
+  HostDatabaseUpgradeFailed: Boolean;
   VCRuntimeIsReady: Boolean;
 
 function IsVentioRuntimeReady(): Boolean;
@@ -179,7 +180,7 @@ begin
     end;
     PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
     ResumeScript := ExpandConstant('{tmp}\stop-host-services.ps1');
-    if ExistingHostServiceFound and ExistingPostgresServiceFound then
+    if ExistingHostServiceFound and ExistingPostgresServiceFound and not HostDatabaseUpgradeFailed then
       Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumeServices'
     else
       Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumePostgresOnly';
@@ -220,6 +221,27 @@ var
 begin
   if (CurrentStep <> ssPostInstall) or not HostServicesStoppedForUpgrade then exit;
   PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
+    ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly';
+    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+      HostDatabaseUpgradeFailed := True;
+      MsgBox('Ventio updated its application files, but PostgreSQL could not be safely started for the verified Host database upgrade. VentioHost remains stopped; no database migration was attempted.', mbError, MB_OK);
+      exit;
+    end;
+    ScriptPath := ExpandConstant('{app}\host-payload\setup\upgrade-host-database.ps1');
+    if not FileExists(ScriptPath) then begin
+      HostDatabaseUpgradeFailed := True;
+      MsgBox('Ventio updated its application files, but the database upgrade helper is missing. PostgreSQL may run for repair, but the Host service will remain stopped. Restore the verified backup or repair the upgrade payload before starting VentioHost.', mbError, MB_OK);
+      exit;
+    end;
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PostgresRoot "' + ExpandConstant('{app}\host-payload\postgresql') + '" -Apply';
+    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+      HostDatabaseUpgradeFailed := True;
+      MsgBox('Ventio updated its application files, but the Host database backup, migrations, or pairing contract verification did not complete. The Host service was not restarted. PostgreSQL remains available for recovery; preserve the verified backup and diagnostics, then repair the upgrade before starting VentioHost.', mbError, MB_OK);
+      exit;
+    end;
+  end;
   FailureCodePath := ExpandConstant('{tmp}\ventio-host-lan-failure.txt');
   DeleteFile(FailureCodePath);
   if ExistingHostServiceFound and ExistingPostgresServiceFound then begin

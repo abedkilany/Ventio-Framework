@@ -61,10 +61,18 @@ Assert-Contract ($installerSource -match '(?s)function PrepareToInstall.*?stop-h
 Assert-Contract ($installerSource.Contains("ExtractTemporaryFile('stop-host-services.ps1')")) 'HOST_PREINSTALL_STOP_HELPER_MUST_USE_THE_CURRENT_INSTALLER_PAYLOAD'
 Assert-Contract ($installerSource.Contains('-AllowPostgresOnlyRecovery')) 'HOST_PREINSTALL_MUST_ALLOW_ONLY_REVIEWED_POSTGRES_ONLY_RECOVERY'
 Assert-Contract ($installerSource -match '(?s)procedure DeinitializeSetup.*?-ResumePostgresOnly') 'HOST_INSTALL_FAILURE_MUST_RESTART_THE_VERIFIED_POSTGRES_SERVICE'
-Assert-Contract ($installerSource -notmatch 'provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_MUST_NOT_PROVISION_OR_RECOVER_HOST_DATABASE'
-Assert-Contract ($installerSource -match '(?s)procedure CurStepChanged.*?enable-host-lan-listener\.ps1.*?-RestartServices') 'EXISTING_HOST_UPDATE_MUST_CONFIGURE_THE_LAN_LISTENER'
+Assert-Contract ($installerSource -notmatch 'provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_MUST_NOT_RUN_FIRST_RUN_PROVISIONING_OR_RECOVERY'
+$existingUpgradeStart = $installerSource.IndexOf('procedure CurStepChanged(CurrentStep: TSetupStep);', [StringComparison]::Ordinal)
+$upgradeBody = if ($existingUpgradeStart -ge 0) { $installerSource.Substring($existingUpgradeStart) } else { '' }
+$resumePostgresIndex = $upgradeBody.IndexOf('-ResumePostgresOnly', [StringComparison]::Ordinal)
+$databaseUpgradeIndex = $upgradeBody.IndexOf('upgrade-host-database.ps1', [StringComparison]::Ordinal)
+$lanRestartIndex = $upgradeBody.IndexOf('-RestartServices', [StringComparison]::Ordinal)
+Assert-Contract ($resumePostgresIndex -ge 0 -and $databaseUpgradeIndex -gt $resumePostgresIndex -and $lanRestartIndex -gt $databaseUpgradeIndex -and $upgradeBody.Contains('-Apply')) 'EXISTING_HOST_UPGRADE_MUST_START_POSTGRES_APPLY_AND_VERIFY_DATABASE_UPGRADE_BEFORE_HOST_RESTART'
+Assert-Contract ($upgradeBody.Contains('HostDatabaseUpgradeFailed := True') -and $installerSource.Contains('and not HostDatabaseUpgradeFailed') -and $installerSource.Contains('-ResumePostgresOnly')) 'FAILED_DATABASE_UPGRADE_MUST_KEEP_HOST_STOPPED_AND_ALLOW_POSTGRES_ONLY_RECOVERY'
+Assert-Contract ($installerSource -match '(?s)procedure CurStepChanged.*?enable-host-lan-listener\.ps1.*?-RestartServices') 'EXISTING_HOST_UPDATE_MUST_CONFIGURE_THE_LAN_LISTENER_AFTER_DATABASE_UPGRADE'
+Assert-Contract ($databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_VERIFICATION_FAILED') -and $databaseUpgrade.Contains('HOST_DATABASE_BACKUP_VERIFICATION_FAILED') -and $databaseUpgrade.Contains('HOST_DATABASE_MIGRATION_RESULT_INVALID')) 'INSTALLER_DATABASE_UPGRADE_MUST_REQUIRE_VERIFIED_BACKUP_MIGRATIONS_AND_PAIRING_CONTRACT'
 Assert-Contract ($installerSource.Contains('-FailureCodePath') -and $installerSource.Contains('IsSafeHostLanFailureCode') -and $installerSource.Contains('Error code: ')) 'HOST_LAN_UPGRADE_FAILURE_MUST_SURFACE_ONLY_A_VALIDATED_FAILURE_CODE'
-Assert-Contract ($installerSource -notmatch '(?s)procedure CurStepChanged.*?provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_NETWORK_UPDATE_MUST_NOT_PROVISION_OR_RECOVER_DATABASE'
+Assert-Contract ($installerSource -notmatch '(?s)procedure CurStepChanged.*?provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_UPGRADE_MUST_NOT_RUN_FIRST_RUN_PROVISIONING_OR_RECOVERY'
 Assert-Contract ($hostProvisioning.Contains('& $hostLanListener -PayloadDirectory $payload -RestartServices')) 'FIRST_RUN_HOST_SETUP_MUST_ENABLE_THE_LAN_LISTENER'
 Assert-Contract ($localHostEngine.Contains("Platform.environment['VENTIO_HOST_LAN_BIND_ADDRESS']") -and $localHostEngine.Contains('listenAddress: lanAddress') -and $localHostEngine.Contains('tlsContext: tlsContext')) 'HOST_ENGINE_MUST_BIND_THE_SEPARATE_LAN_ENDPOINT_WITH_TLS'
 Assert-Contract ($localHostEngine.Contains("Platform.environment['VENTIO_HOST_BIND_ADDRESS'] ?? '127.0.0.1'") -and $localHostEngine.Contains('final localTlsContext = lanListenerConfigured ? null : tlsContext;') -and $localHostEngine.Contains('tlsContext: localTlsContext')) 'LOCAL_HTTP_MANAGEMENT_MUST_REMAIN_LOOPBACK_ONLY'
