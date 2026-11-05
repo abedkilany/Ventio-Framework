@@ -18,6 +18,8 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 $installDir = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio'))
 $expectedInstallDir = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio'))
+$runtimeManifestPath = Join-Path $PSScriptRoot '..\..\installer\windows\prerequisites\vc-runtime-prerequisite.json'
+$runtimeManifest = Get-Content -LiteralPath $runtimeManifestPath -Raw | ConvertFrom-Json
 $programDataVentio = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)) 'Ventio'
 $databaseDirectory = Join-Path $programDataVentio 'PostgreSQL\data'
 if (-not $installDir.Equals($expectedInstallDir, [StringComparison]::OrdinalIgnoreCase) -or
@@ -42,6 +44,11 @@ try {
     ('/DIR="' + $installDir + '"'), '/NOICONS'
   ) -Wait -PassThru
   if ($process.ExitCode -ne 0) { throw ('Unified installer failed with exit code ' + $process.ExitCode + '.') }
+  Import-Module (Join-Path $PSScriptRoot 'vc-runtime-prerequisite.psm1') -Force
+  $installedRuntime = Get-VentioInstalledVcRuntimeVersion
+  if (-not (Test-VentioVcRuntimeSufficient -InstalledVersion $installedRuntime -MinimumVersion $runtimeManifest.minimumRuntimeVersion)) {
+    throw 'Unified installer did not leave the required Microsoft Visual C++ x64 Runtime installed.'
+  }
   if (-not $installDir.Equals($expectedInstallDir, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Unified installer did not use the protected machine-wide product directory.'
   }
@@ -101,6 +108,7 @@ try {
   }
   Write-Output 'UNIFIED_INSTALLER_SHARED_APP_AND_HOST_PAYLOAD_INSTALL_UNINSTALL_PASS'
   Write-Output 'UNIFIED_INSTALLER_NO_DATABASE_OR_HOST_SERVICE_PROVISIONING_PASS'
+  Write-Output ("UNIFIED_INSTALLER_VC_RUNTIME_READY_PASS: {0}" -f $installedRuntime)
 }
 finally {
   $env:TEMP = $previousTemp

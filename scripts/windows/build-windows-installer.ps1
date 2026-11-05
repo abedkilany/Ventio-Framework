@@ -3,7 +3,8 @@ param(
   [switch] $SkipFlutterBuild,
   [string] $ReleaseDirectory,
   [string] $HostPayloadDirectory,
-  [string] $InstallerOutputDirectory
+  [string] $InstallerOutputDirectory,
+  [string] $VCRedistPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,14 +16,39 @@ $installerSource = Join-Path $repoRoot 'installer\windows\ventio.iss'
 $installerOutput = if ($InstallerOutputDirectory) { [IO.Path]::GetFullPath($InstallerOutputDirectory) } else { Join-Path $repoRoot 'dist\windows' }
 $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
 $pubspec = Join-Path $clientRoot 'pubspec.yaml'
+$vcRuntimeManifestPath = Join-Path $repoRoot 'installer\windows\prerequisites\vc-runtime-prerequisite.json'
+$vcRuntimePackageTest = Join-Path $PSScriptRoot 'test-vc-runtime-package.ps1'
+$vcRuntimeHelper = Join-Path $PSScriptRoot 'ensure-vc-runtime-prerequisite.ps1'
+$vcRuntimeModule = Join-Path $PSScriptRoot 'vc-runtime-prerequisite.psm1'
 
 if (-not (Test-Path -LiteralPath $iscc -PathType Leaf)) { throw 'Inno Setup 6 compiler is unavailable.' }
 if (-not (Test-Path -LiteralPath $installerSource -PathType Leaf)) { throw 'Unified installer source is missing.' }
+$vcRuntimeManifest = Get-Content -LiteralPath $vcRuntimeManifestPath -Raw | ConvertFrom-Json
+if ($vcRuntimeManifest.formatVersion -ne 1 -or $vcRuntimeManifest.architecture -ne 'x64' -or
+    $vcRuntimeManifest.fileName -ne 'vc_redist.x64.exe' -or
+    -not (Test-Path -LiteralPath $vcRuntimePackageTest -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $vcRuntimeHelper -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $vcRuntimeModule -PathType Leaf)) {
+  throw 'Microsoft Visual C++ runtime prerequisite metadata or helper is incomplete.'
+}
+if (-not $VCRedistPath) {
+  $VCRedistPath = Join-Path $env:LOCALAPPDATA "VentioFramework\vc-runtime\$($vcRuntimeManifest.packageVersion)\vc_redist.x64.exe"
+}
+if (-not (Test-Path -LiteralPath $VCRedistPath -PathType Leaf)) {
+  throw 'The pinned Microsoft Visual C++ x64 prerequisite is unavailable. Download the official package as documented or pass -VCRedistPath.'
+}
+$VCRedistPath = (Resolve-Path -LiteralPath $VCRedistPath).Path
+$vcRuntimePackageTest = (Resolve-Path -LiteralPath $vcRuntimePackageTest).Path
+$vcRuntimeHelper = (Resolve-Path -LiteralPath $vcRuntimeHelper).Path
+$vcRuntimeModule = (Resolve-Path -LiteralPath $vcRuntimeModule).Path
+$vcRuntimePackageTestResult = & $vcRuntimePackageTest -RuntimeInstallerPath $VCRedistPath
+$vcRuntimeMinimumVersion = [string]$vcRuntimeManifest.minimumRuntimeVersion
 $pathContractTest = Join-Path $PSScriptRoot 'test-unified-installer-path-contract.ps1'
 $hostPrivilegeGuardTest = Join-Path $PSScriptRoot 'test-unified-installer-host-privilege-guard.ps1'
 if (-not (Test-Path -LiteralPath $pathContractTest -PathType Leaf)) { throw 'Unified installer path-contract test is missing.' }
 if (-not (Test-Path -LiteralPath $hostPrivilegeGuardTest -PathType Leaf)) { throw 'Unified installer Host privilege-guard test is missing.' }
 & $pathContractTest
+& (Join-Path $PSScriptRoot 'test-vc-runtime-prerequisite.ps1')
 if (-not (Test-Path -LiteralPath (Join-Path $hostPayload 'payload-manifest.json') -PathType Leaf)) {
   throw 'Verified Host payload is missing; run build-host-payload.ps1 first.'
 }
@@ -88,7 +114,7 @@ if ((Test-Path -LiteralPath $artifact) -or (Test-Path -LiteralPath $manifestPath
   throw 'Installer output already exists; choose a new isolated output directory to preserve existing artifacts.'
 }
 [void](New-Item -ItemType Directory -Force -Path $installerOutput)
-& $iscc "/DAppVersion=$version" "/DBuildOutput=$releaseDir" "/DHostPayload=$hostPayload" "/DInstallerOutput=$installerOutput" $installerSource
+& $iscc "/DAppVersion=$version" "/DBuildOutput=$releaseDir" "/DHostPayload=$hostPayload" "/DInstallerOutput=$installerOutput" "/DVCRedistPath=$VCRedistPath" "/DVCRuntimeHelperPath=$vcRuntimeHelper" "/DVCRuntimeModulePath=$vcRuntimeModule" "/DVCRuntimeMinimumVersion=$vcRuntimeMinimumVersion" $installerSource
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed with exit code $LASTEXITCODE." }
 
 if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { throw 'Unified installer artifact was not created.' }
@@ -97,4 +123,5 @@ Set-Content -LiteralPath $manifestPath -Encoding ascii -Value "$hash  $([IO.Path
 & $hostPrivilegeGuardTest -InstallerPath $artifact
 Get-Item -LiteralPath $artifact | Select-Object FullName, Length
 Write-Output "SHA256 $hash"
+Write-Output "Bundled Microsoft Visual C++ x64 Redistributable $($vcRuntimeManifest.packageVersion): $($vcRuntimeManifest.sizeBytes) bytes; SHA-256 $($vcRuntimeManifest.sha256); Authenticode verified."
 Write-Output "Bundled Host payload: $($manifest.payloadFileCount) files / $payloadBytes bytes; database and service provisioning are deferred until Host is selected in Ventio."

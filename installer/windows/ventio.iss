@@ -10,6 +10,18 @@
 #ifndef InstallerOutput
   #error InstallerOutput must point at the installer output directory
 #endif
+#ifndef VCRedistPath
+  #error VCRedistPath must point at the verified Microsoft x64 Visual C++ Redistributable
+#endif
+#ifndef VCRuntimeHelperPath
+  #error VCRuntimeHelperPath must point at the runtime prerequisite helper
+#endif
+#ifndef VCRuntimeModulePath
+  #error VCRuntimeModulePath must point at the runtime prerequisite module
+#endif
+#ifndef VCRuntimeMinimumVersion
+  #error VCRuntimeMinimumVersion must be supplied by build-windows-installer.ps1
+#endif
 
 #define AppName "Ventio"
 #define AppPublisher "Ventio Framework"
@@ -48,6 +60,9 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "{#BuildOutput}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#HostPayload}\*"; DestDir: "{app}\host-payload"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#VCRedistPath}"; DestDir: "{tmp}"; Flags: dontcopy
+Source: "{#VCRuntimeHelperPath}"; DestDir: "{tmp}"; Flags: dontcopy
+Source: "{#VCRuntimeModulePath}"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#HostPayload}\setup\stop-host-services.ps1"; Flags: dontcopy
 Source: "{#HostPayload}\setup\HostMigrationCredential.psm1"; Flags: dontcopy
 
@@ -56,7 +71,7 @@ Name: "{autoprograms}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{ap
 Name: "{autodesktop}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent runasoriginaluser
+Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent runasoriginaluser; Check: IsVentioRuntimeReady
 
 [Code]
 var
@@ -65,6 +80,56 @@ var
   HostServicesStoppedForUpgrade: Boolean;
   ExistingHostServiceFound: Boolean;
   ExistingPostgresServiceFound: Boolean;
+  VCRuntimeIsReady: Boolean;
+
+function IsVentioRuntimeReady(): Boolean;
+begin
+  Result := VCRuntimeIsReady;
+end;
+
+function EnsureVCRuntime(): String;
+var
+  ResultCode: Integer;
+  PowerShell: String;
+  RuntimeInstaller: String;
+  RuntimeHelper: String;
+  RuntimeModule: String;
+  Parameters: String;
+begin
+  Result := '';
+  VCRuntimeIsReady := False;
+  ExtractTemporaryFile('vc_redist.x64.exe');
+  ExtractTemporaryFile('ensure-vc-runtime-prerequisite.ps1');
+  ExtractTemporaryFile('vc-runtime-prerequisite.psm1');
+
+  RuntimeInstaller := ExpandConstant('{tmp}\vc_redist.x64.exe');
+  RuntimeHelper := ExpandConstant('{tmp}\ensure-vc-runtime-prerequisite.ps1');
+  RuntimeModule := ExpandConstant('{tmp}\vc-runtime-prerequisite.psm1');
+  if (not FileExists(RuntimeInstaller)) or
+     (not FileExists(RuntimeHelper)) or
+     (not FileExists(RuntimeModule)) then begin
+    Result := 'Ventio requires the Microsoft Visual C++ x64 Runtime, but its verified offline prerequisite could not be extracted. No Ventio application files or Host services were changed.';
+    exit;
+  end;
+
+  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + RuntimeHelper + '" -RuntimeInstallerPath "' + RuntimeInstaller + '" -MinimumVersion "{#VCRuntimeMinimumVersion}"';
+  if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then begin
+    Result := 'Ventio could not start its Microsoft Visual C++ Runtime prerequisite check. No Ventio application files or Host services were changed.';
+    exit;
+  end;
+
+  if ResultCode = 0 then begin
+    VCRuntimeIsReady := True;
+    exit;
+  end;
+  if (ResultCode = 3010) or (ResultCode = 1641) then begin
+    Result := 'The Microsoft Visual C++ x64 Runtime was updated and requires a Windows restart. Restart Windows, then run Ventio Setup again. No Ventio application files or Host services were changed.';
+    exit;
+  end;
+
+  Result := 'Ventio could not install or verify the Microsoft Visual C++ x64 Runtime. Setup stopped before replacing application files or stopping Host services. No database or Host data was changed.';
+end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
@@ -75,7 +140,8 @@ var
   HasHostService: Boolean;
   HasPostgresService: Boolean;
 begin
-  Result := '';
+  Result := EnsureVCRuntime();
+  if Result <> '' then exit;
   HasHostService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost');
   HasPostgresService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres');
   ExistingHostServiceFound := HasHostService;

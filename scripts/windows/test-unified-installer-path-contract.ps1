@@ -1,6 +1,10 @@
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $installerSource = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\ventio.iss') -Raw
+$runtimePrerequisite = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'vc-runtime-prerequisite.psm1') -Raw
+$runtimeHelper = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ensure-vc-runtime-prerequisite.ps1') -Raw
+$runtimeManifestPath = Join-Path $repoRoot 'installer\windows\prerequisites\vc-runtime-prerequisite.json'
+$runtimeManifest = Get-Content -LiteralPath $runtimeManifestPath -Raw | ConvertFrom-Json
 $postgresProvisioner = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'provision-postgres-service.ps1') -Raw
 $hostRegistration = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'register-host-service.ps1') -Raw
 $hostConfigWriter = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'write-host-service-config.ps1') -Raw
@@ -29,6 +33,19 @@ function Assert-Contract([bool] $Condition, [string] $Code) {
 
 Assert-Contract ($installerSource -match '(?m)^DefaultDirName=\{autopf\}\\Ventio\s*$') 'INSTALLER_DEFAULT_MUST_FOLLOW_INSTALL_MODE'
 Assert-Contract ($installerSource -match '(?m)^PrivilegesRequired=admin\s*$') 'INSTALLER_HOST_MUST_SUPPORT_ELEVATION'
+Assert-Contract ($runtimeManifest.architecture -eq 'x64' -and $runtimeManifest.fileName -eq 'vc_redist.x64.exe') 'VC_RUNTIME_PACKAGE_MUST_MATCH_X64_APP_ARCHITECTURE'
+Assert-Contract ($installerSource.Contains('Source: "{#VCRedistPath}"; DestDir: "{tmp}"; Flags: dontcopy')) 'VC_RUNTIME_PACKAGE_MUST_BE_EMBEDDED_IN_OFFLINE_INSTALLER'
+Assert-Contract ($installerSource.Contains("ExtractTemporaryFile('vc_redist.x64.exe')")) 'VC_RUNTIME_PACKAGE_MUST_BE_EXTRACTED_BEFORE_APP_LAUNCH'
+Assert-Contract ($installerSource.Contains('Check: IsVentioRuntimeReady')) 'VENTIO_AUTO_LAUNCH_MUST_REQUIRE_VERIFIED_RUNTIME'
+$runtimePrecheckIndex = $installerSource.IndexOf('Result := EnsureVCRuntime();', [StringComparison]::Ordinal)
+$serviceDetectionIndex = $installerSource.IndexOf("HasHostService := RegKeyExists", $runtimePrecheckIndex, [StringComparison]::Ordinal)
+Assert-Contract ($runtimePrecheckIndex -ge 0 -and $serviceDetectionIndex -gt $runtimePrecheckIndex) 'VC_RUNTIME_MUST_BE_READY_BEFORE_HOST_UPGRADE_SERVICE_CHANGES'
+Assert-Contract ($installerSource.Contains('No Ventio application files or Host services were changed.')) 'VC_RUNTIME_FAILURE_MUST_ABORT_BEFORE_PRODUCT_MUTATION'
+Assert-Contract ($runtimePrerequisite.Contains('RegistryView]::Registry64') -and $runtimePrerequisite.Contains('Runtimes\x64')) 'VC_RUNTIME_DETECTION_MUST_USE_THE_NATIVE_X64_REGISTRY_VIEW'
+Assert-Contract ($runtimePrerequisite.Contains('/install /quiet /norestart')) 'VC_RUNTIME_INSTALL_MUST_BE_SILENT_AND_SUPPRESS_AUTOMATIC_REBOOT'
+Assert-Contract ($runtimeHelper.Contains('exit 3010') -and $runtimePrerequisite.Contains("'RestartRequired'")) 'VC_RUNTIME_REBOOT_REQUIRED_STATE_MUST_PROPAGATE_TO_SETUP'
+Assert-Contract ($runtimePrerequisite.Contains("'NewerRuntimeAlreadyPresent'")) 'VC_RUNTIME_UPGRADE_MUST_NOT_DOWNGRADE_A_NEWER_REDISTRIBUTABLE'
+Assert-Contract ($installerValidator.Contains('Get-VentioInstalledVcRuntimeVersion') -and $installerValidator.Contains('Test-VentioVcRuntimeSufficient')) 'UNIFIED_INSTALLER_LIFECYCLE_MUST_VERIFY_THE_INSTALLED_VC_RUNTIME'
 Assert-Contract ($installerSource -notmatch '(?m)^PrivilegesRequiredOverridesAllowed=') 'INSTALLER_MUST_NOT_ALLOW_UNPROTECTED_PER_USER_HOST_HELPER'
 Assert-Contract ($installerSource -match '(?m)^DisableDirPage=yes\s*$') 'INSTALLER_MUST_USE_THE_PROTECTED_MACHINE_WIDE_PRODUCT_DIRECTORY'
 Assert-Contract ($installerSource -match '(?m)^Source: "\{#HostPayload\}\\\*"; DestDir: "\{app\}\\host-payload"; Flags:') 'HOST_RUNTIME_MUST_BE_AVAILABLE_AFTER_EITHER_FIRST_RUN_CHOICE'
