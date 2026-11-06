@@ -1,5 +1,23 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$script:VentioHostServiceRecoveryStage = 'MODULE_INITIALIZATION'
+
+# Windows PowerShell 5.1 does not reliably auto-load the .NET Framework
+# assembly that defines ProtectedData. Load it explicitly before any DPAPI
+# journal operation so assembly resolution is deterministic.
+try {
+  Add-Type -AssemblyName System.Security -ErrorAction Stop
+} catch {
+  throw 'HOST_SERVICE_RECOVERY_DPAPI_ASSEMBLY_UNAVAILABLE'
+}
+
+function Set-VentioHostServiceRecoveryStage([string] $Stage) {
+  $script:VentioHostServiceRecoveryStage = $Stage
+}
+
+function Get-VentioHostServiceRecoveryStage {
+  return [string]$script:VentioHostServiceRecoveryStage
+}
 
 if (-not ('Ventio.Setup.ServiceRecovery.Native' -as [type])) {
   Add-Type -TypeDefinition @'
@@ -55,6 +73,7 @@ namespace Ventio.Setup.ServiceRecovery {
     const uint ScManagerConnect = 0x0001;
     const uint ServiceQueryConfig = 0x0001;
     const uint ServiceChangeConfig = 0x0002;
+    const uint ServiceStart = 0x0010;
     const uint ServiceConfigFailureActions = 2;
     const uint ServiceConfigFailureActionsFlag = 4;
 
@@ -140,7 +159,17 @@ namespace Ventio.Setup.ServiceRecovery {
       IntPtr nativeBuffer = IntPtr.Zero;
       IntPtr flagBuffer = IntPtr.Zero;
       try {
-        service = Open(name, ServiceChangeConfig, out manager);
+        // SCM requires SERVICE_START on the service handle when the supplied
+        // failure actions contain SC_ACTION_RESTART.  Suppression uses an
+        // empty action list and therefore needs only SERVICE_CHANGE_CONFIG.
+        uint access = ServiceChangeConfig;
+        for (int i = 0; i < policy.Actions.Length; i++) {
+          if (policy.Actions[i] != null && policy.Actions[i].Type == 1) {
+            access |= ServiceStart;
+            break;
+          }
+        }
+        service = Open(name, access, out manager);
         if (policy.RebootMessage != null) reboot = Marshal.StringToHGlobalUni(policy.RebootMessage);
         if (policy.Command != null) command = Marshal.StringToHGlobalUni(policy.Command);
         int actionSize = Marshal.SizeOf(typeof(ScAction));
@@ -160,12 +189,14 @@ namespace Ventio.Setup.ServiceRecovery {
         };
         nativeBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(FailureActionsNative)));
         Marshal.StructureToPtr(actions, nativeBuffer, false);
-        if (!ChangeServiceConfig2(service, ServiceConfigFailureActions, nativeBuffer)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (!ChangeServiceConfig2(service, ServiceConfigFailureActions, nativeBuffer))
+          throw new Win32Exception(Marshal.GetLastWin32Error(), "SERVICE_CONFIG_FAILURE_ACTIONS update failed");
 
         FailureActionsFlagNative flag = new FailureActionsFlagNative { Enabled = policy.FailureActionsOnNonCrashFailures };
         flagBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(FailureActionsFlagNative)));
         Marshal.StructureToPtr(flag, flagBuffer, false);
-        if (!ChangeServiceConfig2(service, ServiceConfigFailureActionsFlag, flagBuffer)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (!ChangeServiceConfig2(service, ServiceConfigFailureActionsFlag, flagBuffer))
+          throw new Win32Exception(Marshal.GetLastWin32Error(), "SERVICE_CONFIG_FAILURE_ACTIONS_FLAG update failed");
       } finally {
         if (flagBuffer != IntPtr.Zero) Marshal.FreeHGlobal(flagBuffer);
         if (nativeBuffer != IntPtr.Zero) Marshal.FreeHGlobal(nativeBuffer);
@@ -184,7 +215,8 @@ namespace Ventio.Setup.ServiceRecovery {
 $script:VentioFailurePolicyEntropy = [Text.Encoding]::UTF8.GetBytes('Ventio Host service recovery policy snapshot v1')
 
 function Get-VentioServiceFailurePolicy([string] $ServiceName) {
-  return [Ventio.Setup.ServiceRecovery.Native]::Query($ServiceName)
+  try { return [Ventio.Setup.ServiceRecovery.Native]::Query($ServiceName) }
+  catch { throw 'HOST_SERVICE_RECOVERY_POLICY_QUERY_FAILED' }
 }
 
 function Set-VentioServiceFailurePolicy([string] $ServiceName, [object] $Policy) {
@@ -207,9 +239,25 @@ function Test-VentioServiceFailurePolicyEqual([object] $Left, [object] $Right) {
   return $true
 }
 
+function Test-VentioServiceFailurePolicySuppressed([object] $Policy) {
+  if ($null -eq $Policy -or [bool]$Policy.FailureActionsOnNonCrashFailures) { return $false }
+  foreach ($action in @($Policy.Actions)) {
+    if ([int]$action.Type -ne 0) { return $false }
+  }
+  return $true
+}
+
 function New-VentioServicePolicyObject([object] $Source, [switch] $DisableActions) {
-  $actions = if ($DisableActions) { @() } else {
-    @($Source.Actions | ForEach-Object { [Ventio.Setup.ServiceRecovery.ActionValue]::new([int]$_.Type, [uint32]$_.Delay) })
+  # Use an explicit SC_ACTION_NONE entry to disable restarts. Windows
+  # PowerShell 5.1 assigns an empty array expression as $null; SCM may also
+  # retain the old actions for a zero-action update. One NONE action is
+  # unambiguous, non-restarting, and round-trips through QueryServiceConfig2.
+  if ($DisableActions) {
+    $actions = [Ventio.Setup.ServiceRecovery.ActionValue[]]@(
+      [Ventio.Setup.ServiceRecovery.ActionValue]::new(0, 0))
+  } else {
+    $actions = [Ventio.Setup.ServiceRecovery.ActionValue[]]@(
+      $Source.Actions | ForEach-Object { [Ventio.Setup.ServiceRecovery.ActionValue]::new([int]$_.Type, [uint32]$_.Delay) })
   }
   return [Ventio.Setup.ServiceRecovery.PolicyValue]::new(
     [uint32]$Source.ResetPeriod,
@@ -254,16 +302,16 @@ function Set-VentioRecoveryStateAcl([string] $Path, [switch] $Directory, [switch
       $sid, [Security.AccessControl.FileSystemRights]::FullControl, $inheritance,
       [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
   }
-  Set-Acl -LiteralPath $Path -AclObject $security -ErrorAction Stop
+  try { Set-Acl -LiteralPath $Path -AclObject $security -ErrorAction Stop }
+  catch { throw 'HOST_SERVICE_RECOVERY_STATE_ACL_SET_FAILED' }
 }
 
 function Assert-VentioRecoveryStateAcl([string] $Path, [switch] $Directory, [switch] $TestMode) {
-  $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
+  try { $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop }
+  catch { throw 'HOST_SERVICE_RECOVERY_STATE_ACL_READ_FAILED' }
   if (-not $acl.AreAccessRulesProtected) { throw 'HOST_SERVICE_RECOVERY_STATE_ACL_INVALID' }
   $allowed = @{}
-  if ($TestMode) {
-    $allowed[[Security.Principal.WindowsIdentity]::GetCurrent().User.Value] = $true
-  } else {
+  if (-not $TestMode) {
     $allowed['S-1-5-32-544'] = $true
   }
   $ownerSid = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
@@ -288,12 +336,19 @@ function Get-VentioServiceIdentity([string] $ServiceName) {
 
 function Read-VentioRecoveryJournal([string] $Path, [switch] $TestMode) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+  Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_FILE_ACL_VALIDATE'
   Assert-VentioRecoveryStateAcl $Path -TestMode:$TestMode
-  $protectedBytes = [IO.File]::ReadAllBytes($Path)
+  try { $protectedBytes = [IO.File]::ReadAllBytes($Path) }
+  catch { throw 'HOST_SERVICE_RECOVERY_STATE_READ_FAILED' }
   $clearBytes = $null
   try {
-    $clearBytes = [Security.Cryptography.ProtectedData]::Unprotect(
-      $protectedBytes, $script:VentioFailurePolicyEntropy, [Security.Cryptography.DataProtectionScope]::LocalMachine)
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_DPAPI_UNPROTECT'
+    try {
+      $clearBytes = [Security.Cryptography.ProtectedData]::Unprotect(
+        $protectedBytes, $script:VentioFailurePolicyEntropy, [Security.Cryptography.DataProtectionScope]::LocalMachine)
+    } catch {
+      throw 'HOST_SERVICE_RECOVERY_DPAPI_UNPROTECT_FAILED'
+    }
     $json = [Text.Encoding]::UTF8.GetString($clearBytes)
     $journal = $json | ConvertFrom-Json
     if ($journal.formatVersion -ne 1 -or [string]$journal.serviceName -notmatch '^[A-Za-z0-9_-]{1,80}$' -or
@@ -313,20 +368,35 @@ function Read-VentioRecoveryJournal([string] $Path, [switch] $TestMode) {
 function Write-VentioRecoveryJournal([string] $Path, [object] $Journal, [switch] $TestMode) {
   $directory = Split-Path -Parent $Path
   if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
-    [void][IO.Directory]::CreateDirectory($directory)
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_DIRECTORY_CREATE'
+    try { [void][IO.Directory]::CreateDirectory($directory) }
+    catch { throw 'HOST_SERVICE_RECOVERY_STATE_DIRECTORY_CREATE_FAILED' }
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_DIRECTORY_ACL_SET'
     Set-VentioRecoveryStateAcl $directory -Directory -TestMode:$TestMode
   } else {
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_DIRECTORY_ACL_VALIDATE'
     Assert-VentioRecoveryStateAcl $directory -Directory -TestMode:$TestMode
   }
-  $clearBytes = [Text.UTF8Encoding]::new($false).GetBytes(($Journal | ConvertTo-Json -Depth 8 -Compress))
+  try { $clearBytes = [Text.UTF8Encoding]::new($false).GetBytes(($Journal | ConvertTo-Json -Depth 8 -Compress)) }
+  catch { throw 'HOST_SERVICE_RECOVERY_STATE_SERIALIZATION_FAILED' }
   $protectedBytes = $null
   $tempPath = $Path + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
   try {
-    $protectedBytes = [Security.Cryptography.ProtectedData]::Protect(
-      $clearBytes, $script:VentioFailurePolicyEntropy, [Security.Cryptography.DataProtectionScope]::LocalMachine)
-    [IO.File]::WriteAllBytes($tempPath, $protectedBytes)
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_DPAPI_PROTECT'
+    try {
+      $protectedBytes = [Security.Cryptography.ProtectedData]::Protect(
+        $clearBytes, $script:VentioFailurePolicyEntropy, [Security.Cryptography.DataProtectionScope]::LocalMachine)
+    } catch {
+      throw 'HOST_SERVICE_RECOVERY_DPAPI_PROTECT_FAILED'
+    }
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_FILE_WRITE'
+    try { [IO.File]::WriteAllBytes($tempPath, $protectedBytes) }
+    catch { throw 'HOST_SERVICE_RECOVERY_STATE_WRITE_FAILED' }
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_FILE_ACL_SET'
     Set-VentioRecoveryStateAcl $tempPath -TestMode:$TestMode
-    [IO.File]::Move($tempPath, $Path)
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_COMMIT'
+    try { [IO.File]::Move($tempPath, $Path) }
+    catch { throw 'HOST_SERVICE_RECOVERY_STATE_COMMIT_FAILED' }
   } finally {
     [Array]::Clear($clearBytes, 0, $clearBytes.Length)
     if ($protectedBytes) { [Array]::Clear($protectedBytes, 0, $protectedBytes.Length) }
@@ -368,9 +438,11 @@ function Wait-VentioServiceStoppedStable(
   $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
   $stableUntil = $null
   while ([DateTime]::UtcNow -lt $deadline) {
-    $serviceState = [string](& $StatusProvider $ServiceName)
+    try { $serviceState = [string](& $StatusProvider $ServiceName) }
+    catch { throw 'HOST_SERVICE_RECOVERY_STATUS_QUERY_FAILED' }
     if ($serviceState -eq 'Running') {
-      & $StopProvider $ServiceName
+      try { & $StopProvider $ServiceName }
+      catch { throw 'HOST_SERVICE_RECOVERY_DRAIN_STOP_FAILED' }
       $stableUntil = $null
     } elseif ($serviceState -eq 'StartPending' -or $serviceState -eq 'StopPending' -or
         $serviceState -eq 'PausePending' -or $serviceState -eq 'ContinuePending') {
@@ -402,12 +474,16 @@ function Start-VentioHostServiceMaintenance(
   [string] $ServiceName = 'VentioHost',
   [string] $ExpectedStartName = 'NT SERVICE\VentioHost'
 ) {
+  Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_IDENTITY_VALIDATE'
   if ([string]$ValidatedIdentity.Name -cne $ServiceName -or [string]$ValidatedIdentity.StartName -cne $ExpectedStartName) {
     throw 'HOST_SERVICE_RECOVERY_IDENTITY_INVALID'
   }
+  Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_PATH_VALIDATE'
   $state = Get-VentioHostRecoveryPolicyState $StateDirectory -TestMode:$TestMode -ServiceName $ServiceName
+  Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_READ'
   $journal = Read-VentioRecoveryJournal $state.Path -TestMode:$TestMode
   if ($null -eq $journal) {
+    Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_QUERY'
     $original = Get-VentioServiceFailurePolicy $ServiceName
     foreach ($action in @($original.Actions)) {
       if ([int]$action.Type -notin @(0, 1)) { throw 'HOST_SERVICE_RECOVERY_POLICY_UNSUPPORTED_ACTION' }
@@ -426,6 +502,7 @@ function Start-VentioHostServiceMaintenance(
       createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
       originalPolicy = $original
     }
+    Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_WRITE'
     Write-VentioRecoveryJournal $state.Path $journal -TestMode:$TestMode
   } else {
     Assert-VentioJournalIdentity $journal $ValidatedIdentity
@@ -436,29 +513,40 @@ function Start-VentioHostServiceMaintenance(
       if ([int]$action.Type -eq 1) { $maxDelay = [Math]::Max($maxDelay, [long]$action.Delay) }
     }
     if ($maxDelay -gt 300000) { throw 'HOST_SERVICE_RECOVERY_POLICY_DELAY_UNSUPPORTED' }
+    Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_QUERY'
     $current = Get-VentioServiceFailurePolicy $ServiceName
-    $disabled = New-VentioServicePolicyObject $original -DisableActions
-    if (-not (Test-VentioServiceFailurePolicyEqual $current $disabled) -and
+    if (-not (Test-VentioServiceFailurePolicySuppressed $current) -and
         -not (Test-VentioServiceFailurePolicyEqual $current $original)) {
       throw 'HOST_SERVICE_RECOVERY_POLICY_CONFLICT'
     }
   }
 
+  Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_QUERY'
   $current = Get-VentioServiceFailurePolicy $ServiceName
   $disabled = New-VentioServicePolicyObject $original -DisableActions
-  if (-not (Test-VentioServiceFailurePolicyEqual $current $disabled)) {
+  if (-not (Test-VentioServiceFailurePolicySuppressed $current)) {
+    Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_SUPPRESS'
     try {
       Set-VentioServiceFailurePolicy $ServiceName $disabled
     } catch {
       throw 'HOST_SERVICE_RECOVERY_POLICY_SUPPRESS_FAILED'
     }
   }
+  Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_SUPPRESS_VERIFY'
   $verified = Get-VentioServiceFailurePolicy $ServiceName
-  if (-not (Test-VentioServiceFailurePolicyEqual $verified $disabled)) { throw 'HOST_SERVICE_RECOVERY_POLICY_SUPPRESS_VERIFICATION_FAILED' }
+  if (-not (Test-VentioServiceFailurePolicySuppressed $verified)) {
+    foreach ($action in @($verified.Actions)) {
+      if ([int]$action.Type -ne 0) { throw 'HOST_SERVICE_RECOVERY_POLICY_SUPPRESS_ACTIONS_REMAIN' }
+    }
+    if ([bool]$verified.FailureActionsOnNonCrashFailures) { throw 'HOST_SERVICE_RECOVERY_POLICY_SUPPRESS_FLAG_REMAINS_ENABLED' }
+    throw 'HOST_SERVICE_RECOVERY_POLICY_SUPPRESS_VERIFICATION_FAILED'
+  }
 
   $quietSeconds = [Math]::Max(2, [Math]::Ceiling($maxDelay / 1000.0) + 3)
   $timeoutSeconds = [Math]::Min(1200, [Math]::Max(30, ($quietSeconds + 2) * 4))
+  Set-VentioHostServiceRecoveryStage 'SERVICE_RESTART_DRAIN'
   Wait-VentioServiceStoppedStable $ServiceName $quietSeconds $timeoutSeconds $null $null
+  Set-VentioHostServiceRecoveryStage 'SERVICE_MAINTENANCE_COMPLETE'
   [pscustomobject]@{ OperationId = [string]$journal.operationId; QuietSeconds = $quietSeconds; StatePath = $state.Path }
 }
 
@@ -469,13 +557,13 @@ function Assert-VentioHostServiceMaintenance(
   [switch] $TestMode,
   [string] $ServiceName = 'VentioHost'
 ) {
+  Set-VentioHostServiceRecoveryStage 'SERVICE_MAINTENANCE_ASSERT'
   $state = Get-VentioHostRecoveryPolicyState $StateDirectory -TestMode:$TestMode -ServiceName $ServiceName
   $journal = Read-VentioRecoveryJournal $state.Path -TestMode:$TestMode
   if ($null -eq $journal) { throw 'HOST_SERVICE_RECOVERY_MAINTENANCE_NOT_ACTIVE' }
   Assert-VentioJournalIdentity $journal $ValidatedIdentity
-  $expected = New-VentioServicePolicyObject (Convert-VentioJournalPolicy $journal) -DisableActions
   $current = Get-VentioServiceFailurePolicy $ServiceName
-  if (-not (Test-VentioServiceFailurePolicyEqual $current $expected)) { throw 'HOST_SERVICE_RECOVERY_POLICY_CONFLICT' }
+  if (-not (Test-VentioServiceFailurePolicySuppressed $current)) { throw 'HOST_SERVICE_RECOVERY_POLICY_CONFLICT' }
   if ((Get-Service -Name $ServiceName -ErrorAction Stop).Status.ToString() -cne $ExpectedStatus) {
     throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
   }
@@ -487,21 +575,25 @@ function Restore-VentioHostServiceFailureActions(
   [switch] $TestMode,
   [string] $ServiceName = 'VentioHost'
 ) {
+  Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_READ'
   $state = Get-VentioHostRecoveryPolicyState $StateDirectory -TestMode:$TestMode -ServiceName $ServiceName
   $journal = Read-VentioRecoveryJournal $state.Path -TestMode:$TestMode
   if ($null -eq $journal) { return }
   Assert-VentioJournalIdentity $journal $ValidatedIdentity
   $original = Convert-VentioJournalPolicy $journal
-  $disabled = New-VentioServicePolicyObject $original -DisableActions
+  Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_QUERY'
   $current = Get-VentioServiceFailurePolicy $ServiceName
-  if (Test-VentioServiceFailurePolicyEqual $current $disabled) {
+  if (Test-VentioServiceFailurePolicySuppressed $current) {
+    Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_RESTORE'
     try { Set-VentioServiceFailurePolicy $ServiceName $original }
     catch { throw 'HOST_SERVICE_RECOVERY_POLICY_RESTORE_FAILED' }
   } elseif (-not (Test-VentioServiceFailurePolicyEqual $current $original)) {
     throw 'HOST_SERVICE_RECOVERY_POLICY_CONFLICT'
   }
+  Set-VentioHostServiceRecoveryStage 'SERVICE_RECOVERY_POLICY_RESTORE_VERIFY'
   $verified = Get-VentioServiceFailurePolicy $ServiceName
   if (-not (Test-VentioServiceFailurePolicyEqual $verified $original)) { throw 'HOST_SERVICE_RECOVERY_POLICY_RESTORE_VERIFICATION_FAILED' }
+  Set-VentioHostServiceRecoveryStage 'RECOVERY_JOURNAL_CLEANUP'
   Remove-Item -LiteralPath $state.Path -Force -ErrorAction Stop
   if (Test-Path -LiteralPath $state.Path) { throw 'HOST_SERVICE_RECOVERY_POLICY_STATE_CLEANUP_FAILED' }
 }
@@ -509,4 +601,5 @@ function Restore-VentioHostServiceFailureActions(
 Export-ModuleMember -Function Get-VentioServiceFailurePolicy, Set-VentioServiceFailurePolicy,
   Test-VentioServiceFailurePolicyEqual, Get-VentioHostRecoveryPolicyState,
   Start-VentioHostServiceMaintenance, Assert-VentioHostServiceMaintenance,
-  Restore-VentioHostServiceFailureActions, Wait-VentioServiceStoppedStable
+  Restore-VentioHostServiceFailureActions, Wait-VentioServiceStoppedStable,
+  Get-VentioHostServiceRecoveryStage, Assert-VentioRecoveryStateAcl

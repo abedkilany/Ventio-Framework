@@ -133,6 +133,40 @@ begin
   Result := 'Ventio could not install or verify the Microsoft Visual C++ x64 Runtime. Setup stopped before replacing application files or stopping Host services. No database or Host data was changed.';
 end;
 
+function IsSafePreinstallFailureCode(const Code: string): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := (Pos('HOST_', Code) = 1) and (Length(Code) <= 112);
+  if not Result then exit;
+  for I := 1 to Length(Code) do begin
+    C := Code[I];
+    if not (((C >= 'A') and (C <= 'Z')) or
+            ((C >= '0') and (C <= '9')) or (C = '_')) then begin
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
+function IsSafePreinstallFailureStage(const Stage: string): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := (Length(Stage) > 0) and (Length(Stage) <= 112);
+  if not Result then exit;
+  for I := 1 to Length(Stage) do begin
+    C := Stage[I];
+    if not (((C >= 'A') and (C <= 'Z')) or
+            ((C >= '0') and (C <= '9')) or (C = '_')) then begin
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
@@ -141,6 +175,11 @@ var
   Parameters: string;
   HasHostService: Boolean;
   HasPostgresService: Boolean;
+  FailureCodePath: string;
+  FailureCode: string;
+  FailureStage: string;
+  FailureCodeLines: TArrayOfString;
+  ProcessStarted: Boolean;
 begin
   Result := EnsureVCRuntime();
   if Result <> '' then exit;
@@ -155,13 +194,31 @@ begin
   HostRecoveryHelpersExtracted := True;
   StopScript := ExpandConstant('{tmp}\stop-host-services.ps1');
   if not FileExists(StopScript) then begin
-    Result := 'An existing Host service was found, but this installation does not contain the reviewed service-stop helper. No upgrade was performed.';
+    Result := 'Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_STOP_HELPER_MISSING. Stage: HELPER_EXTRACTION. No application files were replaced.';
     exit;
   end;
   PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + StopScript + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -AllowPostgresOnlyRecovery';
-  if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-    Result := 'Ventio could not safely stop its existing Host services. The installer stopped before replacing files.';
+  FailureCodePath := ExpandConstant('{tmp}\ventio-preinstall-failure.txt');
+  DeleteFile(FailureCodePath);
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + StopScript + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -AllowPostgresOnlyRecovery -FailureCodePath "' + FailureCodePath + '"';
+  ResultCode := -1;
+  ProcessStarted := Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if (not ProcessStarted) or (ResultCode <> 0) then begin
+    FailureCode := '';
+    FailureStage := '';
+    if not ProcessStarted then begin
+      FailureCode := 'HOST_PREINSTALL_POWERSHELL_START_FAILED';
+      FailureStage := 'POWERSHELL_LAUNCH';
+    end else if FileExists(FailureCodePath) and LoadStringsFromFile(FailureCodePath, FailureCodeLines) then begin
+      if (GetArrayLength(FailureCodeLines) > 0) and (Copy(FailureCodeLines[0], 1, 5) = 'Code=') then
+        FailureCode := Copy(FailureCodeLines[0], 6, Length(FailureCodeLines[0]));
+      if (GetArrayLength(FailureCodeLines) > 1) and (Copy(FailureCodeLines[1], 1, 6) = 'Stage=') then
+        FailureStage := Copy(FailureCodeLines[1], 7, Length(FailureCodeLines[1]));
+    end;
+    DeleteFile(FailureCodePath);
+    if not IsSafePreinstallFailureCode(FailureCode) then FailureCode := 'HOST_PREINSTALL_HELPER_FAILED';
+    if not IsSafePreinstallFailureStage(FailureStage) then FailureStage := 'STOP_HOST_SERVICES';
+    Result := 'Ventio pre-install failed safely. Failure code: ' + FailureCode + '. Stage: ' + FailureStage + '. No application files were replaced.';
   end else begin
     HostServicesStoppedForUpgrade := True;
   end;

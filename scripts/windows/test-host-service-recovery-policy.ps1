@@ -51,11 +51,18 @@ function Invoke-SimulatedRestartRace {
 function Invoke-ContractChecks {
   $upgrade = Get-Content -LiteralPath $upgradePath -Raw
   $stop = Get-Content -LiteralPath $stopPath -Raw
+  $policy = Get-Content -LiteralPath $modulePath -Raw
   $installer = Get-Content -LiteralPath $installerPath -Raw
   Assert-RecoveryTest ($upgrade.Contains("Set-HostBackupStage 'PRE_DATABASE_UPGRADE_HOST_SERVICE_STATE'") -and
     $upgrade.Contains("Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_PRECONDITION'") -and
     $upgrade.Contains("Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_STATE'")) 'both_upgrade_service_state_failures_have_distinct_safe_stages'
   Assert-RecoveryTest ($installer.Contains('IsSafeHostDatabaseUpgradeFailureStage') -and $installer.Contains(' Stage: ')) 'installer_displays_only_validated_safe_stage_metadata'
+  Assert-RecoveryTest ($stop.Contains('[string] $FailureCodePath') -and $stop.Contains("'Code=' + `$Code") -and $stop.Contains("'Stage=' + `$Stage") -and
+    $installer.Contains('-FailureCodePath "') -and $installer.Contains('IsSafePreinstallFailureStage')) 'preinstall_failure_code_and_stage_are_safely_exposed'
+  Assert-RecoveryTest ($policy.Contains('Add-Type -AssemblyName System.Security') -and
+    $policy.Contains('RECOVERY_JOURNAL_DPAPI_PROTECT') -and $policy.Contains('SERVICE_RECOVERY_POLICY_SUPPRESS')) 'windows_powershell_51_dpapi_and_suppression_stages_are_instrumented'
+  Assert-RecoveryTest ($policy.Contains('access |= ServiceStart') -and
+    $policy.Contains('SC_ACTION_NONE') -and $policy.Contains('ServiceStart = 0x0010')) 'scm_restart_restore_uses_required_narrow_service_rights'
   Assert-RecoveryTest ($stop.Contains('Start-VentioHostServiceMaintenance $hostService') -and
     $installer.Contains('-KeepHostRecoveryPolicySuppressed') -and $installer.Contains('-RestoreHostFailureActions')) 'installer_holds_and_restores_scm_policy'
   Assert-RecoveryTest ($upgrade.Contains('Assert-VentioHostServiceMaintenance') -and
@@ -66,9 +73,31 @@ function Invoke-ContractChecks {
     $upgrade.Contains('Start-Service -Name $hostServiceName')) 'recovery_authority_helper_starts_host_only_after_stable_stop_check'
 }
 
+function Invoke-PreinstallFailureDiagnosticTest {
+  $testRoot = Join-Path ([IO.Path]::GetFullPath([IO.Path]::GetTempPath())) ('ventio-preinstall-diagnostic-test-' + [guid]::NewGuid().ToString('N'))
+  [void][IO.Directory]::CreateDirectory($testRoot)
+  $failurePath = Join-Path $testRoot 'failure.txt'
+  $stdoutPath = Join-Path $testRoot 'stdout.txt'
+  $stderrPath = Join-Path $testRoot 'stderr.txt'
+  $invalidPayload = Join-Path $testRoot 'intentionally-invalid-payload'
+  $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $stopPath + '" -PayloadDirectory "' + $invalidPayload + '" -FailureCodePath "' + $failurePath + '"'
+  try {
+    $process = Start-Process -FilePath $windowsPowerShell -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    Assert-RecoveryTest ($process.ExitCode -ne 0) 'windows_powershell_51_helper_failure_exit_is_nonzero'
+    $failureLines = @(Get-Content -LiteralPath $failurePath -ErrorAction Stop)
+    Assert-RecoveryTest ($failureLines.Count -eq 2 -and
+      $failureLines[0] -ceq 'Code=HOST_PAYLOAD_PATH_INVALID' -and
+      $failureLines[1] -ceq 'Stage=PAYLOAD_PATH_VALIDATION') 'windows_powershell_51_writes_safe_specific_failure_metadata'
+  } finally {
+    Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
 try {
   Invoke-ContractChecks
   Invoke-SimulatedRestartRace
+  Invoke-PreinstallFailureDiagnosticTest
   if (-not $ScmIntegration) {
     Write-Output 'HOST_SERVICE_RECOVERY_POLICY_TEST_PASS'
     return
@@ -98,6 +127,26 @@ try {
     }
     Set-Acl -LiteralPath $testRoot -AclObject $protected
     Set-Acl -LiteralPath $stateDirectory -AclObject $protected
+
+    # Match the physical installer's stated installer-folder profile exactly:
+    # Administrators owns it; inheritance is disabled; only Administrators
+    # and SYSTEM receive FullControl.
+    $physicalAclDirectory = Join-Path $testRoot 'physical-installer-acl'
+    [void][IO.Directory]::CreateDirectory($physicalAclDirectory)
+    $adminSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+    $systemSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+    $physicalAcl = [Security.AccessControl.DirectorySecurity]::new()
+    $physicalAcl.SetAccessRuleProtection($true, $false)
+    $physicalAcl.SetOwner($adminSid)
+    foreach ($sid in @($adminSid, $systemSid)) {
+      $physicalAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        $sid, [Security.AccessControl.FileSystemRights]::FullControl,
+        [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit,
+        [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+    }
+    Set-Acl -LiteralPath $physicalAclDirectory -AclObject $physicalAcl
+    Assert-VentioRecoveryStateAcl $physicalAclDirectory -Directory -TestMode
+    Assert-RecoveryTest $true 'physical_administrators_owner_and_system_admin_acl_is_accepted'
 
     $source = @'
 using System;
@@ -160,33 +209,39 @@ class VentioScmFailureFixture {
       throw 'HOST_SERVICE_RECOVERY_SCM_TEST_BLOCKED_NOT_ELEVATED'
     }
 
+    # New-Service calls CreateServiceW directly.  Invoking sc.exe through
+    # Windows PowerShell 5.1 mangles the quoted binPath argument for paths
+    # containing spaces, which made the previous elevated integration test
+    # fail before it reached the service recovery code under test.
     $serviceBinPath = '"' + $serviceExe + '"'
-    & sc.exe create $serviceName "binPath= $serviceBinPath" 'start= demand' 'obj= LocalSystem' | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'HOST_SERVICE_RECOVERY_SCM_FIXTURE_CREATE_FAILED' }
+    New-Service -Name $serviceName -BinaryPathName $serviceBinPath -StartupType Manual -ErrorAction Stop | Out-Null
     $serviceInstalled = $true
     $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'"
     $original = [Ventio.Setup.ServiceRecovery.PolicyValue]::new(86400, $null, $null,
       [Ventio.Setup.ServiceRecovery.ActionValue[]]@(
-        [Ventio.Setup.ServiceRecovery.ActionValue]::new(1, 1000),
-        [Ventio.Setup.ServiceRecovery.ActionValue]::new(1, 3000),
-        [Ventio.Setup.ServiceRecovery.ActionValue]::new(1, 6000)), $true)
+        [Ventio.Setup.ServiceRecovery.ActionValue]::new(1, 5000),
+        [Ventio.Setup.ServiceRecovery.ActionValue]::new(1, 30000),
+        [Ventio.Setup.ServiceRecovery.ActionValue]::new(1, 60000)), $true)
     Set-VentioServiceFailurePolicy $serviceName $original
+    $before = Get-VentioServiceFailurePolicy $serviceName
+    Assert-RecoveryTest (Test-VentioServiceFailurePolicyEqual $original $before) 'scm_native_policy_query_and_update_succeed'
     Start-Service -Name $serviceName
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
     while ([DateTime]::UtcNow -lt $deadline) {
-      if ((Test-Path -LiteralPath $logPath) -and (Get-Content -LiteralPath $logPath).Count -ge 2) { break }
+      if ((Test-Path -LiteralPath $logPath) -and @(Get-Content -LiteralPath $logPath).Count -ge 2) { break }
       Start-Sleep -Milliseconds 250
     }
-    Assert-RecoveryTest ((Test-Path -LiteralPath $logPath) -and (Get-Content -LiteralPath $logPath).Count -ge 2) 'scm_restarts_disposable_failed_service'
+    Assert-RecoveryTest ((Test-Path -LiteralPath $logPath) -and @(Get-Content -LiteralPath $logPath).Count -ge 2) 'scm_restarts_disposable_failed_service'
 
-    $before = Get-VentioServiceFailurePolicy $serviceName
     $maintained = [pscustomobject]@{ Name=$service.Name; StartName=$service.StartName; PathName=$service.PathName }
     $result = Start-VentioHostServiceMaintenance $maintained $stateDirectory -TestMode -ServiceName $serviceName -ExpectedStartName 'LocalSystem'
-    Assert-RecoveryTest ($result.QuietSeconds -ge 9) 'scm_restart_delay_drained_before_maintenance'
+    Assert-RecoveryTest (Test-Path -LiteralPath $result.StatePath -PathType Leaf) 'windows_powershell_51_dpapi_journal_is_durably_created'
+    Assert-RecoveryTest ($result.QuietSeconds -ge 63) 'scm_5_30_60_second_restart_delay_drained_before_maintenance'
     Assert-VentioHostServiceMaintenance $maintained 'Stopped' $stateDirectory -TestMode -ServiceName $serviceName
-    $countAtHold = (Get-Content -LiteralPath $logPath).Count
+    Assert-RecoveryTest $true 'windows_powershell_51_dpapi_journal_acl_and_unprotect_round_trip'
+    $countAtHold = @(Get-Content -LiteralPath $logPath).Count
     Start-Sleep -Seconds 7
-    Assert-RecoveryTest ((Get-Service -Name $serviceName).Status -eq 'Stopped' -and (Get-Content -LiteralPath $logPath).Count -eq $countAtHold) 'scm_has_no_restart_after_policy_suppression_and_drain'
+    Assert-RecoveryTest ((Get-Service -Name $serviceName).Status -eq 'Stopped' -and @(Get-Content -LiteralPath $logPath).Count -eq $countAtHold) 'scm_has_no_restart_after_policy_suppression_and_drain'
 
     Restore-VentioHostServiceFailureActions $maintained $stateDirectory -TestMode -ServiceName $serviceName
     $restored = Get-VentioServiceFailurePolicy $serviceName
@@ -195,17 +250,18 @@ class VentioScmFailureFixture {
   } finally {
     if ($serviceInstalled) {
       try {
-        $empty = [Ventio.Setup.ServiceRecovery.PolicyValue]::new(0, $null, $null,
-          [Ventio.Setup.ServiceRecovery.ActionValue[]]@(), $false)
-        Set-VentioServiceFailurePolicy $serviceName $empty
-        if ((Get-Service -Name $serviceName -ErrorAction SilentlyContinue).Status -ne 'Stopped') {
-          Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-        }
-        & sc.exe delete $serviceName | Out-Null
+        $noRestart = [Ventio.Setup.ServiceRecovery.PolicyValue]::new(0, $null, $null,
+          [Ventio.Setup.ServiceRecovery.ActionValue[]]@([Ventio.Setup.ServiceRecovery.ActionValue]::new(0, 0)), $false)
+        Set-VentioServiceFailurePolicy $serviceName $noRestart
       } catch { }
+      try { Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue } catch { }
+      try { & sc.exe delete $serviceName | Out-Null } catch { }
       $deleteDeadline = [DateTime]::UtcNow.AddSeconds(10)
       while ([DateTime]::UtcNow -lt $deleteDeadline -and (Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue)) {
         Start-Sleep -Milliseconds 250
+      }
+      if (Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue) {
+        throw 'HOST_SERVICE_RECOVERY_SCM_FIXTURE_CLEANUP_FAILED'
       }
     }
     if (Test-Path -LiteralPath $testRoot) {

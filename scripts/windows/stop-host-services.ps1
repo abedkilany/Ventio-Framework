@@ -4,7 +4,8 @@ param(
   [switch] $ResumePostgresOnly,
   [switch] $ResumeServices,
   [switch] $KeepHostRecoveryPolicySuppressed,
-  [switch] $RestoreHostFailureActions
+  [switch] $RestoreHostFailureActions,
+  [string] $FailureCodePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,11 +15,45 @@ $programData = [IO.Path]::GetFullPath([Environment]::GetFolderPath([Environment+
 $dataDirectory = [IO.Path]::GetFullPath((Join-Path $programData 'Ventio\PostgreSQL\data'))
 $installerStateDirectory = Join-Path $programData 'Ventio\Installer'
 $hostConfigurationDirectory = Join-Path $programData 'Ventio\Host'
+$script:VentioStopHostServicesStage = 'PREINSTALL_HELPER_INITIALIZATION'
+$script:VentioStopHostServicesDiagnosticStage = $null
+
+function Write-VentioPreinstallFailure([string] $Code, [string] $Stage) {
+  if ([string]::IsNullOrWhiteSpace($FailureCodePath)) { return }
+  if ($Code -notmatch '^HOST_[A-Z0-9_]{1,100}$') { $Code = 'HOST_PREINSTALL_UNEXPECTED_FAILURE' }
+  if ($Stage -notmatch '^[A-Z0-9_]{1,100}$') { $Stage = 'PREINSTALL_HELPER' }
+  try {
+    $diagnosticLines = [string[]]::new(2)
+    $diagnosticLines[0] = 'Code=' + $Code
+    $diagnosticLines[1] = 'Stage=' + $Stage
+    [IO.File]::WriteAllLines($FailureCodePath, $diagnosticLines, [Text.UTF8Encoding]::new($false))
+  } catch { }
+}
+
+trap {
+  $failureCode = 'HOST_PREINSTALL_UNEXPECTED_FAILURE'
+  $message = [string]$_.Exception.Message
+  if ($message -cmatch '^HOST_[A-Z0-9_]{1,100}$') { $failureCode = $message }
+  $failureStage = [string]$script:VentioStopHostServicesStage
+  if (-not [string]::IsNullOrWhiteSpace([string]$script:VentioStopHostServicesDiagnosticStage)) {
+    $failureStage = [string]$script:VentioStopHostServicesDiagnosticStage
+  } elseif ($failureStage -ceq 'SERVICE_RECOVERY_MAINTENANCE') {
+    try {
+      $moduleStage = [string](Get-VentioHostServiceRecoveryStage)
+      if ($moduleStage -match '^[A-Z0-9_]{1,100}$') { $failureStage = $moduleStage }
+    } catch { }
+  }
+  Write-VentioPreinstallFailure $failureCode $failureStage
+  exit 1
+}
+
 $serviceRecoveryPolicyModule = Join-Path $PSScriptRoot 'HostServiceRecoveryPolicy.psm1'
+$script:VentioStopHostServicesStage = 'HELPER_IMPORT_VALIDATION'
 if (-not (Test-Path -LiteralPath $serviceRecoveryPolicyModule -PathType Leaf)) {
   throw 'HOST_SERVICE_RECOVERY_POLICY_HELPER_MISSING'
 }
 Import-Module $serviceRecoveryPolicyModule -Force
+$script:VentioStopHostServicesStage = 'HELPER_READY'
 
 if (($ResumeServices -and $ResumePostgresOnly) -or
     ($KeepHostRecoveryPolicySuppressed -and -not $ResumePostgresOnly) -or
@@ -127,7 +162,8 @@ function Assert-IncompleteHostRecoveryState {
 }
 
 function Get-ValidatedService([string] $Name, [string] $Account, [string] $Executable, [string] $DataPath) {
-  $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$Name'" -ErrorAction SilentlyContinue
+  try { $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$Name'" -ErrorAction Stop }
+  catch { throw 'HOST_SERVICE_IDENTITY_QUERY_FAILED' }
   if ($null -eq $service) { return $null }
   if ($service.StartName -cne $Account -or $service.PathName -notmatch [regex]::Escape($Executable) -or
       ($DataPath -and $service.PathName -notmatch [regex]::Escape($DataPath))) {
@@ -137,11 +173,16 @@ function Get-ValidatedService([string] $Name, [string] $Account, [string] $Execu
 }
 
 function Stop-ValidatedService([string] $Name) {
-  $service = Get-Service -Name $Name -ErrorAction Stop
+  try { $service = Get-Service -Name $Name -ErrorAction Stop }
+  catch { throw 'HOST_SERVICE_STATUS_QUERY_FAILED' }
   if ($service.Status -eq 'Stopped') { return }
-  Stop-Service -Name $Name -Force -ErrorAction Stop
+  try { Stop-Service -Name $Name -Force -ErrorAction Stop }
+  catch { throw 'HOST_SERVICE_STOP_FAILED' }
   $deadline = [DateTime]::UtcNow.AddSeconds(120)
-  while ((Get-Service -Name $Name).Status -ne 'Stopped') {
+  while ($true) {
+    try { $status = (Get-Service -Name $Name -ErrorAction Stop).Status }
+    catch { throw 'HOST_SERVICE_STATUS_QUERY_FAILED' }
+    if ($status -eq 'Stopped') { break }
     if ([DateTime]::UtcNow -ge $deadline) { throw 'HOST_SERVICE_STOP_TIMEOUT' }
     Start-Sleep -Milliseconds 500
   }
@@ -169,7 +210,9 @@ function Start-ValidatedHostService {
   }
 }
 
+$script:VentioStopHostServicesStage = 'PAYLOAD_PATH_VALIDATION'
 if (-not $payload.Equals($expectedPayload, [StringComparison]::OrdinalIgnoreCase)) { throw 'HOST_PAYLOAD_PATH_INVALID' }
+$script:VentioStopHostServicesStage = 'SERVICE_IDENTITY_VALIDATION'
 $postgres = Get-ValidatedService 'VentioPostgres' 'NT SERVICE\VentioPostgres' `
   (Join-Path $payload 'postgresql\bin\pg_ctl.exe') $dataDirectory
 $hostService = Get-ValidatedService 'VentioHost' 'NT SERVICE\VentioHost' `
@@ -234,15 +277,24 @@ if (-not $postgres) {
   return
 }
 $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+$script:VentioStopHostServicesStage = 'ADMINISTRATOR_TOKEN_VALIDATION'
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'HOST_SERVICE_ADMIN_ELEVATION_REQUIRED' }
 
 try {
+  $script:VentioStopHostServicesStage = 'SERVICE_RECOVERY_MAINTENANCE'
   [void](Start-VentioHostServiceMaintenance $hostService $installerStateDirectory)
+  $script:VentioStopHostServicesStage = 'POSTGRES_SERVICE_STOP'
   Stop-ValidatedService 'VentioPostgres'
 } catch {
+  if ($script:VentioStopHostServicesStage -ceq 'SERVICE_RECOVERY_MAINTENANCE') {
+    try { $script:VentioStopHostServicesDiagnosticStage = [string](Get-VentioHostServiceRecoveryStage) }
+    catch { $script:VentioStopHostServicesDiagnosticStage = 'SERVICE_RECOVERY_MAINTENANCE' }
+  }
+  $script:VentioStopHostServicesStage = 'SERVICE_RECOVERY_ROLLBACK'
   try {
     Restore-VentioHostServiceFailureActions $hostService
   } catch {
+    $script:VentioStopHostServicesDiagnosticStage = 'SERVICE_RECOVERY_POLICY_ROLLBACK'
     throw 'HOST_SERVICE_RECOVERY_POLICY_ROLLBACK_FAILED'
   }
   throw

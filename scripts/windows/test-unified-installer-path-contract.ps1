@@ -61,6 +61,9 @@ Assert-Contract ($setupBrokerManifest -match '<requestedExecutionLevel\s+level="
 Assert-Contract ($hostSetupCoordinator.Contains('currentProcessIsElevated') -and $hostSetupCoordinator.Contains('HOST_SETUP_APPLICATION_ELEVATED')) 'HOST_SETUP_MUST_REFUSE_TO_RUN_INSIDE_AN_ELEVATED_FLUTTER_PROCESS'
 Assert-Contract ($installerSource -match '(?s)function PrepareToInstall.*?stop-host-services\.ps1.*?Exec\(PowerShell, Parameters') 'HOST_UPGRADE_MUST_STOP_SERVICES_BEFORE_REPLACING_PAYLOAD'
 Assert-Contract ($installerSource.Contains("ExtractTemporaryFile('stop-host-services.ps1')")) 'HOST_PREINSTALL_STOP_HELPER_MUST_USE_THE_CURRENT_INSTALLER_PAYLOAD'
+Assert-Contract ($installerSource.Contains('ventio-preinstall-failure.txt') -and
+  $installerSource.Contains('IsSafePreinstallFailureCode') -and $installerSource.Contains('IsSafePreinstallFailureStage') -and
+  $installerSource.Contains('No application files were replaced.')) 'HOST_PREINSTALL_FAILURE_MUST_REPORT_VALIDATED_SAFE_CODE_AND_STAGE'
 Assert-Contract ($installerSource.Contains("ExtractTemporaryFile('HostServiceRecoveryPolicy.psm1')") -and $installerSource.Contains("Source: `"{#HostPayload}\setup\HostServiceRecoveryPolicy.psm1`"; Flags: dontcopy")) 'HOST_RECOVERY_POLICY_MODULE_MUST_BE_AVAILABLE_BEFORE_PAYLOAD_REPLACEMENT'
 Assert-Contract ($installerSource.Contains('-AllowPostgresOnlyRecovery')) 'HOST_PREINSTALL_MUST_ALLOW_ONLY_REVIEWED_POSTGRES_ONLY_RECOVERY'
 Assert-Contract ($installerSource -match '(?s)procedure DeinitializeSetup.*?-ResumePostgresOnly') 'HOST_INSTALL_FAILURE_MUST_RESTART_THE_VERIFIED_POSTGRES_SERVICE'
