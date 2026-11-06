@@ -17,7 +17,10 @@ internal sealed record BootstrapCommand(
     string? OperatorCredentialDigest = null,
     string? OperatorActorId = null,
     string? TargetActorId = null,
-    string? PermissionsCsv = null);
+    string? PermissionsCsv = null,
+    string? DeviceId = null,
+    string? SourceCredentialId = null,
+    string? ApprovedRemovalsCsv = null);
 
 internal sealed record TrustedPairingResult(
     string PairingId,
@@ -26,6 +29,18 @@ internal sealed record TrustedPairingResult(
     string BranchId,
     string[] Permissions,
     string Code,
+    string ExpiresAtUtc);
+
+internal sealed record TrustedCredentialReissueResult(
+    string OperationId,
+    string State,
+    string TenantId,
+    string ActorId,
+    string DeviceId,
+    string CompanyId,
+    string BranchId,
+    string CredentialId,
+    string[] Permissions,
     string ExpiresAtUtc);
 
 internal sealed class TrustedPairingOperationException(string failureCode) : Exception
@@ -42,7 +57,8 @@ internal sealed record BootstrapReply(
     string? ExpiresAt = null,
     string? FailureCode = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] BootstrapScope? Scope = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TrustedPairingResult? Pairing = null);
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TrustedPairingResult? Pairing = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TrustedCredentialReissueResult? CredentialReissue = null);
 
 internal sealed record BootstrapScope(string TenantId, string CompanyId, string BranchId);
 
@@ -65,20 +81,23 @@ internal sealed class FirstAdminBootstrapBroker
     internal const string PipeName = "Ventio.Host.FirstAdmin.v1";
     internal static readonly TimeSpan RequestReadTimeout = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan BootstrapOperationTimeout = TimeSpan.FromSeconds(90);
-    private const int MaximumRequestBytes = 8192;
+    private const int MaximumRequestBytes = 65536;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly BootstrapReceiptCoordinator _coordinator;
     private readonly Func<BootstrapReceipt, CancellationToken, Task> _executeBootstrap;
     private readonly Func<BootstrapCommand, string, CancellationToken, Task<TrustedPairingResult>> _executeTrustedPairing;
+    private readonly Func<BootstrapCommand, string, CancellationToken, Task<TrustedCredentialReissueResult>> _executeTrustedCredentialReissue;
 
     internal FirstAdminBootstrapBroker(
         BootstrapReceiptCoordinator coordinator,
         Func<BootstrapReceipt, CancellationToken, Task> executeBootstrap,
-        Func<BootstrapCommand, string, CancellationToken, Task<TrustedPairingResult>> executeTrustedPairing)
+        Func<BootstrapCommand, string, CancellationToken, Task<TrustedPairingResult>> executeTrustedPairing,
+        Func<BootstrapCommand, string, CancellationToken, Task<TrustedCredentialReissueResult>> executeTrustedCredentialReissue)
     {
         _coordinator = coordinator;
         _executeBootstrap = executeBootstrap;
         _executeTrustedPairing = executeTrustedPairing;
+        _executeTrustedCredentialReissue = executeTrustedCredentialReissue;
     }
 
     internal async Task RunAsync(CancellationToken cancellationToken, TaskCompletionSource ready)
@@ -111,6 +130,12 @@ internal sealed class FirstAdminBootstrapBroker
                             true,
                             "created",
                             Pairing: await _executeTrustedPairing(
+                                command, callerSid, operationTimeout.Token).ConfigureAwait(false)),
+                        "trusted-credential-reissue" => new BootstrapReply(
+                            true,
+                            "created",
+                            RequestId: command.RequestId,
+                            CredentialReissue: await _executeTrustedCredentialReissue(
                                 command, callerSid, operationTimeout.Token).ConfigureAwait(false)),
                         "acknowledge" => _coordinator.Acknowledge(command, callerSid),
                         "status" => _coordinator.InspectStatus(callerSid),
@@ -211,6 +236,36 @@ internal sealed class FirstAdminBootstrapBroker
                 ValidateIdentifier(fields["operatorActorId"]),
                 ValidateIdentifier(fields["targetActorId"]),
                 fields["permissions"]);
+        }
+        if (operation == "trusted-credential-reissue" &&
+            fields.Count == 12 &&
+            fields.Keys.ToHashSet(StringComparer.Ordinal).SetEquals([
+                "operation", "tenantId", "companyId", "branchId", "requestId",
+                "operatorCredentialDigest", "operatorActorId", "deviceId",
+                "sourceCredentialId", "targetActorId", "permissions", "approvedRemovals"
+            ]) &&
+            Regex.IsMatch(fields["requestId"], "^[0-9a-f]{32}$", RegexOptions.CultureInvariant) &&
+            Regex.IsMatch(fields["operatorCredentialDigest"], "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) &&
+            fields["permissions"].Split(',').Length is > 0 and <= 64 &&
+            fields["approvedRemovals"].Split(',', StringSplitOptions.RemoveEmptyEntries).Length <= 64 &&
+            fields["permissions"].Split(',').All(permission =>
+                Regex.IsMatch(permission, "^[a-z][a-z0-9_.]{0,255}$", RegexOptions.CultureInvariant)) &&
+            fields["approvedRemovals"].Split(',', StringSplitOptions.RemoveEmptyEntries).All(permission =>
+                Regex.IsMatch(permission, "^[a-z][a-z0-9_.]{0,255}$", RegexOptions.CultureInvariant)))
+        {
+            return new BootstrapCommand(
+                operation,
+                ValidateIdentifier(fields["tenantId"]),
+                ValidateIdentifier(fields["companyId"]),
+                ValidateIdentifier(fields["branchId"]),
+                fields["requestId"],
+                fields["operatorCredentialDigest"],
+                ValidateIdentifier(fields["operatorActorId"]),
+                TargetActorId: ValidateIdentifier(fields["targetActorId"]),
+                DeviceId: ValidateIdentifier(fields["deviceId"]),
+                SourceCredentialId: ValidateIdentifier(fields["sourceCredentialId"]),
+                PermissionsCsv: fields["permissions"],
+                ApprovedRemovalsCsv: fields["approvedRemovals"]);
         }
         throw new InvalidDataException();
     }

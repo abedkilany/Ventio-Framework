@@ -108,7 +108,9 @@ internal static class Program
                     receipt, bootstrapEnvironment, cancellationToken).ConfigureAwait(false);
                 bootstrapCompleted.TrySetResult();
             }, (command, callerSid, cancellationToken) =>
-                ExecuteTrustedPairingAsync(command, callerSid, bootstrapEnvironment, cancellationToken));
+                ExecuteTrustedPairingAsync(command, callerSid, bootstrapEnvironment, cancellationToken),
+                (command, callerSid, cancellationToken) =>
+                    ExecuteTrustedCredentialReissueAsync(command, callerSid, bootstrapEnvironment, cancellationToken));
             brokerCancellation = new CancellationTokenSource();
             var brokerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             brokerTask = Task.Run(() => broker.RunAsync(brokerCancellation.Token, brokerReady));
@@ -425,7 +427,7 @@ internal static class Program
             requestId = command.RequestId,
             permissions,
             operatorCredentialDigest = command.OperatorCredentialDigest,
-            windowsAdminTag = CreateWindowsAdminTag(callerSid),
+            windowsAdminTag = CreateWindowsAdminTag(callerSid, command.RequestId),
         };
         var requestBytes = JsonSerializer.SerializeToUtf8Bytes(
             request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -488,6 +490,190 @@ internal static class Program
             CryptographicOperations.ZeroMemory(requestBytes);
             if (output is not null) CryptographicOperations.ZeroMemory(output);
             start.Environment.Clear();
+        }
+    }
+
+    private static async Task<TrustedCredentialReissueResult> ExecuteTrustedCredentialReissueAsync(
+        BootstrapCommand command,
+        string callerSid,
+        Dictionary<string, string>? protectedEnvironment,
+        CancellationToken cancellationToken)
+    {
+        var executable = Path.Combine(AppContext.BaseDirectory, "ventio_trusted_credential_reissue.exe");
+        if (!File.Exists(executable) || protectedEnvironment is null ||
+            command.Operation != "trusted-credential-reissue" || command.TenantId is null ||
+            command.CompanyId is null || command.BranchId is null || command.RequestId is null ||
+            command.OperatorCredentialDigest is null || command.OperatorActorId is null ||
+            command.DeviceId is null || command.SourceCredentialId is null ||
+            command.TargetActorId is null ||
+            command.PermissionsCsv is null || command.ApprovedRemovalsCsv is null)
+            throw new TrustedPairingOperationException("HOST_TRUSTED_REISSUE_CONFIGURATION_INVALID");
+
+        var permissions = command.PermissionsCsv.Split(',', StringSplitOptions.None);
+        var approvedRemovals = command.ApprovedRemovalsCsv.Length == 0
+            ? Array.Empty<string>()
+            : command.ApprovedRemovalsCsv.Split(',', StringSplitOptions.None);
+        if (permissions.Length is < 1 or > 64 || approvedRemovals.Length > 64 ||
+            permissions.Distinct(StringComparer.Ordinal).Count() != permissions.Length ||
+            approvedRemovals.Distinct(StringComparer.Ordinal).Count() != approvedRemovals.Length)
+            throw new TrustedPairingOperationException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+        var request = new
+        {
+            tenantId = command.TenantId,
+            operatorActorId = command.OperatorActorId,
+            companyId = command.CompanyId,
+            branchId = command.BranchId,
+            deviceId = command.DeviceId,
+            sourceCredentialId = command.SourceCredentialId,
+            targetActorId = command.TargetActorId,
+            operationId = "reissue_" + command.RequestId,
+            permissions,
+            approvedRemovals,
+            operatorCredentialDigest = command.OperatorCredentialDigest,
+            windowsAdminTag = CreateWindowsAdminTag(callerSid, command.RequestId),
+        };
+        var requestBytes = JsonSerializer.SerializeToUtf8Bytes(
+            request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var start = new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.Environment.Clear();
+        CopyRequiredSystemEnvironment(start.Environment);
+        start.Environment["PATH"] = Path.Combine(AppContext.BaseDirectory, "postgresql", "bin");
+        foreach (var pair in protectedEnvironment) start.Environment[pair.Key] = pair.Value;
+        using var process = new Process { StartInfo = start };
+        byte[]? output = null;
+        try
+        {
+            if (!process.Start())
+                throw new TrustedPairingOperationException("HOST_TRUSTED_REISSUE_HELPER_FAILED");
+            start.Environment.Clear();
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            var stdoutTask = ReadBoundedAsync(process.StandardOutput.BaseStream, 8192, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(TrustedPairingHelperTimeoutSeconds));
+            await process.StandardInput.BaseStream.WriteAsync(requestBytes, timeout.Token).ConfigureAwait(false);
+            await process.StandardInput.BaseStream.FlushAsync(timeout.Token).ConfigureAwait(false);
+            process.StandardInput.Close();
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new TrustedPairingOperationException("HOST_TRUSTED_REISSUE_OUTCOME_UNKNOWN");
+            }
+            catch
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+            output = await stdoutTask.ConfigureAwait(false);
+            _ = await stderrTask.ConfigureAwait(false);
+            return ParseTrustedCredentialReissueResult(output, command, permissions, process.ExitCode);
+        }
+        catch (TrustedPairingOperationException)
+        {
+            throw;
+        }
+        catch
+        {
+            throw new TrustedPairingOperationException("HOST_TRUSTED_REISSUE_OUTCOME_UNKNOWN");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(requestBytes);
+            if (output is not null) CryptographicOperations.ZeroMemory(output);
+            start.Environment.Clear();
+        }
+    }
+
+    private static TrustedCredentialReissueResult ParseTrustedCredentialReissueResult(
+        byte[] output,
+        BootstrapCommand command,
+        string[] requestedPermissions,
+        int exitCode)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output, new JsonDocumentOptions { MaxDepth = 4 });
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException();
+            if (status.GetString() == "failed")
+            {
+                if (exitCode == 0 || !root.TryGetProperty("failureCode", out var failure) ||
+                    failure.ValueKind != JsonValueKind.String)
+                    throw new InvalidDataException();
+                var safeFailure = failure.GetString() switch
+                {
+                    "PERMISSION_OR_GRANT_DENIED" => "HOST_TRUSTED_REISSUE_PERMISSION_NOT_GRANTED",
+                    "TARGET_UNAVAILABLE" => "HOST_TRUSTED_REISSUE_TARGET_UNAVAILABLE",
+                    "OPERATION_REFERENCE_CONFLICT" => "HOST_TRUSTED_REISSUE_REFERENCE_CONFLICT",
+                    "REISSUE_ALREADY_PENDING" => "HOST_TRUSTED_REISSUE_ALREADY_PENDING",
+                    "RECOVERY_AUTHORITY_UNAVAILABLE" => "HOST_TRUSTED_REISSUE_RECOVERY_UNAVAILABLE",
+                    "RECOVERY_AUTHORITY_BUSY" => "HOST_TRUSTED_REISSUE_RECOVERY_BUSY",
+                    "OUTCOME_UNKNOWN" => "HOST_TRUSTED_REISSUE_OUTCOME_UNKNOWN",
+                    _ => "HOST_TRUSTED_REISSUE_FAILED",
+                };
+                throw new TrustedPairingOperationException(safeFailure);
+            }
+            if (exitCode != 0 || status.GetString() != "created" ||
+                command.RequestId is null || command.TenantId is null || command.TargetActorId is null ||
+                command.DeviceId is null || command.CompanyId is null || command.BranchId is null ||
+                !root.TryGetProperty("operationId", out var operationId) ||
+                !root.TryGetProperty("state", out var state) ||
+                !root.TryGetProperty("tenantId", out var tenantId) ||
+                !root.TryGetProperty("actorId", out var actorId) ||
+                !root.TryGetProperty("deviceId", out var deviceId) ||
+                !root.TryGetProperty("companyId", out var companyId) ||
+                !root.TryGetProperty("branchId", out var branchId) ||
+                !root.TryGetProperty("credentialId", out var credentialId) ||
+                !root.TryGetProperty("permissions", out var permissionValues) ||
+                permissionValues.ValueKind != JsonValueKind.Array ||
+                !root.TryGetProperty("expiresAtUtc", out var expiresText))
+                throw new InvalidDataException();
+            if (operationId.GetString() != "reissue_" + command.RequestId ||
+                state.GetString() is not ("PREPARED" or "FINALIZED" or "EXPIRED" or "REJECTED") ||
+                tenantId.GetString() != command.TenantId ||
+                deviceId.GetString() != command.DeviceId || companyId.GetString() != command.CompanyId ||
+                branchId.GetString() != command.BranchId || actorId.GetString() != command.TargetActorId ||
+                credentialId.ValueKind != JsonValueKind.String ||
+                !Regex.IsMatch(credentialId.GetString()!, "^cred_[0-9a-f]{32}$", RegexOptions.CultureInvariant) ||
+                expiresText.ValueKind != JsonValueKind.String ||
+                !DateTimeOffset.TryParse(expiresText.GetString(), out var expiry) ||
+                expiry > DateTimeOffset.UtcNow.AddMinutes(16) ||
+                (state.GetString() == "PREPARED" && expiry <= DateTimeOffset.UtcNow))
+                throw new InvalidDataException();
+            var actualPermissions = permissionValues.EnumerateArray()
+                .Select(value => value.ValueKind == JsonValueKind.String ? value.GetString() : null)
+                .ToArray();
+            if (actualPermissions.Any(value => value is null) ||
+                !actualPermissions.Cast<string>().Order(StringComparer.Ordinal)
+                    .SequenceEqual(requestedPermissions.Order(StringComparer.Ordinal)))
+                throw new InvalidDataException();
+            return new TrustedCredentialReissueResult(
+                operationId.GetString()!, state.GetString()!, tenantId.GetString()!,
+                actorId.GetString()!, deviceId.GetString()!, companyId.GetString()!,
+                branchId.GetString()!, credentialId.GetString()!,
+                actualPermissions.Cast<string>().ToArray(), expiry.ToUniversalTime().ToString("O"));
+        }
+        catch (TrustedPairingOperationException)
+        {
+            throw;
+        }
+        catch
+        {
+            throw new TrustedPairingOperationException("HOST_TRUSTED_REISSUE_RESULT_INVALID");
         }
     }
 
@@ -571,9 +757,9 @@ internal static class Program
         }
     }
 
-    private static string CreateWindowsAdminTag(string callerSid)
+    private static string CreateWindowsAdminTag(string callerSid, string? operationId = null)
     {
-        var input = Encoding.UTF8.GetBytes(callerSid);
+        var input = Encoding.UTF8.GetBytes(operationId is null ? callerSid : callerSid + ":" + operationId);
         try
         {
             var digest = SHA256.HashData(input);

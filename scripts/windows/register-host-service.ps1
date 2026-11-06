@@ -60,12 +60,13 @@ $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.hostExecutable -ne 'ventio_host.exe' -or $manifest.migrationExecutable -ne 'ventio_migrate.exe' -or
     $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
+    $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
   throw 'Host payload manifest failed its safe-content checks.'
 }
 
-foreach ($relative in @('ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'ventio_trusted_pairing.exe', 'VentioHostService.exe')) {
+foreach ($relative in @('ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'ventio_trusted_pairing.exe', 'ventio_trusted_credential_reissue.exe', 'VentioHostService.exe')) {
   $entry = @($manifest.verifiedFiles | Where-Object { $_.path -ceq $relative })
   $file = Join-Path $payload $relative
   if ($entry.Count -ne 1 -or -not (Test-Path -LiteralPath $file -PathType Leaf)) {

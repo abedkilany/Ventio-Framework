@@ -197,6 +197,55 @@ class FakeIdentityPairingGateway implements IdentityPairingGateway {
   }
 }
 
+class FakeCredentialReissueGateway
+    implements AuthoritativeIdentityCredentialReissueGateway {
+  static final replacement = List.filled(43, 'g').join();
+  int claims = 0;
+  int acknowledgments = 0;
+  String? acknowledgedToken;
+  String? acknowledgedOperation;
+
+  @override
+  Future<Map<String, dynamic>> claim({
+    required AuthenticatedSession session,
+    String? operationId,
+  }) async {
+    claims++;
+    return {
+      'operationId': operationId ?? 'reissue_0123456789abcdef0123456789abcdef',
+      'state': 'PREPARED',
+      'tenantId': session.principal.tenantId,
+      'actorId': session.principal.actorId,
+      'deviceId': session.principal.deviceId,
+      'companyId': 'company-001',
+      'branchId': 'branch-001',
+      'credentialId': 'cred_0123456789abcdef0123456789abcdef',
+      'permissions': ['extension.package.read'],
+      'expiresAtUtc': DateTime.now()
+          .toUtc()
+          .add(const Duration(minutes: 10))
+          .toIso8601String(),
+      'credential': replacement,
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> acknowledge({
+    required String replacementToken,
+    required String operationId,
+  }) async {
+    acknowledgments++;
+    acknowledgedToken = replacementToken;
+    acknowledgedOperation = operationId;
+    return {
+      'operationId': operationId,
+      'state': 'FINALIZED',
+      'deviceId': 'client-001',
+      'credentialId': 'cred_0123456789abcdef0123456789abcdef',
+    };
+  }
+}
+
 class FakeIdentityDeviceAdministrationGateway
     implements IdentityDeviceAdministrationGateway {
   @override
@@ -1265,6 +1314,77 @@ Future<void> main() async {
     );
   } finally {
     await rateLimitApi.close();
+  }
+
+  final credentialReissueGateway = FakeCredentialReissueGateway();
+  final credentialReissueDiagnostics = ManagementDiagnosticBuffer();
+  final credentialReissueApi = await HostApi.bind(
+    authenticator: FakeManagementAuthenticator(),
+    executor: FakeAuthoritativeExecutor(),
+    credentialReissues: credentialReissueGateway,
+    diagnostics: credentialReissueDiagnostics,
+  );
+  try {
+    final claim = await send(
+      credentialReissueApi,
+      path: HostManagementRoutes.credentialReissueClaim,
+      token: validToken,
+      body: {'managementApiVersion': managementApiVersion},
+    );
+    final replacement = claim.body['credentialReissue'] as Map<String, dynamic>;
+    check(
+      claim.status == 200 &&
+          replacement['deviceId'] == 'client-001' &&
+          replacement['state'] == 'PREPARED' &&
+          replacement['credential'] == FakeCredentialReissueGateway.replacement &&
+          credentialReissueGateway.claims == 1,
+      'A pending credential update is returned only through its authenticated existing device session',
+    );
+    final malformedClaim = await send(
+      credentialReissueApi,
+      path: HostManagementRoutes.credentialReissueClaim,
+      token: validToken,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'operationId': 'invalid',
+      },
+    );
+    check(
+      malformedClaim.status == 400 && credentialReissueGateway.claims == 1,
+      'Credential update claim rejects malformed operation references before gateway access',
+    );
+    final missingCredential = await send(
+      credentialReissueApi,
+      path: HostManagementRoutes.credentialReissueClaim,
+      body: {'managementApiVersion': managementApiVersion},
+    );
+    check(
+      missingCredential.status == 401 && credentialReissueGateway.claims == 1,
+      'Credential update claim requires the currently enrolled device credential',
+    );
+    final acknowledgment = await send(
+      credentialReissueApi,
+      path: HostManagementRoutes.credentialReissueAcknowledge,
+      token: FakeCredentialReissueGateway.replacement,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'operationId': 'reissue_0123456789abcdef0123456789abcdef',
+      },
+    );
+    final diagnosticJson = jsonEncode(
+      credentialReissueDiagnostics.recent().map((event) => event.toJson()).toList(),
+    );
+    check(
+      acknowledgment.status == 200 &&
+          credentialReissueGateway.acknowledgments == 1 &&
+          credentialReissueGateway.acknowledgedToken ==
+              FakeCredentialReissueGateway.replacement &&
+          acknowledgment.body['credentialReissue']['state'] == 'FINALIZED' &&
+          !diagnosticJson.contains(FakeCredentialReissueGateway.replacement),
+      'Credential update acknowledgment proves replacement possession and diagnostics exclude the credential',
+    );
+  } finally {
+    await credentialReissueApi.close();
   }
 
   final result = await Process.run(

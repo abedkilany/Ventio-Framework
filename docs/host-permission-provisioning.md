@@ -45,34 +45,34 @@ The diagnostic function is available only to the Identity API role, verifies the
 
 ## Database and upgrade impact
 
-No table or data migration is added. The versioned Host payload adds two idempotent security-definer functions to `security/postgres/pairing.sql`, installs their narrow grants, and verifies their definitions and ACLs during upgrade. The existing pairing function is re-applied idempotently as part of the same contract.
+Ventio Setup 0.1.10 added the scoped-pairing contracts described above. Ventio Setup 0.1.11 adds the versioned reissue state migrations, narrow security-definer functions, forced RLS policy, and Recovery Authority mutation triggers. See [Host same-device credential reissue](host-same-device-credential-reissue.md) for the complete transition and migration behavior.
 
-The existing Windows upgrade path stops the Host service, creates and verifies a restricted PostgreSQL data backup, applies schema migrations, installs the security contract, validates the migration ledger and function ACLs, and only then restarts the Host. A failed backup, migration, or contract verification leaves `VentioHost` stopped. PostgreSQL remains available for recovery. Neither the installer nor this workflow resets the database, devices, credentials, certificates, or Recovery Authority state.
+The Windows upgrade path stops the Host service, creates and verifies a restricted PostgreSQL data backup, applies schema migrations, installs and verifies the security contract, and only then permits Host restart. A failed backup, migration, or contract check leaves `VentioHost` stopped. Neither installer nor workflow resets existing devices, credential rows, certificates, Client SQLite, or Recovery Authority state.
 
-Existing credentials and devices are preserved. Their permission ceilings are not changed by upgrade or a later grant. New Client credentials use the selected exact permission set. Operators should keep earlier devices until the replacement Client has been verified, then revoke a superseded or unused device through the existing device administration workflow when policy calls for it.
+Existing devices and their current credential ceilings are preserved by the upgrade. A selected device receives a replacement credential only after the same device has securely staged the token and acknowledged possession. The source credential is revoked atomically when the replacement becomes active.
 
-### Already-enrolled Client identity limitation
+### Already-enrolled Client identity preservation
 
-Ventio Setup 0.1.10 does not support widening the credential ceiling of an already-enrolled device while retaining that device ID. Ordinary credential rotation uses the existing ceiling. Pairing creates a new random Client device ID, and PostgreSQL rejects redemption with any device ID that already exists. The enrollment client then replaces the saved Host credential and singleton Host profile with the new credential and device ID. It does not erase the SQLite database, but local offline records and queue entries remain scoped to the old device ID; switching the profile can make them unavailable to the newly enrolled identity and creates a second Host device registration.
+Ventio Setup 0.1.10 did not support a same-device ceiling update. Ventio Setup 0.1.11 adds trusted credential reissue for an existing registered device. It preserves the device ID, exact Host profile scope, SQLite database, durable queue, records, and Host receipts. Ordinary credential rotation still inherits the existing ceiling, and new-device pairing still creates a separate device ID.
 
-Therefore, do not redeem the trusted pairing on the already-enrolled Client when preserving that Client's device identity and local data is required. Do not clear its application data or revoke its current device. The safe 0.1.10 interim procedure is to upgrade the Host, grant the business permission, and leave that Client unchanged. If access must be validated before a same-device procedure is available, enroll a separate physical Client with its own independent local data and device identity.
-
-A same-device ceiling expansion needs a separate trusted credential reissue operation that preserves the device ID, exact branch and requested permissions; requires local Windows administrator approval, live Host operator authority, Recovery Authority admission, and audit; and keeps the current credential valid until the replacement has been stored by the Client and acknowledged by the Host. That reissue lifecycle is not included in this release.
+Do not redeem a new-device pairing on an already-enrolled Client when its device identity and local SQLite state must be preserved. Use **Reissue credential ceiling** for the existing device, then **Check for update** on that same Client. The complete operator and Client recovery protocol is in [Host same-device credential reissue](host-same-device-credential-reissue.md).
 
 ## Owner deployment and acceptance procedure
 
-1. Copy `dist/windows/permission-provisioning-0.1.10-release/Ventio-Setup-0.1.10.exe` to the physical Host. Its SHA-256 is `3a4c7dac0a119ad26c5fc8dd9b4f5401227969f61af1411f34de44166cf81bfb`; verify it before running Setup.
-2. Run Setup on the Host and accept the existing-installation upgrade. Keep the Host powered and allow Setup to finish its backup, database contract update, validation, and service restart. Do not select uninstall or data removal. If Setup reports an upgrade failure, leave `VentioHost` stopped and preserve the generated backup for recovery; do not edit PostgreSQL security tables by hand.
-3. Verify the Host services and Host Readiness. Confirm Database, Schema, and Recovery Authority are READY and that the existing tenant, company, branch, certificates, registered devices, and Recovery Authority remain present.
-4. In the Host application, sign in as the authorized administrator and select tenant `a`, company `b`, branch `c`. In **Users & permissions**, grant only `extension.package.read` to the intended target user, directly or through a narrowly scoped role. The UI should explain that the existing credential remains ceiling-limited.
-5. In **Host devices & pairing**, select that exact user and scope, choose **Create trusted scoped pairing**, and leave only `extension.package.read` in the requested permission list. Confirm the displayed ceiling. Approve the Windows UAC prompt with a local administrator. If the operator credential lacks `identity.pairing.manage` in this exact branch or the target lacks the permission, the Host must reject the request.
-6. On a separate physical Client with its own local data/profile, enroll using the one-time code before it expires. Verify the enrolled user's tenant, company, branch, and permission ceiling. Do not redeem this pairing on an already-enrolled Client whose device identity and local SQLite queue must be preserved; this release would assign that installation a new device ID.
-7. From that Client, call `POST /api/v1/extensions/approved`. It should succeed without HTTP 403 when an approved package exists and is visible to that exact scope. A Client with no grant, a different scope, or a credential without the permission must still be denied.
-8. Continue the separate physical acceptance: install an approved declarative extension, create an offline SQLite record, restart the Client and verify durable Pending state, synchronize through the real Host PostgreSQL path, confirm Host acceptance, and verify that record from another authorized Client. Keep the Crash Recovery verification gate separate until it passes.
+1. Copy the new versioned Ventio Setup 0.1.11 installer to the physical Host and verify its SHA-256 against the release report before running it.
+2. Run Setup on the Host and accept the existing-installation upgrade. Allow the restricted backup, schema migrations, Recovery Authority contract update, verification, and service restart to finish. Do not uninstall or select data removal. If upgrade fails, leave `VentioHost` stopped and preserve the verified backup; do not edit security tables manually.
+3. Update the existing Client application in place with Setup 0.1.11. Preserve its Windows profile, Host profile, and app data. Do not clear Client data or re-enroll.
+4. Verify Host readiness and the existing registrations for tenant `a`, company `b`, branch `c`, certificate, and device ID.
+5. In **Users & permissions**, grant only `extension.package.read` to the intended user directly or through a narrowly scoped role at tenant `a`, company `b`, branch `c`.
+6. In **Host devices & pairing**, select the existing device and choose **Reissue credential ceiling**. Review the complete replacement permission list, retain existing authorized permissions, and approve the Host-local UAC prompt.
+7. On that already-enrolled Client, select **Check for update**. Confirm the original device ID, exact scope, local records, and pending command IDs remain unchanged. Retry using the same operation reference if status is retryable or unknown; do not enroll again.
+8. Verify `POST /api/v1/extensions/approved` succeeds for the intended Client while unrelated permissions and cross-scope access remain denied. Continue physical acceptance with an approved declarative extension, a real offline SQLite record, restart-persistent Pending state, Host PostgreSQL acceptance and receipt, and readback from another authorized Client. Keep Crash Recovery as a separate open gate.
 
-These steps provision permission for the intended new Client only; they do not give every Client the administrator's full authority. Physical acceptance remains pending until the owner completes and records these checks on the real Host.
+These steps update only the selected existing device ceiling; they do not give every Client the administrator's authority. Physical acceptance remains pending until the owner completes and records these checks on the real Host.
 
-## Verification record
+## Prior 0.1.10 verification record (historical)
+
+The implementation-specific 0.1.11 checks and current release identity are documented in [Host same-device credential reissue](host-same-device-credential-reissue.md).
 
 Verified results:
 

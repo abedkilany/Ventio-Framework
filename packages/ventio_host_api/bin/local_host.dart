@@ -103,6 +103,7 @@ Future<void> runLocalHost({
     PostgresIdentityUserAdministrationGateway? userAdministration;
     PostgresIdentityPairingGateway? pairingAdministration;
     PostgresIdentityDeviceAdministrationGateway? deviceAdministration;
+    IdentityCredentialReissueGateway? credentialReissues;
     if (identityApiUrl != null && identityApiUrl.isNotEmpty) {
       final parsedApiUrl = Uri.parse(identityApiUrl);
       final boundedApiUrl = _poolUrl(parsedApiUrl, maxConnections: 4);
@@ -132,6 +133,11 @@ Future<void> runLocalHost({
         runtimePool: runtime,
         administrationPool: administration,
         admission: admission,
+      );
+      credentialReissues = IdentityCredentialReissueGateway(
+        apiPool: administration,
+        connectApi: null,
+        authority: admission,
       );
     }
     await runtime.withConnection((probe) async {
@@ -206,6 +212,7 @@ Future<void> runLocalHost({
       identityUserAdministration: userAdministration,
       identityPairing: pairingAdministration,
       identityDeviceAdministration: deviceAdministration,
+      credentialReissues: credentialReissues,
       readinessProvider: readinessProvider,
       diagnostics: diagnostics,
       executor: executor,
@@ -236,6 +243,7 @@ Future<void> runLocalHost({
         identityUserAdministration: userAdministration,
         identityPairing: pairingAdministration,
         identityDeviceAdministration: deviceAdministration,
+        credentialReissues: credentialReissues,
         readinessProvider: readinessProvider,
         diagnostics: diagnostics,
         executor: executor,

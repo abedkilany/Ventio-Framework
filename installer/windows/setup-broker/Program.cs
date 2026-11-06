@@ -64,7 +64,19 @@ internal static class Program
         "HOST_TRUSTED_PAIRING_FAILED",
         "HOST_TRUSTED_PAIRING_REQUEST_INVALID",
         "HOST_TRUSTED_PAIRING_CONFIGURATION_INVALID",
-        "HOST_TRUSTED_PAIRING_RESULT_INVALID"
+        "HOST_TRUSTED_PAIRING_RESULT_INVALID",
+        "HOST_TRUSTED_REISSUE_PERMISSION_NOT_GRANTED",
+        "HOST_TRUSTED_REISSUE_TARGET_UNAVAILABLE",
+        "HOST_TRUSTED_REISSUE_REFERENCE_CONFLICT",
+        "HOST_TRUSTED_REISSUE_ALREADY_PENDING",
+        "HOST_TRUSTED_REISSUE_RECOVERY_UNAVAILABLE",
+        "HOST_TRUSTED_REISSUE_RECOVERY_BUSY",
+        "HOST_TRUSTED_REISSUE_OUTCOME_UNKNOWN",
+        "HOST_TRUSTED_REISSUE_FAILED",
+        "HOST_TRUSTED_REISSUE_REQUEST_INVALID",
+        "HOST_TRUSTED_REISSUE_UAC_CANCELLED",
+        "HOST_TRUSTED_REISSUE_CONFIGURATION_INVALID",
+        "HOST_TRUSTED_REISSUE_RESULT_INVALID"
     };
 
     [STAThread]
@@ -126,6 +138,8 @@ internal static class Program
 
         WriteStatus(request, "running", null, "PAYLOAD_VALIDATION");
         var paths = GetValidatedPaths();
+        if (request.TrustedCredentialReissue)
+            return CompleteTrustedCredentialReissue(request);
         if (request.TrustedPairing)
             return CompleteTrustedPairing(request);
         if (request.ResumeFirstAdministrator)
@@ -292,6 +306,132 @@ internal static class Program
         return 12;
     }
 
+    private static int CompleteTrustedCredentialReissue(Request request)
+    {
+        var failure = "HOST_TRUSTED_REISSUE_FAILED";
+        try
+        {
+            var input = ReadTrustedCredentialReissueRequest(request);
+            if (!ConfirmTrustedCredentialReissue(input))
+            {
+                failure = "HOST_TRUSTED_REISSUE_UAC_CANCELLED";
+                WriteProtectedTrustedCredentialReissueResult(request, null, failure);
+                WriteStatus(request, "failed", failure, "PAYLOAD_VALIDATION");
+                return 12;
+            }
+            var reply = RequestTrustedCredentialReissue(request, input);
+            if (reply is not { Success: true, Status: "created", CredentialReissue: not null } ||
+                !MatchesTrustedCredentialReissueRequest(request, input, reply.CredentialReissue))
+            {
+                failure = reply?.FailureCode is { } code && IsSafeFailureCode(code)
+                    ? code : "HOST_TRUSTED_REISSUE_RESULT_INVALID";
+                WriteProtectedTrustedCredentialReissueResult(request, null, failure);
+                WriteStatus(request, "failed", failure, "PAYLOAD_VALIDATION");
+                return 12;
+            }
+            WriteProtectedTrustedCredentialReissueResult(request, reply.CredentialReissue, null);
+            WriteStatus(request, "complete", null, "PAYLOAD_VALIDATION");
+            return 0;
+        }
+        catch (TrustedPairingBrokerException exception) { failure = exception.FailureCode; }
+        catch { failure = "HOST_TRUSTED_REISSUE_FAILED"; }
+        try
+        {
+            WriteProtectedTrustedCredentialReissueResult(request, null, failure);
+            WriteStatus(request, "failed", failure, "PAYLOAD_VALIDATION");
+        }
+        catch { }
+        return 12;
+    }
+
+    private static bool ConfirmTrustedCredentialReissue(TrustedCredentialReissueRequestData input)
+    {
+        var permissions = string.Join("\r\n  ", input.Permissions);
+        var removals = input.ApprovedRemovals.Length == 0
+            ? "None"
+            : string.Join("\r\n  ", input.ApprovedRemovals);
+        var message = "Approve a same-device Host credential update?\r\n\r\n" +
+            $"Tenant: {input.TenantId}\r\nUser: {input.TargetActorId}\r\n" +
+            $"Company: {input.CompanyId}\r\nBranch: {input.BranchId}\r\n" +
+            $"Device: {input.DeviceId}\r\nSource credential: {input.SourceCredentialId}\r\n\r\n" +
+            $"Complete resulting permission ceiling:\r\n  {permissions}\r\n\r\n" +
+            $"Permissions to remove:\r\n  {removals}\r\n\r\n" +
+            "The old credential remains active until this same device acknowledges the replacement. " +
+            "The device ID and local Client data are preserved. Approve only if this exact scope is intended.";
+        return MessageBoxW(IntPtr.Zero, message, "Ventio trusted credential update",
+            0x00000004 | 0x00000030 | 0x00000100) == 6;
+    }
+
+    private static TrustedCredentialReissueRequestData ReadTrustedCredentialReissueRequest(Request request)
+    {
+        if (request.RequestFilePath is null)
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+        var expectedDirectory = TrustedOperatorDirectoryForSid(request.RequesterSid);
+        var path = Path.GetFullPath(request.RequestFilePath);
+        if (!StringComparer.OrdinalIgnoreCase.Equals(Path.GetDirectoryName(path), expectedDirectory) ||
+            !StringComparer.OrdinalIgnoreCase.Equals(Path.GetFileName(path), request.OperationId + ".request.json"))
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+        var file = new FileInfo(path);
+        if (!file.Exists || file.Length is <= 0 or > 65536 ||
+            (file.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+        var acl = file.GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
+        if (acl.GetOwner(typeof(SecurityIdentifier))?.Value != request.RequesterSid)
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+        var allowed = new HashSet<string>(StringComparer.Ordinal) { request.RequesterSid, "S-1-5-18", "S-1-5-32-544" };
+        foreach (FileSystemAccessRule rule in acl.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+            if (rule.AccessControlType == AccessControlType.Allow && !allowed.Contains(rule.IdentityReference.Value))
+                throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+        byte[] bytes = [];
+        try
+        {
+            bytes = File.ReadAllBytes(path);
+            using var doc = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 4 });
+            var root = doc.RootElement;
+            var names = root.EnumerateObject().Select(x => x.Name).ToArray();
+            if (root.ValueKind != JsonValueKind.Object || names.Length != 12 ||
+                !names.ToHashSet(StringComparer.Ordinal).SetEquals([
+                    "formatVersion", "operationId", "tenantId", "operatorActorId", "targetActorId",
+                    "companyId", "branchId", "deviceId", "sourceCredentialId", "permissions",
+                    "approvedRemovals", "operatorCredentialDigest"]) ||
+                root.GetProperty("formatVersion").GetInt32() != 1 ||
+                root.GetProperty("operationId").GetString() != request.OperationId ||
+                root.GetProperty("tenantId").GetString() != request.TenantId ||
+                root.GetProperty("companyId").GetString() != request.CompanyId ||
+                root.GetProperty("branchId").GetString() != request.BranchId)
+                throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+            static string Id(JsonElement json, string name)
+            {
+                var value = json.GetProperty(name).GetString();
+                if (value is null || !Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$", RegexOptions.CultureInvariant))
+                    throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+                return value;
+            }
+            static string[] Permissions(JsonElement value, int max, bool allowEmpty)
+            {
+                if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > max || (!allowEmpty && value.GetArrayLength() == 0))
+                    throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+                var items = value.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : null).ToArray();
+                if (items.Any(item => item is null || !Regex.IsMatch(item, "^[a-z][a-z0-9_.]{0,255}$", RegexOptions.CultureInvariant)) ||
+                    items.Cast<string>().Distinct(StringComparer.Ordinal).Count() != items.Length)
+                    throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+                return items.Cast<string>().ToArray();
+            }
+            var digest = root.GetProperty("operatorCredentialDigest").GetString();
+            if (digest is null || !Regex.IsMatch(digest, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant))
+                throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID");
+            return new TrustedCredentialReissueRequestData(
+                Id(root, "tenantId"), Id(root, "operatorActorId"), Id(root, "targetActorId"),
+                Id(root, "companyId"), Id(root, "branchId"), Id(root, "deviceId"),
+                Id(root, "sourceCredentialId"), digest,
+                Permissions(root.GetProperty("permissions"), 64, false),
+                Permissions(root.GetProperty("approvedRemovals"), 64, true));
+        }
+        catch (TrustedPairingBrokerException) { throw; }
+        catch { throw new TrustedPairingBrokerException("HOST_TRUSTED_REISSUE_REQUEST_INVALID"); }
+        finally { if (bytes.Length > 0) CryptographicOperations.ZeroMemory(bytes); try { File.Delete(path); } catch { } }
+    }
+
     private static TrustedPairingRequestData ReadTrustedPairingRequest(Request request)
     {
         if (request.RequestFilePath is null)
@@ -424,6 +564,81 @@ internal static class Program
         return reply;
     }
 
+    private static BootstrapReply? RequestTrustedCredentialReissue(
+        Request request, TrustedCredentialReissueRequestData input)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            operation = "trusted-credential-reissue",
+            tenantId = input.TenantId,
+            operatorActorId = input.OperatorActorId,
+            companyId = input.CompanyId,
+            branchId = input.BranchId,
+            requestId = request.OperationId,
+            operatorCredentialDigest = input.OperatorCredentialDigest,
+            deviceId = input.DeviceId,
+            sourceCredentialId = input.SourceCredentialId,
+            targetActorId = input.TargetActorId,
+            permissions = string.Join(',', input.Permissions),
+            approvedRemovals = string.Join(',', input.ApprovedRemovals),
+        }, PipeJsonOptions);
+        return ExchangeFirstAdminPipe(bytes);
+    }
+
+    private static bool MatchesTrustedCredentialReissueRequest(
+        Request request,
+        TrustedCredentialReissueRequestData input,
+        TrustedCredentialReissueResult? reissue) =>
+        reissue is not null && reissue.OperationId == "reissue_" + request.OperationId &&
+        reissue.State is "PREPARED" or "FINALIZED" or "EXPIRED" or "REJECTED" &&
+        reissue.TenantId == input.TenantId &&
+        reissue.ActorId == input.TargetActorId && reissue.DeviceId == input.DeviceId &&
+        reissue.CompanyId == input.CompanyId && reissue.BranchId == input.BranchId &&
+        Regex.IsMatch(reissue.CredentialId, "^cred_[0-9a-f]{32}$", RegexOptions.CultureInvariant) &&
+        reissue.Permissions.Order(StringComparer.Ordinal)
+            .SequenceEqual(input.Permissions.Order(StringComparer.Ordinal), StringComparer.Ordinal) &&
+        DateTimeOffset.TryParse(reissue.ExpiresAtUtc, out var expiry) &&
+        expiry <= DateTimeOffset.UtcNow.AddMinutes(16) &&
+        (reissue.State != "PREPARED" || expiry > DateTimeOffset.UtcNow);
+
+    private static void WriteProtectedTrustedCredentialReissueResult(
+        Request request, TrustedCredentialReissueResult? reissue, string? failureCode)
+    {
+        var statusDirectory = GetStatusDirectory();
+        var destination = Path.Combine(statusDirectory, request.OperationId + ".reissue.dpapi");
+        var temporary = Path.Combine(statusDirectory, request.OperationId + ".reissue.tmp");
+        var resultBytes = JsonSerializer.SerializeToUtf8Bytes(new ProtectedTrustedCredentialReissueResult(
+            1, request.OperationId, reissue is null ? "failed" : "completed", reissue, failureCode), PipeJsonOptions);
+        var entropy = Encoding.UTF8.GetBytes(request.OperationId);
+        var protectedBytes = ProtectForLocalMachine(resultBytes, entropy);
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(protectedBytes);
+                stream.Flush(true);
+            }
+            var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+            var requester = new SecurityIdentifier(request.RequesterSid);
+            var security = new FileSecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.SetOwner(administrators);
+            security.AddAccessRule(new FileSystemAccessRule(administrators, FileSystemRights.FullControl, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(system, FileSystemRights.FullControl, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(requester, FileSystemRights.Read | FileSystemRights.Delete, AccessControlType.Allow));
+            new FileInfo(temporary).SetAccessControl(security);
+            File.Move(temporary, destination, false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(resultBytes);
+            CryptographicOperations.ZeroMemory(entropy);
+            CryptographicOperations.ZeroMemory(protectedBytes);
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
     private static bool MatchesTrustedPairingRequest(
         Request request,
         TrustedPairingRequestData input,
@@ -540,7 +755,7 @@ internal static class Program
             if (root.ValueKind != JsonValueKind.Object) return null;
             var allowed = new HashSet<string>(StringComparer.Ordinal)
             {
-                "success", "status", "requestId", "actorId", "token", "expiresAt", "failureCode", "pairing"
+                "success", "status", "requestId", "actorId", "token", "expiresAt", "failureCode", "pairing", "credentialReissue"
             };
             var seen = new HashSet<string>(StringComparer.Ordinal);
             if (root.EnumerateObject().Any(property =>
@@ -584,6 +799,33 @@ internal static class Program
                     rawPairing.GetProperty("expiresAtUtc").GetString() ?? "");
             }
 
+            TrustedCredentialReissueResult? credentialReissue = null;
+            if (root.TryGetProperty("credentialReissue", out var rawReissue) && rawReissue.ValueKind != JsonValueKind.Null)
+            {
+                if (rawReissue.ValueKind != JsonValueKind.Object) return null;
+                var names = rawReissue.EnumerateObject().Select(property => property.Name).ToArray();
+                if (names.Length != 10 || !names.ToHashSet(StringComparer.Ordinal).SetEquals([
+                    "operationId", "state", "tenantId", "actorId", "deviceId",
+                    "companyId", "branchId", "credentialId", "permissions", "expiresAtUtc"
+                ])) return null;
+                var rawPermissions = rawReissue.GetProperty("permissions");
+                if (rawPermissions.ValueKind != JsonValueKind.Array) return null;
+                var permissions = rawPermissions.EnumerateArray().Select(value =>
+                    value.ValueKind == JsonValueKind.String ? value.GetString() : null).ToArray();
+                if (permissions.Any(value => value is null)) return null;
+                credentialReissue = new TrustedCredentialReissueResult(
+                    rawReissue.GetProperty("operationId").GetString() ?? "",
+                    rawReissue.GetProperty("state").GetString() ?? "",
+                    rawReissue.GetProperty("tenantId").GetString() ?? "",
+                    rawReissue.GetProperty("actorId").GetString() ?? "",
+                    rawReissue.GetProperty("deviceId").GetString() ?? "",
+                    rawReissue.GetProperty("companyId").GetString() ?? "",
+                    rawReissue.GetProperty("branchId").GetString() ?? "",
+                    rawReissue.GetProperty("credentialId").GetString() ?? "",
+                    permissions.Cast<string>().ToArray(),
+                    rawReissue.GetProperty("expiresAtUtc").GetString() ?? "");
+            }
+
             return new BootstrapReply(
                 success.GetBoolean(),
                 status.GetString()!,
@@ -592,7 +834,8 @@ internal static class Program
                 OptionalString(root, "token"),
                 OptionalString(root, "expiresAt"),
                 responseFailureCode,
-                pairing);
+                pairing,
+                credentialReissue);
             }
             finally
             {
@@ -862,6 +1105,9 @@ internal static class Program
     private static extern bool CryptUnprotectData(ref DataBlob input, out IntPtr description, ref DataBlob entropy,
         IntPtr reserved, IntPtr prompt, int flags, out DataBlob output);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "MessageBoxW")]
+    private static extern int MessageBoxW(IntPtr owner, string text, string caption, uint type);
+
     [DllImport("crypt32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CryptProtectData(
@@ -1098,10 +1344,21 @@ internal static class Program
         string RequesterSid,
         bool ResumeFirstAdministrator = false,
         bool TrustedPairing = false,
+        bool TrustedCredentialReissue = false,
         string? RequestFilePath = null)
     {
         internal static Request Parse(IReadOnlyList<string> args)
         {
+            if (args.Count == 7 && args[0] == "--trusted-credential-reissue" &&
+                args[1].Length == 32 && Guid.TryParseExact(args[1], "N", out var reissueOperationId) &&
+                IsValidIdentifier(args[2]) && IsValidIdentifier(args[3]) && IsValidIdentifier(args[4]) &&
+                Regex.IsMatch(args[5], "^S-1-\\d+(?:-\\d+)+$", RegexOptions.CultureInvariant) &&
+                Path.IsPathFullyQualified(args[6]))
+            {
+                _ = new SecurityIdentifier(args[5]);
+                return new Request(reissueOperationId.ToString("N"), args[2], args[3], args[4], args[5],
+                    TrustedCredentialReissue: true, RequestFilePath: args[6]);
+            }
             if (args.Count == 7 && args[0] == "--trusted-pairing" &&
                 args[1].Length == 32 && Guid.TryParseExact(args[1], "N", out var pairingOperationId) &&
                 IsValidIdentifier(args[2]) && IsValidIdentifier(args[3]) && IsValidIdentifier(args[4]) &&
@@ -1138,7 +1395,8 @@ internal static class Program
         string? Token,
         string? ExpiresAt,
         string? FailureCode,
-        TrustedPairingResult? Pairing = null);
+        TrustedPairingResult? Pairing = null,
+        TrustedCredentialReissueResult? CredentialReissue = null);
 
     private sealed record TrustedPairingResult(
         string PairingId,
@@ -1149,6 +1407,18 @@ internal static class Program
         string Code,
         string ExpiresAtUtc);
 
+    private sealed record TrustedCredentialReissueResult(
+        string OperationId,
+        string State,
+        string TenantId,
+        string ActorId,
+        string DeviceId,
+        string CompanyId,
+        string BranchId,
+        string CredentialId,
+        string[] Permissions,
+        string ExpiresAtUtc);
+
     private sealed record TrustedPairingRequestData(
         string TenantId,
         string OperatorActorId,
@@ -1157,6 +1427,18 @@ internal static class Program
         string BranchId,
         string OperatorCredentialDigest,
         string[] Permissions);
+
+    private sealed record TrustedCredentialReissueRequestData(
+        string TenantId,
+        string OperatorActorId,
+        string TargetActorId,
+        string CompanyId,
+        string BranchId,
+        string DeviceId,
+        string SourceCredentialId,
+        string OperatorCredentialDigest,
+        string[] Permissions,
+        string[] ApprovedRemovals);
 
     private sealed record ProtectedTrustedPairingResult(
         int FormatVersion,
@@ -1169,6 +1451,13 @@ internal static class Program
         string[]? Permissions,
         string? Code,
         string? ExpiresAtUtc,
+        string? FailureCode);
+
+    private sealed record ProtectedTrustedCredentialReissueResult(
+        int FormatVersion,
+        string OperationId,
+        string Status,
+        TrustedCredentialReissueResult? Reissue,
         string? FailureCode);
 
     private sealed class TrustedPairingBrokerException(string failureCode) : Exception

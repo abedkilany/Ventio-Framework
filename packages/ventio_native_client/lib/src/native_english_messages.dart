@@ -1130,4 +1130,44 @@ const ventioNativeEnglishMessages = <String, String>{
       'Ventio could not verify the current Windows account needed to protect the setup result.',
   'native.ui.host_setup_requester_identity_mismatch':
       'Windows started setup under a different account from the one that requested it. Setup stopped without returning credentials.',
+  'native.ui.check_credential_update_title': 'Host credential update',
+  'native.ui.check_credential_update_details':
+      'Check for a Host-approved permission update. Ventio keeps this device identity, Host profile, SQLite records, and pending commands.',
+  'native.ui.check_credential_update': 'Check for update',
+  'native.ui.reissue_credential_title': 'Update this Client credential ceiling',
+  'native.ui.reissue_credential_confirmation':
+      'This keeps the current permissions and adds extension.package.read for this existing device. Confirm the exact identity and complete resulting permission ceiling, then approve the trusted Windows operation. Device: {deviceId}. Tenant: {tenantId}. User: {actorId}. Company: {companyId}. Branch: {branchId}. Resulting permissions: {permissions}.',
+  'native.ui.authorize_credential_update': 'Review and continue',
+  'native.ui.reissue_credential': 'Update permission ceiling',
+  'native.ui.reconcile_credential_update': 'Reconcile update',
+  'native.ui.credential_reissue_operator_state':
+      'Trusted credential update: {state}',
+  'native.ui.credential_reissue_device': 'Device: {deviceId}',
+  'native.ui.credential_reissue_scope':
+      'Tenant: {tenantId} · User: {actorId} · Company: {companyId} · Branch: {branchId}',
+  'native.ui.credential_reissue_permissions':
+      'Complete permission ceiling: {permissions}',
+  'native.ui.credential_reissue_expires': 'Transition expires: {timestamp}',
+  'native.ui.credential_reissue_reference':
+      'Operation reference: {operationId}',
+  'native.ui.credential_reissue_uac_cancelled':
+      'Windows Administrator approval was cancelled. No new credential was issued. The operation reference is retained for safe reconciliation.',
+  'native.ui.credential_reissue_none':
+      'There is no pending Host credential update for this Client.',
+  'native.ui.credential_reissue_applied':
+      'The replacement credential was acknowledged and saved securely. This Client identity and its local data remain unchanged.',
+  'native.ui.credential_reissue_staged':
+      'The replacement credential is safely staged. Retry the update check to finish Host acknowledgment.',
+  'native.ui.credential_reissue_expired':
+      'The pending credential update expired before completion. The existing credential remains active; an operator can authorize a new request.',
+  'native.ui.credential_reissue_rejected':
+      'The Host rejected the pending update because its device, user, or current permission grants changed. Review the current scope and grants before requesting again.',
+  'native.ui.credential_reissue_permission_denied':
+      'The Host did not find the required current operator authority or target-user permission grant. Grant the business permission at this exact company and branch, then retry.',
+  'native.ui.credential_reissue_reconcile_first':
+      'A previous credential update for this device still needs reconciliation. Resume that exact operation before starting another update.',
+  'native.ui.credential_reissue_unknown':
+      'The Host may have prepared this credential update, but Ventio could not confirm the result. Keep the device and local data intact, then retry with the same operation reference.',
+  'native.ui.credential_reissue_failed':
+      'The trusted credential update did not complete. Keep the existing device and local data intact and review the safe operation reference.',
 };

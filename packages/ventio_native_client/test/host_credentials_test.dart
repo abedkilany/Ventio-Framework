@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -83,6 +84,69 @@ void main() {
     );
     expect(backend.values, isEmpty);
   });
+
+  test(
+    'Staged replacements leave the active credential intact and survive expiry',
+    () async {
+      final endpoint = Uri.parse('https://host.example');
+      await vault.save(endpoint, token);
+      await vault.stageCredentialReissue(
+        endpoint,
+        operationId: 'reissue_0123456789abcdef0123456789abcdef',
+        token: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghi',
+        credentialId: 'cred_0123456789abcdef0123456789abcdef',
+        tenantId: 'tenant-a',
+        actorId: 'actor-a',
+        deviceId: 'device-a',
+        companyId: 'company-a',
+        branchId: 'branch-a',
+        permissions: const ['extension.package.read'],
+        expiresAtUtc: DateTime.now().toUtc().add(const Duration(minutes: 10)),
+      );
+      expect(await vault.read(endpoint), token);
+      final stageKey = backend.values.keys.singleWhere(
+        (key) => key.startsWith('ventio.host.credential.reissue.stage.v1.'),
+      );
+      final stage =
+          jsonDecode(backend.values[stageKey]!) as Map<String, dynamic>;
+      stage['expiresAtUtc'] = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(minutes: 1))
+          .toIso8601String();
+      backend.values[stageKey] = jsonEncode(stage);
+      expect(
+        (await vault.readStagedCredentialReissue(endpoint))?.token,
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghi',
+      );
+    },
+  );
+
+  test(
+    'Pending operator operation reference stores no credential material',
+    () async {
+      final endpoint = Uri.parse('https://host.example');
+      await vault.savePendingCredentialReissueRequest(
+        endpoint,
+        operationId: '0123456789abcdef0123456789abcdef',
+        tenantId: 'tenant-a',
+        actorId: 'actor-a',
+        deviceId: 'device-a',
+        sourceCredentialId: 'credential-a',
+        companyId: 'company-a',
+        branchId: 'branch-a',
+        permissions: const ['extension.package.read'],
+        approvedRemovals: const [],
+      );
+      final pending = await vault.readPendingCredentialReissueRequest(
+        endpoint,
+        'device-a',
+      );
+      expect(pending?.permissions, ['extension.package.read']);
+      final saved = backend.values.values.single;
+      expect(saved, isNot(contains(token)));
+      expect(saved, isNot(contains('operatorCredentialDigest')));
+    },
+  );
 
   test(
     'TLS certificate pins are keyed by origin and integrity checked',

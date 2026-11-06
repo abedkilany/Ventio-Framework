@@ -18,6 +18,7 @@ export 'src/user_administration.dart';
 export 'src/trusted_windows_pairing.dart';
 export 'src/pairing_administration.dart';
 export 'src/device_administration.dart';
+export 'src/credential_reissue.dart';
 export 'src/persistent_identity.dart';
 
 export 'src/private_files.dart';

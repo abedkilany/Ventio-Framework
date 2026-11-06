@@ -238,7 +238,7 @@ begin
     Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PostgresRoot "' + ExpandConstant('{app}\host-payload\postgresql') + '" -Apply';
     if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
       HostDatabaseUpgradeFailed := True;
-      MsgBox('Ventio updated its application files, but the Host database backup, migrations, or pairing contract verification did not complete. The Host service was not restarted. PostgreSQL remains available for recovery; preserve the verified backup and diagnostics, then repair the upgrade before starting VentioHost.', mbError, MB_OK);
+      MsgBox('Ventio updated its application files, but the Host database backup, migrations, or security contract verification did not complete. The Host service was not restarted. PostgreSQL remains available for recovery; preserve the verified backup and diagnostics, then repair the upgrade before starting VentioHost.', mbError, MB_OK);
       exit;
     end;
   end;

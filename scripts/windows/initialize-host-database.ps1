@@ -113,7 +113,12 @@ function Invoke-MigrationRunner([string] $DatabaseUrl) {
     if (-not $process.WaitForExit(300000)) { throw 'HOST_MIGRATION_RUNNER_TIMEOUT' }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
-    if ($process.ExitCode -ne 0) { throw 'HOST_MIGRATION_RUNNER_FAILED' }
+    if ($process.ExitCode -ne 0) {
+      $sqlState = [regex]::Match(($stdout + "`n" + $stderr), '(?:SQLSTATE|code)\s*[:= ]\s*([0-9A-Z]{5})', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+      if (-not $sqlState.Success) { $sqlState = [regex]::Match(($stdout + "`n" + $stderr), '\b([0-9][0-9A-Z]{4})\b') }
+      if ($sqlState.Success) { Write-Output ('HOST_MIGRATION_SQLSTATE_' + $sqlState.Groups[1].Value.ToUpperInvariant()) }
+      throw 'HOST_MIGRATION_RUNNER_FAILED'
+    }
   }
   finally {
     if ($started -and -not $process.HasExited) {

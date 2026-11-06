@@ -1035,6 +1035,417 @@ class WindowsTrustedPairingResult {
   final DateTime expiresAtUtc;
 }
 
+/// Requests a same-device credential ceiling transition through the installed
+/// Host service and Setup Broker. No bearer credential is returned to Flutter.
+class WindowsTrustedCredentialReissueOperator {
+  Future<WindowsTrustedCredentialReissueResult?> request({
+    required String operationId,
+    required String tenantId,
+    required String operatorActorId,
+    required String targetActorId,
+    required String companyId,
+    required String branchId,
+    required String deviceId,
+    required String sourceCredentialId,
+    required List<String> permissions,
+    required List<String> approvedRemovals,
+    required String operatorCredentialDigest,
+  }) async {
+    if (!Platform.isWindows) {
+      throw const HostSetupException('HOST_TRUSTED_REISSUE_WINDOWS_ONLY');
+    }
+    final request = <String, Object?>{
+      'operationId': operationId,
+      'tenantId': tenantId,
+      'operatorActorId': operatorActorId,
+      'targetActorId': targetActorId,
+      'companyId': companyId,
+      'branchId': branchId,
+      'deviceId': deviceId,
+      'sourceCredentialId': sourceCredentialId,
+      'permissions': permissions.toList()..sort(),
+      'approvedRemovals': approvedRemovals.toList()..sort(),
+      'operatorCredentialDigest': operatorCredentialDigest,
+    };
+    return Isolate.run(() => _requestCredentialReissue(request));
+  }
+
+  static Future<WindowsTrustedCredentialReissueResult?>
+  _requestCredentialReissue(Map<String, Object?> request) async {
+    final operationId = request['operationId'] as String;
+    final localAppData = Platform.environment['LOCALAPPDATA'];
+    final programFiles = Platform.environment['ProgramFiles'];
+    if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(operationId) ||
+        localAppData == null ||
+        localAppData.isEmpty ||
+        programFiles == null ||
+        programFiles.isEmpty) {
+      throw const HostSetupException('HOST_TRUSTED_REISSUE_REQUEST_INVALID');
+    }
+    final requesterSid = WindowsHostSetupPlatform._currentUserSid();
+    final requestDirectory = Directory(
+      '$localAppData\\VentioFramework\\TrustedOperator',
+    );
+    final requestFile = File(
+      '${requestDirectory.path}\\$operationId.request.json',
+    );
+    final resultFile = File(
+      '$programFiles\\Ventio\\SetupStatus\\$operationId.reissue.dpapi',
+    );
+    final broker = File(
+      '$programFiles\\Ventio\\host-payload\\VentioSetupBroker.exe',
+    );
+    try {
+      await requestDirectory.create(recursive: true);
+      _assertTrustedReissuePath(requestDirectory.path, allowMissingLeaf: false);
+      final requestType = await FileSystemEntity.type(
+        requestFile.path,
+        followLinks: false,
+      );
+      if (requestType == FileSystemEntityType.link ||
+          requestType == FileSystemEntityType.directory) {
+        throw const HostSetupException(
+          'HOST_TRUSTED_REISSUE_STATE_UNAVAILABLE',
+        );
+      }
+      if (requestType == FileSystemEntityType.file) await requestFile.delete();
+      final resultType = await FileSystemEntity.type(
+        resultFile.path,
+        followLinks: false,
+      );
+      if (resultType == FileSystemEntityType.link ||
+          resultType == FileSystemEntityType.directory ||
+          await FileSystemEntity.type(broker.path, followLinks: false) !=
+              FileSystemEntityType.file) {
+        throw const HostSetupException(
+          'HOST_TRUSTED_REISSUE_STATE_UNAVAILABLE',
+        );
+      }
+      if (resultType == FileSystemEntityType.file) await resultFile.delete();
+      final document = jsonEncode({'formatVersion': 1, ...request});
+      await requestFile.create(exclusive: true);
+      final handle = await requestFile.open(mode: FileMode.write);
+      try {
+        await handle.writeString(document, encoding: utf8);
+        await handle.flush();
+      } finally {
+        await handle.close();
+      }
+      final commandLine = [
+        '--trusted-credential-reissue',
+        operationId,
+        request['tenantId'] as String,
+        request['companyId'] as String,
+        request['branchId'] as String,
+        requesterSid,
+        requestFile.path,
+      ].map(_quoteTrustedReissueArgument).join(' ');
+      final arguments = commandLine.toNativeUtf16();
+      final verb = 'runas'.toNativeUtf16();
+      final executable = broker.path.toNativeUtf16();
+      final workingDirectory = broker.parent.path.toNativeUtf16();
+      try {
+        final launched = ShellExecute(
+          HWND(nullptr),
+          PCWSTR(verb),
+          PCWSTR(executable),
+          PCWSTR(arguments),
+          PCWSTR(workingDirectory),
+          SW_SHOWNORMAL,
+        );
+        if (launched.address == 1223) return null;
+        if (launched.address <= 32) {
+          throw const HostSetupException(
+            'HOST_TRUSTED_REISSUE_BROKER_UNAVAILABLE',
+          );
+        }
+      } finally {
+        malloc.free(arguments);
+        malloc.free(verb);
+        malloc.free(executable);
+        malloc.free(workingDirectory);
+      }
+      final deadline = DateTime.now().add(const Duration(seconds: 120));
+      while (DateTime.now().isBefore(deadline)) {
+        if (await FileSystemEntity.type(resultFile.path, followLinks: false) ==
+            FileSystemEntityType.file) {
+          return _readProtectedReissueResult(resultFile, request);
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
+      throw const HostSetupException('HOST_TRUSTED_REISSUE_OUTCOME_UNKNOWN');
+    } on HostSetupException {
+      rethrow;
+    } on Object {
+      throw const HostSetupException('HOST_TRUSTED_REISSUE_FAILED');
+    } finally {
+      try {
+        if (await FileSystemEntity.type(requestFile.path, followLinks: false) ==
+            FileSystemEntityType.file) {
+          await requestFile.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  static WindowsTrustedCredentialReissueResult _readProtectedReissueResult(
+    File file,
+    Map<String, Object?> request,
+  ) {
+    _assertTrustedReissuePath(file.path, allowMissingLeaf: false);
+    final encrypted = file.readAsBytesSync();
+    final operationId = request['operationId'] as String;
+    final entropyBytes = Uint8List.fromList(utf8.encode(operationId));
+    final input = calloc<_DataBlob>();
+    final entropy = calloc<_DataBlob>();
+    final output = calloc<_DataBlob>();
+    final description = calloc<Pointer<Utf16>>();
+    final inputBytes = calloc<Uint8>(encrypted.length);
+    final entropyBuffer = calloc<Uint8>(entropyBytes.length);
+    final crypt32 = DynamicLibrary.open('crypt32.dll');
+    final kernel = DynamicLibrary.open('kernel32.dll');
+    final unprotect = crypt32
+        .lookupFunction<
+          Int32 Function(
+            Pointer<_DataBlob>,
+            Pointer<Pointer<Utf16>>,
+            Pointer<_DataBlob>,
+            Pointer<Void>,
+            Pointer<Void>,
+            Uint32,
+            Pointer<_DataBlob>,
+          ),
+          int Function(
+            Pointer<_DataBlob>,
+            Pointer<Pointer<Utf16>>,
+            Pointer<_DataBlob>,
+            Pointer<Void>,
+            Pointer<Void>,
+            int,
+            Pointer<_DataBlob>,
+          )
+        >('CryptUnprotectData');
+    final localFree = kernel
+        .lookupFunction<
+          Pointer<Void> Function(Pointer<Void>),
+          Pointer<Void> Function(Pointer<Void>)
+        >('LocalFree');
+    try {
+      if (encrypted.isEmpty || encrypted.length > 65536) {
+        throw const HostSetupException('HOST_TRUSTED_REISSUE_RESULT_INVALID');
+      }
+      inputBytes.asTypedList(encrypted.length).setAll(0, encrypted);
+      entropyBuffer.asTypedList(entropyBytes.length).setAll(0, entropyBytes);
+      input.ref
+        ..length = encrypted.length
+        ..data = inputBytes;
+      entropy.ref
+        ..length = entropyBytes.length
+        ..data = entropyBuffer;
+      if (unprotect(input, description, entropy, nullptr, nullptr, 1, output) ==
+              0 ||
+          output.ref.data == nullptr ||
+          output.ref.length <= 0 ||
+          output.ref.length > 32768) {
+        throw const HostSetupException('HOST_TRUSTED_REISSUE_RESULT_INVALID');
+      }
+      final clear = Uint8List(output.ref.length);
+      clear.setRange(
+        0,
+        clear.length,
+        output.ref.data.asTypedList(clear.length),
+      );
+      try {
+        final decoded = jsonDecode(utf8.decode(clear));
+        if (decoded is! Map<String, dynamic> ||
+            decoded.length != 5 ||
+            !decoded.keys.toSet().containsAll(const {
+              'formatVersion',
+              'operationId',
+              'status',
+              'reissue',
+              'failureCode',
+            }) ||
+            decoded['formatVersion'] != 1 ||
+            decoded['operationId'] != operationId) {
+          throw const HostSetupException('HOST_TRUSTED_REISSUE_RESULT_INVALID');
+        }
+        if (decoded['status'] == 'failed') {
+          final failure = decoded['failureCode'];
+          if (failure is! String ||
+              !RegExp(r'^HOST_TRUSTED_REISSUE_[A-Z_]+$').hasMatch(failure)) {
+            throw const HostSetupException(
+              'HOST_TRUSTED_REISSUE_RESULT_INVALID',
+            );
+          }
+          throw HostSetupException(failure);
+        }
+        final raw = decoded['reissue'];
+        if (decoded['status'] != 'completed' || raw is! Map) {
+          throw const HostSetupException('HOST_TRUSTED_REISSUE_RESULT_INVALID');
+        }
+        final result = Map<String, dynamic>.from(raw);
+        const expected = {
+          'operationId',
+          'state',
+          'tenantId',
+          'actorId',
+          'deviceId',
+          'companyId',
+          'branchId',
+          'credentialId',
+          'permissions',
+          'expiresAtUtc',
+        };
+        final expiryValue = result['expiresAtUtc'];
+        final expiry = expiryValue is String
+            ? DateTime.tryParse(expiryValue)
+            : null;
+        final resultPermissions = result['permissions'];
+        final requested = (request['permissions'] as List).cast<String>()
+          ..sort();
+        final returned = resultPermissions is List
+            ? (resultPermissions.cast<String>()..sort())
+            : <String>[];
+        if (result.length != expected.length ||
+            result.keys.any((key) => !expected.contains(key)) ||
+            result['operationId'] != 'reissue_$operationId' ||
+            !const {
+              'PREPARED',
+              'FINALIZED',
+              'EXPIRED',
+              'REJECTED',
+            }.contains(result['state']) ||
+            result['tenantId'] != request['tenantId'] ||
+            result['actorId'] != request['targetActorId'] ||
+            result['deviceId'] != request['deviceId'] ||
+            result['companyId'] != request['companyId'] ||
+            result['branchId'] != request['branchId'] ||
+            result['credentialId'] is! String ||
+            !RegExp(
+              r'^cred_[0-9a-f]{32}$',
+            ).hasMatch(result['credentialId'] as String) ||
+            expiry == null ||
+            !expiry.isUtc ||
+            (result['state'] == 'PREPARED' &&
+                !expiry.isAfter(DateTime.now().toUtc())) ||
+            expiry.isAfter(
+              DateTime.now().toUtc().add(const Duration(minutes: 16)),
+            ) ||
+            returned.length != requested.length ||
+            !returned.asMap().entries.every(
+              (entry) => entry.value == requested[entry.key],
+            )) {
+          throw const HostSetupException('HOST_TRUSTED_REISSUE_RESULT_INVALID');
+        }
+        return WindowsTrustedCredentialReissueResult(
+          operationId: result['operationId'] as String,
+          state: result['state'] as String,
+          tenantId: result['tenantId'] as String,
+          actorId: result['actorId'] as String,
+          deviceId: result['deviceId'] as String,
+          companyId: result['companyId'] as String,
+          branchId: result['branchId'] as String,
+          credentialId: result['credentialId'] as String,
+          permissions: List.unmodifiable(returned),
+          expiresAtUtc: expiry,
+        );
+      } finally {
+        clear.fillRange(0, clear.length, 0);
+      }
+    } on HostSetupException {
+      rethrow;
+    } on Object {
+      throw const HostSetupException('HOST_TRUSTED_REISSUE_RESULT_INVALID');
+    } finally {
+      encrypted.fillRange(0, encrypted.length, 0);
+      entropyBytes.fillRange(0, entropyBytes.length, 0);
+      if (description.value != nullptr) {
+        localFree(description.value.cast<Void>());
+      }
+      if (output.ref.data != nullptr) {
+        output.ref.data
+            .asTypedList(output.ref.length)
+            .fillRange(0, output.ref.length, 0);
+        localFree(output.ref.data.cast<Void>());
+      }
+      inputBytes
+          .asTypedList(encrypted.length)
+          .fillRange(0, encrypted.length, 0);
+      entropyBuffer
+          .asTypedList(entropyBytes.length)
+          .fillRange(0, entropyBytes.length, 0);
+      calloc.free(entropyBuffer);
+      calloc.free(inputBytes);
+      calloc.free(description);
+      calloc.free(output);
+      calloc.free(entropy);
+      calloc.free(input);
+    }
+  }
+}
+
+class WindowsTrustedCredentialReissueResult {
+  const WindowsTrustedCredentialReissueResult({
+    required this.operationId,
+    required this.state,
+    required this.tenantId,
+    required this.actorId,
+    required this.deviceId,
+    required this.companyId,
+    required this.branchId,
+    required this.credentialId,
+    required this.permissions,
+    required this.expiresAtUtc,
+  });
+
+  final String operationId;
+  final String state;
+  final String tenantId;
+  final String actorId;
+  final String deviceId;
+  final String companyId;
+  final String branchId;
+  final String credentialId;
+  final List<String> permissions;
+  final DateTime expiresAtUtc;
+}
+
+void _assertTrustedReissuePath(String path, {required bool allowMissingLeaf}) {
+  final type = FileSystemEntity.typeSync(path, followLinks: false);
+  if (!allowMissingLeaf &&
+      type != FileSystemEntityType.file &&
+      type != FileSystemEntityType.directory) {
+    throw const HostSetupException('HOST_TRUSTED_REISSUE_STATE_UNAVAILABLE');
+  }
+  if (type == FileSystemEntityType.link) {
+    throw const HostSetupException('HOST_TRUSTED_REISSUE_STATE_UNAVAILABLE');
+  }
+}
+
+String _quoteTrustedReissueArgument(String value) {
+  final slash = String.fromCharCode(92);
+  final result = StringBuffer('"');
+  var slashes = 0;
+  for (final character in value.split('')) {
+    if (character == slash) {
+      slashes++;
+      continue;
+    }
+    if (character == '"') {
+      result.write(List<String>.filled(slashes * 2 + 1, slash).join());
+      result.write('"');
+    } else {
+      result.write(List<String>.filled(slashes, slash).join());
+      result.write(character);
+    }
+    slashes = 0;
+  }
+  result.write(List<String>.filled(slashes * 2, slash).join());
+  result.write('"');
+  return result.toString();
+}
+
 final class _DataBlob extends Struct {
   @Uint32()
   external int length;

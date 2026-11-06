@@ -116,6 +116,8 @@ Assert-Contract ($setupBroker.Contains('identity.User.Value')) 'SETUP_STATUS_ACL
 Assert-Contract ($payloadBuilder.Contains('VentioSetupBroker.exe')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_SETUP_BROKER'
 Assert-Contract ($payloadBuilder.Contains('ventio_trusted_pairing.exe') -and
   $payloadBuilder.Contains('bin/trusted_windows_pairing.dart')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_FIXED_TRUSTED_PAIRING_HELPER'
+Assert-Contract ($payloadBuilder.Contains('ventio_trusted_credential_reissue.exe') -and
+  $payloadBuilder.Contains('bin/trusted_windows_credential_reissue.dart')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_FIXED_TRUSTED_CREDENTIAL_REISSUE_HELPER'
 Assert-Contract ($payloadBuilder.Contains("bin\stackbuilder.exe") -and $payloadBuilder.Contains('StackBuilder executable remains in the Host payload.')) 'HOST_PAYLOAD_MUST_EXCLUDE_THE_STACKBUILDER_EXECUTABLE'
 Assert-Contract ($payloadBuilder.Contains('PostgreSQL component exclusion escaped the isolated Host payload directory.')) 'POSTGRES_COMPONENT_EXCLUSION_MUST_STAY_WITHIN_ISOLATED_PAYLOAD'
 Assert-Contract ($installerBuilder.Contains('StackBuilder') -and $installerBuilder.Contains('stackbuilder\.exe')) 'HOST_INSTALLER_BUILD_MUST_REJECT_STACKBUILDER_FILES'
@@ -155,6 +157,12 @@ Assert-Contract ($databaseUpgrade.Contains('security\pairing.sql') -and
   $databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_VERIFICATION_FAILED') -and
   $databaseUpgrade.Contains('trusted_windows_pairing_create') -and
   $databaseUpgrade.Contains('SET ROLE ventio_owner')) 'HOST_UPGRADE_MUST_APPLY_AND_VERIFY_THE_VERSIONED_PAIRING_CONTRACT_AS_OWNER'
+Assert-Contract ($databaseUpgrade.Contains('security\credential_reissues.sql') -and
+  $databaseUpgrade.Contains('security\schema_profile.sql') -and
+  $databaseUpgrade.Contains('HOST_CREDENTIAL_REISSUE_CONTRACT_UPDATE_FAILED') -and
+  $databaseUpgrade.Contains('HOST_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION_FAILED') -and
+  $databaseUpgrade.Contains('ventio_identity_credential_reissues') -and
+  $databaseUpgrade.Contains('ventio_recovery_mark')) 'HOST_UPGRADE_MUST_APPLY_AND_VERIFY_THE_CREDENTIAL_REISSUE_AND_RECOVERY_CONTRACTS'
 $pairingReplayIndex = $pairingCreateContract.IndexOf('Pairing request was already accepted', [StringComparison]::Ordinal)
 $pairingRateIndex = $pairingCreateContract.IndexOf('Pairing issue rate limit reached', [StringComparison]::Ordinal)
 Assert-Contract ($pairingReplayIndex -ge 0 -and $pairingRateIndex -gt $pairingReplayIndex -and

@@ -156,6 +156,7 @@ Map<String, Object?> _device({
   'credentials': [
     {
       'credentialId': 'cred_0123456789abcdef0123456789abcdef',
+      'permissions': ['identity.devices.manage'],
       'state': 'ACTIVE',
       'expiresAtUtc': '2026-11-29T12:30:00.000Z',
       'revokedAtUtc': null,
@@ -243,6 +244,7 @@ void main() {
                   'credentials': [
                     {
                       'credentialId': 'cred_old',
+                      'permissions': ['identity.devices.manage'],
                       'state': 'ROTATED',
                       'expiresAtUtc': '2026-11-29T12:30:00.000Z',
                       'revokedAtUtc': null,
@@ -689,6 +691,10 @@ void main() {
     expect(find.text('Rotate this device credential?'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Rotate credential'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('rotated-device-credential')),
+      200,
+    );
 
     expect(
       find.byKey(const ValueKey('rotated-device-credential')),

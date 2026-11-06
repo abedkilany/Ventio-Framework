@@ -17,17 +17,19 @@ enum HostManagedDeviceState { registered, revoked }
 enum HostManagedCredentialState { active, expired, revoked, rotated, unknown }
 
 class HostManagedCredential {
-  const HostManagedCredential({
+  HostManagedCredential({
     required this.credentialId,
     required this.state,
     required this.expiresAtUtc,
     required this.revokedAtUtc,
-  });
+    required Iterable<String> permissions,
+  }) : permissions = List.unmodifiable(permissions);
 
   final String credentialId;
   final HostManagedCredentialState state;
   final DateTime expiresAtUtc;
   final DateTime? revokedAtUtc;
+  final List<String> permissions;
 }
 
 class HostManagedDevice {
@@ -265,6 +267,7 @@ class HostDeviceManagementClient {
                 final credential = Map<String, dynamic>.from(rawCredential);
                 const credentialKeys = {
                   'credentialId',
+                  'permissions',
                   'state',
                   'expiresAtUtc',
                   'revokedAtUtc',
@@ -275,6 +278,15 @@ class HostDeviceManagementClient {
                     ) ||
                     !_safeDeviceManagementCredentialId(
                       credential['credentialId'],
+                    ) ||
+                    credential['permissions'] is! List ||
+                    (credential['permissions'] as List).length > 128 ||
+                    (credential['permissions'] as List).any(
+                      (permission) =>
+                          permission is! String ||
+                          !RegExp(
+                            r'^[a-z][a-z0-9_.]{0,255}$',
+                          ).hasMatch(permission),
                     )) {
                   throw _invalidResponse(response);
                 }
@@ -300,6 +312,8 @@ class HostDeviceManagementClient {
                   state: state,
                   expiresAtUtc: expires,
                   revokedAtUtc: revoked,
+                  permissions: (credential['permissions'] as List)
+                      .cast<String>(),
                 );
               })
               .toList(growable: false);

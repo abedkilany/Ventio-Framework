@@ -13,3 +13,4 @@ dependencies:
     path: ../ventio_postgres
   postgres: ^3.5.20
   crypto: ^3.0.6
+  ffi: ^2.2.0

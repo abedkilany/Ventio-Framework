@@ -417,6 +417,12 @@ BEGIN
         'credentials',coalesce((
           SELECT jsonb_agg(jsonb_build_object(
             'credentialId',c.credential_id,
+            'permissions',coalesce((
+              SELECT scope->'permissions'
+                FROM jsonb_array_elements(c.allowed_scopes) scope
+                WHERE scope->>'companyId'=p_company
+                  AND scope->>'branchId'=p_branch
+                LIMIT 1),'[]'::jsonb),
             'state',CASE WHEN EXISTS (
                 SELECT FROM public.ventio_identity_audit rotated
                 WHERE rotated.tenant_id=c.tenant_id
@@ -538,6 +544,20 @@ BEGIN
   UPDATE public.ventio_identity_devices
     SET revoked_at=clock_timestamp()
     WHERE tenant_id=target_device.tenant_id AND device_id=target_device.device_id;
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    SELECT r.tenant_id,'api:'||credential_row.actor_id,
+      'CREDENTIAL_REISSUE_REJECTED',r.device_id,jsonb_build_object(
+        'operationId',r.operation_id,'deviceId',r.device_id,
+        'actorId',r.actor_id,'companyId',r.company_id,
+        'branchId',r.branch_id,'reason','DEVICE_REVOKED')
+      FROM public.ventio_identity_credential_reissues r
+      WHERE r.tenant_id=target_device.tenant_id
+        AND r.device_id=target_device.device_id AND r.state='PREPARED';
+  UPDATE public.ventio_identity_credential_reissues
+    SET state='REJECTED',delivery_ciphertext=NULL
+    WHERE tenant_id=target_device.tenant_id
+      AND device_id=target_device.device_id AND state='PREPARED';
   UPDATE public.ventio_identity_credentials
     SET revoked_at=clock_timestamp()
     WHERE tenant_id=target_device.tenant_id AND actor_id=target_device.actor_id
@@ -641,6 +661,20 @@ BEGIN
   END IF;
 
   expires_value := clock_timestamp()+interval '30 days';
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    SELECT r.tenant_id,'api:'||manager_row.actor_id,
+      'CREDENTIAL_REISSUE_REJECTED',r.device_id,jsonb_build_object(
+        'operationId',r.operation_id,'deviceId',r.device_id,
+        'actorId',r.actor_id,'companyId',r.company_id,
+        'branchId',r.branch_id,'reason','SOURCE_CREDENTIAL_ROTATED')
+      FROM public.ventio_identity_credential_reissues r
+      WHERE r.tenant_id=device_row.tenant_id
+        AND r.device_id=device_row.device_id AND r.state='PREPARED';
+  UPDATE public.ventio_identity_credential_reissues
+    SET state='REJECTED',delivery_ciphertext=NULL
+    WHERE tenant_id=device_row.tenant_id
+      AND device_id=device_row.device_id AND state='PREPARED';
   UPDATE public.ventio_identity_credentials
     SET revoked_at=clock_timestamp()
     WHERE token_digest=target_row.token_digest AND revoked_at IS NULL;

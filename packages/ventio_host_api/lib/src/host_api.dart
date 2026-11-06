@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
+import 'credential_reissue.dart';
 import 'device_administration.dart';
 import 'extension_packages.dart';
 import 'extension_records.dart';
@@ -41,6 +42,7 @@ class HostApi {
   final IdentityUserAdministrationGateway? _identityUserAdministration;
   final IdentityPairingGateway? _identityPairing;
   final IdentityDeviceAdministrationGateway? _identityDeviceAdministration;
+  final AuthoritativeIdentityCredentialReissueGateway? _credentialReissues;
   final HostReadinessProvider? _readinessProvider;
   final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
@@ -63,6 +65,7 @@ class HostApi {
     this._identityUserAdministration,
     this._identityPairing,
     this._identityDeviceAdministration,
+    this._credentialReissues,
     this._readinessProvider,
     this._diagnostics,
     this.maxBodyBytes,
@@ -91,6 +94,7 @@ class HostApi {
     IdentityUserAdministrationGateway? identityUserAdministration,
     IdentityPairingGateway? identityPairing,
     IdentityDeviceAdministrationGateway? identityDeviceAdministration,
+    AuthoritativeIdentityCredentialReissueGateway? credentialReissues,
     HostReadinessProvider? readinessProvider,
     ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
@@ -149,6 +153,7 @@ class HostApi {
       identityUserAdministration,
       identityPairing,
       identityDeviceAdministration,
+      credentialReissues,
       readinessProvider,
       diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
@@ -304,6 +309,32 @@ class HostApi {
         error.code,
         correlationId: correlationId,
       );
+    } on CredentialReissueException catch (error) {
+      await _recordDiagnostic(
+        ManagementDiagnosticEvent(
+          code: error.code,
+          component: 'identity.credential_reissue',
+          category: ManagementDiagnosticCategory.authorization,
+          severity: error.statusCode >= 500
+              ? ManagementDiagnosticSeverity.error
+              : ManagementDiagnosticSeverity.warning,
+          occurredAtUtc: DateTime.now().toUtc(),
+          correlationId: correlationId,
+          retryable: error.statusCode >= 500,
+          messageKey: 'host_api.error.${error.code.toLowerCase()}',
+          safeExplanation: 'The credential reissue request was not completed.',
+          recommendedAction: error.code == 'OUTCOME_UNKNOWN'
+              ? 'Retry with the same operation reference after Recovery Authority readiness is restored.'
+              : 'Check the device registration, current permission grants, and exact branch scope.',
+        ),
+      );
+      await _error(
+        request,
+        error.statusCode,
+        error.code,
+        correlationId: correlationId,
+        retryable: error.statusCode >= 500,
+      );
     } catch (error, stackTrace) {
       // Never return exception text, database details, tokens, or request bodies.
       // Any execution exception may have an ambiguous commit outcome.
@@ -397,6 +428,58 @@ class HostApi {
       await _handlePairingRedeem(request, json, correlationId);
       return;
     }
+    if (request.uri.path == HostManagementRoutes.credentialReissueAcknowledge) {
+      if (request.method != 'POST') {
+        request.response.headers.set(HttpHeaders.allowHeader, 'POST');
+        throw const _ApiError(405, 'METHOD_NOT_ALLOWED');
+      }
+      if (_credentialReissues == null) throw const _ApiError(404, 'NOT_FOUND');
+      final authorization = request.headers[HttpHeaders.authorizationHeader];
+      if (authorization == null ||
+          authorization.length != 1 ||
+          !RegExp(
+            r'^Bearer [A-Za-z0-9_-]{43,128}$',
+          ).hasMatch(authorization.single)) {
+        throw const _ApiError(401, 'UNAUTHENTICATED');
+      }
+      final json = await _readJsonBody(request, iterator, firstChunk);
+      const keys = {'managementApiVersion', 'operationId'};
+      if (json.keys.toSet().length != keys.length ||
+          !json.keys.toSet().containsAll(keys) ||
+          json['managementApiVersion'] != managementApiVersion ||
+          json['operationId'] is! String ||
+          !RegExp(
+            r'^reissue_[0-9a-f]{32}$',
+          ).hasMatch(json['operationId'] as String)) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final result = await _credentialReissues.acknowledge(
+        replacementToken: authorization.single.substring(7),
+        operationId: json['operationId'] as String,
+      );
+      if (result['state'] != 'FINALIZED') {
+        final state = result['state'];
+        if (state == 'EXPIRED' || state == 'REJECTED') {
+          throw CredentialReissueException('REISSUE_$state', statusCode: 409);
+        }
+        throw const CredentialReissueException(
+          'REISSUE_NOT_FINALIZED',
+          statusCode: 409,
+        );
+      }
+      _json(request, 200, {
+        'apiVersion': 1,
+        'managementApiVersion': managementApiVersion,
+        'correlationId': correlationId,
+        'credentialReissue': {
+          'operationId': result['operationId'],
+          'state': result['state'],
+          'deviceId': result['deviceId'],
+          'credentialId': result['credentialId'],
+        },
+      });
+      return;
+    }
     final packageRoute = switch (request.uri.path) {
       '/api/v1/extensions/submit' => 'submit',
       '/api/v1/extensions/read' => 'read',
@@ -415,6 +498,8 @@ class HostApi {
         pairingCreateV2Route ||
         request.uri.path == HostManagementRoutes.pairingCreate;
     final identityDeviceAction = _identityDeviceAction(request.uri.path);
+    final credentialReissueClaimRoute =
+        request.uri.path == HostManagementRoutes.credentialReissueClaim;
     final sessionRoute = request.uri.path == '/api/v1/session';
     final readinessRoute = request.uri.path == HostManagementRoutes.readiness;
     final diagnosticsRoute =
@@ -426,6 +511,7 @@ class HostApi {
         identityRoleRoute == null &&
         identityUserRoute == null &&
         identityDeviceAction == null &&
+        !credentialReissueClaimRoute &&
         !pairingCreateRoute &&
         !sessionRoute &&
         !readinessRoute &&
@@ -500,6 +586,7 @@ class HostApi {
             identityRoleRoute != null ||
             identityUserRoute != null ||
             identityDeviceAction != null ||
+            credentialReissueClaimRoute ||
             pairingCreateRoute ||
             readinessRoute ||
             diagnosticsRoute) &&
@@ -513,6 +600,9 @@ class HostApi {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     if (identityDeviceAction != null && _identityDeviceAdministration == null) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
+    if (credentialReissueClaimRoute && _credentialReissues == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
     if (readinessRoute && _readinessProvider == null) {
@@ -569,6 +659,30 @@ class HostApi {
     }
     if (diagnosticsRoute) {
       _handleDiagnostics(request, json, session, correlationId);
+      return;
+    }
+    if (credentialReissueClaimRoute) {
+      final hasOperationId = json.containsKey('operationId');
+      if (json.keys.toSet().length != (hasOperationId ? 2 : 1) ||
+          !json.keys.toSet().contains('managementApiVersion') ||
+          (hasOperationId && json['operationId'] is! String) ||
+          json['managementApiVersion'] != managementApiVersion ||
+          (hasOperationId &&
+              !RegExp(
+                r'^reissue_[0-9a-f]{32}$',
+              ).hasMatch(json['operationId'] as String))) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final replacement = await _credentialReissues!.claim(
+        session: session,
+        operationId: json['operationId'] as String?,
+      );
+      _json(request, 200, {
+        'apiVersion': 1,
+        'managementApiVersion': managementApiVersion,
+        'correlationId': correlationId,
+        'credentialReissue': replacement,
+      });
       return;
     }
     if (pairingCreateRoute) {

@@ -64,6 +64,7 @@ BEGIN
       NOT EXISTS (SELECT FROM public.ventio_identity_role_permissions) AND
       NOT EXISTS (SELECT FROM public.ventio_identity_role_assignments) AND
       NOT EXISTS (SELECT FROM public.ventio_identity_pairings) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_credential_reissues) AND
       NOT EXISTS (SELECT FROM public.ventio_identity_device_activity) THEN
     IF state.enforced IS FALSE AND state.authority_id='unconfigured' AND
         state.generation=0 THEN
@@ -233,6 +234,7 @@ BEGIN
     'ventio_identity_grants','ventio_identity_roles',
     'ventio_identity_role_permissions','ventio_identity_role_assignments',
     'ventio_identity_audit','ventio_identity_pairings',
+    'ventio_identity_credential_reissues',
     'ventio_schema_migrations'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_lock ON public.%I', t);

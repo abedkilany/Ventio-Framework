@@ -25,6 +25,10 @@ abstract final class HostManagementRoutes {
   static const String devicesRevoke = '$devices/revoke';
   static const String devicesRotateCredential = '$devices/rotate-credential';
   static const String pairingRedeem = '/api/v1/pairing/redeem';
+  static const String credentialReissueClaim =
+      '/api/v1/credentials/reissue/claim';
+  static const String credentialReissueAcknowledge =
+      '/api/v1/credentials/reissue/acknowledge';
   static const String synchronization = '/api/v1/management/synchronization';
 }
 

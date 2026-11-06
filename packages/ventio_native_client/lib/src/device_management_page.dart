@@ -8,6 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
+import 'client_credential_reissue.dart';
+import 'extension_store.dart';
+import 'host_credentials.dart';
 import 'host_device_management.dart';
 import 'host_setup.dart';
 import 'host_setup_windows.dart';
@@ -35,11 +38,15 @@ class DeviceManagementPage extends StatefulWidget {
 class _DeviceManagementPageState extends State<DeviceManagementPage> {
   final _actorId = TextEditingController();
   HostDeviceSnapshot? _snapshot;
+  Map<String, PendingHostCredentialReissue> _pendingCredentialReissues = {};
   List<HostManagedUser> _users = const [];
   String? _selectedUserId;
   HostPairingCredential? _pairing;
   List<String>? _trustedPairingPermissions;
   HostRotatedDeviceCredential? _rotatedCredential;
+  WindowsTrustedCredentialReissueResult? _credentialReissue;
+  String? _credentialReissueCode;
+  String? _credentialReissueOperationId;
   HostDeviceManagementException? _error;
   bool _loading = false;
   bool _loadingUsers = false;
@@ -216,7 +223,21 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     });
     try {
       final snapshot = await widget.client.listDevices();
-      if (mounted) setState(() => _snapshot = snapshot);
+      final pendingReissues = <String, PendingHostCredentialReissue>{};
+      for (final device in snapshot.devices) {
+        final pending = await widget.client.credentials
+            .readPendingCredentialReissueRequest(
+              widget.client.endpoint,
+              device.deviceId,
+            );
+        if (pending != null) pendingReissues[device.deviceId] = pending;
+      }
+      if (mounted) {
+        setState(() {
+          _snapshot = snapshot;
+          _pendingCredentialReissues = pendingReissues;
+        });
+      }
     } on HostDeviceManagementException catch (error) {
       if (mounted) setState(() => _error = error);
     } catch (_) {
@@ -624,9 +645,253 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     }
   }
 
+  Future<void> _trustedReissueCredential(
+    HostManagedDevice device,
+    HostManagedCredential credential,
+  ) async {
+    const additionalPermission = 'extension.package.read';
+    final pendingForDevice = _pendingCredentialReissues[device.deviceId];
+    final isRecoverableSource =
+        pendingForDevice?.sourceCredentialId == credential.credentialId;
+    if (_busy ||
+        !Platform.isWindows ||
+        !widget.client.canManageDevices ||
+        device.state != HostManagedDeviceState.registered ||
+        (credential.state != HostManagedCredentialState.active &&
+            !(credential.state == HostManagedCredentialState.rotated &&
+                isRecoverableSource)) ||
+        credential.permissions.contains(additionalPermission)) {
+      return;
+    }
+    final retained = credential.permissions.toSet();
+    final requested = {...retained, additionalPermission}.toList()..sort();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.ventioText('native.ui.reissue_credential_title')),
+        content: Text(
+          context.ventioText(
+            'native.ui.reissue_credential_confirmation',
+            params: {
+              'deviceId': device.deviceId,
+              'tenantId': widget.client.verifiedIdentity.tenantId,
+              'actorId': device.actorId,
+              'companyId': widget.client.companyId,
+              'branchId': widget.client.branchId,
+              'permissions': requested.join(', '),
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.ventioText('native.ui.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              context.ventioText('native.ui.authorize_credential_update'),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _credentialReissue = null;
+      _credentialReissueCode = null;
+    });
+    String? operationId;
+    try {
+      final profile = HostConnectionProfile(
+        endpoint: widget.client.endpoint.toString(),
+        tenantId: widget.client.verifiedIdentity.tenantId,
+        actorId: device.actorId,
+        deviceId: device.deviceId,
+        companyId: widget.client.companyId,
+        branchId: widget.client.branchId,
+      );
+      final previous = await widget.client.credentials
+          .readPendingCredentialReissueRequest(
+            widget.client.endpoint,
+            device.deviceId,
+          );
+      if (previous != null) {
+        if (previous.tenantId != profile.tenantId ||
+            previous.actorId != device.actorId ||
+            previous.deviceId != device.deviceId ||
+            previous.companyId != profile.companyId ||
+            previous.branchId != profile.branchId ||
+            previous.sourceCredentialId != credential.credentialId ||
+            previous.approvedRemovals.isNotEmpty ||
+            previous.permissions
+                .toSet()
+                .difference(requested.toSet())
+                .isNotEmpty ||
+            requested
+                .toSet()
+                .difference(previous.permissions.toSet())
+                .isNotEmpty) {
+          throw const HostSetupException(
+            'HOST_TRUSTED_REISSUE_RECONCILIATION_REQUIRED',
+          );
+        }
+        operationId = previous.operationId;
+      } else {
+        operationId = newPairingRequestId().substring(4);
+        await widget.client.credentials.savePendingCredentialReissueRequest(
+          widget.client.endpoint,
+          operationId: operationId,
+          tenantId: profile.tenantId,
+          actorId: device.actorId,
+          deviceId: device.deviceId,
+          sourceCredentialId: credential.credentialId,
+          companyId: profile.companyId,
+          branchId: profile.branchId,
+          permissions: requested,
+          approvedRemovals: const [],
+        );
+      }
+      final token = await widget.client.credentials.read(
+        widget.client.endpoint,
+      );
+      if (token == null || token.isEmpty) {
+        throw const HostSetupException('HOST_CREDENTIAL_MISSING');
+      }
+      final pending = await widget.client.credentials
+          .readPendingCredentialReissueRequest(
+            widget.client.endpoint,
+            device.deviceId,
+          );
+      final effectivePermissions = pending?.permissions ?? requested;
+      final effectiveRemovals = pending?.approvedRemovals ?? const <String>[];
+      final result = await WindowsTrustedCredentialReissueOperator().request(
+        operationId: operationId,
+        tenantId: profile.tenantId,
+        operatorActorId: widget.client.verifiedIdentity.actorId,
+        targetActorId: device.actorId,
+        companyId: profile.companyId,
+        branchId: profile.branchId,
+        deviceId: device.deviceId,
+        sourceCredentialId: credential.credentialId,
+        permissions: effectivePermissions,
+        approvedRemovals: effectiveRemovals,
+        operatorCredentialDigest: sha256.convert(utf8.encode(token)).toString(),
+      );
+      if (!mounted) return;
+      if (result == null) {
+        setState(() => _credentialReissueCode = 'UAC_APPROVAL_CANCELLED');
+        return;
+      }
+      setState(() {
+        _credentialReissue = result;
+        _credentialReissueOperationId = result.operationId;
+      });
+      if (result.state == 'FINALIZED' ||
+          result.state == 'EXPIRED' ||
+          result.state == 'REJECTED') {
+        await widget.client.credentials.clearPendingCredentialReissueRequest(
+          widget.client.endpoint,
+          device.deviceId,
+        );
+      }
+      try {
+        await _loadAfterMutation();
+      } catch (_) {
+        // The transition outcome remains visible even if inventory refresh fails.
+      }
+    } on HostSetupException catch (error) {
+      if (mounted) {
+        setState(() {
+          _credentialReissueCode = error.code;
+          _credentialReissueOperationId = operationId;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _credentialReissueCode = 'HOST_TRUSTED_REISSUE_FAILED';
+          _credentialReissueOperationId = operationId;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _checkCredentialUpdate() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _credentialReissueCode = null;
+      _credentialReissue = null;
+    });
+    final identity = widget.client.verifiedIdentity;
+    final profile = HostConnectionProfile(
+      endpoint: widget.client.endpoint.toString(),
+      tenantId: identity.tenantId,
+      actorId: identity.actorId,
+      deviceId: identity.deviceId,
+      companyId: widget.client.companyId,
+      branchId: widget.client.branchId,
+    );
+    try {
+      final result = await ClientCredentialReissueClient(
+        profile: profile,
+        credentials: widget.client.credentials,
+        exchange: widget.client.exchange,
+      ).checkAndApply();
+      if (!mounted) return;
+      setState(() {
+        _credentialReissueCode = switch (result.state) {
+          ClientCredentialReissueState.none => 'NO_CREDENTIAL_UPDATE',
+          ClientCredentialReissueState.applied => 'CREDENTIAL_UPDATE_APPLIED',
+          ClientCredentialReissueState.staged => 'CREDENTIAL_UPDATE_STAGED',
+          ClientCredentialReissueState.rejected =>
+            result.code ?? 'REISSUE_REJECTED',
+        };
+        _credentialReissueOperationId = result.operationId;
+      });
+      if (result.state == ClientCredentialReissueState.applied ||
+          result.state == ClientCredentialReissueState.rejected) {
+        await widget.client.credentials.clearPendingCredentialReissueRequest(
+          widget.client.endpoint,
+          identity.deviceId,
+        );
+      }
+    } on ClientCredentialReissueException catch (error) {
+      if (mounted) {
+        setState(() {
+          _credentialReissueCode = error.code;
+          _credentialReissueOperationId = error.operationId;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _credentialReissueCode = 'HOST_UNAVAILABLE');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _loadAfterMutation() async {
     final snapshot = await widget.client.listDevices();
-    if (mounted) setState(() => _snapshot = snapshot);
+    final pendingReissues = <String, PendingHostCredentialReissue>{};
+    for (final device in snapshot.devices) {
+      final pending = await widget.client.credentials
+          .readPendingCredentialReissueRequest(
+            widget.client.endpoint,
+            device.deviceId,
+          );
+      if (pending != null) pendingReissues[device.deviceId] = pending;
+    }
+    if (mounted) {
+      setState(() {
+        _snapshot = snapshot;
+        _pendingCredentialReissues = pendingReissues;
+      });
+    }
   }
 
   @override
@@ -662,6 +927,16 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                 trailing: const Icon(Icons.verified_user_outlined),
               ),
             ),
+            if (!widget.client.canManageDevices)
+              _credentialReissueClientCard(context),
+            if (!widget.client.canManageDevices && _credentialReissue != null)
+              _credentialReissueOperatorResultCard(
+                context,
+                _credentialReissue!,
+              ),
+            if (!widget.client.canManageDevices &&
+                _credentialReissueCode != null)
+              _credentialReissueStatusCard(context, _credentialReissueCode!),
             if (!widget.client.canManageDevices &&
                 !widget.client.canCreatePairings)
               Card(
@@ -683,8 +958,6 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
             ],
             if (_busy) const LinearProgressIndicator(),
             if (_error case final error?) _errorCard(context, error),
-            if (_rotatedCredential case final credential?)
-              _rotatedCredentialCard(context, credential),
             if (widget.client.canManageDevices) ...[
               const SizedBox(height: 20),
               Row(
@@ -729,11 +1002,119 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                 for (final device in _snapshot!.devices)
                   _deviceCard(context, device),
             ],
+            if (widget.client.canManageDevices && _credentialReissue != null)
+              _credentialReissueOperatorResultCard(
+                context,
+                _credentialReissue!,
+              ),
+            if (widget.client.canManageDevices &&
+                _credentialReissueCode != null)
+              _credentialReissueStatusCard(context, _credentialReissueCode!),
+            if (_rotatedCredential case final credential?)
+              _rotatedCredentialCard(context, credential),
+            if (widget.client.canManageDevices)
+              _credentialReissueClientCard(context),
           ],
         ),
       ),
     ),
   );
+
+  Widget _credentialReissueClientCard(BuildContext context) {
+    final identity = widget.client.verifiedIdentity;
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.key_outlined),
+        title: Text(
+          context.ventioText('native.ui.check_credential_update_title'),
+        ),
+        subtitle: Text(
+          context.ventioText('native.ui.check_credential_update_details'),
+        ),
+        trailing: FilledButton.tonal(
+          key: const ValueKey('check-host-credential-update'),
+          onPressed: _busy || !identity.persistent || identity.deviceId.isEmpty
+              ? null
+              : _checkCredentialUpdate,
+          child: Text(context.ventioText('native.ui.check_credential_update')),
+        ),
+      ),
+    );
+  }
+
+  Widget _credentialReissueOperatorResultCard(
+    BuildContext context,
+    WindowsTrustedCredentialReissueResult result,
+  ) => Card(
+    color: Theme.of(context).colorScheme.primaryContainer,
+    child: ListTile(
+      leading: const Icon(Icons.verified_user_outlined),
+      title: Text(
+        context.ventioText(
+          'native.ui.credential_reissue_operator_state',
+          params: {'state': result.state},
+        ),
+      ),
+      subtitle: SelectableText(
+        '${context.ventioText('native.ui.credential_reissue_device', params: {'deviceId': result.deviceId})}\n'
+        '${context.ventioText('native.ui.credential_reissue_scope', params: {'tenantId': result.tenantId, 'actorId': result.actorId, 'companyId': result.companyId, 'branchId': result.branchId})}\n'
+        '${context.ventioText('native.ui.credential_reissue_permissions', params: {'permissions': result.permissions.join(', ')})}\n'
+        '${context.ventioText('native.ui.credential_reissue_expires', params: {'timestamp': _formatUtc(result.expiresAtUtc)})}\n'
+        '${context.ventioText('native.ui.credential_reissue_reference', params: {'operationId': result.operationId})}',
+      ),
+    ),
+  );
+
+  Widget _credentialReissueStatusCard(BuildContext context, String code) =>
+      Card(
+        child: ListTile(
+          leading: Icon(
+            code == 'CREDENTIAL_UPDATE_APPLIED'
+                ? Icons.check_circle_outline
+                : Icons.info_outline,
+          ),
+          title: Text(context.ventioText(_credentialReissueStatusKey(code))),
+          subtitle: _credentialReissueOperationId == null
+              ? null
+              : SelectableText(
+                  context.ventioText(
+                    'native.ui.credential_reissue_reference',
+                    params: {'operationId': _credentialReissueOperationId},
+                  ),
+                ),
+        ),
+      );
+
+  String _credentialReissueStatusKey(String code) => switch (code) {
+    'UAC_APPROVAL_CANCELLED' || 'HOST_TRUSTED_REISSUE_UAC_CANCELLED' =>
+      'native.ui.credential_reissue_uac_cancelled',
+    'NO_CREDENTIAL_UPDATE' => 'native.ui.credential_reissue_none',
+    'CREDENTIAL_UPDATE_APPLIED' => 'native.ui.credential_reissue_applied',
+    'CREDENTIAL_UPDATE_STAGED' => 'native.ui.credential_reissue_staged',
+    'REISSUE_EXPIRED' ||
+    'HOST_TRUSTED_REISSUE_EXPIRED' => 'native.ui.credential_reissue_expired',
+    'REISSUE_REJECTED' ||
+    'HOST_TRUSTED_REISSUE_REJECTED' => 'native.ui.credential_reissue_rejected',
+    'PERMISSION_OR_GRANT_DENIED' ||
+    'HOST_TRUSTED_REISSUE_PERMISSION_NOT_GRANTED' =>
+      'native.ui.credential_reissue_permission_denied',
+    'HOST_TRUSTED_REISSUE_RECONCILIATION_REQUIRED' =>
+      'native.ui.credential_reissue_reconcile_first',
+    'HOST_TRUSTED_REISSUE_ALREADY_PENDING' ||
+    'HOST_TRUSTED_REISSUE_REFERENCE_CONFLICT' =>
+      'native.ui.credential_reissue_reconcile_first',
+    'HOST_TRUSTED_REISSUE_TARGET_UNAVAILABLE' =>
+      'native.ui.device_error_target',
+    'HOST_TRUSTED_REISSUE_RECOVERY_UNAVAILABLE' ||
+    'HOST_TRUSTED_REISSUE_RECOVERY_BUSY' =>
+      'native.ui.device_error_recovery_authority',
+    'HOST_TRUSTED_REISSUE_OUTCOME_UNKNOWN' ||
+    'HOST_TRUSTED_REISSUE_FAILED' => 'native.ui.credential_reissue_unknown',
+    'HOST_REQUEST_TIMEOUT' ||
+    'HOST_UNREACHABLE' ||
+    'HOST_UNAVAILABLE' => 'native.ui.device_error_network',
+    _ => 'native.ui.credential_reissue_failed',
+  };
 
   Widget _pairingCard(BuildContext context) {
     final waitForExpiry =
@@ -1039,19 +1420,60 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                         ),
                         trailing:
                             isRegistered &&
-                                credential.state ==
-                                    HostManagedCredentialState.active
-                            ? TextButton.icon(
-                                onPressed: _busy
-                                    ? null
-                                    : () =>
-                                          _rotateCredential(device, credential),
-                                icon: const Icon(Icons.key_outlined),
-                                label: Text(
-                                  context.ventioText(
-                                    'native.ui.rotate_credential',
-                                  ),
-                                ),
+                                (credential.state ==
+                                        HostManagedCredentialState.active ||
+                                    _canTrustedCredentialReissue(
+                                      device,
+                                      credential,
+                                    ))
+                            ? Wrap(
+                                spacing: 4,
+                                children: [
+                                  if (credential.state ==
+                                      HostManagedCredentialState.active)
+                                    TextButton.icon(
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _rotateCredential(
+                                              device,
+                                              credential,
+                                            ),
+                                      icon: const Icon(Icons.key_outlined),
+                                      label: Text(
+                                        context.ventioText(
+                                          'native.ui.rotate_credential',
+                                        ),
+                                      ),
+                                    ),
+                                  if (_canTrustedCredentialReissue(
+                                    device,
+                                    credential,
+                                  ))
+                                    OutlinedButton.icon(
+                                      key: ValueKey(
+                                        'reissue-credential-${device.deviceId}-${credential.credentialId}',
+                                      ),
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _trustedReissueCredential(
+                                              device,
+                                              credential,
+                                            ),
+                                      icon: const Icon(
+                                        Icons.admin_panel_settings_outlined,
+                                      ),
+                                      label: Text(
+                                        context.ventioText(
+                                          _pendingCredentialReissues[device
+                                                          .deviceId]
+                                                      ?.sourceCredentialId ==
+                                                  credential.credentialId
+                                              ? 'native.ui.reconcile_credential_update'
+                                              : 'native.ui.reissue_credential',
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               )
                             : null,
                       ),
@@ -1063,6 +1485,21 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
         ),
       ),
     );
+  }
+
+  bool _canTrustedCredentialReissue(
+    HostManagedDevice device,
+    HostManagedCredential credential,
+  ) {
+    final pending = _pendingCredentialReissues[device.deviceId];
+    final samePendingSource =
+        pending?.sourceCredentialId == credential.credentialId;
+    return Platform.isWindows &&
+        device.role.toUpperCase() != 'HOST' &&
+        !credential.permissions.contains('extension.package.read') &&
+        (credential.state == HostManagedCredentialState.active ||
+            (credential.state == HostManagedCredentialState.rotated &&
+                samePendingSource));
   }
 
   Widget _rotatedCredentialCard(

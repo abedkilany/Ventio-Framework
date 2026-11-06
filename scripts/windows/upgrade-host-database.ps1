@@ -23,6 +23,8 @@ $robocopy = Join-Path $env:SystemRoot 'System32\robocopy.exe'
 $migrationExe = Join-Path $payloadRoot 'ventio_migrate.exe'
 $migrations = Join-Path $payloadRoot 'migrations'
 $pairingContract = Join-Path $payloadRoot 'security\pairing.sql'
+$credentialReissueContract = Join-Path $payloadRoot 'security\credential_reissues.sql'
+$schemaProfileContract = Join-Path $payloadRoot 'security\schema_profile.sql'
 $credentialModule = Join-Path $payloadRoot 'setup\HostMigrationCredential.psm1'
 if ($TestMode -and -not (Test-Path -LiteralPath $credentialModule -PathType Leaf)) {
   $credentialModule = Join-Path $PSScriptRoot 'HostMigrationCredential.psm1'
@@ -222,7 +224,8 @@ function Copy-HostPostgresData([string] $Source, [string] $Destination) {
 }
 
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'HOST_DATABASE_PORT_INVALID' }
-foreach ($file in @($psql, $pgCtl, $migrationExe, $migrations, $pairingContract, $credentialModule)) {
+foreach ($file in @($psql, $pgCtl, $migrationExe, $migrations, $pairingContract,
+    $credentialReissueContract, $schemaProfileContract, $credentialModule)) {
   if (-not (Test-Path -LiteralPath $file)) { throw 'HOST_DATABASE_UPGRADE_PAYLOAD_INCOMPLETE' }
 }
 if (-not $TestMode -and -not (Test-Path -LiteralPath $robocopy -PathType Leaf)) { throw 'HOST_DATABASE_BACKUP_TOOL_MISSING' }
@@ -336,6 +339,16 @@ try {
     '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
     '-f', $pairingContract
   ) $envVars 60000 'HOST_PAIRING_CONTRACT_UPDATE_FAILED' -TestMode:$TestMode)
+  [void](Invoke-HostDatabaseTool $psql @(
+    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+    '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
+    '-f', $credentialReissueContract
+  ) $envVars 60000 'HOST_CREDENTIAL_REISSUE_CONTRACT_UPDATE_FAILED' -TestMode:$TestMode)
+  [void](Invoke-HostDatabaseTool $psql @(
+    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+    '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
+    '-f', $schemaProfileContract
+  ) $envVars 60000 'HOST_SCHEMA_PROFILE_UPDATE_FAILED' -TestMode:$TestMode)
   $pairingContractReady = Invoke-HostDatabaseTool $psql @(
     '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
     '-d', $databaseName, '-Atc', "SET ROLE ventio_owner; SELECT position('Pairing request was already accepted' IN pg_get_functiondef('ventio_security.scoped_pairing_create(text,text,text,text,text,text)'::regprocedure)) > 0 AND position('TRUSTED_PAIRING_CREATED' IN pg_get_functiondef('ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)'::regprocedure)) > 0 AND position('CREDENTIAL_CEILING_DENIED' IN pg_get_functiondef('ventio_security.permission_denial_reason(text,text,text,text,text)'::regprocedure)) > 0 AND has_function_privilege('ventio_identity_api','ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)','EXECUTE') AND NOT has_function_privilege('ventio_runtime','ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)','EXECUTE') AND has_function_privilege('ventio_identity_api','ventio_security.permission_denial_reason(text,text,text,text,text)','EXECUTE') AND NOT has_function_privilege('ventio_runtime','ventio_security.permission_denial_reason(text,text,text,text,text)','EXECUTE')"
@@ -343,6 +356,31 @@ try {
   $pairingContractMatch = [regex]::Match($pairingContractReady.Trim(), '(?:^|\s)(t|f)$')
   if (-not $pairingContractMatch.Success -or $pairingContractMatch.Groups[1].Value -cne 't') {
     throw 'HOST_PAIRING_CONTRACT_VERIFICATION_FAILED'
+  }
+  $credentialReissueVerificationSql = @'
+SET ROLE ventio_owner;
+SELECT ventio_security.assert_schema();
+SELECT jsonb_build_array(
+  has_function_privilege('ventio_identity_api','ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text)','EXECUTE'),
+  NOT has_function_privilege('ventio_runtime','ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text)','EXECUTE'),
+  has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_claim(text,text)','EXECUTE'),
+  has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_pending_claim(text)','EXECUTE'),
+  has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_finalize(text,text)','EXECUTE'),
+  (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='public.ventio_identity_credential_reissues'::regclass),
+  (SELECT count(*)=2 FROM pg_trigger WHERE tgrelid='public.ventio_identity_credential_reissues'::regclass AND NOT tgisinternal AND tgname IN ('ventio_recovery_lock','ventio_recovery_mark')))::text
+'@
+  $credentialReissueContractReady = Invoke-HostDatabaseTool $psql @(
+    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+    '-d', $databaseName, '-Atc', $credentialReissueVerificationSql
+  ) $envVars 30000 'HOST_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION_FAILED' -TestMode:$TestMode
+  $credentialReissueFlags = @($credentialReissueContractReady -split "`r?`n" |
+    Where-Object { $_.Trim() } | Select-Object -Last 1)
+  if ($credentialReissueFlags.Count -ne 1 -or
+      $credentialReissueFlags[0].Trim() -cne '[true, true, true, true, true, true, true]') {
+    if ($credentialReissueFlags.Count -eq 1) {
+      Write-Output ('HOST_CREDENTIAL_REISSUE_CONTRACT_FLAGS=' + $credentialReissueFlags[0].Trim())
+    }
+    throw 'HOST_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION_FAILED'
   }
   $ledger = Invoke-HostDatabaseTool $psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,'-d',$databaseName,'-Atc','SET ROLE ventio_owner; SELECT count(*) FROM public.ventio_schema_migrations') $envVars 30000 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' -TestMode:$TestMode
   $ledgerCounts = @($ledger -split "`r?`n" | Where-Object { $_ -match '^\d+$' })

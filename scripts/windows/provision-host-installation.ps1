@@ -278,6 +278,7 @@ foreach ($file in @(
   (Join-Path $payload 'ventio_migrate.exe'),
   (Join-Path $payload 'ventio_identity_bootstrap.exe'),
   (Join-Path $payload 'ventio_trusted_pairing.exe'),
+  (Join-Path $payload 'ventio_trusted_credential_reissue.exe'),
   (Join-Path $payload 'VentioHostService.exe'),
   (Join-Path $payload 'VentioSetupBroker.exe'),
   (Join-Path $payload 'postgresql\bin\postgres.exe'),
@@ -291,6 +292,7 @@ $manifest = Get-Content -LiteralPath (Join-Path $payload 'payload-manifest.json'
 if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
+    $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
     $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
   throw 'HOST_PAYLOAD_MANIFEST_INVALID'
 }
@@ -307,6 +309,13 @@ if ($trustedPairingEntry.Count -ne 1 -or
     (Get-Item -LiteralPath $trustedPairingPath).Length -ne [long]$trustedPairingEntry[0].length -or
     (Get-FileHash -LiteralPath $trustedPairingPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$trustedPairingEntry[0].sha256) {
   throw 'HOST_TRUSTED_PAIRING_MANIFEST_ENTRY_INVALID'
+}
+$trustedReissueEntry = @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_credential_reissue.exe' })
+$trustedReissuePath = Join-Path $payload 'ventio_trusted_credential_reissue.exe'
+if ($trustedReissueEntry.Count -ne 1 -or
+    (Get-Item -LiteralPath $trustedReissuePath).Length -ne [long]$trustedReissueEntry[0].length -or
+    (Get-FileHash -LiteralPath $trustedReissuePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$trustedReissueEntry[0].sha256) {
+  throw 'HOST_TRUSTED_CREDENTIAL_REISSUE_MANIFEST_ENTRY_INVALID'
 }
 $setupScriptNames = @(
   'provision-host-installation.ps1', 'provision-postgres-service.ps1',
