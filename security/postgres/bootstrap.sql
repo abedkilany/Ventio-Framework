@@ -59,7 +59,7 @@ BEGIN
     'ventio_identity_grants','ventio_identity_roles','ventio_identity_role_permissions',
     'ventio_identity_role_assignments','ventio_identity_audit','ventio_extension_packages',
     'ventio_identity_pairings','ventio_identity_device_activity',
-    'ventio_identity_credential_reissues',
+    'ventio_identity_credential_reissues','host_schema_upgrade_receipts',
     'ventio_extension_package_events','ventio_document_number_series',
     'ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
@@ -116,6 +116,7 @@ BEGIN
     'public.ventio_identity_role_assignments','public.ventio_identity_device_activity',
     'public.ventio_identity_audit','public.ventio_identity_pairings',
     'public.ventio_identity_credential_reissues',
+    'public.host_schema_upgrade_receipts',
     'public.ventio_extension_packages',
     'public.ventio_extension_package_events','public.ventio_document_number_series',
     'public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
@@ -125,6 +126,8 @@ BEGIN
     EXECUTE format('CREATE POLICY owner_access ON %s TO ventio_owner USING (true) WITH CHECK (true)', t);
   END LOOP;
 END $protected$;
+REVOKE ALL ON public.host_schema_upgrade_receipts
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 INSERT INTO ventio_security.command_bindings
   (command_type,command_version,doc_type,create_permission,read_permission,module_id) VALUES
   ('maintenance.create', 1, 'MaintenanceRequest', 'maintenance.create', 'maintenance.read','com.ventio.maintenance'),

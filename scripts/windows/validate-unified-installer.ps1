@@ -69,11 +69,11 @@ try {
   }
   $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
   foreach ($relative in @(
-    'ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'ventio_trusted_pairing.exe', 'ventio_trusted_credential_reissue.exe', 'VentioHostService.exe',
+    'ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'ventio_trusted_pairing.exe', 'ventio_trusted_credential_reissue.exe', 'ventio_trusted_host_upgrade.exe', 'VentioHostService.exe',
     'VentioSetupBroker.exe', 'postgresql\bin\postgres.exe', 'postgresql\bin\initdb.exe',
     'postgresql\bin\pg_ctl.exe', 'postgresql\bin\psql.exe',
     'migrations\029_identity_device_activity.sql', 'migrations\030_identity_user_enable.sql',
-    'migrations\031_identity_credential_reissues.sql', 'migrations\032_identity_credential_reissue_pending.sql',
+    'migrations\031_identity_credential_reissues.sql', 'migrations\032_identity_credential_reissue_pending.sql', 'migrations\033_host_schema_upgrade_receipts.sql',
     'security\bootstrap.sql', 'security\pairing.sql', 'security\credential_reissues.sql', 'security\schema_profile.sql', 'security\pairing_create.sql'
   )) {
     if (-not (Test-Path -LiteralPath (Join-Path $hostRoot $relative) -PathType Leaf)) {
@@ -82,6 +82,7 @@ try {
   }
   if ($manifest.postgresVersion -ne '16.15' -or $manifest.credentialsIncluded -ne $false -or
       $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
+      $manifest.trustedHostUpgradeExecutable -ne 'ventio_trusted_host_upgrade.exe' -or
       $manifest.databaseIncluded -ne $false -or
       (Test-Path -LiteralPath (Join-Path $hostRoot 'postgresql\pgAdmin 4')) -or
       (Test-Path -LiteralPath (Join-Path $hostRoot 'postgresql\StackBuilder')) -or

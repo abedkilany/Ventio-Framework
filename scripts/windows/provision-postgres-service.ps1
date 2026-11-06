@@ -442,7 +442,7 @@ try {
   }
 
   $configPath = Join-Path $dataDirectory 'postgresql.conf'
-  [IO.File]::AppendAllText($configPath, "`n# Ventio-managed local-only settings`nlisten_addresses = '127.0.0.1'`nport = $Port`npassword_encryption = 'scram-sha-256'`n", [Text.UTF8Encoding]::new($false))
+  [IO.File]::AppendAllText($configPath, "`n# Ventio-managed local-only settings`nlisten_addresses = '127.0.0.1'`nport = $Port`npassword_encryption = 'scram-sha-256'`n# One bounded Recovery Authority schema-upgrade transaction at a time.`nmax_prepared_transactions = 1`n", [Text.UTF8Encoding]::new($false))
 
   & $sc failure $serviceName reset= 86400 actions= restart/5000/restart/30000/restart/60000 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_SERVICE_RECOVERY_CONFIGURATION_FAILED' }

@@ -159,8 +159,36 @@ class RecoveryAuthority {
                 ).hasMatch(data['fingerprint'] as String)))) {
       throw StateError('Recovery admission is quarantined');
     }
+    final upgrade = data['schemaUpgrade'];
+    if (upgrade != null &&
+        (upgrade is! Map<String, dynamic> ||
+            upgrade.length != 6 ||
+            upgrade['operationId'] is! String ||
+            !RegExp(
+              r'^upgrade_[0-9a-f]{32}$',
+            ).hasMatch(upgrade['operationId'] as String) ||
+            upgrade['preparedTransactionId'] is! String ||
+            upgrade['preparedTransactionId'] !=
+                _schemaUpgradeTransactionId(upgrade['operationId'] as String) ||
+            upgrade['priorFingerprint'] is! String ||
+            !RegExp(
+              r'^[0-9a-f]{64}$',
+            ).hasMatch(upgrade['priorFingerprint'] as String) ||
+            upgrade['migrationManifestSha256'] is! String ||
+            !RegExp(
+              r'^[0-9a-f]{64}$',
+            ).hasMatch(upgrade['migrationManifestSha256'] as String) ||
+            upgrade['phase'] is! String ||
+            !{'prepared', 'commit_authorized'}.contains(upgrade['phase']) ||
+            upgrade['formatVersion'] != 1 ||
+            data['pending'] != true)) {
+      throw StateError('Recovery admission is quarantined');
+    }
     return data;
   }
+
+  static String _schemaUpgradeTransactionId(String operationId) =>
+      'ventio_$operationId';
 
   Future<Map<String, dynamic>> _read() async {
     final data = await _readStoredState();
@@ -585,5 +613,315 @@ class RecoveryAuthority {
         // Observability callbacks never alter a recovery mutation outcome.
       }
     }
+  }
+
+  /// Applies a fixed, release-bundled schema upgrade using PostgreSQL
+  /// prepared transactions to coordinate the independent Recovery Authority
+  /// witness. Before the witness authorizes commit, any prepared transaction
+  /// is safe to roll back and retry. After that durable authorization, retries
+  /// only commit or reconcile the exact receipt-backed operation.
+  Future<RecoveryMutationTimings> applySchemaUpgrade(
+    pg.Connection db, {
+    required String operationId,
+    required String migrationManifestSha256,
+    required Future<void> Function(pg.Session tx) applyAndValidate,
+    Duration? lockTimeout,
+    void Function(RecoveryMutationTimings timings)? onTimings,
+  }) async {
+    if (!RegExp(r'^upgrade_[0-9a-f]{32}$').hasMatch(operationId) ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(migrationManifestSha256)) {
+      throw ArgumentError('Host schema upgrade reference is invalid.');
+    }
+    final timings = RecoveryMutationTimings();
+    var phase = 'preflight';
+    var stagedState = <String, dynamic>{};
+    Map<String, dynamic>? readyState;
+    var transactionOpen = false;
+    var databaseCommitted = false;
+    final preparedTransactionId = _schemaUpgradeTransactionId(operationId);
+    try {
+      return await _exclusive(
+        () async {
+          final state = await _readStoredState();
+          final existingUpgrade = state['schemaUpgrade'];
+
+          // A repeated installer invocation after successful finalization is
+          // safe only when its durable receipt names the exact same release
+          // transition and the ready witness still matches PostgreSQL.
+          if (state['pending'] == false && existingUpgrade == null) {
+            final current = await db.runTx(_snapshotInTransaction);
+            if (current != state['fingerprint']) {
+              throw const RecoveryAdmissionUnavailable();
+            }
+            final receipt = await _readSchemaUpgradeReceipt(db, operationId);
+            if (receipt != null &&
+                receipt['migrationManifestSha256'] == migrationManifestSha256 &&
+                receipt['resultingFingerprint'] == current) {
+              return timings;
+            }
+            final prior = current;
+            readyState = state;
+            final pending = <String, dynamic>{
+              ...state,
+              'pending': true,
+              'schemaUpgrade': {
+                'formatVersion': 1,
+                'operationId': operationId,
+                'preparedTransactionId': preparedTransactionId,
+                'priorFingerprint': prior,
+                'migrationManifestSha256': migrationManifestSha256,
+                'phase': 'prepared',
+              },
+            };
+            stagedState = pending;
+            phase = 'staged';
+            await _replace(pending);
+            await testBarrier?.call('schema_upgrade_staged');
+          } else {
+            if (state['pending'] != true ||
+                existingUpgrade is! Map<String, dynamic> ||
+                existingUpgrade['operationId'] != operationId ||
+                existingUpgrade['migrationManifestSha256'] !=
+                    migrationManifestSha256 ||
+                existingUpgrade['preparedTransactionId'] !=
+                    preparedTransactionId) {
+              throw const RecoveryAdmissionUnavailable();
+            }
+            stagedState = state;
+          }
+
+          final upgrade = stagedState['schemaUpgrade'] as Map<String, dynamic>;
+          phase = upgrade['phase'] as String;
+          final priorFingerprint = upgrade['priorFingerprint'] as String;
+          if (upgrade['phase'] == 'commit_authorized') {
+            if (await _hasPreparedSchemaUpgrade(db, preparedTransactionId)) {
+              await db.execute(
+                "COMMIT PREPARED '$preparedTransactionId'",
+                queryMode: pg.QueryMode.simple,
+              );
+              databaseCommitted = true;
+              await testBarrier?.call('schema_upgrade_after_database_commit');
+            }
+            final current = await db.runTx(_snapshotInTransaction);
+            final receipt = await _readSchemaUpgradeReceipt(db, operationId);
+            if (receipt == null ||
+                receipt['priorFingerprint'] != priorFingerprint ||
+                receipt['migrationManifestSha256'] != migrationManifestSha256 ||
+                receipt['resultingFingerprint'] != current) {
+              throw RecoveryMutationOutcomeUnknown(timings);
+            }
+            await _replace(
+              {
+                ...stagedState,
+                'pending': false,
+                'fingerprint': current,
+                'schemaUpgrade': null,
+              }..remove('schemaUpgrade'),
+            );
+            return timings;
+          }
+
+          if (upgrade['phase'] == 'prepared') {
+            // A prepared database transaction cannot be committed until the
+            // independent witness records commit authorization. Its presence
+            // in this phase therefore means it is safe to roll back and retry.
+            if (await _hasPreparedSchemaUpgrade(db, preparedTransactionId)) {
+              await db.execute(
+                "ROLLBACK PREPARED '$preparedTransactionId'",
+                queryMode: pg.QueryMode.simple,
+              );
+            }
+            final current = await db.runTx(_snapshotInTransaction);
+            final receipt = await _readSchemaUpgradeReceipt(db, operationId);
+            if (current != priorFingerprint || receipt != null) {
+              throw const RecoveryAdmissionUnavailable();
+            }
+          }
+
+          await db.execute('BEGIN', queryMode: pg.QueryMode.simple);
+          transactionOpen = true;
+          await db.execute(
+            'SELECT pg_advisory_xact_lock(86744321)',
+            queryMode: pg.QueryMode.simple,
+          );
+          final before = await snapshot(db);
+          if (before != priorFingerprint) {
+            throw const RecoveryAdmissionUnavailable();
+          }
+          await applyAndValidate(db);
+          final after = await snapshot(db);
+          await db.execute(
+            pg.Sql.named('''
+                INSERT INTO public.host_schema_upgrade_receipts
+                  (operation_id,prior_fingerprint,resulting_fingerprint,
+                   migration_manifest_sha256)
+                VALUES (@operation,@prior,@result,@manifest)
+                ON CONFLICT (operation_id) DO NOTHING
+              '''),
+            parameters: {
+              'operation': operationId,
+              'prior': priorFingerprint,
+              'result': after,
+              'manifest': migrationManifestSha256,
+            },
+          );
+          final receipt = await _readSchemaUpgradeReceiptIn(db, operationId);
+          if (receipt == null ||
+              receipt['priorFingerprint'] != priorFingerprint ||
+              receipt['resultingFingerprint'] != after ||
+              receipt['migrationManifestSha256'] != migrationManifestSha256) {
+            throw StateError('Host schema upgrade receipt conflicts.');
+          }
+          await testBarrier?.call('schema_upgrade_before_commit_attempt');
+          await db.execute(
+            "PREPARE TRANSACTION '$preparedTransactionId'",
+            queryMode: pg.QueryMode.simple,
+          );
+          transactionOpen = false;
+          await testBarrier?.call('schema_upgrade_database_prepared');
+          await _replace({
+            ...stagedState,
+            'schemaUpgrade': {...upgrade, 'phase': 'commit_authorized'},
+          });
+          phase = 'commit_authorized';
+          await testBarrier?.call('schema_upgrade_commit_authorized');
+          await db.execute(
+            "COMMIT PREPARED '$preparedTransactionId'",
+            queryMode: pg.QueryMode.simple,
+          );
+          databaseCommitted = true;
+          await testBarrier?.call('schema_upgrade_after_database_commit');
+          final fingerprint = await db.runTx(_snapshotInTransaction);
+          final committedReceipt = await _readSchemaUpgradeReceipt(
+            db,
+            operationId,
+          );
+          if (committedReceipt == null ||
+              committedReceipt['priorFingerprint'] != priorFingerprint ||
+              committedReceipt['migrationManifestSha256'] !=
+                  migrationManifestSha256 ||
+              committedReceipt['resultingFingerprint'] != fingerprint) {
+            throw RecoveryMutationOutcomeUnknown(timings);
+          }
+          await _replace(
+            {...stagedState, 'pending': false, 'fingerprint': fingerprint}
+              ..remove('schemaUpgrade'),
+          );
+          return timings;
+        },
+        timeout: lockTimeout,
+        timings: timings,
+      );
+    } on RecoveryMutationOutcomeUnknown {
+      rethrow;
+    } catch (error, stackTrace) {
+      if (phase == 'commit_authorized' || databaseCommitted) {
+        throw RecoveryMutationOutcomeUnknown(timings);
+      }
+      if (stagedState.isNotEmpty && stagedState['pending'] == true) {
+        try {
+          if (transactionOpen) {
+            await db.execute('ROLLBACK', queryMode: pg.QueryMode.simple);
+            transactionOpen = false;
+          }
+          if (await _hasPreparedSchemaUpgrade(db, preparedTransactionId)) {
+            await db.execute(
+              "ROLLBACK PREPARED '$preparedTransactionId'",
+              queryMode: pg.QueryMode.simple,
+            );
+          }
+          final observation = await db.runTx((tx) async {
+            await tx.execute('SELECT pg_advisory_xact_lock(86744321)');
+            return {
+              'fingerprint': await snapshot(tx),
+              'receipt': await _readSchemaUpgradeReceiptIn(tx, operationId),
+            };
+          });
+          final upgrade = stagedState['schemaUpgrade'] as Map;
+          if (observation['fingerprint'] != upgrade['priorFingerprint'] ||
+              observation['receipt'] != null) {
+            throw const RecoveryAdmissionUnavailable();
+          }
+          final unchangedState =
+              readyState ??
+              (Map<String, dynamic>.from(stagedState)
+                ..remove('schemaUpgrade')
+                ..['pending'] = false
+                ..['fingerprint'] = upgrade['priorFingerprint']);
+          await _replace(unchangedState);
+        } catch (_) {
+          throw const RecoveryAdmissionUnavailable();
+        }
+      }
+      if (error is pg.ServerException) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      if (error is RecoveryAuthorityBusy) rethrow;
+      throw const RecoveryAdmissionUnavailable();
+    } finally {
+      onTimings?.call(timings);
+    }
+  }
+
+  Future<Map<String, String>?> _readSchemaUpgradeReceipt(
+    pg.Connection db,
+    String operationId,
+  ) async {
+    try {
+      return await db.runTx(
+        (tx) => _readSchemaUpgradeReceiptIn(tx, operationId),
+      );
+    } on pg.ServerException catch (error) {
+      if (error.code == '42P01') return null;
+      rethrow;
+    }
+  }
+
+  Future<Map<String, String>?> _readSchemaUpgradeReceiptIn(
+    pg.Session tx,
+    String operationId,
+  ) async {
+    try {
+      final tableExists = await tx.execute(
+        "SELECT to_regclass('public.host_schema_upgrade_receipts') IS NOT NULL",
+      );
+      if (tableExists.single[0] != true) return null;
+      final rows = await tx.execute(
+        pg.Sql.named('''
+          SELECT prior_fingerprint,resulting_fingerprint,migration_manifest_sha256
+          FROM public.host_schema_upgrade_receipts
+          WHERE operation_id=@operation
+        '''),
+        parameters: {'operation': operationId},
+      );
+      if (rows.isEmpty) return null;
+      if (rows.length != 1) {
+        throw StateError('Host upgrade receipt is ambiguous.');
+      }
+      return {
+        'priorFingerprint': rows.single[0] as String,
+        'resultingFingerprint': rows.single[1] as String,
+        'migrationManifestSha256': rows.single[2] as String,
+      };
+    } on pg.ServerException catch (error) {
+      if (error.code == '42P01') return null;
+      rethrow;
+    }
+  }
+
+  Future<bool> _hasPreparedSchemaUpgrade(
+    pg.Session session,
+    String transactionId,
+  ) async {
+    final rows = await session.execute(
+      pg.Sql.named('''
+        SELECT EXISTS (
+          SELECT 1 FROM pg_prepared_xacts
+          WHERE gid=@gid AND database=current_database() AND owner=current_user
+        )
+      '''),
+      parameters: {'gid': transactionId},
+    );
+    return rows.single[0] as bool;
   }
 }

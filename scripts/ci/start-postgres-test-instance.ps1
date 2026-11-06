@@ -54,7 +54,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL initdb failed.' }
     Remove-Item -LiteralPath $passwordFile -Force
 
-    $pgOptions = "-h 127.0.0.1 -p $port -c listen_addresses=127.0.0.1 -c logging_collector=off"
+    $pgOptions = "-h 127.0.0.1 -p $port -c listen_addresses=127.0.0.1 -c logging_collector=off -c max_prepared_transactions=1"
     & $pgCtl -D $dataDirectory -l $logFile -o $pgOptions -w -t 60 start
     if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not start within one minute.' }
 

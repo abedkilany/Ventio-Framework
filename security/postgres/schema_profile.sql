@@ -1,4 +1,14 @@
 -- Approved migration manifest. Regenerate when adding a reviewed migration.
+ALTER TABLE public.host_schema_upgrade_receipts
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.host_schema_upgrade_receipts
+  FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS owner_access ON public.host_schema_upgrade_receipts;
+CREATE POLICY owner_access ON public.host_schema_upgrade_receipts
+  TO ventio_owner USING (true) WITH CHECK (true);
+REVOKE ALL ON public.host_schema_upgrade_receipts
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+
 CREATE OR REPLACE FUNCTION ventio_security.assert_schema()
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
@@ -50,7 +60,8 @@ BEGIN
     ('029_identity_device_activity.sql','f5b1160fa5120c46d095bde4c45ce23460dea9960177f5eafe7a4f5e0423a63b'),
     ('030_identity_user_enable.sql','9260ac0d93b708479b5602238d1a5573bad0030036cce2cc71797e6c4570df53'),
     ('031_identity_credential_reissues.sql','29435344e0d7525d6904452e4eb1658cb395946aa26d8596e71a7c1005fc354b'),
-    ('032_identity_credential_reissue_pending.sql','4c5964e34287764cfd29cd747342a4abd88d2518490840164de207720031769d')),
+    ('032_identity_credential_reissue_pending.sql','4c5964e34287764cfd29cd747342a4abd88d2518490840164de207720031769d'),
+    ('033_host_schema_upgrade_receipts.sql','b0059094eaa85547205b6e65f565733190cf0c061f9766fbd6d1f7158b4c1255')),
     legacy(name,sha256) AS (VALUES
       ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
       ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),

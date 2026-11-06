@@ -11,6 +11,7 @@ $payload = [IO.Path]::GetFullPath($PayloadDirectory)
 $hostExe = Join-Path $payload 'ventio_host.exe'
 $migrationExe = Join-Path $payload 'ventio_migrate.exe'
 $identityBootstrapExe = Join-Path $payload 'ventio_identity_bootstrap.exe'
+$trustedHostUpgradeExe = Join-Path $payload 'ventio_trusted_host_upgrade.exe'
 $serviceExe = Join-Path $payload 'VentioHostService.exe'
 $expectedPayload = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio\host-payload'))
 $configFile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)) 'Ventio\Host\service-config.dpapi'
@@ -51,6 +52,7 @@ if (-not $payload.Equals($expectedPayload, [StringComparison]::OrdinalIgnoreCase
 if (-not (Test-Path -LiteralPath $hostExe -PathType Leaf) -or
     -not (Test-Path -LiteralPath $migrationExe -PathType Leaf) -or
     -not (Test-Path -LiteralPath $identityBootstrapExe -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $trustedHostUpgradeExe -PathType Leaf) -or
     -not (Test-Path -LiteralPath $serviceExe -PathType Leaf)) {
   throw 'The verified Host payload is incomplete.'
 }
@@ -61,12 +63,13 @@ if ($manifest.hostExecutable -ne 'ventio_host.exe' -or $manifest.migrationExecut
     $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
+    $manifest.trustedHostUpgradeExecutable -ne 'ventio_trusted_host_upgrade.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
   throw 'Host payload manifest failed its safe-content checks.'
 }
 
-foreach ($relative in @('ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'ventio_trusted_pairing.exe', 'ventio_trusted_credential_reissue.exe', 'VentioHostService.exe')) {
+foreach ($relative in @('ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'ventio_trusted_pairing.exe', 'ventio_trusted_credential_reissue.exe', 'ventio_trusted_host_upgrade.exe', 'VentioHostService.exe')) {
   $entry = @($manifest.verifiedFiles | Where-Object { $_.path -ceq $relative })
   $file = Join-Path $payload $relative
   if ($entry.Count -ne 1 -or -not (Test-Path -LiteralPath $file -PathType Leaf)) {

@@ -72,6 +72,11 @@ Assert-Contract ($resumePostgresIndex -ge 0 -and $databaseUpgradeIndex -gt $resu
 Assert-Contract ($upgradeBody.Contains('HostDatabaseUpgradeFailed := True') -and $installerSource.Contains('and not HostDatabaseUpgradeFailed') -and $installerSource.Contains('-ResumePostgresOnly')) 'FAILED_DATABASE_UPGRADE_MUST_KEEP_HOST_STOPPED_AND_ALLOW_POSTGRES_ONLY_RECOVERY'
 Assert-Contract ($installerSource -match '(?s)procedure CurStepChanged.*?enable-host-lan-listener\.ps1.*?-RestartServices') 'EXISTING_HOST_UPDATE_MUST_CONFIGURE_THE_LAN_LISTENER_AFTER_DATABASE_UPGRADE'
 Assert-Contract ($databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_VERIFICATION_FAILED') -and $databaseUpgrade.Contains('HOST_DATABASE_BACKUP_VERIFICATION_FAILED') -and $databaseUpgrade.Contains('HOST_DATABASE_MIGRATION_RESULT_INVALID')) 'INSTALLER_DATABASE_UPGRADE_MUST_REQUIRE_VERIFIED_BACKUP_MIGRATIONS_AND_PAIRING_CONTRACT'
+Assert-Contract ($databaseUpgrade.Contains('Invoke-HostSchemaUpgradeService') -and $databaseUpgrade.Contains('ventio_trusted_host_upgrade.exe')) 'PRODUCTION_HOST_UPGRADE_MUST_USE_THE_RECOVERY_AUTHORITY_AWARE_SERVICE_HELPER'
+Assert-Contract ($databaseUpgrade.Contains('SHOW max_prepared_transactions') -and $databaseUpgrade.Contains('max_prepared_transactions = 1')) 'HOST_UPGRADE_MUST_VERIFY_BOUNDED_POSTGRES_PREPARED_TRANSACTION_SUPPORT'
+$backupCommitIndex = $databaseUpgrade.IndexOf('[IO.Directory]::Move($partialBackupRoot, $backupRoot)', [StringComparison]::Ordinal)
+$preparedSettingIndex = $databaseUpgrade.IndexOf('Ventio Recovery Authority upgrade coordinator v1', [StringComparison]::Ordinal)
+Assert-Contract ($backupCommitIndex -ge 0 -and $preparedSettingIndex -gt $backupCommitIndex) 'HOST_UPGRADE_MUST_VERIFY_RESTRICTED_BACKUP_BEFORE_CHANGING_POSTGRES_COORDINATION_SETTINGS'
 Assert-Contract ($installerSource.Contains('-FailureCodePath') -and $installerSource.Contains('IsSafeHostLanFailureCode') -and $installerSource.Contains('Error code: ')) 'HOST_LAN_UPGRADE_FAILURE_MUST_SURFACE_ONLY_A_VALIDATED_FAILURE_CODE'
 Assert-Contract ($installerSource -notmatch '(?s)procedure CurStepChanged.*?provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_UPGRADE_MUST_NOT_RUN_FIRST_RUN_PROVISIONING_OR_RECOVERY'
 Assert-Contract ($hostProvisioning.Contains('& $hostLanListener -PayloadDirectory $payload -RestartServices')) 'FIRST_RUN_HOST_SETUP_MUST_ENABLE_THE_LAN_LISTENER'
@@ -118,6 +123,9 @@ Assert-Contract ($payloadBuilder.Contains('ventio_trusted_pairing.exe') -and
   $payloadBuilder.Contains('bin/trusted_windows_pairing.dart')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_FIXED_TRUSTED_PAIRING_HELPER'
 Assert-Contract ($payloadBuilder.Contains('ventio_trusted_credential_reissue.exe') -and
   $payloadBuilder.Contains('bin/trusted_windows_credential_reissue.dart')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_FIXED_TRUSTED_CREDENTIAL_REISSUE_HELPER'
+Assert-Contract ($payloadBuilder.Contains('ventio_trusted_host_upgrade.exe') -and
+  $payloadBuilder.Contains('bin\trusted_windows_host_upgrade.dart')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_FIXED_RECOVERY_COORDINATED_UPGRADE_HELPER'
+Assert-Contract ($payloadBuilder.Contains('restore-host-upgrade-backup.ps1')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_EXPLICIT_VERIFIED_BACKUP_RESTORE_TOOL'
 Assert-Contract ($payloadBuilder.Contains("bin\stackbuilder.exe") -and $payloadBuilder.Contains('StackBuilder executable remains in the Host payload.')) 'HOST_PAYLOAD_MUST_EXCLUDE_THE_STACKBUILDER_EXECUTABLE'
 Assert-Contract ($payloadBuilder.Contains('PostgreSQL component exclusion escaped the isolated Host payload directory.')) 'POSTGRES_COMPONENT_EXCLUSION_MUST_STAY_WITHIN_ISOLATED_PAYLOAD'
 Assert-Contract ($installerBuilder.Contains('StackBuilder') -and $installerBuilder.Contains('stackbuilder\.exe')) 'HOST_INSTALLER_BUILD_MUST_REJECT_STACKBUILDER_FILES'

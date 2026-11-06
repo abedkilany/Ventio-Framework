@@ -38,9 +38,10 @@ $migrationSource = Join-Path $migrationPackage 'bin\migrate.dart'
 $identityBootstrapSource = Join-Path $hostRoot 'bin\bootstrap_first_administrator.dart'
 $trustedPairingSource = Join-Path $hostRoot 'bin\trusted_windows_pairing.dart'
 $trustedCredentialReissueSource = Join-Path $hostRoot 'bin\trusted_windows_credential_reissue.dart'
+$trustedHostUpgradeSource = Join-Path $hostRoot 'bin\trusted_windows_host_upgrade.dart'
 $serviceProject = Join-Path $repoRoot 'installer\windows\host-service\VentioHostService.csproj'
 $setupBrokerProject = Join-Path $repoRoot 'installer\windows\setup-broker\VentioSetupBroker.csproj'
-foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $trustedPairingSource, $trustedCredentialReissueSource, $serviceProject, $setupBrokerProject)) {
+foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $trustedPairingSource, $trustedCredentialReissueSource, $trustedHostUpgradeSource, $serviceProject, $setupBrokerProject)) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Required Host payload input is missing: $path" }
 }
 
@@ -68,6 +69,14 @@ try {
   try {
     & dart compile exe bin/trusted_windows_credential_reissue.dart -o $trustedCredentialReissueExe
     if ($LASTEXITCODE -ne 0) { throw "Trusted same-device credential reissue compilation failed with exit code $LASTEXITCODE." }
+  }
+  finally { Pop-Location }
+
+  $trustedHostUpgradeExe = Join-Path $tempDirectory 'ventio_trusted_host_upgrade.exe'
+  Push-Location $hostRoot
+  try {
+    & dart compile exe bin/trusted_windows_host_upgrade.dart -o $trustedHostUpgradeExe
+    if ($LASTEXITCODE -ne 0) { throw "Recovery-aware Host upgrade helper compilation failed with exit code $LASTEXITCODE." }
   }
   finally { Pop-Location }
 
@@ -136,6 +145,7 @@ try {
     'enable-host-lan-listener.ps1',
     'recover-host-database-credentials.ps1',
     'upgrade-host-database.ps1', 'stop-host-services.ps1',
+    'restore-host-upgrade-backup.ps1',
     'remove-host-installation.ps1'
   )) {
     $scriptPath = Join-Path $windowsScriptDirectory $scriptName
@@ -154,6 +164,7 @@ try {
     Get-Item -LiteralPath $identityBootstrapExe
     Get-Item -LiteralPath $trustedPairingExe
     Get-Item -LiteralPath $trustedCredentialReissueExe
+    Get-Item -LiteralPath $trustedHostUpgradeExe
     Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioHostService.exe')
     Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioSetupBroker.exe')
     foreach ($name in $requiredPostgres) { Get-Item -LiteralPath (Join-Path $tempDirectory "postgresql\bin\$name") }
@@ -183,6 +194,7 @@ try {
     identityBootstrapExecutable = 'ventio_identity_bootstrap.exe'
     trustedPairingExecutable = 'ventio_trusted_pairing.exe'
     trustedCredentialReissueExecutable = 'ventio_trusted_credential_reissue.exe'
+    trustedHostUpgradeExecutable = 'ventio_trusted_host_upgrade.exe'
     serviceExecutable = 'VentioHostService.exe'
     setupBrokerExecutable = 'VentioSetupBroker.exe'
     postgresVersion = '16.15'

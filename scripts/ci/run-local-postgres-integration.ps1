@@ -6,12 +6,13 @@ param(
     [switch] $ClientOfflineIntegration,
     [switch] $HostProcessIntegration,
     [switch] $HostDiagnosticsProcessIntegration,
+    [switch] $HostSchemaUpgradeIntegration,
     [ValidateSet('api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart', 'credential_reissue_integration.dart', 'recovery_integration.dart')]
     [string] $OnlyHostSuite
 )
 
 $ErrorActionPreference = 'Stop'
-if (@($HostSecuritySuites, $ClientOfflineIntegration, $HostProcessIntegration, $HostDiagnosticsProcessIntegration).Where({ $_ }).Count -gt 1) {
+if (@($HostSecuritySuites, $ClientOfflineIntegration, $HostProcessIntegration, $HostDiagnosticsProcessIntegration, $HostSchemaUpgradeIntegration).Where({ $_ }).Count -gt 1) {
     throw 'Select exactly one local PostgreSQL integration mode.'
 }
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
@@ -80,7 +81,7 @@ try {
     }
 
     $hostApiDirectory = Join-Path $workspace 'packages\ventio_host_api'
-    if ($HostSecuritySuites -or $ClientOfflineIntegration -or $HostProcessIntegration -or $HostDiagnosticsProcessIntegration) {
+    if ($HostSecuritySuites -or $ClientOfflineIntegration -or $HostProcessIntegration -or $HostDiagnosticsProcessIntegration -or $HostSchemaUpgradeIntegration) {
         $env:VENTIO_MIGRATIONS_DIR = Join-Path $workspace 'migrations\postgres'
         $env:PGPASSWORD = 'ventio_test_only'
         Push-Location $hostApiDirectory
@@ -107,15 +108,89 @@ try {
         }
     }
 
+    if ($HostSecuritySuites -or $HostSchemaUpgradeIntegration) {
+        $upgradeBaselineName = 'ventio_schema_upgrade_baseline_' + [Guid]::NewGuid().ToString('N').Substring(0, 16)
+        $upgradeBaselineUrl = "postgresql://ventio:ventio_test_only@127.0.0.1:$($env:VENTIO_TEST_POSTGRES_PORT)/$upgradeBaselineName`?sslmode=disable"
+        $upgradeMigrationsDirectory = Join-Path $runnerTemp 'pre-0.1.12-migrations'
+        $upgradeSecurityDirectory = Join-Path $runnerTemp 'pre-0.1.12-security'
+        New-Item -ItemType Directory -Path $upgradeMigrationsDirectory | Out-Null
+        Copy-Item -LiteralPath (Join-Path $workspace 'security\postgres') -Destination $upgradeSecurityDirectory -Recurse
+        $legacyBootstrapPath = Join-Path $upgradeSecurityDirectory 'bootstrap.sql'
+        $legacyRecoveryPath = Join-Path $upgradeSecurityDirectory 'recovery.sql'
+        $legacySchemaProfilePath = Join-Path $upgradeSecurityDirectory 'schema_profile.sql'
+        $legacyBootstrap = [IO.File]::ReadAllText($legacyBootstrapPath)
+        $legacyBootstrap = [regex]::Replace($legacyBootstrap, "(?m)^\s*'public\.host_schema_upgrade_receipts',\r?\n", '')
+        $legacyBootstrap = [regex]::Replace($legacyBootstrap, "(?ms)^REVOKE ALL ON public\.host_schema_upgrade_receipts\s+FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;\r?\n", '')
+        $legacyBootstrap = [regex]::Replace($legacyBootstrap, "(?m)^\s*'public\.ventio_identity_credential_reissues',\r?\n", '')
+        $legacyBootstrap = [regex]::Replace($legacyBootstrap, "(?m)^\s*'ventio_identity_credential_reissues','host_schema_upgrade_receipts',\r?\n", '')
+        $legacyBootstrap = [regex]::Replace($legacyBootstrap, "(?m)^\s*'ventio_identity_credential_reissues',\r?\n", '')
+        $legacyBootstrap = [regex]::Replace($legacyBootstrap, "(?m)^\s*ventio_security\.(?:trusted_windows_credential_reissue_prepare|credential_reissue_claim|credential_reissue_pending_claim|credential_reissue_finalize)\([^\r\n]*\),\r?\n", '')
+        $legacyBootstrap = [regex]::Replace($legacyBootstrap, '(?m)^\\ir credential_reissues\.sql\r?\n', '')
+        [IO.File]::WriteAllText($legacyBootstrapPath, $legacyBootstrap, [Text.UTF8Encoding]::new($false))
+        $legacySchemaProfile = [IO.File]::ReadAllText($legacySchemaProfilePath)
+        $legacySchemaProfile = [regex]::Replace($legacySchemaProfile, "(?ms)^ALTER TABLE public\.host_schema_upgrade_receipts.*?^REVOKE ALL ON public\.host_schema_upgrade_receipts\s+FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;\r?\n", '')
+        $legacySchemaProfile = [regex]::Replace($legacySchemaProfile, "(?m)^\s*\('03[1-3]_[^']+','[0-9a-f]{64}'\)\)?,?\r?\n", '')
+        $legacySchemaProfile = [regex]::Replace($legacySchemaProfile, "(?m)^(\s*\('030_identity_user_enable\.sql','9260ac0d93b708479b5602238d1a5573bad0030036cce2cc71797e6c4570df53'\)),\r?\n(?:\s*\r?\n)*(\s*legacy\(name,sha256\) AS \(VALUES)", '$1),' + [Environment]::NewLine + '$2')
+        [IO.File]::WriteAllText($legacySchemaProfilePath, $legacySchemaProfile, [Text.UTF8Encoding]::new($false))
+        $legacyRecovery = [IO.File]::ReadAllText($legacyRecoveryPath)
+        $legacyRecovery = [regex]::Replace($legacyRecovery, "(?m)^\s*NOT EXISTS \(SELECT FROM public\.ventio_identity_credential_reissues\) AND\r?\n", '')
+        $legacyRecovery = [regex]::Replace($legacyRecovery, "(?m)^\s*'ventio_identity_credential_reissues',\r?\n", '')
+        [IO.File]::WriteAllText($legacyRecoveryPath, $legacyRecovery, [Text.UTF8Encoding]::new($false))
+        $createdb = Join-Path $binDirectory 'createdb.exe'
+        $psql = Join-Path $binDirectory 'psql.exe'
+        $env:PGPASSWORD = 'ventio_test_only'
+        & $createdb -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio $upgradeBaselineName
+        if ($LASTEXITCODE -ne 0) { throw 'Could not create the isolated pre-0.1.12 Host database.' }
+        & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio -d postgres `
+            -v ON_ERROR_STOP=1 -c "GRANT CONNECT, CREATE ON DATABASE $upgradeBaselineName TO ventio_owner"
+        if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the isolated migration owner database grant.' }
+        & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio -d $upgradeBaselineName `
+            -v ON_ERROR_STOP=1 -c 'GRANT USAGE, CREATE ON SCHEMA public TO ventio_owner'
+        if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the isolated migration owner schema grant.' }
+
+        Get-ChildItem -LiteralPath (Join-Path $workspace 'migrations\postgres') -Filter '*.sql' -File |
+            Where-Object { [int]$_.Name.Substring(0, 3) -le 30 } |
+            Copy-Item -Destination $upgradeMigrationsDirectory
+        $env:VENTIO_DATABASE_URL = $upgradeBaselineUrl
+        $env:VENTIO_MIGRATION_ROLE = 'ventio_owner'
+        $env:VENTIO_MIGRATIONS_DIR = $upgradeMigrationsDirectory
+        Push-Location (Join-Path $workspace 'packages\ventio_host_api')
+        try {
+            & dart run '..\ventio_postgres\bin\migrate.dart'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not build the isolated migration-030 Host fixture.' }
+        }
+        finally { Pop-Location }
+        & $psql -X -h 127.0.0.1 -p $env:VENTIO_TEST_POSTGRES_PORT -U ventio -d $upgradeBaselineName `
+            -v ON_ERROR_STOP=1 -v "expected_database=$upgradeBaselineName" -f $legacyBootstrapPath
+        if ($LASTEXITCODE -ne 0) { throw 'Could not install the isolated Host security contracts.' }
+        $env:VENTIO_TEST_UPGRADE_TEMPLATE_URL = $upgradeBaselineUrl
+        $env:VENTIO_TEST_UPGRADE_TEMPLATE = $upgradeBaselineName
+        $env:VENTIO_DATABASE_URL = "postgresql://ventio:ventio_test_only@127.0.0.1:$($env:VENTIO_TEST_POSTGRES_PORT)/ventio_host_test?sslmode=disable"
+        $env:VENTIO_MIGRATION_ROLE = 'ventio_owner'
+        $env:VENTIO_MIGRATIONS_DIR = Join-Path $workspace 'migrations\postgres'
+        & dart run (Join-Path $hostApiDirectory 'test\host_schema_upgrade_recovery_integration.dart')
+        if ($LASTEXITCODE -ne 0) { throw 'Host schema upgrade Recovery Authority regression failed.' }
+        Remove-Item -LiteralPath $upgradeMigrationsDirectory -Recurse -Force
+        Remove-Item -LiteralPath $upgradeSecurityDirectory -Recurse -Force
+        Remove-Item Env:VENTIO_TEST_UPGRADE_TEMPLATE_URL -ErrorAction SilentlyContinue
+        Remove-Item Env:VENTIO_TEST_UPGRADE_TEMPLATE -ErrorAction SilentlyContinue
+        Remove-Item Env:VENTIO_MIGRATION_ROLE -ErrorAction SilentlyContinue
+        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+    }
+
     Push-Location $hostApiDirectory
     try {
         $suites = if ($HostSecuritySuites) {
             @('database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart', 'credential_reissue_integration.dart')
+        } elseif ($HostSchemaUpgradeIntegration) {
+            @()
         } else {
             @('..\..\packages\ventio_postgres\test\postgres_integration.dart')
         }
         if ($OnlyHostSuite) { $suites = @($OnlyHostSuite) }
-        if ($HostDiagnosticsProcessIntegration -or $HostProcessIntegration) {
+        if ($HostSchemaUpgradeIntegration) {
+            $testExitCode = 0
+        } elseif ($HostDiagnosticsProcessIntegration -or $HostProcessIntegration) {
             if ($HostDiagnosticsProcessIntegration) {
                 $env:VENTIO_HOST_DIAGNOSTICS_PROCESS_TEST = 'yes'
             }

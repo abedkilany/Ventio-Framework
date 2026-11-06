@@ -15,6 +15,7 @@ internal static class Program
     internal const string HostReadyMessage = "VENTIO_HOST_READY";
     internal const int FirstAdministratorHelperTimeoutSeconds = 60;
     internal const int TrustedPairingHelperTimeoutSeconds = 90;
+    internal const int TrustedSchemaUpgradeHelperTimeoutSeconds = 900;
     private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(90);
     private const int ServiceWin32OwnProcess = 0x00000010;
     private const int ServiceStartPending = 2;
@@ -50,6 +51,7 @@ internal static class Program
     private static Process? _hostProcess;
     private static ServiceStatus _status;
     private static int _serviceExitCode;
+    private static int _startupCheckpoint;
 
     private static int Main(string[] args)
     {
@@ -87,6 +89,7 @@ internal static class Program
             return;
         }
 
+        _startupCheckpoint = 1;
         SetStatus(ServiceStartPending, checkpoint: 1, waitHintMs: 15000);
         CancellationTokenSource? brokerCancellation = null;
         Task? brokerTask = null;
@@ -122,6 +125,45 @@ internal static class Program
                 throw new InvalidOperationException("Local bootstrap broker did not become ready.");
             brokerReady.Task.GetAwaiter().GetResult();
 
+            var upgradeRequestPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "Ventio", "Host", "schema-upgrade.request.dpapi");
+            if (File.Exists(upgradeRequestPath))
+            {
+                var request = ReadHostSchemaUpgradeRequest(upgradeRequestPath, serviceSid);
+                var resultPath = Path.Combine(Path.GetDirectoryName(upgradeRequestPath)!, "schema-upgrade.result.json");
+                try
+                {
+                    using var upgradeProgressCancellation = new CancellationTokenSource();
+                    var upgradeProgress = Task.Run(async () =>
+                    {
+                        while (!upgradeProgressCancellation.IsCancellationRequested)
+                        {
+                            SetStatus(ServiceStartPending, checkpoint: NextStartupCheckpoint(), waitHintMs: 15000);
+                            try { await Task.Delay(TimeSpan.FromSeconds(8), upgradeProgressCancellation.Token).ConfigureAwait(false); }
+                            catch (OperationCanceledException) { break; }
+                        }
+                    });
+                    try
+                    {
+                    ExecuteHostSchemaUpgradeAsync(request, bootstrapEnvironment)
+                        .GetAwaiter().GetResult();
+                    WriteHostSchemaUpgradeResult(resultPath, request.OperationId, "complete", null);
+                    File.Delete(upgradeRequestPath);
+                    }
+                    finally
+                    {
+                        upgradeProgressCancellation.Cancel();
+                        try { upgradeProgress.GetAwaiter().GetResult(); } catch { }
+                    }
+                }
+                catch (HostSchemaUpgradeFailureException exception)
+                {
+                    WriteHostSchemaUpgradeResult(resultPath, request.OperationId, "failed", exception.FailureCode);
+                    throw;
+                }
+            }
+
             var recoveryAuthorityPath = bootstrapEnvironment["VENTIO_RECOVERY_AUTHORITY_FILE"];
             var recoveryAuthorityExists = File.Exists(recoveryAuthorityPath);
             var savedReceipt = receiptStore.Read();
@@ -149,7 +191,7 @@ internal static class Program
             }
 
             if (StopRequested.IsSet) return;
-            SetStatus(ServiceStartPending, checkpoint: 2, waitHintMs: 15000);
+            SetStatus(ServiceStartPending, checkpoint: NextStartupCheckpoint(), waitHintMs: 15000);
             var process = StartHostProcess(environment, hostReady);
             var processExit = process.WaitForExitAsync();
             if (!WaitForHostReadiness(
@@ -218,7 +260,6 @@ internal static class Program
         CancellationToken cancellationToken)
     {
         var timer = Stopwatch.StartNew();
-        var checkpoint = 3;
         while (timer.Elapsed < HostStartupTimeout)
         {
             if (StopRequested.IsSet) return false;
@@ -237,7 +278,7 @@ internal static class Program
                 throw new InvalidOperationException("Host bootstrap broker exited before readiness.");
             }
             cancellationToken.ThrowIfCancellationRequested();
-            SetStatus(ServiceStartPending, checkpoint++, waitHintMs: 15000);
+            SetStatus(ServiceStartPending, checkpoint: NextStartupCheckpoint(), waitHintMs: 15000);
         }
         return false;
     }
@@ -978,6 +1019,153 @@ internal static class Program
             throw new InvalidOperationException("Recovery Authority Windows SID is invalid.");
     }
 
+    private static HostSchemaUpgradeRequest ReadHostSchemaUpgradeRequest(
+        string path, string serviceSid)
+    {
+        var file = new FileInfo(path);
+        if (!file.Exists || file.Length is <= 0 or > 16384 ||
+            (file.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new InvalidOperationException("Host schema upgrade request is missing or invalid.");
+        ValidatePrivateConfigurationAcl(file, serviceSid);
+        var encrypted = File.ReadAllBytes(path);
+        byte[]? plaintext = null;
+        try
+        {
+            plaintext = UnprotectMachineData(encrypted);
+            using var document = JsonDocument.Parse(plaintext, new JsonDocumentOptions { MaxDepth = 3 });
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 4 ||
+                !root.TryGetProperty("formatVersion", out var version) || version.GetInt32() != 1 ||
+                !root.TryGetProperty("operationId", out var operation) || operation.ValueKind != JsonValueKind.String ||
+                !root.TryGetProperty("databaseUrl", out var databaseUrlElement) || databaseUrlElement.ValueKind != JsonValueKind.String ||
+                !root.TryGetProperty("createdAtUtc", out var createdAtElement) || createdAtElement.ValueKind != JsonValueKind.String)
+                throw new InvalidOperationException("Host schema upgrade request is malformed.");
+
+            var operationId = operation.GetString()!;
+            var databaseUrl = databaseUrlElement.GetString()!;
+            if (!Regex.IsMatch(operationId, "^upgrade_[0-9a-f]{32}$", RegexOptions.CultureInvariant) ||
+                databaseUrl.Length is <= 0 or > 4096 ||
+                !Uri.TryCreate(databaseUrl, UriKind.Absolute, out var uri) ||
+                uri.Scheme != "postgresql" || uri.Host != "127.0.0.1" || uri.Port != 54329 ||
+                uri.AbsolutePath != "/ventio_host" || uri.Query != "?sslmode=disable" ||
+                uri.UserInfo.Split(':').Length != 2 ||
+                Uri.UnescapeDataString(uri.UserInfo.Split(':')[0]) != "ventio_migrator_app" ||
+                string.IsNullOrEmpty(Uri.UnescapeDataString(uri.UserInfo.Split(':')[1])))
+                throw new InvalidOperationException("Host schema upgrade request is out of scope.");
+
+            if (!DateTimeOffset.TryParse(createdAtElement.GetString(), out var createdAt) ||
+                createdAt > DateTimeOffset.UtcNow.AddMinutes(5) ||
+                createdAt < DateTimeOffset.UtcNow.AddHours(-24))
+                throw new InvalidOperationException("Host schema upgrade request has expired.");
+            return new HostSchemaUpgradeRequest(operationId, databaseUrl);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(encrypted);
+            if (plaintext is not null) CryptographicOperations.ZeroMemory(plaintext);
+        }
+    }
+
+    private static async Task ExecuteHostSchemaUpgradeAsync(
+        HostSchemaUpgradeRequest request,
+        Dictionary<string, string>? protectedEnvironment)
+    {
+        var executable = Path.Combine(AppContext.BaseDirectory, "ventio_trusted_host_upgrade.exe");
+        if (protectedEnvironment is null || !File.Exists(executable))
+            throw new HostSchemaUpgradeFailureException("PAYLOAD_INCOMPLETE");
+        var requestBytes = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            operationId = request.OperationId,
+            databaseUrl = request.DatabaseUrl,
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var start = new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.Environment.Clear();
+        CopyRequiredSystemEnvironment(start.Environment);
+        start.Environment["PATH"] = Path.Combine(AppContext.BaseDirectory, "postgresql", "bin");
+        start.Environment["VENTIO_MIGRATIONS_DIR"] = Path.Combine(AppContext.BaseDirectory, "migrations");
+        start.Environment["VENTIO_SECURITY_DIR"] = Path.Combine(AppContext.BaseDirectory, "security");
+        foreach (var pair in protectedEnvironment) start.Environment[pair.Key] = pair.Value;
+        using var process = new Process { StartInfo = start };
+        byte[]? output = null;
+        try
+        {
+            if (!process.Start()) throw new HostSchemaUpgradeFailureException("HELPER_START_FAILED");
+            start.Environment.Clear();
+            var stdoutTask = ReadBoundedAsync(process.StandardOutput.BaseStream, 8192, CancellationToken.None);
+            var stderrTask = process.StandardError.BaseStream.CopyToAsync(Stream.Null);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(TrustedSchemaUpgradeHelperTimeoutSeconds));
+            await process.StandardInput.BaseStream.WriteAsync(requestBytes, timeout.Token).ConfigureAwait(false);
+            await process.StandardInput.BaseStream.FlushAsync(timeout.Token).ConfigureAwait(false);
+            process.StandardInput.Close();
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new HostSchemaUpgradeFailureException("OUTCOME_UNKNOWN");
+            }
+            output = await stdoutTask.ConfigureAwait(false);
+            await stderrTask.ConfigureAwait(false);
+            var code = ReadHostSchemaUpgradeResult(output, request.OperationId, process.ExitCode);
+            if (code is not null) throw new HostSchemaUpgradeFailureException(code);
+        }
+        catch (HostSchemaUpgradeFailureException) { throw; }
+        catch
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+            throw new HostSchemaUpgradeFailureException("OUTCOME_UNKNOWN");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(requestBytes);
+            if (output is not null) CryptographicOperations.ZeroMemory(output);
+            start.Environment.Clear();
+        }
+    }
+
+    private static string? ReadHostSchemaUpgradeResult(
+        byte[] output, string expectedOperationId, int exitCode)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("status", out var statusElement) || statusElement.ValueKind != JsonValueKind.String)
+                return "OUTCOME_UNKNOWN";
+            var status = statusElement.GetString();
+            if (status == "complete" && exitCode == 0 &&
+                root.TryGetProperty("operationId", out var operation) &&
+                operation.GetString() == expectedOperationId) return null;
+            if (root.TryGetProperty("failureCode", out var failure) && failure.ValueKind == JsonValueKind.String &&
+                Regex.IsMatch(failure.GetString() ?? "", "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant))
+                return failure.GetString();
+            return status == "unknown" ? "OUTCOME_UNKNOWN" : "UPGRADE_FAILED";
+        }
+        catch { return "OUTCOME_UNKNOWN"; }
+    }
+
+    private static void WriteHostSchemaUpgradeResult(
+        string path, string operationId, string status, string? failureCode)
+    {
+        var value = JsonSerializer.Serialize(new { operationId, status, failureCode });
+        var tempPath = path + ".tmp";
+        File.WriteAllText(tempPath, value, new UTF8Encoding(false));
+        if (File.Exists(path)) File.Replace(tempPath, path, null, true);
+        else File.Move(tempPath, path);
+    }
+
     private static byte[] UnprotectMachineData(byte[] encrypted)
     {
         var inputPointer = Marshal.AllocHGlobal(encrypted.Length);
@@ -1069,6 +1257,8 @@ internal static class Program
         _ = SetServiceStatus(_statusHandle, ref _status);
     }
 
+    private static int NextStartupCheckpoint() => Interlocked.Increment(ref _startupCheckpoint);
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct ServiceTableEntry
     {
@@ -1114,6 +1304,17 @@ internal static class Program
         IntPtr reserved, IntPtr prompt, int flags, out DataBlob output);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr LocalFree(IntPtr memory);
+}
+
+internal sealed record HostSchemaUpgradeRequest(string OperationId, string DatabaseUrl);
+
+internal sealed class HostSchemaUpgradeFailureException(string failureCode)
+    : Exception("Host schema upgrade did not complete.")
+{
+    internal string FailureCode { get; } = Regex.IsMatch(
+        failureCode, "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant)
+        ? failureCode
+        : "UPGRADE_FAILED";
 }
 
 internal sealed class FirstAdministratorBootstrapFailureException : Exception

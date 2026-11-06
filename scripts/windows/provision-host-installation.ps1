@@ -279,6 +279,7 @@ foreach ($file in @(
   (Join-Path $payload 'ventio_identity_bootstrap.exe'),
   (Join-Path $payload 'ventio_trusted_pairing.exe'),
   (Join-Path $payload 'ventio_trusted_credential_reissue.exe'),
+  (Join-Path $payload 'ventio_trusted_host_upgrade.exe'),
   (Join-Path $payload 'VentioHostService.exe'),
   (Join-Path $payload 'VentioSetupBroker.exe'),
   (Join-Path $payload 'postgresql\bin\postgres.exe'),
@@ -293,6 +294,7 @@ if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
+    $manifest.trustedHostUpgradeExecutable -ne 'ventio_trusted_host_upgrade.exe' -or
     $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
   throw 'HOST_PAYLOAD_MANIFEST_INVALID'
 }
@@ -317,11 +319,19 @@ if ($trustedReissueEntry.Count -ne 1 -or
     (Get-FileHash -LiteralPath $trustedReissuePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$trustedReissueEntry[0].sha256) {
   throw 'HOST_TRUSTED_CREDENTIAL_REISSUE_MANIFEST_ENTRY_INVALID'
 }
+$trustedHostUpgradeEntry = @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_host_upgrade.exe' })
+$trustedHostUpgradePath = Join-Path $payload 'ventio_trusted_host_upgrade.exe'
+if ($trustedHostUpgradeEntry.Count -ne 1 -or
+    (Get-Item -LiteralPath $trustedHostUpgradePath).Length -ne [long]$trustedHostUpgradeEntry[0].length -or
+    (Get-FileHash -LiteralPath $trustedHostUpgradePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$trustedHostUpgradeEntry[0].sha256) {
+  throw 'HOST_TRUSTED_SCHEMA_UPGRADE_MANIFEST_ENTRY_INVALID'
+}
 $setupScriptNames = @(
   'provision-host-installation.ps1', 'provision-postgres-service.ps1',
   'initialize-host-database.ps1', 'register-host-service.ps1',
   'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1', 'recover-host-database-credentials.ps1',
   'upgrade-host-database.ps1', 'stop-host-services.ps1', 'enable-host-lan-listener.ps1',
+  'restore-host-upgrade-backup.ps1',
   'remove-host-installation.ps1'
 )
 foreach ($scriptName in $setupScriptNames) {

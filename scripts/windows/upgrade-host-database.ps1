@@ -26,6 +26,8 @@ $pairingContract = Join-Path $payloadRoot 'security\pairing.sql'
 $credentialReissueContract = Join-Path $payloadRoot 'security\credential_reissues.sql'
 $schemaProfileContract = Join-Path $payloadRoot 'security\schema_profile.sql'
 $credentialModule = Join-Path $payloadRoot 'setup\HostMigrationCredential.psm1'
+$hostServiceExe = Join-Path $payloadRoot 'VentioHostService.exe'
+$trustedHostUpgradeExe = Join-Path $payloadRoot 'ventio_trusted_host_upgrade.exe'
 if ($TestMode -and -not (Test-Path -LiteralPath $credentialModule -PathType Leaf)) {
   $credentialModule = Join-Path $PSScriptRoot 'HostMigrationCredential.psm1'
 }
@@ -176,7 +178,7 @@ function Start-HostPostgresAfterBackup {
   if (-not $script:hostPostgresStoppedForBackup) { return }
   if ($TestMode) {
     $testLog = Join-Path (Split-Path -Parent $dataDirectory) 'postgres-upgrade-test.log'
-    & $pgCtl -D $dataDirectory -l $testLog -o "-h 127.0.0.1 -p $Port -c listen_addresses=127.0.0.1" -w start
+    & $pgCtl -D $dataDirectory -l $testLog -o "-h 127.0.0.1 -p $Port -c listen_addresses=127.0.0.1 -c max_prepared_transactions=1" -w start
     if ($LASTEXITCODE -ne 0) { throw 'HOST_DATABASE_UPGRADE_POSTGRES_RESTART_FAILED' }
   } else {
     Start-Service -Name $databaseServiceName -ErrorAction Stop
@@ -223,10 +225,147 @@ function Copy-HostPostgresData([string] $Source, [string] $Destination) {
   }
 }
 
+function Get-HostServiceSid {
+  return ([Security.Principal.NTAccount]::new('NT SERVICE\VentioHost')).Translate(
+    [Security.Principal.SecurityIdentifier]).Value
+}
+
+function Set-HostSchemaUpgradeFileAcl([string] $Path) {
+  $security = [Security.AccessControl.FileSecurity]::new()
+  $security.SetAccessRuleProtection($true, $false)
+  $adminSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+  $systemSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+  $serviceSid = [Security.Principal.SecurityIdentifier]::new((Get-HostServiceSid))
+  $security.SetOwner($adminSid)
+  foreach ($sid in @($adminSid, $systemSid, $serviceSid)) {
+    $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+      $sid, [Security.AccessControl.FileSystemRights]::FullControl,
+      [Security.AccessControl.AccessControlType]::Allow))
+  }
+  Set-Acl -LiteralPath $Path -AclObject $security
+}
+
+function New-HostSchemaUpgradeRequest([string] $DatabaseUrl, [string] $HostDirectory) {
+  $requestPath = Join-Path $HostDirectory 'schema-upgrade.request.dpapi'
+  $resultPath = Join-Path $HostDirectory 'schema-upgrade.result.json'
+  foreach ($path in @($requestPath, $resultPath)) {
+    if (Test-Path -LiteralPath $path) {
+      $item = Get-Item -LiteralPath $path -Force
+      if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'HOST_SCHEMA_UPGRADE_REQUEST_PATH_INVALID'
+      }
+    }
+  }
+  if ((Test-Path -LiteralPath $requestPath) -and
+      -not (Test-Path -LiteralPath $requestPath -PathType Leaf)) {
+    throw 'HOST_SCHEMA_UPGRADE_REQUEST_PATH_INVALID'
+  }
+
+  $operationId = 'upgrade_' + [guid]::NewGuid().ToString('N')
+  $replaceExisting = Test-Path -LiteralPath $requestPath -PathType Leaf
+  if ($replaceExisting) {
+    $protected = [IO.File]::ReadAllBytes($requestPath)
+    $plain = $null
+    try {
+      $plain = [Security.Cryptography.ProtectedData]::Unprotect(
+        $protected, $null, [Security.Cryptography.DataProtectionScope]::LocalMachine)
+      $prior = [Text.Encoding]::UTF8.GetString($plain) | ConvertFrom-Json
+      $priorProperties = @($prior.PSObject.Properties.Name | Sort-Object)
+      $expectedProperties = @(@('createdAtUtc', 'databaseUrl', 'formatVersion', 'operationId') | Sort-Object)
+      if ($prior.formatVersion -ne 1 -or
+          (($expectedProperties -join '|') -cne ($priorProperties -join '|')) -or
+          $prior.databaseUrl -cne $DatabaseUrl -or
+          $prior.operationId -cnotmatch '^upgrade_[0-9a-f]{32}$') {
+        throw 'HOST_SCHEMA_UPGRADE_REQUEST_PENDING'
+      }
+      $operationId = [string]$prior.operationId
+    } catch {
+      if ($_.FullyQualifiedErrorId -match '^HOST_SCHEMA_UPGRADE_REQUEST_') { throw }
+      throw 'HOST_SCHEMA_UPGRADE_REQUEST_PENDING'
+    } finally {
+      if ($protected) { [Array]::Clear($protected, 0, $protected.Length) }
+      if ($plain) { [Array]::Clear($plain, 0, $plain.Length) }
+    }
+  }
+
+  $request = [ordered]@{
+    formatVersion = 1
+    operationId = $operationId
+    databaseUrl = $DatabaseUrl
+    createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+  }
+  $jsonBytes = [Text.UTF8Encoding]::new($false).GetBytes(($request | ConvertTo-Json -Compress))
+  $encrypted = $null
+  $tempPath = $requestPath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+  try {
+    $encrypted = [Security.Cryptography.ProtectedData]::Protect(
+      $jsonBytes, $null, [Security.Cryptography.DataProtectionScope]::LocalMachine)
+    [IO.File]::WriteAllBytes($tempPath, $encrypted)
+    Set-HostSchemaUpgradeFileAcl $tempPath
+    if ($replaceExisting) {
+      [IO.File]::Replace($tempPath, $requestPath, $null, $true)
+    } else {
+      [IO.File]::Move($tempPath, $requestPath)
+    }
+    if (Test-Path -LiteralPath $resultPath) { Remove-Item -LiteralPath $resultPath -Force }
+  } finally {
+    if ($jsonBytes) { [Array]::Clear($jsonBytes, 0, $jsonBytes.Length) }
+    if ($encrypted) { [Array]::Clear($encrypted, 0, $encrypted.Length) }
+    if (Test-Path -LiteralPath $tempPath) { Remove-Item -LiteralPath $tempPath -Force }
+  }
+  return [pscustomobject]@{ RequestPath = $requestPath; ResultPath = $resultPath; OperationId = $operationId }
+}
+
+function Invoke-HostSchemaUpgradeService([string] $DatabaseUrl, [string] $HostDirectory) {
+  $request = New-HostSchemaUpgradeRequest $DatabaseUrl $HostDirectory
+  try {
+    if (Test-Path -LiteralPath $request.ResultPath) {
+      Remove-Item -LiteralPath $request.ResultPath -Force
+    }
+    if ((Get-Service -Name $hostServiceName -ErrorAction Stop).Status -ne 'Stopped') {
+      throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
+    }
+    Start-Service -Name $hostServiceName -ErrorAction Stop
+    $deadline = [DateTime]::UtcNow.AddMinutes(20)
+    $completed = $false
+    while ([DateTime]::UtcNow -lt $deadline) {
+      if (Test-Path -LiteralPath $request.ResultPath -PathType Leaf) {
+        $result = Get-Content -LiteralPath $request.ResultPath -Raw | ConvertFrom-Json
+        if ($result.operationId -ceq $request.OperationId -and $result.status -ceq 'failed') {
+          $code = [string]$result.failureCode
+          if ($code -notmatch '^[A-Z][A-Z0-9_]{0,63}$') { $code = 'HOST_DATABASE_UPGRADE_FAILED' }
+          throw ('HOST_SCHEMA_UPGRADE_' + $code)
+        }
+        if ($result.operationId -ceq $request.OperationId -and $result.status -ceq 'complete' -and
+            -not (Test-Path -LiteralPath $request.RequestPath)) { $completed = $true }
+      }
+      $serviceState = (Get-Service -Name $hostServiceName -ErrorAction Stop).Status
+      if ($completed -and $serviceState -eq 'Running') { break }
+      if ($serviceState -eq 'Stopped') {
+        throw 'HOST_SCHEMA_UPGRADE_SERVICE_START_FAILED'
+      }
+      Start-Sleep -Milliseconds 500
+    }
+    if (-not $completed -or (Get-Service -Name $hostServiceName).Status -ne 'Running') {
+      throw 'HOST_SCHEMA_UPGRADE_SERVICE_TIMEOUT'
+    }
+    if (Test-Path -LiteralPath $request.ResultPath) { Remove-Item -LiteralPath $request.ResultPath -Force }
+  } catch {
+    throw
+  }
+}
+
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'HOST_DATABASE_PORT_INVALID' }
 foreach ($file in @($psql, $pgCtl, $migrationExe, $migrations, $pairingContract,
     $credentialReissueContract, $schemaProfileContract, $credentialModule)) {
   if (-not (Test-Path -LiteralPath $file)) { throw 'HOST_DATABASE_UPGRADE_PAYLOAD_INCOMPLETE' }
+}
+if (-not $TestMode) {
+  foreach ($file in @($hostServiceExe, $trustedHostUpgradeExe)) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+      throw 'HOST_DATABASE_UPGRADE_PAYLOAD_INCOMPLETE'
+    }
+  }
 }
 if (-not $TestMode -and -not (Test-Path -LiteralPath $robocopy -PathType Leaf)) { throw 'HOST_DATABASE_BACKUP_TOOL_MISSING' }
 if ($TestMode) {
@@ -321,7 +460,32 @@ try {
   [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
   if (-not $TestMode) { Set-HostBackupAcl $manifestPath }
   [IO.Directory]::Move($partialBackupRoot, $backupRoot)
+  if (-not $TestMode) {
+    $postgresConfig = Join-Path $dataDirectory 'postgresql.conf'
+    if (-not (Test-Path -LiteralPath $postgresConfig -PathType Leaf)) {
+      throw 'HOST_DATABASE_POSTGRES_CONFIGURATION_MISSING'
+    }
+    $configuration = [IO.File]::ReadAllText($postgresConfig)
+    if ($configuration -notmatch '(?m)^# Ventio Recovery Authority upgrade coordinator v1\s*$') {
+      $temporaryConfig = $postgresConfig + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+      try {
+        $configuration += "`n# Ventio Recovery Authority upgrade coordinator v1`nmax_prepared_transactions = 1`n"
+        [IO.File]::WriteAllText($temporaryConfig, $configuration, [Text.UTF8Encoding]::new($false))
+        Set-Acl -LiteralPath $temporaryConfig -AclObject (Get-Acl -LiteralPath $postgresConfig)
+        [IO.File]::Replace($temporaryConfig, $postgresConfig, $null, $true)
+      } finally {
+        if (Test-Path -LiteralPath $temporaryConfig) { Remove-Item -LiteralPath $temporaryConfig -Force }
+      }
+    }
+  }
   Start-HostPostgresAfterBackup
+  $preparedTransactions = Invoke-HostDatabaseTool $psql @(
+    '-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,
+    '-d',$databaseName,'-Atc','SHOW max_prepared_transactions'
+  ) $envVars 30000 'HOST_DATABASE_PREPARED_TRANSACTIONS_UNAVAILABLE' -TestMode:$TestMode
+  if ($preparedTransactions.Trim() -notmatch '^\d+$' -or [int]$preparedTransactions.Trim() -lt 1) {
+    throw 'HOST_DATABASE_PREPARED_TRANSACTIONS_UNAVAILABLE'
+  }
   $profile = Invoke-HostDatabaseTool $psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,'-d',$databaseName,'-Atc',"SELECT pg_has_role(session_user,'ventio_migrator','MEMBER')::text || ':' || rolsuper::text || ':' || rolcreatedb::text || ':' || rolcreaterole::text FROM pg_roles WHERE rolname=current_user") $envVars 30000 'HOST_DATABASE_MIGRATOR_AUTHENTICATION_FAILED' -TestMode:$TestMode
   if ($profile -ne 'true:false:false:false') { throw 'HOST_DATABASE_MIGRATOR_PROFILE_INVALID' }
   $migrationFiles = @(Get-ChildItem -LiteralPath $migrations -Filter '*.sql' -File -Recurse)
@@ -332,23 +496,30 @@ try {
     VENTIO_MIGRATION_ROLE = 'ventio_owner'
     VENTIO_MIGRATIONS_DIR = $migrations
   }
-  $migrationOutput = Invoke-HostDatabaseTool $migrationExe @() $migrationEnvironment 300000 'HOST_DATABASE_MIGRATION_FAILED' -TestMode:$TestMode
-  if ($migrationOutput -notmatch 'Applied \d+ migration\(s\):') { throw 'HOST_DATABASE_MIGRATION_RESULT_INVALID' }
-  [void](Invoke-HostDatabaseTool $psql @(
-    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
-    '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
-    '-f', $pairingContract
-  ) $envVars 60000 'HOST_PAIRING_CONTRACT_UPDATE_FAILED' -TestMode:$TestMode)
-  [void](Invoke-HostDatabaseTool $psql @(
-    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
-    '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
-    '-f', $credentialReissueContract
-  ) $envVars 60000 'HOST_CREDENTIAL_REISSUE_CONTRACT_UPDATE_FAILED' -TestMode:$TestMode)
-  [void](Invoke-HostDatabaseTool $psql @(
-    '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
-    '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
-    '-f', $schemaProfileContract
-  ) $envVars 60000 'HOST_SCHEMA_PROFILE_UPDATE_FAILED' -TestMode:$TestMode)
+  if ($TestMode) {
+    # The isolated backup-contract fixture has no Host service identity or
+    # Recovery Authority witness. Production upgrades always go through the
+    # service-identity Recovery Authority transition below.
+    $migrationOutput = Invoke-HostDatabaseTool $migrationExe @() $migrationEnvironment 300000 'HOST_DATABASE_MIGRATION_FAILED' -TestMode:$TestMode
+    if ($migrationOutput -notmatch 'Applied \d+ migration\(s\):') { throw 'HOST_DATABASE_MIGRATION_RESULT_INVALID' }
+    [void](Invoke-HostDatabaseTool $psql @(
+      '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+      '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
+      '-f', $pairingContract
+    ) $envVars 60000 'HOST_PAIRING_CONTRACT_UPDATE_FAILED' -TestMode:$TestMode)
+    [void](Invoke-HostDatabaseTool $psql @(
+      '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+      '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
+      '-f', $credentialReissueContract
+    ) $envVars 60000 'HOST_CREDENTIAL_REISSUE_CONTRACT_UPDATE_FAILED' -TestMode:$TestMode)
+    [void](Invoke-HostDatabaseTool $psql @(
+      '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
+      '-d', $databaseName, '-v', 'ON_ERROR_STOP=1', '-c', 'SET ROLE ventio_owner',
+      '-f', $schemaProfileContract
+    ) $envVars 60000 'HOST_SCHEMA_PROFILE_UPDATE_FAILED' -TestMode:$TestMode)
+  } else {
+    Invoke-HostSchemaUpgradeService $databaseUrl (Join-Path $programData 'Ventio\Host')
+  }
   $pairingContractReady = Invoke-HostDatabaseTool $psql @(
     '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
     '-d', $databaseName, '-Atc', "SET ROLE ventio_owner; SELECT position('Pairing request was already accepted' IN pg_get_functiondef('ventio_security.scoped_pairing_create(text,text,text,text,text,text)'::regprocedure)) > 0 AND position('TRUSTED_PAIRING_CREATED' IN pg_get_functiondef('ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)'::regprocedure)) > 0 AND position('CREDENTIAL_CEILING_DENIED' IN pg_get_functiondef('ventio_security.permission_denial_reason(text,text,text,text,text)'::regprocedure)) > 0 AND has_function_privilege('ventio_identity_api','ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)','EXECUTE') AND NOT has_function_privilege('ventio_runtime','ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)','EXECUTE') AND has_function_privilege('ventio_identity_api','ventio_security.permission_denial_reason(text,text,text,text,text)','EXECUTE') AND NOT has_function_privilege('ventio_runtime','ventio_security.permission_denial_reason(text,text,text,text,text)','EXECUTE')"

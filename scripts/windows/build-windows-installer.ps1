@@ -60,6 +60,7 @@ if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
     $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
+    $manifest.trustedHostUpgradeExecutable -ne 'ventio_trusted_host_upgrade.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
     ($manifest.postgresIncludedComponents -join ',') -ne 'bin,lib,share,*.txt' -or
@@ -100,6 +101,9 @@ if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted
 }
 if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_credential_reissue.exe' }).Count) {
   throw 'Trusted credential reissue helper is not covered by the critical payload manifest.'
+}
+if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_host_upgrade.exe' }).Count) {
+  throw 'Recovery-aware Host upgrade helper is not covered by the critical payload manifest.'
 }
 
 $versionLine = Select-String -LiteralPath $pubspec -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$'
