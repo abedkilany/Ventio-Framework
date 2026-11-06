@@ -313,36 +313,70 @@ Future<void> main() async {
     final psql = Platform.isWindows
         ? '$postgresBin\\psql.exe'
         : '$postgresBin/psql';
-    final pairingContract = '../../security/postgres/pairing.sql';
+    final securityContracts = [
+      ('pairing', '../../security/postgres/pairing.sql'),
+      ('credential reissue', '../../security/postgres/credential_reissues.sql'),
+      ('schema profile', '../../security/postgres/schema_profile.sql'),
+    ];
     final processEnvironment = Map<String, String>.from(
       Platform.environment,
     )..['PGPASSWORD'] = migrationCredentials.substring(credentialSeparator + 1);
-    final contractUpgrade = await Process.run(
-      psql,
-      [
-        '-X',
-        '-w',
-        '-h',
-        migrationUri.host,
-        '-p',
-        '${migrationUri.port}',
-        '-U',
-        migrationCredentials.substring(0, credentialSeparator),
-        '-d',
-        migrationUri.pathSegments.last,
-        '-v',
-        'ON_ERROR_STOP=1',
-        '-c',
-        'SET ROLE ventio_owner',
-        '-f',
-        pairingContract,
-      ],
-      environment: processEnvironment,
-      runInShell: false,
-    );
+    for (final (name, contract) in securityContracts) {
+      final contractUpgrade = await Process.run(
+        psql,
+        [
+          '-X',
+          '-w',
+          '-h',
+          migrationUri.host,
+          '-p',
+          '${migrationUri.port}',
+          '-U',
+          migrationCredentials.substring(0, credentialSeparator),
+          '-d',
+          migrationUri.pathSegments.last,
+          '-v',
+          'ON_ERROR_STOP=1',
+          '-c',
+          'SET ROLE ventio_owner',
+          '-f',
+          contract,
+        ],
+        environment: processEnvironment,
+        runInShell: false,
+      );
+      check(
+        contractUpgrade.exitCode == 0,
+        'Reviewed $name contract reapplies idempotently over a legacy-style first administrator',
+      );
+    }
+    final credentialReissueContract = await audit.execute('''
+      SELECT
+        has_function_privilege('ventio_identity_api',
+          'ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text)',
+          'EXECUTE'),
+        NOT has_function_privilege('ventio_runtime',
+          'ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text)',
+          'EXECUTE'),
+        has_function_privilege('ventio_identity_api',
+          'ventio_security.credential_reissue_claim(text,text)', 'EXECUTE'),
+        has_function_privilege('ventio_identity_api',
+          'ventio_security.credential_reissue_pending_claim(text)', 'EXECUTE'),
+        has_function_privilege('ventio_identity_api',
+          'ventio_security.credential_reissue_finalize(text,text)', 'EXECUTE'),
+        has_function_privilege('ventio_identity_api',
+          'ventio_security.assert_schema()', 'EXECUTE'),
+        (SELECT relrowsecurity AND relforcerowsecurity
+          FROM pg_class
+          WHERE oid='public.ventio_identity_credential_reissues'::regclass),
+        (SELECT count(*)=2 FROM pg_trigger
+          WHERE tgrelid='public.ventio_identity_credential_reissues'::regclass
+            AND NOT tgisinternal
+            AND tgname IN ('ventio_recovery_lock','ventio_recovery_mark'))
+    ''');
     check(
-      contractUpgrade.exitCode == 0,
-      'Reviewed PostgreSQL security contract applies idempotently over a legacy-style first administrator',
+      credentialReissueContract.single.toList().every((value) => value == true),
+      'Credential-reissue upgrade retains narrow API grants, forced RLS, and Recovery Authority triggers',
     );
     final retainedCredential = (await audit.execute(
       pg.Sql.named('''

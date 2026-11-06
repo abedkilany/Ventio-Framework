@@ -53,8 +53,8 @@ Raw bearer tokens are not stored in PostgreSQL or written to logs, diagnostics, 
 
 ## Owner procedure for the enrolled Client
 
-1. Verify the installer SHA-256 from the release report, then run Ventio Setup 0.1.11 on the Host and choose the existing Host upgrade. Do not uninstall or select data removal. Wait for the verified backup, migration, security-contract check, and service restart.
-2. Update the existing Client application in place to the corresponding 0.1.11 build. Keep the existing Windows user profile and application data. Do not clear app data, delete the SQLite file, remove the Host profile, or re-enroll.
+1. Verify the installer SHA-256 from the release report, then run Ventio Setup 0.1.12 on the Host and choose the existing Host upgrade. Do not uninstall or select data removal. Wait for the verified backup, migration, security-contract check, and service restart.
+2. Update the existing Client application in place to the corresponding 0.1.12 build. Keep the existing Windows user profile and application data. Do not clear app data, delete the SQLite file, remove the Host profile, or re-enroll.
 3. On the Host, verify API, Database, Schema, and Recovery Authority readiness and confirm the existing tenant `a`, company `b`, branch `c`, device ID, certificate, and device registration remain present.
 4. As an authorized identity manager, grant only `extension.package.read` to the intended user directly or through a role scoped to tenant `a`, company `b`, branch `c`.
 5. In **Host devices & pairing**, select the already-registered device. Choose **Reissue credential ceiling** and review the full resulting permission list. Retain all currently authorized permissions; approve no unrelated permissions or removals. Approve the Windows UAC prompt on the Host.
@@ -66,18 +66,21 @@ Physical acceptance is not complete until these checks run against the real Host
 
 ## Verification record for this implementation
 
-- Host installer: Ventio Setup 0.1.11, `dist/windows/same-device-reissue-0.1.11-release/Ventio-Setup-0.1.11.exe`, SHA-256 `90d484cf2e0857dec9545f4639f2fda76c3e791121b10665138536cb93476530`.
-- Windows Client Release build and unified installer compile: PASS. Installer machine-wide Host boundary and deferred Stage A provisioning checks: PASS.
-
+- Host installer: Ventio Setup 0.1.12, `dist/windows/same-device-reissue-0.1.12-release/Ventio-Setup-0.1.12.exe`, 103,810,740 bytes, SHA-256 `de520fc4c95771489cdcf71d884e67c348af9e262c94fd411199abbdf669f226`.
+- Windows Client Release build: PASS, 65.7 seconds, isolated at `packages/ventio_native_client/build-0.1.12/windows/x64/runner/Release`. The temporary Flutter build directory setting was removed after compilation.
+- Windows Host payload and Setup Broker/Host Service Release builds: PASS. Payload contains PostgreSQL 16.15, reviewed migrations and security contracts, and no database or credential state.
+- Unified installer compilation: PASS, Inno Setup 6.7.3, 88.219 seconds. Machine-wide Host boundary, deferred Stage A provisioning, path, VC runtime, and payload manifest checks passed.
 - Host API analysis: PASS, zero issues.
 - Host API route suite: PASS, 79 assertions.
 - Client Dart analysis: PASS, zero issues.
 - Client credential reissue suite: PASS, 5 tests, including rejected-stage cleanup and SQLite Pending command preservation across Client restarts.
 - Full Client Flutter suite: PASS, 228 passed; 2 existing Windows Host integration tests skipped because they require the elevated physical Host process runner.
+- Fresh first-administrator bootstrap and legacy-style contract replay: PASS, 17 assertions. The reissue contract, schema profile, and pairing contract all reapplied while retaining the six-permission ceiling and original active device identity; the test verified narrow API grants, forced RLS, and Recovery Authority triggers.
 - Disposable PostgreSQL fresh-initialize/upgrade test: PASS. It verified the migration ledger, restricted backup, RLS and Recovery Authority contract, schema assertion, protected Host configuration, and service startup tests.
-- Host service and Setup Broker Release builds: PASS, zero warnings and errors.
+- Disposable PostgreSQL Host security suites passed individually: database security 118, user administration 40, role administration 20, pairing 45, approved package authorization 138, and credential reissue 17 assertions.
 - Host service Windows checks: PASS for readiness, state/configuration, TLS, ACL, named pipe, first-administrator response, and service lifecycle; service-owner SID integration is BLOCKED because this runner was not elevated. Setup Broker test executable completed successfully.
-- Live credential-reissue PostgreSQL integration source is present and analyzed, but its database-backed execution is BLOCKED in this checkout because no explicitly opted-in disposable test database URLs are configured.
+- Credential-reissue PostgreSQL integration: PASS, 17 assertions, including same-device identity, exact scope, current grants, protected delivery, and revocation only after acknowledgment.
+- Offline-first SQLite/PostgreSQL/Host integration: PASS, 1 end-to-end test. Two original queued commands survive an offline Client restart, credential reissue, and another Client restart; the prerequisite command is accepted first, the dependent command stays Pending with its original ID, then receives Host acceptance on retry. SQLite keeps the same records and receipt history, and the Host record readback confirms the expected revision.
 - Physical Host/Client acceptance and real Host PostgreSQL synchronization: NOT RUN. No installed Host or active database was modified.
 - Crash Recovery gate: OPEN.
 

@@ -6,7 +6,7 @@ param(
     [switch] $ClientOfflineIntegration,
     [switch] $HostProcessIntegration,
     [switch] $HostDiagnosticsProcessIntegration,
-    [ValidateSet('api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart', 'recovery_integration.dart')]
+    [ValidateSet('api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart', 'credential_reissue_integration.dart', 'recovery_integration.dart')]
     [string] $OnlyHostSuite
 )
 
@@ -110,7 +110,7 @@ try {
     Push-Location $hostApiDirectory
     try {
         $suites = if ($HostSecuritySuites) {
-            @('database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart')
+            @('database_security_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart', 'credential_reissue_integration.dart')
         } else {
             @('..\..\packages\ventio_postgres\test\postgres_integration.dart')
         }

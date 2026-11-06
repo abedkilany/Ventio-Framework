@@ -774,8 +774,8 @@ GRANT UPDATE (next_number) ON public.ventio_document_number_series TO ventio_run
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
 \ir pairing.sql
-\ir credential_reissues.sql
 \ir schema_profile.sql
+\ir credential_reissues.sql
 \ir runtime_check.sql
 REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
@@ -816,7 +816,8 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.recovery_snapshot(),
   ventio_security.initialize_first_host_recovery(text),
   ventio_security.reconcile_pending_first_admin(text,text,text,text,text,text,text,text,text,timestamp with time zone),
-  ventio_security.bootstrap_first_admin(jsonb)
+  ventio_security.bootstrap_first_admin(jsonb),
+  ventio_security.assert_schema()
   TO ventio_identity_api;
 -- pgcrypto functions are extension members and may remain owned by the cluster
 -- bootstrap login even though the extension is assigned to ventio_owner. Reset

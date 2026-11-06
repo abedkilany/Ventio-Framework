@@ -366,6 +366,7 @@ SELECT jsonb_build_array(
   has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_claim(text,text)','EXECUTE'),
   has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_pending_claim(text)','EXECUTE'),
   has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_finalize(text,text)','EXECUTE'),
+  has_function_privilege('ventio_identity_api','ventio_security.assert_schema()','EXECUTE'),
   (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='public.ventio_identity_credential_reissues'::regclass),
   (SELECT count(*)=2 FROM pg_trigger WHERE tgrelid='public.ventio_identity_credential_reissues'::regclass AND NOT tgisinternal AND tgname IN ('ventio_recovery_lock','ventio_recovery_mark')))::text
 '@
@@ -376,7 +377,7 @@ SELECT jsonb_build_array(
   $credentialReissueFlags = @($credentialReissueContractReady -split "`r?`n" |
     Where-Object { $_.Trim() } | Select-Object -Last 1)
   if ($credentialReissueFlags.Count -ne 1 -or
-      $credentialReissueFlags[0].Trim() -cne '[true, true, true, true, true, true, true]') {
+      $credentialReissueFlags[0].Trim() -cne '[true, true, true, true, true, true, true, true]') {
     if ($credentialReissueFlags.Count -eq 1) {
       Write-Output ('HOST_CREDENTIAL_REISSUE_CONTRACT_FLAGS=' + $credentialReissueFlags[0].Trim())
     }

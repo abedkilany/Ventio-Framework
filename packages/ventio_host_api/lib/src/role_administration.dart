@@ -229,6 +229,8 @@ Future<void> verifyIdentityAdministrationConnection(
         'ventio_security.reconcile_pending_first_admin(text,text,text,text,text,text,text,text,text,timestamp with time zone)','EXECUTE'),
       has_function_privilege(session_user,
         'ventio_security.bootstrap_first_admin(jsonb)','EXECUTE'),
+      has_function_privilege(session_user,
+        'ventio_security.assert_schema()','EXECUTE'),
       NOT has_function_privilege(session_user,
         'ventio_security.admin_change(jsonb)','EXECUTE'),
       NOT has_function_privilege(session_user,
@@ -256,7 +258,8 @@ Future<void> verifyIdentityAdministrationConnection(
             'ventio_security.recovery_snapshot()'::regprocedure,
             'ventio_security.initialize_first_host_recovery(text)'::regprocedure,
             'ventio_security.reconcile_pending_first_admin(text,text,text,text,text,text,text,text,text,timestamp with time zone)'::regprocedure,
-            'ventio_security.bootstrap_first_admin(jsonb)'::regprocedure)),
+            'ventio_security.bootstrap_first_admin(jsonb)'::regprocedure,
+            'ventio_security.assert_schema()'::regprocedure)),
       NOT EXISTS (SELECT FROM pg_catalog.pg_class t
         JOIN pg_catalog.pg_namespace n ON n.oid=t.relnamespace
         WHERE n.nspname IN ('public','ventio_security','ventio_crypto')

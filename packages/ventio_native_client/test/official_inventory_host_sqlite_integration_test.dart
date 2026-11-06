@@ -9,6 +9,8 @@ import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
+import 'package:ventio_native_client/src/client_credential_reissue.dart';
+import 'package:ventio_native_client/src/host_device_management.dart';
 import 'package:ventio_native_client/src/host_sync_service.dart';
 import 'package:ventio_native_client/src/host_transport.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
@@ -48,10 +50,13 @@ void main() {
       final runtimeUrl =
           Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
       final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
+      final apiAdminUrl =
+          Platform.environment['VENTIO_TEST_API_ADMIN_DATABASE_URL'];
       final allowed = Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'];
       if (databaseUrl == null ||
           runtimeUrl == null ||
           adminUrl == null ||
+          apiAdminUrl == null ||
           allowed != 'yes') {
         throw StateError(
           'Set the guarded disposable ventio_host_test connection URLs and test opt-in.',
@@ -61,6 +66,7 @@ void main() {
         databaseUrl,
         runtimeUrl,
         adminUrl,
+        apiAdminUrl,
       ].map(Uri.parse).toList(growable: false);
       expect(
         parsedUrls.every(
@@ -76,6 +82,7 @@ void main() {
       final observer = await pg.Connection.openFromUrl(databaseUrl);
       final runtime = await pg.Connection.openFromUrl(runtimeUrl);
       final admin = await pg.Connection.openFromUrl(adminUrl);
+      final apiAdmin = await pg.Connection.openFromUrl(apiAdminUrl);
       final temporary = await createPrivateTestDirectory(
         'ventio-inventory-e2e-',
       );
@@ -151,20 +158,26 @@ void main() {
         await identityAdmin.createUser(actor);
         await identityAdmin.registerBranch(company, branch);
         await identityAdmin.registerDevice(actor, device);
-        for (final permission in permissions) {
+        final sourcePermissions =
+            permissions
+                .where((permission) => permission != 'extension.package.read')
+                .toList()
+              ..sort();
+        for (final permission in sourcePermissions) {
           await identityAdmin.grant(actor, company, branch, permission);
         }
+        const sourceCredentialId = 'inventory-e2e-credential';
         final tokenPath = '${temporary.path}/inventory-credential.json';
         await identityAdmin.provisionToFile(
           actorId: actor,
           deviceId: device,
-          credentialId: 'inventory-e2e-credential',
+          credentialId: sourceCredentialId,
           expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
           allowedScopes: [
             {
               'companyId': company,
               'branchId': branch,
-              'permissions': permissions.toList()..sort(),
+              'permissions': sourcePermissions,
             },
           ],
           outputPath: tokenPath,
@@ -172,7 +185,48 @@ void main() {
         final credential =
             jsonDecode(await PrivateFiles.read(tokenPath))
                 as Map<String, dynamic>;
-        final token = credential['token'] as String;
+        var token = credential['token'] as String;
+        await identityAdmin.grant(
+          actor,
+          company,
+          branch,
+          'extension.package.read',
+        );
+
+        const reissueOperator = 'inventory-credential-reissuer';
+        const reissueOperatorDevice = 'inventory-credential-reissuer-device';
+        const reissueOperatorCredential = 'inventory-credential-reissuer-cred';
+        await identityAdmin.createUser(reissueOperator);
+        await identityAdmin.registerDevice(
+          reissueOperator,
+          reissueOperatorDevice,
+        );
+        await identityAdmin.grant(
+          reissueOperator,
+          company,
+          branch,
+          identityDevicesManagePermission,
+        );
+        final operatorCredentialPath =
+            '${temporary.path}/inventory-reissuer-credential.json';
+        await identityAdmin.provisionToFile(
+          actorId: reissueOperator,
+          deviceId: reissueOperatorDevice,
+          credentialId: reissueOperatorCredential,
+          expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+          allowedScopes: [
+            {
+              'companyId': company,
+              'branchId': branch,
+              'permissions': [identityDevicesManagePermission],
+            },
+          ],
+          outputPath: operatorCredentialPath,
+        );
+        final operatorToken =
+            (jsonDecode(await PrivateFiles.read(operatorCredentialPath))
+                    as Map)['token']
+                as String;
 
         final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
         Future<HostApi> bindHost() => HostApi.bind(
@@ -195,7 +249,21 @@ void main() {
           ),
           extensionPackages: PostgresExtensionPackageGateway(
             connect: () => pg.Connection.openFromUrl(runtimeUrl),
+            permissionDiagnosticConnect: () =>
+                pg.Connection.openFromUrl(apiAdminUrl),
             admission: authority,
+          ),
+          identityDeviceAdministration:
+              PostgresIdentityDeviceAdministrationGateway(
+                connectRuntime: () => pg.Connection.openFromUrl(runtimeUrl),
+                connectAdministration: () =>
+                    pg.Connection.openFromUrl(apiAdminUrl),
+                admission: authority,
+              ),
+          credentialReissues: IdentityCredentialReissueGateway(
+            connectApi: () => pg.Connection.openFromUrl(apiAdminUrl),
+            apiPool: null,
+            authority: authority,
           ),
           extensionRecordQueries: PostgresExtensionRecordQueryGateway(
             connect: () => pg.Connection.openFromUrl(runtimeUrl),
@@ -229,6 +297,17 @@ void main() {
           moduleId: moduleId,
           version: bundle.version,
           packageSha256: packageDigest,
+        );
+        final sourceRegistry = await send(
+          activeApi,
+          token: token,
+          path: '/api/v1/extensions/approved',
+          body: {'companyId': company, 'branchId': branch, 'limit': 10},
+        );
+        expect(sourceRegistry.status, 403);
+        expect(
+          sourceRegistry.body['error']['code'],
+          'CREDENTIAL_CEILING_DENIED',
         );
 
         localDirectory = await Directory.systemTemp.createTemp(
@@ -330,8 +409,11 @@ void main() {
           operation: 'create',
         );
 
+        final onlineEndpoint = Uri.parse('http://127.0.0.1:${activeApi.port}');
+        final credentialBackend = _MemoryCredentialBackend();
+        var credentials = HostCredentialVault(credentialBackend);
+        await credentials.save(onlineEndpoint, token);
         final offlineEndpoint = Uri.parse('http://127.0.0.1:1');
-        final credentials = HostCredentialVault(_MemoryCredentialBackend());
         await credentials.save(offlineEndpoint, token);
         final syncIdentity = HostSyncIdentity(
           tenantId: tenant,
@@ -363,9 +445,168 @@ void main() {
           offlineQueue.every((entry) => entry.hostReceipt == null),
           isTrue,
         );
+        final offlineRecord = await store!.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Product',
+          recordId: productId,
+          scope: scope,
+        );
+        expect(offlineRecord?.authorityState, 'PENDING');
+        expect(offlineRecord?.pendingCommandId, productCreateId);
 
-        final onlineEndpoint = Uri.parse('http://127.0.0.1:${activeApi.port}');
-        await credentials.save(onlineEndpoint, token);
+        // Simulate a Client restart while offline: SQLite data and command
+        // IDs must remain durable before the credential transition begins.
+        await queue!.close();
+        queue = null;
+        await store!.close();
+        store = null;
+        await openClient();
+        final restartedOfflineQueue = await queue!.list(limit: 100);
+        expect(
+          restartedOfflineQueue
+              .map((entry) => entry.envelope.commandId)
+              .toSet(),
+          {productCreateId, movementCreateId},
+        );
+        expect(restartedOfflineQueue.every((entry) => entry.isPending), isTrue);
+        final restartedOfflineRecord = await store!.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Product',
+          recordId: productId,
+          scope: scope,
+        );
+        expect(restartedOfflineRecord?.pendingCommandId, productCreateId);
+        expect(restartedOfflineRecord?.values['quantity'], 90);
+
+        // Trusted operator preparation mirrors the protected Host broker
+        // path; the Client then claims and acknowledges over its existing
+        // authenticated Host endpoint, preserving the device ID.
+        final resultingCeiling = <String>{
+          ...sourcePermissions,
+          'extension.package.read',
+        }.toList()..sort();
+        final trustedReissuer = TrustedCredentialReissueGateway(
+          connection: apiAdmin,
+          tenantId: tenant,
+          authority: authority,
+          windowsAdminTag: '0123456789abcdef',
+        );
+        const operationId = 'reissue_88888888888888888888888888888888';
+        await trustedReissuer.prepare(
+          operatorCredentialDigest: OpaqueToken.digest(operatorToken),
+          operatorActorId: reissueOperator,
+          companyId: company,
+          branchId: branch,
+          deviceId: device,
+          targetActorId: actor,
+          sourceCredentialId: sourceCredentialId,
+          operationId: operationId,
+          permissions: resultingCeiling,
+          approvedRemovals: const [],
+        );
+        final profile = HostConnectionProfile(
+          endpoint: onlineEndpoint.toString(),
+          tenantId: tenant,
+          actorId: actor,
+          deviceId: device,
+          companyId: company,
+          branchId: branch,
+        );
+        final reissueResult = await ClientCredentialReissueClient(
+          profile: profile,
+          credentials: credentials,
+          exchange:
+              ({
+                required uri,
+                required headers,
+                required body,
+                required timeout,
+                required maxResponseBytes,
+              }) async {
+                final authorization = headers[HttpHeaders.authorizationHeader];
+                if (uri.host != '127.0.0.1' ||
+                    uri.port != activeApi.port ||
+                    authorization == null ||
+                    !authorization.startsWith('Bearer ')) {
+                  throw StateError(
+                    'Reissue test transport escaped its loopback Host.',
+                  );
+                }
+                final response = await send(
+                  activeApi,
+                  path: uri.path,
+                  token: authorization.substring('Bearer '.length),
+                  body: jsonDecode(body),
+                );
+                return HostDeviceManagementHttpResponse(
+                  statusCode: response.status,
+                  body: response.body,
+                );
+              },
+        ).checkAndApply();
+        expect(reissueResult.state, ClientCredentialReissueState.applied);
+        expect(reissueResult.operationId, operationId);
+        final replacementToken = await credentials.read(onlineEndpoint);
+        expect(replacementToken, isNotNull);
+        expect(replacementToken, isNot(token));
+        token = replacementToken!;
+        await credentials.delete(offlineEndpoint);
+
+        // Reopen SQLite and the credential vault to model a restart after
+        // replacement. The same original queue entries must sync exactly once.
+        await queue!.close();
+        queue = null;
+        await store!.close();
+        store = null;
+        await openClient();
+        credentials = HostCredentialVault(credentialBackend);
+        expect(await credentials.read(onlineEndpoint), token);
+        final afterReissueQueue = await queue!.list(limit: 100);
+        expect(
+          afterReissueQueue.map((entry) => entry.envelope.commandId).toSet(),
+          {productCreateId, movementCreateId},
+        );
+        expect(afterReissueQueue.every((entry) => entry.isPending), isTrue);
+        expect(
+          (await store!.getRecord(
+            moduleId: moduleId,
+            docTypeName: 'Product',
+            recordId: productId,
+            scope: scope,
+          ))?.pendingCommandId,
+          productCreateId,
+        );
+
+        final authorizedRegistry = await send(
+          activeApi,
+          token: token,
+          path: '/api/v1/extensions/approved',
+          body: {'companyId': company, 'branchId': branch, 'limit': 10},
+        );
+        expect(authorizedRegistry.status, 200);
+        final crossBranchRegistry = await send(
+          activeApi,
+          token: token,
+          path: '/api/v1/extensions/approved',
+          body: {
+            'companyId': company,
+            'branchId': '$branch-other',
+            'limit': 10,
+          },
+        );
+        expect(crossBranchRegistry.status, 403);
+        final unauthorizedDeviceListing = await send(
+          activeApi,
+          token: token,
+          path: HostManagementRoutes.devicesList,
+          body: {
+            'managementApiVersion': managementApiVersion,
+            'companyId': company,
+            'branchId': branch,
+          },
+        );
+        expect(unauthorizedDeviceListing.status, 403);
+
         final reconnectedCount = await HostSyncService(
           queue: queue!,
           identity: syncIdentity,
@@ -375,11 +616,42 @@ void main() {
           ),
         ).syncPending();
         expect(reconnectedCount, 2);
+        final firstReconnectEntries = await queue!.list(limit: 100);
         expect(
-          (await queue!.list(
-            limit: 100,
-          )).every((entry) => entry.isHostConfirmed),
+          firstReconnectEntries
+              .singleWhere(
+                (entry) => entry.envelope.commandId == productCreateId,
+              )
+              .isHostConfirmed,
           isTrue,
+        );
+        expect(
+          firstReconnectEntries
+              .singleWhere(
+                (entry) => entry.envelope.commandId == movementCreateId,
+              )
+              .isPending,
+          isTrue,
+        );
+        final retriedDependencyCount = await HostSyncService(
+          queue: queue!,
+          identity: syncIdentity,
+          transport: HttpHostCommandTransport(
+            endpoint: onlineEndpoint,
+            credentials: credentials,
+          ),
+        ).syncPending();
+        expect(retriedDependencyCount, 1);
+        final reconnectedEntries = await queue!.list(limit: 100);
+        expect(
+          reconnectedEntries.every((entry) => entry.isHostConfirmed),
+          isTrue,
+          reason: reconnectedEntries
+              .map(
+                (entry) =>
+                    '${entry.envelope.commandId}:${entry.hostStatus.databaseValue}:${entry.hostReceipt?.reasonCode ?? 'NO_RECEIPT'}',
+              )
+              .join(', '),
         );
 
         Future<CommandReceipt> sendQueued(

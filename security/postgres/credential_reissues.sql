@@ -279,7 +279,8 @@ BEGIN
     'permissions',to_jsonb(reissue_row.allowed_permissions),
     'expiresAtUtc',to_char(reissue_row.expires_at AT TIME ZONE 'UTC',
       'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'deliveryCiphertext',encode(reissue_row.delivery_ciphertext,'base64'));
+    'deliveryCiphertext',translate(
+      encode(reissue_row.delivery_ciphertext,'base64'),E'\r\n',''));
 END $fn$;
 
 CREATE OR REPLACE FUNCTION ventio_security.credential_reissue_pending_claim(
@@ -463,6 +464,10 @@ GRANT EXECUTE ON FUNCTION ventio_security.credential_reissue_pending_claim(text)
 REVOKE ALL ON FUNCTION ventio_security.credential_reissue_finalize(text,text)
   FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 GRANT EXECUTE ON FUNCTION ventio_security.credential_reissue_finalize(text,text)
+  TO ventio_identity_api;
+-- The Client API checks the approved migration manifest before exposing the
+-- pending envelope. This SECURITY DEFINER assertion returns no schema data.
+GRANT EXECUTE ON FUNCTION ventio_security.assert_schema()
   TO ventio_identity_api;
 
 -- Make every transition-state mutation part of the independent Recovery

@@ -2127,13 +2127,23 @@ bool _isSafeDeviceProjection(
       final credential = Map<String, dynamic>.from(rawCredential);
       const credentialKeys = {
         'credentialId',
+        'permissions',
         'state',
         'expiresAtUtc',
         'revokedAtUtc',
       };
+      final permissions = credential['permissions'];
       if (credential.keys.toSet().length != credentialKeys.length ||
           !credential.keys.toSet().containsAll(credentialKeys) ||
           !_isSafeDeviceManagementCredentialId(credential['credentialId']) ||
+          permissions is! List ||
+          permissions.length > 128 ||
+          permissions.toSet().length != permissions.length ||
+          permissions.any(
+            (permission) =>
+                permission is! String ||
+                !RegExp(r'^[a-z][a-z0-9_.]{0,255}$').hasMatch(permission),
+          ) ||
           !const {
             'ACTIVE',
             'EXPIRED',

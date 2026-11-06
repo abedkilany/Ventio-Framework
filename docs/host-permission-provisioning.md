@@ -45,7 +45,7 @@ The diagnostic function is available only to the Identity API role, verifies the
 
 ## Database and upgrade impact
 
-Ventio Setup 0.1.10 added the scoped-pairing contracts described above. Ventio Setup 0.1.11 adds the versioned reissue state migrations, narrow security-definer functions, forced RLS policy, and Recovery Authority mutation triggers. See [Host same-device credential reissue](host-same-device-credential-reissue.md) for the complete transition and migration behavior.
+Ventio Setup 0.1.10 added the scoped-pairing contracts described above. Ventio Setup 0.1.12 adds the versioned reissue state migrations, narrow security-definer functions, forced RLS policy, and Recovery Authority mutation triggers. See [Host same-device credential reissue](host-same-device-credential-reissue.md) for the complete transition and migration behavior.
 
 The Windows upgrade path stops the Host service, creates and verifies a restricted PostgreSQL data backup, applies schema migrations, installs and verifies the security contract, and only then permits Host restart. A failed backup, migration, or contract check leaves `VentioHost` stopped. Neither installer nor workflow resets existing devices, credential rows, certificates, Client SQLite, or Recovery Authority state.
 
@@ -53,15 +53,15 @@ Existing devices and their current credential ceilings are preserved by the upgr
 
 ### Already-enrolled Client identity preservation
 
-Ventio Setup 0.1.10 did not support a same-device ceiling update. Ventio Setup 0.1.11 adds trusted credential reissue for an existing registered device. It preserves the device ID, exact Host profile scope, SQLite database, durable queue, records, and Host receipts. Ordinary credential rotation still inherits the existing ceiling, and new-device pairing still creates a separate device ID.
+Ventio Setup 0.1.10 did not support a same-device ceiling update. Ventio Setup 0.1.12 adds trusted credential reissue for an existing registered device. It preserves the device ID, exact Host profile scope, SQLite database, durable queue, records, and Host receipts. Ordinary credential rotation still inherits the existing ceiling, and new-device pairing still creates a separate device ID.
 
 Do not redeem a new-device pairing on an already-enrolled Client when its device identity and local SQLite state must be preserved. Use **Reissue credential ceiling** for the existing device, then **Check for update** on that same Client. The complete operator and Client recovery protocol is in [Host same-device credential reissue](host-same-device-credential-reissue.md).
 
 ## Owner deployment and acceptance procedure
 
-1. Copy the new versioned Ventio Setup 0.1.11 installer to the physical Host and verify its SHA-256 against the release report before running it.
+1. Copy the new versioned Ventio Setup 0.1.12 installer to the physical Host and verify its SHA-256 against the release report before running it.
 2. Run Setup on the Host and accept the existing-installation upgrade. Allow the restricted backup, schema migrations, Recovery Authority contract update, verification, and service restart to finish. Do not uninstall or select data removal. If upgrade fails, leave `VentioHost` stopped and preserve the verified backup; do not edit security tables manually.
-3. Update the existing Client application in place with Setup 0.1.11. Preserve its Windows profile, Host profile, and app data. Do not clear Client data or re-enroll.
+3. Update the existing Client application in place with Setup 0.1.12. Preserve its Windows profile, Host profile, and app data. Do not clear Client data or re-enroll.
 4. Verify Host readiness and the existing registrations for tenant `a`, company `b`, branch `c`, certificate, and device ID.
 5. In **Users & permissions**, grant only `extension.package.read` to the intended user directly or through a narrowly scoped role at tenant `a`, company `b`, branch `c`.
 6. In **Host devices & pairing**, select the existing device and choose **Reissue credential ceiling**. Review the complete replacement permission list, retain existing authorized permissions, and approve the Host-local UAC prompt.
@@ -72,7 +72,7 @@ These steps update only the selected existing device ceiling; they do not give e
 
 ## Prior 0.1.10 verification record (historical)
 
-The implementation-specific 0.1.11 checks and current release identity are documented in [Host same-device credential reissue](host-same-device-credential-reissue.md).
+The implementation-specific 0.1.12 checks and current release identity are documented in [Host same-device credential reissue](host-same-device-credential-reissue.md).
 
 Verified results:
 

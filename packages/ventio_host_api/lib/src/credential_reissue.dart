@@ -263,6 +263,7 @@ class IdentityCredentialReissueGateway
           await connection.execute('SELECT ventio_security.assert_schema()');
           await connection.execute("SET statement_timeout = '20s'");
           return connection.runTx((tx) async {
+            await authority.admit(tx);
             final rows = operationId == null
                 ? await tx.execute(
                     pg.Sql.named('''

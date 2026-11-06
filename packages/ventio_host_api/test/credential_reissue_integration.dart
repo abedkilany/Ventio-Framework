@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
@@ -154,6 +155,7 @@ Future<void> main() async {
       executor: _CredentialReissueExecutor(),
       extensionPackages: PostgresExtensionPackageGateway(
         connect: runtimeConnection,
+        permissionDiagnosticConnect: apiConnection,
         admission: admission,
       ),
       credentialReissues: IdentityCredentialReissueGateway(
@@ -169,11 +171,15 @@ Future<void> main() async {
       token: targetToken,
       body: {'companyId': company, 'branchId': branch, 'limit': 10},
     );
+    final oldRegistryError = oldRegistry.body['error'];
+    final oldRegistryErrorCode = oldRegistryError is Map
+        ? oldRegistryError['code']
+        : null;
     check(
       oldRegistry.status == 403 &&
-          oldRegistry.body['error'] is Map &&
-          (oldRegistry.body['error'] as Map)['code'] == 'PERMISSION_DENIED',
-      'A later role grant does not expand the original Client credential ceiling',
+          oldRegistryErrorCode == 'CREDENTIAL_CEILING_DENIED',
+      'A later role grant leaves the original Client ceiling constrained '
+      '(HTTP ${oldRegistry.status}, safe error $oldRegistryErrorCode)',
     );
 
     final reissueConnection = await apiConnection();
@@ -268,11 +274,158 @@ Future<void> main() async {
         duplicate['credentialId'] == prepared['credentialId'],
         'Repeating the same operation reference is idempotent',
       );
+      final pendingRows = await audit.execute(
+        pg.Sql.named('''
+          SELECT tenant_id,actor_id,device_id,source_credential_id,state,
+                 expires_at>clock_timestamp()
+          FROM public.ventio_identity_credential_reissues
+          WHERE operation_id=@operation
+        '''),
+        parameters: {'operation': operationId},
+      );
+      check(
+        pendingRows.length == 1 &&
+            pendingRows.single[0] == tenant &&
+            pendingRows.single[1] == targetActor &&
+            pendingRows.single[2] == targetDevice &&
+            pendingRows.single[3] == sourceCredentialId &&
+            pendingRows.single[4] == 'PREPARED' &&
+            pendingRows.single[5] == true,
+        'The prepared operation is durable, live, and bound to the intended source device',
+      );
 
       final oldSession = await PersistentTokenAuthenticator(
         connect: runtimeConnection,
         admission: admission,
       ).authenticate(targetToken);
+      final claimPreconditions = await audit.execute(
+        pg.Sql.named('''
+          SELECT EXISTS (
+            SELECT FROM public.ventio_identity_credentials c
+            JOIN public.ventio_identity_users u USING (tenant_id,actor_id)
+            JOIN public.ventio_identity_devices d
+              ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id
+             AND d.device_id=c.device_id
+            WHERE c.token_digest=@digest AND c.tenant_id=@tenant
+              AND c.actor_id=@actor AND c.device_id=@device
+              AND c.credential_id=@source AND c.revoked_at IS NULL
+              AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL
+              AND d.revoked_at IS NULL
+          ), EXISTS (
+            SELECT FROM public.ventio_identity_credential_reissues r
+            JOIN public.ventio_identity_credentials c
+              ON c.tenant_id=r.tenant_id AND c.actor_id=r.actor_id
+             AND c.device_id=r.device_id AND c.credential_id=r.source_credential_id
+            JOIN public.ventio_identity_users u
+              ON u.tenant_id=r.tenant_id AND u.actor_id=r.actor_id
+            JOIN public.ventio_identity_devices d
+              ON d.tenant_id=r.tenant_id AND d.actor_id=r.actor_id
+             AND d.device_id=r.device_id
+            WHERE r.operation_id=@operation AND r.tenant_id=@tenant
+              AND r.actor_id=@actor AND r.device_id=@device
+              AND r.source_credential_id=@source AND r.state='PREPARED'
+              AND r.expires_at>clock_timestamp() AND c.revoked_at IS NULL
+              AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL
+              AND d.revoked_at IS NULL
+          )
+        '''),
+        parameters: {
+          'digest': oldSession?.credentialDigest,
+          'tenant': tenant,
+          'actor': targetActor,
+          'device': targetDevice,
+          'source': sourceCredentialId,
+          'operation': operationId,
+        },
+      );
+      final probeConnection = await apiConnection();
+      Map<String, dynamic>? claimMetadata;
+      String? claimSqlState;
+      try {
+        await probeConnection.execute('SELECT ventio_security.assert_schema()');
+        await probeConnection.execute("SET statement_timeout = '20s'");
+        final rows = await probeConnection.runTx((tx) async {
+          await admission.admit(tx);
+          return tx.execute(
+            pg.Sql.named('''
+              SELECT jsonb_build_object(
+                'operationId', result->>'operationId',
+                'state', result->>'state',
+                'tenantId', result->>'tenantId',
+                'actorId', result->>'actorId',
+                'deviceId', result->>'deviceId',
+                'companyId', result->>'companyId',
+                'branchId', result->>'branchId',
+                'credentialId', result->>'credentialId',
+                'ciphertextIsString',
+                  jsonb_typeof(result->'deliveryCiphertext')='string',
+                'deliveryCiphertext', result->>'deliveryCiphertext',
+                'permissionCount', jsonb_array_length(result->'permissions')
+              )::text
+              FROM (SELECT ventio_security.credential_reissue_claim(
+                @digest,@operation)::jsonb AS result) claimed
+            '''),
+            parameters: {
+              'digest': OpaqueToken.digest(targetToken),
+              'operation': operationId,
+            },
+          );
+        });
+        claimMetadata = Map<String, dynamic>.from(
+          jsonDecode(rows.single[0] as String) as Map,
+        );
+      } on pg.ServerException catch (error) {
+        claimSqlState = error.code;
+      } finally {
+        await probeConnection.close();
+      }
+      final safeClaimMetadata = claimMetadata;
+      final ciphertext = safeClaimMetadata?.remove('deliveryCiphertext');
+      var protectedEnvelopeRoundTrips = false;
+      if (ciphertext is String) {
+        Uint8List? restored;
+        try {
+          restored = const WindowsCredentialReissueCipher().unprotect(
+            base64.decode(ciphertext),
+            operationId,
+          );
+          protectedEnvelopeRoundTrips = OpaqueToken.isValid(
+            utf8.decode(restored),
+          );
+        } on Object {
+          protectedEnvelopeRoundTrips = false;
+        } finally {
+          restored?.fillRange(0, restored.length, 0);
+        }
+      }
+      check(
+        safeClaimMetadata != null &&
+            safeClaimMetadata['operationId'] == operationId &&
+            safeClaimMetadata['state'] == 'PREPARED' &&
+            safeClaimMetadata['tenantId'] == tenant &&
+            safeClaimMetadata['actorId'] == targetActor &&
+            safeClaimMetadata['deviceId'] == targetDevice &&
+            safeClaimMetadata['companyId'] == company &&
+            safeClaimMetadata['branchId'] == branch &&
+            safeClaimMetadata['credentialId'] == prepared['credentialId'] &&
+            safeClaimMetadata['ciphertextIsString'] == true &&
+            safeClaimMetadata['permissionCount'] == 2 &&
+            protectedEnvelopeRoundTrips,
+        'SQL claim metadata is exact and DPAPI-unprotectable '
+        '(SQLSTATE=$claimSqlState, state=${safeClaimMetadata?['state']}, '
+        'cipherIsString=${safeClaimMetadata?['ciphertextIsString']}, '
+        'cipherRoundTrips=$protectedEnvelopeRoundTrips)',
+      );
+      check(
+        oldSession != null &&
+            oldSession.credentialDigest == OpaqueToken.digest(targetToken) &&
+            oldSession.principal.tenantId == tenant &&
+            oldSession.principal.actorId == targetActor &&
+            oldSession.principal.deviceId == targetDevice &&
+            claimPreconditions.single[0] == true &&
+            claimPreconditions.single[1] == true,
+        'The active source and pending operation satisfy the Host claim preconditions',
+      );
       check(
         oldSession != null,
         'The source credential remains usable while a replacement is pending',
@@ -282,10 +435,17 @@ Future<void> main() async {
         apiPool: null,
         authority: admission,
       );
-      final replacement = await reissuer.claim(
-        session: oldSession!,
-        operationId: operationId,
-      );
+      late final Map<String, dynamic> replacement;
+      try {
+        replacement = await reissuer.claim(
+          session: oldSession!,
+          operationId: operationId,
+        );
+      } on CredentialReissueException catch (error) {
+        throw StateError(
+          'Safe claim failure ${error.code} HTTP ${error.statusCode}',
+        );
+      }
       final replacementToken = replacement['credential'] as String;
       check(
         replacement['deviceId'] == targetDevice &&
