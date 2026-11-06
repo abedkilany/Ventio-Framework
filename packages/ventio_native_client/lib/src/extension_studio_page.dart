@@ -1723,6 +1723,23 @@ class _HostScopeDialogState extends State<_HostScopeDialog> {
   }
 }
 
+String _approvedPackagesError(BuildContext context, Object error) {
+  if (error is! HostPackageTransportException) {
+    return context.ventioText('native.ui.host_package_request_failed');
+  }
+  final key = switch (error.code) {
+    'CREDENTIAL_CEILING_DENIED' =>
+      'native.ui.permission_denied_credential_ceiling',
+    'USER_PERMISSION_DENIED' => 'native.ui.permission_denied_user_grant',
+    'CREDENTIAL_SCOPE_DENIED' => 'native.ui.permission_denied_credential_scope',
+    'AUTHORIZATION_STATE_UNAVAILABLE' ||
+    'PERMISSION_DENIED' ||
+    'SCOPE_DENIED' => 'native.ui.permission_denied_unclassified',
+    _ => 'native.ui.host_package_request_failed',
+  };
+  return context.ventioText(key, params: {'code': error.code});
+}
+
 class _HostApprovedPackageDialog extends StatefulWidget {
   const _HostApprovedPackageDialog({
     required this.client,
@@ -1784,7 +1801,9 @@ class _HostApprovedPackageDialogState
         _afterVersion = cursor?.version;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(() => _error = _approvedPackagesError(context, error));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

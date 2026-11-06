@@ -36,9 +36,10 @@ $windowsScriptDirectory = Join-Path $repoRoot 'scripts\windows'
 $migrationPackage = Join-Path $repoRoot 'packages\ventio_postgres'
 $migrationSource = Join-Path $migrationPackage 'bin\migrate.dart'
 $identityBootstrapSource = Join-Path $hostRoot 'bin\bootstrap_first_administrator.dart'
+$trustedPairingSource = Join-Path $hostRoot 'bin\trusted_windows_pairing.dart'
 $serviceProject = Join-Path $repoRoot 'installer\windows\host-service\VentioHostService.csproj'
 $setupBrokerProject = Join-Path $repoRoot 'installer\windows\setup-broker\VentioSetupBroker.csproj'
-foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $serviceProject, $setupBrokerProject)) {
+foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $trustedPairingSource, $serviceProject, $setupBrokerProject)) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Required Host payload input is missing: $path" }
 }
 
@@ -50,6 +51,14 @@ try {
   try {
     & dart compile exe bin/local_host.dart -o $hostExe
     if ($LASTEXITCODE -ne 0) { throw "Host Engine compilation failed with exit code $LASTEXITCODE." }
+  }
+  finally { Pop-Location }
+
+  $trustedPairingExe = Join-Path $tempDirectory 'ventio_trusted_pairing.exe'
+  Push-Location $hostRoot
+  try {
+    & dart compile exe bin/trusted_windows_pairing.dart -o $trustedPairingExe
+    if ($LASTEXITCODE -ne 0) { throw "Trusted Windows pairing compilation failed with exit code $LASTEXITCODE." }
   }
   finally { Pop-Location }
 
@@ -134,6 +143,7 @@ try {
     Get-Item -LiteralPath $hostExe
     Get-Item -LiteralPath $migrationExe
     Get-Item -LiteralPath $identityBootstrapExe
+    Get-Item -LiteralPath $trustedPairingExe
     Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioHostService.exe')
     Get-Item -LiteralPath (Join-Path $tempDirectory 'VentioSetupBroker.exe')
     foreach ($name in $requiredPostgres) { Get-Item -LiteralPath (Join-Path $tempDirectory "postgresql\bin\$name") }
@@ -161,6 +171,7 @@ try {
     hostExecutable = 'ventio_host.exe'
     migrationExecutable = 'ventio_migrate.exe'
     identityBootstrapExecutable = 'ventio_identity_bootstrap.exe'
+    trustedPairingExecutable = 'ventio_trusted_pairing.exe'
     serviceExecutable = 'VentioHostService.exe'
     setupBrokerExecutable = 'VentioSetupBroker.exe'
     postgresVersion = '16.15'

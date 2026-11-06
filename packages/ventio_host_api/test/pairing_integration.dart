@@ -72,6 +72,7 @@ Future<void> main() async {
   const branch = 'branch-pairing';
   HostApi? api;
   pg.Pool<dynamic>? pairingAdministrationPool;
+  pg.Connection? trustedPairingConnection;
   final additionalApis = <HostApi>[];
   var assertions = 0;
   void check(bool condition, String label) {
@@ -183,6 +184,51 @@ Future<void> main() async {
       branch,
       'maintenance.delete',
     );
+    await operator.createUser('pairing-role-target');
+    await operator.createRole('pairing-trusted-role', 'Trusted business role');
+    await operator.grantRolePermission(
+      'pairing-trusted-role',
+      'maintenance.approve',
+    );
+    await operator.assignRole(
+      actorId: 'pairing-role-target',
+      roleId: 'pairing-trusted-role',
+      companyId: company,
+      branchId: branch,
+    );
+    await operator.createUser('pairing-trusted-manager');
+    await operator.registerDevice(
+      'pairing-trusted-manager',
+      'pairing-trusted-manager-host',
+    );
+    await operator.grant(
+      'pairing-trusted-manager',
+      company,
+      branch,
+      identityPairingManagePermission,
+    );
+    await operator.provisionToFile(
+      actorId: 'pairing-trusted-manager',
+      deviceId: 'pairing-trusted-manager-host',
+      credentialId: 'pairing-trusted-manager-credential',
+      expiresAt: DateTime.now().toUtc().add(const Duration(days: 10)),
+      allowedScopes: [
+        {
+          'companyId': company,
+          'branchId': branch,
+          'permissions': [identityPairingManagePermission],
+        },
+      ],
+      outputPath: '${temporary.path}/trusted-manager-credential.json',
+    );
+    final trustedManagerToken =
+        (jsonDecode(
+                  await PrivateFiles.read(
+                    '${temporary.path}/trusted-manager-credential.json',
+                  ),
+                )
+                as Map)['token']
+            as String;
     await operator.createUser('pairing-other-branch-target');
     await operator.grant(
       'pairing-other-branch-target',
@@ -387,6 +433,196 @@ Future<void> main() async {
           privilegedTarget.body['error']['code'] == 'PERMISSION_DENIED' &&
           await _pairingCount(audit, tenant) == countBeforePrivilegeCeiling,
       'A PostgreSQL permission-ceiling failure rolls back pairing data and Recovery Authority admission remains usable',
+    );
+
+    trustedPairingConnection = await pg.Connection.openFromUrl(apiAdminUrl);
+    final trustedGateway = TrustedWindowsPairingGateway(
+      connection: trustedPairingConnection,
+      tenantId: tenant,
+      authority: authority,
+      windowsAdminTag: '0123456789abcdef',
+    );
+    final trustedCountBefore = await _pairingCount(audit, tenant);
+    final unauthorizedElevationId = _newPairingRequestId().substring(4);
+    var unauthorizedElevationRejected = false;
+    try {
+      await trustedGateway.create(
+        operatorCredentialDigest: OpaqueToken.digest(trustedManagerToken),
+        operatorActorId: 'pairing-trusted-manager',
+        targetActorId: 'pairing-privileged-target',
+        companyId: company,
+        branchId: branch,
+        requestId: unauthorizedElevationId,
+        permissions: const ['maintenance.approve'],
+      );
+    } on TrustedWindowsPairingException catch (error) {
+      unauthorizedElevationRejected =
+          error.code == 'OPERATOR_OR_PERMISSION_DENIED';
+    }
+    check(
+      unauthorizedElevationRejected &&
+          await _pairingCount(audit, tenant) == trustedCountBefore,
+      'Trusted provisioning rejects permissions that are not already granted to the selected user without changing database state',
+    );
+
+    final runtimeCannotCreateTrusted =
+        (await audit.execute('''
+      SELECT NOT has_function_privilege(
+        'ventio_runtime',
+        'ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)',
+        'EXECUTE')
+    ''')).single[0] ==
+        true;
+    check(
+      runtimeCannotCreateTrusted,
+      'Ordinary Host runtime credentials cannot execute the trusted pairing SQL contract',
+    );
+
+    final trustedRequestId = _newPairingRequestId().substring(4);
+    final trustedPairing = await trustedGateway.create(
+      operatorCredentialDigest: OpaqueToken.digest(trustedManagerToken),
+      operatorActorId: 'pairing-trusted-manager',
+      targetActorId: 'pairing-privileged-target',
+      companyId: company,
+      branchId: branch,
+      requestId: trustedRequestId,
+      permissions: const ['maintenance.delete'],
+    );
+    final trustedPairingRow = (await audit.execute(
+      pg.Sql.named('''
+        SELECT pairing_digest,allowed_permissions,company_id,branch_id
+        FROM public.ventio_identity_pairings
+        WHERE tenant_id=@tenant AND pairing_id=@pairing
+      '''),
+      parameters: {'tenant': tenant, 'pairing': trustedPairing.pairingId},
+    )).single;
+    final trustedAudit = (await audit.execute(
+      pg.Sql.named('''
+        SELECT operator_label,details::text FROM public.ventio_identity_audit
+        WHERE tenant_id=@tenant AND action='TRUSTED_PAIRING_CREATED'
+          AND subject_id=@pairing
+      '''),
+      parameters: {'tenant': tenant, 'pairing': trustedPairing.pairingId},
+    )).single;
+    check(
+      trustedPairingRow[0] == OpaqueToken.digest(trustedPairing.code) &&
+          trustedPairingRow[0] != trustedPairing.code &&
+          (trustedPairingRow[1] as List).cast<String>().toSet().length == 1 &&
+          (trustedPairingRow[1] as List).single == 'maintenance.delete' &&
+          trustedPairingRow[2] == company &&
+          trustedPairingRow[3] == branch &&
+          (trustedAudit[0] as String).startsWith('windows-admin:') &&
+          !(trustedAudit[1] as String).contains(trustedPairing.code) &&
+          !(trustedAudit[1] as String).contains(
+            OpaqueToken.digest(trustedPairing.code),
+          ),
+      'Trusted pairing records only the one-time digest, exact branch and reviewed permission set in its audit',
+    );
+
+    final repeatedTrustedCount = await _pairingCount(audit, tenant);
+    var trustedCodeUnavailable = false;
+    try {
+      await trustedGateway.create(
+        operatorCredentialDigest: OpaqueToken.digest(trustedManagerToken),
+        operatorActorId: 'pairing-trusted-manager',
+        targetActorId: 'pairing-privileged-target',
+        companyId: company,
+        branchId: branch,
+        requestId: _newPairingRequestId().substring(4),
+        permissions: const ['maintenance.delete'],
+      );
+    } on TrustedWindowsPairingException catch (error) {
+      trustedCodeUnavailable = error.code == 'PAIRING_CODE_UNAVAILABLE';
+    }
+    check(
+      trustedCodeUnavailable &&
+          await _pairingCount(audit, tenant) == repeatedTrustedCount,
+      'An ambiguous or already delivered trusted code cannot be replaced for the same user and branch until its five-minute redemption window expires',
+    );
+
+    final trustedRolePairing = await trustedGateway.create(
+      operatorCredentialDigest: OpaqueToken.digest(trustedManagerToken),
+      operatorActorId: 'pairing-trusted-manager',
+      targetActorId: 'pairing-role-target',
+      companyId: company,
+      branchId: branch,
+      requestId: _newPairingRequestId().substring(4),
+      permissions: const ['maintenance.approve'],
+    );
+    check(
+      trustedRolePairing.permissions.single == 'maintenance.approve',
+      'Trusted provisioning recognizes an already assigned role-derived permission without copying unrelated role authority',
+    );
+
+    final trustedEnrollment = await send(
+      api,
+      path: HostManagementRoutes.pairingRedeem,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'code': trustedPairing.code,
+        'deviceId': 'pairing-privileged-client',
+      },
+    );
+    final trustedEnrollmentCredential =
+        trustedEnrollment.body['enrollment'] as Map<String, dynamic>;
+    final trustedCredentialRow = (await audit.execute(
+      pg.Sql.named('''
+        SELECT allowed_scopes::text FROM public.ventio_identity_credentials
+        WHERE tenant_id=@tenant AND credential_id=@credential
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'credential': trustedEnrollmentCredential['credentialId'],
+      },
+    )).single;
+    final preservedOperatorDevice =
+        (await audit.execute(
+          pg.Sql.named('''
+        SELECT count(*)::integer FROM public.ventio_identity_devices
+        WHERE tenant_id=@tenant AND device_id='pairing-trusted-manager-host'
+          AND revoked_at IS NULL
+      '''),
+          parameters: {'tenant': tenant},
+        )).single[0] ==
+        1;
+    final trustedScopeText = trustedCredentialRow[0] as String;
+    check(
+      trustedEnrollment.status == 201 &&
+          trustedScopeText.contains(company) &&
+          trustedScopeText.contains(branch) &&
+          trustedScopeText.contains('maintenance.delete') &&
+          !trustedScopeText.contains('maintenance.create') &&
+          !trustedScopeText.contains('identity.pairing.manage') &&
+          preservedOperatorDevice,
+      'Redeemed Client gets only the exact requested permission ceiling and existing Host device identity remains active',
+    );
+
+    final failedAuthorityCount = await _pairingCount(audit, tenant);
+    var recoveryFailureClosed = false;
+    try {
+      await TrustedWindowsPairingGateway(
+        connection: trustedPairingConnection,
+        tenantId: tenant,
+        authority: RecoveryAuthority(
+          '${temporary.path}/missing-trusted-pairing-authority.json',
+        ),
+        windowsAdminTag: '0123456789abcdef',
+      ).create(
+        operatorCredentialDigest: OpaqueToken.digest(trustedManagerToken),
+        operatorActorId: 'pairing-trusted-manager',
+        targetActorId: 'pairing-role-target',
+        companyId: company,
+        branchId: branch,
+        requestId: _newPairingRequestId().substring(4),
+        permissions: const ['maintenance.approve'],
+      );
+    } on TrustedWindowsPairingException catch (error) {
+      recoveryFailureClosed = error.code == 'RECOVERY_AUTHORITY_UNAVAILABLE';
+    }
+    check(
+      recoveryFailureClosed &&
+          await _pairingCount(audit, tenant) == failedAuthorityCount,
+      'Trusted scoped provisioning fails closed before mutation when independent Recovery Authority admission is unavailable',
     );
     final otherBranchTarget = await send(
       api,
@@ -1285,6 +1521,7 @@ Future<void> main() async {
       await additionalApi.close();
     }
     await api?.close();
+    await trustedPairingConnection?.close();
     await pairingAdministrationPool?.close();
     await admin.close();
     await migration.close();

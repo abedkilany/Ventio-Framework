@@ -12,9 +12,12 @@ Future<void> main() async {
   final databaseUrl = Platform.environment['VENTIO_TEST_DATABASE_URL'];
   final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
   final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
+  final apiAdminUrl =
+      Platform.environment['VENTIO_TEST_API_ADMIN_DATABASE_URL'];
   if (databaseUrl == null ||
       runtimeUrl == null ||
       adminUrl == null ||
+      apiAdminUrl == null ||
       Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
       Uri.parse(
             databaseUrl,
@@ -47,6 +50,16 @@ Future<void> main() async {
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
   final runtimeConnection = await pg.Connection.openFromUrl(runtimeUrl);
   final observer = await pg.Connection.openFromUrl(databaseUrl);
+  final permissionDiagnosticPool = pg.Pool<dynamic>.withUrl(
+    Uri.parse(apiAdminUrl)
+        .replace(
+          queryParameters: {
+            ...Uri.parse(apiAdminUrl).queryParameters,
+            'max_connection_count': '4',
+          },
+        )
+        .toString(),
+  );
   final temporary = await createPrivateTestDirectory('ventio-package-');
   final authority = RecoveryAuthority(temporary.path + '/authority.json');
   final tenant =
@@ -81,12 +94,15 @@ Future<void> main() async {
       required String branch,
       required List<String> permissions,
       bool registerBranch = true,
+      bool grantPermissions = true,
     }) async {
       await identityAdmin.createUser(actor);
       if (registerBranch) await identityAdmin.registerBranch(company, branch);
       await identityAdmin.registerDevice(actor, device);
-      for (final permission in permissions) {
-        await identityAdmin.grant(actor, company, branch, permission);
+      if (grantPermissions) {
+        for (final permission in permissions) {
+          await identityAdmin.grant(actor, company, branch, permission);
+        }
       }
       final output = temporary.path + '/' + credential + '.json';
       await identityAdmin.provisionToFile(
@@ -106,6 +122,43 @@ Future<void> main() async {
       return (jsonDecode(await PrivateFiles.read(output)) as Map)['token']
           as String;
     }
+
+    final ceilingReaderToken = await provision(
+      actor: 'permission-ceiling-reader',
+      device: 'permission-ceiling-device',
+      credential: 'permission-ceiling-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.submit'],
+    );
+    await identityAdmin.grant(
+      'permission-ceiling-reader',
+      primaryCompany,
+      primaryBranch,
+      'extension.package.read',
+    );
+    final noUserGrantToken = await provision(
+      actor: 'permission-without-user-grant',
+      device: 'permission-without-grant-device',
+      credential: 'permission-without-grant-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.submit'],
+    );
+    final roleCeilingReaderToken = await provision(
+      actor: 'permission-role-ceiling-reader',
+      device: 'permission-role-ceiling-device',
+      credential: 'permission-role-ceiling-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.submit'],
+    );
+    await identityAdmin.assignRole(
+      actorId: 'permission-role-ceiling-reader',
+      roleId: 'recovery-witness-role',
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+    );
 
     final primaryToken = await provision(
       actor: 'publisher',
@@ -268,6 +321,7 @@ Future<void> main() async {
       ),
       extensionPackages: PostgresExtensionPackageGateway(
         connect: () => pg.Connection.openFromUrl(runtimeUrl),
+        permissionDiagnosticPool: permissionDiagnosticPool,
         admission: authority,
       ),
       extensionRecordQueries: PostgresExtensionRecordQueryGateway(
@@ -531,6 +585,32 @@ Future<void> main() async {
                 ),
           ),
       'Persistent session discovery reports only the current exact branch grants',
+    );
+
+    final ceilingDenial = await listPackages(
+      ceilingReaderToken,
+      company: primaryCompany,
+      branch: primaryBranch,
+    );
+    final grantDenial = await listPackages(
+      noUserGrantToken,
+      company: primaryCompany,
+      branch: primaryBranch,
+    );
+    final roleCeilingDenial = await listPackages(
+      roleCeilingReaderToken,
+      company: primaryCompany,
+      branch: primaryBranch,
+    );
+    expect(
+      ceilingDenial.status == 403 &&
+          ceilingDenial.body['error']['code'] == 'CREDENTIAL_CEILING_DENIED' &&
+          grantDenial.status == 403 &&
+          grantDenial.body['error']['code'] == 'USER_PERMISSION_DENIED' &&
+          roleCeilingDenial.status == 403 &&
+          roleCeilingDenial.body['error']['code'] ==
+              'CREDENTIAL_CEILING_DENIED',
+      'Approved registry safely distinguishes a missing user grant from direct- and role-granted permissions outside the credential ceiling (direct=${ceilingDenial.status}/${ceilingDenial.body['error'] is Map ? ceilingDenial.body['error']['code'] : 'none'}, missing=${grantDenial.status}/${grantDenial.body['error'] is Map ? grantDenial.body['error']['code'] : 'none'}, role=${roleCeilingDenial.status}/${roleCeilingDenial.body['error'] is Map ? roleCeilingDenial.body['error']['code'] : 'none'})',
     );
 
     final package = bundle('com.example.registry', '1.0.0');
@@ -3994,6 +4074,7 @@ Future<void> main() async {
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     await api?.close();
+    await permissionDiagnosticPool.close();
     await observer.close();
     await runtimeConnection.close();
     await adminConnection.close();

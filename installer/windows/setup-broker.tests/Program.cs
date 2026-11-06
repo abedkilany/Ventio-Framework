@@ -15,6 +15,19 @@ System.Security.Cryptography.CryptographicOperations.ZeroMemory(expectedSecret);
 System.Security.Cryptography.CryptographicOperations.ZeroMemory(decrypted);
 System.Security.Cryptography.CryptographicOperations.ZeroMemory(encrypted);
 
+var trustedResult = System.Text.Encoding.UTF8.GetBytes("isolated-trusted-pairing-result");
+var expectedTrustedResult = trustedResult.ToArray();
+var trustedEntropy = System.Text.Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef");
+var machineProtected = BrokerProgram.ProtectForLocalMachine(trustedResult, trustedEntropy);
+var machineDecrypted = BrokerProgram.UnprotectForCurrentUser(
+    machineProtected,
+    System.Text.Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef"));
+if (!machineDecrypted.SequenceEqual(expectedTrustedResult) || machineProtected.SequenceEqual(expectedTrustedResult))
+    throw new InvalidOperationException("Trusted pairing machine-DPAPI round-trip failed.");
+System.Security.Cryptography.CryptographicOperations.ZeroMemory(expectedTrustedResult);
+System.Security.Cryptography.CryptographicOperations.ZeroMemory(machineDecrypted);
+System.Security.Cryptography.CryptographicOperations.ZeroMemory(machineProtected);
+
 if (!BrokerProgram.IsAllowedBootstrapPeerState(2) || !BrokerProgram.IsAllowedBootstrapPeerState(4) ||
     BrokerProgram.IsAllowedBootstrapPeerState(1) || BrokerProgram.IsAllowedBootstrapPeerState(3) || BrokerProgram.IsAllowedBootstrapPeerState(7))
     throw new InvalidOperationException("Bootstrap acknowledgement did not handle only live startup and running service states.");
@@ -22,6 +35,7 @@ if (!BrokerProgram.IsAllowedBootstrapPeerState(2) || !BrokerProgram.IsAllowedBoo
 if (!BrokerProgram.IsSafeFailureCode("HOST_DATABASE_MIGRATION_LEDGER_INVALID") ||
     !BrokerProgram.IsSafeFailureCode("HOST_FIRST_ADMIN_DATABASE_CONNECTION_FAILED") ||
     !BrokerProgram.IsSafeFailureCode("HOST_FIRST_ADMIN_HELPER_TIMEOUT") ||
+    !BrokerProgram.IsSafeFailureCode("HOST_TRUSTED_PAIRING_CODE_UNAVAILABLE") ||
     BrokerProgram.IsSafeFailureCode("postgresql://user:secret@127.0.0.1/database") ||
     BrokerProgram.IsSafeFailureCode("Exception: permission denied"))
     throw new InvalidOperationException("Setup broker accepted an unsafe first-administrator diagnostic.");
@@ -82,6 +96,18 @@ if (parsed.OperationId != validId || parsed.TenantId != "tenant-a" || parsed.Req
 var resume = BrokerProgram.Request.Parse(["--resume-first-administrator", validId, "tenant-a", "company-a", "branch-a", currentSid]);
 if (!resume.ResumeFirstAdministrator || parsed.ResumeFirstAdministrator || resume.OperationId != validId)
     throw new InvalidOperationException("Resume-first-administrator request lost its restricted operation mode.");
+var trusted = BrokerProgram.Request.Parse([
+    "--trusted-pairing", validId, "tenant-a", "company-a", "branch-a", currentSid,
+    "C:\\Users\\User\\AppData\\Local\\VentioFramework\\TrustedOperator\\" + validId + ".request.json"
+]);
+if (!trusted.TrustedPairing || trusted.OperationId != validId || trusted.RequestFilePath is null)
+    throw new InvalidOperationException("Trusted pairing request did not preserve its restricted mode and scope.");
+var expectedTrustedOperatorDirectory = Path.GetFullPath(Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "VentioFramework", "TrustedOperator"));
+if (!StringComparer.OrdinalIgnoreCase.Equals(
+        BrokerProgram.TrustedOperatorDirectoryForSid(currentSid), expectedTrustedOperatorDirectory))
+    throw new InvalidOperationException("Trusted pairing did not resolve the requester's profile independently of the UAC account.");
 
 var rejected = new[]
 {

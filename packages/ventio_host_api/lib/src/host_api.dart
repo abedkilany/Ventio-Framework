@@ -898,7 +898,16 @@ class HostApi {
       companyId,
       branchId,
     )) {
-      throw const _ApiError(403, 'PERMISSION_DENIED');
+      final denialCode = gateway is ExtensionPermissionDenialDiagnosticGateway
+          ? await (gateway as ExtensionPermissionDenialDiagnosticGateway)
+                .permissionDenialCode(
+                  session: session,
+                  companyId: companyId,
+                  branchId: branchId,
+                  permission: requiredPermission,
+                )
+          : 'PERMISSION_DENIED';
+      throw _ApiError(403, denialCode);
     }
     final Map<String, dynamic> result;
     if (operation == 'submit') {

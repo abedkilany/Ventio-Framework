@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,8 @@ import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
 import 'host_device_management.dart';
+import 'host_setup.dart';
+import 'host_setup_windows.dart';
 import 'host_user_management.dart';
 import 'local_diagnostics.dart';
 
@@ -35,6 +38,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   List<HostManagedUser> _users = const [];
   String? _selectedUserId;
   HostPairingCredential? _pairing;
+  List<String>? _trustedPairingPermissions;
   HostRotatedDeviceCredential? _rotatedCredential;
   HostDeviceManagementException? _error;
   bool _loading = false;
@@ -288,6 +292,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       _busy = true;
       _error = null;
       _pairing = null;
+      _trustedPairingPermissions = null;
       _pairingRequestId = requestId;
       _pairingCodeExpiresAtUtc = null;
     });
@@ -413,6 +418,85 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
             'Keep the same request reference and target when checking again. Do not create a replacement until the outcome is reconciled.',
         elapsedMs: requestWatch.elapsedMilliseconds,
       );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _createTrustedPairing() async {
+    if (_busy ||
+        !Platform.isWindows ||
+        !widget.client.canCreatePairings ||
+        widget.userDirectory?.canManageUsers != true ||
+        _selectedUserId == null) {
+      return;
+    }
+    final permissions = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => _TrustedPairingPermissionsDialog(
+        tenantId: widget.client.verifiedIdentity.tenantId,
+        companyId: widget.client.companyId,
+        branchId: widget.client.branchId,
+      ),
+    );
+    if (permissions == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _pairing = null;
+      _trustedPairingPermissions = null;
+    });
+    try {
+      final token = await widget.client.credentials.read(
+        widget.client.endpoint,
+      );
+      if (token == null || token.isEmpty) {
+        throw const HostSetupException('HOST_CREDENTIAL_MISSING');
+      }
+      final operationId = newPairingRequestId().substring(4);
+      final pairing = await WindowsTrustedPairingOperator().createPairing(
+        operationId: operationId,
+        tenantId: widget.client.verifiedIdentity.tenantId,
+        operatorActorId: widget.client.verifiedIdentity.actorId,
+        targetActorId: _selectedUserId!,
+        companyId: widget.client.companyId,
+        branchId: widget.client.branchId,
+        permissions: permissions,
+        operatorCredentialDigest: sha256.convert(utf8.encode(token)).toString(),
+      );
+      if (pairing == null || !mounted) return; // Windows UAC was cancelled.
+      setState(() {
+        _pairing = HostPairingCredential(
+          pairingId: pairing.pairingId,
+          actorId: pairing.actorId,
+          code: pairing.code,
+          expiresAtUtc: pairing.expiresAtUtc,
+          correlationId: 'cor_$operationId',
+        );
+        _trustedPairingPermissions = pairing.permissions;
+      });
+      await _recordPairingDiagnostic(
+        code: 'TRUSTED_PAIRING_CREATED',
+        correlationId: 'cor_$operationId',
+        severity: ManagementDiagnosticSeverity.info,
+        retryable: false,
+        safeExplanation:
+            'A Windows administrator approved a new Client pairing with an exact permission ceiling.',
+        recommendedAction:
+            'Enroll the intended Client with this one-time code. Existing devices and credentials remain active until explicitly revoked.',
+      );
+    } on HostSetupException catch (error) {
+      if (mounted) {
+        setState(() => _error = HostDeviceManagementException(error.code));
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = const HostDeviceManagementException(
+            'HOST_TRUSTED_PAIRING_FAILED',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -773,6 +857,29 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                 ),
               ),
             ),
+            if (Platform.isWindows &&
+                widget.client.canCreatePairings &&
+                widget.userDirectory?.canManageUsers == true) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                key: const ValueKey('trusted-scoped-pairing'),
+                onPressed:
+                    _busy ||
+                        _selectedUserId == null ||
+                        _pairingRequestId != null
+                    ? null
+                    : _createTrustedPairing,
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+                label: Text(
+                  context.ventioText('native.ui.create_trusted_scoped_pairing'),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                context.ventioText('native.ui.trusted_scoped_pairing_help'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (_pairing case final pairing?) ...[
               const SizedBox(height: 14),
               Container(
@@ -785,6 +892,21 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(context.ventioText('native.ui.pairing_code_once')),
+                    if (_trustedPairingPermissions case final permissions?) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        context.ventioText(
+                          'native.ui.trusted_pairing_permission_ceiling',
+                          params: {'permissions': permissions.join(', ')},
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        context.ventioText(
+                          'native.ui.trusted_pairing_device_note',
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     SelectableText(
                       pairing.code,
@@ -1055,7 +1177,9 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
           '${error.pairingExpiresAtUtc == null ? '' : '\n${context.ventioText('native.ui.pairing_code_expires', params: {'timestamp': _formatUtc(error.pairingExpiresAtUtc!)})}'}'
           '${error.correlationId == null ? '' : '\n${context.ventioText('native.ui.correlation_reference', params: {'correlationId': error.correlationId!})}'}',
         ),
-        trailing: widget.client.canManageDevices
+        trailing:
+            widget.client.canManageDevices &&
+                !error.code.startsWith('HOST_TRUSTED_PAIRING_')
             ? IconButton(
                 tooltip: context.ventioText(
                   _pairingRequestId == null
@@ -1099,9 +1223,125 @@ String _errorExplanation(String code) => switch (code) {
   'UNAUTHENTICATED' => 'native.ui.device_error_authentication',
   'PAIRING_TARGET_UNAVAILABLE' => 'native.ui.device_error_target',
   'PAIRING_RATE_LIMITED' => 'native.ui.device_error_rate_limit',
+  'HOST_TRUSTED_PAIRING_PERMISSION_NOT_GRANTED' =>
+    'native.ui.trusted_pairing_operator_permission_denied',
+  'HOST_TRUSTED_PAIRING_TARGET_UNAVAILABLE' => 'native.ui.device_error_target',
+  'HOST_TRUSTED_PAIRING_RECOVERY_UNAVAILABLE' ||
+  'HOST_TRUSTED_PAIRING_RECOVERY_BUSY' =>
+    'native.ui.device_error_recovery_authority',
+  'HOST_TRUSTED_PAIRING_OUTCOME_UNKNOWN' =>
+    'native.ui.trusted_pairing_outcome_unknown',
+  'HOST_TRUSTED_PAIRING_RATE_LIMITED' => 'native.ui.device_error_rate_limit',
+  'HOST_TRUSTED_PAIRING_CODE_UNAVAILABLE' =>
+    'native.ui.trusted_pairing_code_unavailable',
   'DEVICE_NOT_FOUND' => 'native.ui.device_error_not_found',
   _ => 'native.ui.device_error_generic',
 };
+
+class _TrustedPairingPermissionsDialog extends StatefulWidget {
+  const _TrustedPairingPermissionsDialog({
+    required this.tenantId,
+    required this.companyId,
+    required this.branchId,
+  });
+
+  final String tenantId;
+  final String companyId;
+  final String branchId;
+
+  @override
+  State<_TrustedPairingPermissionsDialog> createState() =>
+      _TrustedPairingPermissionsDialogState();
+}
+
+class _TrustedPairingPermissionsDialogState
+    extends State<_TrustedPairingPermissionsDialog> {
+  final _permissions = TextEditingController(text: 'extension.package.read');
+  String? _validationError;
+
+  @override
+  void dispose() {
+    _permissions.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final values = _permissions.text
+        .split(RegExp(r'[,\n]'))
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (values.isEmpty ||
+        values.toSet().length != values.length ||
+        values.any(
+          (permission) =>
+              !HostUserManagementClient.isGrantableNonManagementPermission(
+                permission,
+              ),
+        )) {
+      setState(
+        () => _validationError = context.ventioText(
+          'native.ui.trusted_pairing_permissions_invalid',
+        ),
+      );
+      return;
+    }
+    Navigator.pop(context, values);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(context.ventioText('native.ui.trusted_pairing_review_title')),
+    content: SizedBox(
+      width: 480,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.ventioText(
+              'native.ui.trusted_pairing_review_scope',
+              params: {
+                'tenantId': widget.tenantId,
+                'companyId': widget.companyId,
+                'branchId': widget.branchId,
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _permissions,
+            minLines: 2,
+            maxLines: 5,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: context.ventioText(
+                'native.ui.trusted_pairing_permissions',
+              ),
+              hintText: 'extension.package.read',
+              helperText: context.ventioText(
+                'native.ui.trusted_pairing_permissions_help',
+              ),
+              errorText: _validationError,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(context.ventioText('native.ui.trusted_pairing_uac_review')),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(context.ventioText('native.ui.cancel')),
+      ),
+      FilledButton(
+        onPressed: _submit,
+        child: Text(context.ventioText('native.ui.review_and_continue')),
+      ),
+    ],
+  );
+}
 
 String _formatUtc(DateTime timestamp) {
   final utc = timestamp.toUtc();

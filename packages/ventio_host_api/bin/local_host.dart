@@ -174,6 +174,7 @@ Future<void> runLocalHost({
     );
     final extensionPackages = PostgresExtensionPackageGateway(
       pool: runtime,
+      permissionDiagnosticPool: identityApiPool,
       admission: admission,
     );
     final extensionRecordQueries = PostgresExtensionRecordQueryGateway(

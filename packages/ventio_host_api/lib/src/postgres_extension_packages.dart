@@ -12,16 +12,26 @@ import 'recovery_authority.dart';
 /// Persistent package transfer backed by Host-owned security-definer functions.
 /// Shared approval is intentionally a separate operator action.
 class PostgresExtensionPackageGateway
-    implements AuthoritativeExtensionPackageGateway {
+    implements
+        AuthoritativeExtensionPackageGateway,
+        ExtensionPermissionDenialDiagnosticGateway {
   final Future<pg.Connection> Function()? connect;
   final pg.Pool<dynamic>? pool;
+  final Future<pg.Connection> Function()? permissionDiagnosticConnect;
+  final pg.Pool<dynamic>? permissionDiagnosticPool;
   final RecoveryAuthority admission;
 
   const PostgresExtensionPackageGateway({
     this.connect,
     this.pool,
+    this.permissionDiagnosticConnect,
+    this.permissionDiagnosticPool,
     required this.admission,
-  }) : assert((connect == null) != (pool == null));
+  }) : assert((connect == null) != (pool == null)),
+       assert(
+         (permissionDiagnosticConnect == null) ||
+             (permissionDiagnosticPool == null),
+       );
 
   @override
   Future<Map<String, dynamic>> submit({
@@ -182,6 +192,60 @@ class PostgresExtensionPackageGateway
         });
       },
     );
+  }
+
+  @override
+  Future<String> permissionDenialCode({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String permission,
+  }) async {
+    final digest = session.credentialDigest;
+    if (digest == null ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
+        (permissionDiagnosticConnect == null &&
+            permissionDiagnosticPool == null)) {
+      return 'AUTHORIZATION_STATE_UNAVAILABLE';
+    }
+    try {
+      return await withPostgresConnection(
+        connect: permissionDiagnosticConnect,
+        pool: permissionDiagnosticPool,
+        action: (connection) async {
+          await connection.execute("SET statement_timeout = '15s'");
+          await connection.execute("SET lock_timeout = '5s'");
+          return connection.runTx((tx) async {
+            await admission.admit(tx);
+            final rows = await tx.execute(
+              pg.Sql.named('''
+                SELECT ventio_security.permission_denial_reason(
+                  @digest,@tenant,@company,@branch,@permission)
+              '''),
+              parameters: {
+                'digest': digest,
+                'tenant': session.principal.tenantId,
+                'company': companyId,
+                'branch': branchId,
+                'permission': permission,
+              },
+            );
+            final code = rows.single[0];
+            return code is String &&
+                    const {
+                      'CREDENTIAL_CEILING_DENIED',
+                      'CREDENTIAL_SCOPE_DENIED',
+                      'USER_PERMISSION_DENIED',
+                      'AUTHORIZATION_STATE_UNAVAILABLE',
+                    }.contains(code)
+                ? code
+                : 'AUTHORIZATION_STATE_UNAVAILABLE';
+          });
+        },
+      );
+    } on Object {
+      return 'AUTHORIZATION_STATE_UNAVAILABLE';
+    }
   }
 }
 

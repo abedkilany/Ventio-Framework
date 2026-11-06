@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 
 namespace Ventio.HostSetupBroker;
 
@@ -51,7 +52,19 @@ internal static class Program
         "HOST_FIRST_ADMIN_PIPE_SERVER_INVALID",
         "HOST_FIRST_ADMIN_PIPE_RESPONSE_INVALID",
         "HOST_BOOTSTRAP_RESULT_PROTECTION_FAILED",
-        "HOST_BOOTSTRAP_ACKNOWLEDGEMENT_FAILED"
+        "HOST_BOOTSTRAP_ACKNOWLEDGEMENT_FAILED",
+        "HOST_TRUSTED_PAIRING_PERMISSION_NOT_GRANTED",
+        "HOST_TRUSTED_PAIRING_TARGET_UNAVAILABLE",
+        "HOST_TRUSTED_PAIRING_CODE_UNAVAILABLE",
+        "HOST_TRUSTED_PAIRING_RATE_LIMITED",
+        "HOST_TRUSTED_PAIRING_RECOVERY_UNAVAILABLE",
+        "HOST_TRUSTED_PAIRING_RECOVERY_BUSY",
+        "HOST_TRUSTED_PAIRING_OUTCOME_UNKNOWN",
+        "HOST_TRUSTED_PAIRING_REQUEST_USED",
+        "HOST_TRUSTED_PAIRING_FAILED",
+        "HOST_TRUSTED_PAIRING_REQUEST_INVALID",
+        "HOST_TRUSTED_PAIRING_CONFIGURATION_INVALID",
+        "HOST_TRUSTED_PAIRING_RESULT_INVALID"
     };
 
     [STAThread]
@@ -113,6 +126,8 @@ internal static class Program
 
         WriteStatus(request, "running", null, "PAYLOAD_VALIDATION");
         var paths = GetValidatedPaths();
+        if (request.TrustedPairing)
+            return CompleteTrustedPairing(request);
         if (request.ResumeFirstAdministrator)
             return CompleteFirstAdministrator(request);
 
@@ -237,6 +252,245 @@ internal static class Program
         return ExchangeFirstAdminPipe(bytes);
     }
 
+    private static int CompleteTrustedPairing(Request request)
+    {
+        var safeFailure = "HOST_TRUSTED_PAIRING_FAILED";
+        try
+        {
+            var input = ReadTrustedPairingRequest(request);
+            var reply = RequestTrustedPairing(request, input);
+            if (reply is not { Success: true, Status: "created", Pairing: not null } ||
+                !MatchesTrustedPairingRequest(request, input, reply.Pairing))
+            {
+                safeFailure = reply?.FailureCode is { } code && IsSafeFailureCode(code)
+                    ? code
+                    : "HOST_TRUSTED_PAIRING_RESULT_INVALID";
+                WriteProtectedTrustedPairingResult(request, null, safeFailure);
+                WriteStatus(request, "failed", safeFailure, "PAYLOAD_VALIDATION");
+                return 12;
+            }
+
+            WriteProtectedTrustedPairingResult(request, reply.Pairing, null);
+            WriteStatus(request, "complete", null, "PAYLOAD_VALIDATION");
+            return 0;
+        }
+        catch (TrustedPairingBrokerException exception)
+        {
+            safeFailure = exception.FailureCode;
+        }
+        catch
+        {
+            safeFailure = "HOST_TRUSTED_PAIRING_FAILED";
+        }
+
+        try
+        {
+            WriteProtectedTrustedPairingResult(request, null, safeFailure);
+            WriteStatus(request, "failed", safeFailure, "PAYLOAD_VALIDATION");
+        }
+        catch { }
+        return 12;
+    }
+
+    private static TrustedPairingRequestData ReadTrustedPairingRequest(Request request)
+    {
+        if (request.RequestFilePath is null)
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+        var expectedDirectory = TrustedOperatorDirectoryForSid(request.RequesterSid);
+        var requestPath = Path.GetFullPath(request.RequestFilePath);
+        if (!StringComparer.OrdinalIgnoreCase.Equals(Path.GetDirectoryName(requestPath), expectedDirectory) ||
+            !StringComparer.OrdinalIgnoreCase.Equals(Path.GetFileName(requestPath), request.OperationId + ".request.json"))
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+        var file = new FileInfo(requestPath);
+        if (!file.Exists || file.Length is <= 0 or > 16384 ||
+            (file.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+        var acl = file.GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
+        if (acl.GetOwner(typeof(SecurityIdentifier))?.Value != request.RequesterSid)
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+        var allowedSids = new HashSet<string>(StringComparer.Ordinal)
+        {
+            request.RequesterSid, "S-1-5-18", "S-1-5-32-544"
+        };
+        foreach (FileSystemAccessRule rule in acl.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+        {
+            if (rule.AccessControlType == AccessControlType.Allow &&
+                !allowedSids.Contains(rule.IdentityReference.Value))
+                throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+        }
+
+        byte[] bytes = [];
+        try
+        {
+            bytes = File.ReadAllBytes(requestPath);
+            using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 4 });
+            var root = document.RootElement;
+            var names = root.EnumerateObject().Select(property => property.Name).ToArray();
+            if (root.ValueKind != JsonValueKind.Object || names.Length != 9 ||
+                !names.ToHashSet(StringComparer.Ordinal).SetEquals([
+                    "formatVersion", "operationId", "tenantId", "operatorActorId",
+                    "targetActorId", "companyId", "branchId", "permissions",
+                    "operatorCredentialDigest"
+                ]) ||
+                root.GetProperty("formatVersion").GetInt32() != 1 ||
+                root.GetProperty("operationId").GetString() != request.OperationId ||
+                root.GetProperty("tenantId").GetString() != request.TenantId ||
+                root.GetProperty("companyId").GetString() != request.CompanyId ||
+                root.GetProperty("branchId").GetString() != request.BranchId)
+                throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+
+            static string ReadIdentifier(JsonElement root, string name)
+            {
+                var value = root.GetProperty(name).GetString();
+                if (value is null || !Regex.IsMatch(value,
+                    "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$", RegexOptions.CultureInvariant))
+                    throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+                return value;
+            }
+
+            var digest = root.GetProperty("operatorCredentialDigest").GetString();
+            var rawPermissions = root.GetProperty("permissions");
+            if (digest is null || !Regex.IsMatch(digest, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) ||
+                rawPermissions.ValueKind != JsonValueKind.Array || rawPermissions.GetArrayLength() is < 1 or > 64)
+                throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+            var permissions = rawPermissions.EnumerateArray().Select(value =>
+            {
+                var permission = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                if (permission is null ||
+                    !Regex.IsMatch(permission, "^[a-z][a-z0-9_.]{0,255}$", RegexOptions.CultureInvariant) ||
+                    Regex.IsMatch(permission, "^(identity|host|system|security|recovery|authorization)\\.", RegexOptions.CultureInvariant))
+                    throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+                return permission;
+            }).ToArray();
+            if (permissions.Distinct(StringComparer.Ordinal).Count() != permissions.Length)
+                throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+            return new TrustedPairingRequestData(
+                ReadIdentifier(root, "tenantId"),
+                ReadIdentifier(root, "operatorActorId"),
+                ReadIdentifier(root, "targetActorId"),
+                ReadIdentifier(root, "companyId"),
+                ReadIdentifier(root, "branchId"),
+                digest,
+                permissions);
+        }
+        catch (TrustedPairingBrokerException)
+        {
+            throw;
+        }
+        catch
+        {
+            throw new TrustedPairingBrokerException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+        }
+        finally
+        {
+            if (bytes.Length > 0) CryptographicOperations.ZeroMemory(bytes);
+            try { File.Delete(requestPath); } catch { }
+        }
+    }
+
+    internal static string TrustedOperatorDirectoryForSid(string userSid)
+    {
+        if (!Regex.IsMatch(userSid, "^S-1-\\d+(?:-\\d+)+$", RegexOptions.CultureInvariant))
+            throw new ArgumentException("User SID is invalid.", nameof(userSid));
+        _ = new SecurityIdentifier(userSid);
+        using var profileKey = Registry.LocalMachine.OpenSubKey(
+            @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\" + userSid);
+        var profileValue = profileKey?.GetValue(
+            "ProfileImagePath", null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
+        if (string.IsNullOrWhiteSpace(profileValue)) throw new InvalidOperationException();
+        var systemDrive = Path.GetPathRoot(Environment.SystemDirectory);
+        if (string.IsNullOrWhiteSpace(systemDrive)) throw new InvalidOperationException();
+        var profilePath = profileValue.Replace("%SystemDrive%", systemDrive, StringComparison.OrdinalIgnoreCase);
+        if (!Path.IsPathFullyQualified(profilePath) || Regex.IsMatch(profilePath, "%[^%]+%", RegexOptions.CultureInvariant))
+            throw new InvalidOperationException();
+        return Path.GetFullPath(Path.Combine(profilePath, "AppData", "Local", "VentioFramework", "TrustedOperator"));
+    }
+
+    private static BootstrapReply? RequestTrustedPairing(Request request, TrustedPairingRequestData input)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            operation = "trusted-pairing",
+            tenantId = input.TenantId,
+            operatorActorId = input.OperatorActorId,
+            targetActorId = input.TargetActorId,
+            companyId = input.CompanyId,
+            branchId = input.BranchId,
+            requestId = request.OperationId,
+            operatorCredentialDigest = input.OperatorCredentialDigest,
+            permissions = string.Join(',', input.Permissions),
+        }, PipeJsonOptions);
+        var reply = ExchangeFirstAdminPipe(bytes);
+        return reply;
+    }
+
+    private static bool MatchesTrustedPairingRequest(
+        Request request,
+        TrustedPairingRequestData input,
+        TrustedPairingResult? pairing) =>
+        pairing is not null && pairing.PairingId == "pair_" + request.OperationId &&
+        pairing.ActorId == input.TargetActorId && pairing.CompanyId == input.CompanyId &&
+        pairing.BranchId == input.BranchId &&
+        Regex.IsMatch(pairing.Code, "^[A-Za-z0-9_-]{43}$", RegexOptions.CultureInvariant) &&
+        pairing.Permissions.Order(StringComparer.Ordinal)
+            .SequenceEqual(input.Permissions.Order(StringComparer.Ordinal), StringComparer.Ordinal) &&
+        DateTimeOffset.TryParse(pairing.ExpiresAtUtc, out var expiry) &&
+        expiry > DateTimeOffset.UtcNow && expiry <= DateTimeOffset.UtcNow.AddMinutes(5);
+
+    private static void WriteProtectedTrustedPairingResult(
+        Request request,
+        TrustedPairingResult? pairing,
+        string? failureCode)
+    {
+        var statusDirectory = GetStatusDirectory();
+        var destination = Path.Combine(statusDirectory, request.OperationId + ".pairing.dpapi");
+        var temporary = Path.Combine(statusDirectory, request.OperationId + ".pairing.tmp");
+        var resultBytes = JsonSerializer.SerializeToUtf8Bytes(new ProtectedTrustedPairingResult(
+            1,
+            request.OperationId,
+            pairing is null ? "failed" : "created",
+            pairing?.PairingId,
+            pairing?.ActorId,
+            pairing?.CompanyId,
+            pairing?.BranchId,
+            pairing?.Permissions,
+            pairing?.Code,
+            pairing?.ExpiresAtUtc,
+            failureCode), PipeJsonOptions);
+        var entropy = Encoding.UTF8.GetBytes(request.OperationId);
+        // The UAC consent prompt can run under a different administrator
+        // account than the signed-in Ventio operator. Machine-scope DPAPI keeps
+        // the result decryptable for that operator while the file DACL below
+        // limits which local principals can read it.
+        var protectedBytes = ProtectForLocalMachine(resultBytes, entropy);
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(protectedBytes);
+                stream.Flush(true);
+            }
+            var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+            var requester = new SecurityIdentifier(request.RequesterSid);
+            var security = new FileSecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.SetOwner(administrators);
+            security.AddAccessRule(new FileSystemAccessRule(administrators, FileSystemRights.FullControl, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(system, FileSystemRights.FullControl, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(requester, FileSystemRights.Read | FileSystemRights.Delete, AccessControlType.Allow));
+            new FileInfo(temporary).SetAccessControl(security);
+            File.Move(temporary, destination, false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(resultBytes);
+            CryptographicOperations.ZeroMemory(entropy);
+            CryptographicOperations.ZeroMemory(protectedBytes);
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
     private static bool AcknowledgeFirstAdministrator(string requestId)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new
@@ -278,12 +532,15 @@ internal static class Program
             }
             if (response.Length is <= 0 or > 8192) return null;
 
-            using var document = JsonDocument.Parse(response.ToArray(), new JsonDocumentOptions { MaxDepth = 4 });
+            var responseBytes = response.ToArray();
+            try
+            {
+            using var document = JsonDocument.Parse(responseBytes, new JsonDocumentOptions { MaxDepth = 4 });
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return null;
             var allowed = new HashSet<string>(StringComparer.Ordinal)
             {
-                "success", "status", "requestId", "actorId", "token", "expiresAt", "failureCode"
+                "success", "status", "requestId", "actorId", "token", "expiresAt", "failureCode", "pairing"
             };
             var seen = new HashSet<string>(StringComparer.Ordinal);
             if (root.EnumerateObject().Any(property =>
@@ -304,6 +561,29 @@ internal static class Program
             var responseFailureCode = OptionalString(root, "failureCode");
             if (responseFailureCode is not null && !IsSafeFailureCode(responseFailureCode)) return null;
 
+            TrustedPairingResult? pairing = null;
+            if (root.TryGetProperty("pairing", out var rawPairing) && rawPairing.ValueKind != JsonValueKind.Null)
+            {
+                if (rawPairing.ValueKind != JsonValueKind.Object) return null;
+                var pairingNames = rawPairing.EnumerateObject().Select(property => property.Name).ToArray();
+                if (pairingNames.Length != 7 || !pairingNames.ToHashSet(StringComparer.Ordinal).SetEquals([
+                    "pairingId", "actorId", "companyId", "branchId", "permissions", "code", "expiresAtUtc"
+                ])) return null;
+                var rawPermissions = rawPairing.GetProperty("permissions");
+                if (rawPermissions.ValueKind != JsonValueKind.Array) return null;
+                var permissions = rawPermissions.EnumerateArray().Select(value =>
+                    value.ValueKind == JsonValueKind.String ? value.GetString() : null).ToArray();
+                if (permissions.Any(value => value is null)) return null;
+                pairing = new TrustedPairingResult(
+                    rawPairing.GetProperty("pairingId").GetString() ?? "",
+                    rawPairing.GetProperty("actorId").GetString() ?? "",
+                    rawPairing.GetProperty("companyId").GetString() ?? "",
+                    rawPairing.GetProperty("branchId").GetString() ?? "",
+                    permissions.Cast<string>().ToArray(),
+                    rawPairing.GetProperty("code").GetString() ?? "",
+                    rawPairing.GetProperty("expiresAtUtc").GetString() ?? "");
+            }
+
             return new BootstrapReply(
                 success.GetBoolean(),
                 status.GetString()!,
@@ -311,7 +591,13 @@ internal static class Program
                 OptionalString(root, "actorId"),
                 OptionalString(root, "token"),
                 OptionalString(root, "expiresAt"),
-                responseFailureCode);
+                responseFailureCode,
+                pairing);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(responseBytes);
+            }
         }
         catch
         {
@@ -494,6 +780,12 @@ internal static class Program
     }
 
     internal static byte[] ProtectForCurrentUser(byte[] plaintext, byte[] entropy)
+        => ProtectData(plaintext, entropy, flags: 1);
+
+    internal static byte[] ProtectForLocalMachine(byte[] plaintext, byte[] entropy)
+        => ProtectData(plaintext, entropy, flags: 5);
+
+    private static byte[] ProtectData(byte[] plaintext, byte[] entropy, int flags)
     {
         var inputPointer = Marshal.AllocHGlobal(plaintext.Length);
         var entropyPointer = Marshal.AllocHGlobal(entropy.Length);
@@ -509,7 +801,7 @@ internal static class Program
                 ref optionalEntropy,
                 IntPtr.Zero,
                 IntPtr.Zero,
-                1,
+                flags,
                 out var output))
             {
                 throw new InvalidOperationException();
@@ -804,10 +1096,22 @@ internal static class Program
         string CompanyId,
         string BranchId,
         string RequesterSid,
-        bool ResumeFirstAdministrator = false)
+        bool ResumeFirstAdministrator = false,
+        bool TrustedPairing = false,
+        string? RequestFilePath = null)
     {
         internal static Request Parse(IReadOnlyList<string> args)
         {
+            if (args.Count == 7 && args[0] == "--trusted-pairing" &&
+                args[1].Length == 32 && Guid.TryParseExact(args[1], "N", out var pairingOperationId) &&
+                IsValidIdentifier(args[2]) && IsValidIdentifier(args[3]) && IsValidIdentifier(args[4]) &&
+                Regex.IsMatch(args[5], "^S-1-\\d+(?:-\\d+)+$", RegexOptions.CultureInvariant) &&
+                Path.IsPathFullyQualified(args[6]))
+            {
+                _ = new SecurityIdentifier(args[5]);
+                return new Request(pairingOperationId.ToString("N"), args[2], args[3], args[4], args[5],
+                    TrustedPairing: true, RequestFilePath: args[6]);
+            }
             if (args.Count != 6 || (args[0] != "--setup-new-host" && args[0] != "--resume-first-administrator") ||
                 args[1].Length != 32 || !Guid.TryParseExact(args[1], "N", out var operationId) ||
                 !IsValidIdentifier(args[2]) || !IsValidIdentifier(args[3]) || !IsValidIdentifier(args[4]) ||
@@ -833,7 +1137,44 @@ internal static class Program
         string? ActorId,
         string? Token,
         string? ExpiresAt,
+        string? FailureCode,
+        TrustedPairingResult? Pairing = null);
+
+    private sealed record TrustedPairingResult(
+        string PairingId,
+        string ActorId,
+        string CompanyId,
+        string BranchId,
+        string[] Permissions,
+        string Code,
+        string ExpiresAtUtc);
+
+    private sealed record TrustedPairingRequestData(
+        string TenantId,
+        string OperatorActorId,
+        string TargetActorId,
+        string CompanyId,
+        string BranchId,
+        string OperatorCredentialDigest,
+        string[] Permissions);
+
+    private sealed record ProtectedTrustedPairingResult(
+        int FormatVersion,
+        string OperationId,
+        string Status,
+        string? PairingId,
+        string? ActorId,
+        string? CompanyId,
+        string? BranchId,
+        string[]? Permissions,
+        string? Code,
+        string? ExpiresAtUtc,
         string? FailureCode);
+
+    private sealed class TrustedPairingBrokerException(string failureCode) : Exception
+    {
+        internal string FailureCode { get; } = failureCode;
+    }
 
     private sealed record ProtectedBootstrapResult(
         int FormatVersion,

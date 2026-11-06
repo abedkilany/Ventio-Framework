@@ -7,12 +7,14 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 internal static class Program
 {
     private const string ServiceName = "VentioHost";
     internal const string HostReadyMessage = "VENTIO_HOST_READY";
     internal const int FirstAdministratorHelperTimeoutSeconds = 60;
+    internal const int TrustedPairingHelperTimeoutSeconds = 90;
     private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(90);
     private const int ServiceWin32OwnProcess = 0x00000010;
     private const int ServiceStartPending = 2;
@@ -105,7 +107,8 @@ internal static class Program
                 await ExecuteFirstAdministratorBootstrapAsync(
                     receipt, bootstrapEnvironment, cancellationToken).ConfigureAwait(false);
                 bootstrapCompleted.TrySetResult();
-            });
+            }, (command, callerSid, cancellationToken) =>
+                ExecuteTrustedPairingAsync(command, callerSid, bootstrapEnvironment, cancellationToken));
             brokerCancellation = new CancellationTokenSource();
             var brokerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             brokerTask = Task.Run(() => broker.RunAsync(brokerCancellation.Token, brokerReady));
@@ -392,6 +395,192 @@ internal static class Program
                 root.TryGetProperty("actorId", out var actor) && actor.GetString() == expectedActorId;
         }
         catch { return false; }
+    }
+
+    private static async Task<TrustedPairingResult> ExecuteTrustedPairingAsync(
+        BootstrapCommand command,
+        string callerSid,
+        Dictionary<string, string>? protectedEnvironment,
+        CancellationToken cancellationToken)
+    {
+        var executable = Path.Combine(AppContext.BaseDirectory, "ventio_trusted_pairing.exe");
+        if (!File.Exists(executable) || protectedEnvironment is null ||
+            command.Operation != "trusted-pairing" || command.TenantId is null ||
+            command.CompanyId is null || command.BranchId is null ||
+            command.RequestId is null || command.OperatorCredentialDigest is null ||
+            command.OperatorActorId is null || command.TargetActorId is null ||
+            command.PermissionsCsv is null)
+            throw new TrustedPairingOperationException("HOST_TRUSTED_PAIRING_CONFIGURATION_INVALID");
+
+        var permissions = command.PermissionsCsv.Split(',', StringSplitOptions.None);
+        if (permissions.Length is < 1 or > 64)
+            throw new TrustedPairingOperationException("HOST_TRUSTED_PAIRING_REQUEST_INVALID");
+        var request = new
+        {
+            tenantId = command.TenantId,
+            operatorActorId = command.OperatorActorId,
+            targetActorId = command.TargetActorId,
+            companyId = command.CompanyId,
+            branchId = command.BranchId,
+            requestId = command.RequestId,
+            permissions,
+            operatorCredentialDigest = command.OperatorCredentialDigest,
+            windowsAdminTag = CreateWindowsAdminTag(callerSid),
+        };
+        var requestBytes = JsonSerializer.SerializeToUtf8Bytes(
+            request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var start = new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.Environment.Clear();
+        CopyRequiredSystemEnvironment(start.Environment);
+        start.Environment["PATH"] = Path.Combine(AppContext.BaseDirectory, "postgresql", "bin");
+        foreach (var pair in protectedEnvironment) start.Environment[pair.Key] = pair.Value;
+        using var process = new Process { StartInfo = start };
+        byte[]? output = null;
+        try
+        {
+            if (!process.Start())
+                throw new TrustedPairingOperationException("HOST_TRUSTED_PAIRING_HELPER_FAILED");
+            start.Environment.Clear();
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            var stdoutTask = ReadBoundedAsync(process.StandardOutput.BaseStream, 8192, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(TrustedPairingHelperTimeoutSeconds));
+            await process.StandardInput.BaseStream.WriteAsync(requestBytes, timeout.Token).ConfigureAwait(false);
+            await process.StandardInput.BaseStream.FlushAsync(timeout.Token).ConfigureAwait(false);
+            process.StandardInput.Close();
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new TrustedPairingOperationException("HOST_TRUSTED_PAIRING_OUTCOME_UNKNOWN");
+            }
+            catch
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+            output = await stdoutTask.ConfigureAwait(false);
+            _ = await stderrTask.ConfigureAwait(false);
+            return ParseTrustedPairingResult(output, command, permissions, process.ExitCode);
+        }
+        catch (TrustedPairingOperationException)
+        {
+            throw;
+        }
+        catch
+        {
+            throw new TrustedPairingOperationException("HOST_TRUSTED_PAIRING_OUTCOME_UNKNOWN");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(requestBytes);
+            if (output is not null) CryptographicOperations.ZeroMemory(output);
+            start.Environment.Clear();
+        }
+    }
+
+    private static TrustedPairingResult ParseTrustedPairingResult(
+        byte[] output,
+        BootstrapCommand command,
+        string[] requestedPermissions,
+        int exitCode)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output, new JsonDocumentOptions { MaxDepth = 4 });
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException();
+            if (status.GetString() == "failed")
+            {
+                if (exitCode == 0 || !root.TryGetProperty("failureCode", out var failure) ||
+                    failure.ValueKind != JsonValueKind.String)
+                    throw new InvalidDataException();
+                var safeFailure = failure.GetString() switch
+                {
+                    "OPERATOR_OR_PERMISSION_DENIED" => "HOST_TRUSTED_PAIRING_PERMISSION_NOT_GRANTED",
+                    "TARGET_UNAVAILABLE" => "HOST_TRUSTED_PAIRING_TARGET_UNAVAILABLE",
+                    "PAIRING_CODE_UNAVAILABLE" => "HOST_TRUSTED_PAIRING_CODE_UNAVAILABLE",
+                    "PAIRING_RATE_LIMITED" => "HOST_TRUSTED_PAIRING_RATE_LIMITED",
+                    "RECOVERY_AUTHORITY_UNAVAILABLE" => "HOST_TRUSTED_PAIRING_RECOVERY_UNAVAILABLE",
+                    "RECOVERY_AUTHORITY_BUSY" => "HOST_TRUSTED_PAIRING_RECOVERY_BUSY",
+                    "OUTCOME_UNKNOWN" => "HOST_TRUSTED_PAIRING_OUTCOME_UNKNOWN",
+                    "REQUEST_ALREADY_USED" => "HOST_TRUSTED_PAIRING_REQUEST_USED",
+                    _ => "HOST_TRUSTED_PAIRING_FAILED",
+                };
+                throw new TrustedPairingOperationException(safeFailure);
+            }
+            if (exitCode != 0 || status.GetString() != "created" ||
+                command.RequestId is null || command.TargetActorId is null ||
+                command.CompanyId is null || command.BranchId is null ||
+                !root.TryGetProperty("pairingId", out var pairingId) ||
+                !root.TryGetProperty("actorId", out var actorId) ||
+                !root.TryGetProperty("companyId", out var companyId) ||
+                !root.TryGetProperty("branchId", out var branchId) ||
+                !root.TryGetProperty("permissions", out var permissionValues) ||
+                permissionValues.ValueKind != JsonValueKind.Array ||
+                !root.TryGetProperty("code", out var code) ||
+                !root.TryGetProperty("expiresAtUtc", out var expiresText))
+                throw new InvalidDataException();
+            if (pairingId.ValueKind != JsonValueKind.String ||
+                actorId.ValueKind != JsonValueKind.String ||
+                companyId.ValueKind != JsonValueKind.String ||
+                branchId.ValueKind != JsonValueKind.String ||
+                code.ValueKind != JsonValueKind.String ||
+                expiresText.ValueKind != JsonValueKind.String ||
+                pairingId.GetString() != "pair_" + command.RequestId ||
+                actorId.GetString() != command.TargetActorId ||
+                companyId.GetString() != command.CompanyId ||
+                branchId.GetString() != command.BranchId ||
+                !Regex.IsMatch(code.GetString()!, "^[A-Za-z0-9_-]{43}$", RegexOptions.CultureInvariant) ||
+                !DateTimeOffset.TryParse(expiresText.GetString(), out var expiry) ||
+                expiry <= DateTimeOffset.UtcNow || expiry > DateTimeOffset.UtcNow.AddMinutes(5))
+                throw new InvalidDataException();
+            var actualPermissions = permissionValues.EnumerateArray()
+                .Select(value => value.ValueKind == JsonValueKind.String ? value.GetString() : null)
+                .ToArray();
+            if (actualPermissions.Any(value => value is null) ||
+                !actualPermissions.Cast<string>().Order(StringComparer.Ordinal)
+                    .SequenceEqual(requestedPermissions.Order(StringComparer.Ordinal)))
+                throw new InvalidDataException();
+            return new TrustedPairingResult(
+                pairingId.GetString()!, actorId.GetString()!, companyId.GetString()!,
+                branchId.GetString()!, actualPermissions.Cast<string>().ToArray(),
+                code.GetString()!, expiry.ToUniversalTime().ToString("O"));
+        }
+        catch (TrustedPairingOperationException)
+        {
+            throw;
+        }
+        catch
+        {
+            throw new TrustedPairingOperationException("HOST_TRUSTED_PAIRING_RESULT_INVALID");
+        }
+    }
+
+    private static string CreateWindowsAdminTag(string callerSid)
+    {
+        var input = Encoding.UTF8.GetBytes(callerSid);
+        try
+        {
+            var digest = SHA256.HashData(input);
+            try { return Convert.ToHexString(digest.AsSpan(0, 8)).ToLowerInvariant(); }
+            finally { CryptographicOperations.ZeroMemory(digest); }
+        }
+        finally { CryptographicOperations.ZeroMemory(input); }
     }
 
     private static string CreateOperatorLabel(string callerSid)

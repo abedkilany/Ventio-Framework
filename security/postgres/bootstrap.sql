@@ -800,6 +800,8 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.scoped_admin_change(text,text,text,jsonb),
   ventio_security.scoped_user_admin_change(text,text,text,jsonb),
   ventio_security.scoped_pairing_create(text,text,text,text,text,text),
+  ventio_security.permission_denial_reason(text,text,text,text,text),
+  ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text),
   ventio_security.scoped_pairing_redeem(text,text,text,text),
   ventio_security.scoped_device_revoke(text,text,text,text),
   ventio_security.scoped_device_credential_rotate(text,text,text,text,text,text,text),

@@ -58,6 +58,7 @@ if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
     $manifest.hostExecutable -ne 'ventio_host.exe' -or
     $manifest.migrationExecutable -ne 'ventio_migrate.exe' -or
     $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or
+    $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
     ($manifest.postgresIncludedComponents -join ',') -ne 'bin,lib,share,*.txt' -or
@@ -92,6 +93,9 @@ foreach ($entry in $manifest.verifiedFiles) {
 }
 if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'VentioSetupBroker.exe' }).Count) {
   throw 'Host setup broker is not covered by the critical payload manifest.'
+}
+if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_pairing.exe' }).Count) {
+  throw 'Trusted pairing helper is not covered by the critical payload manifest.'
 }
 
 $versionLine = Select-String -LiteralPath $pubspec -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$'

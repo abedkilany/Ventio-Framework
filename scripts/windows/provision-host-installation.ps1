@@ -277,6 +277,7 @@ foreach ($file in @(
   (Join-Path $payload 'ventio_host.exe'),
   (Join-Path $payload 'ventio_migrate.exe'),
   (Join-Path $payload 'ventio_identity_bootstrap.exe'),
+  (Join-Path $payload 'ventio_trusted_pairing.exe'),
   (Join-Path $payload 'VentioHostService.exe'),
   (Join-Path $payload 'VentioSetupBroker.exe'),
   (Join-Path $payload 'postgresql\bin\postgres.exe'),
@@ -289,6 +290,7 @@ foreach ($file in @(
 $manifest = Get-Content -LiteralPath (Join-Path $payload 'payload-manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
+    $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
   throw 'HOST_PAYLOAD_MANIFEST_INVALID'
 }
@@ -298,6 +300,13 @@ if ($brokerEntry.Count -ne 1 -or
     (Get-Item -LiteralPath $brokerPath).Length -ne [long]$brokerEntry[0].length -or
     (Get-FileHash -LiteralPath $brokerPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$brokerEntry[0].sha256) {
   throw 'HOST_SETUP_BROKER_MANIFEST_ENTRY_INVALID'
+}
+$trustedPairingEntry = @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_pairing.exe' })
+$trustedPairingPath = Join-Path $payload 'ventio_trusted_pairing.exe'
+if ($trustedPairingEntry.Count -ne 1 -or
+    (Get-Item -LiteralPath $trustedPairingPath).Length -ne [long]$trustedPairingEntry[0].length -or
+    (Get-FileHash -LiteralPath $trustedPairingPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$trustedPairingEntry[0].sha256) {
+  throw 'HOST_TRUSTED_PAIRING_MANIFEST_ENTRY_INVALID'
 }
 $setupScriptNames = @(
   'provision-host-installation.ps1', 'provision-postgres-service.ps1',

@@ -69,11 +69,11 @@ try {
   }
   $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
   foreach ($relative in @(
-    'ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'VentioHostService.exe',
+    'ventio_host.exe', 'ventio_migrate.exe', 'ventio_identity_bootstrap.exe', 'ventio_trusted_pairing.exe', 'VentioHostService.exe',
     'VentioSetupBroker.exe', 'postgresql\bin\postgres.exe', 'postgresql\bin\initdb.exe',
     'postgresql\bin\pg_ctl.exe', 'postgresql\bin\psql.exe',
     'migrations\029_identity_device_activity.sql', 'migrations\030_identity_user_enable.sql',
-    'security\bootstrap.sql', 'security\pairing_create.sql'
+    'security\bootstrap.sql', 'security\pairing.sql', 'security\pairing_create.sql'
   )) {
     if (-not (Test-Path -LiteralPath (Join-Path $hostRoot $relative) -PathType Leaf)) {
       throw 'Unified installer is missing a required Host runtime component.'

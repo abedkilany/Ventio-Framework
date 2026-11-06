@@ -15,6 +15,7 @@ export 'src/identity_administration.dart';
 export 'src/role_administration.dart';
 export 'src/management.dart';
 export 'src/user_administration.dart';
+export 'src/trusted_windows_pairing.dart';
 export 'src/pairing_administration.dart';
 export 'src/device_administration.dart';
 export 'src/persistent_identity.dart';

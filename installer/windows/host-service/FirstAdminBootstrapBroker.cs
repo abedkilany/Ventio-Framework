@@ -13,7 +13,25 @@ internal sealed record BootstrapCommand(
     string? TenantId = null,
     string? CompanyId = null,
     string? BranchId = null,
-    string? RequestId = null);
+    string? RequestId = null,
+    string? OperatorCredentialDigest = null,
+    string? OperatorActorId = null,
+    string? TargetActorId = null,
+    string? PermissionsCsv = null);
+
+internal sealed record TrustedPairingResult(
+    string PairingId,
+    string ActorId,
+    string CompanyId,
+    string BranchId,
+    string[] Permissions,
+    string Code,
+    string ExpiresAtUtc);
+
+internal sealed class TrustedPairingOperationException(string failureCode) : Exception
+{
+    internal string FailureCode { get; } = failureCode;
+}
 
 internal sealed record BootstrapReply(
     bool Success,
@@ -23,7 +41,8 @@ internal sealed record BootstrapReply(
     string? Token = null,
     string? ExpiresAt = null,
     string? FailureCode = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] BootstrapScope? Scope = null);
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] BootstrapScope? Scope = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TrustedPairingResult? Pairing = null);
 
 internal sealed record BootstrapScope(string TenantId, string CompanyId, string BranchId);
 
@@ -50,13 +69,16 @@ internal sealed class FirstAdminBootstrapBroker
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly BootstrapReceiptCoordinator _coordinator;
     private readonly Func<BootstrapReceipt, CancellationToken, Task> _executeBootstrap;
+    private readonly Func<BootstrapCommand, string, CancellationToken, Task<TrustedPairingResult>> _executeTrustedPairing;
 
     internal FirstAdminBootstrapBroker(
         BootstrapReceiptCoordinator coordinator,
-        Func<BootstrapReceipt, CancellationToken, Task> executeBootstrap)
+        Func<BootstrapReceipt, CancellationToken, Task> executeBootstrap,
+        Func<BootstrapCommand, string, CancellationToken, Task<TrustedPairingResult>> executeTrustedPairing)
     {
         _coordinator = coordinator;
         _executeBootstrap = executeBootstrap;
+        _executeTrustedPairing = executeTrustedPairing;
     }
 
     internal async Task RunAsync(CancellationToken cancellationToken, TaskCompletionSource ready)
@@ -85,12 +107,21 @@ internal sealed class FirstAdminBootstrapBroker
                     {
                         "bootstrap" => await _coordinator.BootstrapAsync(
                             command, callerSid, _executeBootstrap, operationTimeout.Token).ConfigureAwait(false),
+                        "trusted-pairing" => new BootstrapReply(
+                            true,
+                            "created",
+                            Pairing: await _executeTrustedPairing(
+                                command, callerSid, operationTimeout.Token).ConfigureAwait(false)),
                         "acknowledge" => _coordinator.Acknowledge(command, callerSid),
                         "status" => _coordinator.InspectStatus(callerSid),
                         _ => throw new InvalidDataException(),
                     };
                 }
                 catch (FirstAdministratorBootstrapFailureException exception)
+                {
+                    reply = new BootstrapReply(false, "failed", FailureCode: exception.FailureCode);
+                }
+                catch (TrustedPairingOperationException exception)
                 {
                     reply = new BootstrapReply(false, "failed", FailureCode: exception.FailureCode);
                 }
@@ -132,7 +163,8 @@ internal sealed class FirstAdminBootstrapBroker
             if (fields.ContainsKey(property.Name) || property.Value.ValueKind != JsonValueKind.String)
                 throw new InvalidDataException();
             var value = property.Value.GetString();
-            if (value is null || value.Length > 256) throw new InvalidDataException();
+            var maximumFieldLength = property.Name == "permissions" ? 4096 : 256;
+            if (value is null || value.Length > maximumFieldLength) throw new InvalidDataException();
             fields.Add(property.Name, value);
         }
 
@@ -154,6 +186,31 @@ internal sealed class FirstAdminBootstrapBroker
             IsOpaqueToken(fields["requestId"]))
         {
             return new BootstrapCommand(operation, RequestId: fields["requestId"]);
+        }
+        if (operation == "trusted-pairing" &&
+            fields.Count == 9 &&
+            fields.Keys.ToHashSet(StringComparer.Ordinal).SetEquals([
+                "operation", "tenantId", "companyId", "branchId", "requestId",
+                "operatorCredentialDigest", "operatorActorId", "targetActorId",
+                "permissions"
+            ]) &&
+            Regex.IsMatch(fields["requestId"], "^[0-9a-f]{32}$", RegexOptions.CultureInvariant) &&
+            Regex.IsMatch(fields["operatorCredentialDigest"], "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) &&
+            fields["permissions"].Split(',').Length is > 0 and <= 64 &&
+            fields["permissions"].Split(',').All(permission =>
+                Regex.IsMatch(permission, "^[a-z][a-z0-9_.]{0,255}$", RegexOptions.CultureInvariant) &&
+                !Regex.IsMatch(permission, "^(identity|host|system|security|recovery|authorization)\\.", RegexOptions.CultureInvariant)))
+        {
+            return new BootstrapCommand(
+                operation,
+                ValidateIdentifier(fields["tenantId"]),
+                ValidateIdentifier(fields["companyId"]),
+                ValidateIdentifier(fields["branchId"]),
+                fields["requestId"],
+                fields["operatorCredentialDigest"],
+                ValidateIdentifier(fields["operatorActorId"]),
+                ValidateIdentifier(fields["targetActorId"]),
+                fields["permissions"]);
         }
         throw new InvalidDataException();
     }

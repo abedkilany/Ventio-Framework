@@ -34,3 +34,15 @@ abstract interface class ExtensionPackageGateway {
 /// Marker required when package routes are reachable beyond loopback.
 abstract interface class AuthoritativeExtensionPackageGateway
     implements ExtensionPackageGateway {}
+
+/// Optional, read-only diagnostic used after an authenticated package request
+/// fails the current-session permission projection. Implementations may return
+/// only a stable safe reason code for this credential and exact branch.
+abstract interface class ExtensionPermissionDenialDiagnosticGateway {
+  Future<String> permissionDenialCode({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String permission,
+  });
+}

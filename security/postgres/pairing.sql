@@ -39,6 +39,218 @@ END $fn$;
 -- its digest, plus a fixed CLIENT role and one exact branch, enter the database.
 \ir pairing_create.sql
 
+-- Safe classification for a 403 after the current-session projection denied a
+-- permission. This reports only whether this credential's own exact-scope
+-- grant exists and whether its fixed ceiling admits it; it never returns
+-- grant rows, credential metadata, or permission lists.
+CREATE OR REPLACE FUNCTION ventio_security.permission_denial_reason(
+    p_digest text, p_tenant text, p_company text, p_branch text,
+    p_permission text)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+        granted boolean := false;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_tenant IS NULL OR p_company IS NULL OR p_branch IS NULL OR
+      p_permission IS NULL OR p_permission !~ '^[a-z][a-z0-9_.]{0,255}$' THEN
+    RETURN 'AUTHORIZATION_STATE_UNAVAILABLE';
+  END IF;
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.tenant_id=p_tenant
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+      AND u.disabled_at IS NULL AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND THEN RETURN 'AUTHORIZATION_STATE_UNAVAILABLE'; END IF;
+
+  IF credential_row.allowed_scopes IS NOT NULL AND NOT EXISTS (
+      SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
+      WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch) THEN
+    RETURN 'CREDENTIAL_SCOPE_DENIED';
+  END IF;
+
+  SELECT EXISTS (
+      SELECT FROM public.ventio_identity_grants g
+        WHERE g.tenant_id=p_tenant AND g.actor_id=credential_row.actor_id
+          AND g.company_id=p_company AND g.branch_id=p_branch
+          AND g.permission=p_permission
+      UNION ALL
+      SELECT FROM public.ventio_identity_role_assignments a
+        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
+        WHERE a.tenant_id=p_tenant AND a.actor_id=credential_row.actor_id
+          AND a.company_id=p_company AND a.branch_id=p_branch
+          AND rp.permission=p_permission)
+    INTO granted;
+  IF NOT granted THEN RETURN 'USER_PERMISSION_DENIED'; END IF;
+  IF credential_row.allowed_scopes IS NOT NULL AND NOT EXISTS (
+      SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
+      WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
+        AND s->'permissions' ? p_permission) THEN
+    RETURN 'CREDENTIAL_CEILING_DENIED';
+  END IF;
+  RETURN 'AUTHORIZATION_STATE_UNAVAILABLE';
+END $fn$;
+
+REVOKE ALL ON FUNCTION ventio_security.permission_denial_reason(
+    text,text,text,text,text)
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+GRANT EXECUTE ON FUNCTION ventio_security.permission_denial_reason(
+    text,text,text,text,text) TO ventio_identity_api;
+
+-- A local Windows administrator may explicitly admit a narrowly scoped Client
+-- pairing when the requesting Host user's credential ceiling is too small to
+-- issue it through ordinary pairing. This function is reachable only through
+-- the Host service's authenticated administrator pipe; it still requires a
+-- live pairing-manager credential, exact direct authority, current target
+-- grants/roles, Recovery Authority proof and an auditable one-time digest.
+CREATE OR REPLACE FUNCTION ventio_security.trusted_windows_pairing_create(
+    p_operator_digest text, p_tenant text, p_operator_actor text,
+    p_company text, p_branch text,
+    p_target_actor text, p_pairing_id text, p_pairing_digest text,
+    p_permissions text[], p_windows_admin_tag text)
+RETURNS timestamptz LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE operator_row public.ventio_identity_credentials%ROWTYPE;
+        target_disabled timestamptz; target_permissions text[] := '{}';
+        created_at_value timestamptz; expires_at_value timestamptz;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      NOT ventio_security.recovery_guard() OR
+      p_operator_digest IS NULL OR p_operator_digest !~ '^[0-9a-f]{64}$' OR
+      p_tenant IS NULL OR length(trim(p_tenant)) NOT BETWEEN 1 AND 256 OR
+      p_operator_actor IS NULL OR length(trim(p_operator_actor)) NOT BETWEEN 1 AND 256 OR
+      p_company IS NULL OR length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      p_branch IS NULL OR length(trim(p_branch)) NOT BETWEEN 1 AND 256 OR
+      p_target_actor IS NULL OR length(trim(p_target_actor)) NOT BETWEEN 1 AND 256 OR
+      p_pairing_id IS NULL OR p_pairing_id !~ '^pair_[0-9a-f]{32}$' OR
+      p_pairing_digest IS NULL OR p_pairing_digest !~ '^[0-9a-f]{64}$' OR
+      p_windows_admin_tag IS NULL OR p_windows_admin_tag !~ '^[0-9a-f]{16}$' OR
+      p_permissions IS NULL OR cardinality(p_permissions) NOT BETWEEN 1 AND 64 OR
+      cardinality(ARRAY(SELECT DISTINCT permission FROM unnest(p_permissions) permission))
+        <> cardinality(p_permissions) OR
+      EXISTS (SELECT FROM unnest(p_permissions) permission WHERE
+        permission IS NULL OR permission !~ '^[a-z][a-z0-9_.]+$' OR
+        length(permission)>256 OR
+        permission ~ '^(identity|host|system|security|recovery|authorization)\.') THEN
+    RAISE EXCEPTION 'Invalid trusted pairing request' USING ERRCODE='22023';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(86744321);
+  SELECT c.* INTO operator_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_operator_digest AND c.actor_id=p_operator_actor
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+      AND u.disabled_at IS NULL AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND OR operator_row.tenant_id IS DISTINCT FROM p_tenant OR
+      NOT ventio_security.identity_pairing_manager_allowed(
+      p_operator_digest,operator_row.tenant_id,p_company,p_branch) THEN
+    RAISE EXCEPTION 'Trusted pairing operator is unavailable' USING ERRCODE='42501';
+  END IF;
+
+  SELECT disabled_at INTO target_disabled
+    FROM public.ventio_identity_users
+    WHERE tenant_id=operator_row.tenant_id AND actor_id=p_target_actor
+    FOR UPDATE;
+  IF NOT FOUND OR target_disabled IS NOT NULL OR NOT EXISTS (
+      SELECT FROM public.ventio_identity_branches b
+      WHERE b.tenant_id=operator_row.tenant_id AND b.company_id=p_company
+        AND b.branch_id=p_branch) THEN
+    RAISE EXCEPTION 'Trusted pairing target is unavailable' USING ERRCODE='P0002';
+  END IF;
+
+  -- If delivery was ambiguous, do not mint another code for the same user
+  -- while the previous one can still be redeemed. The audit row is the
+  -- durable marker; no pairing secret is recoverable from it.
+  IF EXISTS (SELECT FROM public.ventio_identity_pairings p
+      JOIN public.ventio_identity_audit e
+        ON e.tenant_id=p.tenant_id AND e.subject_id=p.pairing_id
+        AND e.action='TRUSTED_PAIRING_CREATED'
+      WHERE p.tenant_id=operator_row.tenant_id AND p.actor_id=p_target_actor
+        AND p.company_id=p_company AND p.branch_id=p_branch
+        AND p.created_at>=clock_timestamp()-interval '5 minutes') THEN
+    RAISE EXCEPTION 'Trusted pairing code is not recoverable yet'
+      USING ERRCODE='P0001';
+  END IF;
+
+  SELECT coalesce(array_agg(permission ORDER BY permission),'{}'::text[])
+    INTO target_permissions FROM (
+      SELECT g.permission FROM public.ventio_identity_grants g
+        WHERE g.tenant_id=operator_row.tenant_id AND g.actor_id=p_target_actor
+          AND g.company_id=p_company AND g.branch_id=p_branch
+      UNION
+      SELECT rp.permission FROM public.ventio_identity_role_assignments a
+        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
+        WHERE a.tenant_id=operator_row.tenant_id AND a.actor_id=p_target_actor
+          AND a.company_id=p_company AND a.branch_id=p_branch
+    ) target_effective;
+  IF NOT p_permissions <@ target_permissions THEN
+    RAISE EXCEPTION 'Trusted pairing permissions are not currently granted' USING ERRCODE='42501';
+  END IF;
+
+  IF EXISTS (SELECT FROM public.ventio_identity_pairings p
+      WHERE p.pairing_id=p_pairing_id) THEN
+    RAISE EXCEPTION 'Trusted pairing request reference is already used'
+      USING ERRCODE='23505';
+  END IF;
+  IF (SELECT count(*) FROM public.ventio_identity_pairings p
+      WHERE p.tenant_id=operator_row.tenant_id
+        AND p.created_by_actor_id=operator_row.actor_id
+        AND p.company_id=p_company AND p.branch_id=p_branch
+        AND p.created_at>=clock_timestamp()-interval '15 minutes')>=10 THEN
+    RAISE EXCEPTION 'Pairing issue rate limit reached' USING ERRCODE='54000';
+  END IF;
+
+  created_at_value := clock_timestamp();
+  expires_at_value := created_at_value + interval '5 minutes';
+  INSERT INTO public.ventio_identity_pairings
+    (pairing_id,pairing_digest,tenant_id,actor_id,company_id,branch_id,
+     created_by_actor_id,allowed_permissions,created_at,expires_at)
+    VALUES (p_pairing_id,p_pairing_digest,operator_row.tenant_id,p_target_actor,
+      p_company,p_branch,operator_row.actor_id,p_permissions,
+      created_at_value,expires_at_value);
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    VALUES (operator_row.tenant_id,'windows-admin:'||p_windows_admin_tag,
+      'TRUSTED_PAIRING_CREATED',p_pairing_id,jsonb_build_object(
+        'operatorActorId',operator_row.actor_id,'actorId',p_target_actor,
+        'deviceRole','CLIENT','companyId',p_company,'branchId',p_branch,
+        'permissions',to_jsonb(p_permissions),
+        'expiresAtUtc',to_char(expires_at_value AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+  RETURN expires_at_value;
+END $fn$;
+
+REVOKE ALL ON FUNCTION ventio_security.trusted_windows_pairing_create(
+    text,text,text,text,text,text,text,text,text[],text)
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+GRANT EXECUTE ON FUNCTION ventio_security.trusted_windows_pairing_create(
+    text,text,text,text,text,text,text,text,text[],text)
+  TO ventio_identity_api;
+
 -- Redemption consumes the pairing row, registers a CLIENT and inserts one
 -- device-bound credential atomically. The lease is fixed at 30 days, matching
 -- the existing Host credential lifecycle ceiling.

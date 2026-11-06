@@ -16,6 +16,7 @@ $hostServiceStop = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'stop-host-
 $hostRemoval = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'remove-host-installation.ps1') -Raw
 $databaseUpgrade = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'upgrade-host-database.ps1') -Raw
 $pairingCreateContract = Get-Content -LiteralPath (Join-Path $repoRoot 'security\postgres\pairing_create.sql') -Raw
+$pairingContract = Get-Content -LiteralPath (Join-Path $repoRoot 'security\postgres\pairing.sql') -Raw
 $setupBroker = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\Program.cs') -Raw
 $setupBrokerProject = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\VentioSetupBroker.csproj') -Raw
 $setupBrokerManifest = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\VentioSetupBroker.manifest') -Raw
@@ -113,6 +114,8 @@ Assert-Contract ($setupBroker.Contains('Environment.SpecialFolder.ProgramFiles')
 Assert-Contract ($nativeHostSetup.Contains("Platform.environment['ProgramFiles']") -and $nativeHostSetup.Contains('Ventio\\SetupStatus')) 'FLUTTER_SETUP_STATUS_PATH_MUST_MATCH_THE_PRIVILEGED_BROKER'
 Assert-Contract ($setupBroker.Contains('identity.User.Value')) 'SETUP_STATUS_ACL_MUST_REJECT_DIRECT_REQUESTER_WRITE_ACCESS'
 Assert-Contract ($payloadBuilder.Contains('VentioSetupBroker.exe')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_SETUP_BROKER'
+Assert-Contract ($payloadBuilder.Contains('ventio_trusted_pairing.exe') -and
+  $payloadBuilder.Contains('bin/trusted_windows_pairing.dart')) 'HOST_PAYLOAD_MUST_BUNDLE_THE_FIXED_TRUSTED_PAIRING_HELPER'
 Assert-Contract ($payloadBuilder.Contains("bin\stackbuilder.exe") -and $payloadBuilder.Contains('StackBuilder executable remains in the Host payload.')) 'HOST_PAYLOAD_MUST_EXCLUDE_THE_STACKBUILDER_EXECUTABLE'
 Assert-Contract ($payloadBuilder.Contains('PostgreSQL component exclusion escaped the isolated Host payload directory.')) 'POSTGRES_COMPONENT_EXCLUSION_MUST_STAY_WITHIN_ISOLATED_PAYLOAD'
 Assert-Contract ($installerBuilder.Contains('StackBuilder') -and $installerBuilder.Contains('stackbuilder\.exe')) 'HOST_INSTALLER_BUILD_MUST_REJECT_STACKBUILDER_FILES'
@@ -147,14 +150,19 @@ Assert-Contract ($hostRemoval -match '(?s)if \(\$RemoveData\) \{\s*\[void\]\(Ass
 Assert-Contract ($hostRemoval -match '(?m)^\s*if \(\$null -eq \$postgres -and \$null -ne \$hostService\)') 'HOST_UNINSTALL_MUST_STILL_REJECT_HOST_ONLY_PARTIAL_SERVICE_STATE'
 Assert-Contract ($databaseUpgrade.Contains('Get-HostDataInventory')) 'HOST_UPGRADE_MUST_CREATE_A_VERIFIED_POSTGRES_BACKUP'
 Assert-Contract ($databaseUpgrade.Contains('$migrationRole')) 'HOST_UPGRADE_MUST_USE_A_DEDICATED_MIGRATOR_LOGIN'
-Assert-Contract ($databaseUpgrade.Contains('security\pairing_create.sql') -and
+Assert-Contract ($databaseUpgrade.Contains('security\pairing.sql') -and
   $databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_UPDATE_FAILED') -and
   $databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_VERIFICATION_FAILED') -and
+  $databaseUpgrade.Contains('trusted_windows_pairing_create') -and
   $databaseUpgrade.Contains('SET ROLE ventio_owner')) 'HOST_UPGRADE_MUST_APPLY_AND_VERIFY_THE_VERSIONED_PAIRING_CONTRACT_AS_OWNER'
 $pairingReplayIndex = $pairingCreateContract.IndexOf('Pairing request was already accepted', [StringComparison]::Ordinal)
 $pairingRateIndex = $pairingCreateContract.IndexOf('Pairing issue rate limit reached', [StringComparison]::Ordinal)
 Assert-Contract ($pairingReplayIndex -ge 0 -and $pairingRateIndex -gt $pairingReplayIndex -and
   $pairingCreateContract.Contains('created_by_actor_id=credential_row.actor_id')) 'PAIRING_REPLAY_MUST_BE_SCOPED_AND_RECONCILED_BEFORE_RATE_LIMIT'
+Assert-Contract ($pairingContract.Contains('trusted_windows_pairing_create') -and
+  $pairingContract.Contains('TRUSTED_PAIRING_CREATED') -and
+  $pairingContract.Contains('identity_pairing_manager_allowed') -and
+  $pairingContract.Contains('p_permissions <@ target_permissions')) 'TRUSTED_PAIRING_MUST_REQUIRE_A_VALID_OPERATOR_AND_EXACT_GRANTED_PERMISSION_SET'
 
 $programFiles = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio'))
 $hostPayload = [IO.Path]::GetFullPath((Join-Path $programFiles 'host-payload'))

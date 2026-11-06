@@ -669,6 +669,372 @@ class WindowsHostSetupPlatform implements HostSetupPlatform {
   }
 }
 
+/// Starts the installed Setup Broker with UAC approval and exchanges a narrowly
+/// scoped pairing request through a short-lived user-profile file. The operator
+/// credential digest never enters process arguments or diagnostics; the one-time
+/// pairing code returns only in a CurrentUser DPAPI-protected result file.
+class WindowsTrustedPairingOperator {
+  Future<WindowsTrustedPairingResult?> createPairing({
+    required String operationId,
+    required String tenantId,
+    required String operatorActorId,
+    required String targetActorId,
+    required String companyId,
+    required String branchId,
+    required List<String> permissions,
+    required String operatorCredentialDigest,
+  }) async {
+    if (!Platform.isWindows) {
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_WINDOWS_ONLY');
+    }
+    final request = <String, Object?>{
+      'operationId': operationId,
+      'tenantId': tenantId,
+      'operatorActorId': operatorActorId,
+      'targetActorId': targetActorId,
+      'companyId': companyId,
+      'branchId': branchId,
+      'permissions': permissions,
+      'operatorCredentialDigest': operatorCredentialDigest,
+    };
+    return Isolate.run(() => _createTrustedPairing(request));
+  }
+
+  static Future<WindowsTrustedPairingResult?> _createTrustedPairing(
+    Map<String, Object?> request,
+  ) async {
+    final operationId = request['operationId'] as String;
+    if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(operationId)) {
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_REQUEST_INVALID');
+    }
+    final localAppData = Platform.environment['LOCALAPPDATA'];
+    final programFiles = Platform.environment['ProgramFiles'];
+    if (localAppData == null ||
+        localAppData.isEmpty ||
+        programFiles == null ||
+        programFiles.isEmpty) {
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_BROKER_UNAVAILABLE');
+    }
+    final requesterSid = WindowsHostSetupPlatform._currentUserSid();
+    final requestDirectory = Directory(
+      '$localAppData\\VentioFramework\\TrustedOperator',
+    );
+    final requestFile = File(
+      '${requestDirectory.path}\\$operationId.request.json',
+    );
+    final resultFile = File(
+      '$programFiles\\Ventio\\SetupStatus\\$operationId.pairing.dpapi',
+    );
+    final broker = File(
+      '$programFiles\\Ventio\\host-payload\\VentioSetupBroker.exe',
+    );
+    try {
+      await requestDirectory.create(recursive: true);
+      _assertOrdinaryPath(requestDirectory.path, allowMissingLeaf: false);
+      if (await FileSystemEntity.type(requestFile.path, followLinks: false) !=
+              FileSystemEntityType.notFound ||
+          await FileSystemEntity.type(resultFile.path, followLinks: false) !=
+              FileSystemEntityType.notFound ||
+          await FileSystemEntity.type(broker.path, followLinks: false) !=
+              FileSystemEntityType.file) {
+        throw const HostSetupException(
+          'HOST_TRUSTED_PAIRING_STATE_UNAVAILABLE',
+        );
+      }
+      final document = jsonEncode({'formatVersion': 1, ...request});
+      await requestFile.create(exclusive: true);
+      final handle = await requestFile.open(mode: FileMode.write);
+      try {
+        await handle.writeString(document, encoding: utf8);
+        await handle.flush();
+      } finally {
+        await handle.close();
+      }
+
+      final commandLine = [
+        '--trusted-pairing',
+        operationId,
+        request['tenantId'] as String,
+        request['companyId'] as String,
+        request['branchId'] as String,
+        requesterSid,
+        requestFile.path,
+      ].map(_quoteWindowsArgument).join(' ');
+      final arguments = commandLine.toNativeUtf16();
+      final verb = 'runas'.toNativeUtf16();
+      final executable = broker.path.toNativeUtf16();
+      final workingDirectory = broker.parent.path.toNativeUtf16();
+      try {
+        final launched = ShellExecute(
+          HWND(nullptr),
+          PCWSTR(verb),
+          PCWSTR(executable),
+          PCWSTR(arguments),
+          PCWSTR(workingDirectory),
+          SW_SHOWNORMAL,
+        );
+        if (launched.address == 1223) return null;
+        if (launched.address <= 32) {
+          throw const HostSetupException(
+            'HOST_TRUSTED_PAIRING_BROKER_UNAVAILABLE',
+          );
+        }
+      } finally {
+        malloc.free(arguments);
+        malloc.free(verb);
+        malloc.free(executable);
+        malloc.free(workingDirectory);
+      }
+
+      final deadline = DateTime.now().add(const Duration(seconds: 120));
+      while (DateTime.now().isBefore(deadline)) {
+        if (await FileSystemEntity.type(resultFile.path, followLinks: false) ==
+            FileSystemEntityType.file) {
+          return _readProtectedResult(resultFile, request);
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_OUTCOME_UNKNOWN');
+    } on HostSetupException {
+      rethrow;
+    } on Object {
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_FAILED');
+    } finally {
+      try {
+        if (await FileSystemEntity.type(requestFile.path, followLinks: false) ==
+            FileSystemEntityType.file) {
+          await requestFile.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  static WindowsTrustedPairingResult _readProtectedResult(
+    File file,
+    Map<String, Object?> request,
+  ) {
+    _assertOrdinaryPath(file.path, allowMissingLeaf: false);
+    final encrypted = file.readAsBytesSync();
+    if (encrypted.isEmpty || encrypted.length > 16384) {
+      encrypted.fillRange(0, encrypted.length, 0);
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_RESULT_INVALID');
+    }
+    final operationId = request['operationId'] as String;
+    final entropyBytes = Uint8List.fromList(utf8.encode(operationId));
+    final input = calloc<_DataBlob>();
+    final entropy = calloc<_DataBlob>();
+    final output = calloc<_DataBlob>();
+    final description = calloc<Pointer<Utf16>>();
+    final inputBytes = calloc<Uint8>(encrypted.length);
+    final entropyBuffer = calloc<Uint8>(entropyBytes.length);
+    final crypt32 = DynamicLibrary.open('crypt32.dll');
+    final kernel = DynamicLibrary.open('kernel32.dll');
+    final unprotect = crypt32
+        .lookupFunction<
+          Int32 Function(
+            Pointer<_DataBlob>,
+            Pointer<Pointer<Utf16>>,
+            Pointer<_DataBlob>,
+            Pointer<Void>,
+            Pointer<Void>,
+            Uint32,
+            Pointer<_DataBlob>,
+          ),
+          int Function(
+            Pointer<_DataBlob>,
+            Pointer<Pointer<Utf16>>,
+            Pointer<_DataBlob>,
+            Pointer<Void>,
+            Pointer<Void>,
+            int,
+            Pointer<_DataBlob>,
+          )
+        >('CryptUnprotectData');
+    final localFree = kernel
+        .lookupFunction<
+          Pointer<Void> Function(Pointer<Void>),
+          Pointer<Void> Function(Pointer<Void>)
+        >('LocalFree');
+    try {
+      inputBytes.asTypedList(encrypted.length).setAll(0, encrypted);
+      entropyBuffer.asTypedList(entropyBytes.length).setAll(0, entropyBytes);
+      input.ref.length = encrypted.length;
+      input.ref.data = inputBytes;
+      entropy.ref.length = entropyBytes.length;
+      entropy.ref.data = entropyBuffer;
+      if (unprotect(input, description, entropy, nullptr, nullptr, 1, output) ==
+              0 ||
+          output.ref.data == nullptr ||
+          output.ref.length <= 0 ||
+          output.ref.length > 8192) {
+        throw const HostSetupException('HOST_TRUSTED_PAIRING_RESULT_INVALID');
+      }
+      final plaintext = Uint8List(output.ref.length);
+      plaintext.setRange(
+        0,
+        plaintext.length,
+        output.ref.data.asTypedList(output.ref.length),
+      );
+      try {
+        final decoded = jsonDecode(utf8.decode(plaintext));
+        if (decoded is! Map<String, dynamic> ||
+            decoded.keys.toSet().difference({
+              'formatVersion',
+              'operationId',
+              'status',
+              'pairingId',
+              'actorId',
+              'companyId',
+              'branchId',
+              'permissions',
+              'code',
+              'expiresAtUtc',
+              'failureCode',
+            }).isNotEmpty ||
+            decoded.length != 11 ||
+            decoded['formatVersion'] != 1 ||
+            decoded['operationId'] != operationId) {
+          throw const HostSetupException('HOST_TRUSTED_PAIRING_RESULT_INVALID');
+        }
+        if (decoded['status'] == 'failed') {
+          final failureCode = decoded['failureCode'];
+          if (failureCode is! String ||
+              !RegExp(
+                r'^HOST_TRUSTED_PAIRING_[A-Z_]+$',
+              ).hasMatch(failureCode)) {
+            throw const HostSetupException(
+              'HOST_TRUSTED_PAIRING_RESULT_INVALID',
+            );
+          }
+          throw HostSetupException(failureCode);
+        }
+        final permissions = decoded['permissions'];
+        final code = decoded['code'];
+        final expiryText = decoded['expiresAtUtc'];
+        final expiry = expiryText is String
+            ? DateTime.tryParse(expiryText)
+            : null;
+        final requestedPermissions =
+            (request['permissions'] as List).cast<String>()..sort();
+        final returnedPermissions = permissions is List
+            ? (permissions.cast<String>()..sort())
+            : <String>[];
+        if (decoded['status'] != 'created' ||
+            decoded['pairingId'] != 'pair_$operationId' ||
+            decoded['actorId'] != request['targetActorId'] ||
+            decoded['companyId'] != request['companyId'] ||
+            decoded['branchId'] != request['branchId'] ||
+            code is! String ||
+            !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(code) ||
+            expiry == null ||
+            !expiry.isAfter(DateTime.now().toUtc()) ||
+            expiry.isAfter(
+              DateTime.now().toUtc().add(const Duration(minutes: 5)),
+            ) ||
+            returnedPermissions.length != requestedPermissions.length ||
+            !returnedPermissions.asMap().entries.every(
+              (entry) => entry.value == requestedPermissions[entry.key],
+            )) {
+          throw const HostSetupException('HOST_TRUSTED_PAIRING_RESULT_INVALID');
+        }
+        return WindowsTrustedPairingResult(
+          pairingId: decoded['pairingId'] as String,
+          actorId: decoded['actorId'] as String,
+          companyId: decoded['companyId'] as String,
+          branchId: decoded['branchId'] as String,
+          permissions: List.unmodifiable(returnedPermissions),
+          code: code,
+          expiresAtUtc: expiry.toUtc(),
+        );
+      } finally {
+        plaintext.fillRange(0, plaintext.length, 0);
+      }
+    } on HostSetupException {
+      rethrow;
+    } on Object {
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_RESULT_INVALID');
+    } finally {
+      encrypted.fillRange(0, encrypted.length, 0);
+      entropyBytes.fillRange(0, entropyBytes.length, 0);
+      if (description.value != nullptr) localFree(description.value.cast());
+      if (output.ref.data != nullptr) {
+        final outputBytes = output.ref.data.asTypedList(output.ref.length);
+        outputBytes.fillRange(0, outputBytes.length, 0);
+        localFree(output.ref.data.cast());
+      }
+      calloc.free(entropyBuffer);
+      calloc.free(inputBytes);
+      calloc.free(description);
+      calloc.free(output);
+      calloc.free(entropy);
+      calloc.free(input);
+      try {
+        if (FileSystemEntity.typeSync(file.path, followLinks: false) ==
+            FileSystemEntityType.file) {
+          file.deleteSync();
+        }
+      } catch (_) {}
+    }
+  }
+
+  static void _assertOrdinaryPath(
+    String path, {
+    required bool allowMissingLeaf,
+  }) {
+    final type = FileSystemEntity.typeSync(path, followLinks: false);
+    if (!allowMissingLeaf &&
+        type != FileSystemEntityType.file &&
+        type != FileSystemEntityType.directory) {
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_STATE_UNAVAILABLE');
+    }
+    if (type == FileSystemEntityType.link) {
+      throw const HostSetupException('HOST_TRUSTED_PAIRING_STATE_UNAVAILABLE');
+    }
+  }
+
+  static String _quoteWindowsArgument(String value) {
+    final result = StringBuffer('"');
+    var slashes = 0;
+    for (final character in value.split('')) {
+      if (character == r'\') {
+        slashes++;
+        continue;
+      }
+      if (character == '"') {
+        result.write(List<String>.filled(slashes * 2 + 1, r'\').join());
+        result.write('"');
+      } else {
+        result.write(List<String>.filled(slashes, r'\').join());
+        result.write(character);
+      }
+      slashes = 0;
+    }
+    result.write(List<String>.filled(slashes * 2, r'\').join());
+    result.write('"');
+    return result.toString();
+  }
+}
+
+class WindowsTrustedPairingResult {
+  const WindowsTrustedPairingResult({
+    required this.pairingId,
+    required this.actorId,
+    required this.companyId,
+    required this.branchId,
+    required this.permissions,
+    required this.code,
+    required this.expiresAtUtc,
+  });
+
+  final String pairingId;
+  final String actorId;
+  final String companyId;
+  final String branchId;
+  final List<String> permissions;
+  final String code;
+  final DateTime expiresAtUtc;
+}
+
 final class _DataBlob extends Struct {
   @Uint32()
   external int length;

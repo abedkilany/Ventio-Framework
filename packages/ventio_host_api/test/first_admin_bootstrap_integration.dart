@@ -139,6 +139,8 @@ Future<void> main() async {
         requestId: requestId,
         credential: credential,
       );
+    } on RecoveryMutationOutcomeUnknown {
+      postCommitInterruptionObserved = true;
     } on StateError {
       postCommitInterruptionObserved = true;
     }
@@ -249,6 +251,115 @@ Future<void> main() async {
     check(
       receipt.single[0] == 1,
       'First-administrator bootstrap leaves exactly one initial identity',
+    );
+    final initialCredential = await audit.execute(
+      pg.Sql.named('''
+        SELECT allowed_scopes FROM public.ventio_identity_credentials
+        WHERE tenant_id=@tenant AND credential_id=@credential
+      '''),
+      parameters: {'tenant': tenant, 'credential': credentialId},
+    );
+    final rawInitialScopes = initialCredential.single[0];
+    final initialScopes = rawInitialScopes is List
+        ? rawInitialScopes
+        : const <dynamic>[];
+    final initialScope =
+        initialScopes.length == 1 && initialScopes.single is Map
+        ? Map<String, dynamic>.from(initialScopes.single as Map)
+        : const <String, dynamic>{};
+    final initialPermissions = initialScope['permissions'];
+    check(
+      rawInitialScopes is List &&
+          initialScopes.length == 1 &&
+          initialScope['companyId'] == company &&
+          initialScope['branchId'] == branch &&
+          initialPermissions is List &&
+          initialPermissions.toSet().containsAll(const {
+            'host.status.read',
+            'host.diagnostics.read',
+            'identity.users.manage',
+            'identity.devices.manage',
+            'identity.pairing.manage',
+            'identity.roles.manage',
+          }) &&
+          initialPermissions.length == 6 &&
+          !initialPermissions.contains('extension.package.read') &&
+          !initialPermissions.contains('extension.package.submit'),
+      'Fresh first administrator receives only the initial six exact-branch management permissions in grants and credential ceiling',
+    );
+    final initialCredentialDigest = (await audit.execute(
+      pg.Sql.named('''
+        SELECT c.token_digest,c.allowed_scopes::text,d.revoked_at
+        FROM public.ventio_identity_credentials c
+        JOIN public.ventio_identity_devices d
+          ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id
+          AND d.device_id=c.device_id
+        WHERE c.tenant_id=@tenant AND c.credential_id=@credential
+      '''),
+      parameters: {'tenant': tenant, 'credential': credentialId},
+    )).single;
+    final migrationUrl =
+        Platform.environment['VENTIO_TEST_MIGRATION_DATABASE_URL'];
+    final postgresBin = Platform.environment['VENTIO_TEST_POSTGRES_BIN_DIR'];
+    if (migrationUrl == null || postgresBin == null) {
+      throw StateError('The disposable database upgrade contract is missing.');
+    }
+    final migrationUri = Uri.parse(migrationUrl);
+    final migrationCredentials = Uri.decodeComponent(migrationUri.userInfo);
+    final credentialSeparator = migrationCredentials.indexOf(':');
+    if (credentialSeparator < 1 || migrationUri.pathSegments.isEmpty) {
+      throw StateError('The disposable database upgrade contract is invalid.');
+    }
+    final psql = Platform.isWindows
+        ? '$postgresBin\\psql.exe'
+        : '$postgresBin/psql';
+    final pairingContract = '../../security/postgres/pairing.sql';
+    final processEnvironment = Map<String, String>.from(
+      Platform.environment,
+    )..['PGPASSWORD'] = migrationCredentials.substring(credentialSeparator + 1);
+    final contractUpgrade = await Process.run(
+      psql,
+      [
+        '-X',
+        '-w',
+        '-h',
+        migrationUri.host,
+        '-p',
+        '${migrationUri.port}',
+        '-U',
+        migrationCredentials.substring(0, credentialSeparator),
+        '-d',
+        migrationUri.pathSegments.last,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        'SET ROLE ventio_owner',
+        '-f',
+        pairingContract,
+      ],
+      environment: processEnvironment,
+      runInShell: false,
+    );
+    check(
+      contractUpgrade.exitCode == 0,
+      'Reviewed PostgreSQL security contract applies idempotently over a legacy-style first administrator',
+    );
+    final retainedCredential = (await audit.execute(
+      pg.Sql.named('''
+        SELECT c.token_digest,c.allowed_scopes::text,d.revoked_at
+        FROM public.ventio_identity_credentials c
+        JOIN public.ventio_identity_devices d
+          ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id
+          AND d.device_id=c.device_id
+        WHERE c.tenant_id=@tenant AND c.credential_id=@credential
+      '''),
+      parameters: {'tenant': tenant, 'credential': credentialId},
+    )).single;
+    check(
+      retainedCredential[0] == initialCredentialDigest[0] &&
+          retainedCredential[1] == initialCredentialDigest[1] &&
+          retainedCredential[2] == null,
+      'Security-contract upgrade preserves the existing first-administrator credential ceiling and active device identity',
     );
     stdout.writeln(
       'First-administrator bootstrap integration passed: $assertions assertions.',

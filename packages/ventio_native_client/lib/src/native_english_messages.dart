@@ -149,6 +149,39 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.pairing_pending_target': 'Pending pairing target',
   'native.ui.pairing_code_once':
       'Show this single-use code to the Client operator. It is visible only in this screen and expires soon.',
+  'native.ui.create_trusted_scoped_pairing': 'Create trusted scoped pairing',
+  'native.ui.trusted_scoped_pairing_help':
+      'Use this on the Windows Host after the target user already has the requested permissions. Windows will ask a local administrator to approve only this exact branch and permission list.',
+  'native.ui.trusted_pairing_review_title':
+      'Review new Client permission ceiling',
+  'native.ui.trusted_pairing_review_scope':
+      'The new Client will be limited to tenant {tenantId}, company {companyId}, branch {branchId}.',
+  'native.ui.trusted_pairing_permissions': 'Client permissions',
+  'native.ui.trusted_pairing_permissions_help':
+      'Enter only the business permissions this Client needs, separated by commas or new lines. Every permission must already be granted to the selected user directly or through a role.',
+  'native.ui.trusted_pairing_permissions_invalid':
+      'Enter one or more valid business permissions without duplicates.',
+  'native.ui.trusted_pairing_uac_review':
+      'A Windows administrator approval prompt follows. The Host independently checks current user grants and Recovery Authority before creating a five-minute, single-use pairing code.',
+  'native.ui.review_and_continue': 'Review and continue',
+  'native.ui.trusted_pairing_permission_ceiling':
+      'This Client credential ceiling contains only: {permissions}',
+  'native.ui.trusted_pairing_device_note':
+      'Enrollment creates a new Client device identity. Existing devices and credentials remain active until you explicitly revoke them.',
+  'native.ui.trusted_pairing_operator_permission_denied':
+      'The signed-in Host credential must include identity.pairing.manage for this exact branch, and the selected user must already have every requested permission. Ask a Host identity manager to check both grants and this credential ceiling.',
+  'native.ui.trusted_pairing_code_unavailable':
+      'A trusted pairing may already have been created for this user and branch. Its one-time code cannot be recovered. Wait five minutes before requesting a replacement.',
+  'native.ui.trusted_pairing_outcome_unknown':
+      'The Host may have created the pairing, but its one-time code was not received. Wait five minutes before requesting another code for this user and branch.',
+  'native.ui.permission_denied_user_grant':
+      'This Host user does not currently have extension.package.read for this exact branch, either directly or through a role. Grant it first, then create a scoped Client pairing.',
+  'native.ui.permission_denied_credential_ceiling':
+      'This Host user has extension.package.read, but this Client credential ceiling does not include it. On the Windows Host, create a trusted scoped pairing for extension.package.read and enroll a new Client.',
+  'native.ui.permission_denied_credential_scope':
+      'This Client credential is not scoped to the requested company and branch. Ask a Host operator to enroll a Client for the correct exact scope.',
+  'native.ui.permission_denied_unclassified':
+      'The Host could not safely classify this permission denial. Check the user grant, exact branch scope, and Client credential ceiling with a Host operator.',
   'native.ui.copy_pairing_code': 'Copy pairing code',
   'native.ui.copy_device_credential': 'Copy device credential',
   'native.ui.copied_to_clipboard': 'Copied to clipboard.',
@@ -269,7 +302,8 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.legacy_identity_reference': 'Legacy identity {number}',
   'native.ui.user_created_with_id': 'User created. Generated ID: {actorId}',
   'native.ui.generated_user_id': 'Generated user ID: {actorId}',
-  'native.ui.user_permission_granted': 'Permission granted by Host.',
+  'native.ui.user_permission_granted':
+      'Host granted this user permission. Existing device credentials remain limited to their original ceilings. Use Host devices & pairing to create a trusted scoped pairing for a new Client.',
   'native.ui.user_permission_revoked': 'Permission revoked by Host.',
   'native.ui.user_disabled': 'Host disabled the user.',
   'native.ui.user_enabled': 'Host enabled the user.',
@@ -517,6 +551,8 @@ const ventioNativeEnglishMessages = <String, String>{
       'Recovery Authority is processing another protected operation. Retry with the same request reference.',
   'native.ui.diagnostics.pairing_request': 'Client pairing request status',
   'native.ui.host_request_failed_with_code': 'Host request failed ({code}).',
+  'native.ui.host_package_request_failed':
+      'The Host could not load its approved package registry. Check Host readiness and ask a Host operator to review the safe error code {code}.',
   'native.ui.extension_review_submission':
       '{displayName}\n{moduleId} · {version}\n\nThis sends declarative metadata to the selected Host. It remains a candidate until a trusted Host operator reviews and approves it.',
   'native.ui.remove_field_confirmation':
