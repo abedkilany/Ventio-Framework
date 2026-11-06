@@ -3,7 +3,11 @@ param(
   [int] $Port = 54329,
   [switch] $Apply,
   [switch] $TestMode,
-  [string] $TestDataDirectory
+  [string] $TestDataDirectory,
+  [switch] $TestBackupOnly,
+  [ValidateSet('RobocopyExit8', 'InventoryMismatch', 'PostCopyAclRewrite', 'AclVerification')]
+  [string] $TestBackupFailureAt,
+  [string] $FailureCodePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +20,8 @@ $hostServiceName = 'VentioHost'
 $migrationRole = 'ventio_migrator_app'
 $databaseName = 'ventio_host'
 $script:hostPostgresStoppedForBackup = $false
+$script:hostBackupStage = 'INITIALIZATION'
+$script:hostBackupFailureDetails = @()
 $bin = Join-Path $pgRoot 'bin'
 $psql = Join-Path $bin 'psql.exe'
 $pgCtl = Join-Path $bin 'pg_ctl.exe'
@@ -105,21 +111,61 @@ function Invoke-HostDatabaseTool([string] $Executable, [string[]] $Arguments, [h
   }
 }
 
-function Set-HostBackupAcl([string] $Path, [switch] $Directory) {
-  $security = if ($Directory) { [Security.AccessControl.DirectorySecurity]::new() } else { [Security.AccessControl.FileSecurity]::new() }
-  $security.SetAccessRuleProtection($true, $false)
-  $adminSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+function Get-HostBackupAllowedSids {
   $systemSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
-  $security.SetOwner($adminSid)
-  foreach ($sid in @($adminSid, $systemSid)) {
-    $inheritance = if ($Directory) {
-      [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
-    } else { [Security.AccessControl.InheritanceFlags]::None }
-    $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
-      $sid, [Security.AccessControl.FileSystemRights]::FullControl, $inheritance,
-      [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+  if ($TestMode) {
+    $ownerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    return @($ownerSid, $systemSid)
   }
-  Set-Acl -LiteralPath $Path -AclObject $security
+  return @(
+    [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'),
+    $systemSid
+  )
+}
+
+function Set-HostBackupAcl([string] $Path, [switch] $Directory, [string] $FailureCode = 'HOST_DATABASE_BACKUP_ACL_SET_FAILED') {
+  try {
+    $security = if ($Directory) { [Security.AccessControl.DirectorySecurity]::new() } else { [Security.AccessControl.FileSecurity]::new() }
+    $security.SetAccessRuleProtection($true, $false)
+    $allowedSids = @(Get-HostBackupAllowedSids)
+    $security.SetOwner($allowedSids[0])
+    foreach ($sid in $allowedSids) {
+      $inheritance = if ($Directory) {
+        [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
+      } else { [Security.AccessControl.InheritanceFlags]::None }
+      $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        $sid, [Security.AccessControl.FileSystemRights]::FullControl, $inheritance,
+        [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+    }
+    Set-Acl -LiteralPath $Path -AclObject $security -ErrorAction Stop
+  } catch {
+    if ($TestMode) { [Console]::Error.WriteLine('HOST_DATABASE_TEST_ACL_SET_HRESULT=' + $_.Exception.HResult.ToString('X8')) }
+    throw $FailureCode
+  }
+}
+
+function Assert-HostBackupAcl([string] $Path, [string] $FailureCode = 'HOST_DATABASE_BACKUP_ACL_VERIFICATION_FAILED') {
+  try {
+    $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
+    if (-not $acl.AreAccessRulesProtected) { throw 'ACL_INHERITANCE_NOT_PROTECTED' }
+    $allowed = @{}
+    foreach ($sid in @(Get-HostBackupAllowedSids)) { $allowed[$sid.Value] = $true }
+    $rules = @($acl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]))
+    if ($rules.Count -ne $allowed.Count) { throw 'ACL_RULE_COUNT_INVALID' }
+    foreach ($rule in $rules) {
+      if (-not $allowed.ContainsKey($rule.IdentityReference.Value) -or
+          $rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -or
+          $rule.FileSystemRights -ne [Security.AccessControl.FileSystemRights]::FullControl) {
+        throw 'ACL_RULE_INVALID'
+      }
+    }
+    $expectedOwner = (Get-HostBackupAllowedSids)[0].Value
+    if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -cne $expectedOwner) {
+      throw 'ACL_OWNER_INVALID'
+    }
+  } catch {
+    throw $FailureCode
+  }
 }
 
 function Assert-HostBackupPath([string] $Path) {
@@ -159,6 +205,99 @@ function Get-HostDataInventory([string] $Path) {
   }
 }
 
+function Set-HostBackupStage([string] $Stage, [string] $FallbackCode = 'HOST_DATABASE_UPGRADE_FAILED') {
+  $script:hostBackupStage = $Stage
+  $script:hostBackupFallbackCode = $FallbackCode
+  [Console]::Out.WriteLine('HOST_DATABASE_BACKUP_STAGE=' + $Stage)
+}
+
+function Write-HostUpgradeFailureCode([string] $Code, [string] $Stage, [string] $Details = '') {
+  if ($Code -notmatch '^HOST_[A-Z0-9_]{1,120}$') { $Code = 'HOST_DATABASE_UPGRADE_FAILED' }
+  if ($FailureCodePath) {
+    try {
+      $full = [IO.Path]::GetFullPath($FailureCodePath)
+      $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+      if ($full.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        $lines = @($Code, ('STAGE=' + [regex]::Replace($Stage, '[^A-Za-z0-9_]', '_')))
+        if ($Details -match '^[A-Za-z0-9_=;,.-]{1,512}$') { $lines += $Details }
+        [IO.File]::WriteAllLines($full, $lines, [Text.UTF8Encoding]::new($false))
+      }
+    } catch { }
+  }
+  [Console]::Error.WriteLine('HOST_DATABASE_UPGRADE_SAFE_FAILURE=' + $Code)
+}
+
+function Complete-HostPostgresBackup(
+  [string] $SourceData,
+  [pscustomobject] $StableInventory,
+  [string] $PartialBackupRoot,
+  [string] $BackupRoot,
+  [string] $BackupName
+) {
+  $partialData = Join-Path $PartialBackupRoot 'data'
+  Set-HostBackupStage 'BACKUP_ROBOCOPY' 'HOST_DATABASE_BACKUP_ROBOCOPY_FAILED'
+  $robocopyExit = Copy-HostPostgresData $SourceData $partialData
+  if ($TestMode -and $TestBackupFailureAt -eq 'RobocopyExit8') { $robocopyExit = 8 }
+  [Console]::Out.WriteLine('HOST_DATABASE_BACKUP_ROBOCOPY_EXIT=' + $robocopyExit)
+  if ($robocopyExit -ge 8) { throw ('HOST_DATABASE_BACKUP_ROBOCOPY_EXIT_' + $robocopyExit) }
+
+  Set-HostBackupStage 'BACKUP_DESTINATION_INVENTORY' 'HOST_DATABASE_BACKUP_DESTINATION_INVENTORY_FAILED'
+  $backupInventory = Get-HostDataInventory $partialData
+  if ($TestMode -and $TestBackupFailureAt -eq 'InventoryMismatch') {
+    $backupInventory = [pscustomobject]@{ fileCount = $backupInventory.fileCount + 1; bytes = $backupInventory.bytes }
+  }
+  if ($backupInventory.fileCount -ne $StableInventory.fileCount -or
+      $backupInventory.bytes -ne $StableInventory.bytes) {
+    $script:hostBackupFailureDetails = @(
+      ('sourceFiles=' + $StableInventory.fileCount),
+      ('sourceBytes=' + $StableInventory.bytes),
+      ('backupFiles=' + $backupInventory.fileCount),
+      ('backupBytes=' + $backupInventory.bytes)
+    )
+    throw 'HOST_DATABASE_BACKUP_INVENTORY_MISMATCH'
+  }
+
+  if ($TestMode -and $TestBackupFailureAt -eq 'PostCopyAclRewrite') {
+    Set-HostBackupStage 'BACKUP_POSTCOPY_ACL_REWRITE' 'HOST_DATABASE_BACKUP_ACL_POSTCOPY_REWRITE_FAILED'
+    try {
+      Set-HostBackupAcl $partialData -Directory -FailureCode 'HOST_DATABASE_BACKUP_ACL_POSTCOPY_REWRITE_FAILED'
+      $script:hostBackupFailureDetails = @('postcopyAclRewrite=completed')
+    } catch {
+      $script:hostBackupFailureDetails = @('postcopyAclRewrite=failed')
+      throw
+    }
+  }
+  Set-HostBackupStage 'BACKUP_ACL_VERIFICATION' 'HOST_DATABASE_BACKUP_ACL_VERIFICATION_FAILED'
+  if ($TestMode -and $TestBackupFailureAt -eq 'AclVerification') {
+    throw 'HOST_DATABASE_BACKUP_ACL_VERIFICATION_FAILED'
+  }
+  Assert-HostBackupAcl $partialData 'HOST_DATABASE_BACKUP_ACL_VERIFICATION_FAILED'
+
+  Set-HostBackupStage 'BACKUP_MANIFEST_WRITE' 'HOST_DATABASE_BACKUP_MANIFEST_WRITE_FAILED'
+  $manifest = [ordered]@{
+    formatVersion = 1
+    createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    postgresVersion = '16.15'
+    dataDirectory = 'data'
+    fileCount = $backupInventory.fileCount
+    bytes = $backupInventory.bytes
+  }
+  $manifestPath = Join-Path $PartialBackupRoot 'backup-manifest.json'
+  try {
+    [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+    Set-HostBackupAcl $manifestPath -FailureCode 'HOST_DATABASE_BACKUP_ACL_MANIFEST_FAILED'
+    Assert-HostBackupAcl $manifestPath 'HOST_DATABASE_BACKUP_ACL_MANIFEST_VERIFICATION_FAILED'
+  } catch {
+    if ($_.Exception.Message -match '^HOST_[A-Z0-9_]{1,120}$') { throw }
+    throw 'HOST_DATABASE_BACKUP_MANIFEST_WRITE_FAILED'
+  }
+
+  Set-HostBackupStage 'BACKUP_FINALIZE' 'HOST_DATABASE_BACKUP_FINALIZE_FAILED'
+  try { [IO.Directory]::Move($PartialBackupRoot, $BackupRoot) }
+  catch { throw 'HOST_DATABASE_BACKUP_FINALIZE_FAILED' }
+  return $BackupRoot
+}
+
 function Stop-HostPostgresForBackup {
   if ($TestMode) {
     & $pgCtl -D $dataDirectory -m fast -w stop
@@ -192,8 +331,13 @@ function Start-HostPostgresAfterBackup {
 }
 
 function Copy-HostPostgresData([string] $Source, [string] $Destination) {
-  [void][IO.Directory]::CreateDirectory($Destination)
-  if (-not $TestMode) { Set-HostBackupAcl $Destination -Directory }
+  try { [void][IO.Directory]::CreateDirectory($Destination) }
+  catch { throw 'HOST_DATABASE_BACKUP_DESTINATION_CREATE_FAILED' }
+  # Apply and verify the restricted DACL while the destination is empty. Robocopy's
+  # DAT flags deliberately exclude source security; descendants inherit this ACL.
+  # Rewriting the populated directory ACL can fail while Windows propagates it.
+  Set-HostBackupAcl $Destination -Directory -FailureCode 'HOST_DATABASE_BACKUP_ACL_DATA_ROOT_FAILED'
+  Assert-HostBackupAcl $Destination 'HOST_DATABASE_BACKUP_ACL_DATA_ROOT_VERIFICATION_FAILED'
   $process = [Diagnostics.Process]::new()
   $started = $false
   try {
@@ -206,17 +350,20 @@ function Copy-HostPostgresData([string] $Source, [string] $Destination) {
     $quoted = foreach ($argument in $arguments) { ConvertTo-WindowsCommandLineArgument $argument }
     $info.Arguments = [string]::Join(' ', [string[]]$quoted)
     $process.StartInfo = $info
-    if (-not $process.Start()) { throw 'HOST_DATABASE_BACKUP_COPY_FAILED' }
+    if (-not $process.Start()) { throw 'HOST_DATABASE_BACKUP_ROBOCOPY_START_FAILED' }
     $started = $true
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
     if (-not $process.WaitForExit(1800000)) {
       try { $process.Kill() } catch { }
-      throw 'HOST_DATABASE_BACKUP_COPY_TIMEOUT'
+      throw 'HOST_DATABASE_BACKUP_ROBOCOPY_TIMEOUT'
     }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
-    if ($process.ExitCode -ge 8) { throw 'HOST_DATABASE_BACKUP_COPY_FAILED' }
+    return [int]$process.ExitCode
+  } catch {
+    if ($_.Exception.Message -match '^HOST_DATABASE_BACKUP_[A-Z0-9_]{1,120}$') { throw }
+    throw 'HOST_DATABASE_BACKUP_ROBOCOPY_FAILED'
   } finally {
     if ($started -and -not $process.HasExited) { try { $process.Kill(); $process.WaitForExit() } catch { } }
     $process.Dispose()
@@ -355,6 +502,9 @@ function Invoke-HostSchemaUpgradeService([string] $DatabaseUrl, [string] $HostDi
   }
 }
 
+try {
+if ($TestBackupOnly -and -not $TestMode) { throw 'HOST_DATABASE_TEST_BACKUP_MODE_REQUIRED' }
+if ($TestBackupFailureAt -and -not $TestMode) { throw 'HOST_DATABASE_TEST_BACKUP_MODE_REQUIRED' }
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'HOST_DATABASE_PORT_INVALID' }
 foreach ($file in @($psql, $pgCtl, $migrationExe, $migrations, $pairingContract,
     $credentialReissueContract, $schemaProfileContract, $credentialModule)) {
@@ -371,11 +521,51 @@ if (-not $TestMode -and -not (Test-Path -LiteralPath $robocopy -PathType Leaf)) 
 if ($TestMode) {
   $testPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\ventio-pg-initdb-test-'
   if (-not $dataDirectory.StartsWith($testPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'HOST_DATABASE_TEST_PATH_INVALID' }
+  if ($TestBackupOnly -and -not (Test-Path -LiteralPath (Join-Path $dataDirectory 'PG_VERSION') -PathType Leaf)) {
+    throw 'HOST_DATABASE_TEST_CLUSTER_MISSING'
+  }
 } else {
   $expectedData = [IO.Path]::GetFullPath((Join-Path $programData 'Ventio\PostgreSQL\data'))
   if (-not $dataDirectory.Equals($expectedData, [StringComparison]::OrdinalIgnoreCase) -or
       -not $pgRoot.StartsWith([IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Ventio')).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
     throw 'HOST_DATABASE_UPGRADE_PATH_INVALID'
+  }
+}
+
+if ($TestBackupOnly) {
+  if (-not $Apply) { throw 'HOST_DATABASE_TEST_BACKUP_APPLY_REQUIRED' }
+  try {
+    $backupDirectory = Join-Path (Split-Path -Parent $dataDirectory) 'ventio-backups'
+    Set-HostBackupStage 'BACKUP_DIRECTORY_CREATE' 'HOST_DATABASE_BACKUP_DIRECTORY_CREATE_FAILED'
+    $backupDirectoryExists = Test-Path -LiteralPath $backupDirectory -PathType Container
+    [void][IO.Directory]::CreateDirectory($backupDirectory)
+    if (-not $backupDirectoryExists) {
+      Set-HostBackupAcl $backupDirectory -Directory -FailureCode 'HOST_DATABASE_BACKUP_ACL_DIRECTORY_FAILED'
+    }
+    Assert-HostBackupAcl $backupDirectory 'HOST_DATABASE_BACKUP_ACL_DIRECTORY_VERIFICATION_FAILED'
+    $backupName = "ventio-postgresql-before-upgrade-$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture))-$([guid]::NewGuid().ToString('N'))"
+    $partialRoot = Join-Path $backupDirectory ($backupName + '.partial')
+    $backupRoot = Join-Path $backupDirectory $backupName
+    Assert-HostBackupPath $partialRoot
+    Set-HostBackupStage 'BACKUP_SOURCE_INVENTORY' 'HOST_DATABASE_BACKUP_SOURCE_INVENTORY_FAILED'
+    $sourceInventory = Get-HostDataInventory $dataDirectory
+    $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($backupDirectory))
+    if ($drive.AvailableFreeSpace -lt ($sourceInventory.bytes + 67108864)) { throw 'HOST_DATABASE_BACKUP_DISK_SPACE_INSUFFICIENT' }
+    Set-HostBackupStage 'BACKUP_PARTIAL_DIRECTORY_CREATE' 'HOST_DATABASE_BACKUP_PARTIAL_DIRECTORY_CREATE_FAILED'
+    [void][IO.Directory]::CreateDirectory($partialRoot)
+    Set-HostBackupAcl $partialRoot -Directory -FailureCode 'HOST_DATABASE_BACKUP_ACL_PARTIAL_ROOT_FAILED'
+    Assert-HostBackupAcl $partialRoot 'HOST_DATABASE_BACKUP_ACL_PARTIAL_ROOT_VERIFICATION_FAILED'
+    $backup = Complete-HostPostgresBackup $dataDirectory $sourceInventory $partialRoot $backupRoot $backupName
+    Write-Output 'HOST_DATABASE_BACKUP_ISOLATED_WINDOWS_TEST_PASS'
+    Write-Output ('Verified restricted temporary backup: ' + $backup)
+    return
+  } catch {
+    $message = [string]$_.Exception.Message
+    $code = if ($message -match '^HOST_[A-Z0-9_]{1,120}$') { $message } else { $script:hostBackupFallbackCode }
+    if (-not $code) { $code = 'HOST_DATABASE_BACKUP_FAILED' }
+    $details = $script:hostBackupFailureDetails -join ';'
+    Write-HostUpgradeFailureCode $code $script:hostBackupStage $details
+    throw $code
   }
 }
 
@@ -415,13 +605,18 @@ if (-not $TestMode) {
     $cursor = $parent.FullName
   }
 }
+$script:hostBackupFallbackCode = 'HOST_DATABASE_BACKUP_FAILED'
+$script:hostBackupStage = 'BACKUP_DIRECTORY_CREATE'
+$backupDirectoryExists = Test-Path -LiteralPath $backupDirectory -PathType Container
 [void][IO.Directory]::CreateDirectory($backupDirectory)
-if (-not $TestMode) { Set-HostBackupAcl $backupDirectory -Directory }
+if (-not $backupDirectoryExists) {
+  Set-HostBackupAcl $backupDirectory -Directory -FailureCode 'HOST_DATABASE_BACKUP_ACL_DIRECTORY_FAILED'
+}
+Assert-HostBackupAcl $backupDirectory 'HOST_DATABASE_BACKUP_ACL_DIRECTORY_VERIFICATION_FAILED'
 $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture)
 $backupName = "ventio-postgresql-before-upgrade-$stamp-$([guid]::NewGuid().ToString('N'))"
 $partialBackupRoot = Join-Path $backupDirectory ($backupName + '.partial')
 $backupRoot = Join-Path $backupDirectory $backupName
-$partialBackupData = Join-Path $partialBackupRoot 'data'
 Assert-HostBackupPath $partialBackupRoot
 Import-Module $credentialModule -Force
 $credential = Read-HostMigrationCredential -TestMode:$TestMode -OutputDirectory $(if ($TestMode) { Join-Path (Split-Path -Parent $dataDirectory) 'protected-migration-credential' } else { Join-Path $programData 'Ventio\Installer' })
@@ -430,36 +625,28 @@ $envVars = @{ PGPASSWORD = $password }
 $migrationEnvironment = @{}
 $databaseUrl = $null
 try {
+  Set-HostBackupStage 'BACKUP_POSTGRES_VERSION' 'HOST_DATABASE_UPGRADE_VERSION_UNSUPPORTED'
   $version = (& (Join-Path $bin 'postgres.exe') --version 2>&1 | Out-String).Trim()
   if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') { throw 'HOST_DATABASE_UPGRADE_VERSION_UNSUPPORTED' }
+  Set-HostBackupStage 'BACKUP_SOURCE_INVENTORY' 'HOST_DATABASE_BACKUP_SOURCE_INVENTORY_FAILED'
   $pgVersionFile = Join-Path $dataDirectory 'PG_VERSION'
   if ((Get-Content -LiteralPath $pgVersionFile -Raw).Trim() -ne '16') { throw 'HOST_DATABASE_UPGRADE_CLUSTER_VERSION_INVALID' }
   $initialInventory = Get-HostDataInventory $dataDirectory
+  Set-HostBackupStage 'BACKUP_DISK_SPACE_CHECK' 'HOST_DATABASE_BACKUP_DISK_SPACE_CHECK_FAILED'
   $backupDrive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($backupDirectory))
   if ($backupDrive.AvailableFreeSpace -lt ($initialInventory.bytes + 67108864)) { throw 'HOST_DATABASE_BACKUP_DISK_SPACE_INSUFFICIENT' }
+  Set-HostBackupStage 'BACKUP_PARTIAL_DIRECTORY_CREATE' 'HOST_DATABASE_BACKUP_PARTIAL_DIRECTORY_CREATE_FAILED'
   [void][IO.Directory]::CreateDirectory($partialBackupRoot)
-  if (-not $TestMode) { Set-HostBackupAcl $partialBackupRoot -Directory }
+  Set-HostBackupAcl $partialBackupRoot -Directory -FailureCode 'HOST_DATABASE_BACKUP_ACL_PARTIAL_ROOT_FAILED'
+  Assert-HostBackupAcl $partialBackupRoot 'HOST_DATABASE_BACKUP_ACL_PARTIAL_ROOT_VERIFICATION_FAILED'
+  Set-HostBackupStage 'BACKUP_POSTGRES_STOP' 'HOST_DATABASE_BACKUP_POSTGRES_STOP_FAILED'
   Stop-HostPostgresForBackup
+  Set-HostBackupStage 'BACKUP_STABLE_INVENTORY' 'HOST_DATABASE_BACKUP_STABLE_INVENTORY_FAILED'
   $stableInventory = Get-HostDataInventory $dataDirectory
+  Set-HostBackupStage 'BACKUP_DISK_SPACE_RECHECK' 'HOST_DATABASE_BACKUP_DISK_SPACE_CHECK_FAILED'
   if ($backupDrive.AvailableFreeSpace -lt ($stableInventory.bytes + 67108864)) { throw 'HOST_DATABASE_BACKUP_DISK_SPACE_INSUFFICIENT' }
-  Copy-HostPostgresData $dataDirectory $partialBackupData
-  $backupInventory = Get-HostDataInventory $partialBackupData
-  if ($backupInventory.fileCount -ne $stableInventory.fileCount -or $backupInventory.bytes -ne $stableInventory.bytes) {
-    throw 'HOST_DATABASE_BACKUP_VERIFICATION_FAILED'
-  }
-  if (-not $TestMode) { Set-HostBackupAcl $partialBackupData -Directory }
-  $manifest = [ordered]@{
-    formatVersion = 1
-    createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
-    postgresVersion = '16.15'
-    dataDirectory = 'data'
-    fileCount = $backupInventory.fileCount
-    bytes = $backupInventory.bytes
-  }
-  $manifestPath = Join-Path $partialBackupRoot 'backup-manifest.json'
-  [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
-  if (-not $TestMode) { Set-HostBackupAcl $manifestPath }
-  [IO.Directory]::Move($partialBackupRoot, $backupRoot)
+  $backupRoot = Complete-HostPostgresBackup $dataDirectory $stableInventory $partialBackupRoot $backupRoot $backupName
+  Set-HostBackupStage 'DATABASE_COORDINATED_MIGRATION' 'HOST_DATABASE_UPGRADE_FAILED'
   if (-not $TestMode) {
     $postgresConfig = Join-Path $dataDirectory 'postgresql.conf'
     if (-not (Test-Path -LiteralPath $postgresConfig -PathType Leaf)) {
@@ -571,4 +758,17 @@ SELECT jsonb_build_array(
     $envVars.Clear()
     $migrationEnvironment.Clear()
   }
+}
+} catch {
+  $message = [string]$_.Exception.Message
+  $code = if ($message -match '^HOST_[A-Z0-9_]{1,120}$') {
+    $message
+  } elseif ($script:hostBackupFallbackCode -match '^HOST_[A-Z0-9_]{1,120}$') {
+    $script:hostBackupFallbackCode
+  } else {
+    'HOST_DATABASE_UPGRADE_FAILED'
+  }
+  $details = $script:hostBackupFailureDetails -join ';'
+  Write-HostUpgradeFailureCode $code $script:hostBackupStage $details
+  throw $code
 }

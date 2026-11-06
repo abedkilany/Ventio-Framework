@@ -209,6 +209,23 @@ begin
   end;
 end;
 
+function IsSafeHostDatabaseUpgradeFailureCode(const Code: string): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := (Pos('HOST_DATABASE_', Code) = 1) and (Length(Code) <= 140);
+  if not Result then exit;
+  for I := 1 to Length(Code) do begin
+    C := Code[I];
+    if not (((C >= 'A') and (C <= 'Z')) or
+            ((C >= '0') and (C <= '9')) or (C = '_')) then begin
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
 procedure CurStepChanged(CurrentStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -236,11 +253,23 @@ begin
       exit;
     end;
     Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PostgresRoot "' + ExpandConstant('{app}\host-payload\postgresql') + '" -Apply';
+    FailureCodePath := ExpandConstant('{tmp}\ventio-host-database-upgrade-failure.txt');
+    DeleteFile(FailureCodePath);
+    Parameters := Parameters + ' -FailureCodePath "' + FailureCodePath + '"';
     if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
       HostDatabaseUpgradeFailed := True;
-      MsgBox('Ventio updated its application files, but the Host database backup, migrations, or security contract verification did not complete. The Host service was not restarted. PostgreSQL remains available for recovery; preserve the verified backup and diagnostics, then repair the upgrade before starting VentioHost.', mbError, MB_OK);
+      FailureCode := '';
+      if FileExists(FailureCodePath) and LoadStringsFromFile(FailureCodePath, FailureCodeLines) and
+         (GetArrayLength(FailureCodeLines) > 0) then
+        FailureCode := Trim(FailureCodeLines[0]);
+      DeleteFile(FailureCodePath);
+      if IsSafeHostDatabaseUpgradeFailureCode(FailureCode) then
+        MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Correct the reported stage before retrying. Error code: ' + FailureCode + '.', mbError, MB_OK)
+      else
+        MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Repair the upgrade before retrying.', mbError, MB_OK);
       exit;
     end;
+    DeleteFile(FailureCodePath);
   end;
   FailureCodePath := ExpandConstant('{tmp}\ventio-host-lan-failure.txt');
   DeleteFile(FailureCodePath);
