@@ -2,7 +2,9 @@ param(
   [string] $PayloadDirectory = (Join-Path $env:ProgramFiles 'Ventio\host-payload'),
   [switch] $AllowPostgresOnlyRecovery,
   [switch] $ResumePostgresOnly,
-  [switch] $ResumeServices
+  [switch] $ResumeServices,
+  [switch] $KeepHostRecoveryPolicySuppressed,
+  [switch] $RestoreHostFailureActions
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +14,17 @@ $programData = [IO.Path]::GetFullPath([Environment]::GetFolderPath([Environment+
 $dataDirectory = [IO.Path]::GetFullPath((Join-Path $programData 'Ventio\PostgreSQL\data'))
 $installerStateDirectory = Join-Path $programData 'Ventio\Installer'
 $hostConfigurationDirectory = Join-Path $programData 'Ventio\Host'
+$serviceRecoveryPolicyModule = Join-Path $PSScriptRoot 'HostServiceRecoveryPolicy.psm1'
+if (-not (Test-Path -LiteralPath $serviceRecoveryPolicyModule -PathType Leaf)) {
+  throw 'HOST_SERVICE_RECOVERY_POLICY_HELPER_MISSING'
+}
+Import-Module $serviceRecoveryPolicyModule -Force
+
+if (($ResumeServices -and $ResumePostgresOnly) -or
+    ($KeepHostRecoveryPolicySuppressed -and -not $ResumePostgresOnly) -or
+    ($RestoreHostFailureActions -and $KeepHostRecoveryPolicySuppressed)) {
+  throw 'HOST_SERVICE_RECOVERY_ARGUMENTS_INVALID'
+}
 
 function Test-ProtectedRecoveryRecordAcl([string] $Path) {
   try {
@@ -171,8 +184,12 @@ if ($ResumeServices) {
     throw 'HOST_SERVICE_RESUME_STATE_INVALID'
   }
   Assert-NoRecoveryReparseAncestors $dataDirectory $programData
-  Start-ValidatedPostgresService
-  Start-ValidatedHostService
+  try {
+    Start-ValidatedPostgresService
+    Start-ValidatedHostService
+  } finally {
+    Restore-VentioHostServiceFailureActions $hostService
+  }
   Write-Output 'HOST_SERVICES_RESUMED_AFTER_INSTALL'
   return
 }
@@ -185,8 +202,20 @@ if ($ResumePostgresOnly) {
     throw 'HOST_POSTGRES_RESTART_CLUSTER_INVALID'
   }
   Assert-NoRecoveryReparseAncestors $dataDirectory $programData
+  if ($hostService) { Stop-ValidatedService 'VentioHost' }
+  if (-not $KeepHostRecoveryPolicySuppressed) {
+    if ($hostService) { Restore-VentioHostServiceFailureActions $hostService }
+  }
   Start-ValidatedPostgresService
   Write-Output 'HOST_POSTGRES_RESUMED_AFTER_INCOMPLETE_INSTALL'
+  return
+}
+if ($RestoreHostFailureActions) {
+  if (-not $hostService) { throw 'HOST_SERVICE_RECOVERY_HOST_SERVICE_MISSING' }
+  $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+  if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'HOST_SERVICE_ADMIN_ELEVATION_REQUIRED' }
+  Restore-VentioHostServiceFailureActions $hostService
+  Write-Output 'HOST_SERVICE_RECOVERY_POLICY_RESTORED'
   return
 }
 if (($null -eq $postgres) -xor ($null -eq $hostService)) {
@@ -207,6 +236,15 @@ if (-not $postgres) {
 $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'HOST_SERVICE_ADMIN_ELEVATION_REQUIRED' }
 
-Stop-ValidatedService 'VentioHost'
-Stop-ValidatedService 'VentioPostgres'
+try {
+  [void](Start-VentioHostServiceMaintenance $hostService $installerStateDirectory)
+  Stop-ValidatedService 'VentioPostgres'
+} catch {
+  try {
+    Restore-VentioHostServiceFailureActions $hostService
+  } catch {
+    throw 'HOST_SERVICE_RECOVERY_POLICY_ROLLBACK_FAILED'
+  }
+  throw
+}
 Write-Output 'HOST_SERVICES_STOPPED_FOR_UPGRADE'

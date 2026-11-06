@@ -105,6 +105,9 @@ if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted
 if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_host_upgrade.exe' }).Count) {
   throw 'Recovery-aware Host upgrade helper is not covered by the critical payload manifest.'
 }
+if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'setup/HostServiceRecoveryPolicy.psm1' }).Count) {
+  throw 'Host service recovery-policy lifecycle module is not covered by the critical payload manifest.'
+}
 
 $versionLine = Select-String -LiteralPath $pubspec -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$'
 if ($null -eq $versionLine) { throw 'Flutter semantic version is invalid.' }

@@ -32,6 +32,7 @@ $pairingContract = Join-Path $payloadRoot 'security\pairing.sql'
 $credentialReissueContract = Join-Path $payloadRoot 'security\credential_reissues.sql'
 $schemaProfileContract = Join-Path $payloadRoot 'security\schema_profile.sql'
 $credentialModule = Join-Path $payloadRoot 'setup\HostMigrationCredential.psm1'
+$serviceRecoveryPolicyModule = Join-Path $payloadRoot 'setup\HostServiceRecoveryPolicy.psm1'
 $hostServiceExe = Join-Path $payloadRoot 'VentioHostService.exe'
 $trustedHostUpgradeExe = Join-Path $payloadRoot 'ventio_trusted_host_upgrade.exe'
 if ($TestMode -and -not (Test-Path -LiteralPath $credentialModule -PathType Leaf)) {
@@ -464,11 +465,25 @@ function New-HostSchemaUpgradeRequest([string] $DatabaseUrl, [string] $HostDirec
 }
 
 function Invoke-HostSchemaUpgradeService([string] $DatabaseUrl, [string] $HostDirectory) {
+  Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_PRECONDITION' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
+  $hostService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$hostServiceName'" -ErrorAction Stop
+  if ($null -eq $hostService -or $hostService.StartName -cne 'NT SERVICE\VentioHost' -or
+      $hostService.PathName -notmatch [regex]::Escape($hostServiceExe)) {
+    throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID'
+  }
+  Assert-VentioHostServiceMaintenance $hostService 'Stopped'
   $request = New-HostSchemaUpgradeRequest $DatabaseUrl $HostDirectory
   try {
     if (Test-Path -LiteralPath $request.ResultPath) {
       Remove-Item -LiteralPath $request.ResultPath -Force
     }
+    Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_STATE' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
+    $hostService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$hostServiceName'" -ErrorAction Stop
+    if ($null -eq $hostService -or $hostService.StartName -cne 'NT SERVICE\VentioHost' -or
+        $hostService.PathName -notmatch [regex]::Escape($hostServiceExe)) {
+      throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID'
+    }
+    Assert-VentioHostServiceMaintenance $hostService 'Stopped'
     if ((Get-Service -Name $hostServiceName -ErrorAction Stop).Status -ne 'Stopped') {
       throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
     }
@@ -511,6 +526,10 @@ foreach ($file in @($psql, $pgCtl, $migrationExe, $migrations, $pairingContract,
   if (-not (Test-Path -LiteralPath $file)) { throw 'HOST_DATABASE_UPGRADE_PAYLOAD_INCOMPLETE' }
 }
 if (-not $TestMode) {
+  if (-not (Test-Path -LiteralPath $serviceRecoveryPolicyModule -PathType Leaf)) {
+    throw 'HOST_SERVICE_RECOVERY_POLICY_HELPER_MISSING'
+  }
+  Import-Module $serviceRecoveryPolicyModule -Force
   foreach ($file in @($hostServiceExe, $trustedHostUpgradeExe)) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
       throw 'HOST_DATABASE_UPGRADE_PAYLOAD_INCOMPLETE'
@@ -582,10 +601,15 @@ if (-not $TestMode) {
   if ($null -eq $databaseService -or $databaseService.StartName -cne 'NT SERVICE\VentioPostgres' -or
       $databaseService.State -ne 'Running' -or $databaseService.PathName -notmatch [regex]::Escape((Join-Path $pgRoot 'bin\pg_ctl.exe')) -or
       $databaseService.PathName -notmatch [regex]::Escape($dataDirectory)) { throw 'HOST_DATABASE_UPGRADE_POSTGRES_SERVICE_INVALID' }
+  Set-HostBackupStage 'PRE_DATABASE_UPGRADE_HOST_SERVICE_STATE' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
   if ($null -eq $hostService -or $hostService.StartName -cne 'NT SERVICE\VentioHost' -or
-      $hostService.State -ne 'Stopped' -or $hostService.PathName -notmatch [regex]::Escape((Join-Path $payloadRoot 'VentioHostService.exe'))) {
+      $hostService.PathName -notmatch [regex]::Escape((Join-Path $payloadRoot 'VentioHostService.exe'))) {
+    throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID'
+  }
+  if ($hostService.State -ne 'Stopped') {
     throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
   }
+  Assert-VentioHostServiceMaintenance $hostService 'Stopped'
 } elseif (-not (Test-Path -LiteralPath (Join-Path $dataDirectory 'PG_VERSION') -PathType Leaf)) {
   throw 'HOST_DATABASE_TEST_CLUSTER_MISSING'
 }

@@ -2,7 +2,17 @@
 
 ## Status
 
-The 0.1.12 recovery-fingerprint failure is corrected in 0.1.13. A separate 0.1.13 backup failure was reproduced on Windows with a field-sized data tree and corrected in 0.1.14. The physical Host and its live PostgreSQL cluster were not accessed or changed. Physical acceptance remains open.
+The 0.1.12 recovery-fingerprint failure is corrected in 0.1.13. A separate 0.1.13 backup failure was reproduced on Windows with a field-sized data tree and corrected in 0.1.14. A later 0.1.14 failure caused by VentioHost SCM recovery restarts racing the upgrade stop checks is corrected in 0.1.15. The physical Host and its live PostgreSQL cluster were not accessed or changed. Physical acceptance remains open.
+
+## 0.1.14 service recovery race and correction
+
+The 0.1.14 installer verifies the VentioHost identity and stopped state before backup, and the Recovery Authority helper checks again before its protected service start. It stopped VentioHost but left the service's Windows SCM failure actions active. If an earlier service failure had a delayed automatic restart pending, SCM could restart the Host after the installer observed `Stopped`; the first check would then fail before a schema-upgrade request was created. A second state check guards the deliberate Recovery Authority service start. That check now has its own safe stage, and the request is created only after the maintenance precondition succeeds. The exact stage is written beside the safe failure code and shown by Setup.
+
+Setup 0.1.15 now uses a bounded service maintenance hold. After validating the existing `NT SERVICE\\VentioHost` account and executable path, it snapshots the exact SCM failure-action policy and failure-actions flag into a LocalMachine-DPAPI-protected record under `%ProgramData%\\Ventio\\Installer`. The record's DACL is limited to SYSTEM and Administrators, accepting the already-provisioned owner ACE on the protected installer directory. The installer temporarily disables recovery actions, stops VentioHost, and waits through the longest configured restart delay, stopping any already-queued restart and restarting the quiet window when one appears. It fails closed on unsupported reboot/run-command actions or a recovery delay longer than five minutes. It verifies the policy is still suppressed at both upgrade preconditions.
+
+The installer restores and verifies the exact original reset period, recovery actions and delays, reboot message, command, and non-crash failure flag after the final Host readiness check. Handled failures restore the policy while leaving the Host stopped when the database upgrade failed. The protected record remains if restoration or verification fails; a subsequent Setup attempt reconciles it without changing service identity or database authority. If Setup is force-terminated or Windows loses power before cleanup, recovery actions remain suppressed and the Host must be left stopped until Setup 0.1.15 is rerun to reconcile the protected record. Recovery policy changes do not alter PostgreSQL, Recovery Authority, or Host authorization. Do not edit or delete the protected record manually.
+
+Regression coverage includes a deterministic SCM-delay simulation reproducing the stopped-then-restarted race, checks of both upgrade failure stages and recovery preconditions, and an optional real SCM test that creates a disposable failing Windows service with staged restart delays and verifies policy suppression, drain, and exact restoration. The real SCM test requires an elevated test shell; it was BLOCKED in the current non-elevated development session. No test changed the installed Ventio Host or any physical Host state.
 
 ## 0.1.13 backup failure and correction
 
@@ -16,7 +26,9 @@ Robocopy exit codes 0–7 remain accepted as success; 8 or higher indicates fail
 
 The corrected installer does not require restoring the previously verified pre-migration backup solely to recover from this backup-only failure: the failure occurs before the database migration request and leaves the live database and witness unchanged. Preserve the physical Host database, Recovery Authority witness, TLS configuration, verified backups, and `.partial` directory. Do not retry the upgrade until the corrected 0.1.14 package is available and verified. If the Host still has the separate stale-witness state caused by a previously committed 0.1.12 migration, the earlier stale-witness restore procedure below remains necessary.
 
-The corrected Windows package is `dist/windows/0.1.14-backup-fix-final/Ventio-Setup-0.1.14.exe` (104,182,169 bytes), SHA-256 `85f046972b68b9150f7b70f54532f2faed5033c99e4fb4b33b32e71aec2f66f8`. This locally built installer is not Authenticode-signed; verify this SHA-256 against the value delivered through the trusted engineering channel before running it.
+The corrected 0.1.13 backup package was `dist/windows/0.1.14-backup-fix-final/Ventio-Setup-0.1.14.exe` (104,182,169 bytes), SHA-256 `85f046972b68b9150f7b70f54532f2faed5033c99e4fb4b33b32e71aec2f66f8`. The 0.1.14 recovery-action race is corrected in Setup 0.1.15; use the 0.1.15 artifact and checksum reported with the corresponding source commit. Locally built installers are not Authenticode-signed; verify the relevant SHA-256 against the value delivered through the trusted engineering channel before running one.
+
+Setup 0.1.15 is `dist/windows/0.1.15-service-recovery-fix-final/Ventio-Setup-0.1.15.exe` (104,176,778 bytes), SHA-256 `0635e012727d351ce335051778784339ce29cc738a9e300ac50b7f4c7cb57ec2`. Its SHA-256 sidecar is `dist/windows/0.1.15-service-recovery-fix-final/Ventio-Setup-SHA256SUMS.txt`.
 
 ## Confirmed failure mechanism
 
@@ -54,7 +66,7 @@ This is a narrow two-phase transition for vetted schema upgrades, not a general 
 
 For a Host whose 0.1.12 database migrations were committed without advancing the Recovery Authority witness, use the corrected versioned Setup 0.1.14 package and the already verified backup made by 0.1.12 **before** it applied migrations 031 and 032. Do not select a later backup of the already-migrated, witness-mismatched cluster. If there is any uncertainty about whether the live cluster still has a stale witness or which backup is the pre-migration one, stop and preserve the machine for support review. This restore procedure does not apply to a backup-only failure where the database and witness are still consistent.
 
-1. For the earlier stale-witness incident, follow this procedure with Ventio Setup 0.1.14. For the later 0.1.13 backup failure alone, do not restore a database or delete the `.partial` directory. Verify the new Ventio Setup 0.1.14 package against the SHA-256 above, then run it as an administrator after it is delivered to the Host.
+1. For the earlier stale-witness incident, use the corrected versioned Setup package and the known pre-migration backup only after confirming the stale-witness state. For the 0.1.13 backup failure or 0.1.14 service-stop race alone, do not restore a database or delete the `.partial` directory. Verify Setup 0.1.15 against the checksum delivered with its source commit, then run it as an administrator after it is delivered to the Host. Setup 0.1.15 preserves any prior service recovery policy snapshot and restores it after the upgrade or on a handled failure.
 2. Open an elevated PowerShell window. Confirm `VentioHost` is stopped. Run the recovery script bundled at `C:\Program Files\Ventio\host-payload\setup\restore-host-upgrade-backup.ps1` with the exact original pre-migration backup directory:
 
    ```powershell

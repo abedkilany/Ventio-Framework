@@ -65,6 +65,7 @@ Source: "{#VCRuntimeHelperPath}"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#VCRuntimeModulePath}"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#HostPayload}\setup\stop-host-services.ps1"; Flags: dontcopy
 Source: "{#HostPayload}\setup\HostMigrationCredential.psm1"; Flags: dontcopy
+Source: "{#HostPayload}\setup\HostServiceRecoveryPolicy.psm1"; Flags: dontcopy
 
 [Icons]
 Name: "{autoprograms}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
@@ -150,6 +151,7 @@ begin
   if not HasHostService and not HasPostgresService then exit;
   ExtractTemporaryFile('stop-host-services.ps1');
   ExtractTemporaryFile('HostMigrationCredential.psm1');
+  ExtractTemporaryFile('HostServiceRecoveryPolicy.psm1');
   HostRecoveryHelpersExtracted := True;
   StopScript := ExpandConstant('{tmp}\stop-host-services.ps1');
   if not FileExists(StopScript) then begin
@@ -176,6 +178,7 @@ begin
     if not HostRecoveryHelpersExtracted then begin
       ExtractTemporaryFile('stop-host-services.ps1');
       ExtractTemporaryFile('HostMigrationCredential.psm1');
+      ExtractTemporaryFile('HostServiceRecoveryPolicy.psm1');
       HostRecoveryHelpersExtracted := True;
     end;
     PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
@@ -184,6 +187,8 @@ begin
       Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumeServices'
     else
       Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumePostgresOnly';
+    if ExistingHostServiceFound and ExistingPostgresServiceFound then
+      Parameters := Parameters + ' -RestoreHostFailureActions';
     if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
       Log('HOST_POSTGRES_RESUME_AFTER_FAILED_INSTALL_DID_NOT_COMPLETE');
     end;
@@ -226,6 +231,23 @@ begin
   end;
 end;
 
+function IsSafeHostDatabaseUpgradeFailureStage(const Stage: string): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := (Pos('STAGE=', Stage) = 1) and (Length(Stage) > 6) and (Length(Stage) <= 104);
+  if not Result then exit;
+  for I := 7 to Length(Stage) do begin
+    C := Stage[I];
+    if not (((C >= 'A') and (C <= 'Z')) or
+            ((C >= '0') and (C <= '9')) or (C = '_')) then begin
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
 procedure CurStepChanged(CurrentStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -234,13 +256,14 @@ var
   Parameters: string;
   FailureCodePath: string;
   FailureCode: string;
+  FailureStage: string;
   FailureCodeLines: TArrayOfString;
 begin
   if (CurrentStep <> ssPostInstall) or not HostServicesStoppedForUpgrade then exit;
   PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
   if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
     ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly';
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly -KeepHostRecoveryPolicySuppressed';
     if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
       HostDatabaseUpgradeFailed := True;
       MsgBox('Ventio updated its application files, but PostgreSQL could not be safely started for the verified Host database upgrade. VentioHost remains stopped; no database migration was attempted.', mbError, MB_OK);
@@ -259,11 +282,17 @@ begin
     if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
       HostDatabaseUpgradeFailed := True;
       FailureCode := '';
+      FailureStage := '';
       if FileExists(FailureCodePath) and LoadStringsFromFile(FailureCodePath, FailureCodeLines) and
-         (GetArrayLength(FailureCodeLines) > 0) then
+         (GetArrayLength(FailureCodeLines) > 0) then begin
         FailureCode := Trim(FailureCodeLines[0]);
+        if GetArrayLength(FailureCodeLines) > 1 then
+          FailureStage := Trim(FailureCodeLines[1]);
+      end;
       DeleteFile(FailureCodePath);
-      if IsSafeHostDatabaseUpgradeFailureCode(FailureCode) then
+      if IsSafeHostDatabaseUpgradeFailureCode(FailureCode) and IsSafeHostDatabaseUpgradeFailureStage(FailureStage) then
+        MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Correct the reported stage before retrying. Error code: ' + FailureCode + '. Stage: ' + Copy(FailureStage, 7, Length(FailureStage)) + '.', mbError, MB_OK)
+      else if IsSafeHostDatabaseUpgradeFailureCode(FailureCode) then
         MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Correct the reported stage before retrying. Error code: ' + FailureCode + '.', mbError, MB_OK)
       else
         MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Repair the upgrade before retrying.', mbError, MB_OK);
@@ -285,6 +314,15 @@ begin
     Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly';
   end;
   if Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then begin
+    if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
+      ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
+      Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -RestoreHostFailureActions';
+      if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+        HostDatabaseUpgradeFailed := True;
+        MsgBox('Ventio completed the Host update but could not verify restoration of the original Windows service recovery policy. The protected recovery record was preserved. Retry Setup as an administrator before relying on automatic service recovery.', mbError, MB_OK);
+        exit;
+      end;
+    end;
     HostServicesStoppedForUpgrade := False;
     DeleteFile(FailureCodePath);
   end else begin
