@@ -83,6 +83,7 @@ try {
     $hostApiDirectory = Join-Path $workspace 'packages\ventio_host_api'
     if ($HostSecuritySuites -or $ClientOfflineIntegration -or $HostProcessIntegration -or $HostDiagnosticsProcessIntegration -or $HostSchemaUpgradeIntegration) {
         $env:VENTIO_MIGRATIONS_DIR = Join-Path $workspace 'migrations\postgres'
+        $env:VENTIO_SECURITY_DIR = Join-Path $workspace 'security\postgres'
         $env:PGPASSWORD = 'ventio_test_only'
         Push-Location $hostApiDirectory
         try {
@@ -165,6 +166,14 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Could not install the isolated Host security contracts.' }
         $env:VENTIO_TEST_UPGRADE_TEMPLATE_URL = $upgradeBaselineUrl
         $env:VENTIO_TEST_UPGRADE_TEMPLATE = $upgradeBaselineName
+        $hostPayload = Split-Path -Parent (Split-Path -Parent $binDirectory)
+        $trustedHostUpgrade = Join-Path $hostPayload 'ventio_trusted_host_upgrade.exe'
+        if (-not (Test-Path -LiteralPath $trustedHostUpgrade -PathType Leaf)) {
+            throw 'The isolated trusted Host upgrade helper is missing from the selected payload.'
+        }
+        $env:VENTIO_TEST_HOST_PAYLOAD_DIR = $hostPayload
+        $env:VENTIO_TEST_TRUSTED_HOST_UPGRADE_EXE = $trustedHostUpgrade
+        $env:VENTIO_TEST_RECOVERY_OWNER_SID = $sid
         $env:VENTIO_DATABASE_URL = "postgresql://ventio:ventio_test_only@127.0.0.1:$($env:VENTIO_TEST_POSTGRES_PORT)/ventio_host_test?sslmode=disable"
         $env:VENTIO_MIGRATION_ROLE = 'ventio_owner'
         $env:VENTIO_MIGRATIONS_DIR = Join-Path $workspace 'migrations\postgres'
@@ -174,6 +183,10 @@ try {
         Remove-Item -LiteralPath $upgradeSecurityDirectory -Recurse -Force
         Remove-Item Env:VENTIO_TEST_UPGRADE_TEMPLATE_URL -ErrorAction SilentlyContinue
         Remove-Item Env:VENTIO_TEST_UPGRADE_TEMPLATE -ErrorAction SilentlyContinue
+        Remove-Item Env:VENTIO_TEST_HOST_PAYLOAD_DIR -ErrorAction SilentlyContinue
+        Remove-Item Env:VENTIO_TEST_TRUSTED_HOST_UPGRADE_EXE -ErrorAction SilentlyContinue
+        Remove-Item Env:VENTIO_TEST_RECOVERY_OWNER_SID -ErrorAction SilentlyContinue
+        Remove-Item Env:VENTIO_SECURITY_DIR -ErrorAction SilentlyContinue
         Remove-Item Env:VENTIO_MIGRATION_ROLE -ErrorAction SilentlyContinue
         Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
     }

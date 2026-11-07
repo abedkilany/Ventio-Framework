@@ -12,8 +12,10 @@ import 'package:ventio_postgres/ventio_postgres.dart';
 /// stdin and executes only the files shipped in the verified Host payload.
 Future<void> main() async {
   pg.Connection? connection;
+  var stage = 'REQUEST_READ';
   try {
     final request = await _readRequest();
+    stage = 'REQUEST_VALIDATION';
     final operationId = request['operationId'] as String;
     final databaseUrl = request['databaseUrl'] as String;
     final database = Uri.parse(databaseUrl);
@@ -28,6 +30,7 @@ Future<void> main() async {
             ))) {
       throw const _UpgradeFailure('REQUEST_INVALID');
     }
+    stage = 'HOST_CONFIGURATION_VALIDATION';
     final witnessPath = Platform.environment['VENTIO_RECOVERY_AUTHORITY_FILE'];
     final ownerSid =
         Platform.environment['VENTIO_RECOVERY_AUTHORITY_OWNER_SID'];
@@ -53,9 +56,13 @@ Future<void> main() async {
       throw const _UpgradeFailure('PAYLOAD_INCOMPLETE');
     }
 
+    stage = 'MIGRATION_MANIFEST_VALIDATION';
     final manifest = await _migrationManifest(migrations);
+    stage = 'DATABASE_CONNECTION';
     connection = await pg.Connection.openFromUrl(databaseUrl);
+    stage = 'DATABASE_ROLE_SWITCH';
     await connection.execute('SET ROLE ventio_owner');
+    stage = 'PREPARED_TRANSACTION_PREFLIGHT';
     final preparedTransactions = await connection.execute(
       'SHOW max_prepared_transactions',
     );
@@ -71,6 +78,25 @@ Future<void> main() async {
       allowHostMutations: true,
     );
     final runner = PostgresMigrationRunner(connection, migrations);
+    stage = 'RECOVERY_AUTHORITY_FINGERPRINT_PREFLIGHT';
+    final admission = await authority.inspectSchemaUpgradeAdmission(connection);
+    if (admission ==
+        SchemaUpgradeAdmissionDiagnostic.databaseFingerprintMismatch) {
+      throw const _UpgradeFailure(
+        'RECOVERY_FINGERPRINT_MISMATCH',
+        stage: 'RECOVERY_AUTHORITY_FINGERPRINT_PREFLIGHT',
+      );
+    }
+    if (admission == SchemaUpgradeAdmissionDiagnostic.unavailable) {
+      throw const _UpgradeFailure(
+        'RECOVERY_ADMISSION_UNAVAILABLE',
+        stage: 'RECOVERY_AUTHORITY_FINGERPRINT_PREFLIGHT',
+      );
+    }
+    // A pending witness may be a crash-interrupted schema upgrade. Let the
+    // existing operation-ID and receipt reconciliation logic decide whether
+    // this exact transition can resume; never clear or rewrite it here.
+    stage = 'RECOVERY_AUTHORITY_SCHEMA_ADMISSION';
     await authority.applySchemaUpgrade(
       connection,
       operationId: operationId,
@@ -80,27 +106,47 @@ Future<void> main() async {
       },
     );
 
+    stage = 'SECURITY_CONTRACT_APPLICATION';
     await _applyContracts(database, security);
+    stage = 'POST_UPGRADE_CONTRACT_VERIFICATION';
     await _verifyUpgrade(connection, migrations);
     stdout.writeln(
       jsonEncode({'status': 'complete', 'operationId': operationId}),
     );
   } on _UpgradeFailure catch (error) {
-    stdout.writeln(jsonEncode({'status': 'failed', 'failureCode': error.code}));
+    stdout.writeln(
+      jsonEncode({
+        'status': 'failed',
+        'failureCode': error.code,
+        'failureStage': error.stage ?? stage,
+      }),
+    );
     exitCode = 2;
   } on RecoveryMutationOutcomeUnknown {
     stdout.writeln(
-      jsonEncode({'status': 'unknown', 'failureCode': 'OUTCOME_UNKNOWN'}),
+      jsonEncode({
+        'status': 'unknown',
+        'failureCode': 'OUTCOME_UNKNOWN',
+        'failureStage': stage,
+      }),
     );
     exitCode = 3;
   } on RecoveryAdmissionUnavailable {
     stdout.writeln(
-      jsonEncode({'status': 'failed', 'failureCode': 'RECOVERY_ADMISSION'}),
+      jsonEncode({
+        'status': 'failed',
+        'failureCode': 'RECOVERY_ADMISSION',
+        'failureStage': stage,
+      }),
     );
     exitCode = 2;
   } on Object {
     stdout.writeln(
-      jsonEncode({'status': 'failed', 'failureCode': 'UPGRADE_FAILED'}),
+      jsonEncode({
+        'status': 'failed',
+        'failureCode': 'UPGRADE_FAILED',
+        'failureStage': stage,
+      }),
     );
     exitCode = 2;
   } finally {
@@ -214,7 +260,15 @@ Future<void> _applyContracts(Uri database, Directory security) async {
     final code = await process.exitCode;
     timer.cancel();
     await Future.wait([out, err]);
-    if (code != 0) throw const _UpgradeFailure('SECURITY_CONTRACT_FAILED');
+    if (code != 0) {
+      final stage = switch (contract) {
+        'pairing.sql' => 'SECURITY_CONTRACT_PAIRING',
+        'credential_reissues.sql' => 'SECURITY_CONTRACT_CREDENTIAL_REISSUE',
+        'schema_profile.sql' => 'SECURITY_CONTRACT_SCHEMA_PROFILE',
+        _ => 'SECURITY_CONTRACT_APPLICATION',
+      };
+      throw _UpgradeFailure('SECURITY_CONTRACT_FAILED', stage: stage);
+    }
   }
 }
 
@@ -278,6 +332,7 @@ Future<void> _verifyUpgrade(
 }
 
 class _UpgradeFailure implements Exception {
-  const _UpgradeFailure(this.code);
+  const _UpgradeFailure(this.code, {this.stage});
   final String code;
+  final String? stage;
 }

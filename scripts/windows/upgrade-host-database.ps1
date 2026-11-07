@@ -207,9 +207,10 @@ function Get-HostDataInventory([string] $Path) {
 }
 
 function Set-HostBackupStage([string] $Stage, [string] $FallbackCode = 'HOST_DATABASE_UPGRADE_FAILED') {
+  $stageChanged = $script:hostBackupStage -cne $Stage
   $script:hostBackupStage = $Stage
   $script:hostBackupFallbackCode = $FallbackCode
-  [Console]::Out.WriteLine('HOST_DATABASE_BACKUP_STAGE=' + $Stage)
+  if ($stageChanged) { [Console]::Out.WriteLine('HOST_DATABASE_BACKUP_STAGE=' + $Stage) }
 }
 
 function Write-HostUpgradeFailureCode([string] $Code, [string] $Stage, [string] $Details = '') {
@@ -317,11 +318,14 @@ function Stop-HostPostgresForBackup {
 function Start-HostPostgresAfterBackup {
   if (-not $script:hostPostgresStoppedForBackup) { return }
   if ($TestMode) {
+    Set-HostBackupStage 'DATABASE_POSTGRES_RESTART_START' 'HOST_DATABASE_UPGRADE_POSTGRES_RESTART_FAILED'
     $testLog = Join-Path (Split-Path -Parent $dataDirectory) 'postgres-upgrade-test.log'
     & $pgCtl -D $dataDirectory -l $testLog -o "-h 127.0.0.1 -p $Port -c listen_addresses=127.0.0.1 -c max_prepared_transactions=1" -w start
     if ($LASTEXITCODE -ne 0) { throw 'HOST_DATABASE_UPGRADE_POSTGRES_RESTART_FAILED' }
   } else {
+    Set-HostBackupStage 'DATABASE_POSTGRES_RESTART_START' 'HOST_DATABASE_UPGRADE_POSTGRES_RESTART_FAILED'
     Start-Service -Name $databaseServiceName -ErrorAction Stop
+    Set-HostBackupStage 'DATABASE_POSTGRES_RESTART_WAIT' 'HOST_DATABASE_UPGRADE_POSTGRES_RESTART_TIMEOUT'
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     while ((Get-Service -Name $databaseServiceName).Status -ne 'Running') {
       if ([DateTime]::UtcNow -ge $deadline) { throw 'HOST_DATABASE_UPGRADE_POSTGRES_RESTART_TIMEOUT' }
@@ -465,43 +469,59 @@ function New-HostSchemaUpgradeRequest([string] $DatabaseUrl, [string] $HostDirec
 }
 
 function Invoke-HostSchemaUpgradeService([string] $DatabaseUrl, [string] $HostDirectory) {
-  Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_PRECONDITION' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
+  Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_PRECONDITION_QUERY' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID'
   $hostService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$hostServiceName'" -ErrorAction Stop
   if ($null -eq $hostService -or $hostService.StartName -cne 'NT SERVICE\VentioHost' -or
       $hostService.PathName -notmatch [regex]::Escape($hostServiceExe)) {
     throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID'
   }
+  Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_PRECONDITION_STATE' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
   Assert-VentioHostServiceMaintenance $hostService 'Stopped'
+  Set-HostBackupStage 'RECOVERY_AUTHORITY_REQUEST_CREATE' 'HOST_SCHEMA_UPGRADE_REQUEST_CREATE_FAILED'
   $request = New-HostSchemaUpgradeRequest $DatabaseUrl $HostDirectory
   try {
     if (Test-Path -LiteralPath $request.ResultPath) {
       Remove-Item -LiteralPath $request.ResultPath -Force
     }
-    Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_STATE' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
+    Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_RECHECK_QUERY' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID'
     $hostService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$hostServiceName'" -ErrorAction Stop
     if ($null -eq $hostService -or $hostService.StartName -cne 'NT SERVICE\VentioHost' -or
         $hostService.PathName -notmatch [regex]::Escape($hostServiceExe)) {
       throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID'
     }
+    Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_RECHECK_STATE' 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
     Assert-VentioHostServiceMaintenance $hostService 'Stopped'
     if ((Get-Service -Name $hostServiceName -ErrorAction Stop).Status -ne 'Stopped') {
       throw 'HOST_DATABASE_UPGRADE_HOST_SERVICE_MUST_BE_STOPPED'
     }
+    Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START' 'HOST_SCHEMA_UPGRADE_SERVICE_START_FAILED'
     Start-Service -Name $hostServiceName -ErrorAction Stop
     $deadline = [DateTime]::UtcNow.AddMinutes(20)
     $completed = $false
+    Set-HostBackupStage 'RECOVERY_AUTHORITY_RESULT_WAIT' 'HOST_SCHEMA_UPGRADE_SERVICE_TIMEOUT'
     while ([DateTime]::UtcNow -lt $deadline) {
       if (Test-Path -LiteralPath $request.ResultPath -PathType Leaf) {
+        Set-HostBackupStage 'RECOVERY_AUTHORITY_RESULT_PARSE' 'HOST_SCHEMA_UPGRADE_RESULT_INVALID'
         $result = Get-Content -LiteralPath $request.ResultPath -Raw | ConvertFrom-Json
-        if ($result.operationId -ceq $request.OperationId -and $result.status -ceq 'failed') {
+        if ($result.operationId -ceq $request.OperationId -and
+            $result.status -in @('failed', 'unknown')) {
           $code = [string]$result.failureCode
-          if ($code -notmatch '^[A-Z][A-Z0-9_]{0,63}$') { $code = 'HOST_DATABASE_UPGRADE_FAILED' }
+          if ($code -notmatch '^[A-Z][A-Z0-9_]{0,63}$') {
+            $code = if ($result.status -ceq 'unknown') { 'OUTCOME_UNKNOWN' } else { 'HOST_DATABASE_UPGRADE_FAILED' }
+          }
+          $failureStage = [string]$result.failureStage
+          if ($failureStage -match '^[A-Z][A-Z0-9_]{0,63}$') {
+            Set-HostBackupStage ('TRUSTED_HOST_UPGRADE_' + $failureStage) ('HOST_SCHEMA_UPGRADE_' + $code)
+          } else {
+            Set-HostBackupStage 'TRUSTED_HOST_UPGRADE_RESULT_UNCLASSIFIED' ('HOST_SCHEMA_UPGRADE_' + $code)
+          }
           throw ('HOST_SCHEMA_UPGRADE_' + $code)
         }
         if ($result.operationId -ceq $request.OperationId -and $result.status -ceq 'complete' -and
             -not (Test-Path -LiteralPath $request.RequestPath)) { $completed = $true }
       }
       $serviceState = (Get-Service -Name $hostServiceName -ErrorAction Stop).Status
+      Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_STATE_POLL' 'HOST_SCHEMA_UPGRADE_SERVICE_START_FAILED'
       if ($completed -and $serviceState -eq 'Running') { break }
       if ($serviceState -eq 'Stopped') {
         throw 'HOST_SCHEMA_UPGRADE_SERVICE_START_FAILED'
@@ -672,24 +692,30 @@ try {
   $backupRoot = Complete-HostPostgresBackup $dataDirectory $stableInventory $partialBackupRoot $backupRoot $backupName
   Set-HostBackupStage 'DATABASE_COORDINATED_MIGRATION' 'HOST_DATABASE_UPGRADE_FAILED'
   if (-not $TestMode) {
+    Set-HostBackupStage 'DATABASE_POSTGRES_CONFIG_CHECK' 'HOST_DATABASE_POSTGRES_CONFIGURATION_MISSING'
     $postgresConfig = Join-Path $dataDirectory 'postgresql.conf'
     if (-not (Test-Path -LiteralPath $postgresConfig -PathType Leaf)) {
       throw 'HOST_DATABASE_POSTGRES_CONFIGURATION_MISSING'
     }
+    Set-HostBackupStage 'DATABASE_POSTGRES_CONFIG_READ' 'HOST_DATABASE_POSTGRES_CONFIGURATION_READ_FAILED'
     $configuration = [IO.File]::ReadAllText($postgresConfig)
     if ($configuration -notmatch '(?m)^# Ventio Recovery Authority upgrade coordinator v1\s*$') {
       $temporaryConfig = $postgresConfig + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
       try {
+        Set-HostBackupStage 'DATABASE_POSTGRES_CONFIG_WRITE' 'HOST_DATABASE_POSTGRES_CONFIGURATION_WRITE_FAILED'
         $configuration += "`n# Ventio Recovery Authority upgrade coordinator v1`nmax_prepared_transactions = 1`n"
         [IO.File]::WriteAllText($temporaryConfig, $configuration, [Text.UTF8Encoding]::new($false))
         Set-Acl -LiteralPath $temporaryConfig -AclObject (Get-Acl -LiteralPath $postgresConfig)
+        Set-HostBackupStage 'DATABASE_POSTGRES_CONFIG_REPLACE' 'HOST_DATABASE_POSTGRES_CONFIGURATION_REPLACE_FAILED'
         [IO.File]::Replace($temporaryConfig, $postgresConfig, $null, $true)
       } finally {
         if (Test-Path -LiteralPath $temporaryConfig) { Remove-Item -LiteralPath $temporaryConfig -Force }
       }
     }
   }
+  Set-HostBackupStage 'DATABASE_POSTGRES_RESTART' 'HOST_DATABASE_UPGRADE_POSTGRES_RESTART_FAILED'
   Start-HostPostgresAfterBackup
+  Set-HostBackupStage 'DATABASE_PREPARED_TRANSACTIONS_PREFLIGHT' 'HOST_DATABASE_PREPARED_TRANSACTIONS_UNAVAILABLE'
   $preparedTransactions = Invoke-HostDatabaseTool $psql @(
     '-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,
     '-d',$databaseName,'-Atc','SHOW max_prepared_transactions'
@@ -697,10 +723,13 @@ try {
   if ($preparedTransactions.Trim() -notmatch '^\d+$' -or [int]$preparedTransactions.Trim() -lt 1) {
     throw 'HOST_DATABASE_PREPARED_TRANSACTIONS_UNAVAILABLE'
   }
+  Set-HostBackupStage 'DATABASE_MIGRATOR_PROFILE_PREFLIGHT' 'HOST_DATABASE_MIGRATOR_PROFILE_INVALID'
   $profile = Invoke-HostDatabaseTool $psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,'-d',$databaseName,'-Atc',"SELECT pg_has_role(session_user,'ventio_migrator','MEMBER')::text || ':' || rolsuper::text || ':' || rolcreatedb::text || ':' || rolcreaterole::text FROM pg_roles WHERE rolname=current_user") $envVars 30000 'HOST_DATABASE_MIGRATOR_AUTHENTICATION_FAILED' -TestMode:$TestMode
   if ($profile -ne 'true:false:false:false') { throw 'HOST_DATABASE_MIGRATOR_PROFILE_INVALID' }
+  Set-HostBackupStage 'DATABASE_MIGRATION_PAYLOAD_INVENTORY' 'HOST_DATABASE_MIGRATION_FILES_MISSING'
   $migrationFiles = @(Get-ChildItem -LiteralPath $migrations -Filter '*.sql' -File -Recurse)
   if ($migrationFiles.Count -lt 1) { throw 'HOST_DATABASE_MIGRATION_FILES_MISSING' }
+  Set-HostBackupStage 'DATABASE_CONNECTION_CONFIGURATION' 'HOST_DATABASE_MIGRATION_FAILED'
   $databaseUrl = 'postgresql://' + [Uri]::EscapeDataString($credential.UserName) + ':' + [Uri]::EscapeDataString($password) + "@127.0.0.1:${Port}/${databaseName}?sslmode=disable"
   $migrationEnvironment = @{
     VENTIO_DATABASE_URL = $databaseUrl
@@ -729,8 +758,10 @@ try {
       '-f', $schemaProfileContract
     ) $envVars 60000 'HOST_SCHEMA_PROFILE_UPDATE_FAILED' -TestMode:$TestMode)
   } else {
+    Set-HostBackupStage 'DATABASE_TRUSTED_HOST_SCHEMA_UPGRADE' 'HOST_DATABASE_UPGRADE_FAILED'
     Invoke-HostSchemaUpgradeService $databaseUrl (Join-Path $programData 'Ventio\Host')
   }
+  Set-HostBackupStage 'DATABASE_PAIRING_CONTRACT_VERIFICATION' 'HOST_PAIRING_CONTRACT_VERIFICATION_FAILED'
   $pairingContractReady = Invoke-HostDatabaseTool $psql @(
     '-X', '-w', '-h', '127.0.0.1', '-p', [string]$Port, '-U', $migrationRole,
     '-d', $databaseName, '-Atc', "SET ROLE ventio_owner; SELECT position('Pairing request was already accepted' IN pg_get_functiondef('ventio_security.scoped_pairing_create(text,text,text,text,text,text)'::regprocedure)) > 0 AND position('TRUSTED_PAIRING_CREATED' IN pg_get_functiondef('ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)'::regprocedure)) > 0 AND position('CREDENTIAL_CEILING_DENIED' IN pg_get_functiondef('ventio_security.permission_denial_reason(text,text,text,text,text)'::regprocedure)) > 0 AND has_function_privilege('ventio_identity_api','ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)','EXECUTE') AND NOT has_function_privilege('ventio_runtime','ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text)','EXECUTE') AND has_function_privilege('ventio_identity_api','ventio_security.permission_denial_reason(text,text,text,text,text)','EXECUTE') AND NOT has_function_privilege('ventio_runtime','ventio_security.permission_denial_reason(text,text,text,text,text)','EXECUTE')"
@@ -739,6 +770,7 @@ try {
   if (-not $pairingContractMatch.Success -or $pairingContractMatch.Groups[1].Value -cne 't') {
     throw 'HOST_PAIRING_CONTRACT_VERIFICATION_FAILED'
   }
+  Set-HostBackupStage 'DATABASE_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION' 'HOST_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION_FAILED'
   $credentialReissueVerificationSql = @'
 SET ROLE ventio_owner;
 SELECT ventio_security.assert_schema();
@@ -765,6 +797,7 @@ SELECT jsonb_build_array(
     }
     throw 'HOST_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION_FAILED'
   }
+  Set-HostBackupStage 'DATABASE_MIGRATION_LEDGER_VERIFICATION' 'HOST_DATABASE_MIGRATION_LEDGER_INVALID'
   $ledger = Invoke-HostDatabaseTool $psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,'-d',$databaseName,'-Atc','SET ROLE ventio_owner; SELECT count(*) FROM public.ventio_schema_migrations') $envVars 30000 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' -TestMode:$TestMode
   $ledgerCounts = @($ledger -split "`r?`n" | Where-Object { $_ -match '^\d+$' })
   if ($ledgerCounts.Count -ne 1 -or [int]$ledgerCounts[0] -ne $migrationFiles.Count) {
@@ -774,7 +807,14 @@ SELECT jsonb_build_array(
   Write-Output ("Verified restricted PostgreSQL data backup: " + $backupRoot)
 } finally {
   try {
+    $reportedStage = $script:hostBackupStage
+    $reportedFallbackCode = $script:hostBackupFallbackCode
     Start-HostPostgresAfterBackup
+    # A successful cleanup restart must not replace the operation stage that
+    # caused the upgrade to fail. If cleanup itself fails, retain its stage so
+    # the operator can see why PostgreSQL could not be restored to service.
+    $script:hostBackupStage = $reportedStage
+    $script:hostBackupFallbackCode = $reportedFallbackCode
   } finally {
     $password = $null
     $databaseUrl = $null

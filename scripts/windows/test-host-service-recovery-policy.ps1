@@ -54,8 +54,8 @@ function Invoke-ContractChecks {
   $policy = Get-Content -LiteralPath $modulePath -Raw
   $installer = Get-Content -LiteralPath $installerPath -Raw
   Assert-RecoveryTest ($upgrade.Contains("Set-HostBackupStage 'PRE_DATABASE_UPGRADE_HOST_SERVICE_STATE'") -and
-    $upgrade.Contains("Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_PRECONDITION'") -and
-    $upgrade.Contains("Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_START_STATE'")) 'both_upgrade_service_state_failures_have_distinct_safe_stages'
+    $upgrade.Contains("Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_PRECONDITION_STATE'") -and
+    $upgrade.Contains("Set-HostBackupStage 'RECOVERY_AUTHORITY_SERVICE_RECHECK_STATE'")) 'both_upgrade_service_state_failures_have_distinct_safe_stages'
   Assert-RecoveryTest ($installer.Contains('IsSafeHostDatabaseUpgradeFailureStage') -and $installer.Contains(' Stage: ')) 'installer_displays_only_validated_safe_stage_metadata'
   Assert-RecoveryTest ($stop.Contains('[string] $FailureCodePath') -and $stop.Contains("'Code=' + `$Code") -and $stop.Contains("'Stage=' + `$Stage") -and
     $installer.Contains('-FailureCodePath "') -and $installer.Contains('IsSafePreinstallFailureStage')) 'preinstall_failure_code_and_stage_are_safely_exposed'
@@ -69,7 +69,7 @@ function Invoke-ContractChecks {
     $upgrade.Contains('HOST_DATABASE_UPGRADE_HOST_SERVICE_IDENTITY_INVALID')) 'host_service_account_and_executable_checks_remain_authoritative'
   Assert-RecoveryTest ($upgrade.IndexOf('Assert-VentioHostServiceMaintenance $hostService', [StringComparison]::Ordinal) -lt
     $upgrade.IndexOf('$request = New-HostSchemaUpgradeRequest', [StringComparison]::Ordinal)) 'service_maintenance_precondition_precedes_recovery_request_creation'
-  Assert-RecoveryTest ($upgrade.Contains('RECOVERY_AUTHORITY_SERVICE_START_STATE') -and
+  Assert-RecoveryTest ($upgrade.Contains('RECOVERY_AUTHORITY_SERVICE_RECHECK_STATE') -and
     $upgrade.Contains('Start-Service -Name $hostServiceName')) 'recovery_authority_helper_starts_host_only_after_stable_stop_check'
 }
 

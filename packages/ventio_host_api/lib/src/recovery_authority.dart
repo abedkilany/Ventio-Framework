@@ -68,6 +68,15 @@ class RecoveryAuthorityBusy implements Exception {
   const RecoveryAuthorityBusy();
 }
 
+/// Safe, read-only classification for a trusted schema-upgrade preflight.
+/// Fingerprints and witness contents are never returned to callers.
+enum SchemaUpgradeAdmissionDiagnostic {
+  ready,
+  witnessPending,
+  databaseFingerprintMismatch,
+  unavailable,
+}
+
 /// A latest-state witness kept OUTSIDE the database and its backup/rollback domain.
 /// Its directory and update authority are trusted operator infrastructure. A copy
 /// stored/restored with PostgreSQL is not an independent recovery authority.
@@ -320,6 +329,30 @@ class RecoveryAuthority {
             'SELECT ventio_security.recovery_snapshot()',
           )).single[0]
           as String;
+
+  /// Compares the protected independent witness with the live database without
+  /// changing either side. Trusted maintenance can identify a stale schema
+  /// witness before starting the coordinated migration protocol.
+  Future<SchemaUpgradeAdmissionDiagnostic> inspectSchemaUpgradeAdmission(
+    pg.Connection db,
+  ) async {
+    try {
+      final state = await _readStoredState();
+      if (state['pending'] != false) {
+        return SchemaUpgradeAdmissionDiagnostic.witnessPending;
+      }
+      if (state['fingerprint'] is! String) {
+        return SchemaUpgradeAdmissionDiagnostic.unavailable;
+      }
+      final current = await db.runTx(_snapshotInTransaction);
+      if (current != state['fingerprint']) {
+        return SchemaUpgradeAdmissionDiagnostic.databaseFingerprintMismatch;
+      }
+      return SchemaUpgradeAdmissionDiagnostic.ready;
+    } catch (_) {
+      return SchemaUpgradeAdmissionDiagnostic.unavailable;
+    }
+  }
 
   Future<T> _exclusive<T>(
     Future<T> Function() body, {

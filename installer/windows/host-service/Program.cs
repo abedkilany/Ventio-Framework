@@ -148,7 +148,7 @@ internal static class Program
                     {
                     ExecuteHostSchemaUpgradeAsync(request, bootstrapEnvironment)
                         .GetAwaiter().GetResult();
-                    WriteHostSchemaUpgradeResult(resultPath, request.OperationId, "complete", null);
+                    WriteHostSchemaUpgradeResult(resultPath, request.OperationId, "complete", null, null);
                     File.Delete(upgradeRequestPath);
                     }
                     finally
@@ -159,7 +159,10 @@ internal static class Program
                 }
                 catch (HostSchemaUpgradeFailureException exception)
                 {
-                    WriteHostSchemaUpgradeResult(resultPath, request.OperationId, "failed", exception.FailureCode);
+                    WriteHostSchemaUpgradeResult(
+                        resultPath, request.OperationId,
+                        exception.FailureCode == "OUTCOME_UNKNOWN" ? "unknown" : "failed",
+                        exception.FailureCode, exception.FailureStage);
                     throw;
                 }
             }
@@ -1070,9 +1073,10 @@ internal static class Program
         HostSchemaUpgradeRequest request,
         Dictionary<string, string>? protectedEnvironment)
     {
+        var stage = "HELPER_PAYLOAD_VALIDATION";
         var executable = Path.Combine(AppContext.BaseDirectory, "ventio_trusted_host_upgrade.exe");
         if (protectedEnvironment is null || !File.Exists(executable))
-            throw new HostSchemaUpgradeFailureException("PAYLOAD_INCOMPLETE");
+            throw new HostSchemaUpgradeFailureException("PAYLOAD_INCOMPLETE", stage);
         var requestBytes = JsonSerializer.SerializeToUtf8Bytes(new
         {
             operationId = request.OperationId,
@@ -1098,7 +1102,8 @@ internal static class Program
         byte[]? output = null;
         try
         {
-            if (!process.Start()) throw new HostSchemaUpgradeFailureException("HELPER_START_FAILED");
+            stage = "HELPER_START";
+            if (!process.Start()) throw new HostSchemaUpgradeFailureException("HELPER_START_FAILED", stage);
             start.Environment.Clear();
             var stdoutTask = ReadBoundedAsync(process.StandardOutput.BaseStream, 8192, CancellationToken.None);
             var stderrTask = process.StandardError.BaseStream.CopyToAsync(Stream.Null);
@@ -1113,18 +1118,20 @@ internal static class Program
             catch (OperationCanceledException)
             {
                 try { process.Kill(entireProcessTree: true); } catch { }
-                throw new HostSchemaUpgradeFailureException("OUTCOME_UNKNOWN");
+                throw new HostSchemaUpgradeFailureException("OUTCOME_UNKNOWN", "HELPER_TIMEOUT");
             }
             output = await stdoutTask.ConfigureAwait(false);
             await stderrTask.ConfigureAwait(false);
-            var code = ReadHostSchemaUpgradeResult(output, request.OperationId, process.ExitCode);
-            if (code is not null) throw new HostSchemaUpgradeFailureException(code);
+            stage = "HELPER_RESULT_VALIDATION";
+            var result = ReadHostSchemaUpgradeResult(output, request.OperationId, process.ExitCode);
+            if (result.FailureCode is not null)
+                throw new HostSchemaUpgradeFailureException(result.FailureCode, result.FailureStage);
         }
         catch (HostSchemaUpgradeFailureException) { throw; }
         catch
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
-            throw new HostSchemaUpgradeFailureException("OUTCOME_UNKNOWN");
+            throw new HostSchemaUpgradeFailureException("OUTCOME_UNKNOWN", stage);
         }
         finally
         {
@@ -1134,7 +1141,7 @@ internal static class Program
         }
     }
 
-    private static string? ReadHostSchemaUpgradeResult(
+    private static HostSchemaUpgradeResult ReadHostSchemaUpgradeResult(
         byte[] output, string expectedOperationId, int exitCode)
     {
         try
@@ -1143,23 +1150,31 @@ internal static class Program
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object ||
                 !root.TryGetProperty("status", out var statusElement) || statusElement.ValueKind != JsonValueKind.String)
-                return "OUTCOME_UNKNOWN";
+                return new HostSchemaUpgradeResult("OUTCOME_UNKNOWN", "HELPER_RESULT_UNCLASSIFIED");
             var status = statusElement.GetString();
             if (status == "complete" && exitCode == 0 &&
                 root.TryGetProperty("operationId", out var operation) &&
-                operation.GetString() == expectedOperationId) return null;
-            if (root.TryGetProperty("failureCode", out var failure) && failure.ValueKind == JsonValueKind.String &&
-                Regex.IsMatch(failure.GetString() ?? "", "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant))
-                return failure.GetString();
-            return status == "unknown" ? "OUTCOME_UNKNOWN" : "UPGRADE_FAILED";
+                operation.GetString() == expectedOperationId)
+                return new HostSchemaUpgradeResult(null, "COMPLETE");
+            var code = root.TryGetProperty("failureCode", out var failure) &&
+                failure.ValueKind == JsonValueKind.String &&
+                Regex.IsMatch(failure.GetString() ?? "", "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant)
+                ? failure.GetString()!
+                : status == "unknown" ? "OUTCOME_UNKNOWN" : "UPGRADE_FAILED";
+            var failureStage = root.TryGetProperty("failureStage", out var stage) &&
+                stage.ValueKind == JsonValueKind.String &&
+                Regex.IsMatch(stage.GetString() ?? "", "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant)
+                ? stage.GetString()!
+                : "HELPER_RESULT_UNCLASSIFIED";
+            return new HostSchemaUpgradeResult(code, failureStage);
         }
-        catch { return "OUTCOME_UNKNOWN"; }
+        catch { return new HostSchemaUpgradeResult("OUTCOME_UNKNOWN", "HELPER_RESULT_PARSE"); }
     }
 
     private static void WriteHostSchemaUpgradeResult(
-        string path, string operationId, string status, string? failureCode)
+        string path, string operationId, string status, string? failureCode, string? failureStage)
     {
-        var value = JsonSerializer.Serialize(new { operationId, status, failureCode });
+        var value = JsonSerializer.Serialize(new { operationId, status, failureCode, failureStage });
         var tempPath = path + ".tmp";
         File.WriteAllText(tempPath, value, new UTF8Encoding(false));
         if (File.Exists(path)) File.Replace(tempPath, path, null, true);
@@ -1307,14 +1322,19 @@ internal static class Program
 }
 
 internal sealed record HostSchemaUpgradeRequest(string OperationId, string DatabaseUrl);
+internal sealed record HostSchemaUpgradeResult(string? FailureCode, string FailureStage);
 
-internal sealed class HostSchemaUpgradeFailureException(string failureCode)
+internal sealed class HostSchemaUpgradeFailureException(string failureCode, string failureStage = "HOST_HELPER")
     : Exception("Host schema upgrade did not complete.")
 {
     internal string FailureCode { get; } = Regex.IsMatch(
         failureCode, "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant)
         ? failureCode
         : "UPGRADE_FAILED";
+    internal string FailureStage { get; } = Regex.IsMatch(
+        failureStage, "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant)
+        ? failureStage
+        : "HOST_HELPER";
 }
 
 internal sealed class FirstAdministratorBootstrapFailureException : Exception

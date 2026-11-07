@@ -15,6 +15,8 @@ $hostLanInfo = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_na
 $hostServiceStop = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'stop-host-services.ps1') -Raw
 $hostRemoval = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'remove-host-installation.ps1') -Raw
 $databaseUpgrade = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'upgrade-host-database.ps1') -Raw
+$trustedHostUpgrade = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_host_api\bin\trusted_windows_host_upgrade.dart') -Raw
+$hostServiceImplementation = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\host-service\Program.cs') -Raw
 $serviceRecoveryPolicy = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'HostServiceRecoveryPolicy.psm1') -Raw
 $pairingCreateContract = Get-Content -LiteralPath (Join-Path $repoRoot 'security\postgres\pairing_create.sql') -Raw
 $pairingContract = Get-Content -LiteralPath (Join-Path $repoRoot 'security\postgres\pairing.sql') -Raw
@@ -169,9 +171,26 @@ Assert-Contract ($databaseUpgrade.Contains('HOST_DATABASE_BACKUP_ROBOCOPY_EXIT_'
 Assert-Contract ($databaseUpgrade.Contains('TestBackupOnly') -and $databaseUpgrade.Contains('TestBackupFailureAt') -and $databaseUpgrade.Contains('Complete-HostPostgresBackup')) 'HOST_BACKUP_FAILURE_MODES_MUST_HAVE_AN_ISOLATED_WINDOWS_REGRESSION_HARNESS'
 Assert-Contract ($databaseUpgrade.Contains("'/COPY:DAT'") -and $databaseUpgrade.Contains('Assert-HostBackupAcl $Destination') -and $databaseUpgrade -notmatch 'Set-HostBackupAcl \$partialBackupData') 'HOST_BACKUP_MUST_RESTRICT_ACL_BEFORE_COPY_AND_VERIFY_WITHOUT_REDUNDANT_POSTCOPY_ACL_REWRITE'
 Assert-Contract ($databaseUpgrade.Contains('$migrationRole')) 'HOST_UPGRADE_MUST_USE_A_DEDICATED_MIGRATOR_LOGIN'
-Assert-Contract ($databaseUpgrade.Contains('PRE_DATABASE_UPGRADE_HOST_SERVICE_STATE') -and $databaseUpgrade.Contains('RECOVERY_AUTHORITY_SERVICE_START_PRECONDITION') -and $databaseUpgrade.Contains('RECOVERY_AUTHORITY_SERVICE_START_STATE') -and
+Assert-Contract ($databaseUpgrade.Contains('PRE_DATABASE_UPGRADE_HOST_SERVICE_STATE') -and $databaseUpgrade.Contains('RECOVERY_AUTHORITY_SERVICE_PRECONDITION_QUERY') -and $databaseUpgrade.Contains('RECOVERY_AUTHORITY_SERVICE_RECHECK_QUERY') -and
   $databaseUpgrade.Contains('Assert-VentioHostServiceMaintenance') -and $serviceRecoveryPolicy.Contains('Start-VentioHostServiceMaintenance') -and
   $serviceRecoveryPolicy.Contains('Restore-VentioHostServiceFailureActions')) 'HOST_SERVICE_STOP_CHECKS_MUST_REPORT_SAFE_STAGES_AND_USE_THE_RECOVERY_POLICY_HOLD'
+Assert-Contract (@(
+  'DATABASE_POSTGRES_CONFIG_READ', 'DATABASE_POSTGRES_CONFIG_WRITE', 'DATABASE_POSTGRES_CONFIG_REPLACE',
+  'DATABASE_POSTGRES_RESTART_START', 'DATABASE_POSTGRES_RESTART_WAIT', 'DATABASE_PREPARED_TRANSACTIONS_PREFLIGHT',
+  'DATABASE_MIGRATOR_PROFILE_PREFLIGHT', 'DATABASE_MIGRATION_PAYLOAD_INVENTORY',
+  'DATABASE_TRUSTED_HOST_SCHEMA_UPGRADE', 'DATABASE_PAIRING_CONTRACT_VERIFICATION',
+  'DATABASE_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION', 'DATABASE_MIGRATION_LEDGER_VERIFICATION',
+  'RECOVERY_AUTHORITY_REQUEST_CREATE', 'RECOVERY_AUTHORITY_SERVICE_START', 'RECOVERY_AUTHORITY_RESULT_WAIT'
+).Where({ -not $databaseUpgrade.Contains($_) }).Count -eq 0) 'HOST_DATABASE_COORDINATED_MIGRATION_MUST_REPORT_EACH_SAFE_OPERATION_STAGE'
+Assert-Contract ($trustedHostUpgrade.Contains("'RECOVERY_AUTHORITY_SCHEMA_ADMISSION'") -and
+  $trustedHostUpgrade.Contains("'RECOVERY_AUTHORITY_FINGERPRINT_PREFLIGHT'") -and
+  $trustedHostUpgrade.Contains("'SECURITY_CONTRACT_APPLICATION'") -and
+  $trustedHostUpgrade.Contains("'POST_UPGRADE_CONTRACT_VERIFICATION'") -and
+  $trustedHostUpgrade.Contains("'failureStage': stage") -and
+  $hostServiceImplementation.Contains('exception.FailureStage') -and
+  $hostServiceImplementation.Contains('failureStage') -and
+  $hostServiceImplementation.Contains('"unknown" : "failed"') -and
+  $databaseUpgrade.Contains("`$result.status -in @('failed', 'unknown')")) 'HOST_SCHEMA_UPGRADE_FAILURE_STAGE_MUST_SURVIVE_HELPER_SERVICE_AND_INSTALLER_HANDOFF'
 Assert-Contract ($serviceRecoveryPolicy.Contains('ProtectedData]::Protect') -and $serviceRecoveryPolicy.Contains('DataProtectionScope]::LocalMachine') -and
   $serviceRecoveryPolicy.Contains('ServiceConfigFailureActions') -and $serviceRecoveryPolicy.Contains('ServiceConfigFailureActionsFlag')) 'HOST_RECOVERY_POLICY_SNAPSHOT_MUST_BE_MACHINE_PROTECTED_AND_PRESERVE_BOTH_SCM_POLICY_SECTIONS'
 Assert-Contract ($serviceRecoveryPolicy.Contains('Wait-VentioServiceStoppedStable') -and $serviceRecoveryPolicy.Contains('$quietSeconds') -and

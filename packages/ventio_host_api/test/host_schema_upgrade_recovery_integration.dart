@@ -61,6 +61,64 @@ Future<void> main() async {
   String urlFor(Uri uri, String database) =>
       uri.replace(path: '/$database').toString();
 
+  Future<(Map<String, dynamic>, int)> invokeTrustedUpgrade(
+    String databaseUrl,
+    String witnessPath,
+    String operationId,
+  ) async {
+    final executable =
+        Platform.environment['VENTIO_TEST_TRUSTED_HOST_UPGRADE_EXE'];
+    final payload = Platform.environment['VENTIO_TEST_HOST_PAYLOAD_DIR'];
+    final ownerSid = Platform.environment['VENTIO_TEST_RECOVERY_OWNER_SID'];
+    if (!Platform.isWindows ||
+        executable == null ||
+        payload == null ||
+        ownerSid == null ||
+        !File(executable).existsSync() ||
+        !Directory(payload).existsSync()) {
+      throw StateError(
+        'The isolated Windows trusted-upgrade reproduction is incomplete.',
+      );
+    }
+    final process = await Process.start(
+      executable,
+      const [],
+      workingDirectory: payload,
+      environment: {
+        'VENTIO_HOST_UPGRADE_TEST_MODE': 'yes',
+        'VENTIO_RECOVERY_AUTHORITY_FILE': witnessPath,
+        'VENTIO_RECOVERY_AUTHORITY_OWNER_SID': ownerSid,
+        'VENTIO_RECOVERY_AUTHORITY_READER_SID': ownerSid,
+        'VENTIO_RECOVERY_AUTHORITY_HOST_WRITES': 'yes',
+        'VENTIO_MIGRATIONS_DIR': Platform.environment['VENTIO_MIGRATIONS_DIR']!,
+        'VENTIO_SECURITY_DIR': Platform.environment['VENTIO_SECURITY_DIR']!,
+        if (Platform.environment['SystemRoot'] != null)
+          'SystemRoot': Platform.environment['SystemRoot']!,
+        if (Platform.environment['WINDIR'] != null)
+          'WINDIR': Platform.environment['WINDIR']!,
+        if (Platform.environment['SystemDrive'] != null)
+          'SystemDrive': Platform.environment['SystemDrive']!,
+        if (Platform.environment['TEMP'] != null)
+          'TEMP': Platform.environment['TEMP']!,
+        if (Platform.environment['TMP'] != null)
+          'TMP': Platform.environment['TMP']!,
+        if (Platform.environment['PATH'] != null)
+          'PATH': Platform.environment['PATH']!,
+      },
+      includeParentEnvironment: false,
+      runInShell: false,
+    );
+    final stdout = process.stdout.transform(utf8.decoder).join();
+    final stderr = process.stderr.drain<void>();
+    process.stdin.write(
+      jsonEncode({'operationId': operationId, 'databaseUrl': databaseUrl}),
+    );
+    await process.stdin.close();
+    final exit = await process.exitCode;
+    await stderr;
+    return (jsonDecode(await stdout) as Map<String, dynamic>, exit);
+  }
+
   String upgradeId() =>
       'upgrade_${sha256.convert(utf8.encode(OpaqueToken.generate())).toString().substring(0, 32)}';
 
@@ -312,10 +370,91 @@ Future<void> main() async {
       readWitness(legacyWitness)['fingerprint'] != postLegacyFingerprint,
       'Reproduction confirms the independent ready witness and post-0.1.12 database fingerprints disagree',
     );
+    final legacyIdentityBeforeUpgradeAttempt = await identitySnapshot(
+      migration,
+    );
+    final legacyWitnessBeforeUpgradeAttempt = jsonEncode(
+      readWitness(legacyWitness),
+    );
+    final stalePreflight = await RecoveryAuthority(
+      legacyWitness,
+    ).inspectSchemaUpgradeAdmission(migration);
+    check(
+      stalePreflight ==
+          SchemaUpgradeAdmissionDiagnostic.databaseFingerprintMismatch,
+      'Read-only upgrade preflight classifies the stale witness without exposing either fingerprint',
+    );
+    var staleWitnessUpgradeRejected = false;
+    try {
+      await RecoveryAuthority(legacyWitness).applySchemaUpgrade(
+        migration,
+        operationId: upgradeId(),
+        migrationManifestSha256: manifest,
+        applyAndValidate: (tx) async {
+          await PostgresMigrationRunner(
+            migration,
+            migrationDirectory,
+          ).applyInTransaction(tx);
+        },
+      );
+    } on RecoveryAdmissionUnavailable {
+      staleWitnessUpgradeRejected = true;
+    }
+    final legacyLedgerAfterRejectedUpgrade = await migration.execute(
+      'SELECT count(*) FROM public.ventio_schema_migrations',
+    );
+    final legacyIdentityAfterRejectedUpgrade = await identitySnapshot(
+      migration,
+    );
+    check(
+      staleWitnessUpgradeRejected &&
+          legacyLedgerAfterRejectedUpgrade.single[0] == 32 &&
+          legacyIdentityAfterRejectedUpgrade ==
+              legacyIdentityBeforeUpgradeAttempt &&
+          jsonEncode(readWitness(legacyWitness)) ==
+              legacyWitnessBeforeUpgradeAttempt,
+      'Reproduction: trusted schema-upgrade admission rejects stale 031/032 state before DDL and preserves database, identity, and witness',
+    );
+    await migration.close();
+
+    await root.execute('CREATE DATABASE ventio_host TEMPLATE $legacyName');
+    databases.add('ventio_host');
+    await root.execute('''
+      CREATE ROLE ventio_migrator_app LOGIN PASSWORD 'ventio_migrator_app_test_only'
+        INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+    ''');
+    await root.execute('GRANT ventio_migrator TO ventio_migrator_app');
+    final helperWitness =
+        '${temporary.path}${Platform.pathSeparator}legacy-helper.witness';
+    await copyWitness(helperWitness);
+    final helperDatabaseUrl =
+        'postgresql://ventio_migrator_app:ventio_migrator_app_test_only@127.0.0.1:${templateUri.port}/ventio_host?sslmode=disable';
+    final (helperResult, helperExitCode) = await invokeTrustedUpgrade(
+      helperDatabaseUrl,
+      helperWitness,
+      upgradeId(),
+    );
+    final afterHelper = await openMigration('ventio_host');
+    final helperIdentity = await identitySnapshot(afterHelper);
+    final helperLedger = await afterHelper.execute(
+      'SELECT count(*) FROM public.ventio_schema_migrations',
+    );
+    check(
+      helperExitCode == 2 &&
+          helperResult['status'] == 'failed' &&
+          helperResult['failureCode'] == 'RECOVERY_FINGERPRINT_MISMATCH' &&
+          helperResult['failureStage'] ==
+              'RECOVERY_AUTHORITY_FINGERPRINT_PREFLIGHT' &&
+          helperLedger.single[0] == 32 &&
+          helperIdentity == legacyIdentityBeforeUpgradeAttempt &&
+          jsonEncode(readWitness(helperWitness)) ==
+              legacyWitnessBeforeUpgradeAttempt,
+      'Instrumented trusted upgrade helper reports the exact stale-witness preflight failure without changing identity or migration state',
+    );
+    await afterHelper.close();
     final legacyApi = await openApi(legacyName);
     await assertDenied(legacyApi, readWitness(legacyWitness));
     await legacyApi.close();
-    await migration.close();
 
     final interruptedName = '${prefix}_interrupted';
     final interruptedWitness =
