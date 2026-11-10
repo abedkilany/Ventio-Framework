@@ -750,17 +750,30 @@ class LocalExtensionStore {
   Future<bool> hasHostRecordReadDenial({
     required HostConnectionProfile profile,
     required String moduleId,
+  }) async =>
+      await hostRecordReadDenialCode(profile: profile, moduleId: moduleId) !=
+      null;
+
+  Future<String?> hostRecordReadDenialCode({
+    required HostConnectionProfile profile,
+    required String moduleId,
   }) async {
     _ensureOpen();
     final key = _hostRecordDenialKey(profile, moduleId);
     final rows = await _database.query(
       _hostRecordDenialsTable,
+      columns: const ['reason_code'],
       where: '''endpoint = ? AND tenant_id = ? AND company_id = ?
         AND branch_id = ? AND actor_id = ? AND device_id = ? AND module_id = ?''',
       whereArgs: key,
       limit: 1,
     );
-    return rows.isNotEmpty;
+    if (rows.isEmpty) return null;
+    final code = rows.single['reason_code'];
+    if (code is! String || !RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(code)) {
+      return 'HOST_ACCESS_DENIED';
+    }
+    return code;
   }
 
   Future<void> markHostRecordReadDenied({

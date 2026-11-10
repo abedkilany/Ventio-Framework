@@ -70,10 +70,17 @@ def main():
         not re.search(r"@import|url\(\s*(?:https?:)?//", source, re.IGNORECASE),
         "The dashboard stylesheet references an external resource.",
     )
-    require(len(parser.tables) >= 2, "Stage status and milestone history tables are required.")
-
+    stage_header = ["\u0627\u0644\u0645\u0631\u062d\u0644\u0629", "\u0627\u0644\u0648\u0632\u0646", "\u0627\u0644\u062d\u0627\u0644\u0629", "\u0627\u0644\u0645\u0642\u0628\u0648\u0644"]
+    stage_tables = [
+        table for table in parser.tables if table and table[0][:4] == stage_header
+    ]
+    require(len(stage_tables) == 1, "Expected one weighted stage ledger.")
+    require(
+        any(table and table[0][:2] == ["\u0627\u0644\u062a\u0627\u0631\u064a\u062e", "\u0627\u0644\u0639\u0645\u0644 \u0648\u0627\u0644\u062f\u0644\u064a\u0644"] for table in parser.tables),
+        "The milestone history table is required.",
+    )
     stage_rows = []
-    for row in parser.tables[0][1:]:
+    for row in stage_tables[0][1:]:
         if len(row) < 5:
             continue
         match = re.match(r"^(\d+)\s+—", row[0])
@@ -91,10 +98,10 @@ def main():
     ]
     require(sum(weights) == 100, f"Stage weights total {sum(weights)}%, not 100%.")
     status_translation = {
-        "مكتمل (PASS)": "PASS",
-        "فشل التحقق (FAIL)": "FAIL",
-        "متوقف بسبب عائق (BLOCKED)": "BLOCKED",
-        "قيد التنفيذ (IN PROGRESS)": "IN PROGRESS",
+        "\u0645\u0643\u062a\u0645\u0644 (PASS)": "PASS",
+        "\u0641\u0634\u0644 \u0627\u0644\u062a\u062d\u0642\u0642 (FAIL)": "FAIL",
+        "\u0645\u062a\u0648\u0642\u0641 \u0628\u0633\u0628\u0628 \u0639\u0627\u0626\u0642 (BLOCKED)": "BLOCKED",
+        "\u0642\u064a\u062f \u0627\u0644\u062a\u0646\u0641\u064a\u0630 (IN PROGRESS)": "IN PROGRESS",
     }
     for (_, row), weight, accepted_weight in zip(stage_rows, weights, accepted):
         require(row[2] in status_translation, f"Unknown stage status: {row[2]}")
@@ -106,11 +113,11 @@ def main():
 
     status_counts = Counter(status_translation[row[2]] for _, row in stage_rows)
     arabic_status = {
-        "PASS": "مكتمل (PASS)",
-        "FAIL": "فشل التحقق (FAIL)",
-        "BLOCKED": "متوقف بسبب عائق (BLOCKED)",
-        "IN PROGRESS": "قيد التنفيذ (IN PROGRESS)",
-        "NOT STARTED": "لم يبدأ (NOT STARTED)",
+        "PASS": "\u0645\u0643\u062a\u0645\u0644 (PASS)",
+        "FAIL": "\u0641\u0634\u0644 \u0627\u0644\u062a\u062d\u0642\u0642 (FAIL)",
+        "BLOCKED": "\u0645\u062a\u0648\u0642\u0641 \u0628\u0633\u0628\u0628 \u0639\u0627\u0626\u0642 (BLOCKED)",
+        "IN PROGRESS": "\u0642\u064a\u062f \u0627\u0644\u062a\u0646\u0641\u064a\u0630 (IN PROGRESS)",
+        "NOT STARTED": "\u0644\u0645 \u064a\u0628\u062f\u0623 (NOT STARTED)",
     }
     expected_status = " · ".join(
         f"{status_counts[status]} {arabic_status[status]}"
@@ -132,9 +139,9 @@ def main():
     timestamp = re.search(r"<time datetime=\"([^\"]+)\">", source).group(1)
     datetime.fromisoformat(timestamp)
     required_sections = (
-        "الأعمال المنجزة", "المتطلبات المتبقية", "الاختبارات والتحققات التي تحتاج إلى متابعة",
-        "العوائق الحالية", "المخاطر النشطة", "أحدث تحقق", "مراجع Git",
-        "بوابة القبول النهائي", "الخطوة القادمة:", "لا يتم تحديثها تلقائياً",
+        "\u0627\u0644\u0623\u0639\u0645\u0627\u0644 \u0627\u0644\u0645\u0646\u062c\u0632\u0629", "\u0627\u0644\u0645\u062a\u0637\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u062a\u0628\u0642\u064a\u0629", "\u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631\u0627\u062a \u0648\u0627\u0644\u062a\u062d\u0642\u0642\u0627\u062a \u0627\u0644\u062a\u064a \u062a\u062d\u062a\u0627\u062c \u0625\u0644\u0649 \u0645\u062a\u0627\u0628\u0639\u0629",
+        "\u0627\u0644\u0639\u0648\u0627\u0626\u0642 \u0627\u0644\u062d\u0627\u0644\u064a\u0629", "\u0627\u0644\u0645\u062e\u0627\u0637\u0631 \u0627\u0644\u0646\u0634\u0637\u0629", "\u0623\u062d\u062f\u062b \u062a\u062d\u0642\u0642", "\u0645\u0631\u0627\u062c\u0639 Git",
+        "\u0628\u0648\u0627\u0628\u0629 \u0627\u0644\u0642\u0628\u0648\u0644 \u0627\u0644\u0646\u0647\u0627\u0626\u064a", "\u0627\u0644\u062e\u0637\u0648\u0629 \u0627\u0644\u0642\u0627\u062f\u0645\u0629:", "\u0644\u0627 \u064a\u062a\u0645 \u062a\u062d\u062f\u064a\u062b\u0647\u0627 \u062a\u0644\u0642\u0627\u0626\u064a\u0627\u064b",
     )
     for label in required_sections:
         require(label in source, f"Missing required dashboard field: {label}")

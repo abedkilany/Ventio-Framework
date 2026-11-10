@@ -1,0 +1,124 @@
+{
+  "RecordedUtc": "2026-11-10T21:36:48Z",
+  "Installation": {
+    "Version": "0.1.18",
+    "Build": "Wave1fix18",
+    "OwnerReportedExitCode": 0,
+    "LogName": "Ventio-Wave1fix18-20261110-233514.log",
+    "LogSha256": "E072147F5327C4D20A639A8A6B62C8E282F73888CCF2997FA2583AD444F3EAEF",
+    "RebootRequested": false,
+    "VerifiedPayloadEntries": 76,
+    "ManifestSha256": "8B7942B24888F81F7CB9ED89C0D210A11D6F7163DB6F9144AA1C86F21E8C779C",
+    "InstalledFlutterAotMatchesReleaseBuild": true
+  },
+  "BeforeSetup": {
+    "RegisteredProductServices": [],
+    "FixtureListener": {
+      "Address": "127.0.0.1",
+      "Port": 54329,
+      "Process": "powershell",
+      "ProcessId": 20504
+    }
+  },
+  "SetupRetest": {
+    "Status": "PASS - INSTALLED EXACT FAILURE, SANITIZED EXPORT, RETRY AND AUTHENTICATED RESUME",
+    "Scope": {
+      "tenantId": "wave1fresh",
+      "companyId": "fixture",
+      "branchId": "devhost"
+    },
+    "BrokerStatus": {
+      "OperationId": "8b68f7769eea568734ed95d151d9362c",
+      "State": "failed",
+      "FailureCode": "POSTGRES_PORT_IN_USE",
+      "Phase": "POSTGRES_SERVICE_PROVISIONING"
+    },
+    "OwnerExport": {
+      "managementApiVersion": 1,
+      "exportedAtUtc": "2026-11-10T21:43:51.302583Z",
+      "events": [
+        {
+          "source": "device",
+          "managementApiVersion": 1,
+          "code": "POSTGRES_PORT_IN_USE",
+          "component": "client.host_setup.postgres_service_provisioning",
+          "category": "database",
+          "severity": "ERROR",
+          "occurredAtUtc": "2026-11-10T21:42:57.461435Z",
+          "correlationId": "cor_faf531f137ce4be2fe1655d52ea4b5b5",
+          "retryable": true,
+          "messageKey": "native.diagnostics.host_setup_failed",
+          "safeExplanation": "Host setup failed during postgres service provisioning.",
+          "recommendedAction": "Ask an authorized Windows operator to free local port 54329, then retry Host setup."
+        }
+      ]
+    },
+    "Screenshot": "owner-development-wave1fix18-postgres-port-collision-20261110.png",
+    "ScreenshotSha256": "AF787636820BFFB5A1AE2A47DEBD5BF7AEA3F79A52FF59E5F43EAFDBD65CEE30",
+    "PostFailure": {
+      "RegisteredProductServices": [],
+      "PostgresHostAndBackupDirectoriesPresent": false,
+      "FixtureLoopbackListenerStillHeld": true
+    },
+    "RetryBeforeOwnerResume": {
+      "Status": "PASS - FRESH PROVISIONING RETRIED AND BROKER COMPLETED WITH RUNNER CLOSED",
+      "FailedOperationId": "8b68f7769eea568734ed95d151d9362c",
+      "RetryOperationId": "50a30f12d470d4e98e10e3e0a1af208c",
+      "BrokerCompletedUtc": "2026-11-10T21:49:42Z",
+      "FinalBrokerPhase": "HOST_READINESS",
+      "ServiceStates": {
+        "VentioHost": "Running/Automatic",
+        "VentioPostgres": "Running/Automatic"
+      },
+      "PostgresPort": "127.0.0.1:54329",
+      "LoopbackHostHealth": "HTTP 200 alive",
+      "PinnedLanHealth": "HTTPS 200 alive",
+      "FreshLanCertificateSha256": "2a39c7a869edf040c5f37822b881b36c752a3c8b1133e129115702819da5f3bf",
+      "Trace": "development-wave1fix18-retry-closed-runner-20261110.jsonl",
+      "OwnerAuthenticatedResume": {
+        "Status": "READY",
+        "CheckedUtc": "2026-11-10T21:53:45Z",
+        "CorrelationId": "cor_6d558b8fd521e3c18bd27222f665132c",
+        "Scope": "wave1fresh / fixture / devhost",
+        "Subchecks": {
+          "Authenticated Host API": "READY",
+          "PostgreSQL connection": "READY",
+          "Database schema and runtime profile": "READY",
+          "Recovery Authority": "READY"
+        },
+        "ScopeRestoredScreenshot": "owner-development-wave1fix18-resume-scope-20261110.png",
+        "ScopeRestoredScreenshotSha256": "0F399DA4C0A9EDBC15A95C6BB8A2C2A2F99866273EA83F6B5D3A48D11AAAEB95",
+        "ReadyScreenshot": "owner-development-wave1fix18-authenticated-resume-ready-20261110.png",
+        "ReadyScreenshotSha256": "6C22D8F0BAABA2D13931768E37BE279BB1640424BD64BF50A6AD4988536883F2",
+        "ProcessReopenedUtc": "2026-11-10T21:52:18.3844707Z",
+        "OriginalCompletedBrokerOperationUnchanged": true
+      }
+    }
+  },
+  "FinalInstalledAudit": {
+    "Source": "Owner-provided elevated read-only audit output",
+    "Result": "VENTIO_FINAL_INSTALLED_AUDIT_PASS",
+    "CheckedUtc": "2026-11-10T22:00:40.4319778Z",
+    "VerifiedPayloadEntries": 76,
+    "DedicatedAutomaticRunningServices": 2,
+    "ProtectedAclChecks": 7,
+    "CompletedOperationId": "50a30f12d470d4e98e10e3e0a1af208c",
+    "OneTimeHandoffFileCleared": true,
+    "FreshClusterIdentifier": "7706663138097990184",
+    "CertificateSha256": "2a39c7a869edf040c5f37822b881b36c752a3c8b1133e129115702819da5f3bf",
+    "IndependentRecheck": "Same completed broker operation and both dedicated Automatic/Running services"
+  },
+  "SafeRepeat": {
+    "Status": "PASS - SAVED PROFILE READINESS REPEATED",
+    "ReadyScreenshot": "owner-development-wave1fix18-safe-repeat-ready-20261111.png",
+    "ReadyScreenshotSha256": "5C72455AE82B45593506B238BDCEE982D79978682F6BB4890DC2538AADE6B60B",
+    "StepsScreenshot": "owner-development-wave1fix18-safe-repeat-steps-20261111.png",
+    "StepsScreenshotSha256": "A85945472CE87DDFD9B4304561F1C05DB1ECA2786F383C721530A8E6B7BA239E",
+    "Scope": "wave1fresh / fixture / devhost",
+    "SameCompletedBrokerOperation": "50a30f12d470d4e98e10e3e0a1af208c",
+    "BrokerCompletedTimestampUnchanged": true,
+    "DedicatedServicesRunningAutomatic": 2,
+    "FreshCertificateSha256Unchanged": true,
+    "RecordedUtc": "2026-11-10T22:09:23Z"
+  }
+}

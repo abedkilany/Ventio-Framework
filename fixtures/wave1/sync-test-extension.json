@@ -1,0 +1,48 @@
+{
+  "manifest": {
+    "manifestVersion": 0,
+    "moduleId": "sync.test",
+    "version": "0.1.0",
+    "minPlatformApi": "0.1.0",
+    "displayName": "Sync Test",
+    "displayNameKey": "extension.sync_test.name",
+    "englishCatalog": "localization/en.sync_test.json",
+    "dependencies": [],
+    "docTypes": ["Product"],
+    "commands": [],
+    "requiredCapabilities": [],
+    "offline": {"enabled": false, "allowedCommands": []}
+  },
+  "docTypes": [
+    {
+      "name": "Product",
+      "moduleId": "sync.test",
+      "schemaVersion": 1,
+      "kind": "operational",
+      "label": "Product",
+      "labelKey": "extension.sync_test.product",
+      "operations": ["read", "create"],
+      "permissions": {
+        "read": "extension.sync_test.product.read",
+        "create": "extension.sync_test.product.create"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "label": "Name",
+          "labelKey": "extension.sync_test.product.name",
+          "maxLength": 100
+        }
+      ],
+      "ui": {"listColumns": ["name"], "formFields": ["name"]}
+    }
+  ],
+  "dependencyVersions": {},
+  "englishCatalog": {
+    "extension.sync_test.name": "Sync Test",
+    "extension.sync_test.product": "Product",
+    "extension.sync_test.product.name": "Name"
+  }
+}

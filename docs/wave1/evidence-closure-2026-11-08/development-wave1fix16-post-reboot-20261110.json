@@ -1,0 +1,41 @@
+{
+  "BootUtc": "2026-11-10T16:56:45.5000000Z",
+  "PreviousBootUtc": "2026-11-09T18:43:20.500381Z",
+  "Services": [
+    {
+      "Name": "VentioHost",
+      "State": "Running",
+      "StartMode": "Auto",
+      "StartName": "NT SERVICE\\VentioHost",
+      "ProcessStartUtc": "2026-11-10T16:57:09.5079920Z"
+    },
+    {
+      "Name": "VentioPostgres",
+      "State": "Running",
+      "StartMode": "Auto",
+      "StartName": "NT SERVICE\\VentioPostgres",
+      "ProcessStartUtc": "2026-11-10T16:57:06.2695170Z"
+    }
+  ],
+  "PinnedHttps": "{\"apiVersion\":1,\"status\":\"alive\"} HTTP=200 TLS_VERIFY=0",
+  "LanEnabled": true,
+  "CertificateSha256": "d083b712474bfef190d42d18763fec537e5cfeaf706c3bf45e79f3cf619edf3d",
+  "ManifestSha256": "2DF44A90C73EA7B72DD19F252EA38C1090E4D538ACE2F888445F3AAF6EBE5F3B",
+  "AuthenticatedOverview": {
+    "Result": "READY",
+    "Source": "Owner-provided screenshot from the saved Ventio administrator profile",
+    "CheckedUtc": "2026-11-10T17:04:57Z",
+    "Reference": "cor_28503c1088f255d9addab0aed136fc6d",
+    "Scope": "wave1lab / fixture / devhost",
+    "HostReportedVersion": "0.1.0",
+    "Checks": {
+      "Authenticated Host API": "READY",
+      "PostgreSQL connection": "READY",
+      "Database schema and runtime profile": "READY",
+      "Recovery Authority": "READY"
+    },
+    "Screenshot": "owner-development-host-overview-post-reboot-20261110.png",
+    "ScreenshotSha256": "2c45c5c72e6e5afe7123742dd5c5dae0e1b2f8b0d2de39949d9a20dbc90df9dd"
+  },
+  "UiLaunch": "GetCursorPos access denied (0x80070005) on initial launch and one retry"
+}

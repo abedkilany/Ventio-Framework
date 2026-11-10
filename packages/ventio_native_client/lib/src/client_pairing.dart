@@ -434,18 +434,10 @@ class ClientPairingClient {
     required List<int>? trustedCertificateDer,
   }) async {
     final stopwatch = Stopwatch()..start();
-    final pinnedFingerprint = trustedCertificateDer == null
-        ? null
-        : HostCredentialVault.certificateFingerprint(trustedCertificateDer);
     final context = trustedCertificateDer == null
         ? null
-        : SecurityContext(withTrustedRoots: false);
-    final client = HttpClient(context: context)
-      ..connectionTimeout = timeout
-      ..badCertificateCallback = (certificate, _, _) =>
-          pinnedFingerprint != null &&
-          HostCredentialVault.certificateFingerprint(certificate.der) ==
-              pinnedFingerprint;
+        : HostCredentialVault.pinnedCertificateContext(trustedCertificateDer);
+    final client = HttpClient(context: context)..connectionTimeout = timeout;
     try {
       final request = await client.openUrl('POST', uri).timeout(timeout);
       request

@@ -7,6 +7,7 @@ export 'src/extension_packages.dart';
 export 'src/extension_records.dart';
 export 'src/extension_package_administration.dart';
 export 'src/postgres_extension_packages.dart';
+export 'src/postgres_extension_package_review.dart';
 export 'src/postgres_executor.dart';
 export 'src/postgres_document_numbers.dart';
 

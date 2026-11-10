@@ -1,0 +1,13 @@
+{
+  "Candidate": "C:\\Users\\User\\Desktop\\Ventio Framework\\artifacts\\ventio-windows-acceptance-0.1.18-wave1fix18-20261110\\installers\\unified\\Ventio-Setup-0.1.18.exe",
+  "Version": "0.1.18",
+  "SizeBytes": 104198993,
+  "SHA256": "E1E32C09A1490F4214F98B47CCBE27E9F760FC289FAB518607991469B67CFF21",
+  "Authenticode": "NotSigned",
+  "ManifestSha256": "8B7942B24888F81F7CB9ED89C0D210A11D6F7163DB6F9144AA1C86F21E8C779C",
+  "CriticalPayloadEntries": 76,
+  "PayloadFileCount": 1708,
+  "InstalledHostSetupRetest": "PASS",
+  "Change": "Preserve POSTGRES_PORT_IN_USE and allow safe retry after a diagnostic-only preflight failure",
+  "InstalledHostSetupEvidence": "development-wave1fix18-installed-20261110.json"
+}

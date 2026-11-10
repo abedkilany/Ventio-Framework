@@ -1,0 +1,13 @@
+{
+  "Candidate": "C:\\Users\\User\\Desktop\\Ventio Framework\\artifacts\\ventio-windows-acceptance-0.1.18-wave1fix17-20261110\\installers\\unified\\Ventio-Setup-0.1.18.exe",
+  "Version": "0.1.18",
+  "SizeBytes": 104201740,
+  "SHA256": "F1829D26188A4C9FB3466390D131BCF50CA41340E80196C669292FFD9EE3EF93",
+  "Authenticode": "NotSigned",
+  "ManifestSha256": "E793308BDD1177EE826BED1B717E117901E4141AE4B0802F80B207E8DA46065C",
+  "CriticalPayloadEntries": 76,
+  "PayloadFileCount": 1708,
+  "InstalledFixtureChanged": false,
+  "InstalledFixtureManifestSha256": "2DF44A90C73EA7B72DD19F252EA38C1090E4D538ACE2F888445F3AAF6EBE5F3B",
+  "InstalledRetentionTest": "NOT_RUN"
+}

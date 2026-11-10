@@ -7,6 +7,7 @@ import 'package:ventio_core/ventio_core.dart';
 import 'src/app_localization.dart';
 import 'src/app_database.dart';
 import 'src/local_diagnostics.dart';
+import 'src/performance_probe.dart';
 import 'src/extension_store.dart';
 import 'src/extension_studio_page.dart';
 import 'src/client_pairing_page.dart';
@@ -18,10 +19,21 @@ import 'src/local_command_queue.dart';
 import 'host_credentials_flutter.dart';
 
 Future<void> main(List<String> args) async {
+  VentioPerformanceProbe.event('app.main.entered');
   WidgetsFlutterBinding.ensureInitialized();
+  VentioPerformanceProbe.event('app.binding.ready');
   _installFlutterUiFailureHandling();
-  final queue = await openDefaultCommandQueue();
-  final extensionStore = await openDefaultExtensionStore();
+  final queueFuture = VentioPerformanceProbe.measure(
+    'startup.command_queue.open',
+    openDefaultCommandQueue,
+  );
+  final extensionStoreFuture = VentioPerformanceProbe.measure(
+    'startup.extension_store.open',
+    openDefaultExtensionStore,
+  );
+  final queue = await queueFuture;
+  final extensionStore = await extensionStoreFuture;
+  VentioPerformanceProbe.event('startup.databases.ready');
   runApp(
     VentioClientApp(
       queue: queue,
@@ -168,6 +180,7 @@ class VentioClientApp extends StatefulWidget {
 }
 
 class _VentioClientAppState extends State<VentioClientApp> {
+  final NavigatorObserver _navigatorObserver = _ProbeNavigatorObserver();
   late final VentioLocalizationController _localizations =
       widget.localizations ?? VentioLocalizationController();
   late bool _showHostSetup = widget.forceHostSetup;
@@ -181,6 +194,7 @@ class _VentioClientAppState extends State<VentioClientApp> {
   }
 
   Future<void> _loadStartupState() async {
+    VentioPerformanceProbe.event('startup.first_screen.load.begin');
     var showFirstRun = false;
     if (!widget.forceHostSetup) {
       try {
@@ -194,6 +208,7 @@ class _VentioClientAppState extends State<VentioClientApp> {
       _showFirstRun = showFirstRun;
       _startupReady = true;
     });
+    VentioPerformanceProbe.event('startup.first_screen.ready');
   }
 
   void _beginHostSetup() => setState(() {
@@ -225,6 +240,7 @@ class _VentioClientAppState extends State<VentioClientApp> {
     return AnimatedBuilder(
       animation: _localizations,
       builder: (context, child) => MaterialApp(
+        navigatorObservers: [_navigatorObserver],
         title: _localizations.text('native.app.title'),
         locale: _localizations.locale,
         supportedLocales: const [
@@ -267,5 +283,13 @@ class _VentioClientAppState extends State<VentioClientApp> {
               ),
       ),
     );
+  }
+}
+
+class _ProbeNavigatorObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    unawaited(VentioPerformanceProbe.measureNavigation(route));
   }
 }

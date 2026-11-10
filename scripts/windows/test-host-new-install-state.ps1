@@ -7,7 +7,8 @@ $sourceAst = [System.Management.Automation.Language.Parser]::ParseFile(
   $sourcePath, [ref]$tokens, [ref]$parseErrors)
 if ($parseErrors.Count -gt 0) { throw 'HOST_NEW_INSTALL_STATE_SCRIPT_PARSE_FAILED' }
 
-foreach ($functionName in @('Test-HostDataPathHasNoReparsePoints', 'Assert-HostNewInstallationState')) {
+foreach ($functionName in @('Test-HostDataPathHasNoReparsePoints', 'Test-HostProtectedInstallerRecordAcl',
+    'Test-HostInstallerStateForResume', 'Assert-HostNewInstallationState')) {
   $functionAst = $sourceAst.Find({
     param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and

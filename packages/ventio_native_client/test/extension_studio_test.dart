@@ -2813,6 +2813,7 @@ void main() {
 
     expect(find.text('Host-authoritative records'), findsOneWidget);
     expect(find.text('Host record'), findsOneWidget);
+    expect(find.text('Revision 7 · confirmed by Host'), findsOneWidget);
     expect(fakeClient.queriedCompany, profile.companyId);
     expect(fakeClient.queriedBranch, profile.branchId);
     expect(find.text('Load more Host records'), findsOneWidget);
@@ -3081,6 +3082,7 @@ void main() {
       await tester.pumpWidget(await page('denied'));
       await tester.pumpAndSettle();
       expect(find.text('Host denied record access'), findsOneWidget);
+      expect(find.text('Host error code: PERMISSION_DENIED'), findsOneWidget);
       expect(find.text('Cached private record'), findsNothing);
       expect(
         (await store.getRecord(
@@ -3097,6 +3099,13 @@ void main() {
           moduleId: moduleId,
         ),
         isTrue,
+      );
+      expect(
+        await store.hostRecordReadDenialCode(
+          profile: profile,
+          moduleId: moduleId,
+        ),
+        'PERMISSION_DENIED',
       );
 
       fakeClient.queryError = const HostPackageTransportException(
@@ -3131,6 +3140,13 @@ void main() {
           moduleId: moduleId,
         ),
         isFalse,
+      );
+      expect(
+        await store.hostRecordReadDenialCode(
+          profile: profile,
+          moduleId: moduleId,
+        ),
+        isNull,
       );
     },
   );

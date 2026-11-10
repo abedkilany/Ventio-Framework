@@ -385,27 +385,57 @@ class HostCredentialVault {
           certificateFingerprint(certificate.der) != expected) {
         throw const TlsException('Host certificate fingerprint mismatch.');
       }
-      return List<int>.unmodifiable(certificate.der);
+      final der = List<int>.unmodifiable(certificate.der);
+      // The first handshake only obtains the certificate whose identity the
+      // administrator supplied out of band. Reconnect with that exact leaf as
+      // the trust anchor so the TLS stack still enforces validity and the
+      // endpoint's DNS/IP name before any enrollment request is sent.
+      final validationSocket = await SecureSocket.connect(
+        normalized.host,
+        normalized.port,
+        timeout: timeout,
+        context: pinnedCertificateContext(der),
+      );
+      await validationSocket.close();
+      return der;
     } finally {
       await socket.close();
     }
   }
 
+  /// Creates a trust store containing only the administrator-confirmed Host
+  /// leaf. Standard TLS certificate time and endpoint-name validation remain
+  /// enabled; callers must not install a bad-certificate callback.
+  static SecurityContext pinnedCertificateContext(List<int> der) {
+    if (der.isEmpty) throw const TlsException('Host certificate is empty.');
+    final encoded = base64.encode(der);
+    final lines = <String>[];
+    for (var offset = 0; offset < encoded.length; offset += 64) {
+      lines.add(
+        encoded.substring(
+          offset,
+          offset + 64 > encoded.length ? encoded.length : offset + 64,
+        ),
+      );
+    }
+    final pem =
+        '-----BEGIN CERTIFICATE-----\n${lines.join('\n')}\n'
+        '-----END CERTIFICATE-----\n';
+    return SecurityContext(withTrustedRoots: false)
+      ..setTrustedCertificatesBytes(utf8.encode(pem));
+  }
+
   /// Creates an HttpClient constrained to the exact certificate previously
-  /// confirmed by the user. A pinned connection uses an empty trust store and
-  /// accepts only the matching leaf certificate through the exact fingerprint
-  /// callback. When no certificate is pinned, platform trust roots remain in
-  /// effect.
+  /// confirmed by the user. The pinned leaf becomes the sole trust anchor;
+  /// normal TLS validity and endpoint-name checks remain active. When no
+  /// certificate is pinned, platform trust roots remain in effect.
   Future<HttpClient> createHttpClient(
     Uri endpoint, {
     required HttpClient Function() fallbackFactory,
   }) async {
     final trusted = await readTrustedCertificate(endpoint);
     if (trusted == null) return fallbackFactory();
-    final context = SecurityContext(withTrustedRoots: false);
-    return HttpClient(context: context)
-      ..badCertificateCallback = (certificate, _, _) =>
-          certificateFingerprint(certificate.der) == trusted.fingerprint;
+    return HttpClient(context: pinnedCertificateContext(trusted.der));
   }
 
   static String certificateFingerprint(List<int> der) =>

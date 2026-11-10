@@ -356,6 +356,18 @@ begin
       exit;
     end;
     DeleteFile(FailureCodePath);
+
+    // The Recovery Authority upgrade coordinator starts VentioHost while it
+    // consumes the one-time migration request. Stop it again before the LAN
+    // helper validates the stopped-service precondition and replaces DPAPI
+    // listener configuration.
+    ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly -KeepHostRecoveryPolicySuppressed';
+    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+      HostDatabaseUpgradeFailed := True;
+      MsgBox('Ventio updated its application files and the Host database upgrade completed, but VentioHost could not be stopped safely before LAN configuration. PostgreSQL will remain available for recovery; no database reset was performed. Error code: HOST_POST_UPGRADE_HOST_STOP_FAILED.', mbError, MB_OK);
+      exit;
+    end;
   end;
   FailureCodePath := ExpandConstant('{tmp}\ventio-host-lan-failure.txt');
   DeleteFile(FailureCodePath);

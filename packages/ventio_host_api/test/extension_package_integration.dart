@@ -50,6 +50,7 @@ Future<void> main() async {
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
   final runtimeConnection = await pg.Connection.openFromUrl(runtimeUrl);
   final observer = await pg.Connection.openFromUrl(databaseUrl);
+  final reviewApiConnection = await pg.Connection.openFromUrl(apiAdminUrl);
   final permissionDiagnosticPool = pg.Pool<dynamic>.withUrl(
     Uri.parse(apiAdminUrl)
         .replace(
@@ -69,7 +70,38 @@ Future<void> main() async {
   const secondaryCompany = 'company-secondary';
   const secondaryBranch = 'branch-secondary';
   HostApi? api;
+  final diagnostics = ManagementDiagnosticBuffer();
   try {
+    var directSchemaValidatorDenied = false;
+    try {
+      await reviewApiConnection.execute(
+        "SELECT public.ventio_validate_extension_schema_upgrade('scope-test','scope.test','1.0.0')",
+      );
+    } on pg.ServerException catch (error) {
+      directSchemaValidatorDenied = error.code == '42501';
+    }
+    expect(
+      directSchemaValidatorDenied,
+      'Identity API cannot directly execute the package schema validator',
+    );
+    final migrationConstraints = await observer.execute('''
+      SELECT
+        count(*) FILTER (
+          WHERE conname='ventio_extension_packages_lifecycle_check'
+            AND position('REJECTED' IN pg_get_constraintdef(oid)) > 0
+        ) AS rejection_lifecycle,
+        count(*) FILTER (
+          WHERE position('manifest,moduleId' IN pg_get_constraintdef(oid)) > 0
+        ) AS manifest_identity
+      FROM pg_constraint
+      WHERE conrelid='public.ventio_extension_packages'::regclass
+        AND contype='c'
+    ''');
+    expect(
+      migrationConstraints.single[0] == 1 &&
+          migrationConstraints.single[1] == 1,
+      'Rejection migration replaces the package lifecycle check and preserves manifest identity integrity',
+    );
     await authority.resetForReenrollment(adminConnection, 'package-test-reset');
     final identityAdmin = IdentityAdministration(
       connection: adminConnection,
@@ -168,12 +200,21 @@ Future<void> main() async {
       branch: primaryBranch,
       permissions: const [
         'extension.package.submit',
+        'extension.package.review',
         'extension.package.read',
         'extension.com_example_registry.item.read',
         'extension.com_example_registry.item.create',
         'extension.com_example_registry.item.update',
         'extension.com_example_registry.item.delete',
       ],
+    );
+    final reviewerToken = await provision(
+      actor: 'extension-reviewer',
+      device: 'extension-reviewer-device',
+      credential: 'extension-reviewer-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.review'],
     );
     final noDeleteToken = await provision(
       actor: 'record-editor-without-delete',
@@ -324,6 +365,11 @@ Future<void> main() async {
         permissionDiagnosticPool: permissionDiagnosticPool,
         admission: authority,
       ),
+      extensionPackageReview: PostgresExtensionPackageReviewGateway(
+        connect: () => pg.Connection.openFromUrl(apiAdminUrl),
+        admission: authority,
+      ),
+      diagnostics: diagnostics,
       extensionRecordQueries: PostgresExtensionRecordQueryGateway(
         connect: () => pg.Connection.openFromUrl(runtimeUrl),
         admission: authority,
@@ -521,6 +567,41 @@ Future<void> main() async {
       },
     );
 
+    Future<Reply> listSubmissions(
+      String token, {
+      String company = primaryCompany,
+      String branch = primaryBranch,
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/submissions',
+      body: {'companyId': company, 'branchId': branch, 'limit': 3},
+    );
+
+    Future<Reply> reviewSubmission(
+      String token,
+      ExtensionBundle package,
+      String decision, {
+      String? reason,
+      String company = primaryCompany,
+      String branch = primaryBranch,
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/review',
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'moduleId': package.moduleId,
+        'version': package.version,
+        'packageSha256': sha256
+            .convert(utf8.encode(canonicalJson(package.toJson())))
+            .toString(),
+        'decision': decision,
+        if (reason != null) 'reason': reason,
+      },
+    );
+
     Future<Reply> queryRecords(
       String token, {
       String company = primaryCompany,
@@ -670,16 +751,37 @@ Future<void> main() async {
       'A user cannot read packages outside the granted company/branch pair',
     );
 
+    final selfReview = await reviewSubmission(primaryToken, package, 'APPROVE');
+    expect(
+      selfReview.status == 403 &&
+          selfReview.body['error']['code'] == 'SELF_REVIEW_FORBIDDEN',
+      'A submitter cannot approve their own Host candidate',
+    );
+    final pending = await listSubmissions(reviewerToken);
+    expect(
+      pending.status == 200 &&
+          (pending.body['submissions'] as List).length == 1 &&
+          (pending.body['submissions'] as List).single['packageSha256'] ==
+              hash(package),
+      'Host review lists the exact scoped candidate',
+    );
+    final reviewApproval = await reviewSubmission(
+      reviewerToken,
+      package,
+      'APPROVE',
+    );
+    final reviewFailure = diagnostics.recent(limit: 10).firstOrNull;
+    expect(
+      reviewApproval.status == 200 &&
+          reviewApproval.body['review']['status'] == 'APPROVED',
+      'Authorized operator approval advances the candidate through the Host review API '
+      '(http=${reviewApproval.status}, result=${reviewApproval.body['review'] is Map ? reviewApproval.body['review']['status'] : 'none'}, code=${reviewApproval.body['error'] is Map ? reviewApproval.body['error']['code'] : 'none'}, internal=${reviewFailure?.protectedFailureType ?? 'none'}, source=${reviewFailure?.protectedFailureSource ?? 'none'})',
+    );
     final packageAdmin = ExtensionPackageAdministration(
       connection: adminConnection,
       tenantId: tenant,
       operatorLabel: 'package-test-operator',
       authority: authority,
-    );
-    await packageAdmin.approve(
-      moduleId: package.moduleId,
-      version: package.version,
-      packageSha256: hash(package),
     );
     final approved = await readPackage(
       primaryToken,
@@ -696,6 +798,39 @@ Future<void> main() async {
     expect(
       (await submitPackage(primaryToken, secondPackage)).status == 202,
       'A second distinct package can be submitted independently',
+    );
+    final rejectedPackage = bundle('com.example.rejected', '1.0.0');
+    expect(
+      (await submitPackage(primaryToken, rejectedPackage)).status == 202,
+      'A candidate remains pending until an operator decision',
+    );
+    final rejection = await reviewSubmission(
+      reviewerToken,
+      rejectedPackage,
+      'REJECT',
+      reason: 'The proposed permissions exceed the approved use case.',
+    );
+    final candidateRejectedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT status,rejection_reason FROM ventio_extension_packages
+        WHERE tenant_id=@tenant AND module_id=@module AND version='1.0.0'
+      '''),
+      parameters: {'tenant': tenant, 'module': rejectedPackage.moduleId},
+    );
+    final rejectionFailure = diagnostics.recent(limit: 10).firstOrNull;
+    expect(
+      rejection.status == 200 &&
+          rejection.body['review']['status'] == 'REJECTED' &&
+          candidateRejectedState.single[0] == 'REJECTED' &&
+          candidateRejectedState.single[1] ==
+              'The proposed permissions exceed the approved use case.',
+      'Host rejection stores the operator reason and prevents Client activation '
+      '(http=${rejection.status}, result=${rejection.body['review'] is Map ? rejection.body['review']['status'] : 'none'}, '
+      'code=${rejection.body['error'] is Map ? rejection.body['error']['code'] : 'none'}, '
+      'persisted=${candidateRejectedState.isEmpty ? 'missing' : candidateRejectedState.single.join('|')}, '
+      'internal=${rejectionFailure?.protectedFailureType ?? 'none'}, '
+      'sqlstate=${rejectionFailure?.protectedTechnicalCode ?? 'none'}, '
+      'source=${rejectionFailure?.protectedFailureSource ?? 'none'})',
     );
     await packageAdmin.approve(
       moduleId: secondPackage.moduleId,
@@ -4076,6 +4211,7 @@ Future<void> main() async {
     await api?.close();
     await permissionDiagnosticPool.close();
     await observer.close();
+    await reviewApiConnection.close();
     await runtimeConnection.close();
     await adminConnection.close();
     await temporary.delete(recursive: true);

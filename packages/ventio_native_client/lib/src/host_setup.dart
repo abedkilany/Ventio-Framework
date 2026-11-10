@@ -191,6 +191,11 @@ class LocalHostSetupCredentialStore implements HostSetupCredentialStore {
       return verifiedProfile;
     } on HostSessionIdentityException catch (error) {
       throw HostSetupException(error.code);
+    } on HostPackageTransportException catch (error) {
+      // The transport exception contains only a validated Host error code and
+      // status. Preserve that safe code for the setup diagnostic instead of
+      // collapsing authentication failures into an unhelpful generic result.
+      throw HostSetupException(error.code);
     } on HostSetupException {
       rethrow;
     } on Object {
@@ -317,13 +322,22 @@ class HostSetupCoordinator {
     final requesterSid = await platform.currentUserSid();
     var operation = await platform.readPendingOperation();
     var operationCreatedForThisAttempt = false;
+    var retryPortCollision = false;
+    HostSetupOperationStatus? previousStatus;
     if (operation != null) {
       if (!operation.scope.matches(_profileForScope(scope, endpoint)) ||
           operation.requesterSid != requesterSid ||
           !_isOperationId(operation.operationId)) {
         throw const HostSetupException('HOST_SETUP_PENDING_OPERATION_MISMATCH');
       }
-    } else {
+      final status = await platform.setupOperationStatus(operation.operationId);
+      previousStatus = status;
+      retryPortCollision =
+          status.state == HostSetupOperationState.failed &&
+          status.failureCode == 'POSTGRES_PORT_IN_USE' &&
+          status.phase == 'POSTGRES_SERVICE_PROVISIONING';
+    }
+    if (operation == null || retryPortCollision) {
       for (final name in ['VentioPostgres', 'VentioHost']) {
         final state = await platform.serviceState(name);
         if (state == HostWindowsServiceState.unknown) {
@@ -335,6 +349,10 @@ class HostSetupCoordinator {
           );
         }
       }
+      if (retryPortCollision) {
+        await platform.clearPendingOperation();
+        previousStatus = null;
+      }
       operation = HostSetupPendingOperation(
         operationId: _newOperationId(),
         requesterSid: requesterSid,
@@ -344,7 +362,9 @@ class HostSetupCoordinator {
       operationCreatedForThisAttempt = true;
     }
 
-    var status = await platform.setupOperationStatus(operation.operationId);
+    var status =
+        previousStatus ??
+        await platform.setupOperationStatus(operation.operationId);
     if (status.state == HostSetupOperationState.pending &&
         !operationCreatedForThisAttempt) {
       throw const HostSetupException(

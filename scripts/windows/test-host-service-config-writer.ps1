@@ -1,3 +1,7 @@
+param(
+  [switch] $SkipServiceValidator
+)
+
 $ErrorActionPreference = 'Stop'
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
 $testDirectory = Join-Path $tempRoot ('ventio-config-writer-test-' + [guid]::NewGuid().ToString('N'))
@@ -29,6 +33,14 @@ try {
     -TestServiceSid $sid
   if (-not $?) { throw 'Host service configuration writer failed.' }
 
+  & (Join-Path $PSScriptRoot 'write-host-service-config.ps1') `
+    -RuntimeCredential $runtimeCredential `
+    -IdentityApiCredential $identityCredential `
+    -OutputDirectory $resolvedTestDirectory `
+    -TestMode `
+    -TestServiceSid $sid
+  if (-not $?) { throw 'Host service configuration writer could not replace its existing protected file.' }
+
   $configPath = Join-Path $resolvedTestDirectory 'service-config.dpapi'
   if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
     throw 'Protected Host service configuration was not created.'
@@ -42,10 +54,14 @@ try {
   }
   finally { [Array]::Clear($fileBytes, 0, $fileBytes.Length) }
 
-  & dotnet run --project (Join-Path $PSScriptRoot '..\..\installer\windows\host-service.tests\HostService.Tests.csproj') `
-    -c Release --no-restore -- --validate-file $configPath
-  if ($LASTEXITCODE -ne 0) { throw 'Host service rejected the configuration written by the DPAPI writer.' }
-  Write-Output 'Host DPAPI config writer integration passed: encrypted file, protected ACL, no plaintext credential bytes, service validator accepted.'
+  if (-not $SkipServiceValidator) {
+    & dotnet run --project (Join-Path $PSScriptRoot '..\..\installer\windows\host-service.tests\HostService.Tests.csproj') `
+      -c Release --no-restore -- --validate-file $configPath
+    if ($LASTEXITCODE -ne 0) { throw 'Host service rejected the configuration written by the DPAPI writer.' }
+    Write-Output 'Host DPAPI config writer integration passed: encrypted file, protected ACL, no plaintext credential bytes, service validator accepted.'
+  } else {
+    Write-Output 'HOST_CONFIG_WRITER_EXISTING_FILE_REPLACE_PASS'
+  }
 }
 finally {
   $runtimeCredential = $null

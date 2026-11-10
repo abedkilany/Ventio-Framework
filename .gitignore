@@ -16,6 +16,10 @@ __pycache__/
 /dist/windows/
 /deliverables/
 /.installer-validation-temp/
+/artifacts/
+/packages/ventio_native_client/.build-codex-generated-*/
+/packages/ventio_native_client/b[0-9]*/
+/packages/ventio_native_client/build-*/
 
 # Generated .NET build output for the Windows setup broker.
 /installer/windows/setup-broker/bin/

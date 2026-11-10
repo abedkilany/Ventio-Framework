@@ -318,7 +318,7 @@ Future<void> _verifyUpgrade(
       has_function_privilege('ventio_identity_api','ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text)','EXECUTE'),
       NOT has_function_privilege('ventio_runtime','ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text)','EXECUTE'),
       has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_claim(text,text)','EXECUTE'),
-      has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_pending_claim(text,text)','EXECUTE'),
+      has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_pending_claim(text)','EXECUTE'),
       has_function_privilege('ventio_identity_api','ventio_security.credential_reissue_finalize(text,text)','EXECUTE'),
       has_function_privilege('ventio_identity_api','ventio_security.assert_schema()','EXECUTE'),
       (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='public.ventio_identity_credential_reissues'::regclass),

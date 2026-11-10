@@ -80,6 +80,76 @@ ExtensionBundle _bundle() => ExtensionBundle.fromJson({
 void main() {
   const token = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 
+  test('Lists, verifies, and reviews a durable Host candidate', () async {
+    final bundle = _bundle();
+    final hash = sha256
+        .convert(utf8.encode(canonicalJson(bundle.toJson())))
+        .toString();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final seen = <Map<String, dynamic>>[];
+    server.listen((request) async {
+      final body = jsonDecode(await utf8.decoder.bind(request).join());
+      seen.add({'path': request.uri.path, 'body': body});
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            if (request.uri.path.endsWith('/submissions'))
+              'submissions': [
+                {
+                  'moduleId': bundle.moduleId,
+                  'version': bundle.version,
+                  'packageSha256': hash,
+                  'package': bundle.toJson(),
+                  'submittedBy': 'publisher',
+                  'submittedAt': '2026-11-08T12:00:00.000Z',
+                },
+              ]
+            else
+              'review': {
+                'status': 'APPROVED',
+                'moduleId': bundle.moduleId,
+                'version': bundle.version,
+                'packageSha256': hash,
+              },
+          }),
+        );
+      await request.response.close();
+    });
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    final credentials = HostCredentialVault(_MemoryCredentialBackend());
+    await credentials.save(endpoint, token);
+    final client = HostExtensionPackageClient(
+      endpoint: endpoint,
+      credentials: credentials,
+    );
+
+    final submissions = await client.listSubmissions(
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    expect(submissions, hasLength(1));
+    expect(submissions.single.packageSha256, hash);
+    expect(submissions.single.submittedBy, 'publisher');
+    expect(
+      await client.reviewSubmission(
+        submission: submissions.single,
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        decision: 'APPROVE',
+      ),
+      'APPROVED',
+    );
+    expect(seen.map((entry) => entry['path']), [
+      '/api/v1/extensions/submissions',
+      '/api/v1/extensions/review',
+    ]);
+    expect(seen.last['body']['packageSha256'], hash);
+  });
+
   test(
     'Discovers the authenticated Host scope without trusting local claims',
     () async {

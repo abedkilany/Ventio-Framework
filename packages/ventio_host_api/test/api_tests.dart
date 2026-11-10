@@ -1336,7 +1336,8 @@ Future<void> main() async {
       claim.status == 200 &&
           replacement['deviceId'] == 'client-001' &&
           replacement['state'] == 'PREPARED' &&
-          replacement['credential'] == FakeCredentialReissueGateway.replacement &&
+          replacement['credential'] ==
+              FakeCredentialReissueGateway.replacement &&
           credentialReissueGateway.claims == 1,
       'A pending credential update is returned only through its authenticated existing device session',
     );
@@ -1372,7 +1373,10 @@ Future<void> main() async {
       },
     );
     final diagnosticJson = jsonEncode(
-      credentialReissueDiagnostics.recent().map((event) => event.toJson()).toList(),
+      credentialReissueDiagnostics
+          .recent()
+          .map((event) => event.toJson())
+          .toList(),
     );
     check(
       acknowledgment.status == 200 &&

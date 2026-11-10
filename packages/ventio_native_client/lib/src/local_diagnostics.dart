@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common/sqlite_api.dart';
 import 'package:ventio_core/ventio_core.dart';
 
@@ -11,7 +10,7 @@ import 'app_database.dart';
 const int localDiagnosticsRetentionLimit = 500;
 
 Future<LocalDiagnosticsStore> openDefaultLocalDiagnosticsStore() async {
-  final directory = await getApplicationSupportDirectory();
+  final directory = await ventioApplicationSupportDirectory();
   return LocalDiagnosticsStore.open(
     factory: databaseFactoryForCurrentPlatform(),
     path: p.join(directory.path, 'ventio_diagnostics.sqlite3'),

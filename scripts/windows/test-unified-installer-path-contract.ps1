@@ -9,6 +9,8 @@ $postgresProvisioner = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'provis
 $hostRegistration = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'register-host-service.ps1') -Raw
 $hostConfigWriter = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'write-host-service-config.ps1') -Raw
 $hostLanListener = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'enable-host-lan-listener.ps1') -Raw
+$hostCertificateTrust = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'trust-host-certificate.ps1') -Raw
+$hostPinnedTls = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ventio-pinned-tls.psm1') -Raw
 $hostProvisioning = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'provision-host-installation.ps1') -Raw
 $localHostEngine = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_host_api\bin\local_host.dart') -Raw
 $hostLanInfo = Get-Content -LiteralPath (Join-Path $repoRoot 'packages\ventio_native_client\lib\src\host_lan_info.dart') -Raw
@@ -75,8 +77,11 @@ $existingUpgradeStart = $installerSource.IndexOf('procedure CurStepChanged(Curre
 $upgradeBody = if ($existingUpgradeStart -ge 0) { $installerSource.Substring($existingUpgradeStart) } else { '' }
 $resumePostgresIndex = $upgradeBody.IndexOf('-ResumePostgresOnly', [StringComparison]::Ordinal)
 $databaseUpgradeIndex = $upgradeBody.IndexOf('upgrade-host-database.ps1', [StringComparison]::Ordinal)
+$postUpgradeHostStopIndex = $upgradeBody.IndexOf("stop-host-services.ps1", $databaseUpgradeIndex, [StringComparison]::Ordinal)
+$postUpgradeHostStopModeIndex = $upgradeBody.IndexOf('-ResumePostgresOnly -KeepHostRecoveryPolicySuppressed', $databaseUpgradeIndex, [StringComparison]::Ordinal)
 $lanRestartIndex = $upgradeBody.IndexOf('-RestartServices', [StringComparison]::Ordinal)
 Assert-Contract ($resumePostgresIndex -ge 0 -and $databaseUpgradeIndex -gt $resumePostgresIndex -and $lanRestartIndex -gt $databaseUpgradeIndex -and $upgradeBody.Contains('-Apply')) 'EXISTING_HOST_UPGRADE_MUST_START_POSTGRES_APPLY_AND_VERIFY_DATABASE_UPGRADE_BEFORE_HOST_RESTART'
+Assert-Contract ($postUpgradeHostStopIndex -gt $databaseUpgradeIndex -and $postUpgradeHostStopModeIndex -gt $postUpgradeHostStopIndex -and $lanRestartIndex -gt $postUpgradeHostStopModeIndex) 'EXISTING_HOST_UPGRADE_MUST_STOP_HOST_AFTER_RECOVERY_AUTHORITY_UPGRADE_BEFORE_LAN_CONFIGURATION'
 Assert-Contract ($upgradeBody.Contains('HostDatabaseUpgradeFailed := True') -and $installerSource.Contains('and not HostDatabaseUpgradeFailed') -and $installerSource.Contains('-ResumePostgresOnly')) 'FAILED_DATABASE_UPGRADE_MUST_KEEP_HOST_STOPPED_AND_ALLOW_POSTGRES_ONLY_RECOVERY'
 Assert-Contract ($installerSource -match '(?s)procedure CurStepChanged.*?enable-host-lan-listener\.ps1.*?-RestartServices') 'EXISTING_HOST_UPDATE_MUST_CONFIGURE_THE_LAN_LISTENER_AFTER_DATABASE_UPGRADE'
 Assert-Contract ($databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_VERIFICATION_FAILED') -and $databaseUpgrade.Contains('HOST_DATABASE_BACKUP_INVENTORY_MISMATCH') -and $databaseUpgrade.Contains('HOST_DATABASE_MIGRATION_RESULT_INVALID')) 'INSTALLER_DATABASE_UPGRADE_MUST_REQUIRE_VERIFIED_BACKUP_MIGRATIONS_AND_PAIRING_CONTRACT'
@@ -87,10 +92,22 @@ $preparedSettingIndex = $databaseUpgrade.IndexOf('Ventio Recovery Authority upgr
 Assert-Contract ($backupCommitIndex -ge 0 -and $preparedSettingIndex -gt $backupCommitIndex) 'HOST_UPGRADE_MUST_VERIFY_RESTRICTED_BACKUP_BEFORE_CHANGING_POSTGRES_COORDINATION_SETTINGS'
 Assert-Contract ($installerSource.Contains('-FailureCodePath') -and $installerSource.Contains('IsSafeHostLanFailureCode') -and $installerSource.Contains('IsSafeHostDatabaseUpgradeFailureCode') -and $installerSource.Contains('HOST_DATABASE_') -and $installerSource.Contains('Error code: ')) 'HOST_UPGRADE_FAILURE_MUST_SURFACE_ONLY_A_VALIDATED_SAFE_FAILURE_CODE'
 Assert-Contract ($installerSource -notmatch '(?s)procedure CurStepChanged.*?provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_UPGRADE_MUST_NOT_RUN_FIRST_RUN_PROVISIONING_OR_RECOVERY'
-Assert-Contract ($hostProvisioning.Contains('& $hostLanListener -PayloadDirectory $payload -RestartServices')) 'FIRST_RUN_HOST_SETUP_MUST_ENABLE_THE_LAN_LISTENER'
+$firstRunLan = $hostProvisioning.IndexOf('& $hostLanListener -PayloadDirectory $payload', [StringComparison]::Ordinal)
+$firstRunStart = $hostProvisioning.LastIndexOf('Start-Service -Name $hostServiceName', [StringComparison]::Ordinal)
+Assert-Contract ($firstRunLan -ge 0 -and $firstRunStart -gt $firstRunLan -and
+  $hostProvisioning.Substring($firstRunLan, $firstRunStart - $firstRunLan) -notmatch '-RestartServices') 'FIRST_RUN_MUST_STAGE_TLS_BEFORE_BOOTSTRAP_WITHOUT_PROBING_THE_UNSTARTED_HOST'
+Assert-Contract ($hostServiceImplementation -match '(?s)bootstrapCompleted\.Task\.GetAwaiter\(\)\.GetResult\(\).*?if \(!WaitForHostReadiness\(.*?PublishStartedListenerStatus\(') 'HOST_SERVICE_MUST_PUBLISH_LAN_ONLY_AFTER_BOOTSTRAP_AND_ENGINE_READINESS'
+Assert-Contract ($hostLanListener -match '(?s)-not \$RestartServices -and\s+@\(\[Net\.NetworkInformation\.IPGlobalProperties\].*?HOST_LAN_PORT_IN_USE') 'LAN_PREPARATION_MUST_LEAVE_AN_OCCUPIED_PORT_TO_ITS_EXISTING_LISTENER'
 Assert-Contract ($localHostEngine.Contains("Platform.environment['VENTIO_HOST_LAN_BIND_ADDRESS']") -and $localHostEngine.Contains('listenAddress: lanAddress') -and $localHostEngine.Contains('tlsContext: tlsContext')) 'HOST_ENGINE_MUST_BIND_THE_SEPARATE_LAN_ENDPOINT_WITH_TLS'
 Assert-Contract ($localHostEngine.Contains("Platform.environment['VENTIO_HOST_BIND_ADDRESS'] ?? '127.0.0.1'") -and $localHostEngine.Contains('final localTlsContext = lanListenerConfigured ? null : tlsContext;') -and $localHostEngine.Contains('tlsContext: localTlsContext')) 'LOCAL_HTTP_MANAGEMENT_MUST_REMAIN_LOOPBACK_ONLY'
 Assert-Contract ($hostLanInfo.Contains("listenerEnabled != true") -and $hostLanInfo.Contains("RegExp(r'^[0-9a-f]{64}$')")) 'HOST_SETTINGS_MUST_REQUIRE_ENABLED_LISTENER_AND_DISCOVER_A_VALID_FINGERPRINT'
+Assert-Contract ($hostCertificateTrust.Contains('ventio-pinned-tls.psm1') -and
+  $hostCertificateTrust.Contains('--cacert') -and
+  $hostCertificateTrust.Contains('Test-VentioPinnedServerCertificate') -and
+  $hostPinnedTls.Contains('Get-VentioPinnedCertificateSha256') -and
+  $hostPinnedTls.Contains('Test-VentioPinnedCertificateEndpoint') -and
+  $hostPinnedTls.Contains('1.3.6.1.5.5.7.3.1') -and
+  -not $hostCertificateTrust.Contains('ServerCertificateValidationCallback')) 'CLIENT_HOST_CERTIFICATE_TRUST_MUST_VALIDATE_EXACT_PIN_SAN_VALIDITY_AND_SERVER_AUTH'
 Assert-Contract ($installerSource.Contains('Private or authenticated Domain network') -and $installerSource.Contains('Public networks are not enabled')) 'UPGRADE_FAILURE_MESSAGE_MUST_EXPLAIN_TRUSTED_NETWORK_REQUIREMENTS'
 Assert-Contract ($hostLanListener.Contains("'DomainAuthenticated' { if (-not `$profiles.Contains('Domain'))") -and $hostLanListener.Contains("'Private' { if (-not `$profiles.Contains('Private'))")) 'HOST_LAN_MUST_SUPPORT_DOMAIN_AND_PRIVATE_NETWORK_CATEGORIES'
 Assert-Contract ($hostLanListener.Contains("throw 'HOST_LAN_TRUSTED_NETWORK_REQUIRED'") -and $hostLanListener.Contains('-RemoteAddress LocalSubnet') -and $hostLanListener.Contains("-Profile (`$FirewallProfiles -join ',')")) 'HOST_LAN_FIREWALL_MUST_REJECT_PUBLIC_ONLY_NETWORKS_AND_STAY_LOCAL_SUBNET_SCOPED'
@@ -191,6 +208,29 @@ Assert-Contract ($trustedHostUpgrade.Contains("'RECOVERY_AUTHORITY_SCHEMA_ADMISS
   $hostServiceImplementation.Contains('failureStage') -and
   $hostServiceImplementation.Contains('"unknown" : "failed"') -and
   $databaseUpgrade.Contains("`$result.status -in @('failed', 'unknown')")) 'HOST_SCHEMA_UPGRADE_FAILURE_STAGE_MUST_SURVIVE_HELPER_SERVICE_AND_INSTALLER_HANDOFF'
+Assert-Contract ($trustedHostUpgrade.Contains("ventio_security.credential_reissue_pending_claim(text)','EXECUTE'") -and
+  -not $trustedHostUpgrade.Contains('ventio_security.credential_reissue_pending_claim(text,text)')) 'HOST_SCHEMA_UPGRADE_VERIFIER_MUST_USE_THE_DECLARED_PENDING_CREDENTIAL_REISSUE_SIGNATURE'
+Assert-Contract ($hostServiceImplementation.Contains('service-startup-failure.json') -and
+  $hostServiceImplementation.Contains('exception.HResult') -and
+  $hostServiceImplementation.Contains('hostProcessExitCode') -and
+  $hostServiceImplementation.Contains('hostProcessSqlState') -and
+  $hostServiceImplementation.Contains('exitedProcess.WaitForExit()') -and
+  $hostServiceImplementation.Contains('VENTIO_HOST_TEST_DIAGNOSTICS') -and
+  $hostServiceImplementation.Contains('ServerException sqlstate=([0-9A-Z]{5})') -and
+  $hostServiceImplementation.Contains('HOST_ENGINE_EXITED_BEFORE_READY') -and
+  $hostServiceImplementation.Contains('HOST_ENGINE_READY_TIMEOUT') -and
+  $hostServiceImplementation.Contains('WriteSafeStartupFailureDiagnostic') -and
+  -not $hostServiceImplementation.Contains('exception.Message')) 'HOST_STARTUP_FAILURE_DIAGNOSTIC_MUST_RETAIN_ONLY_SAFE_STAGE_TYPE_AND_HRESULT'
+Assert-Contract ($localHostEngine.Contains('_undefinedFunctionDiagnostic(message)') -and
+  $localHostEngine.Contains('function\s+') -and
+  $localHostEngine.Contains('function\s+"') -and
+  $localHostEngine.Contains('does not exist') -and
+  $localHostEngine.Contains('A-Za-z0-9_ .,') -and
+  -not $localHostEngine.Contains('_redactTestDiagnostic(message)')) 'HOST_SQLSTATE_42883_DIAGNOSTIC_MUST_EMIT_ONLY_VALIDATED_FUNCTION_METADATA'
+Assert-Contract ($localHostEngine.Contains('operator does not exist') -and
+  $hostServiceImplementation.Contains('hostProcessUndefinedRoutine') -and
+  $hostServiceImplementation.Contains('undefinedFunction=') -and
+  $hostServiceImplementation.Contains('{1,256}')) 'HOST_SQLSTATE_42883_DIAGNOSTIC_MUST_CAPTURE_ONLY_SAFE_ROUTINE_OR_OPERATOR_METADATA'
 Assert-Contract ($serviceRecoveryPolicy.Contains('ProtectedData]::Protect') -and $serviceRecoveryPolicy.Contains('DataProtectionScope]::LocalMachine') -and
   $serviceRecoveryPolicy.Contains('ServiceConfigFailureActions') -and $serviceRecoveryPolicy.Contains('ServiceConfigFailureActionsFlag')) 'HOST_RECOVERY_POLICY_SNAPSHOT_MUST_BE_MACHINE_PROTECTED_AND_PRESERVE_BOTH_SCM_POLICY_SECTIONS'
 Assert-Contract ($serviceRecoveryPolicy.Contains('Wait-VentioServiceStoppedStable') -and $serviceRecoveryPolicy.Contains('$quietSeconds') -and

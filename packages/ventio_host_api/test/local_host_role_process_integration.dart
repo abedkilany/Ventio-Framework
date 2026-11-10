@@ -127,12 +127,7 @@ Future<void> main() async {
       outputPath: readerCredentialPath,
     );
     await identity.createUser(pairingTargetActor);
-    await identity.grant(
-      pairingTargetActor,
-      company,
-      branch,
-      readPermission,
-    );
+    await identity.grant(pairingTargetActor, company, branch, readPermission);
     final credential =
         jsonDecode(await PrivateFiles.read(credentialPath))
             as Map<String, dynamic>;

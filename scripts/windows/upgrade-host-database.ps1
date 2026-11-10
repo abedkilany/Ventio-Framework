@@ -449,13 +449,14 @@ function New-HostSchemaUpgradeRequest([string] $DatabaseUrl, [string] $HostDirec
   $jsonBytes = [Text.UTF8Encoding]::new($false).GetBytes(($request | ConvertTo-Json -Compress))
   $encrypted = $null
   $tempPath = $requestPath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+  $replacementBackup = $requestPath + '.' + [guid]::NewGuid().ToString('N') + '.replace-backup'
   try {
     $encrypted = [Security.Cryptography.ProtectedData]::Protect(
       $jsonBytes, $null, [Security.Cryptography.DataProtectionScope]::LocalMachine)
     [IO.File]::WriteAllBytes($tempPath, $encrypted)
     Set-HostSchemaUpgradeFileAcl $tempPath
     if ($replaceExisting) {
-      [IO.File]::Replace($tempPath, $requestPath, $null, $true)
+      [IO.File]::Replace($tempPath, $requestPath, $replacementBackup, $true)
     } else {
       [IO.File]::Move($tempPath, $requestPath)
     }
@@ -464,6 +465,7 @@ function New-HostSchemaUpgradeRequest([string] $DatabaseUrl, [string] $HostDirec
     if ($jsonBytes) { [Array]::Clear($jsonBytes, 0, $jsonBytes.Length) }
     if ($encrypted) { [Array]::Clear($encrypted, 0, $encrypted.Length) }
     if (Test-Path -LiteralPath $tempPath) { Remove-Item -LiteralPath $tempPath -Force }
+    if (Test-Path -LiteralPath $replacementBackup) { Remove-Item -LiteralPath $replacementBackup -Force -ErrorAction SilentlyContinue }
   }
   return [pscustomobject]@{ RequestPath = $requestPath; ResultPath = $resultPath; OperationId = $operationId }
 }
@@ -701,15 +703,17 @@ try {
     $configuration = [IO.File]::ReadAllText($postgresConfig)
     if ($configuration -notmatch '(?m)^# Ventio Recovery Authority upgrade coordinator v1\s*$') {
       $temporaryConfig = $postgresConfig + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+      $replacementBackup = $postgresConfig + '.' + [guid]::NewGuid().ToString('N') + '.replace-backup'
       try {
         Set-HostBackupStage 'DATABASE_POSTGRES_CONFIG_WRITE' 'HOST_DATABASE_POSTGRES_CONFIGURATION_WRITE_FAILED'
         $configuration += "`n# Ventio Recovery Authority upgrade coordinator v1`nmax_prepared_transactions = 1`n"
         [IO.File]::WriteAllText($temporaryConfig, $configuration, [Text.UTF8Encoding]::new($false))
         Set-Acl -LiteralPath $temporaryConfig -AclObject (Get-Acl -LiteralPath $postgresConfig)
         Set-HostBackupStage 'DATABASE_POSTGRES_CONFIG_REPLACE' 'HOST_DATABASE_POSTGRES_CONFIGURATION_REPLACE_FAILED'
-        [IO.File]::Replace($temporaryConfig, $postgresConfig, $null, $true)
+        [IO.File]::Replace($temporaryConfig, $postgresConfig, $replacementBackup, $true)
       } finally {
         if (Test-Path -LiteralPath $temporaryConfig) { Remove-Item -LiteralPath $temporaryConfig -Force }
+        if (Test-Path -LiteralPath $replacementBackup) { Remove-Item -LiteralPath $replacementBackup -Force -ErrorAction SilentlyContinue }
       }
     }
   }

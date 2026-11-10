@@ -8,6 +8,7 @@ export 'src/host_credentials.dart';
 export 'src/client_credential_reissue.dart';
 export 'src/host_transport.dart';
 export 'src/host_extension_packages.dart';
+export 'src/host_extension_review_page.dart';
 export 'src/host_sync_service.dart';
 export 'src/host_user_management.dart';
 export 'src/host_device_management.dart';

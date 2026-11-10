@@ -130,7 +130,7 @@ BEGIN
     IF changed = 0 THEN RETURN; END IF;
     subject := actor;
     details := jsonb_build_object('roleId',role_key,'companyId',company,'branchId',branch);
-  ELSIF operation IN ('EXTENSION_PACKAGE_APPROVED','EXTENSION_PACKAGE_REVOKED') THEN
+  ELSIF operation IN ('EXTENSION_PACKAGE_APPROVED','EXTENSION_PACKAGE_REJECTED','EXTENSION_PACKAGE_REVOKED') THEN
     IF package_module IS NULL OR package_version IS NULL OR
         package_module !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$' OR
         length(package_module) > 128 OR length(package_version) > 64 OR
@@ -200,7 +200,7 @@ BEGIN
       VALUES (tenant,package_module,package_version,'APPROVED',label,
         package_row.submitted_company_id,package_row.submitted_branch_id,package_hash);
       details := jsonb_build_object('version',package_version,'packageSha256',package_hash);
-    ELSE
+    ELSIF operation = 'EXTENSION_PACKAGE_REVOKED' THEN
       IF package_row.status <> 'APPROVED' OR package_reason IS NULL OR
           length(trim(package_reason)) NOT BETWEEN 1 AND 500 THEN
         RAISE EXCEPTION 'Only an approved release can be revoked with a reason';
@@ -219,6 +219,20 @@ BEGIN
         package_row.submitted_company_id,package_row.submitted_branch_id,package_hash,
         jsonb_build_object('reason',package_reason));
       details := jsonb_build_object('version',package_version,'packageSha256',package_hash,'reason',package_reason);
+    ELSE
+      IF package_row.status <> 'SUBMITTED' OR package_reason IS NULL OR
+          length(trim(package_reason)) NOT BETWEEN 1 AND 500 THEN
+        RAISE EXCEPTION 'Only a submitted extension package can be rejected with a reason';
+      END IF;
+      UPDATE public.ventio_extension_packages SET status='REJECTED',
+          rejected_by=label, rejected_at=clock_timestamp(), rejection_reason=trim(package_reason)
+        WHERE tenant_id=tenant AND module_id=package_module AND version=package_version;
+      INSERT INTO public.ventio_extension_package_events
+        (tenant_id,module_id,version,event_type,actor_id,company_id,branch_id,package_sha256,details)
+      VALUES (tenant,package_module,package_version,'REJECTED',label,
+        package_row.submitted_company_id,package_row.submitted_branch_id,package_hash,
+        jsonb_build_object('reason',trim(package_reason)));
+      details := jsonb_build_object('version',package_version,'packageSha256',package_hash,'reason',trim(package_reason));
     END IF;
     subject := package_module;
   ELSE
@@ -250,7 +264,8 @@ BEGIN
       SELECT tenant,actor,company,branch,permission
       FROM unnest(ARRAY[
         'host.status.read','host.diagnostics.read','identity.users.manage',
-        'identity.devices.manage','identity.pairing.manage','identity.roles.manage'
+        'identity.devices.manage','identity.pairing.manage','identity.roles.manage',
+        'extension.package.review'
       ]::text[]) AS permissions(permission);
       INSERT INTO public.ventio_identity_credentials
         (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes)
@@ -259,13 +274,13 @@ BEGIN
         jsonb_build_array(jsonb_build_object('companyId',company,'branchId',branch,
           'permissions',jsonb_build_array('host.status.read','host.diagnostics.read',
             'identity.users.manage','identity.devices.manage','identity.pairing.manage',
-            'identity.roles.manage'))));
+            'identity.roles.manage','extension.package.review'))));
       subject := actor;
       details := jsonb_build_object('companyId',company,'branchId',branch,
         'deviceId',device,'credentialId',credential,
         'permissions',jsonb_build_array('host.status.read','host.diagnostics.read',
           'identity.users.manage','identity.devices.manage','identity.pairing.manage',
-          'identity.roles.manage'),'expiresAt',p->>'expiresAt');
+          'identity.roles.manage','extension.package.review'),'expiresAt',p->>'expiresAt');
     ELSE
     IF operation = 'DEVICE_REVOKED' THEN
       SELECT actor_id INTO actor FROM public.ventio_identity_devices WHERE tenant_id = tenant AND device_id = device;
@@ -411,7 +426,7 @@ DECLARE tenant text := p->>'tenantId'; actor text := p->>'actorId';
   operator_label text := p->>'operatorLabel'; v_expires_at timestamptz := (p->>'expiresAt')::timestamptz;
   permissions text[] := ARRAY['host.status.read','host.diagnostics.read',
     'identity.users.manage','identity.devices.manage','identity.pairing.manage',
-    'identity.roles.manage'];
+    'identity.roles.manage','extension.package.review'];
 BEGIN
   PERFORM pg_catalog.pg_advisory_xact_lock(86744321);
   IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') THEN
@@ -474,7 +489,7 @@ BEGIN
           FROM public.ventio_identity_grants g
           WHERE g.tenant_id=tenant AND g.actor_id=actor AND
             g.company_id=company AND g.branch_id=branch)=
-          ARRAY['host.diagnostics.read','host.status.read',
+          ARRAY['extension.package.review','host.diagnostics.read','host.status.read',
             'identity.devices.manage','identity.pairing.manage',
             'identity.roles.manage','identity.users.manage']::text[] AND
         EXISTS (

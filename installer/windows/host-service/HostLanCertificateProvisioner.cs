@@ -76,19 +76,33 @@ internal static class HostLanCertificateProvisioner
         }
     }
 
-    internal static int SetListenerStatus(bool enabled)
+    internal static int SetListenerStatus(bool enabled) => UpdateListenerStatus(enabled, null);
+
+    internal static int PublishStartedListenerStatus(string certificatePath) =>
+        UpdateListenerStatus(true, certificatePath);
+
+    private static int UpdateListenerStatus(bool enabled, string? startedCertificatePath)
     {
         try
         {
-            if (!OperatingSystem.IsWindows() || !IsAdministrator()) return 3;
+            if (!OperatingSystem.IsWindows()) return 3;
             var serviceSid = new NTAccount("NT SERVICE", "VentioHost")
-                .Translate(typeof(SecurityIdentifier)).Value;
+                .Translate(typeof(SecurityIdentifier));
+            if (startedCertificatePath is null)
+            {
+                if (!IsAdministrator()) return 3;
+            }
+            else
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                if (!serviceSid.Equals(identity.User)) return 3;
+            }
             var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
             var directory = Path.Combine(programData, HostDirectorySuffix);
             var infoPath = Path.Combine(directory, PublicInfoFileName);
             EnsureNoReparseAncestors(directory, programData);
-            AssertProtectedDirectory(directory, serviceSid);
-            AssertProtectedFile(infoPath, serviceSid, allowUsersRead: true);
+            AssertProtectedDirectory(directory, serviceSid.Value);
+            AssertProtectedFile(infoPath, serviceSid.Value, allowUsersRead: true);
             var raw = File.ReadAllBytes(infoPath);
             try
             {
@@ -108,7 +122,18 @@ internal static class HostLanCertificateProvisioner
                     !System.Text.RegularExpressions.Regex.IsMatch(fingerprint, "^[0-9a-f]{64}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant) ||
                     !StringComparer.OrdinalIgnoreCase.Equals(certificatePath, Path.Combine(directory, CertificateFileName)))
                     throw new InvalidOperationException("LAN listener metadata is invalid.");
-                WritePublicInfo(directory, serviceSid, enabled, hostname, alternatives, fingerprint, certificatePath);
+                if (startedCertificatePath is not null)
+                {
+                    if (!StringComparer.OrdinalIgnoreCase.Equals(Path.GetFullPath(startedCertificatePath), certificatePath))
+                        throw new InvalidOperationException("Started LAN certificate path differs from the published path.");
+                    AssertProtectedFile(certificatePath, serviceSid.Value, allowUsersRead: true);
+                    using var certificate = X509Certificate2.CreateFromPem(File.ReadAllText(certificatePath));
+                    if (!StringComparer.OrdinalIgnoreCase.Equals(
+                        certificate.GetCertHashString(HashAlgorithmName.SHA256), fingerprint))
+                        throw new InvalidOperationException("Started LAN certificate differs from the published fingerprint.");
+                }
+                if (root.GetProperty("listenerEnabled").GetBoolean() != enabled)
+                    WritePublicInfo(directory, serviceSid.Value, enabled, hostname, alternatives, fingerprint, certificatePath);
             }
             finally { CryptographicOperations.ZeroMemory(raw); }
             return 0;

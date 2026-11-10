@@ -32,3 +32,22 @@ No physical-device test is inferred from the independent local processes or emul
 ## Decision
 
 Stage 8 remains BLOCKED at **0% accepted** until its physical-device and installed-lifecycle requirements pass. The local process integration and Android emulator evidence do not earn partial weight. Stage 9 remains open pending all mandatory stage gates and its final security/release review.
+
+
+## 2026-11-09 physical follow-up
+
+Read-only identity checks confirmed distinct Host and Client physical UUIDs. Before any reset, the Client queue snapshot preserved a `PENDING` `extension.record.create` envelope containing `SYNC-TEST-001`, with zero attempts. The operation was not touched. Host became unreachable after the controlled reboot, so enrollment, extension approval, offline creation, Host acceptance/receipt, idempotent retry, and independent readback were not attempted. Stage 8 remains OPEN. See [Client queue preservation](evidence-closure-2026-11-08/client-queue-preservation-20261109.json), [Host reboot probes](evidence-closure-2026-11-08/host-wave1fix15-reboot-probes.log), and [physical follow-up](evidence-closure-2026-11-08/wave1fix15-client-repeat-install-and-host-reboot-2026-11-09.md).
+
+## 2026-11-09 Host access recovery addendum
+
+The earlier Host-unreachable condition is superseded for current network access: authenticated administrative SSH works, services are Running/Automatic, and pinned HTTPS `/healthz` returns HTTP 200. The live readiness endpoint rejected a request without a persistent bearer credential with HTTP 401 `UNAUTHENTICATED`; this is only a negative authorization check. Host RDP is connected and its interactive user session is Active, but Computer Use cannot capture the Host desktop, so enrollment and extension approval cannot be visually driven or verified here. The historical Client queue evidence still shows `SYNC-TEST-001` pending with zero attempts; no sync request or Client queue mutation was made. Physical enrollment, extension approval, offline creation, Host authoritative acceptance, receipt, idempotent retry, conflict/rejection cases, restart synchronization, and independent Client readback remain NOT TESTED. No Stage 8 weight is earned. See [Host reboot connectivity investigation](evidence-closure-2026-11-08/host-reboot-connectivity-investigation-2026-11-09.md) and [preserved Client queue](evidence-closure-2026-11-08/client-queue-preservation-20261109.json).
+
+## 2026-11-09 post-correction reboot follow-up
+
+Host system sleep was identified as the cause class for the previous network outage and an AC-only power-action correction was verified through a controlled reboot. SSH, services, and pinned HTTPS remained available after the previous sleep-transition window; no post-boot Kernel-Power sleep event appeared. This fixes the temporary transport outage for the current test setup, but does not run any Stage 8 workflow. The live management-readiness request remains unauthenticated, and Computer Use cannot capture the connected RDP desktop (`IGraphicsCaptureItemInterop.CreateForMonitor` error `0x80070057`). `SYNC-TEST-001` remains preserved as documented in the previous Client snapshot; no enrollment, approval, sync, or queue mutation occurred after that snapshot. Stage 8 remains OPEN at 0% accepted.
+
+## Formal stage acceptance — 2026-11-11
+
+Stages 3, 10 and 8 are accepted at their whole weights of 11, 20 and 6 points. Installed safe-repeat evidence completed Stage 3. The service, setup, failure, upgrade/repair/recovery, retention and explicit deletion evidence completes Stage 10 for the verified internal candidate. Host/PostgreSQL executable hashes are identical to the earlier installed reboot-tested payload, so that successful reboot is reused. The already-passed physical business flow then closes Stage 8's dependencies. Accepted progress is **97%**. Stage 9 remains open for the scoped final audit, W1-UI-001 and signing/distribution disposition.
+
+UAC cancellation was covered by automated tests. The fixture's existing administrator elevation policy suppressed the physical consent prompt. No claim is made that a physical cancellation occurred. The candidate remains unsigned and the Inno commercial-use license remains unverified. The saved original Host archive and staged recovery remain protected outside the current fixture.

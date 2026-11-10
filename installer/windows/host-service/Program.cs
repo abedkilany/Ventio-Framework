@@ -52,6 +52,11 @@ internal static class Program
     private static ServiceStatus _status;
     private static int _serviceExitCode;
     private static int _startupCheckpoint;
+    private static int? _startupHostProcessExitCode;
+    private static string? _startupHostFailureType;
+    private static string? _startupHostSqlState;
+    private static string? _startupHostUndefinedRoutine;
+    private static string _startupStage = "SERVICE_INITIALIZATION";
 
     private static int Main(string[] args)
     {
@@ -96,9 +101,12 @@ internal static class Program
         Dictionary<string, string>? bootstrapEnvironment = null;
         try
         {
+            _startupStage = "CONFIGURATION_READ";
             var environment = ReadAndValidateConfiguration(ConfigPath);
+            _startupStage = "SERVICE_IDENTITY_RESOLVE";
             var serviceSid = new NTAccount("NT SERVICE", ServiceName)
                 .Translate(typeof(SecurityIdentifier)).Value;
+            _startupStage = "BOOTSTRAP_ENVIRONMENT_CREATE";
             bootstrapEnvironment = CreateBootstrapEnvironment(environment);
             var hostReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var bootstrapCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -116,6 +124,7 @@ internal static class Program
                     ExecuteTrustedCredentialReissueAsync(command, callerSid, bootstrapEnvironment, cancellationToken));
             brokerCancellation = new CancellationTokenSource();
             var brokerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _startupStage = "BOOTSTRAP_BROKER_START";
             brokerTask = Task.Run(() => broker.RunAsync(brokerCancellation.Token, brokerReady));
             var startup = Task.WhenAny(brokerReady.Task, brokerTask, Task.Delay(TimeSpan.FromSeconds(10)))
                 .GetAwaiter().GetResult();
@@ -125,11 +134,13 @@ internal static class Program
                 throw new InvalidOperationException("Local bootstrap broker did not become ready.");
             brokerReady.Task.GetAwaiter().GetResult();
 
+            _startupStage = "SCHEMA_UPGRADE_REQUEST_CHECK";
             var upgradeRequestPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "Ventio", "Host", "schema-upgrade.request.dpapi");
             if (File.Exists(upgradeRequestPath))
             {
+                _startupStage = "SCHEMA_UPGRADE_REQUEST_READ";
                 var request = ReadHostSchemaUpgradeRequest(upgradeRequestPath, serviceSid);
                 var resultPath = Path.Combine(Path.GetDirectoryName(upgradeRequestPath)!, "schema-upgrade.result.json");
                 try
@@ -146,9 +157,12 @@ internal static class Program
                     });
                     try
                     {
+                    _startupStage = "SCHEMA_UPGRADE_EXECUTION";
                     ExecuteHostSchemaUpgradeAsync(request, bootstrapEnvironment)
                         .GetAwaiter().GetResult();
+                    _startupStage = "SCHEMA_UPGRADE_RESULT_WRITE";
                     WriteHostSchemaUpgradeResult(resultPath, request.OperationId, "complete", null, null);
+                    _startupStage = "SCHEMA_UPGRADE_REQUEST_CLEANUP";
                     File.Delete(upgradeRequestPath);
                     }
                     finally
@@ -167,8 +181,10 @@ internal static class Program
                 }
             }
 
+            _startupStage = "RECOVERY_AUTHORITY_STATE_CHECK";
             var recoveryAuthorityPath = bootstrapEnvironment["VENTIO_RECOVERY_AUTHORITY_FILE"];
             var recoveryAuthorityExists = File.Exists(recoveryAuthorityPath);
+            _startupStage = "BOOTSTRAP_RECEIPT_READ";
             var savedReceipt = receiptStore.Read();
             var setupPending = RequiresFirstAdministratorBootstrap(
                 recoveryAuthorityExists, savedReceipt?.State);
@@ -194,14 +210,23 @@ internal static class Program
             }
 
             if (StopRequested.IsSet) return;
+            _startupStage = "HOST_ENGINE_PROCESS_START";
             SetStatus(ServiceStartPending, checkpoint: NextStartupCheckpoint(), waitHintMs: 15000);
             var process = StartHostProcess(environment, hostReady);
+            _startupStage = "HOST_ENGINE_READINESS";
             var processExit = process.WaitForExitAsync();
             if (!WaitForHostReadiness(
                 hostReady.Task, processExit, brokerTask, brokerCancellation.Token))
             {
                 if (StopRequested.IsSet) return;
                 throw new InvalidOperationException("Host did not become ready after startup checks.");
+            }
+            if (environment.ContainsKey("VENTIO_HOST_LAN_BIND_ADDRESS") &&
+                HostLanCertificateProvisioner.PublishStartedListenerStatus(
+                    environment["VENTIO_HOST_TLS_CERTIFICATE_FILE"]) != 0)
+            {
+                WriteSafeStartupFailureDiagnostic("HOST_LAN_STATUS_PUBLICATION",
+                    new InvalidOperationException("Could not publish LAN listener readiness."));
             }
             lock (Sync)
             {
@@ -217,9 +242,10 @@ internal static class Program
             processExit!.GetAwaiter().GetResult();
             _serviceExitCode = StopRequested.IsSet ? 0 : (process!.ExitCode == 0 ? 2 : process.ExitCode);
         }
-        catch
+        catch (Exception exception)
         {
             // Do not write exceptions: they may contain database URLs or local paths.
+            WriteSafeStartupFailureDiagnostic(_startupStage, exception);
             _serviceExitCode = StopRequested.IsSet ? 0 : 2;
         }
         finally
@@ -265,24 +291,36 @@ internal static class Program
         var timer = Stopwatch.StartNew();
         while (timer.Elapsed < HostStartupTimeout)
         {
-            if (StopRequested.IsSet) return false;
+            if (StopRequested.IsSet)
+            {
+                _startupStage = "HOST_START_CANCELLED";
+                return false;
+            }
             var poll = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
             var completed = Task.WhenAny(hostReady, processExit, brokerTask, poll)
                 .GetAwaiter().GetResult();
             if (completed == hostReady) return true;
             if (completed == processExit)
             {
+                _startupStage = "HOST_ENGINE_EXITED_BEFORE_READY";
                 processExit.GetAwaiter().GetResult();
+                if (_hostProcess is { HasExited: true } exitedProcess)
+                {
+                    exitedProcess.WaitForExit();
+                    _startupHostProcessExitCode = exitedProcess.ExitCode;
+                }
                 return false;
             }
             if (completed == brokerTask)
             {
+                _startupStage = "BOOTSTRAP_BROKER_EXITED_BEFORE_HOST_READY";
                 brokerTask.GetAwaiter().GetResult();
                 throw new InvalidOperationException("Host bootstrap broker exited before readiness.");
             }
             cancellationToken.ThrowIfCancellationRequested();
             SetStatus(ServiceStartPending, checkpoint: NextStartupCheckpoint(), waitHintMs: 15000);
         }
+        _startupStage = "HOST_ENGINE_READY_TIMEOUT";
         return false;
     }
 
@@ -307,6 +345,7 @@ internal static class Program
         CopyRequiredSystemEnvironment(start.Environment);
         start.Environment["PATH"] = Path.Combine(AppContext.BaseDirectory, "postgresql", "bin");
         start.Environment["VENTIO_ENABLE_LOCAL_HOST"] = "yes";
+        start.Environment["VENTIO_HOST_TEST_DIAGNOSTICS"] = "yes";
         foreach (var pair in environment) start.Environment[pair.Key] = pair.Value;
 
         var process = new Process { StartInfo = start, EnableRaisingEvents = true };
@@ -314,7 +353,29 @@ internal static class Program
         {
             if (IsHostReadyMessage(eventArgs.Data)) hostReady.TrySetResult();
         }; // Deliberately discard process output; never persist secrets.
-        process.ErrorDataReceived += (_, _) => { };
+        process.ErrorDataReceived += (_, eventArgs) =>
+        {
+            const string prefix = "VENTIO_HOST_TEST_DIAGNOSTIC: ";
+            if (eventArgs.Data is not { } line || !line.StartsWith(prefix, StringComparison.Ordinal)) return;
+            var diagnostic = line[prefix.Length..];
+            var sqlState = Regex.Match(diagnostic, "^ServerException sqlstate=([0-9A-Z]{5}):", RegexOptions.CultureInvariant);
+            if (sqlState.Success)
+            {
+                _startupHostFailureType = "ServerException";
+                _startupHostSqlState = sqlState.Groups[1].Value;
+                if (StringComparer.Ordinal.Equals(sqlState.Groups[1].Value, "42883"))
+                {
+                    var routine = Regex.Match(
+                        diagnostic,
+                        "^ServerException sqlstate=42883: undefinedFunction=([A-Za-z0-9_ .,\\[\\]\\\"!~<>=()]{1,256})$",
+                        RegexOptions.CultureInvariant);
+                    if (routine.Success) _startupHostUndefinedRoutine = routine.Groups[1].Value;
+                }
+                return;
+            }
+            var failureType = Regex.Match(diagnostic, "^([A-Za-z][A-Za-z0-9]{0,63})(?::|$)", RegexOptions.CultureInvariant);
+            if (failureType.Success) _startupHostFailureType = failureType.Groups[1].Value;
+        };
         lock (Sync)
         {
             if (StopRequested.IsSet) throw new InvalidOperationException("Host service start was cancelled.");
@@ -1175,10 +1236,61 @@ internal static class Program
         string path, string operationId, string status, string? failureCode, string? failureStage)
     {
         var value = JsonSerializer.Serialize(new { operationId, status, failureCode, failureStage });
-        var tempPath = path + ".tmp";
-        File.WriteAllText(tempPath, value, new UTF8Encoding(false));
-        if (File.Exists(path)) File.Replace(tempPath, path, null, true);
-        else File.Move(tempPath, path);
+        var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var backupPath = path + "." + Guid.NewGuid().ToString("N") + ".replace-backup";
+        try
+        {
+            File.WriteAllText(tempPath, value, new UTF8Encoding(false));
+            if (File.Exists(path)) File.Replace(tempPath, path, backupPath, true);
+            else File.Move(tempPath, path);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            try { if (File.Exists(backupPath)) File.Delete(backupPath); } catch { }
+        }
+    }
+
+    private static void WriteSafeStartupFailureDiagnostic(string stage, Exception exception)
+    {
+        try
+        {
+            if (!Regex.IsMatch(stage, "^[A-Z][A-Z0-9_]{0,63}$", RegexOptions.CultureInvariant))
+                stage = "UNCLASSIFIED";
+            var exceptionType = exception.GetType().Name;
+            if (!Regex.IsMatch(exceptionType, "^[A-Za-z][A-Za-z0-9]{0,63}$", RegexOptions.CultureInvariant))
+                exceptionType = "Unknown";
+            var path = Path.Combine(Path.GetDirectoryName(ConfigPath)!, "service-startup-failure.json");
+            var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            var backupPath = path + "." + Guid.NewGuid().ToString("N") + ".replace-backup";
+            var value = JsonSerializer.Serialize(new
+            {
+                formatVersion = 1,
+                occurredAtUtc = DateTimeOffset.UtcNow,
+                stage,
+                exceptionType,
+                hresult = exception.HResult,
+                hostProcessExitCode = _startupHostProcessExitCode,
+                hostProcessFailureType = _startupHostFailureType,
+                hostProcessSqlState = _startupHostSqlState,
+                hostProcessUndefinedRoutine = _startupHostUndefinedRoutine,
+            });
+            try
+            {
+                File.WriteAllText(tempPath, value, new UTF8Encoding(false));
+                if (File.Exists(path)) File.Replace(tempPath, path, backupPath, true);
+                else File.Move(tempPath, path);
+            }
+            finally
+            {
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                try { if (File.Exists(backupPath)) File.Delete(backupPath); } catch { }
+            }
+        }
+        catch
+        {
+            // Failure diagnostics never change the fail-closed startup result.
+        }
     }
 
     private static byte[] UnprotectMachineData(byte[] encrypted)

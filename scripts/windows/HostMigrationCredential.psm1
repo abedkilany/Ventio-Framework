@@ -113,6 +113,7 @@ function Write-HostMigrationCredential {
   if (-not $TestMode) { Assert-HostMigrationCredentialAncestors $directory }
   Set-HostMigrationCredentialAcl $directory -Directory -TestMode:$TestMode
   $tempPath = Join-Path $directory ('.migration-credential-' + [guid]::NewGuid().ToString('N') + '.tmp')
+  $replacementBackup = $path + '.' + [guid]::NewGuid().ToString('N') + '.replace-backup'
   $plaintext = $null
   $plainBytes = $null
   $protectedBytes = $null
@@ -124,7 +125,7 @@ function Write-HostMigrationCredential {
     [IO.File]::WriteAllBytes($tempPath, $protectedBytes)
     Set-HostMigrationCredentialAcl $tempPath -TestMode:$TestMode
     if (Test-Path -LiteralPath $path -PathType Leaf) {
-      [IO.File]::Replace($tempPath, $path, $null, $true)
+      [IO.File]::Replace($tempPath, $path, $replacementBackup, $true)
     } else {
       [IO.File]::Move($tempPath, $path)
     }
@@ -136,6 +137,7 @@ function Write-HostMigrationCredential {
     $plaintext = $null
     $password = $null
     if (Test-Path -LiteralPath $tempPath) { Remove-Item -LiteralPath $tempPath -Force }
+    if (Test-Path -LiteralPath $replacementBackup) { Remove-Item -LiteralPath $replacementBackup -Force -ErrorAction SilentlyContinue }
   }
 }
 

@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)] [string] $PayloadDirectory,
   [switch] $Start,
-  [switch] $PlanOnly
+  [switch] $PlanOnly,
+  [switch] $ManualStart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -117,7 +118,7 @@ $created = $false
 try {
   $createArguments = @(
     'create', $serviceName, 'binPath=', ('"' + $serviceExe + '"'),
-    'start=', 'auto', 'obj=', 'NT SERVICE\VentioHost',
+    'start=', $(if ($ManualStart) { 'demand' } else { 'auto' }), 'obj=', 'NT SERVICE\VentioHost',
     'depend=', $databaseServiceName, 'DisplayName=', 'Ventio Host Engine'
   )
   if ((Invoke-ServiceControl $createArguments) -ne 0) { throw 'SCM service creation failed.' }

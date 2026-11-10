@@ -5,13 +5,21 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 CLIENT_DIR="$REPOSITORY_ROOT/packages/ventio_native_client"
 
-for platform in android windows; do
-  if [[ -e "$CLIENT_DIR/$platform" ]]; then
-    echo "Refusing to regenerate existing platform folder: $CLIENT_DIR/$platform" >&2
-    echo "Preserve or back it up before generating fresh runners." >&2
+if [[ -d "$CLIENT_DIR/android" && -d "$CLIENT_DIR/windows" ]]; then
+  for file in android/app/src/main/AndroidManifest.xml android/app/build.gradle.kts windows/CMakeLists.txt windows/runner/main.cpp; do
+    [[ -f "$CLIENT_DIR/$file" ]] || { echo "Existing native runner is incomplete: $file" >&2; exit 1; }
+  done
+  grep -q 'android.permission.INTERNET' "$CLIENT_DIR/android/app/src/main/AndroidManifest.xml" || {
+    echo 'Existing Android runner lacks the required INTERNET permission.' >&2
     exit 1
-  fi
-done
+  }
+  echo 'Using the reviewed Android and Windows platform runners already present in the checkout.'
+  exit 0
+fi
+if [[ -e "$CLIENT_DIR/android" || -e "$CLIENT_DIR/windows" ]]; then
+  echo 'Native runner checkout is incomplete; refusing to overwrite the existing platform folder.' >&2
+  exit 1
+fi
 
 cd "$CLIENT_DIR"
 flutter config --enable-windows-desktop

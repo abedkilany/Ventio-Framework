@@ -183,6 +183,12 @@ Future<void> runLocalHost({
       permissionDiagnosticPool: identityApiPool,
       admission: admission,
     );
+    final extensionPackageReview = identityApiPool == null
+        ? null
+        : PostgresExtensionPackageReviewGateway(
+            pool: identityApiPool,
+            admission: admission,
+          );
     final extensionRecordQueries = PostgresExtensionRecordQueryGateway(
       pool: runtime,
       admission: admission,
@@ -207,6 +213,7 @@ Future<void> runLocalHost({
       tlsContext: localTlsContext,
       authenticator: authenticator,
       extensionPackages: extensionPackages,
+      extensionPackageReview: extensionPackageReview,
       extensionRecordQueries: extensionRecordQueries,
       identityRoleAdministration: roleAdministration,
       identityUserAdministration: userAdministration,
@@ -238,6 +245,7 @@ Future<void> runLocalHost({
         tlsContext: tlsContext,
         authenticator: authenticator,
         extensionPackages: extensionPackages,
+        extensionPackageReview: extensionPackageReview,
         extensionRecordQueries: extensionRecordQueries,
         identityRoleAdministration: roleAdministration,
         identityUserAdministration: userAdministration,
@@ -295,7 +303,7 @@ Future<void> runLocalHost({
     if (Platform.environment['VENTIO_HOST_TEST_DIAGNOSTICS'] == 'yes') {
       final diagnostic = switch (error) {
         pg.ServerException(:final code, :final message) =>
-          'ServerException sqlstate=${code ?? 'unknown'}: ${_redactTestDiagnostic(message)}',
+          'ServerException sqlstate=${code ?? 'unknown'}: ${code == '42883' ? 'undefinedFunction=${_undefinedFunctionDiagnostic(message) ?? 'unidentified'}' : 'PostgreSQL startup failure'}',
         StateError() => '${error.runtimeType}: ${error.message}',
         _ => error.runtimeType.toString(),
       };
@@ -334,6 +342,44 @@ Future<void> runLocalHost({
   }
 }
 
+/// Emits only a parsed PostgreSQL function identifier and argument types for
+/// undefined-function diagnostics. The server message itself may contain data
+/// supplied by the database and is never written to the service log.
+String? _undefinedFunctionDiagnostic(String message) {
+  final functionMatches = [
+    RegExp(
+      r"function\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\(([^()\r\n]{0,256})\)\s+does not exist",
+      caseSensitive: false,
+    ),
+    // has_function_privilege(text, text, text) quotes the unresolved
+    // signature as one identifier, e.g. "schema.function(text,integer)".
+    RegExp(
+      r'function\s+"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?\(([^()\r\n]{0,256})\))"\s+does not exist',
+      caseSensitive: false,
+    ),
+  ];
+  for (final pattern in functionMatches) {
+    final match = pattern.firstMatch(message);
+    if (match != null) {
+      final name = match.group(1)!;
+      final arguments = match.group(2)!;
+      if (RegExp(r'^[A-Za-z0-9_ .,\[\]"]*$').hasMatch(arguments)) {
+        return '$name($arguments)';
+      }
+    }
+  }
+  final operator = RegExp(
+    r'operator does not exist:\s*([A-Za-z0-9_ .\[\]"]{1,96})\s*([!~<>=]{1,3})\s*([A-Za-z0-9_ .\[\]"]{1,96})',
+    caseSensitive: false,
+  ).firstMatch(message);
+  if (operator == null) return null;
+  final leftType = operator.group(1)!.trim();
+  final token = operator.group(2)!;
+  final rightType = operator.group(3)!.trim();
+  if (leftType.isEmpty || rightType.isEmpty) return null;
+  return 'operator($leftType $token $rightType)';
+}
+
 String _startupCorrelationId() {
   final random = math.Random.secure();
   final value = List<int>.generate(
@@ -342,19 +388,6 @@ String _startupCorrelationId() {
   ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
   return 'cor_$value';
 }
-
-String _redactTestDiagnostic(String value) => value
-    .replaceAll(
-      RegExp(r'postgres(?:ql)?://\S+', caseSensitive: false),
-      'postgresql://[redacted]',
-    )
-    .replaceAll(
-      RegExp(
-        r'(password|token|secret)\s*[=:]\s*[^\s,;]+',
-        caseSensitive: false,
-      ),
-      '[redacted]',
-    );
 
 /// Applies fixed production caps independently of any oversized URL settings.
 String _poolUrl(Uri source, {required int maxConnections}) => source

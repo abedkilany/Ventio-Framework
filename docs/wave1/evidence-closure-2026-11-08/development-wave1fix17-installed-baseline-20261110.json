@@ -1,0 +1,128 @@
+{
+  "CheckedUtc": "2026-11-10T17:32:46Z",
+  "Upgrade": {
+    "From": "Wave1fix16",
+    "To": "Wave1fix17",
+    "OwnerReportedExitCode": 0,
+    "LogName": "Ventio-Wave1fix17-20261110-192836.log",
+    "LogSha256": "64228D9581C5A3C1DDDC08C8C1351BB17DDEFC4FF1DC9A304AD0FEF69C5136DA",
+    "LogResult": "Installation process succeeded. Need to restart Windows? No."
+  },
+  "InstalledManifestSha256": "E793308BDD1177EE826BED1B717E117901E4141AE4B0802F80B207E8DA46065C",
+  "VerifiedPayloadEntries": 76,
+  "Services": [
+    {
+      "Name": "VentioHost",
+      "State": "Running",
+      "StartMode": "Automatic",
+      "Account": "NT SERVICE\\VentioHost"
+    },
+    {
+      "Name": "VentioPostgres",
+      "State": "Running",
+      "StartMode": "Automatic",
+      "Account": "NT SERVICE\\VentioPostgres"
+    }
+  ],
+  "HostRestartDelaysMs": [
+    5000,
+    30000,
+    60000
+  ],
+  "PinnedHttpsLiveness": 200,
+  "CertificateSha256": "d083b712474bfef190d42d18763fec537e5cfeaf706c3bf45e79f3cf619edf3d",
+  "ClusterReadback": {
+    "Status": "PASS",
+    "Source": "Owner-provided elevated pg_controldata output",
+    "ExpectedSystemIdentifier": "7706529747229262104",
+    "ObservedSystemIdentifier": "7706529747229262104",
+    "RecordedUtc": "2026-11-10T17:36:29Z"
+  },
+  "AuthenticatedControlRecord": {
+    "Status": "PASS",
+    "Source": "Owner-provided authenticated Ventio Client API output over pinned HTTPS",
+    "Result": "RETENTION_CONTROL_READ_PASS",
+    "RecordId": "53f2e2b4-2708-4f91-b6f0-9f75f8d4d7dd",
+    "Revision": 1,
+    "Values": {
+      "name": "W1-RETENTION-CONTROL-01"
+    },
+    "Scope": {
+      "tenantId": "wave1lab",
+      "companyId": "fixture",
+      "branchId": "devhost"
+    },
+    "RecordedUtc": "2026-11-10T18:16:23Z"
+  },
+  "UninstallReinstall": "PASS - DEFAULT RETENTION, SAME-CANDIDATE REINSTALL, REACTIVATION AND AUTHENTICATED READBACK",
+  "UninstallDialog": {
+    "DeleteAllHostDataChecked": false,
+    "Screenshot": "owner-development-wave1fix17-uninstall-retention-choice-20261110.png",
+    "ScreenshotSha256": "65219FCFB7BD373DA11EF2963F405CA86DAC8DF2037B7108A36AACD1EE452E21",
+    "CheckedUtc": "2026-11-10T18:18:09Z",
+    "FrameworkAndBothServicesStillPresent": true
+  },
+  "PostUninstall": {
+    "CheckedUtc": "2026-11-10T18:21:07Z",
+    "Screenshot": "owner-development-wave1fix17-uninstall-complete-20261110.png",
+    "ScreenshotSha256": "667754012B99A3F4ACB7D9F4455F2497B087A512267CEEEF37CFEB3B87C70D64",
+    "FrameworkRegistryEntryPresent": false,
+    "RunnerPresent": false,
+    "RemainingProgramFilesEntry": "SetupStatus",
+    "ProductServicesPresent": [],
+    "VentioProductListenersOnExpectedPorts": [],
+    "ProgramDataRootPresent": true,
+    "LanMetadataPreservedOriginalCertificateFingerprint": true,
+    "ProtectedDatabaseConfigurationWitnessAndBackupChecks": {
+      "Status": "PASS",
+      "Source": "Owner-provided elevated retention verification output",
+      "Result": "RETENTION_POST_UNINSTALL_PASS",
+      "SystemIdentifier": "7706529747229262104",
+      "ClusterStateBeforeReinstall": "shut down",
+      "RetainedBackupDirectoriesWithManifestAndPgVersion": 5,
+      "RecordedUtc": "2026-11-10T18:22:47Z"
+    },
+    "SeparateVentioAppVersion": "1.0.64+64"
+  },
+  "Reinstall": {
+    "Status": "PASS",
+    "ExitCode": 0,
+    "LogName": "Ventio-Wave1fix17-Retention-Reinstall-20261110-202129.log",
+    "LogSha256": "19FFEB7A26A9F09CD57F51DCB9C10AD4AC3E28D91E9D0EE6794112FB107130B6",
+    "ManifestSha256": "E793308BDD1177EE826BED1B717E117901E4141AE4B0802F80B207E8DA46065C",
+    "VerifiedPayloadEntries": 76,
+    "ServicesRegisteredBeforeReactivation": [],
+    "ReactivationPlan": "HOST_RETAINED_REACTIVATION_PLAN_VALID"
+  },
+  "Reactivation": {
+    "RecordedUtc": "2026-11-10T18:24:28Z",
+    "OwnerOutput": [
+      "POSTGRES_RETAINED_SERVICE_REGISTERED",
+      "HOST_SERVICE_REGISTERED"
+    ],
+    "ScmRegistrationTimeLocal": "2026-11-10T20:23:45+02:00",
+    "ScmAutomaticTimeLocal": "2026-11-10T20:23:53+02:00",
+    "ServiceState": "VentioHost and VentioPostgres Running/Automatic under their dedicated identities",
+    "PostgresServiceDataPath": "C:\\ProgramData\\Ventio\\PostgreSQL\\data",
+    "PostgresListener": "127.0.0.1:54329",
+    "HostLocalListener": "127.0.0.1:8080",
+    "HostLanListener": "0.0.0.0:8443",
+    "PinnedHttps": "PASS",
+    "PostReactivationAuthenticatedReadback": {
+      "Status": "PASS",
+      "Source": "Owner-provided output from the same authenticated test Client session after reinstall and reactivation",
+      "Result": "RETENTION_CONTROL_READ_PASS",
+      "RecordId": "53f2e2b4-2708-4f91-b6f0-9f75f8d4d7dd",
+      "Revision": 1,
+      "Values": {
+        "name": "W1-RETENTION-CONTROL-01"
+      },
+      "Scope": {
+        "tenantId": "wave1lab",
+        "companyId": "fixture",
+        "branchId": "devhost"
+      },
+      "RecordedUtc": "2026-11-10T18:25:55Z"
+    }
+  }
+}

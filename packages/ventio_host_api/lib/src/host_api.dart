@@ -4,12 +4,14 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
 import 'credential_reissue.dart';
 import 'device_administration.dart';
 import 'extension_packages.dart';
+import 'postgres_extension_package_review.dart';
 import 'extension_records.dart';
 import 'management.dart';
 import 'pairing_administration.dart';
@@ -36,6 +38,7 @@ class HostApi {
   final HostAuthenticator _authenticator;
   final CommandExecutor _executor;
   final ExtensionPackageGateway? _extensionPackages;
+  final ExtensionPackageReviewGateway? _extensionPackageReview;
   final ExtensionRecordQueryGateway? _extensionRecordQueries;
   final ExtensionReportQueryGateway? _extensionReportQueries;
   final IdentityRoleAdministrationGateway? _identityRoleAdministration;
@@ -59,6 +62,7 @@ class HostApi {
     this._authenticator,
     this._executor,
     this._extensionPackages,
+    this._extensionPackageReview,
     this._extensionRecordQueries,
     this._extensionReportQueries,
     this._identityRoleAdministration,
@@ -88,6 +92,7 @@ class HostApi {
     required HostAuthenticator authenticator,
     required CommandExecutor executor,
     ExtensionPackageGateway? extensionPackages,
+    ExtensionPackageReviewGateway? extensionPackageReview,
     ExtensionRecordQueryGateway? extensionRecordQueries,
     ExtensionReportQueryGateway? extensionReportQueries,
     IdentityRoleAdministrationGateway? identityRoleAdministration,
@@ -116,6 +121,9 @@ class HostApi {
             executor is! AuthoritativeCommandExecutor ||
             (extensionPackages != null &&
                 extensionPackages is! AuthoritativeExtensionPackageGateway) ||
+            (extensionPackageReview != null &&
+                extensionPackageReview
+                    is! AuthoritativeExtensionPackageReviewGateway) ||
             (extensionRecordQueries != null &&
                 extensionRecordQueries
                     is! AuthoritativeExtensionRecordQueryGateway) ||
@@ -147,6 +155,7 @@ class HostApi {
       authenticator,
       executor,
       extensionPackages,
+      extensionPackageReview,
       extensionRecordQueries,
       extensionReportQueries,
       identityRoleAdministration,
@@ -220,6 +229,16 @@ class HostApi {
         'INVALID_COMMAND',
         correlationId: correlationId,
       );
+    } on ExtensionPackageReviewException catch (error) {
+      final status = switch (error.code) {
+        'PERMISSION_DENIED' || 'SELF_REVIEW_FORBIDDEN' => 403,
+        'CANDIDATE_NOT_FOUND' => 404,
+        'CANDIDATE_CHANGED' => 409,
+        'INVALID_REVIEW' => 400,
+        'PACKAGE_INTEGRITY_FAILED' || 'PLATFORM_VERSION_UNSUPPORTED' => 422,
+        _ => 503,
+      };
+      await _error(request, status, error.code, correlationId: correlationId);
     } on IdentityRoleAdministrationException catch (error) {
       await _error(
         request,
@@ -361,6 +380,7 @@ class HostApi {
       } else {
         await _recordInternalFailure(
           correlationId,
+          protectedTechnicalCode: _protectedSqlState(error),
           protectedFailureType: error.runtimeType.toString(),
           protectedFailureSource: _protectedFailureSource(stackTrace),
         );
@@ -486,6 +506,11 @@ class HostApi {
       '/api/v1/extensions/approved' => 'list',
       _ => null,
     };
+    final extensionReviewRoute = switch (request.uri.path) {
+      '/api/v1/extensions/submissions' => 'list',
+      '/api/v1/extensions/review' => 'review',
+      _ => null,
+    };
     final recordQueryRoute =
         request.uri.path == '/api/v1/extensions/records/query';
     final reportQueryRoute =
@@ -506,6 +531,7 @@ class HostApi {
         request.uri.path == HostManagementRoutes.diagnosticsRecent;
     if (request.uri.path != '/api/v1/commands' &&
         packageRoute == null &&
+        extensionReviewRoute == null &&
         !recordQueryRoute &&
         !reportQueryRoute &&
         identityRoleRoute == null &&
@@ -726,6 +752,15 @@ class HostApi {
     }
     if (packageRoute != null) {
       await _handleExtensionPackage(request, packageRoute, json, session);
+      return;
+    }
+    if (extensionReviewRoute != null) {
+      await _handleExtensionPackageReview(
+        request,
+        extensionReviewRoute,
+        json,
+        session,
+      );
       return;
     }
     if (recordQueryRoute) {
@@ -1083,6 +1118,86 @@ class HostApi {
     _json(request, statusCode, {'apiVersion': 1, 'packageResult': result});
   }
 
+  Future<void> _handleExtensionPackageReview(
+    HttpRequest request,
+    String operation,
+    Map<String, dynamic> json,
+    AuthenticatedSession session,
+  ) async {
+    final gateway = _extensionPackageReview;
+    if (gateway == null) throw const _ApiError(503, 'REVIEW_UNAVAILABLE');
+    final requiredKeys = operation == 'list'
+        ? const {'companyId', 'branchId', 'limit'}
+        : const {
+            'companyId',
+            'branchId',
+            'moduleId',
+            'version',
+            'packageSha256',
+            'decision',
+          };
+    final optionalKeys = operation == 'review'
+        ? const {'reason'}
+        : const <String>{};
+    if (json.keys.any(
+          (key) => !requiredKeys.contains(key) && !optionalKeys.contains(key),
+        ) ||
+        !requiredKeys.every(json.containsKey)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final companyId = _boundedIdentifier(json, 'companyId');
+    final branchId = _boundedIdentifier(json, 'branchId');
+    if (!session.principal.allowsInScope(
+      extensionPackageReviewPermission,
+      companyId,
+      branchId,
+    )) {
+      throw const _ApiError(403, 'PERMISSION_DENIED');
+    }
+    if (operation == 'list') {
+      final limit = json['limit'];
+      if (limit is! int || limit < 1 || limit > 3) {
+        throw const _ApiError(400, 'INVALID_REQUEST');
+      }
+      final result = await gateway.listPending(
+        session: session,
+        companyId: companyId,
+        branchId: branchId,
+        limit: limit,
+      );
+      if (result['status'] != 'OK' || result['entries'] is! List) {
+        throw const _ApiError(503, 'HOST_INVALID_RESPONSE', retryable: true);
+      }
+      _json(request, 200, {'apiVersion': 1, 'submissions': result['entries']});
+      return;
+    }
+    final moduleId = json['moduleId'];
+    final version = json['version'];
+    final hash = json['packageSha256'];
+    final decision = json['decision'];
+    final reason = json['reason'];
+    if (moduleId is! String ||
+        moduleId.length > 128 ||
+        !RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$').hasMatch(moduleId) ||
+        version is! String ||
+        hash is! String ||
+        decision is! String ||
+        (reason != null && reason is! String)) {
+      throw const _ApiError(400, 'INVALID_REQUEST');
+    }
+    final result = await gateway.review(
+      session: session,
+      companyId: companyId,
+      branchId: branchId,
+      moduleId: moduleId,
+      version: version,
+      packageSha256: hash,
+      decision: decision,
+      reason: reason as String?,
+    );
+    _json(request, 200, {'apiVersion': 1, 'review': result});
+  }
+
   Future<void> _handleIdentityRoleAdministration(
     HttpRequest request,
     String action,
@@ -1305,6 +1420,7 @@ class HostApi {
 
   Future<void> _recordInternalFailure(
     String correlationId, {
+    String? protectedTechnicalCode,
     String? protectedFailureType,
     String? protectedFailureSource,
   }) => _recordDiagnostic(
@@ -1320,10 +1436,22 @@ class HostApi {
       safeExplanation: 'The Host could not complete this request.',
       recommendedAction:
           'Retry safely. For command submissions, reuse the same command ID. Share the correlation ID with a Host administrator if the problem continues.',
+      protectedTechnicalCode: protectedTechnicalCode,
       protectedFailureType: protectedFailureType,
       protectedFailureSource: protectedFailureSource,
     ),
   );
+
+  String? _protectedSqlState(Object error) {
+    if (error is! pg.ServerException) {
+      return null;
+    }
+    final code = error.code;
+    if (code == null || !RegExp(r'^[0-9A-Z]{5}$').hasMatch(code)) {
+      return null;
+    }
+    return code;
+  }
 
   String? _protectedFailureSource(StackTrace stackTrace) {
     final frame = RegExp(

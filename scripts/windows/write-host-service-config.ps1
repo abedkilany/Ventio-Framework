@@ -180,6 +180,7 @@ try {
   $plainBytes = $null
   $protectedBytes = $null
   $tempPath = $null
+  $replacementBackup = $null
   try {
     $phase = 'dpapi-protect'
     $plainText = ($settings.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "`n"
@@ -195,11 +196,12 @@ try {
     Set-PrivateDirectoryAcl $OutputDirectory $serviceSid $serviceSid
     $targetPath = Join-Path $OutputDirectory $configName
     $tempPath = Join-Path $OutputDirectory ('.service-config-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    $replacementBackup = $targetPath + '.' + [guid]::NewGuid().ToString('N') + '.replace-backup'
     $phase = 'write-protected-file'
     [IO.File]::WriteAllBytes($tempPath, $protectedBytes)
     Set-PrivateConfigAcl $tempPath $serviceSid $ownerSid
     if (Test-Path -LiteralPath $targetPath) {
-      [IO.File]::Replace($tempPath, $targetPath, $null, $true)
+      [IO.File]::Replace($tempPath, $targetPath, $replacementBackup, $true)
     }
     else {
       [IO.File]::Move($tempPath, $targetPath)
@@ -212,6 +214,7 @@ try {
     $plainText = $null
     $settings = $null
     if ($tempPath -and (Test-Path -LiteralPath $tempPath)) { Remove-Item -LiteralPath $tempPath -Force }
+    if ($replacementBackup -and (Test-Path -LiteralPath $replacementBackup)) { Remove-Item -LiteralPath $replacementBackup -Force -ErrorAction SilentlyContinue }
   }
   Write-Output 'HOST_CONFIG_PROTECTED'
 }

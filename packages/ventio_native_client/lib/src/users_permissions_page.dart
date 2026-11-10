@@ -20,7 +20,9 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
   bool _loading = true;
   bool _auditLoading = true;
   bool _saving = false;
+  bool _changeConfirmed = false;
   HostUserManagementException? _error;
+  HostUserManagementException? _changeError;
   HostUserManagementException? _auditError;
   final Map<String, int> _legacyIdentityNumbers = {};
   int _nextLegacyIdentityNumber = 1;
@@ -126,22 +128,24 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
     if (_saving || !widget.client.canManageUsers) return;
     setState(() {
       _saving = true;
-      _error = null;
+      _changeConfirmed = false;
+      _changeError = null;
     });
     try {
       await action();
+      if (!mounted) return;
+      setState(() => _changeConfirmed = true);
       await _load();
       if (mounted) _message(context.ventioText(successKey));
     } on HostUserManagementException catch (error) {
-      if (mounted) {
-        setState(() => _error = error);
-        _message(_friendlyError(context, error));
-      }
+      if (mounted) setState(() => _changeError = error);
     } catch (_) {
       if (mounted) {
-        const error = HostUserManagementException('HOST_UNAVAILABLE');
-        setState(() => _error = error);
-        _message(_friendlyError(context, error));
+        setState(
+          () => _changeError = const HostUserManagementException(
+            'HOST_UNAVAILABLE',
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -152,12 +156,16 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
     if (_saving || !widget.client.canManageUsers) return;
     setState(() {
       _saving = true;
-      _error = null;
+      _changeConfirmed = false;
+      _changeError = null;
     });
     try {
       final actorId = await widget.client.createUser();
       if (!mounted) return;
-      setState(() => _createdActorId = actorId);
+      setState(() {
+        _createdActorId = actorId;
+        _changeConfirmed = true;
+      });
       await _load();
       if (mounted) {
         _message(
@@ -168,15 +176,14 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
         );
       }
     } on HostUserManagementException catch (error) {
-      if (mounted) {
-        setState(() => _error = error);
-        _message(_friendlyError(context, error));
-      }
+      if (mounted) setState(() => _changeError = error);
     } catch (_) {
       if (mounted) {
-        const error = HostUserManagementException('HOST_UNAVAILABLE');
-        setState(() => _error = error);
-        _message(_friendlyError(context, error));
+        setState(
+          () => _changeError = const HostUserManagementException(
+            'HOST_UNAVAILABLE',
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -337,7 +344,10 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
                 ),
                 FilledButton.icon(
                   onPressed:
-                      _loading || _saving || !widget.client.canManageUsers
+                      _loading ||
+                          _saving ||
+                          _error != null ||
+                          !widget.client.canManageUsers
                       ? null
                       : _createUser,
                   icon: const Icon(Icons.person_add_alt_1),
@@ -349,6 +359,18 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
               const SizedBox(height: 12),
               const LinearProgressIndicator(),
             ],
+            if (_changeError != null)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.error_outline),
+                  title: const VentioText(
+                    'native.ui.user_change_not_confirmed',
+                  ),
+                  subtitle: Text(
+                    _friendlyError(context, _changeError!, duringChange: true),
+                  ),
+                ),
+              ),
             if (_createdActorId != null)
               Card(
                 child: ListTile(
@@ -409,7 +431,11 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
     child: ListTile(
       leading: const Icon(Icons.cloud_off_outlined),
       title: const VentioText('native.ui.could_not_load_host_users'),
-      subtitle: Text(_friendlyError(context, error)),
+      subtitle: Text(
+        _changeConfirmed
+            ? '${context.ventioText('native.ui.user_change_confirmed_refresh_failed')}\n${_friendlyError(context, error)}'
+            : _friendlyError(context, error),
+      ),
       trailing: IconButton(
         tooltip: context.ventioText('native.ui.retry'),
         onPressed: _loading || _saving ? null : _load,
@@ -626,16 +652,21 @@ class _PermissionDialogState extends State<_PermissionDialog> {
   );
 }
 
-String _friendlyError(BuildContext context, HostUserManagementException error) {
+String _friendlyError(
+  BuildContext context,
+  HostUserManagementException error, {
+  bool duringChange = false,
+}) {
   final key = switch (error.code) {
     'HOST_PERMISSION_DENIED' ||
     'PERMISSION_DENIED' ||
     'SCOPE_DENIED' => 'native.ui.user_management_denied_by_host',
     'HOST_CREDENTIAL_MISSING' ||
     'INVALID_CREDENTIAL' => 'native.ui.host_credential_unavailable',
-    'HOST_UNREACHABLE' ||
-    'HOST_REQUEST_TIMEOUT' ||
-    'HOST_UNAVAILABLE' => 'native.ui.host_not_reachable',
+    'HOST_UNREACHABLE' || 'HOST_REQUEST_TIMEOUT' || 'HOST_UNAVAILABLE' =>
+      duringChange
+          ? 'native.ui.host_not_reachable'
+          : 'native.ui.host_user_read_unreachable',
     'HOST_TLS_VALIDATION_FAILED' => 'native.ui.host_tls_validation_failed',
     'HOST_API_VERSION_MISMATCH' => 'native.ui.host_api_version_not_supported',
     _ => 'native.ui.host_user_operation_failed',

@@ -19,7 +19,7 @@ if (Test-Path -LiteralPath $OutputDirectory) {
 
 $postgresBin = [IO.Path]::GetFullPath($PostgresBinDirectory)
 $postgresRoot = Split-Path -Parent $postgresBin
-$requiredPostgres = @('postgres.exe', 'initdb.exe', 'pg_ctl.exe', 'psql.exe', 'pg_isready.exe', 'createdb.exe')
+$requiredPostgres = @('postgres.exe', 'initdb.exe', 'pg_ctl.exe', 'psql.exe', 'pg_isready.exe', 'pg_controldata.exe', 'createdb.exe')
 foreach ($name in $requiredPostgres) {
   if (-not (Test-Path -LiteralPath (Join-Path $postgresBin $name) -PathType Leaf)) {
     throw "Pinned PostgreSQL tool is missing: $name"
@@ -146,7 +146,7 @@ try {
     'recover-host-database-credentials.ps1',
     'upgrade-host-database.ps1', 'stop-host-services.ps1',
     'restore-host-upgrade-backup.ps1',
-    'remove-host-installation.ps1'
+    'remove-host-installation.ps1', 'reactivate-retained-host.ps1'
   )) {
     $scriptPath = Join-Path $windowsScriptDirectory $scriptName
     if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {

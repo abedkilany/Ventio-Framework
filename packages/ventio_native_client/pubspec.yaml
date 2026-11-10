@@ -1,7 +1,7 @@
 name: ventio_native_client
 description: Native Flutter offline-first client proof for the Ventio Framework.
 publish_to: none
-version: 0.1.17+18
+version: 0.1.18+19
 
 environment:
   sdk: '>=3.12.0 <4.0.0'

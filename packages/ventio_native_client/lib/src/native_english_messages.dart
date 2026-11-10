@@ -55,6 +55,18 @@ const ventioNativeEnglishMessages = <String, String>{
       'The certificate is self-signed. A Client must verify and explicitly trust its fingerprint before pairing.',
   'native.ui.host_settings_security_details':
       'Remote Host connections use HTTPS with standard certificate validation. Stored credentials are never displayed here, and the Host checks authorization on each request.',
+  'native.ui.host_certificate_trust_title': 'Host certificate trust',
+  'native.ui.host_certificate_trust_details':
+      'For a Host certificate renewal, confirm the new SHA-256 fingerprint with the Host administrator through a separate authenticated channel. Ventio checks that exact certificate and then validates its hostname and validity before replacing only this endpoint’s saved certificate pin. The Client identity, credential, SQLite data, and pending operations remain unchanged.',
+  'native.ui.host_certificate_fingerprint_label':
+      'Independently confirmed Host SHA-256 fingerprint',
+  'native.ui.host_certificate_trust_action': 'Verify and update Host trust',
+  'native.ui.host_certificate_fingerprint_invalid':
+      'Enter a valid 64-character SHA-256 fingerprint confirmed through a separate authenticated channel.',
+  'native.ui.host_certificate_trust_updated':
+      'The Host certificate was verified and this endpoint’s saved trust was updated. Client credentials and pending operations were not changed.',
+  'native.ui.host_certificate_trust_failed':
+      'Host trust was not changed. Check the independently confirmed fingerprint, HTTPS endpoint name, and certificate validity; the existing pin and Client credentials remain in place.',
   'native.ui.configure_host_connection': 'Configure Host connection',
   'native.ui.change_host_connection': 'Change Host connection',
   'native.ui.host_settings_device_local_notice':
@@ -297,6 +309,10 @@ const ventioNativeEnglishMessages = <String, String>{
       'This signed-in identity does not have identity.users.manage for the selected company and branch.',
   'native.ui.no_host_users': 'No users are registered in this Host scope.',
   'native.ui.could_not_load_host_users': 'Could not load Host users',
+  'native.ui.user_change_not_confirmed': 'User change was not confirmed',
+  'native.ui.user_change_confirmed_refresh_failed':
+      'The Host confirmed the change. Retry the list refresh to see the latest users.',
+  'native.ui.host_user_read_unreachable': 'The Host could not be reached.',
   'native.ui.user_created_without_permissions':
       'User created without direct permissions or role assignments.',
   'native.ui.legacy_identity_reference': 'Legacy identity {number}',
@@ -849,6 +865,9 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.record_id_fallback': 'Record {recordId}',
   'native.ui.record_list_load_failed_body':
       'The records could not be loaded from this device. Try again.',
+  'native.ui.record_revision': 'Revision {revision}',
+  'native.ui.record_revision_host_confirmed':
+      'Revision {revision} · confirmed by Host',
   'native.ui.record_revision_local_only': 'Revision {revision} · local only',
   'native.ui.read_permission_optional': 'Read permission (optional)',
   'native.ui.records_could_not_be_loaded': 'Records could not be loaded',
@@ -1049,6 +1068,8 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.host_setup_diagnostic_copy_failed':
       'The sanitized Host setup report could not be copied.',
   'native.ui.host_setup_start': 'Set up Host',
+  'native.ui.host_setup_postgres_port_in_use':
+      'Another process is using the local PostgreSQL port (54329). Free the port, then retry Host setup.',
   'native.ui.host_setup_retry': 'Retry Host setup',
   'native.ui.host_setup_check_readiness': 'Check Host readiness',
   'native.ui.host_setup_open_workspace': 'Open Ventio workspace',

@@ -12,6 +12,7 @@ import 'client_credential_reissue.dart';
 import 'extension_store.dart';
 import 'host_credentials.dart';
 import 'host_device_management.dart';
+import 'performance_probe.dart';
 import 'host_setup.dart';
 import 'host_setup_windows.dart';
 import 'host_user_management.dart';
@@ -61,12 +62,31 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   @override
   void initState() {
     super.initState();
+    final initialization = <Future<void>>[];
     if (_pairingStateStore != null) {
       _restoringPairingRequest = true;
-      _restorePairingRequest();
+      initialization.add(
+        VentioPerformanceProbe.measure(
+          'pairing.page.restore_request',
+          _restorePairingRequest,
+        ),
+      );
     }
-    if (widget.client.canManageDevices) _load();
-    if (widget.userDirectory?.canManageUsers ?? false) _loadUsers();
+    if (widget.client.canManageDevices) {
+      initialization.add(
+        VentioPerformanceProbe.measure('pairing.page.devices_load', _load),
+      );
+    }
+    if (widget.userDirectory?.canManageUsers ?? false) {
+      initialization.add(
+        VentioPerformanceProbe.measure('pairing.page.users_load', _loadUsers),
+      );
+    }
+    unawaited(
+      VentioPerformanceProbe.measure('pairing.page.initialize', () async {
+        await Future.wait(initialization);
+      }),
+    );
   }
 
   Future<void> _restorePairingRequest() async {
@@ -253,7 +273,12 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     }
   }
 
-  Future<void> _createPairing() async {
+  Future<void> _createPairing() => VentioPerformanceProbe.measure(
+    'pairing.code.generate',
+    _createPairingImpl,
+  );
+
+  Future<void> _createPairingImpl() async {
     if (_busy || _restoringPairingRequest || !widget.client.canCreatePairings) {
       return;
     }

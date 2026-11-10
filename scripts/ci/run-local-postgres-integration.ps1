@@ -109,7 +109,7 @@ try {
         }
     }
 
-    if ($HostSecuritySuites -or $HostSchemaUpgradeIntegration) {
+    if (($HostSecuritySuites -and -not $OnlyHostSuite) -or $HostSchemaUpgradeIntegration) {
         $upgradeBaselineName = 'ventio_schema_upgrade_baseline_' + [Guid]::NewGuid().ToString('N').Substring(0, 16)
         $upgradeBaselineUrl = "postgresql://ventio:ventio_test_only@127.0.0.1:$($env:VENTIO_TEST_POSTGRES_PORT)/$upgradeBaselineName`?sslmode=disable"
         $upgradeMigrationsDirectory = Join-Path $runnerTemp 'pre-0.1.12-migrations'
@@ -130,7 +130,7 @@ try {
         [IO.File]::WriteAllText($legacyBootstrapPath, $legacyBootstrap, [Text.UTF8Encoding]::new($false))
         $legacySchemaProfile = [IO.File]::ReadAllText($legacySchemaProfilePath)
         $legacySchemaProfile = [regex]::Replace($legacySchemaProfile, "(?ms)^ALTER TABLE public\.host_schema_upgrade_receipts.*?^REVOKE ALL ON public\.host_schema_upgrade_receipts\s+FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;\r?\n", '')
-        $legacySchemaProfile = [regex]::Replace($legacySchemaProfile, "(?m)^\s*\('03[1-3]_[^']+','[0-9a-f]{64}'\)\)?,?\r?\n", '')
+        $legacySchemaProfile = [regex]::Replace($legacySchemaProfile, "(?m)^\s*\('03[1-5]_[^']+','[0-9a-f]{64}'\)\)?,?\r?\n", '')
         $legacySchemaProfile = [regex]::Replace($legacySchemaProfile, "(?m)^(\s*\('030_identity_user_enable\.sql','9260ac0d93b708479b5602238d1a5573bad0030036cce2cc71797e6c4570df53'\)),\r?\n(?:\s*\r?\n)*(\s*legacy\(name,sha256\) AS \(VALUES)", '$1),' + [Environment]::NewLine + '$2')
         [IO.File]::WriteAllText($legacySchemaProfilePath, $legacySchemaProfile, [Text.UTF8Encoding]::new($false))
         $legacyRecovery = [IO.File]::ReadAllText($legacyRecoveryPath)

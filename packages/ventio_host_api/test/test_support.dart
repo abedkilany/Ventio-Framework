@@ -211,8 +211,11 @@ Future<Reply> send(
       if (!chunked) request.contentLength = bytes.length;
       request.add(bytes);
     }
-    final response = await request.close();
-    final text = await utf8.decoder.bind(response).join();
+    final response = await request.close().timeout(const Duration(seconds: 30));
+    final text = await utf8.decoder
+        .bind(response)
+        .join()
+        .timeout(const Duration(seconds: 30));
     return Reply(
       response.statusCode,
       jsonDecode(text) as Map<String, dynamic>,

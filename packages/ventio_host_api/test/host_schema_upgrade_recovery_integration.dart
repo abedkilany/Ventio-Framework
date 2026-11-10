@@ -293,7 +293,51 @@ Future<void> main() async {
         '${temporary.path}${Platform.pathSeparator}success.witness';
     await copyWitness(successWitness);
     var migration = await openMigration(successName);
+    await migration.execute('''
+      DROP FUNCTION ventio_security.list_extension_submissions(
+        text,text,text,text,integer)
+    ''');
+    final missingReviewFunction = await migration.execute('''
+      SELECT to_regprocedure(
+        'ventio_security.list_extension_submissions(text,text,text,text,integer)'
+      ) IS NULL
+    ''');
+    check(
+      missingReviewFunction.single[0] == true,
+      'Legacy upgrade fixture reproduces the missing scoped extension review function',
+    );
     final identityBeforeSuccess = await identitySnapshot(migration);
+    final businessRecord = {
+      'tenant': tenant,
+      'company': company,
+      'branch': branch,
+      'payload': jsonEncode({'memo': 'pre-upgrade record', 'quantity': 17}),
+    };
+    // The migration role has no record write policy. Seed and inspect this
+    // synthetic row through the disposable fixture's database administrator.
+    Future<pg.Result> accessFixtureRecord(String sql) async {
+      final connection = await pg.Connection.openFromUrl(
+        urlFor(rootUri, successName),
+      );
+      try {
+        return await connection.execute(
+          pg.Sql.named(sql),
+          parameters: businessRecord,
+        );
+      } finally {
+        await connection.close();
+      }
+    }
+
+    await accessFixtureRecord('''
+        INSERT INTO public.ventio_records(
+          tenant_id, company_id, branch_id, module_id, doc_type, record_id,
+          revision, record_data, document_status
+        ) VALUES (
+          @tenant, @company, @branch, 'schema.upgrade.fixture', 'Movement',
+          'UPGRADE-PRESERVE-001', 7, CAST(@payload AS jsonb), 1
+        )
+    ''');
     final authority = RecoveryAuthority(successWitness);
     final operation = upgradeId();
     await authority.applySchemaUpgrade(
@@ -311,14 +355,49 @@ Future<void> main() async {
     final upgradedLedger = await migration.execute(
       'SELECT count(*) FROM public.ventio_schema_migrations',
     );
+    final restoredReviewFunction = await migration.execute('''
+      SELECT
+        to_regprocedure(
+          'ventio_security.list_extension_submissions(text,text,text,text,integer)'
+        ) IS NOT NULL,
+        has_function_privilege(
+          'ventio_identity_api',
+          'ventio_security.list_extension_submissions(text,text,text,text,integer)',
+          'EXECUTE'
+        ),
+        NOT EXISTS (
+          SELECT FROM pg_proc p,
+            LATERAL aclexplode(p.proacl) AS acl
+          WHERE p.oid=to_regprocedure(
+              'ventio_security.list_extension_submissions(text,text,text,text,integer)'
+            )
+            AND acl.grantee=0 AND acl.privilege_type='EXECUTE'
+        )
+    ''');
     final identityAfterSuccess = await identitySnapshot(migration);
     check(
-      upgradedLedger.single[0] == 33 && afterFingerprint != beforeFingerprint,
-      'Recovery-coordinated upgrade applies 031-033 and advances the database fingerprint',
+      upgradedLedger.single[0] == migrationFiles.length &&
+          afterFingerprint != beforeFingerprint &&
+          restoredReviewFunction.single.every((value) => value == true),
+      'Recovery-coordinated upgrade applies 031-036, restores scoped review access without PUBLIC execution, and advances the database fingerprint',
     );
     check(
       identityBeforeSuccess == identityAfterSuccess,
       'Successful upgrade preserves existing actor, device, credential, and counts',
+    );
+    final preservedBusinessRecord = await accessFixtureRecord('''
+        SELECT revision, document_status, record_data = CAST(@payload AS jsonb)
+        FROM public.ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id='schema.upgrade.fixture' AND doc_type='Movement'
+          AND record_id='UPGRADE-PRESERVE-001' AND deleted_at IS NULL
+    ''');
+    check(
+      preservedBusinessRecord.length == 1 &&
+          preservedBusinessRecord.single[0] == 7 &&
+          preservedBusinessRecord.single[1] == 1 &&
+          preservedBusinessRecord.single[2] == true,
+      'Successful upgrade preserves the scoped business record, payload, revision, and status',
     );
     final readyWitness = readWitness(successWitness);
     check(

@@ -228,6 +228,20 @@ typedef HostExtensionPackageClientFactory =
 
 enum HostPackageSubmissionStatus { submitted, alreadyApproved }
 
+class HostExtensionSubmission {
+  HostExtensionSubmission({
+    required this.bundle,
+    required this.packageSha256,
+    required this.submittedBy,
+    required this.submittedAtUtc,
+  });
+
+  final ExtensionBundle bundle;
+  final String packageSha256;
+  final String submittedBy;
+  final DateTime submittedAtUtc;
+}
+
 /// Authenticated transport for package review and approved-package reads.
 /// It never treats a submitted candidate as an approved installation.
 class HostExtensionPackageClient {
@@ -473,6 +487,108 @@ class HostExtensionPackageClient {
       }
     }
     return HostApprovedPackagePage(packages: packages, hasMore: hasMore);
+  }
+
+  Future<List<HostExtensionSubmission>> listSubmissions({
+    required String companyId,
+    required String branchId,
+    int limit = 3,
+  }) async {
+    if (limit < 1 || limit > 3) {
+      throw const HostPackageTransportException('INVALID_PACKAGE_PAGE');
+    }
+    final response = await _request('POST', '/api/v1/extensions/submissions', {
+      'companyId': companyId,
+      'branchId': branchId,
+      'limit': limit,
+    });
+    if (response.statusCode != HttpStatus.ok ||
+        response.body['submissions'] is! List) {
+      throw _responseError(response);
+    }
+    final rawEntries = response.body['submissions'] as List;
+    if (rawEntries.length > limit) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    return rawEntries
+        .map((raw) {
+          if (raw is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final entry = Map<String, dynamic>.from(raw);
+          if (entry.keys.toSet().difference(const {
+                'moduleId',
+                'version',
+                'packageSha256',
+                'package',
+                'submittedBy',
+                'submittedAt',
+              }).isNotEmpty ||
+              entry.length != 6 ||
+              entry['package'] is! Map ||
+              entry['packageSha256'] is! String ||
+              entry['submittedBy'] is! String ||
+              entry['submittedAt'] is! String) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final bundle = ExtensionBundle.fromJson(
+            Map<String, dynamic>.from(entry['package'] as Map),
+          );
+          final canonical = canonicalJson(bundle.toJson());
+          final submittedAt = DateTime.tryParse(entry['submittedAt'] as String);
+          final hash = sha256.convert(utf8.encode(canonical)).toString();
+          if (bundle.moduleId != entry['moduleId'] ||
+              bundle.version != entry['version'] ||
+              hash != entry['packageSha256'] ||
+              submittedAt == null ||
+              !submittedAt.isUtc) {
+            throw const HostPackageTransportException(
+              'HOST_PACKAGE_INTEGRITY_FAILED',
+            );
+          }
+          return HostExtensionSubmission(
+            bundle: bundle,
+            packageSha256: hash,
+            submittedBy: _requiredIdentifier(entry['submittedBy']),
+            submittedAtUtc: submittedAt,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  Future<String> reviewSubmission({
+    required HostExtensionSubmission submission,
+    required String companyId,
+    required String branchId,
+    required String decision,
+    String? reason,
+  }) async {
+    if (!const {'APPROVE', 'REJECT'}.contains(decision) ||
+        (decision == 'REJECT' &&
+            (reason == null || reason.trim().isEmpty || reason.length > 500)) ||
+        (decision == 'APPROVE' && reason != null && reason.isNotEmpty)) {
+      throw const HostPackageTransportException('INVALID_REVIEW');
+    }
+    final response = await _request('POST', '/api/v1/extensions/review', {
+      'companyId': companyId,
+      'branchId': branchId,
+      'moduleId': submission.bundle.moduleId,
+      'version': submission.bundle.version,
+      'packageSha256': submission.packageSha256,
+      'decision': decision,
+      if (reason != null) 'reason': reason.trim(),
+    });
+    final result = response.body['review'];
+    final expectedStatus = decision == 'APPROVE' ? 'APPROVED' : 'REJECTED';
+    if (response.statusCode != HttpStatus.ok ||
+        result is! Map ||
+        result['status'] != expectedStatus ||
+        result['moduleId'] != submission.bundle.moduleId ||
+        result['version'] != submission.bundle.version ||
+        result['packageSha256'] != submission.packageSha256) {
+      throw _responseError(response);
+    }
+    return expectedStatus;
   }
 
   Future<HostIdentityRoleSnapshot> listRoles({

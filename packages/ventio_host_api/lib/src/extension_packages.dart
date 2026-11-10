@@ -35,6 +35,29 @@ abstract interface class ExtensionPackageGateway {
 abstract interface class AuthoritativeExtensionPackageGateway
     implements ExtensionPackageGateway {}
 
+abstract interface class ExtensionPackageReviewGateway {
+  Future<Map<String, dynamic>> listPending({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required int limit,
+  });
+
+  Future<Map<String, dynamic>> review({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+    required String packageSha256,
+    required String decision,
+    String? reason,
+  });
+}
+
+abstract interface class AuthoritativeExtensionPackageReviewGateway
+    implements ExtensionPackageReviewGateway {}
+
 /// Optional, read-only diagnostic used after an authenticated package request
 /// fails the current-session permission projection. Implementations may return
 /// only a stable safe reason code for this credential and exact branch.

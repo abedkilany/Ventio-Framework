@@ -17,6 +17,7 @@ import 'host_credentials.dart';
 import 'host_diagnostics.dart';
 import 'host_device_management.dart';
 import 'host_extension_packages.dart';
+import 'host_extension_review_page.dart';
 import 'host_overview_page.dart';
 import 'host_readiness.dart';
 import 'host_setup.dart';
@@ -41,6 +42,7 @@ enum _StudioMenuAction {
   manageUsers,
   manageRoles,
   manageDevices,
+  reviewExtensions,
   hostOverview,
   hostSetup,
   pairClient,
@@ -321,6 +323,47 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     );
   }
 
+  bool get _canReviewExtensions {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    if (profile == null || identity == null || !identity.persistent) {
+      return false;
+    }
+    return identity.scopes.any(
+      (scope) =>
+          scope.companyId == profile.companyId &&
+          scope.branchId == profile.branchId &&
+          scope.permissions.contains('extension.package.review'),
+    );
+  }
+
+  Future<void> _openExtensionReview() async {
+    final profile = _hostProfile;
+    final identity = _hostIdentity;
+    final vault = widget.credentialVault;
+    if (!_canReviewExtensions ||
+        profile == null ||
+        identity == null ||
+        vault == null) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'extension-review'),
+        builder: (context) => HostExtensionReviewPage(
+          client: _hostPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            vault: vault,
+          ),
+          companyId: profile.companyId,
+          branchId: profile.branchId,
+          actorId: identity.actorId,
+        ),
+      ),
+    );
+    await _refreshHostIdentity();
+  }
+
   Future<void> _openDeviceManagement() async {
     final profile = _hostProfile;
     final identity = _hostIdentity;
@@ -349,6 +392,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     try {
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
+          settings: const RouteSettings(name: 'pairing-code'),
           builder: (context) => DeviceManagementPage(
             client: HostDeviceManagementClient(
               endpoint: Uri.parse(profile.endpoint),
@@ -458,11 +502,24 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   Future<void> _openHostSettings() async {
     await _refreshHostIdentity();
     if (!mounted) return;
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'host-settings'),
         builder: (context) => HostSettingsPage(
-          profile: _hostProfile,
+          profile: profile,
           identity: _hostIdentity,
+          onRefreshHostCertificate: profile == null || vault == null
+              ? null
+              : (fingerprint) async {
+                  final endpoint = Uri.parse(profile.endpoint);
+                  final certificate = await vault.verifyAndFetchCertificate(
+                    endpoint,
+                    fingerprint,
+                  );
+                  await vault.saveTrustedCertificate(endpoint, certificate);
+                },
           onConfigure: () {
             Navigator.of(context).pop();
             unawaited(_configureHost());
@@ -481,6 +538,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     }
     final completed = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
+        settings: const RouteSettings(name: 'host-setup'),
         builder: (context) => HostSetupPage(
           credentialStore: LocalHostSetupCredentialStore(
             credentials: vault,
@@ -500,6 +558,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     }
     final enrolled = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
+        settings: const RouteSettings(name: 'client-pairing'),
         builder: (context) => ClientPairingPage(
           store: widget.store,
           credentials: vault,
@@ -1083,7 +1142,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               (_canManageUsers ||
                   _canManageRoles ||
                   _canManageDevices ||
-                  _canManagePairings))
+                  _canManagePairings ||
+                  _canReviewExtensions))
             PopupMenuButton<_StudioMenuAction>(
               tooltip: context.ventioText('native.ui.host_administration'),
               icon: const Icon(Icons.admin_panel_settings_outlined),
@@ -1095,6 +1155,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _openRoleAdministration();
                   case _StudioMenuAction.manageDevices:
                     _openDeviceManagement();
+                  case _StudioMenuAction.reviewExtensions:
+                    _openExtensionReview();
                   default:
                     break;
                 }
@@ -1115,6 +1177,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     value: _StudioMenuAction.manageDevices,
                     child: VentioText('native.ui.host_devices'),
                   ),
+                if (_canReviewExtensions)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.reviewExtensions,
+                    child: Text('Review extension candidates'),
+                  ),
               ],
             ),
           if (width < 600)
@@ -1132,6 +1199,8 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                     _openRoleAdministration();
                   case _StudioMenuAction.manageDevices:
                     _openDeviceManagement();
+                  case _StudioMenuAction.reviewExtensions:
+                    _openExtensionReview();
                   case _StudioMenuAction.hostOverview:
                     _openHostOverview();
                   case _StudioMenuAction.hostSetup:
@@ -1187,6 +1256,11 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                   const PopupMenuItem(
                     value: _StudioMenuAction.manageDevices,
                     child: VentioText('native.ui.host_devices'),
+                  ),
+                if (_canReviewExtensions)
+                  const PopupMenuItem(
+                    value: _StudioMenuAction.reviewExtensions,
+                    child: Text('Review extension candidates'),
                   ),
                 if (_canReadHostStatus)
                   const PopupMenuItem(
@@ -5119,6 +5193,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
   bool _hostHasMore = false;
   bool _hostQuerySucceeded = false;
   bool _hostAccessDenied = false;
+  String? _hostAccessDenialCode;
   String? _hostWarning;
   Set<String>? _hostReadableFields;
   Set<String>? _hostWritableFields;
@@ -5173,14 +5248,14 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
     });
     try {
       final profile = widget.hostProfile;
-      _hostAccessDenied =
-          profile != null &&
-          profile.actorId != null &&
-          profile.deviceId != null &&
-          await widget.store.hasHostRecordReadDenial(
-            profile: profile,
-            moduleId: widget.moduleId,
-          );
+      _hostAccessDenialCode =
+          profile != null && profile.actorId != null && profile.deviceId != null
+          ? await widget.store.hostRecordReadDenialCode(
+              profile: profile,
+              moduleId: widget.moduleId,
+            )
+          : null;
+      _hostAccessDenied = _hostAccessDenialCode != null;
       final cachedFieldPermissions = profile == null
           ? null
           : await widget.store.getHostFieldPermissions(
@@ -5277,6 +5352,10 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       return;
     }
     _hostAccessDenied = true;
+    final reasonCode = (error as HostPackageTransportException).code;
+    _hostAccessDenialCode = RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(reasonCode)
+        ? reasonCode
+        : 'HOST_ACCESS_DENIED';
     final profile = widget.hostProfile;
     if (profile == null ||
         profile.actorId == null ||
@@ -5287,7 +5366,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       await widget.store.markHostRecordReadDenied(
         profile: profile,
         moduleId: widget.moduleId,
-        reasonCode: (error as HostPackageTransportException).code,
+        reasonCode: _hostAccessDenialCode!,
       );
     } catch (storageError) {
       _hostWarning =
@@ -5415,6 +5494,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
       );
     }
     _hostAccessDenied = false;
+    _hostAccessDenialCode = null;
     _hostWarning = null;
     _hostHasMore = page.hasMore;
     _hostOffset = offset + page.records.length;
@@ -5652,6 +5732,10 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
                     ? Icons.verified_user_outlined
                     : Icons.storage_outlined,
               ),
+              if (_hostAccessDenied && _hostAccessDenialCode != null) ...[
+                const SizedBox(height: 8),
+                SelectableText('Host error code: $_hostAccessDenialCode'),
+              ],
               if (_hostWarning != null) ...[
                 const SizedBox(height: 10),
                 _StateCard(
@@ -9021,6 +9105,14 @@ class _RecordCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = columns.isEmpty ? null : columns.first;
+    final revisionLabel = switch (record.authorityState) {
+      'HOST_ACCEPTED' => 'native.ui.record_revision_host_confirmed',
+      'LOCAL_ONLY' => 'native.ui.record_revision_local_only',
+      _ => 'native.ui.record_revision',
+    };
+    final revision = record.authorityState == 'HOST_ACCEPTED'
+        ? record.hostRevision ?? record.revision
+        : record.revision;
     final summary = (primary == null ? columns : columns.skip(1)).take(3).map((
       field,
     ) {
@@ -9042,10 +9134,7 @@ class _RecordCard extends StatelessWidget {
         subtitle: Text(
           [
             if (summary.isNotEmpty) summary.join(' · '),
-            context.ventioText(
-              'native.ui.record_revision_local_only',
-              params: {'revision': record.revision},
-            ),
+            context.ventioText(revisionLabel, params: {'revision': revision}),
           ].join(' · '),
         ),
         trailing: const Icon(Icons.chevron_right),

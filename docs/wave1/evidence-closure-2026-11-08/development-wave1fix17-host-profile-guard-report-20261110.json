@@ -1,0 +1,20 @@
+{
+  "managementApiVersion": 1,
+  "exportedAtUtc": "2026-11-10T18:53:33.471653Z",
+  "events": [
+    {
+      "source": "device",
+      "managementApiVersion": 1,
+      "code": "HOST_PROFILE_ALREADY_CONFIGURED",
+      "component": "client.host_setup.administrator_access",
+      "category": "host_startup",
+      "severity": "ERROR",
+      "occurredAtUtc": "2026-11-10T18:53:29.956669Z",
+      "correlationId": "cor_c452de9a1088ff4a659ce870db42aad2",
+      "retryable": false,
+      "messageKey": "native.diagnostics.host_setup_failed",
+      "safeExplanation": "Host setup failed during administrator access.",
+      "recommendedAction": "Keep existing Host data intact. Share this sanitized report with an authorized Host operator before attempting recovery."
+    }
+  ]
+}

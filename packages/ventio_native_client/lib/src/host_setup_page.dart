@@ -9,6 +9,7 @@ import 'app_localization.dart';
 import 'host_setup.dart';
 import 'host_setup_windows.dart';
 import 'local_diagnostics.dart';
+import 'performance_probe.dart';
 
 typedef HostSetupDiagnosticExportHandler = Future<void> Function(String json);
 
@@ -154,7 +155,10 @@ class _HostSetupPageState extends State<HostSetupPage> {
     }
   }
 
-  Future<void> _runSetup() async {
+  Future<void> _runSetup() =>
+      VentioPerformanceProbe.measure('host_setup.initial', _runSetupImpl);
+
+  Future<void> _runSetupImpl() async {
     setState(() {
       _busy = true;
       _errorKey = null;
@@ -241,8 +245,9 @@ class _HostSetupPageState extends State<HostSetupPage> {
       messageKey: 'native.diagnostics.host_setup_failed',
       safeExplanation:
           'Host setup failed during ${safePhase.replaceAll('_', ' ').toLowerCase()}.',
-      recommendedAction:
-          'Keep existing Host data intact. Share this sanitized report with an authorized Host operator before attempting recovery.',
+      recommendedAction: safeCode == 'POSTGRES_PORT_IN_USE'
+          ? 'Ask an authorized Windows operator to free local port 54329, then retry Host setup.'
+          : 'Keep existing Host data intact. Share this sanitized report with an authorized Host operator before attempting recovery.',
       occurredAtUtc: occurredAtUtc,
       correlationId: correlationId,
       protectedFailureType: safeDiagnosticFailureType(failure),
@@ -327,6 +332,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
   }
 
   bool _isRetryableDiagnostic(String code) => const {
+    'POSTGRES_PORT_IN_USE',
     'HOST_SETUP_STATUS_UNAVAILABLE',
     'HOST_SETUP_BROKER_START_TIMEOUT',
     'HOST_SETUP_OPERATION_TIMEOUT',
@@ -732,6 +738,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
       'native.ui.host_setup_service_identity_conflict',
     'HOST_DATABASE_MIGRATION_LEDGER_INVALID' =>
       'native.ui.host_setup_migration_ledger_invalid',
+    'POSTGRES_PORT_IN_USE' => 'native.ui.host_setup_postgres_port_in_use',
     'HOST_SETUP_ALREADY_RUNNING' => 'native.ui.host_setup_already_running',
     'HOST_SETUP_INTERRUPTED_REQUIRES_RECOVERY' =>
       'native.ui.host_setup_interrupted_requires_recovery',

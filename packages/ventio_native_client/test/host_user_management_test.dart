@@ -558,6 +558,157 @@ void main() {
       });
     });
 
+    testWidgets(
+      'keeps a confirmed grant when refresh fails and retries only the read',
+      (tester) async {
+        final client = _FakeUserClient(identity: _identity());
+        await tester.pumpWidget(
+          MaterialApp(home: UsersPermissionsPage(client: client)),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Legacy identity 1').first);
+        await tester.pumpAndSettle();
+        client.listFailuresRemaining = 1;
+        await tester.tap(find.text('Grant permission'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byType(TextFormField),
+          'maintenance.create',
+        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+
+        // Let transient snackbars expire: the acknowledgement must stay visible.
+        await tester.pump(const Duration(seconds: 8));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('The Host confirmed the change.'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Your account changes were not confirmed'),
+          findsNothing,
+        );
+        expect(
+          client.requests.where((r) => r['action'] == 'grant'),
+          hasLength(1),
+        );
+        expect(client.listCalls, 2);
+
+        await tester.tap(find.byTooltip('Refresh users'));
+        await tester.pumpAndSettle();
+        expect(client.listCalls, 3);
+        expect(
+          client.requests.where((r) => r['action'] == 'grant'),
+          hasLength(1),
+        );
+        expect(find.text('Could not load Host users'), findsNothing);
+        await tester.tap(find.text('Legacy identity 1').first);
+        await tester.pumpAndSettle();
+        expect(find.text('maintenance.create'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'does not confirm a denied grant or replace it with a list error',
+      (tester) async {
+        final client = _FakeUserClient(identity: _identity());
+        await tester.pumpWidget(
+          MaterialApp(home: UsersPermissionsPage(client: client)),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Legacy identity 1').first);
+        await tester.pumpAndSettle();
+        client.grantError = const HostUserManagementException(
+          'PERMISSION_DENIED',
+        );
+        await tester.tap(find.text('Grant permission'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byType(TextFormField),
+          'maintenance.create',
+        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 8));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('The Host denied this user-management request.'),
+          findsOneWidget,
+        );
+        expect(find.text('Could not load Host users'), findsNothing);
+        expect(
+          find.textContaining('Host granted this user permission.'),
+          findsNothing,
+        );
+        expect(client.listCalls, 1);
+        expect(client.users['operator-1']!.directPermissions, {
+          'maintenance.read',
+        });
+      },
+    );
+
+    testWidgets(
+      'preserves a created user ID across failed refresh without replaying create',
+      (tester) async {
+        final client = _FakeUserClient(identity: _identity());
+        await tester.pumpWidget(
+          MaterialApp(home: UsersPermissionsPage(client: client)),
+        );
+        await tester.pumpAndSettle();
+        client.listFailuresRemaining = 1;
+        await tester.tap(find.text('Create user'));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 8));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('The Host confirmed the change.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Generated user ID: usr_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'Create user'),
+              )
+              .onPressed,
+          isNull,
+        );
+        await tester.tap(find.byTooltip('Refresh users'));
+        await tester.pumpAndSettle();
+        expect(
+          client.requests.where((r) => r['action'] == 'create'),
+          hasLength(1),
+        );
+        expect(
+          find.text('usr_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').first,
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('uses neutral read failure wording before any mutation', (
+      tester,
+    ) async {
+      final client = _FakeUserClient(identity: _identity())
+        ..listFailuresRemaining = 1;
+      await tester.pumpWidget(
+        MaterialApp(home: UsersPermissionsPage(client: client)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('The Host could not be reached.'), findsOneWidget);
+      expect(
+        find.textContaining('Your account changes were not confirmed'),
+        findsNothing,
+      );
+      expect(client.requests, isEmpty);
+    });
+
     testWidgets('confirms both disabling and enabling a user', (tester) async {
       final client = _FakeUserClient(identity: _identity());
       await tester.pumpWidget(
@@ -697,6 +848,9 @@ class _FakeUserClient extends HostUserManagementClient {
       );
 
   final requests = <Map<String, Object?>>[];
+  int listFailuresRemaining = 0;
+  int listCalls = 0;
+  HostUserManagementException? grantError;
   List<HostUserAuditEvent> auditEvents = const [];
   final users = <String, HostManagedUser>{
     'operator-1': HostManagedUser(
@@ -708,12 +862,22 @@ class _FakeUserClient extends HostUserManagementClient {
   };
 
   @override
-  Future<HostManagedUserSnapshot> listUsers() async => HostManagedUserSnapshot(
-    tenantId: 'tenant-1',
-    companyId: 'company-1',
-    branchId: 'branch-1',
-    users: users.values,
-  );
+  Future<HostManagedUserSnapshot> listUsers() async {
+    listCalls++;
+    if (listFailuresRemaining > 0) {
+      listFailuresRemaining--;
+      throw const HostUserManagementException(
+        'HOST_UNREACHABLE',
+        retryable: true,
+      );
+    }
+    return HostManagedUserSnapshot(
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      users: users.values,
+    );
+  }
 
   @override
   Future<HostUserAuditSnapshot> listAudit() async => HostUserAuditSnapshot(
@@ -740,6 +904,7 @@ class _FakeUserClient extends HostUserManagementClient {
     required String actorId,
     required String permission,
   }) async {
+    if (grantError != null) throw grantError!;
     requests.add({
       'action': 'grant',
       'actorId': actorId,

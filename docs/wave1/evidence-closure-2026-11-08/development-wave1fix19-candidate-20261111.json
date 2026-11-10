@@ -1,0 +1,41 @@
+{
+  "RecordedUtc": "2026-11-10T22:21:04.1858899Z",
+  "Candidate": "C:\\Users\\User\\Desktop\\Ventio Framework\\artifacts\\ventio-windows-acceptance-0.1.18-wave1fix19-20261111\\installers\\unified\\Ventio-Setup-0.1.18.exe",
+  "Version": "0.1.18",
+  "FlutterVersion": "0.1.18+19",
+  "SizeBytes": 104195912,
+  "SHA256": "F2F6FB0744F4C0CF10D28E6C4CB0A78F9AD95122C3A000FA5786695193227EDA",
+  "Authenticode": "NotSigned",
+  "Distribution": "Internal engineering only; Authenticode unsigned; compiler reported Non-commercial use only.",
+  "BuildBaseGitHead": "17edf08b0022c35aaa9820c05de0525570c97b33",
+  "SourceState": "Working tree with local Wave 1 closure changes",
+  "SourceInputsSha256": {
+    "packages/ventio_native_client/lib/src/users_permissions_page.dart": "0A4A59DE48590411BD0BB437F3371C82A1A49F628E71A3E1E8F4246C3AC2EE8F",
+    "packages/ventio_native_client/lib/src/native_english_messages.dart": "1680E62F9B434D6DDDAD23A8030D0448AA29B71218E140612E11E67FE2B01E06",
+    "packages/ventio_native_client/test/host_user_management_test.dart": "C754D33DB5B9BCD985121E12F141F588E67864138DE2B696F7374EEA59F07AE5",
+    "installer/windows/ventio.iss": "CCBCF92249610EEFE2D6CB5D0A0733BEF309E6085858B7EBA942337942CAEA5C",
+    "scripts/windows/build-windows-installer.ps1": "97BBDC67108A8F5B60F1B3D2728C1472156FD95B6A91C537EF272130B790BA79"
+  },
+  "ManifestSha256": "8B7942B24888F81F7CB9ED89C0D210A11D6F7163DB6F9144AA1C86F21E8C779C",
+  "CriticalPayloadEntries": 76,
+  "PayloadFileCount": 1708,
+  "HostPayload": "Reused the exact Wave1fix18 build input; all 76 critical entries match the installed Host.",
+  "WindowsReleaseFileCount": 16,
+  "ClientBinaryDelta": [
+    {
+      "Path": "data\\app.so",
+      "InstalledWave1fix18Sha256": "89B132816EF15B3B6AA55011A8F0FB588D19C643C35C91B384CE64E67F7B6605",
+      "Wave1fix19Sha256": "D5EB33C5604A35FF135B096F15AD94EB303B51864DDC87CDBF23554DC1C3D2C6",
+      "Bytes": 10158992
+    }
+  ],
+  "Validation": [
+    "W1-UI-001 regression reproduced failure before patch",
+    "Host user-management Flutter test suite PASS 17/17 after patch",
+    "Targeted Flutter analyze PASS; no issues found",
+    "Windows Flutter Release build and Inno compilation PASS",
+    "Installer path, deferred provisioning, privilege guards and pinned VC++ prerequisite checks PASS"
+  ],
+  "InstalledOnDevelopment": false,
+  "InstalledLifecycleEvidence": "Wave1fix18; no new service, installer script, schema, or credential changes for Wave1fix19."
+}

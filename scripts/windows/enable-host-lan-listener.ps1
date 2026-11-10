@@ -2,6 +2,7 @@
 param(
   [string] $PayloadDirectory = (Join-Path $env:ProgramFiles 'Ventio\host-payload'),
   [switch] $RestartServices,
+  [switch] $RestoreRetainedListener,
   [switch] $TestMode,
   [string] $TestDirectory,
   [string] $TestServiceSid,
@@ -394,6 +395,9 @@ function Test-ListenerTls([string] $HostName, [string] $CertificatePath) {
 }
 
 try {
+  if ($RestoreRetainedListener -and ($TestMode -or $RestartServices)) {
+    throw 'HOST_LAN_RETAINED_MODE_INVALID'
+  }
   if (-not $TestMode) {
     Assert-Administrator
     if (-not $payload.Equals($expectedPayload, [StringComparison]::OrdinalIgnoreCase)) { throw 'HOST_LAN_PAYLOAD_PATH_INVALID' }
@@ -405,6 +409,9 @@ try {
     if ($null -eq $service -or $service.StartName -cne 'NT SERVICE\VentioHost' -or
         $service.PathName -notmatch [regex]::Escape($hostExecutable)) { throw 'HOST_LAN_SERVICE_IDENTITY_INVALID' }
     if ((Get-Service -Name 'VentioHost' -ErrorAction Stop).Status -ne 'Stopped') { throw 'HOST_LAN_HOST_SERVICE_MUST_BE_STOPPED' }
+    if (-not $RestoreRetainedListener -and -not $RestartServices -and
+        @([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() |
+          Where-Object Port -eq $port).Count -gt 0) { throw 'HOST_LAN_PORT_IN_USE' }
     $postgres = Get-CimInstance -ClassName Win32_Service -Filter "Name='VentioPostgres'" -ErrorAction Stop
     $postgresExecutable = Join-Path $payload 'postgresql\bin\pg_ctl.exe'
     $dataDirectory = Join-Path $programData 'Ventio\PostgreSQL\data'
@@ -412,7 +419,7 @@ try {
         $postgres.PathName -notmatch [regex]::Escape($postgresExecutable) -or
         $postgres.PathName -notmatch [regex]::Escape($dataDirectory)) { throw 'HOST_LAN_POSTGRES_IDENTITY_INVALID' }
     Assert-NoReparseAncestors $hostDirectory $programData
-    $lanFirewallProfiles = Assert-HostLanFirewallProfile
+    if (-not $RestoreRetainedListener) { $lanFirewallProfiles = Assert-HostLanFirewallProfile }
   }
   else {
     if (-not $TestDirectory -or -not $TestServiceSid) { throw 'HOST_LAN_TEST_ARGUMENTS_INVALID' }
@@ -437,6 +444,38 @@ try {
         $values['VENTIO_HOST_TLS_PRIVATE_KEY_FILE'] -cne (Join-Path $hostDirectory 'host-lan-private-key.pem')) {
       throw 'HOST_LAN_EXISTING_CONFIGURATION_CONFLICT'
     }
+  }
+  if ($RestoreRetainedListener) {
+    $phase = 'retained-service-start'
+    $witness = Join-Path $hostDirectory 'recovery.witness'
+    if ($values['VENTIO_RECOVERY_AUTHORITY_FILE'] -cne $witness -or
+        -not (Test-Path -LiteralPath $witness -PathType Leaf)) {
+      throw 'HOST_LAN_RETAINED_WITNESS_MISSING'
+    }
+    Assert-NoReparseAncestors $witness $programData
+    $certificatePath = $null
+    if ($values.Contains('VENTIO_HOST_LAN_BIND_ADDRESS')) {
+      $certificatePath = Join-Path $hostDirectory 'host-lan-certificate.pem'
+      $infoPath = Join-Path $hostDirectory 'host-lan-info.json'
+      Assert-NoReparseAncestors $certificatePath $programData
+      Assert-NoReparseAncestors $infoPath $programData
+      $hostName = (Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json).hostname
+      Ensure-FirewallRule $engineExecutable (Assert-HostLanFirewallProfile)
+    }
+    Start-ValidatedService 'VentioPostgres'
+    Start-ValidatedService 'VentioHost'
+    if ($certificatePath) {
+      Test-ListenerTls $hostName $certificatePath
+    } else {
+      $response = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/healthz' -UseBasicParsing -TimeoutSec 5
+      if ($response.status -cne 'alive' -or $response.apiVersion -ne 1) {
+        throw 'HOST_LAN_RETAINED_LOCAL_READINESS_FAILED'
+      }
+    }
+    Set-Service -Name VentioPostgres -StartupType Automatic
+    Set-Service -Name VentioHost -StartupType Automatic
+    Write-Output 'HOST_LAN_RETAINED_CONFIGURATION_READY'
+    return
   }
   if (-not $TestMode) {
     $phase = 'certificate'

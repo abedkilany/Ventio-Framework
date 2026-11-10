@@ -11,12 +11,14 @@ class HostSettingsPage extends StatelessWidget {
   const HostSettingsPage({
     required this.profile,
     required this.identity,
+    this.onRefreshHostCertificate,
     required this.onConfigure,
     super.key,
   });
 
   final HostConnectionProfile? profile;
   final HostSessionIdentity? identity;
+  final Future<void> Function(String expectedSha256)? onRefreshHostCertificate;
   final VoidCallback onConfigure;
 
   HostScopeGrant? _selectedScope() {
@@ -193,6 +195,12 @@ class HostSettingsPage extends StatelessWidget {
                       );
                     },
                   ),
+                if (onRefreshHostCertificate != null) ...[
+                  const SizedBox(height: 12),
+                  HostCertificateTrustCard(
+                    onRefresh: onRefreshHostCertificate!,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 if (session == null)
                   _noticeCard(
@@ -356,5 +364,129 @@ class HostSettingsPage extends StatelessWidget {
     title: Text(label),
     subtitle: SelectableText(value),
     contentPadding: EdgeInsets.zero,
+  );
+}
+
+class HostCertificateTrustCard extends StatefulWidget {
+  const HostCertificateTrustCard({required this.onRefresh, super.key});
+
+  final Future<void> Function(String expectedSha256) onRefresh;
+
+  @override
+  State<HostCertificateTrustCard> createState() =>
+      _HostCertificateTrustCardState();
+}
+
+class _HostCertificateTrustCardState extends State<HostCertificateTrustCard> {
+  final _fingerprint = TextEditingController();
+  bool _busy = false;
+  String? _statusKey;
+  bool _succeeded = false;
+
+  @override
+  void dispose() {
+    _fingerprint.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    if (_busy) return;
+    final expected = HostCredentialVault.normalizeFingerprint(
+      _fingerprint.text,
+    );
+    if (expected == null) {
+      setState(() {
+        _statusKey = 'native.ui.host_certificate_fingerprint_invalid';
+        _succeeded = false;
+      });
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _statusKey = null;
+    });
+    try {
+      await widget.onRefresh(expected);
+      if (!mounted) return;
+      setState(() {
+        _statusKey = 'native.ui.host_certificate_trust_updated';
+        _succeeded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _statusKey = 'native.ui.host_certificate_trust_failed';
+        _succeeded = false;
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified_user_outlined),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  context.ventioText('native.ui.host_certificate_trust_title'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(context.ventioText('native.ui.host_certificate_trust_details')),
+          const SizedBox(height: 12),
+          TextField(
+            key: const ValueKey('host-certificate-fingerprint'),
+            controller: _fingerprint,
+            enabled: !_busy,
+            autocorrect: false,
+            enableSuggestions: false,
+            textCapitalization: TextCapitalization.none,
+            decoration: InputDecoration(
+              labelText: context.ventioText(
+                'native.ui.host_certificate_fingerprint_label',
+              ),
+              hintText: '64 hexadecimal characters',
+            ),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            key: const ValueKey('host-certificate-trust-update'),
+            onPressed: _busy ? null : _refresh,
+            icon: _busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.verified_outlined),
+            label: Text(
+              context.ventioText('native.ui.host_certificate_trust_action'),
+            ),
+          ),
+          if (_statusKey != null) ...[
+            const SizedBox(height: 10),
+            SelectableText(
+              context.ventioText(_statusKey!),
+              style: TextStyle(
+                color: _succeeded
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ],
+        ],
+      ),
+    ),
   );
 }

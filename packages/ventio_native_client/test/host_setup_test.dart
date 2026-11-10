@@ -3,8 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
+import 'package:ventio_native_client/src/host_credentials.dart';
 import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/host_setup.dart';
 import 'package:ventio_native_client/src/host_setup_page.dart';
@@ -13,6 +15,23 @@ import 'package:ventio_native_client/src/local_diagnostics.dart';
 const _requestId = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 const _token = 'BCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefgh';
 const _actorId = 'usr_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
+
+class _MemoryHostCredentialBackend implements HostCredentialBackend {
+  final values = <String, String>{};
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    values.remove(key);
+  }
+}
 
 Future<void> _submitMinimalHostSetup(WidgetTester tester) async {
   final list = find.byType(ListView);
@@ -166,6 +185,49 @@ void main() {
           identity: _adminIdentity(tenantId: 'other-tenant'),
         ),
         throwsA(isA<HostSessionIdentityException>()),
+      );
+    });
+  });
+
+  group('Local Host setup credential verification', () {
+    setUpAll(sqfliteFfiInit);
+
+    test('preserves a safe Host authentication error code', () async {
+      final store = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: ':memory:',
+      );
+      addTearDown(store.close);
+      final backend = _MemoryHostCredentialBackend();
+      final vault = HostCredentialVault(backend);
+      final endpoint = Uri.parse(hostSetupEndpoint);
+      await vault.save(endpoint, _token);
+      final profile = HostConnectionProfile(
+        endpoint: hostSetupEndpoint,
+        tenantId: 'tenant-one',
+        companyId: 'company-one',
+        branchId: 'branch-one',
+        actorId: _actorId,
+      );
+      await store.saveHostProfile(profile);
+      final credentials = LocalHostSetupCredentialStore(
+        credentials: vault,
+        store: store,
+        sessionLoader: (_) async => throw const HostPackageTransportException(
+          'HOST_CREDENTIAL_EXPIRED',
+          statusCode: 401,
+        ),
+      );
+
+      await expectLater(
+        credentials.verifyAndBindExistingProfile(profile),
+        throwsA(
+          isA<HostSetupException>().having(
+            (error) => error.code,
+            'code',
+            'HOST_CREDENTIAL_EXPIRED',
+          ),
+        ),
       );
     });
   });
@@ -421,6 +483,32 @@ void main() {
         expect(platform.events, isNot(contains('elevate')));
         expect(credentials.saved, isTrue);
         expect(profile.deviceId, 'device-one');
+      },
+    );
+
+    test(
+      'retries a confirmed PostgreSQL port collision with a new operation',
+      () async {
+        const failedOperation = '0123456789abcdef0123456789abcdef';
+        platform.pending = HostSetupPendingOperation(
+          operationId: failedOperation,
+          requesterSid: platform.sid,
+          scope: scope,
+        );
+        platform.statusByOperation[failedOperation] =
+            const HostSetupOperationStatus(
+              state: HostSetupOperationState.failed,
+              failureCode: 'POSTGRES_PORT_IN_USE',
+              phase: 'POSTGRES_SERVICE_PROVISIONING',
+            );
+
+        final profile = await coordinator.run(scope);
+
+        expect(profile.actorId, _actorId);
+        expect(
+          platform.events,
+          containsAllInOrder(['clear-pending', 'save-pending', 'elevate']),
+        );
       },
     );
 
@@ -680,7 +768,10 @@ void main() {
         find.textContaining('Private or authenticated Domain network'),
         findsOneWidget,
       );
-      expect(find.textContaining('Public networks stay closed'), findsOneWidget);
+      expect(
+        find.textContaining('Public networks stay closed'),
+        findsOneWidget,
+      );
       expect(diagnostics.lastEvent?.code, 'HOST_LAN_TRUSTED_NETWORK_REQUIRED');
     },
   );
@@ -833,6 +924,7 @@ class _FakePlatform implements HostSetupPlatform {
   HostSetupOperationStatus status = const HostSetupOperationStatus(
     state: HostSetupOperationState.pending,
   );
+  final statusByOperation = <String, HostSetupOperationStatus>{};
   HostFirstAdministratorReply reply = HostFirstAdministratorReply(
     success: true,
     status: 'pending',
@@ -887,7 +979,7 @@ class _FakePlatform implements HostSetupPlatform {
   @override
   Future<HostSetupOperationStatus> setupOperationStatus(
     String operationId,
-  ) async => status;
+  ) async => statusByOperation[operationId] ?? status;
 
   @override
   Future<HostFirstAdministratorReply> readBootstrapResult(

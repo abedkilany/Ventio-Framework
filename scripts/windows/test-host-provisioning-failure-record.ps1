@@ -141,6 +141,12 @@ try {
   if (-not (Test-HostInstallerStateForResume -DataRoot $testRoot -InstallerStateDirectory (Join-Path $testRoot 'Installer'))) {
     throw 'Protected diagnostics and migration-credential installer state was rejected for safe resumption.'
   }
+  if (Test-HostInstallerStateForResume -DataRoot $testRoot -InstallerStateDirectory (Join-Path $testRoot 'Installer') -DiagnosticsOnly) {
+    throw 'Fresh setup accepted a directory with a migration credential.'
+  }
+  if (-not (Test-HostInstallerStateForResume -DataRoot $fallbackTestRoot -InstallerStateDirectory (Join-Path $fallbackTestRoot 'Installer') -DiagnosticsOnly)) {
+    throw 'Fresh setup rejected protected diagnostics-only state.'
+  }
 
   $unexpectedState = Join-Path $testRoot 'Installer\unrelated-state.json'
   [IO.File]::WriteAllText($unexpectedState, '{}', [Text.UTF8Encoding]::new($false))

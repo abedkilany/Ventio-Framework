@@ -22,18 +22,19 @@ Future<void> main() async {
   }
   var wrongEntropyRejected = false;
   try {
-    cipher.unprotect(
-      protected,
-      'reissue_ffffffffffffffffffffffffffffffff',
-    );
+    cipher.unprotect(protected, 'reissue_ffffffffffffffffffffffffffffffff');
   } on StateError {
     wrongEntropyRejected = true;
   }
   if (!wrongEntropyRejected) {
-    throw StateError('DPAPI accepted a credential envelope with wrong entropy.');
+    throw StateError(
+      'DPAPI accepted a credential envelope with wrong entropy.',
+    );
   }
   clear.fillRange(0, clear.length, 0);
   restored.fillRange(0, restored.length, 0);
   protected.fillRange(0, protected.length, 0);
-  stdout.writeln('PASS: Windows DPAPI protects, restores, and entropy-binds the test envelope.');
+  stdout.writeln(
+    'PASS: Windows DPAPI protects, restores, and entropy-binds the test envelope.',
+  );
 }

@@ -177,7 +177,11 @@ function Test-HostProtectedInstallerRecordAcl([string] $Path) {
   }
 }
 
-function Test-HostInstallerStateForResume([string] $DataRoot, [string] $InstallerStateDirectory) {
+function Test-HostInstallerStateForResume(
+  [string] $DataRoot,
+  [string] $InstallerStateDirectory,
+  [switch] $DiagnosticsOnly
+) {
   try {
     $boundary = [IO.Path]::GetFullPath($DataRoot).TrimEnd('\')
     $directory = [IO.Path]::GetFullPath($InstallerStateDirectory).TrimEnd('\')
@@ -215,7 +219,7 @@ function Test-HostInstallerStateForResume([string] $DataRoot, [string] $Installe
             return $false
           }
         }
-      } elseif ($entry.Name -ceq 'migration-credential.dpapi' -and -not $entry.PSIsContainer) {
+      } elseif (-not $DiagnosticsOnly -and $entry.Name -ceq 'migration-credential.dpapi' -and -not $entry.PSIsContainer) {
         if ($entry.Length -gt 4096 -or -not (Test-HostProtectedInstallerRecordAcl $entry.FullName)) { return $false }
       } else {
         return $false
@@ -261,11 +265,15 @@ function Assert-HostNewInstallationState(
   [string] $InstallerStateDirectory
 ) {
   if ($PostgresService -or $HostService) { throw 'HOST_EXISTING_SERVICES_REQUIRE_RECOVERY' }
-  foreach ($directory in @($ExistingDataDirectories) + @($InstallerStateDirectory)) {
+  foreach ($directory in $ExistingDataDirectories) {
     if (-not (Test-HostDataPathHasNoReparsePoints -DataRoot $DataRoot -ProductDataRoot $ProductDataRoot -Path $directory)) {
       throw 'HOST_EXISTING_DATA_REQUIRES_REPAIR'
     }
     if (Test-Path -LiteralPath $directory) { throw 'HOST_EXISTING_DATA_REQUIRES_REPAIR' }
+  }
+  if (-not (Test-HostDataPathHasNoReparsePoints -DataRoot $DataRoot -ProductDataRoot $ProductDataRoot -Path $InstallerStateDirectory) -or
+      -not (Test-HostInstallerStateForResume -DataRoot $DataRoot -InstallerStateDirectory $InstallerStateDirectory -DiagnosticsOnly)) {
+    throw 'HOST_EXISTING_DATA_REQUIRES_REPAIR'
   }
 }
 
@@ -478,7 +486,9 @@ try {
     -OutputDirectory $hostConfigurationDirectory
   $phase = 'HOST_LAN_CONFIGURATION'
   Write-Output "HOST_SETUP_PHASE:$phase"
-  & $hostLanListener -PayloadDirectory $payload -RestartServices
+  # The Host waits for the first administrator before its API can bind.
+  # Stage TLS here and let the service publish LAN readiness after bootstrap.
+  & $hostLanListener -PayloadDirectory $payload
   $phase = 'HOST_SERVICE_STARTUP'
   Write-Output "HOST_SETUP_PHASE:$phase"
   Start-Service -Name $hostServiceName -ErrorAction Stop

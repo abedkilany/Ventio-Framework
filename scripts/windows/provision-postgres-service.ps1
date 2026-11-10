@@ -3,6 +3,7 @@ param(
   [int] $Port = 54329,
   [PSCredential] $BootstrapCredential,
   [switch] $Apply,
+  [switch] $RegisterRetained,
   [switch] $TestInitDbOnly,
   [switch] $TestMigrations
 )
@@ -20,6 +21,10 @@ $initdb = Join-Path $bin 'initdb.exe'
 $postgres = Join-Path $bin 'postgres.exe'
 $pgIsReady = Join-Path $bin 'pg_isready.exe'
 $sc = Join-Path $env:SystemRoot 'System32\sc.exe'
+
+if ($RegisterRetained -and (-not $Apply -or $TestInitDbOnly -or $TestMigrations -or $BootstrapCredential)) {
+  throw 'POSTGRES_RETAINED_MODE_INVALID'
+}
 
 function Test-EmptyDirectory([string] $Path) {
   if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return $false }
@@ -281,6 +286,7 @@ if ($TestInitDbOnly) {
       Import-Module $migrationCredentialModule -Force
       $migrationCredentialDirectory = Join-Path $testRoot 'protected-migration-credential'
       Write-HostMigrationCredential -Credential $migrationCredential -OutputDirectory $migrationCredentialDirectory -TestMode
+      Write-HostMigrationCredential -Credential $migrationCredential -OutputDirectory $migrationCredentialDirectory -TestMode
       $restoredMigrationCredential = Read-HostMigrationCredential -OutputDirectory $migrationCredentialDirectory -TestMode
       if ($restoredMigrationCredential.UserName -cne 'ventio_migrator_app' -or
           $restoredMigrationCredential.GetNetworkCredential().Password -cne $migrationPassword) {
@@ -373,6 +379,7 @@ foreach ($path in @($pgRoot, $bin, $postgres)) {
 
 $existing = Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
 if ($existing) {
+  if ($RegisterRetained) { throw 'POSTGRES_SERVICE_NAME_CONFLICT' }
   $expectedDataArg = [regex]::Escape($dataDirectory)
   if ($existing.PathName -match [regex]::Escape($pgCtl) -and $existing.PathName -match $expectedDataArg) {
     Write-Output 'POSTGRES_SERVICE_ALREADY_PRESENT'
@@ -380,7 +387,15 @@ if ($existing) {
   }
   throw 'POSTGRES_SERVICE_NAME_CONFLICT'
 }
-if (Test-Path -LiteralPath $dataDirectory) {
+if ($RegisterRetained) {
+  Assert-NoReparseAncestors $dataDirectory $commonData
+  $versionPath = Join-Path $dataDirectory 'PG_VERSION'
+  Assert-NoReparseAncestors $versionPath $commonData
+  if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf) -or
+      (Get-Content -LiteralPath $versionPath -Raw).Trim() -cne '16') {
+    throw 'POSTGRES_RETAINED_CLUSTER_INVALID'
+  }
+} elseif (Test-Path -LiteralPath $dataDirectory) {
   if (-not (Test-EmptyDirectory $dataDirectory)) { throw 'POSTGRES_DATA_DIRECTORY_NOT_EMPTY' }
 }
 $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
@@ -398,13 +413,13 @@ $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.Wind
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   throw 'POSTGRES_ADMIN_ELEVATION_REQUIRED'
 }
-if (-not $BootstrapCredential -or $BootstrapCredential.UserName -ne 'ventio_bootstrap' -or
-    $BootstrapCredential.Password.Length -lt 24) {
+if (-not $RegisterRetained -and (-not $BootstrapCredential -or
+    $BootstrapCredential.UserName -ne 'ventio_bootstrap' -or $BootstrapCredential.Password.Length -lt 24)) {
   throw 'POSTGRES_BOOTSTRAP_CREDENTIAL_INVALID'
 }
-if (Test-Path -LiteralPath $dataDirectory -PathType Container) {
+if (-not $RegisterRetained -and (Test-Path -LiteralPath $dataDirectory -PathType Container)) {
   if (-not (Test-EmptyDirectory $dataDirectory)) { throw 'POSTGRES_DATA_DIRECTORY_NOT_EMPTY' }
-} elseif (Test-Path -LiteralPath $dataDirectory) {
+} elseif (-not $RegisterRetained -and (Test-Path -LiteralPath $dataDirectory)) {
   throw 'POSTGRES_DATA_DIRECTORY_INVALID'
 }
 
@@ -413,41 +428,50 @@ $serviceRegistered = $false
 $secretPointer = [IntPtr]::Zero
 $password = $null
 try {
-  Import-Module (Join-Path $PSScriptRoot 'HostProductDataRoot.psm1') -Force
-  Protect-HostProductDataRoot
-  [void][IO.Directory]::CreateDirectory($ventioRoot)
-  Set-PostgresDataAcl $ventioRoot @()
-  if (-not (Test-Path -LiteralPath $dataDirectory)) {
-    [void][IO.Directory]::CreateDirectory($dataDirectory)
-    $createdDirectory = $true
+  if (-not $RegisterRetained) {
+    Import-Module (Join-Path $PSScriptRoot 'HostProductDataRoot.psm1') -Force
+    Protect-HostProductDataRoot
+    [void][IO.Directory]::CreateDirectory($ventioRoot)
+    Set-PostgresDataAcl $ventioRoot @()
+    if (-not (Test-Path -LiteralPath $dataDirectory)) {
+      [void][IO.Directory]::CreateDirectory($dataDirectory)
+      $createdDirectory = $true
+    }
+    Set-PostgresDataAcl $dataDirectory @()
   }
-  Set-PostgresDataAcl $dataDirectory @()
 
-  & $pgCtl register -D $dataDirectory -N $serviceName -U $serviceAccount -S auto
+  $startMode = if ($RegisterRetained) { 'demand' } else { 'auto' }
+  & $pgCtl register -D $dataDirectory -N $serviceName -U $serviceAccount -S $startMode
   if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_SERVICE_REGISTRATION_FAILED' }
   $serviceRegistered = $true
   & $sc sidtype $serviceName unrestricted | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_SERVICE_SID_CONFIGURATION_FAILED' }
-  $serviceSid = ([Security.Principal.NTAccount]::new('NT SERVICE', $serviceName)).Translate(
-    [Security.Principal.SecurityIdentifier]).Value
-  Protect-HostProductDataRoot
-  Set-PostgresDataAcl $ventioRoot @($serviceSid)
-  $installerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  Set-PostgresDataAcl $dataDirectory @($serviceSid, $installerSid)
-  try {
-    Initialize-PostgresCluster $initdb $dataDirectory $BootstrapCredential.Password
-  }
-  finally {
-    Set-PostgresDataAcl $dataDirectory @($serviceSid)
-  }
+  if (-not $RegisterRetained) {
+    $serviceSid = ([Security.Principal.NTAccount]::new('NT SERVICE', $serviceName)).Translate(
+      [Security.Principal.SecurityIdentifier]).Value
+    Protect-HostProductDataRoot
+    Set-PostgresDataAcl $ventioRoot @($serviceSid)
+    $installerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    Set-PostgresDataAcl $dataDirectory @($serviceSid, $installerSid)
+    try {
+      Initialize-PostgresCluster $initdb $dataDirectory $BootstrapCredential.Password
+    }
+    finally {
+      Set-PostgresDataAcl $dataDirectory @($serviceSid)
+    }
 
-  $configPath = Join-Path $dataDirectory 'postgresql.conf'
-  [IO.File]::AppendAllText($configPath, "`n# Ventio-managed local-only settings`nlisten_addresses = '127.0.0.1'`nport = $Port`npassword_encryption = 'scram-sha-256'`n# One bounded Recovery Authority schema-upgrade transaction at a time.`nmax_prepared_transactions = 1`n", [Text.UTF8Encoding]::new($false))
+    $configPath = Join-Path $dataDirectory 'postgresql.conf'
+    [IO.File]::AppendAllText($configPath, "`n# Ventio-managed local-only settings`nlisten_addresses = '127.0.0.1'`nport = $Port`npassword_encryption = 'scram-sha-256'`n# One bounded Recovery Authority schema-upgrade transaction at a time.`nmax_prepared_transactions = 1`n", [Text.UTF8Encoding]::new($false))
+  }
 
   & $sc failure $serviceName reset= 86400 actions= restart/5000/restart/30000/restart/60000 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_SERVICE_RECOVERY_CONFIGURATION_FAILED' }
   & $sc failureflag $serviceName 1 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_SERVICE_RECOVERY_CONFIGURATION_FAILED' }
+  if ($RegisterRetained) {
+    Write-Output 'POSTGRES_RETAINED_SERVICE_REGISTERED'
+    return
+  }
   & $sc start $serviceName | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'POSTGRES_SERVICE_START_FAILED' }
 
