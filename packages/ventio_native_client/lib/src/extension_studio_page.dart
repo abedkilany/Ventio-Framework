@@ -1180,7 +1180,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 if (_canReviewExtensions)
                   const PopupMenuItem(
                     value: _StudioMenuAction.reviewExtensions,
-                    child: Text('Review extension candidates'),
+                    child: VentioText('native.ui.review_extension_candidates'),
                   ),
               ],
             ),
@@ -1260,7 +1260,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
                 if (_canReviewExtensions)
                   const PopupMenuItem(
                     value: _StudioMenuAction.reviewExtensions,
-                    child: Text('Review extension candidates'),
+                    child: VentioText('native.ui.review_extension_candidates'),
                   ),
                 if (_canReadHostStatus)
                   const PopupMenuItem(
@@ -5734,7 +5734,12 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
               ),
               if (_hostAccessDenied && _hostAccessDenialCode != null) ...[
                 const SizedBox(height: 8),
-                SelectableText('Host error code: $_hostAccessDenialCode'),
+                SelectableText(
+                  context.ventioText(
+                    'native.ui.host_error_code',
+                    params: {'code': _hostAccessDenialCode},
+                  ),
+                ),
               ],
               if (_hostWarning != null) ...[
                 const SizedBox(height: 10),

@@ -402,17 +402,15 @@ class _HostSetupPageState extends State<HostSetupPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Set up this installation as a Ventio Host',
+                      VentioText(
+                        'native.ui.host_setup_intro_title',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       SizedBox(height: 8),
-                      Text(
-                        'This guided setup provisions PostgreSQL, applies Host migrations, registers the Windows services, creates the first Host administrator through the trusted local service, stores its credential securely, and verifies readiness. Windows requests Administrator approval only for the protected setup component.',
-                      ),
+                      VentioText('native.ui.host_setup_intro_details'),
                     ],
                   ),
                 ),

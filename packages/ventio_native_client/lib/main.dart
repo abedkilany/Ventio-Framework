@@ -132,20 +132,20 @@ class _UiRenderFailureFallback extends StatelessWidget {
                 children: [
                   const Icon(Icons.error_outline, size: 40),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Ventio could not display this screen.',
+                  const VentioText(
+                    'native.ui.render_failure_title',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Open Local diagnostics from the workspace and copy the sanitized export.',
+                  const VentioText(
+                    'native.ui.render_failure_details',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   TextButton.icon(
                     onPressed: () => Navigator.of(context).maybePop(),
                     icon: const Icon(Icons.arrow_back),
-                    label: const Text('Return to workspace'),
+                    label: const VentioText('native.ui.return_to_workspace'),
                   ),
                 ],
               ),

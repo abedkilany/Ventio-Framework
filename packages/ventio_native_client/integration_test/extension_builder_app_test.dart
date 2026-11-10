@@ -356,9 +356,9 @@ void main() {
         moduleId: 'com.example.windows_acceptance',
         docTypeName: 'Asset',
         scope: const RecordScope(
-          organizationId: 'local-organization',
-          companyId: 'local-company',
-          branchId: 'local-branch',
+          organizationId: 'fixture-tenant',
+          companyId: 'fixture-company',
+          branchId: 'fixture-branch',
         ),
       );
       expect(retainedFirstRecords.single.values['name'], 'Windows device');
@@ -452,9 +452,9 @@ void main() {
         moduleId: 'com.example.windows_acceptance',
         docTypeName: 'Asset',
         scope: const RecordScope(
-          organizationId: 'local-organization',
-          companyId: 'local-company',
-          branchId: 'local-branch',
+          organizationId: 'fixture-tenant',
+          companyId: 'fixture-company',
+          branchId: 'fixture-branch',
         ),
       );
       expect(records, hasLength(1));
@@ -472,9 +472,9 @@ void main() {
         moduleId: 'com.example.location_catalog',
         docTypeName: 'Site',
         scope: const RecordScope(
-          organizationId: 'local-organization',
-          companyId: 'local-company',
-          branchId: 'local-branch',
+          organizationId: 'fixture-tenant',
+          companyId: 'fixture-company',
+          branchId: 'fixture-branch',
         ),
       );
       expect(secondRecords.single.values['code'], 'NORTH-01');

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'app_localization.dart';
 import 'host_extension_packages.dart';
 
 class HostExtensionReviewPage extends StatefulWidget {
@@ -66,18 +68,26 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
       final approved = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Approve extension candidate?'),
+          title: const VentioText(
+            'native.ui.approve_extension_candidate_title',
+          ),
           content: Text(
-            '${submission.bundle.moduleId} ${submission.bundle.version} will become an approved Host release for this scope.',
+            context.ventioText(
+              'native.ui.approve_extension_candidate_confirmation',
+              params: {
+                'moduleId': submission.bundle.moduleId,
+                'version': submission.bundle.version,
+              },
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: const VentioText('native.ui.cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Approve'),
+              child: const VentioText('native.ui.approve'),
             ),
           ],
         ),
@@ -97,9 +107,16 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
         reason: reason,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Candidate $result.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.ventioText(
+              'native.ui.extension_candidate_result',
+              params: {'result': result},
+            ),
+          ),
+        ),
+      );
       await _load();
     } on HostPackageTransportException catch (error) {
       if (mounted) setState(() => _error = error.code);
@@ -116,26 +133,28 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
       return await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Reject extension candidate'),
+          title: const VentioText('native.ui.reject_extension_candidate_title'),
           content: TextField(
             controller: controller,
             autofocus: true,
             maxLength: 500,
             minLines: 2,
             maxLines: 5,
-            decoration: const InputDecoration(
-              labelText: 'Reason',
-              helperText: 'The reason is stored in the Host audit record.',
+            decoration: InputDecoration(
+              labelText: context.ventioText('native.ui.reason'),
+              helperText: context.ventioText(
+                'native.ui.extension_rejection_reason_help',
+              ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: const VentioText('native.ui.cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, controller.text),
-              child: const Text('Reject'),
+              child: const VentioText('native.ui.reject'),
             ),
           ],
         ),
@@ -148,10 +167,10 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Extension candidate review'),
+      title: const VentioText('native.ui.extension_candidate_review'),
       actions: [
         IconButton(
-          tooltip: 'Refresh candidates',
+          tooltip: context.ventioText('native.ui.refresh_candidates'),
           onPressed: _loading ? null : _load,
           icon: const Icon(Icons.refresh),
         ),
@@ -168,8 +187,8 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
                   const Card(
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Review declarative extension metadata and its digest before deciding. Ventio does not execute arbitrary package code. Decisions are recorded by the Host and become available to Clients only after approval.',
+                      child: VentioText(
+                        'native.ui.extension_review_explanation',
                       ),
                     ),
                   ),
@@ -179,14 +198,19 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Text(
-                          'Review could not be completed. Reference: $_error',
+                          context.ventioText(
+                            'native.ui.extension_review_failed',
+                            params: {'reference': _error},
+                          ),
                         ),
                       ),
                     ),
                   if (!_loading && _submissions.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(30),
-                      child: Center(child: Text('No pending candidates.')),
+                      child: Center(
+                        child: VentioText('native.ui.no_pending_candidates'),
+                      ),
                     ),
                   for (final item in _submissions) _candidateCard(item),
                 ],
@@ -211,21 +235,44 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            Text('Submitted by ${submission.submittedBy}'),
-            Text('Submitted ${submission.submittedAtUtc.toLocal()}'),
+            Text(
+              context.ventioText(
+                'native.ui.submitted_by',
+                params: {'actorId': submission.submittedBy},
+              ),
+            ),
+            Text(
+              context.ventioText(
+                'native.ui.submitted_at',
+                params: {'timestamp': submission.submittedAtUtc.toLocal()},
+              ),
+            ),
             const SizedBox(height: 8),
-            const Text('Package SHA-256'),
+            const VentioText('native.ui.package_sha256'),
             SelectableText(submission.packageSha256),
             const SizedBox(height: 10),
-            Text('Name: ${bundle.manifest.displayName}'),
-            Text('Document types: ${bundle.manifest.docTypes.join(', ')}'),
-            Text('Minimum platform API: ${bundle.manifest.minPlatformApi}'),
+            Text(
+              context.ventioText(
+                'native.ui.extension_name',
+                params: {'name': bundle.manifest.displayName},
+              ),
+            ),
+            Text(
+              context.ventioText(
+                'native.ui.document_types',
+                params: {'types': bundle.manifest.docTypes.join(', ')},
+              ),
+            ),
+            Text(
+              context.ventioText(
+                'native.ui.minimum_platform_api',
+                params: {'version': bundle.manifest.minPlatformApi},
+              ),
+            ),
             if (isSelf)
               const Padding(
                 padding: EdgeInsets.only(top: 12),
-                child: Text(
-                  'You submitted this candidate. A different authorized administrator must review it.',
-                ),
+                child: VentioText('native.ui.extension_self_review_blocked'),
               ),
             const SizedBox(height: 10),
             Wrap(
@@ -242,14 +289,14 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.verified_outlined),
-                  label: const Text('Approve'),
+                  label: const VentioText('native.ui.approve'),
                 ),
                 OutlinedButton.icon(
                   onPressed: isSelf || busy || _busyHash != null
                       ? null
                       : () => _review(submission, 'REJECT'),
                   icon: const Icon(Icons.block_outlined),
-                  label: const Text('Reject'),
+                  label: const VentioText('native.ui.reject'),
                 ),
               ],
             ),

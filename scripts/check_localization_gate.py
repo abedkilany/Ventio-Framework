@@ -12,7 +12,8 @@ from pathlib import Path
 KEY_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$")
 CATALOG_ENTRY_RE = re.compile(r"^\s*'([^']+)':\s*'((?:[^'\\]|\\.)*)'\s*,?\s*$", re.M)
 KEY_REFERENCE_RE = re.compile(
-    r"(?:VentioText|ventioText)\s*\(\s*['\"]([^'\"]+)['\"]"
+    r"(?:VentioText|ventioText)\s*\(\s*['\"]([^'\"]+)['\"]|"
+    r"_text\s*\(\s*['\"]([^'\"]+)['\"]"
 )
 STATIC_TEXT_RE = re.compile(
     r"\b(?:Text|SelectableText)\s*\(\s*(?:text\s*:\s*)?(['\"])(.*?)\1",
@@ -86,7 +87,13 @@ def scan_dart(source: str, source_name: str, catalog_keys: set[str]) -> list[str
             line = code.count("\n", 0, match.start()) + 1
             errors.append(f"{source_name}:{line}: hardcoded UI text {value!r}; use a catalog key")
     for match in KEY_REFERENCE_RE.finditer(code):
-        key = match.group(1)
+        key = match.group(1) or match.group(2)
+        if match.group(2):
+            if source_name != "lib/src/synchronization_page.dart":
+                continue
+            key = f"native.ui.{key}"
+        if "$" in key:
+            continue
         if key.startswith("native.ui.") and key not in catalog_keys:
             line = code.count("\n", 0, match.start()) + 1
             errors.append(f"{source_name}:{line}: missing English fallback for {key}")

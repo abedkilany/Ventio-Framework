@@ -1081,11 +1081,33 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
         ),
       ),
       subtitle: SelectableText(
-        '${context.ventioText('native.ui.credential_reissue_device', params: {'deviceId': result.deviceId})}\n'
-        '${context.ventioText('native.ui.credential_reissue_scope', params: {'tenantId': result.tenantId, 'actorId': result.actorId, 'companyId': result.companyId, 'branchId': result.branchId})}\n'
-        '${context.ventioText('native.ui.credential_reissue_permissions', params: {'permissions': result.permissions.join(', ')})}\n'
-        '${context.ventioText('native.ui.credential_reissue_expires', params: {'timestamp': _formatUtc(result.expiresAtUtc)})}\n'
-        '${context.ventioText('native.ui.credential_reissue_reference', params: {'operationId': result.operationId})}',
+        [
+          context.ventioText(
+            'native.ui.credential_reissue_device',
+            params: {'deviceId': result.deviceId},
+          ),
+          context.ventioText(
+            'native.ui.credential_reissue_scope',
+            params: {
+              'tenantId': result.tenantId,
+              'actorId': result.actorId,
+              'companyId': result.companyId,
+              'branchId': result.branchId,
+            },
+          ),
+          context.ventioText(
+            'native.ui.credential_reissue_permissions',
+            params: {'permissions': result.permissions.join(', ')},
+          ),
+          context.ventioText(
+            'native.ui.credential_reissue_expires',
+            params: {'timestamp': _formatUtc(result.expiresAtUtc)},
+          ),
+          context.ventioText(
+            'native.ui.credential_reissue_reference',
+            params: {'operationId': result.operationId},
+          ),
+        ].join('\n'),
       ),
     ),
   );

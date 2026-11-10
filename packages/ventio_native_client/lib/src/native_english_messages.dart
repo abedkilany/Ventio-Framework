@@ -1191,4 +1191,41 @@ const ventioNativeEnglishMessages = <String, String>{
       'The Host may have prepared this credential update, but Ventio could not confirm the result. Keep the device and local data intact, then retry with the same operation reference.',
   'native.ui.credential_reissue_failed':
       'The trusted credential update did not complete. Keep the existing device and local data intact and review the safe operation reference.',
+  'native.ui.render_failure_title': 'Ventio could not display this screen.',
+  'native.ui.render_failure_details':
+      'Open Local diagnostics from the workspace and copy the sanitized export.',
+  'native.ui.return_to_workspace': 'Return to workspace',
+  'native.ui.review_extension_candidates': 'Review extension candidates',
+  'native.ui.host_error_code': 'Host error code: {code}',
+  'native.ui.host_setup_intro_title':
+      'Set up this installation as a Ventio Host',
+  'native.ui.host_setup_intro_details':
+      'This guided setup provisions PostgreSQL, applies Host migrations, registers the Windows services, creates the first Host administrator through the trusted local service, stores its credential securely, and verifies readiness. Windows requests Administrator approval only for the protected setup component.',
+  'native.ui.approve_extension_candidate_title': 'Approve extension candidate?',
+  'native.ui.approve_extension_candidate_confirmation':
+      '{moduleId} {version} will become an approved Host release for this scope.',
+  'native.ui.extension_candidate_result': 'Candidate {result}.',
+  'native.ui.reject_extension_candidate_title': 'Reject extension candidate',
+  'native.ui.approve': 'Approve',
+  'native.ui.reject': 'Reject',
+  'native.ui.reason': 'Reason',
+  'native.ui.extension_rejection_reason_help':
+      'The reason is stored in the Host audit record.',
+  'native.ui.extension_candidate_review': 'Extension candidate review',
+  'native.ui.refresh_candidates': 'Refresh candidates',
+  'native.ui.extension_review_explanation':
+      'Review declarative extension metadata and its digest before deciding. Ventio does not execute arbitrary package code. Decisions are recorded by the Host and become available to Clients only after approval.',
+  'native.ui.extension_review_failed':
+      'Review could not be completed. Reference: {reference}',
+  'native.ui.no_pending_candidates': 'No pending candidates.',
+  'native.ui.submitted_by': 'Submitted by {actorId}',
+  'native.ui.submitted_at': 'Submitted {timestamp}',
+  'native.ui.package_sha256': 'Package SHA-256',
+  'native.ui.extension_name': 'Name: {name}',
+  'native.ui.document_types': 'Document types: {types}',
+  'native.ui.minimum_platform_api': 'Minimum platform API: {version}',
+  'native.ui.extension_self_review_blocked':
+      'You submitted this candidate. A different authorized administrator must review it.',
+  'native.ui.disable_on_device': 'Disable on device',
+  'native.ui.activate_on_device': 'Activate on device',
 };

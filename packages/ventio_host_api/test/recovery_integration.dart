@@ -191,17 +191,14 @@ Future<void> main() async {
     await a.event('barrier');
     final b = await host(stage: 'unused');
     final br = request(b, token, alpha);
-    final pid = (await b.event('executing'))['backend'];
     await waitFor(
-      () async =>
-          (await control!.execute(
-            pg.Sql.named(
-              "SELECT wait_event_type='Lock' FROM pg_stat_activity WHERE pid=@pid",
-            ),
-            parameters: {'pid': pid},
-          )).single[0] ==
-          true,
-      'duplicate reservation lock',
+      () async => (await control!.execute(
+        pg.Sql.named(
+          "SELECT pid FROM pg_stat_activity WHERE application_name=@app AND wait_event_type='Lock' LIMIT 1",
+        ),
+        parameters: {'app': b.applicationName},
+      )).isNotEmpty,
+      'concurrent Host lock wait',
     );
     final c = await host(stage: 'after_commit');
     final cr = request(c, token, beta);

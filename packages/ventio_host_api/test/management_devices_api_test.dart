@@ -72,6 +72,7 @@ class _DeviceGateway
           'credentials': [
             {
               'credentialId': credentialId,
+              'permissions': ['maintenance.create'],
               'state': 'ACTIVE',
               'expiresAtUtc': '2026-11-29T00:00:00.000Z',
               'revokedAtUtc': null,
