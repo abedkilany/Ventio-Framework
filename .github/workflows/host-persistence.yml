@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/host-persistence.yml'
+      - '.github/workflows/host-api.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_host/**'
       - 'packages/ventio_postgres/**'
@@ -14,6 +15,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/host-persistence.yml'
+      - '.github/workflows/host-api.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_host/**'
       - 'packages/ventio_postgres/**'
