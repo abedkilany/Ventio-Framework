@@ -143,6 +143,16 @@ void main() {
     testRootPath = p.normalize(tempRoot.path);
     testDirectory = await tempRoot.createTemp('ventio_extension_builder_');
     await openClientData();
+    // The native app opens first-run setup without a selected Host profile.
+    // This test exercises the Builder after that routing choice is complete.
+    await store.saveHostProfile(
+      const HostConnectionProfile(
+        endpoint: 'https://fixture.example.test',
+        tenantId: 'fixture-tenant',
+        companyId: 'fixture-company',
+        branchId: 'fixture-branch',
+      ),
+    );
   });
 
   tearDown(() async {
@@ -164,6 +174,7 @@ void main() {
         VentioClientApp(queue: queue, extensionStore: store),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(ExtensionStudioPage), findsOneWidget);
 
       await _scrollTo(tester, find.text('Create your first extension'));
       final createFirstExtension = find.text('Create your first extension');
