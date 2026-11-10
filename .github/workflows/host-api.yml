@@ -70,6 +70,8 @@ jobs:
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -f ..\..\security\postgres\test_logins.sql
+      - name: Run first-administrator and scoped user administration integration tests
+        run: dart run test/management_users_integration.dart
       - name: Run isolated HTTP and PostgreSQL integration tests
         run: dart run test/api_integration.dart
       - name: Run persistent identity and revocation integration tests
@@ -78,8 +80,6 @@ jobs:
         run: dart run test/database_security_integration.dart
       - name: Run scoped role administration tests
         run: dart run test/role_administration_integration.dart
-      - name: Run scoped user administration tests
-        run: dart run test/management_users_integration.dart
       - name: Run secure device pairing and enrollment integration tests
         run: dart run test/pairing_integration.dart
       - name: Run extension package approval, scope and recovery integration tests
