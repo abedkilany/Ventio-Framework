@@ -140,6 +140,7 @@ Future<void> main() async {
     String digest,
     Map<String, dynamic> body,
   ) async {
+    await authority.admit(tx);
     await const PostgresIdentityStore().resolve(
       tx,
       digest,
