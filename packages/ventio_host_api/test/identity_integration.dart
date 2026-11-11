@@ -754,6 +754,7 @@ Future<void> main() async {
     final admitted = raceHost.executeAuthorized(
       CommandEnvelope.fromJson(raceCommand),
       (tx) async {
+        await authority.admit(tx);
         final resolved = await const PostgresIdentityStore().resolve(
           tx,
           OpaqueToken.digest(raceToken),
@@ -784,9 +785,10 @@ Future<void> main() async {
     } finally {
       finishCommand.complete();
     }
+    final raceReceipt = await admitted;
     check(
-      (await admitted)['status'] == 'ACCEPTED',
-      'Command authorized before revocation commits once',
+      raceReceipt['status'] == 'ACCEPTED',
+      'Command authorized before revocation commits once: ${jsonEncode(raceReceipt)}',
     );
     await revoking;
     await raceConnection.close();
@@ -830,6 +832,7 @@ Future<void> main() async {
     final policyAccepted = policyHost.executeAuthorized(policyCommand, (
       tx,
     ) async {
+      await authority.admit(tx);
       final resolved = await const PostgresIdentityStore().resolve(
         tx,
         OpaqueToken.digest(policyToken),
