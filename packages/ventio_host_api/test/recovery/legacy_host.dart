@@ -34,6 +34,11 @@ Future<void> main() async {
         )
         .toString();
     Future<pg.Connection> connect() => pg.Connection.openFromUrl(boundedUrl);
+    final authorityPath =
+        Platform.environment['VENTIO_RECOVERY_AUTHORITY_FILE'];
+    final authority = authorityPath == null
+        ? null
+        : RecoveryAuthority(authorityPath);
     final probe = await connect();
     try {
       await verifyRuntimeConnection(probe);
@@ -43,9 +48,13 @@ Future<void> main() async {
     final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
-      authenticator: PersistentTokenAuthenticator(connect: connect),
+      authenticator: PersistentTokenAuthenticator(
+        connect: connect,
+        admission: authority,
+      ),
       executor: PersistentCommandExecutor(
         connect: connect,
+        admission: authority,
         modules: prototype.modules,
         docTypes: prototype.docTypes,
         bindings: const [

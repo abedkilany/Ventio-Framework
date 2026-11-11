@@ -70,7 +70,7 @@ jobs:
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -f ..\..\security\postgres\test_logins.sql
-      # Run identity suites after first-admin policy is established.
+      # Run the first-admin bootstrap before tenant-owned integration fixtures.
       - name: Run first-administrator and scoped user administration integration tests
         run: dart run test/management_users_integration.dart
       - name: Run isolated HTTP and PostgreSQL integration tests

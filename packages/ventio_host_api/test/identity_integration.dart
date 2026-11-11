@@ -80,24 +80,36 @@ Future<void> main() async {
       pg.Connection.openFromUrl(runtimeUrl);
   final db = await connect();
   final adminConnection = await pg.Connection.openFromUrl(administrationUrl);
+  final authorityDirectory = await createPrivateTestDirectory(
+    'ventio-identity-integration-',
+  );
+  final authority = RecoveryAuthority(
+    '${authorityDirectory.path}/authority.json',
+  );
   final tenant = 'identity-${DateTime.now().microsecondsSinceEpoch}';
   final otherTenant = '$tenant-other';
   final admin = IdentityAdministration(
     connection: adminConnection,
     tenantId: tenant,
     operatorLabel: 'integration-operator',
+    authority: authority,
   );
   final otherAdmin = IdentityAdministration(
     connection: adminConnection,
     tenantId: otherTenant,
     operatorLabel: 'integration-operator',
+    authority: authority,
   );
   final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
-  final authenticator = PersistentTokenAuthenticator(connect: runtimeConnect);
+  final authenticator = PersistentTokenAuthenticator(
+    connect: runtimeConnect,
+    admission: authority,
+  );
   PersistentCommandExecutor executor({
     Future<pg.Connection> Function()? open,
   }) => PersistentCommandExecutor(
     connect: open ?? runtimeConnect,
+    admission: authority,
     modules: prototype.modules,
     docTypes: prototype.docTypes,
     bindings: const [
@@ -118,26 +130,19 @@ Future<void> main() async {
     required DateTime expiresAt,
     required List<Map<String, Object?>> allowedScopes,
   }) async {
-    final token = OpaqueToken.generate();
-    await administration.connection.execute(
-      pg.Sql.named(
-        'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
-      ),
-      parameters: {
-        'change': jsonEncode({
-          'tenantId': administration.tenantId,
-          'operatorLabel': administration.operatorLabel,
-          'action': 'CREDENTIAL_PROVISIONED',
-          'actorId': actorId,
-          'deviceId': deviceId,
-          'credentialId': credentialId,
-          'tokenDigest': OpaqueToken.digest(token),
-          'expiresAt': expiresAt.toUtc().toIso8601String(),
-          'allowedScopes': allowedScopes,
-        }),
-      },
+    final outputPath =
+        '${authorityDirectory.path}/credential-${OpaqueToken.generate()}.json';
+    await administration.provisionToFile(
+      actorId: actorId,
+      deviceId: deviceId,
+      credentialId: credentialId,
+      expiresAt: expiresAt,
+      allowedScopes: allowedScopes,
+      outputPath: outputPath,
     );
-    return token;
+    final credential =
+        jsonDecode(await PrivateFiles.read(outputPath)) as Map<String, dynamic>;
+    return credential['token'] as String;
   }
 
   Future<String> provision(
@@ -225,6 +230,10 @@ Future<void> main() async {
       db,
       Directory('../../migrations/postgres'),
     ).apply();
+    await authority.resetForReenrollment(
+      adminConnection,
+      'identity-integration-reset',
+    );
     final token = await provision(admin, 'user-001', 'device-001', 'primary');
     final secondToken = await issueScopedCredential(
       admin,
@@ -337,33 +346,19 @@ Future<void> main() async {
           ),
       'Assigned role contributes permissions only at each assigned scope',
     );
-    final scopedRoleToken = OpaqueToken.generate();
-    await adminConnection.execute(
-      pg.Sql.named(
-        'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
-      ),
-      parameters: {
-        'change': jsonEncode({
-          'tenantId': tenant,
-          'operatorLabel': 'integration-operator',
-          'action': 'CREDENTIAL_PROVISIONED',
-          'actorId': 'role-user',
-          'deviceId': 'role-device',
-          'credentialId': 'role-credential-scoped',
-          'tokenDigest': OpaqueToken.digest(scopedRoleToken),
-          'expiresAt': DateTime.now()
-              .toUtc()
-              .add(const Duration(hours: 1))
-              .toIso8601String(),
-          'allowedScopes': [
-            {
-              'companyId': 'company-001',
-              'branchId': 'branch-001',
-              'permissions': ['maintenance.create'],
-            },
-          ],
-        }),
-      },
+    final scopedRoleToken = await issueScopedCredential(
+      admin,
+      actorId: 'role-user',
+      deviceId: 'role-device',
+      credentialId: 'role-credential-scoped',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create'],
+        },
+      ],
     );
     final scopedRoleSession = (await authenticator.authenticate(
       scopedRoleToken,
@@ -1077,6 +1072,7 @@ Future<void> main() async {
           'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
           'VENTIO_ENABLE_LOCAL_HOST': 'yes',
           'VENTIO_TEST_ALLOW_STDIN_SHUTDOWN': 'yes',
+          'VENTIO_RECOVERY_AUTHORITY_FILE': authority.path,
           'VENTIO_HOST_DATABASE_URL': runtimeUrl,
           'VENTIO_HOST_PORT': '0',
         },
@@ -1232,29 +1228,34 @@ Future<void> main() async {
   } finally {
     child?.kill(ProcessSignal.sigkill);
     await api?.close();
-    // Only these two generated test tenants are removed from the disposable DB.
-    for (final table in [
-      'ventio_outbox',
-      'ventio_audit_entries',
-      'ventio_command_journal',
-      'ventio_records',
-      'ventio_identity_audit',
-      'ventio_identity_role_assignments',
-      'ventio_identity_role_permissions',
-      'ventio_identity_roles',
-      'ventio_identity_grants',
-      'ventio_identity_credentials',
-      'ventio_identity_device_activity',
-      'ventio_identity_devices',
-      'ventio_identity_users',
-      'ventio_identity_branches',
-    ]) {
-      await db.execute(
-        pg.Sql.named('DELETE FROM $table WHERE tenant_id IN (@tenant, @other)'),
-        parameters: {'tenant': tenant, 'other': otherTenant},
-      );
-    }
+    // Only these generated test tenants are removed, under Recovery Authority.
+    await authority.change(db, (tx) async {
+      for (final table in [
+        'ventio_outbox',
+        'ventio_audit_entries',
+        'ventio_command_journal',
+        'ventio_records',
+        'ventio_identity_audit',
+        'ventio_identity_role_assignments',
+        'ventio_identity_role_permissions',
+        'ventio_identity_roles',
+        'ventio_identity_grants',
+        'ventio_identity_credentials',
+        'ventio_identity_device_activity',
+        'ventio_identity_devices',
+        'ventio_identity_users',
+        'ventio_identity_branches',
+      ]) {
+        await tx.execute(
+          pg.Sql.named(
+            'DELETE FROM $table WHERE tenant_id IN (@tenant, @other)',
+          ),
+          parameters: {'tenant': tenant, 'other': otherTenant},
+        );
+      }
+    });
     await adminConnection.close();
     await db.close();
+    await authorityDirectory.delete(recursive: true);
   }
 }
