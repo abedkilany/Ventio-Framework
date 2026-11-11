@@ -582,6 +582,14 @@ Future<void> main() async {
               .toString(),
         },
       ).timeout(const Duration(seconds: 120));
+      if (result.exitCode != 0) {
+        stderr.writeln(
+          'RESTORED $suite exited with status ${result.exitCode}; stdout:',
+        );
+        stderr.write(result.stdout);
+        stderr.writeln('RESTORED $suite stderr:');
+        stderr.write(result.stderr);
+      }
       check(result.exitCode == 0, 'Full $suite passes on restored cluster');
       for (final line in (result.stdout as String).split('\n')) {
         if (line.startsWith('RESULT:')) stdout.writeln('RESTORED $line');
