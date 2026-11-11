@@ -159,28 +159,6 @@ BEGIN
   IF NOT FOUND OR d.revoked_at IS NOT NULL THEN RETURN NULL; END IF;
   SELECT * INTO c FROM public.ventio_identity_credentials WHERE token_digest = p_digest FOR SHARE;
   IF NOT FOUND OR c.revoked_at IS NOT NULL OR c.expires_at <= clock_timestamp() THEN RETURN NULL; END IF;
-  -- Activity is non-authority telemetry stored separately from Recovery-
-  -- protected identity rows, so normal authentication never advances the
-  -- Recovery Authority generation or grants clients table write access.
-  INSERT INTO public.ventio_identity_device_activity AS activity
-    (tenant_id,device_id,actor_id,last_authenticated_at,authentication_count)
-    VALUES (c.tenant_id,c.device_id,c.actor_id,clock_timestamp(),1)
-    ON CONFLICT (tenant_id,device_id) DO UPDATE
-      SET last_authenticated_at=EXCLUDED.last_authenticated_at,
-          authentication_count=activity.authentication_count+1
-      WHERE activity.actor_id=EXCLUDED.actor_id
-        AND activity.last_authenticated_at<clock_timestamp()-interval '1 minute';
-  -- This single-row telemetry table is deliberately not part of the Recovery
-  -- Authority mutation set. It grants no authority and stores no credentials.
-  INSERT INTO public.ventio_identity_device_activity
-    (tenant_id,device_id,actor_id,last_authenticated_at,authentication_count)
-    VALUES (c.tenant_id,c.device_id,c.actor_id,clock_timestamp(),1)
-    ON CONFLICT (tenant_id,device_id) DO UPDATE
-      SET last_authenticated_at=EXCLUDED.last_authenticated_at,
-          authentication_count=public.ventio_identity_device_activity.authentication_count+1
-      WHERE public.ventio_identity_device_activity.actor_id=EXCLUDED.actor_id
-        AND public.ventio_identity_device_activity.last_authenticated_at
-          < clock_timestamp()-interval '1 minute';
   -- Locks prevent an in-flight command from racing a role or grant revocation.
   PERFORM 1 FROM public.ventio_identity_grants
     WHERE tenant_id=c.tenant_id AND actor_id=c.actor_id FOR SHARE;
@@ -418,6 +396,21 @@ BEGIN
   PERFORM set_config('ventio.extension_policy_snapshot', '', true);
   PERFORM set_config('ventio.extension_context_proof', '', true);
   result := ventio_security.identity_snapshot(p_digest, p_company, p_branch);
+  -- Authentication telemetry is recorded only by the authentication lookup.
+  -- The command transaction resolves identity again under locks, but must not
+  -- contend on this non-authority row while another command is in flight.
+  IF result IS NOT NULL AND p_type IS NULL AND p_version IS NULL AND
+      p_command IS NULL AND p_aggregate IS NULL THEN
+    INSERT INTO public.ventio_identity_device_activity
+      (tenant_id,device_id,actor_id,last_authenticated_at,authentication_count)
+      VALUES (result->>'tenantId',result->>'deviceId',result->>'actorId',clock_timestamp(),1)
+      ON CONFLICT (tenant_id,device_id) DO UPDATE
+        SET last_authenticated_at=EXCLUDED.last_authenticated_at,
+            authentication_count=public.ventio_identity_device_activity.authentication_count+1
+        WHERE public.ventio_identity_device_activity.actor_id=EXCLUDED.actor_id
+          AND public.ventio_identity_device_activity.last_authenticated_at
+            < clock_timestamp()-interval '1 minute';
+  END IF;
   IF result IS NOT NULL AND p_company IS NOT NULL AND p_branch IS NOT NULL THEN
     PERFORM set_config('ventio.credential_digest', p_digest, true);
     PERFORM set_config('ventio.company_id', p_company, true);
