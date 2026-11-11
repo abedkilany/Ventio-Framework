@@ -469,12 +469,26 @@ Future<void> main() async {
       'branch-002',
       'maintenance.create',
     );
+    final secondBranchToken = await issueScopedCredential(
+      admin,
+      actorId: 'user-001',
+      deviceId: 'device-001',
+      credentialId: 'second-branch',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-002',
+          'branchId': 'branch-002',
+          'permissions': ['maintenance.create'],
+        },
+      ],
+    );
     final pair = scoped(tenant, 3)
       ..['companyId'] = 'company-002'
       ..['branchId'] = 'branch-002';
     check(
-      (await submit(token, pair)).status == 200,
-      'An explicitly granted second company and branch is accepted',
+      (await submit(secondBranchToken, pair)).status == 200,
+      'A separate credential with the second branch scope is accepted',
     );
     await mustFail(
       () => admin.grant(
