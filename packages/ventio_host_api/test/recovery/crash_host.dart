@@ -8,6 +8,33 @@ import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host/ventio_host.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
+class DiagnosticAuthenticator implements PersistentHostAuthenticator {
+  final PersistentTokenAuthenticator inner;
+
+  const DiagnosticAuthenticator(this.inner);
+
+  @override
+  Future<AuthenticatedSession?> authenticate(String token) async {
+    try {
+      return await inner.authenticate(token);
+    } on pg.ServerException catch (error) {
+      final code = error.code;
+      final safeCode = code != null && RegExp(r'^[0-9A-Z]{5}$').hasMatch(code)
+          ? code
+          : 'unknown';
+      stderr.writeln(
+        'VENTIO_HOST_TEST_DIAGNOSTIC: PostgreSQL authenticator failure $safeCode',
+      );
+      rethrow;
+    } catch (error) {
+      stderr.writeln(
+        'VENTIO_HOST_TEST_DIAGNOSTIC: authenticator failure ${error.runtimeType}',
+      );
+      rethrow;
+    }
+  }
+}
+
 class CrashExecutor implements CommandExecutor {
   final Future<pg.Connection> Function() connect;
   final MaintenancePrototype prototype;
@@ -101,8 +128,10 @@ Future<void> main() async {
     if (line == 'resume' && !resume.isCompleted) resume.complete();
   });
   final api = await HostApi.bind(
-    authenticator: PersistentTokenAuthenticator(
-      connect: () => pg.Connection.openFromUrl(url),
+    authenticator: DiagnosticAuthenticator(
+      PersistentTokenAuthenticator(
+        connect: () => pg.Connection.openFromUrl(url),
+      ),
     ),
     executor: CrashExecutor(
       () => pg.Connection.openFromUrl(executionUrl),
