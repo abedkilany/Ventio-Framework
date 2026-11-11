@@ -243,7 +243,11 @@ BEGIN
       'FOR EACH STATEMENT EXECUTE FUNCTION ventio_security.lock_recovery_mutation()', t);
     EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_mark ON public.%I', t);
     EXECUTE format('CREATE TRIGGER ventio_recovery_mark '
-      'AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON public.%I '
+      'AFTER INSERT OR UPDATE OR DELETE ON public.%I '
+      'FOR EACH ROW EXECUTE FUNCTION ventio_security.mark_recovery_mutation()', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_truncate_mark ON public.%I', t);
+    EXECUTE format('CREATE TRIGGER ventio_recovery_truncate_mark '
+      'AFTER TRUNCATE ON public.%I '
       'FOR EACH STATEMENT EXECUTE FUNCTION ventio_security.mark_recovery_mutation()', t);
   END LOOP;
 
