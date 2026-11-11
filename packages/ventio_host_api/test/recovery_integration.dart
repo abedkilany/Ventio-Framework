@@ -188,7 +188,7 @@ Future<void> main() async {
       ..['branchId'] = 'branch-002';
     final a = await host(stage: 'before_commit');
     final ar = request(a, token, alpha);
-    await a.event('barrier');
+    await _barrierBeforeResponse(a, ar);
     final b = await host(stage: 'unused');
     final br = request(b, token, alpha);
     await waitFor(
@@ -202,7 +202,7 @@ Future<void> main() async {
     );
     final c = await host(stage: 'after_commit');
     final cr = request(c, token, beta);
-    await c.event('barrier');
+    await _barrierBeforeResponse(c, cr);
     final betaReceipt = await savedReceipt(control, beta);
     await Future.wait([kill(a), kill(c)]);
     await Future.wait([ar, cr]);
@@ -602,6 +602,21 @@ Future<void> main() async {
     await control?.close();
     await fixture.close();
   }
+}
+
+Future<void> _barrierBeforeResponse(
+  TestHost host,
+  Future<HttpOutcome> response,
+) async {
+  await Future.any<void>([
+    host.event('barrier'),
+    response.then<void>((outcome) {
+      throw StateError(
+        'Host request returned before its crash barrier '
+        '(status: ${outcome.status}, code: ${outcome.body?['code']})',
+      );
+    }),
+  ]);
 }
 
 Future<String> provisionWith(

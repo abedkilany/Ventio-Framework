@@ -120,8 +120,12 @@ class TestHost {
           'Host exited with status $exitCode before $name$diagnostic',
         );
       }
-      if (DateTime.now().isAfter(deadline))
-        throw StateError('Host event timed out: $name');
+      if (DateTime.now().isAfter(deadline)) {
+        final observed = _events.map((event) => event['event']).join(', ');
+        throw StateError(
+          'Host event timed out: $name (observed: ${observed.isEmpty ? 'none' : observed})',
+        );
+      }
       // A short bounded poll avoids losing a signal between inspection/listen.
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
