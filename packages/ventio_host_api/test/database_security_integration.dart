@@ -140,7 +140,14 @@ Future<void> main() async {
     String digest,
     Map<String, dynamic> body,
   ) async {
-    await authority.admit(tx);
+    try {
+      await authority.admit(tx);
+    } on pg.ServerException catch (error) {
+      final diagnostic = await authority.inspectSchemaUpgradeAdmission(owner);
+      throw StateError(
+        'Test Recovery Authority admission failed (${diagnostic.name}): ${error.message}',
+      );
+    }
     await const PostgresIdentityStore().resolve(
       tx,
       digest,
