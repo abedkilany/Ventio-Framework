@@ -52,14 +52,30 @@ class CrashExecutor implements CommandExecutor {
               'MaintenanceRequest',
             ),
           );
-      return await host.executeAuthorized(
-        command,
-        (tx) => const PostgresIdentityStore().resolve(
-          tx,
-          session.credentialDigest!,
-          command: command,
-        ),
-      );
+      try {
+        return await host.executeAuthorized(
+          command,
+          (tx) => const PostgresIdentityStore().resolve(
+            tx,
+            session.credentialDigest!,
+            command: command,
+          ),
+        );
+      } on pg.ServerException catch (error) {
+        final code = error.code;
+        final safeCode = code != null && RegExp(r'^[0-9A-Z]{5}$').hasMatch(code)
+            ? code
+            : 'unknown';
+        stderr.writeln(
+          'VENTIO_HOST_TEST_DIAGNOSTIC: PostgreSQL executor failure $safeCode',
+        );
+        rethrow;
+      } catch (error) {
+        stderr.writeln(
+          'VENTIO_HOST_TEST_DIAGNOSTIC: executor failure ${error.runtimeType}',
+        );
+        rethrow;
+      }
     } finally {
       await connection.close();
     }

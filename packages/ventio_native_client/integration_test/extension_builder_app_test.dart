@@ -319,10 +319,15 @@ void main() {
       expect(find.text('Windows device'), findsOneWidget);
       expect(find.text('Quantity'), findsNothing);
 
-      await tester.pageBack();
+      await Navigator.of(
+        tester.element(find.byType(DynamicRecordDetailsPage)),
+      ).maybePop();
       await tester.pumpAndSettle();
-      await tester.pageBack();
+      await Navigator.of(
+        tester.element(find.byType(DynamicDocTypePage)),
+      ).maybePop();
       await tester.pumpAndSettle();
+      expect(find.byType(ExtensionDetailsPage), findsOneWidget);
       await _scrollToTop(tester);
       await _waitForWidget(tester, find.text('Edit extension details'));
       await _scrollTo(tester, find.text('Disable on device'));

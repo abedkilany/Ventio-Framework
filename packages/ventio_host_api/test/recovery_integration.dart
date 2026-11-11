@@ -611,9 +611,13 @@ Future<void> _barrierBeforeResponse(
   await Future.any<void>([
     host.event('barrier'),
     response.then<void>((outcome) {
+      final error = outcome.body?['error'];
+      final code = error is Map ? error['code'] : null;
       throw StateError(
         'Host request returned before its crash barrier '
-        '(status: ${outcome.status}, code: ${outcome.body?['code']})',
+        '(status: ${outcome.status}, code: $code, '
+        'events: ${host.observedEvents.isEmpty ? 'none' : host.observedEvents}, '
+        'diagnostics: ${host.safeDiagnostics.isEmpty ? 'none' : host.safeDiagnostics})',
       );
     }),
   ]);

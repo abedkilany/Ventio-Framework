@@ -45,6 +45,12 @@ class TestHost {
           }
         }, onError: (Object _) {});
   }
+
+  String get observedEvents =>
+      _events.map((event) => event['event']).join(', ');
+
+  String get safeDiagnostics => _safeDiagnostics.join('; ');
+
   static Future<TestHost> attach(Process process) async {
     final host = TestHost._(process, '');
     host.port = (await host.event('ready'))['port'] as int;
@@ -121,7 +127,7 @@ class TestHost {
         );
       }
       if (DateTime.now().isAfter(deadline)) {
-        final observed = _events.map((event) => event['event']).join(', ');
+        final observed = observedEvents;
         throw StateError(
           'Host event timed out: $name (observed: ${observed.isEmpty ? 'none' : observed})',
         );
