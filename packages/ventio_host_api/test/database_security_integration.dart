@@ -92,6 +92,8 @@ Future<void> main() async {
     required String deviceId,
     required String credentialId,
     required DateTime expiresAt,
+    String companyId = 'company-001',
+    String branchId = 'branch-001',
   }) async {
     final outputPath =
         '${authorityDirectory.path}/credential-${credentialNumber++}.json';
@@ -102,8 +104,8 @@ Future<void> main() async {
       expiresAt: expiresAt,
       allowedScopes: [
         {
-          'companyId': 'company-001',
-          'branchId': 'branch-001',
+          'companyId': companyId,
+          'branchId': branchId,
           'permissions': ['maintenance.create'],
         },
       ],
@@ -421,13 +423,23 @@ Future<void> main() async {
       'branch-002',
       'maintenance.create',
     );
+    final secondBranchToken = await issue(
+      admin,
+      actorId: 'user-001',
+      deviceId: 'device-001',
+      credentialId: 'credential-second-branch',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      companyId: 'company-002',
+      branchId: 'branch-002',
+    );
+    final secondBranchPrincipal = (await auth.authenticate(secondBranchToken))!;
     final anotherBranch = command(tenant, id: 2)
       ..['companyId'] = 'company-002'
       ..['branchId'] = 'branch-002';
     check(
       (await executor.execute(
             CommandEnvelope.fromJson(anotherBranch),
-            principal,
+            secondBranchPrincipal,
           ))['status'] ==
           'ACCEPTED',
       'Second registered company and branch remain compatible',
