@@ -182,6 +182,8 @@ Future<void> main() async {
       'branch-002',
       'maintenance.create',
     );
+    await administration.close();
+    administration = null;
     final alpha = next();
     final beta = next()
       ..['companyId'] = 'company-002'
@@ -315,7 +317,7 @@ Future<void> main() async {
     final afterResponse = request(afterHost, token, after);
     await afterHost.event('barrier');
     final afterReceipt = await savedReceipt(control, after);
-    await administration.close();
+    await administration?.close();
     administration = null;
     await control.close();
     control = null;

@@ -23,7 +23,7 @@ class DiagnosticAuthenticator implements PersistentHostAuthenticator {
           extract(epoch FROM clock_timestamp()-xact_start)::integer
         FROM pg_stat_activity
         WHERE datname=current_database() AND pid<>pg_backend_pid()
-          AND application_name LIKE 'ventio-recovery-%'
+          AND (state='idle in transaction' OR wait_event_type='Lock')
         ORDER BY xact_start NULLS LAST
         LIMIT 12
       ''');
