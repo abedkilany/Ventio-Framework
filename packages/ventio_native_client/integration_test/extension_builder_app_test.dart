@@ -323,8 +323,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await _waitForWidget(tester, find.text('Edit extension details'));
       await _scrollToTop(tester);
+      await _waitForWidget(tester, find.text('Edit extension details'));
       await _scrollTo(tester, find.text('Disable on device'));
       await tester.tap(find.text('Disable on device'));
       await tester.pumpAndSettle();
