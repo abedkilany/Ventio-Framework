@@ -593,6 +593,7 @@ Future<void> main() async {
         connection: adminConnection,
         tenantId: tenant,
         operatorLabel: 'rollback-test',
+        authority: authority,
       );
       await mustFail(
         () => brokenAudit.revokeDevice('device-001'),
@@ -733,6 +734,7 @@ Future<void> main() async {
       connection: revocationConnection,
       tenantId: tenant,
       operatorLabel: 'race-operator',
+      authority: authority,
     );
     final revoking = revoker.revokeDevice('race-device');
     try {
@@ -807,6 +809,7 @@ Future<void> main() async {
       connection: policyAdminConnection,
       tenantId: tenant,
       operatorLabel: 'policy-operator',
+      authority: authority,
     );
     final changingPolicy = policyAdmin.revokeGrant(
       'policy-user',
