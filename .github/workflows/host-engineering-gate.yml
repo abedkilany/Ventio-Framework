@@ -63,6 +63,7 @@ jobs:
         working-directory: packages/ventio_host_api
     steps:
       - name: Verify PostgreSQL is published only on loopback
+        working-directory: ${{ github.workspace }}
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
           POSTGRES_HOST_PORT: ${{ job.services.postgres.ports['5432'] }}
