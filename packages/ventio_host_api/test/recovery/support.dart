@@ -191,10 +191,14 @@ Future<HttpOutcome> request(
   }
 }
 
-Future<void> waitFor(Future<bool> Function() condition, String label) async {
+Future<void> waitFor(
+  Future<bool> Function() condition,
+  String label, {
+  Duration timeout = const Duration(seconds: 15),
+}) async {
   final watch = Stopwatch()..start();
   while (!await condition()) {
-    if (watch.elapsed > const Duration(seconds: 15))
+    if (watch.elapsed > timeout)
       throw StateError('Timed out: $label');
     await Future<void>.delayed(const Duration(milliseconds: 30));
   }
