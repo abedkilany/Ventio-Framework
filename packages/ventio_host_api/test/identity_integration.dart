@@ -46,11 +46,14 @@ Future<void> mustFail(Future<void> Function() action, String label) async {
   check(failed, label);
 }
 
-Future<void> waitUntil(Future<bool> Function() condition, String label) async {
+Future<void> waitUntil(
+  Future<bool> Function() condition,
+  String label, {
+  Duration timeout = const Duration(seconds: 8),
+}) async {
   final watch = Stopwatch()..start();
   while (!await condition()) {
-    if (watch.elapsed > const Duration(seconds: 8))
-      throw StateError('Timed out: $label');
+    if (watch.elapsed > timeout) throw StateError('Timed out: $label');
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
 }
@@ -644,7 +647,7 @@ Future<void> main() async {
       actorId: 'expiry-user',
       deviceId: 'expiry-device',
       credentialId: 'expiring',
-      expiresAt: expiry.add(const Duration(seconds: 10)),
+      expiresAt: expiry.add(const Duration(seconds: 30)),
       allowedScopes: [
         {
           'companyId': 'company-001',
@@ -653,11 +656,11 @@ Future<void> main() async {
         },
       ],
     );
+    final expiringSession = await authenticator.authenticate(expiringToken);
     check(
-      await authenticator.authenticate(expiringToken) != null,
+      expiringSession != null,
       'Time-limited credential authenticates before expiry',
     );
-    final expiringSession = (await authenticator.authenticate(expiringToken))!;
     final lockConnection = await connect();
     final commandConnection = await runtimeConnect();
     final commandPid =
@@ -676,11 +679,24 @@ Future<void> main() async {
       await unlock.future;
     });
     await locked.future;
+    await waitUntil(
+      () async =>
+          (await db.execute(
+                pg.Sql.named('''
+                  SELECT expires_at <= clock_timestamp() + interval '2 seconds'
+                  FROM ventio_identity_credentials WHERE token_digest = @digest
+                '''),
+                parameters: {'digest': OpaqueToken.digest(expiringToken)},
+              )).single[0]
+              as bool,
+      'Credential approaches expiry before the delayed command starts',
+      timeout: const Duration(seconds: 35),
+    );
     final delayedExpiry = executor(open: () async => commandConnection).execute(
       CommandEnvelope.fromJson(
         scoped(tenant, 5, actor: 'expiry-user', device: 'expiry-device'),
       ),
-      expiringSession,
+      expiringSession!,
     );
     try {
       await waitUntil(
