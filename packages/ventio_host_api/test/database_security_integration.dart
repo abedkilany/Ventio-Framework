@@ -834,6 +834,14 @@ Future<void> main() async {
     );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
+    // The final permitted direct SQL proof above is intentionally outside
+    // Recovery Authority and advances the database fingerprint. Re-enroll the
+    // disposable fixture before authority-managed cleanup instead of adopting
+    // that external mutation as trusted state.
+    await authority.resetForReenrollment(
+      administration,
+      'database-security-integration-cleanup-reset',
+    );
     await authority.change(owner, (tx) async {
       for (final table in [
         'ventio_outbox',
