@@ -449,7 +449,7 @@ Future<void> main() async {
       ..['branchId'] = 'branch-002';
     final hiddenReply = await executor.execute(
       CommandEnvelope.fromJson(hiddenCollision),
-      principal,
+      secondBranchPrincipal,
     );
     check(
       hiddenReply['reasonCode'] == 'COMMAND_ID_REUSED' &&
