@@ -729,9 +729,9 @@ Future<void> main() async {
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'sql-expiring',
-      expiresAt: expiration.add(const Duration(seconds: 2)),
+      expiresAt: expiration.add(const Duration(seconds: 30)),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 2100));
+    await Future<void>.delayed(const Duration(milliseconds: 30100));
     await runtime.runTx((tx) async {
       await bind(tx, OpaqueToken.digest(expiringToken), foreignBody);
       check(
