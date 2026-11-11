@@ -313,8 +313,10 @@ void main() {
       await tester.tap(find.text('Save on device'));
       await tester.pumpAndSettle();
       expect(find.text('Windows device'), findsOneWidget);
+      await _scrollTo(tester, find.text('Windows device'));
       await tester.tap(find.text('Windows device'));
       await tester.pumpAndSettle();
+      expect(find.byType(DynamicRecordDetailsPage), findsOneWidget);
       expect(find.text('Name'), findsOneWidget);
       expect(find.text('Windows device'), findsOneWidget);
       expect(find.text('Quantity'), findsNothing);

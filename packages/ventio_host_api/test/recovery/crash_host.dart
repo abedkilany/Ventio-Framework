@@ -10,8 +10,32 @@ import 'package:ventio_host_api/ventio_host_api.dart';
 
 class DiagnosticAuthenticator implements PersistentHostAuthenticator {
   final PersistentTokenAuthenticator inner;
+  final Future<pg.Connection> Function() connect;
 
-  const DiagnosticAuthenticator(this.inner);
+  const DiagnosticAuthenticator(this.inner, this.connect);
+
+  Future<String> _activitySnapshot() async {
+    pg.Connection? connection;
+    try {
+      connection = await connect();
+      final rows = await connection.execute('''
+        SELECT application_name, state, wait_event_type, wait_event,
+          extract(epoch FROM clock_timestamp()-xact_start)::integer
+        FROM pg_stat_activity
+        WHERE datname=current_database() AND pid<>pg_backend_pid()
+          AND application_name LIKE 'ventio-recovery-%'
+        ORDER BY xact_start NULLS LAST
+        LIMIT 12
+      ''');
+      return rows
+          .map((row) => '${row[0]}:${row[1]}:${row[2]}:${row[3]}:tx${row[4]}')
+          .join(', ');
+    } catch (_) {
+      return 'unavailable';
+    } finally {
+      await connection?.close();
+    }
+  }
 
   @override
   Future<AuthenticatedSession?> authenticate(String token) async {
@@ -23,7 +47,8 @@ class DiagnosticAuthenticator implements PersistentHostAuthenticator {
           ? code
           : 'unknown';
       stderr.writeln(
-        'VENTIO_HOST_TEST_DIAGNOSTIC: PostgreSQL authenticator failure $safeCode',
+        'VENTIO_HOST_TEST_DIAGNOSTIC: PostgreSQL authenticator failure '
+        '$safeCode; activity ${await _activitySnapshot()}',
       );
       rethrow;
     } catch (error) {
@@ -132,6 +157,7 @@ Future<void> main() async {
       PersistentTokenAuthenticator(
         connect: () => pg.Connection.openFromUrl(url),
       ),
+      () => pg.Connection.openFromUrl(url),
     ),
     executor: CrashExecutor(
       () => pg.Connection.openFromUrl(executionUrl),
