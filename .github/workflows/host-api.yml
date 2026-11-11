@@ -70,7 +70,7 @@ jobs:
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -f ..\..\security\postgres\test_logins.sql
-      # Preserve the first-administrator invariant before any identity fixtures run.
+      # Bootstrap first so later identity fixtures test scoped credential creation.
       - name: Run first-administrator and scoped user administration integration tests
         run: dart run test/management_users_integration.dart
       - name: Run isolated HTTP and PostgreSQL integration tests

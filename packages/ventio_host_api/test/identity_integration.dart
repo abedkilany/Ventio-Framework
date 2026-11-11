@@ -110,6 +110,36 @@ Future<void> main() async {
   Process? child;
   Future<Reply> submit(String token, Map<String, dynamic> body) =>
       send(api!, token: token, body: body);
+  Future<String> issueScopedCredential(
+    IdentityAdministration administration, {
+    required String actorId,
+    required String deviceId,
+    required String credentialId,
+    required DateTime expiresAt,
+    required List<Map<String, Object?>> allowedScopes,
+  }) async {
+    final token = OpaqueToken.generate();
+    await administration.connection.execute(
+      pg.Sql.named(
+        'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
+      ),
+      parameters: {
+        'change': jsonEncode({
+          'tenantId': administration.tenantId,
+          'operatorLabel': administration.operatorLabel,
+          'action': 'CREDENTIAL_PROVISIONED',
+          'actorId': actorId,
+          'deviceId': deviceId,
+          'credentialId': credentialId,
+          'tokenDigest': OpaqueToken.digest(token),
+          'expiresAt': expiresAt.toUtc().toIso8601String(),
+          'allowedScopes': allowedScopes,
+        }),
+      },
+    );
+    return token;
+  }
+
   Future<String> provision(
     IdentityAdministration administration,
     String actor,
@@ -132,12 +162,20 @@ Future<void> main() async {
       'branch-001',
       'maintenance.read',
     );
-    return administration.issueCredential(
+    return issueScopedCredential(
+      administration,
       actorId: actor,
       deviceId: device,
       credentialId: credential,
       expiresAt:
           expiresAt ?? DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
   }
 
@@ -188,11 +226,19 @@ Future<void> main() async {
       Directory('../../migrations/postgres'),
     ).apply();
     final token = await provision(admin, 'user-001', 'device-001', 'primary');
-    final secondToken = await admin.issueCredential(
+    final secondToken = await issueScopedCredential(
+      admin,
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'secondary',
       expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     final foreignToken = await provision(
       otherAdmin,
@@ -258,11 +304,24 @@ Future<void> main() async {
       companyId: 'company-002',
       branchId: 'branch-002',
     );
-    final roleToken = await admin.issueCredential(
+    final roleToken = await issueScopedCredential(
+      admin,
       actorId: 'role-user',
       deviceId: 'role-device',
       credentialId: 'role-credential',
       expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+        {
+          'companyId': 'company-002',
+          'branchId': 'branch-002',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     final roleSession = (await authenticator.authenticate(roleToken))!;
     check(
@@ -502,11 +561,19 @@ Future<void> main() async {
       'Credential revocation is idempotent and remains denied',
     );
     await mustFail(() async {
-      await admin.issueCredential(
+      await issueScopedCredential(
+        admin,
         actorId: 'user-001',
         deviceId: 'device-001',
         credentialId: 'secondary',
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        allowedScopes: [
+          {
+            'companyId': 'company-001',
+            'branchId': 'branch-001',
+            'permissions': ['maintenance.create', 'maintenance.read'],
+          },
+        ],
       );
     }, 'Revoked credential ID cannot be overwritten by issuance');
     await mustFail(
@@ -777,17 +844,33 @@ Future<void> main() async {
     );
 
     await admin.registerDevice('user-001', 'alternate-device');
-    final alternateToken = await admin.issueCredential(
+    final alternateToken = await issueScopedCredential(
+      admin,
       actorId: 'user-001',
       deviceId: 'alternate-device',
       credentialId: 'alternate',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
-    final anotherActiveToken = await admin.issueCredential(
+    final anotherActiveToken = await issueScopedCredential(
+      admin,
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'another-active',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     final beforeRevocation = await counts();
     final beforeRevocationSession = (await authenticator.authenticate(token))!;
@@ -825,11 +908,19 @@ Future<void> main() async {
       'Revoked device tombstone cannot be replaced',
     );
     await mustFail(() async {
-      await admin.issueCredential(
+      await issueScopedCredential(
+        admin,
         actorId: 'user-001',
         deviceId: 'device-001',
         credentialId: 'revival',
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        allowedScopes: [
+          {
+            'companyId': 'company-001',
+            'branchId': 'branch-001',
+            'permissions': ['maintenance.create', 'maintenance.read'],
+          },
+        ],
       );
     }, 'New credential issuance cannot revive a revoked device');
     await admin.revokeDevice('device-001');
@@ -951,11 +1042,19 @@ Future<void> main() async {
       'survivor-device',
       'survivor-credential',
     );
-    final revokedSurvivorToken = await otherAdmin.issueCredential(
+    final revokedSurvivorToken = await issueScopedCredential(
+      otherAdmin,
       actorId: 'survivor',
       deviceId: 'survivor-device',
       credentialId: 'survivor-revoked',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     await otherAdmin.revokeCredential('survivor-revoked');
     final survivorCommand = scoped(
