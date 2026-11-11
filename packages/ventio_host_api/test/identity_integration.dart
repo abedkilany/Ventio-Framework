@@ -623,14 +623,35 @@ Future<void> main() async {
       );
     }
 
+    await admin.createUser('expiry-user');
+    await admin.registerDevice('expiry-user', 'expiry-device');
+    await admin.grant(
+      'expiry-user',
+      'company-001',
+      'branch-001',
+      'maintenance.create',
+    );
+    await admin.grant(
+      'expiry-user',
+      'company-001',
+      'branch-001',
+      'maintenance.read',
+    );
     final expiry =
         (await db.execute('SELECT clock_timestamp()')).single[0] as DateTime;
-    final expiringToken = await provision(
+    final expiringToken = await issueScopedCredential(
       admin,
-      'expiry-user',
-      'expiry-device',
-      'expiring',
-      expiresAt: expiry.add(const Duration(seconds: 2)),
+      actorId: 'expiry-user',
+      deviceId: 'expiry-device',
+      credentialId: 'expiring',
+      expiresAt: expiry.add(const Duration(seconds: 10)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     check(
       await authenticator.authenticate(expiringToken) != null,
