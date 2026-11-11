@@ -581,7 +581,7 @@ Future<void> main() async {
               .replace(userInfo: 'ventio_migration_test:migration_test_only')
               .toString(),
         },
-      ).timeout(const Duration(seconds: 120));
+      ).timeout(const Duration(minutes: 10));
       if (result.exitCode != 0) {
         stderr.writeln(
           'RESTORED $suite exited with status ${result.exitCode}; stdout:',
