@@ -198,8 +198,7 @@ Future<void> waitFor(
 }) async {
   final watch = Stopwatch()..start();
   while (!await condition()) {
-    if (watch.elapsed > timeout)
-      throw StateError('Timed out: $label');
+    if (watch.elapsed > timeout) throw StateError('Timed out: $label');
     await Future<void>.delayed(const Duration(milliseconds: 30));
   }
 }
