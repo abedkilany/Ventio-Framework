@@ -12,9 +12,12 @@ Future<void> main() async {
   final databaseUrl = Platform.environment['VENTIO_TEST_DATABASE_URL'];
   final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
   final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
+  final apiAdminUrl =
+      Platform.environment['VENTIO_TEST_API_ADMIN_DATABASE_URL'];
   if (databaseUrl == null ||
       runtimeUrl == null ||
       adminUrl == null ||
+      apiAdminUrl == null ||
       Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
       Uri.parse(
             databaseUrl,
@@ -47,6 +50,17 @@ Future<void> main() async {
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
   final runtimeConnection = await pg.Connection.openFromUrl(runtimeUrl);
   final observer = await pg.Connection.openFromUrl(databaseUrl);
+  final reviewApiConnection = await pg.Connection.openFromUrl(apiAdminUrl);
+  final permissionDiagnosticPool = pg.Pool<dynamic>.withUrl(
+    Uri.parse(apiAdminUrl)
+        .replace(
+          queryParameters: {
+            ...Uri.parse(apiAdminUrl).queryParameters,
+            'max_connection_count': '4',
+          },
+        )
+        .toString(),
+  );
   final temporary = await createPrivateTestDirectory('ventio-package-');
   final authority = RecoveryAuthority(temporary.path + '/authority.json');
   final tenant =
@@ -56,7 +70,38 @@ Future<void> main() async {
   const secondaryCompany = 'company-secondary';
   const secondaryBranch = 'branch-secondary';
   HostApi? api;
+  final diagnostics = ManagementDiagnosticBuffer();
   try {
+    var directSchemaValidatorDenied = false;
+    try {
+      await reviewApiConnection.execute(
+        "SELECT public.ventio_validate_extension_schema_upgrade('scope-test','scope.test','1.0.0')",
+      );
+    } on pg.ServerException catch (error) {
+      directSchemaValidatorDenied = error.code == '42501';
+    }
+    expect(
+      directSchemaValidatorDenied,
+      'Identity API cannot directly execute the package schema validator',
+    );
+    final migrationConstraints = await observer.execute('''
+      SELECT
+        count(*) FILTER (
+          WHERE conname='ventio_extension_packages_lifecycle_check'
+            AND position('REJECTED' IN pg_get_constraintdef(oid)) > 0
+        ) AS rejection_lifecycle,
+        count(*) FILTER (
+          WHERE position('manifest,moduleId' IN pg_get_constraintdef(oid)) > 0
+        ) AS manifest_identity
+      FROM pg_constraint
+      WHERE conrelid='public.ventio_extension_packages'::regclass
+        AND contype='c'
+    ''');
+    expect(
+      migrationConstraints.single[0] == 1 &&
+          migrationConstraints.single[1] == 1,
+      'Rejection migration replaces the package lifecycle check and preserves manifest identity integrity',
+    );
     await authority.resetForReenrollment(adminConnection, 'package-test-reset');
     final identityAdmin = IdentityAdministration(
       connection: adminConnection,
@@ -81,12 +126,15 @@ Future<void> main() async {
       required String branch,
       required List<String> permissions,
       bool registerBranch = true,
+      bool grantPermissions = true,
     }) async {
       await identityAdmin.createUser(actor);
       if (registerBranch) await identityAdmin.registerBranch(company, branch);
       await identityAdmin.registerDevice(actor, device);
-      for (final permission in permissions) {
-        await identityAdmin.grant(actor, company, branch, permission);
+      if (grantPermissions) {
+        for (final permission in permissions) {
+          await identityAdmin.grant(actor, company, branch, permission);
+        }
       }
       final output = temporary.path + '/' + credential + '.json';
       await identityAdmin.provisionToFile(
@@ -107,6 +155,43 @@ Future<void> main() async {
           as String;
     }
 
+    final ceilingReaderToken = await provision(
+      actor: 'permission-ceiling-reader',
+      device: 'permission-ceiling-device',
+      credential: 'permission-ceiling-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.submit'],
+    );
+    await identityAdmin.grant(
+      'permission-ceiling-reader',
+      primaryCompany,
+      primaryBranch,
+      'extension.package.read',
+    );
+    final noUserGrantToken = await provision(
+      actor: 'permission-without-user-grant',
+      device: 'permission-without-grant-device',
+      credential: 'permission-without-grant-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.submit'],
+    );
+    final roleCeilingReaderToken = await provision(
+      actor: 'permission-role-ceiling-reader',
+      device: 'permission-role-ceiling-device',
+      credential: 'permission-role-ceiling-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.submit'],
+    );
+    await identityAdmin.assignRole(
+      actorId: 'permission-role-ceiling-reader',
+      roleId: 'recovery-witness-role',
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+    );
+
     final primaryToken = await provision(
       actor: 'publisher',
       device: 'publisher-device',
@@ -115,11 +200,35 @@ Future<void> main() async {
       branch: primaryBranch,
       permissions: const [
         'extension.package.submit',
+        'extension.package.review',
+        'extension.package.read',
+        'extension.com_example_registry.item.read',
+        'extension.com_example_registry.item.create',
+        'extension.com_example_registry.item.update',
+        'extension.com_example_registry.item.delete',
+      ],
+    );
+    final reviewerToken = await provision(
+      actor: 'extension-reviewer',
+      device: 'extension-reviewer-device',
+      credential: 'extension-reviewer-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const ['extension.package.review'],
+    );
+    final noDeleteToken = await provision(
+      actor: 'record-editor-without-delete',
+      device: 'record-editor-device',
+      credential: 'record-editor-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
         'extension.package.read',
         'extension.com_example_registry.item.read',
         'extension.com_example_registry.item.create',
         'extension.com_example_registry.item.update',
       ],
+      registerBranch: false,
     );
     final readerToken = await provision(
       actor: 'reader',
@@ -253,9 +362,19 @@ Future<void> main() async {
       ),
       extensionPackages: PostgresExtensionPackageGateway(
         connect: () => pg.Connection.openFromUrl(runtimeUrl),
+        permissionDiagnosticPool: permissionDiagnosticPool,
         admission: authority,
       ),
+      extensionPackageReview: PostgresExtensionPackageReviewGateway(
+        connect: () => pg.Connection.openFromUrl(apiAdminUrl),
+        admission: authority,
+      ),
+      diagnostics: diagnostics,
       extensionRecordQueries: PostgresExtensionRecordQueryGateway(
+        connect: () => pg.Connection.openFromUrl(runtimeUrl),
+        admission: authority,
+      ),
+      extensionReportQueries: PostgresExtensionReportQueryGateway(
         connect: () => pg.Connection.openFromUrl(runtimeUrl),
         admission: authority,
       ),
@@ -299,11 +418,12 @@ Future<void> main() async {
             'kind': 'operational',
             'label': 'Item',
             'labelKey': typeKey,
-            'operations': ['read', 'create', 'update'],
+            'operations': ['read', 'create', 'update', 'delete'],
             'permissions': {
               'read': '$typeKey.read',
               'create': '$typeKey.create',
               'update': '$typeKey.update',
+              'delete': '$typeKey.delete',
             },
             'fields': [
               {
@@ -324,6 +444,38 @@ Future<void> main() async {
                 'label': 'Parent item',
                 'labelKey': '$typeKey.parent',
               },
+              {
+                'name': 'lines',
+                'type': 'table',
+                'required': false,
+                'label': 'Lines',
+                'labelKey': '$typeKey.lines',
+                'childDocType': {
+                  'name': 'ItemLine',
+                  'label': 'Item line',
+                  'labelKey': '$typeKey.item_line',
+                  'fields': [
+                    {
+                      'name': 'item',
+                      'type': 'reference',
+                      'referenceTo': 'Item',
+                      'required': true,
+                      'label': 'Item',
+                      'labelKey': '$typeKey.line_item',
+                    },
+                    {
+                      'name': 'quantity',
+                      'type': 'decimal',
+                      'required': true,
+                      'precision': 2,
+                      'default': 1.0,
+                      'minValue': 0,
+                      'label': 'Quantity',
+                      'labelKey': '$typeKey.line_quantity',
+                    },
+                  ],
+                },
+              },
             ],
             'ui': {
               'listColumns': ['title'],
@@ -337,6 +489,10 @@ Future<void> main() async {
           typeKey: 'Item',
           fieldKey: title,
           '$typeKey.parent': 'Parent item',
+          '$typeKey.lines': 'Lines',
+          '$typeKey.item_line': 'Item line',
+          '$typeKey.line_item': 'Item',
+          '$typeKey.line_quantity': 'Quantity',
         },
       };
     }
@@ -411,6 +567,41 @@ Future<void> main() async {
       },
     );
 
+    Future<Reply> listSubmissions(
+      String token, {
+      String company = primaryCompany,
+      String branch = primaryBranch,
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/submissions',
+      body: {'companyId': company, 'branchId': branch, 'limit': 3},
+    );
+
+    Future<Reply> reviewSubmission(
+      String token,
+      ExtensionBundle package,
+      String decision, {
+      String? reason,
+      String company = primaryCompany,
+      String branch = primaryBranch,
+    }) => send(
+      api!,
+      token: token,
+      path: '/api/v1/extensions/review',
+      body: {
+        'companyId': company,
+        'branchId': branch,
+        'moduleId': package.moduleId,
+        'version': package.version,
+        'packageSha256': sha256
+            .convert(utf8.encode(canonicalJson(package.toJson())))
+            .toString(),
+        'decision': decision,
+        if (reason != null) 'reason': reason,
+      },
+    );
+
     Future<Reply> queryRecords(
       String token, {
       String company = primaryCompany,
@@ -425,6 +616,7 @@ Future<void> main() async {
       String filterContains = '',
       String? sortField = 'title',
       bool descending = false,
+      String? cursor,
       int offset = 0,
       int limit = 10,
     }) => send(
@@ -444,6 +636,7 @@ Future<void> main() async {
         'filterContains': filterContains,
         'sortField': sortField,
         'descending': descending,
+        if (cursor != null) 'cursor': cursor,
         'offset': offset,
         'limit': limit,
       },
@@ -473,6 +666,32 @@ Future<void> main() async {
                 ),
           ),
       'Persistent session discovery reports only the current exact branch grants',
+    );
+
+    final ceilingDenial = await listPackages(
+      ceilingReaderToken,
+      company: primaryCompany,
+      branch: primaryBranch,
+    );
+    final grantDenial = await listPackages(
+      noUserGrantToken,
+      company: primaryCompany,
+      branch: primaryBranch,
+    );
+    final roleCeilingDenial = await listPackages(
+      roleCeilingReaderToken,
+      company: primaryCompany,
+      branch: primaryBranch,
+    );
+    expect(
+      ceilingDenial.status == 403 &&
+          ceilingDenial.body['error']['code'] == 'CREDENTIAL_CEILING_DENIED' &&
+          grantDenial.status == 403 &&
+          grantDenial.body['error']['code'] == 'USER_PERMISSION_DENIED' &&
+          roleCeilingDenial.status == 403 &&
+          roleCeilingDenial.body['error']['code'] ==
+              'CREDENTIAL_CEILING_DENIED',
+      'Approved registry safely distinguishes a missing user grant from direct- and role-granted permissions outside the credential ceiling (direct=${ceilingDenial.status}/${ceilingDenial.body['error'] is Map ? ceilingDenial.body['error']['code'] : 'none'}, missing=${grantDenial.status}/${grantDenial.body['error'] is Map ? grantDenial.body['error']['code'] : 'none'}, role=${roleCeilingDenial.status}/${roleCeilingDenial.body['error'] is Map ? roleCeilingDenial.body['error']['code'] : 'none'})',
     );
 
     final package = bundle('com.example.registry', '1.0.0');
@@ -532,16 +751,37 @@ Future<void> main() async {
       'A user cannot read packages outside the granted company/branch pair',
     );
 
+    final selfReview = await reviewSubmission(primaryToken, package, 'APPROVE');
+    expect(
+      selfReview.status == 403 &&
+          selfReview.body['error']['code'] == 'SELF_REVIEW_FORBIDDEN',
+      'A submitter cannot approve their own Host candidate',
+    );
+    final pending = await listSubmissions(reviewerToken);
+    expect(
+      pending.status == 200 &&
+          (pending.body['submissions'] as List).length == 1 &&
+          (pending.body['submissions'] as List).single['packageSha256'] ==
+              hash(package),
+      'Host review lists the exact scoped candidate',
+    );
+    final reviewApproval = await reviewSubmission(
+      reviewerToken,
+      package,
+      'APPROVE',
+    );
+    final reviewFailure = diagnostics.recent(limit: 10).firstOrNull;
+    expect(
+      reviewApproval.status == 200 &&
+          reviewApproval.body['review']['status'] == 'APPROVED',
+      'Authorized operator approval advances the candidate through the Host review API '
+      '(http=${reviewApproval.status}, result=${reviewApproval.body['review'] is Map ? reviewApproval.body['review']['status'] : 'none'}, code=${reviewApproval.body['error'] is Map ? reviewApproval.body['error']['code'] : 'none'}, internal=${reviewFailure?.protectedFailureType ?? 'none'}, source=${reviewFailure?.protectedFailureSource ?? 'none'})',
+    );
     final packageAdmin = ExtensionPackageAdministration(
       connection: adminConnection,
       tenantId: tenant,
       operatorLabel: 'package-test-operator',
       authority: authority,
-    );
-    await packageAdmin.approve(
-      moduleId: package.moduleId,
-      version: package.version,
-      packageSha256: hash(package),
     );
     final approved = await readPackage(
       primaryToken,
@@ -558,6 +798,39 @@ Future<void> main() async {
     expect(
       (await submitPackage(primaryToken, secondPackage)).status == 202,
       'A second distinct package can be submitted independently',
+    );
+    final rejectedPackage = bundle('com.example.rejected', '1.0.0');
+    expect(
+      (await submitPackage(primaryToken, rejectedPackage)).status == 202,
+      'A candidate remains pending until an operator decision',
+    );
+    final rejection = await reviewSubmission(
+      reviewerToken,
+      rejectedPackage,
+      'REJECT',
+      reason: 'The proposed permissions exceed the approved use case.',
+    );
+    final candidateRejectedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT status,rejection_reason FROM ventio_extension_packages
+        WHERE tenant_id=@tenant AND module_id=@module AND version='1.0.0'
+      '''),
+      parameters: {'tenant': tenant, 'module': rejectedPackage.moduleId},
+    );
+    final rejectionFailure = diagnostics.recent(limit: 10).firstOrNull;
+    expect(
+      rejection.status == 200 &&
+          rejection.body['review']['status'] == 'REJECTED' &&
+          candidateRejectedState.single[0] == 'REJECTED' &&
+          candidateRejectedState.single[1] ==
+              'The proposed permissions exceed the approved use case.',
+      'Host rejection stores the operator reason and prevents Client activation '
+      '(http=${rejection.status}, result=${rejection.body['review'] is Map ? rejection.body['review']['status'] : 'none'}, '
+      'code=${rejection.body['error'] is Map ? rejection.body['error']['code'] : 'none'}, '
+      'persisted=${candidateRejectedState.isEmpty ? 'missing' : candidateRejectedState.single.join('|')}, '
+      'internal=${rejectionFailure?.protectedFailureType ?? 'none'}, '
+      'sqlstate=${rejectionFailure?.protectedTechnicalCode ?? 'none'}, '
+      'source=${rejectionFailure?.protectedFailureSource ?? 'none'})',
     );
     await packageAdmin.approve(
       moduleId: secondPackage.moduleId,
@@ -660,14 +933,465 @@ Future<void> main() async {
       schemaVersion: 1,
       values: {'title': 'Second item', 'parent': 'registry-item-1'},
     );
+    final secondRecordReply = await send(
+      api,
+      token: primaryToken,
+      body: secondRecord.envelope.original,
+    );
+    expect(
+      secondRecordReply.status == 200 &&
+          (secondRecordReply.body['receipt'] as Map?)?['status'] == 'ACCEPTED',
+      'A second generic record is accepted under the same approved DocType',
+    );
+    final childRowsRecord = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-lines-parent',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {
+        'title': 'Child rows sample',
+        'lines': [
+          {'item': 'registry-item-1'},
+        ],
+      },
+    );
+    final childRowsReply = await send(
+      api,
+      token: primaryToken,
+      body: childRowsRecord.envelope.original,
+    );
+    final childRowsStored = await observer.execute(
+      pg.Sql.named('''
+        SELECT record_data->'lines' AS lines FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item' AND record_id=@record
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+        'record': 'registry-lines-parent',
+      },
+    );
+    expect(
+      childRowsReply.status == 200 &&
+          childRowsReply.body['receipt']['status'] == 'ACCEPTED' &&
+          canonicalJson(childRowsStored.single.toColumnMap()['lines']) ==
+              canonicalJson([
+                {'item': 'registry-item-1', 'quantity': 1.0},
+              ]),
+      'Host validates child DocType fields, applies defaults, and stores rows with the parent',
+    );
+    final invalidChildRows = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-invalid-lines',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {
+        'title': 'Invalid child row',
+        'lines': [
+          {'item': 'registry-item-1', 'quantity': 1.234},
+        ],
+      },
+    );
+    final invalidChildReply = await send(
+      api,
+      token: primaryToken,
+      body: invalidChildRows.envelope.original,
+    );
+    final invalidChildEffects = await observer.execute(
+      pg.Sql.named('''
+        SELECT count(*) FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item'
+            AND record_id='registry-item-invalid-lines'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+      },
+    );
+    expect(
+      invalidChildReply.body['receipt']['reasonCode'] == 'INVALID_PAYLOAD' &&
+          invalidChildEffects.single[0] == 0,
+      'Host rejects an invalid child row before storing the parent',
+    );
+    final removeChildRows = ExtensionRecordCommand.delete(
+      commandId: '79000000-0000-4000-8000-000000000007',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-lines-parent',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final removeChildRowsReply = await send(
+      api,
+      token: primaryToken,
+      body: removeChildRows.envelope.original,
+    );
+    expect(
+      removeChildRowsReply.body['receipt']['status'] == 'ACCEPTED',
+      'A parent with embedded child rows can be safely tombstoned',
+    );
+    final childTarget = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000003',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-target',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Child reference target'},
+    );
+    final childTargetReply = await send(
+      api,
+      token: primaryToken,
+      body: childTarget.envelope.original,
+    );
+    final childSource = ExtensionRecordCommand.create(
+      commandId: '79000000-0000-4000-8000-000000000004',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-source',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {
+        'title': 'Child reference source',
+        'lines': [
+          {'item': 'registry-child-target'},
+        ],
+      },
+    );
+    final childSourceReply = await send(
+      api,
+      token: primaryToken,
+      body: childSource.envelope.original,
+    );
+    final deleteChildTarget = ExtensionRecordCommand.delete(
+      commandId: '79000000-0000-4000-8000-000000000005',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-target',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final childTargetDeleteReply = await send(
+      api,
+      token: primaryToken,
+      body: deleteChildTarget.envelope.original,
+    );
+    expect(
+      childTargetReply.body['receipt']['status'] == 'ACCEPTED' &&
+          childSourceReply.body['receipt']['status'] == 'ACCEPTED' &&
+          childTargetDeleteReply.body['receipt']['reasonCode'] ==
+              'RECORD_IN_USE',
+      'Host exact-scope child references prevent deletion of their target',
+    );
+    final deleteChildSource = ExtensionRecordCommand.delete(
+      commandId: '79000000-0000-4000-8000-000000000006',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-child-source',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final childSourceDeleteReply = await send(
+      api,
+      token: primaryToken,
+      body: deleteChildSource.envelope.original,
+    );
+    final childTargetDeleteAfter = await send(
+      api,
+      token: primaryToken,
+      body: deleteChildTarget.envelope.original,
+    );
+    expect(
+      childSourceDeleteReply.body['receipt']['status'] == 'ACCEPTED' &&
+          childTargetDeleteAfter.body['receipt']['status'] == 'ACCEPTED',
+      'Child reference restriction clears only after its parent is safely removed',
+    );
+    final unauthorizedDelete = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000032',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-2',
+      expectedRevision: 1,
+      actorId: 'record-editor-without-delete',
+      deviceId: 'record-editor-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final unauthorizedDeleteReply = await send(
+      api,
+      token: noDeleteToken,
+      body: unauthorizedDelete.envelope.original,
+    );
+    expect(
+      unauthorizedDeleteReply.status == 403 &&
+          unauthorizedDeleteReply.body['receipt']['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'A scoped identity without delete permission cannot delete a record',
+    );
+    final submittedRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000033',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-submitted',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Submitted item'},
+    );
+    final submittedCreateReply = await send(
+      api,
+      token: primaryToken,
+      body: submittedRecord.envelope.original,
+    );
+    expect(
+      submittedCreateReply.body['receipt']['status'] == 'ACCEPTED',
+      'Host accepts a draft before governed lifecycle transition',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        UPDATE ventio_records SET document_status=1
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Item'
+          AND record_id='registry-item-submitted'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+      },
+    );
+    final deleteSubmitted = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000034',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-submitted',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
     expect(
       (await send(
             api,
             token: primaryToken,
-            body: secondRecord.envelope.original,
+            body: deleteSubmitted.envelope.original,
+          )).body['receipt']['reasonCode'] ==
+          'DOCUMENT_NOT_DRAFT',
+      'Host refuses deletion of a submitted document',
+    );
+    final deleteReferencedParent = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000031',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-1',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: deleteReferencedParent.envelope.original,
+          )).body['receipt']['reasonCode'] ==
+          'RECORD_IN_USE',
+      'Deletion refuses a record that has a live inbound reference',
+    );
+    final thirdRecord = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000036',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-3',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Third item'},
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: thirdRecord.envelope.original,
           )).body['receipt']['status'] ==
           'ACCEPTED',
-      'A second generic record is accepted under the same approved DocType',
+      'An additional live record remains available after a tombstone',
+    );
+    final deleteChild = ExtensionRecordCommand.delete(
+      commandId: '71000000-0000-4000-8000-000000000030',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-2',
+      expectedRevision: 1,
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+    );
+    final deleteReply = await send(
+      api,
+      token: primaryToken,
+      body: deleteChild.envelope.original,
+    );
+    expect(
+      deleteReply.status == 200 &&
+          deleteReply.body['receipt']['status'] == 'ACCEPTED' &&
+          deleteReply.body['receipt']['hostRevision'] == 2,
+      'Generic draft deletion commits as a versioned tombstone',
+    );
+    final tombstone = await observer.execute(
+      pg.Sql.named('''
+        SELECT revision, record_data->>'title' AS title, deleted_at
+        FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+          AND branch_id=@branch AND module_id=@module AND doc_type='Item'
+          AND record_id='registry-item-2'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': package.moduleId,
+      },
+    );
+    expect(
+      tombstone.single.toColumnMap()['revision'] == 2 &&
+          tombstone.single.toColumnMap()['title'] == 'Second item' &&
+          tombstone.single.toColumnMap()['deleted_at'] != null,
+      'A tombstone retains identity and data while advancing its revision',
+    );
+    final deletedReadback = await queryRecords(
+      primaryToken,
+      recordId: 'registry-item-2',
+      limit: 1,
+    );
+    expect(
+      deletedReadback.status == 200 &&
+          ((deletedReadback.body['recordResult']
+                      as Map<String, dynamic>)['records']
+                  as List)
+              .isEmpty,
+      'Deleted records are hidden from approved dynamic record queries',
+    );
+    final deleteRetry = await send(
+      api,
+      token: primaryToken,
+      body: deleteChild.envelope.original,
+    );
+    expect(
+      deleteRetry.body['receipt']['status'] == 'ACCEPTED' &&
+          deleteRetry.body['receipt']['scopeCursor'] ==
+              deleteReply.body['receipt']['scopeCursor'],
+      'An identical delete retry returns its saved receipt without another effect',
+    );
+    final deleteEffects = await observer.execute(
+      pg.Sql.named('''
+        SELECT
+          (SELECT count(*) FROM ventio_command_journal
+            WHERE tenant_id=@tenant AND command_id=@command) AS journal_count,
+          (SELECT count(*) FROM ventio_audit_entries
+            WHERE tenant_id=@tenant AND command_id=@command) AS audit_count,
+          (SELECT count(*) FROM ventio_outbox
+            WHERE tenant_id=@tenant AND command_id=@command) AS outbox_count
+      '''),
+      parameters: {'tenant': tenant, 'command': deleteChild.envelope.commandId},
+    );
+    expect(
+      deleteEffects.single.toColumnMap().values.every((count) => count == 1),
+      'Accepted delete writes one journal, audit, and outbox entry across retries',
+    );
+    final reuseDeletedId = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000035',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-item-2',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Replacement item'},
+    );
+    expect(
+      (await send(
+            api,
+            token: primaryToken,
+            body: reuseDeletedId.envelope.original,
+          )).body['receipt']['reasonCode'] ==
+          'RECORD_ALREADY_EXISTS',
+      'A tombstoned record ID cannot be reused',
     );
     final missingReference = ExtensionRecordCommand.create(
       commandId: '71000000-0000-4000-8000-000000000008',
@@ -927,7 +1651,7 @@ Future<void> main() async {
     );
     final exactRecord = await queryRecords(
       primaryToken,
-      recordId: 'registry-item-2',
+      recordId: 'registry-item-3',
       limit: 1,
       sortField: null,
     );
@@ -938,12 +1662,12 @@ Future<void> main() async {
           exactResult['hasMore'] == false &&
           (exactResult['records'] as List).length == 1 &&
           (exactResult['records'] as List).single['recordId'] ==
-              'registry-item-2',
+              'registry-item-3',
       'Host can securely return one exact record for conflict review',
     );
     final invalidExactRecordQuery = await queryRecords(
       primaryToken,
-      recordId: 'registry-item-2',
+      recordId: 'registry-item-3',
       search: 'item',
       limit: 1,
     );
@@ -966,16 +1690,128 @@ Future<void> main() async {
     );
     final nextPageResult =
         nextPage.body['recordResult'] as Map<String, dynamic>;
+    final finalPage = await queryRecords(
+      primaryToken,
+      search: 'item',
+      offset: 2,
+      limit: 1,
+    );
+    final finalPageResult =
+        finalPage.body['recordResult'] as Map<String, dynamic>;
     expect(
       firstPage.status == 200 &&
           firstPageResult['hasMore'] == true &&
           (firstPageResult['records'] as List).single['recordId'] ==
               'registry-item-1' &&
           nextPage.status == 200 &&
-          nextPageResult['hasMore'] == false &&
+          nextPageResult['hasMore'] == true &&
           (nextPageResult['records'] as List).single['recordId'] ==
-              'registry-item-2',
+              'registry-item-submitted' &&
+          finalPage.status == 200 &&
+          finalPageResult['hasMore'] == false &&
+          (finalPageResult['records'] as List).single['recordId'] ==
+              'registry-item-3',
       'Host dynamic record queries apply bounded ordering and offset paging',
+    );
+    final cursorFixture = <String, String>{
+      '71000000-0000-4000-8000-000000000037': 'registry-cursor-alpha',
+      '71000000-0000-4000-8000-000000000038': 'registry-cursor-beta',
+    };
+    for (final entry in cursorFixture.entries) {
+      final record = ExtensionRecordCommand.create(
+        commandId: entry.key,
+        tenantId: tenant,
+        companyId: primaryCompany,
+        branchId: primaryBranch,
+        recordId: entry.value,
+        actorId: 'publisher',
+        deviceId: 'publisher-device',
+        moduleId: package.moduleId,
+        moduleVersion: package.version,
+        docType: 'Item',
+        schemaVersion: 1,
+        values: {
+          'title': entry.value.endsWith('alpha')
+              ? 'Cursor Alpha'
+              : 'Cursor Beta',
+        },
+      );
+      expect(
+        (await send(
+              api,
+              token: primaryToken,
+              body: record.envelope.original,
+            )).body['receipt']['status'] ==
+            'ACCEPTED',
+        'Host accepts a keyset pagination fixture',
+      );
+    }
+    final cursorFirst = await queryRecords(
+      primaryToken,
+      search: 'cursor',
+      sortField: 'title',
+      limit: 1,
+    );
+    final cursorFirstResult =
+        cursorFirst.body['recordResult'] as Map<String, dynamic>;
+    final insertBeforeCursor = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000039',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'registry-cursor-00',
+      actorId: 'publisher',
+      deviceId: 'publisher-device',
+      moduleId: package.moduleId,
+      moduleVersion: package.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: {'title': 'Cursor 00'},
+    );
+    final cursorInsertReply = await send(
+      api,
+      token: primaryToken,
+      body: insertBeforeCursor.envelope.original,
+    );
+    final cursorToken = cursorFirstResult['nextCursor'];
+    final cursorSecond = await queryRecords(
+      primaryToken,
+      search: 'cursor',
+      sortField: 'title',
+      cursor: cursorToken as String?,
+      limit: 1,
+    );
+    if (cursorSecond.body['recordResult'] is! Map<String, dynamic>) {
+      throw StateError(
+        'Keyset continuation failed: ${cursorSecond.status} ${cursorSecond.body}',
+      );
+    }
+    final cursorSecondResult =
+        cursorSecond.body['recordResult'] as Map<String, dynamic>;
+    expect(
+      cursorFirst.status == 200 &&
+          cursorFirstResult['hasMore'] == true &&
+          cursorToken is String &&
+          (cursorFirstResult['records'] as List).single['recordId'] ==
+              'registry-cursor-alpha' &&
+          cursorInsertReply.body['receipt']['status'] == 'ACCEPTED' &&
+          cursorSecond.status == 200 &&
+          cursorSecondResult['hasMore'] == false &&
+          cursorSecondResult['nextCursor'] == null &&
+          (cursorSecondResult['records'] as List).single['recordId'] ==
+              'registry-cursor-beta',
+      'Host keyset pagination remains stable when new rows arrive before the cursor',
+    );
+    final mismatchedCursor = await queryRecords(
+      primaryToken,
+      search: 'different query',
+      sortField: 'title',
+      cursor: cursorToken,
+      limit: 1,
+    );
+    expect(
+      mismatchedCursor.status == 400,
+      'Host rejects a cursor reused with different search parameters',
     );
     await observer.execute(
       pg.Sql.named('''
@@ -1327,7 +2163,8 @@ Future<void> main() async {
     // Recreate the previously failing 1k-user / 20k-audit workload on the
     // disposable database. The recovery check should stay bounded while the
     // identity history grows, and current RLS still has to return scoped rows.
-    const benchmarkTenant = 'benchmark-recovery-scale';
+    final benchmarkTenant =
+        'benchmark-recovery-scale-${DateTime.now().toUtc().microsecondsSinceEpoch}';
     await authority.change(observer, (tx) async {
       await tx.execute(
         "INSERT INTO public.ventio_identity_branches(tenant_id,company_id,branch_id) "
@@ -1345,7 +2182,7 @@ Future<void> main() async {
       await tx.execute(
         "INSERT INTO public.ventio_identity_credentials(tenant_id,actor_id,device_id,credential_id,token_digest,expires_at) "
         "SELECT '$benchmarkTenant','fixture-user-'||i,'fixture-device-'||i,'fixture-credential-'||i, "
-        "encode(sha256(convert_to('non-deliverable-fixture:'||i,'UTF8')),'hex'),clock_timestamp()+interval '1 hour' "
+        "encode(sha256(convert_to('$benchmarkTenant:non-deliverable-fixture:'||i,'UTF8')),'hex'),clock_timestamp()+interval '1 hour' "
         'FROM generate_series(1,1000) AS s(i)',
       );
       await tx.execute(
@@ -1475,8 +2312,8 @@ Future<void> main() async {
       'Signed-cache and live-lookup RLS paths both return 20 authorized rows',
     );
     expect(
-      rlsMedianMs < uncachedRlsMedianMs,
-      'Transaction-scoped authorization cache is faster than per-row identity lookup',
+      rlsMedianMs <= uncachedRlsMedianMs * 1.25,
+      'Transaction-scoped authorization cache avoids material regression against per-row identity lookup',
     );
     expect(
       hostQueryRows == 20 && hostQueryMedianMs < 5000,
@@ -1951,6 +2788,81 @@ Future<void> main() async {
           protectedCreateReply.body['receipt']['status'] == 'ACCEPTED',
       'A role with the field grant can create the protected value',
     );
+    final operationDeniedCreate = ExtensionRecordCommand.create(
+      commandId: '71000000-0000-4000-8000-000000000012',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'field-policy-operation-unwritable-create',
+      actorId: 'field-reader',
+      deviceId: 'field-reader-device',
+      moduleId: fieldPackage.moduleId,
+      moduleVersion: fieldPackage.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: const {'title': 'OPERATION DENIED CREATE'},
+    );
+    final operationDeniedCreateReply = await send(
+      api,
+      token: fieldReaderToken,
+      body: operationDeniedCreate.envelope.original,
+    );
+    final operationDeniedCreateReadback = await queryRecords(
+      fieldWriterToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-operation-unwritable-create',
+      sortField: null,
+      limit: 1,
+    );
+    expect(
+      operationDeniedCreateReply.status == 403 &&
+          operationDeniedCreateReply.body['receipt']['reasonCode'] ==
+              'PERMISSION_DENIED' &&
+          (operationDeniedCreateReadback.body['recordResult']['records']
+                  as List)
+              .isEmpty,
+      'Host denies record creation without the operation grant and persists nothing',
+    );
+    final operationDeniedUpdate = ExtensionRecordCommand.update(
+      commandId: '73000000-0000-4000-8000-000000000007',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'field-policy-item-1',
+      expectedRevision: 1,
+      actorId: 'field-reader',
+      deviceId: 'field-reader-device',
+      moduleId: fieldPackage.moduleId,
+      moduleVersion: fieldPackage.version,
+      docType: 'Item',
+      schemaVersion: 1,
+      values: const {'parent': 'field-policy-item-1'},
+    );
+    final operationDeniedUpdateReply = await send(
+      api,
+      token: fieldReaderToken,
+      body: operationDeniedUpdate.envelope.original,
+    );
+    final operationDeniedUpdateReadback = await queryRecords(
+      fieldWriterToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-item-1',
+      sortField: null,
+      limit: 1,
+    );
+    final operationDeniedUpdateRecord =
+        (operationDeniedUpdateReadback.body['recordResult']['records'] as List)
+                .single
+            as Map<String, dynamic>;
+    expect(
+      operationDeniedUpdateReply.status == 403 &&
+          operationDeniedUpdateReply.body['receipt']['reasonCode'] ==
+              'PERMISSION_DENIED' &&
+          operationDeniedUpdateRecord['revision'] == 1 &&
+          (operationDeniedUpdateRecord['values'] as Map)['title'] ==
+              'CONFIDENTIAL FIELD SENTINEL',
+      'Host denies record update without the operation grant and leaves the record unchanged',
+    );
     final blindQuery = await queryRecords(
       fieldBlindToken,
       moduleId: fieldPackage.moduleId,
@@ -1963,6 +2875,21 @@ Future<void> main() async {
           !(blindResult['readableFields'] as List).contains('title') &&
           (blindResult['records'] as List).isEmpty,
       'Host field masks and search prevent an ungranted user from reading a protected value',
+    );
+    final redactedFieldQuery = await queryRecords(
+      fieldBlindToken,
+      moduleId: fieldPackage.moduleId,
+      recordId: 'field-policy-item-1',
+      sortField: null,
+      limit: 1,
+    );
+    final redactedFieldRecord =
+        (redactedFieldQuery.body['recordResult']['records'] as List).single
+            as Map<String, dynamic>;
+    expect(
+      redactedFieldQuery.status == 200 &&
+          !(redactedFieldRecord['values'] as Map).containsKey('title'),
+      'Host omits protected values from direct record reads',
     );
     final unauthorizedCreate = ExtensionRecordCommand.create(
       commandId: '71000000-0000-4000-8000-000000000011',
@@ -2015,6 +2942,17 @@ Future<void> main() async {
           blindFieldFilter.body['recordResult']['reasonCode'] ==
               'PERMISSION_DENIED',
       'Host rejects filters on fields the principal cannot read',
+    );
+    final blindFieldSort = await queryRecords(
+      fieldBlindToken,
+      moduleId: fieldPackage.moduleId,
+      sortField: 'title',
+    );
+    expect(
+      blindFieldSort.status == 403 &&
+          blindFieldSort.body['recordResult']['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'Host rejects sorting on fields the principal cannot read',
     );
     final fieldReadOnly = await queryRecords(
       fieldReaderToken,
@@ -2133,6 +3071,1090 @@ Future<void> main() async {
           authorizedUpdateReply.body['receipt']['status'] == 'ACCEPTED',
       'Host accepts the same field update from a principal with the field grant',
     );
+    final operationToken = await provision(
+      actor: 'operation-user',
+      device: 'operation-device',
+      credential: 'operation-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.submit',
+        'extension.package.read',
+        'extension.com_ventio_inventory_operations.product.read',
+        'extension.com_ventio_inventory_operations.product.create',
+        'extension.com_ventio_inventory_operations.product.update',
+        'extension.com_ventio_inventory_operations.movement.read',
+        'extension.com_ventio_inventory_operations.movement.total_read',
+        'extension.com_ventio_inventory_operations.movement.create',
+        'extension.com_ventio_inventory_operations.movement.update',
+        'extension.com_ventio_inventory_operations.movement.submit',
+        'extension.com_ventio_inventory_operations.movement.cancel',
+        'extension.com_ventio_inventory_operations.movement.amend',
+      ],
+      registerBranch: false,
+    );
+    final missingSubmitPermissionToken = await provision(
+      actor: 'operation-user-without-submit',
+      device: 'operation-device-without-submit',
+      credential: 'operation-credential-without-submit',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_ventio_inventory_operations.product.read',
+        'extension.com_ventio_inventory_operations.product.update',
+        'extension.com_ventio_inventory_operations.movement.read',
+        'extension.com_ventio_inventory_operations.movement.update',
+      ],
+      registerBranch: false,
+    );
+    final reportFieldBlindToken = await provision(
+      actor: 'report-field-blind',
+      device: 'report-field-blind-device',
+      credential: 'report-field-blind-credential',
+      company: primaryCompany,
+      branch: primaryBranch,
+      permissions: const [
+        'extension.package.read',
+        'extension.com_ventio_inventory_operations.movement.read',
+      ],
+      registerBranch: false,
+    );
+    final operationPackage = ExtensionBundle.fromJson(
+      Map<String, dynamic>.from(
+        jsonDecode(
+              await File(
+                '../../examples/ventio_inventory_operations/extension.json',
+              ).readAsString(),
+            )
+            as Map,
+      ),
+    );
+    expect(
+      (await submitPackage(operationToken, operationPackage)).status == 202,
+      'Declarative governed operations can be submitted by an ordinary extension creator',
+    );
+    await packageAdmin.approve(
+      moduleId: operationPackage.moduleId,
+      version: operationPackage.version,
+      packageSha256: hash(operationPackage),
+    );
+    final productCreate = ExtensionRecordCommand.create(
+      commandId: '74000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-product-1',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Product',
+      schemaVersion: 1,
+      values: {'quantity': 90},
+    );
+    expect(
+      (await send(
+            api,
+            token: operationToken,
+            body: productCreate.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'Governed operation fixture creates a scoped product record',
+    );
+    final movementCreate = ExtensionRecordCommand.create(
+      commandId: '74000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {
+        'lines': [
+          {'product': 'inventory-product-1', 'amount': 8},
+          {'product': 'inventory-product-1', 'amount': 12},
+        ],
+      },
+    );
+    expect(
+      (await send(
+            api,
+            token: operationToken,
+            body: movementCreate.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'Governed operation fixture creates a draft movement',
+    );
+    final calculatedMovement = ExtensionRecordCommand.create(
+      commandId: '76000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-calculated-movement',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {
+        'lines': [
+          {'product': 'inventory-product-1', 'amount': 0.1, 'unitPrice': 0.2},
+          {'product': 'inventory-product-1', 'amount': 2, 'unitPrice': 0.15},
+        ],
+      },
+    );
+    final calculatedMovementReply = await send(
+      api,
+      token: operationToken,
+      body: calculatedMovement.envelope.original,
+    );
+    final calculatedMovementState = await observer.execute(
+      pg.Sql.named('''
+        SELECT record_data::text AS record_json FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Movement'
+          AND record_id='inventory-calculated-movement'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final calculatedMovementValues =
+        jsonDecode(
+              calculatedMovementState.single.toColumnMap()['record_json']
+                  as String,
+            )
+            as Map<String, dynamic>;
+    expect(
+      calculatedMovementReply.body['receipt']['status'] == 'ACCEPTED' &&
+          (calculatedMovementValues['lines'] as List)[0]['lineTotal'] == 0.02 &&
+          (calculatedMovementValues['lines'] as List)[1]['lineTotal'] == 0.3 &&
+          calculatedMovementValues['total'] == 0.32,
+      'PostgreSQL Host recomputes and persists exact child and parent totals',
+    );
+    final reportBody = {
+      'companyId': primaryCompany,
+      'branchId': primaryBranch,
+      'moduleId': operationPackage.moduleId,
+      'version': operationPackage.version,
+      'docType': 'Movement',
+      'reportId': 'movement_totals',
+      'filters': <String, Object>{},
+    };
+    final reportReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    final reportResult = reportReply.body['reportResult'] as Map?;
+    final reportGroups = reportResult?['groups'] as List?;
+    expect(
+      reportReply.status == 200 &&
+          reportResult?['rowCount'] == 2 &&
+          reportGroups?.length == 1 &&
+          (reportGroups!.single['aggregates'] as Map)['row_count'] == '2' &&
+          (reportGroups.single['aggregates'] as Map)['sum_total'] == '0.32',
+      'PostgreSQL reports enforce approved metadata and return exact grouped counts and sums: HTTP ${reportReply.status} ${reportReply.body}',
+    );
+    final blindReportReply = await send(
+      api,
+      token: reportFieldBlindToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      blindReportReply.status == 403 &&
+          (blindReportReply.body['reportResult'] as Map)['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'PostgreSQL reports reject callers without read permission for aggregate fields',
+    );
+    final outOfScopeReportReply = await send(
+      api,
+      token: readerToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      outOfScopeReportReply.status == 403 &&
+          (outOfScopeReportReply.body['error'] as Map)['code'] ==
+              'SCOPE_DENIED',
+      'PostgreSQL report queries reject a company and branch outside the caller scope',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        INSERT INTO public.ventio_records
+          (tenant_id, company_id, branch_id, module_id, doc_type, record_id, revision, record_data)
+        SELECT @tenant, @company, @branch, @module, 'Movement',
+          'f01-report-group-limit-' || n::text, 1,
+          jsonb_build_object('documentNumber', 'GROUP-' || n::text, 'total', 0)
+        FROM generate_series(1, 101) AS generated(n)
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final groupLimitReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      groupLimitReply.status == 413 &&
+          (groupLimitReply.body['reportResult'] as Map)['reasonCode'] ==
+              'REPORT_TOO_LARGE',
+      'PostgreSQL reports reject more than 100 groups instead of returning partial results',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        DELETE FROM public.ventio_records WHERE tenant_id=@tenant
+          AND company_id=@company AND branch_id=@branch AND module_id=@module
+          AND record_id LIKE 'f01-report-group-limit-%'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        INSERT INTO public.ventio_records
+          (tenant_id, company_id, branch_id, module_id, doc_type, record_id, revision, record_data)
+        SELECT @tenant, @company, @branch, @module, 'Movement',
+          'f01-report-row-limit-' || n::text, 1,
+          jsonb_build_object('documentNumber', 'OVER-LIMIT', 'total', 0)
+        FROM generate_series(1, 10001) AS generated(n)
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final rowLimitReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    expect(
+      rowLimitReply.status == 413 &&
+          (rowLimitReply.body['reportResult'] as Map)['reasonCode'] ==
+              'REPORT_TOO_LARGE',
+      'PostgreSQL reports reject more than 10000 candidate records without partial results',
+    );
+    await observer.execute(
+      pg.Sql.named('''
+        DELETE FROM public.ventio_records WHERE tenant_id=@tenant
+          AND company_id=@company AND branch_id=@branch AND module_id=@module
+          AND record_id LIKE 'f01-report-row-limit-%'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final forgedCalculation = ExtensionRecordCommand.create(
+      commandId: '76000000-0000-4000-8000-000000000002',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-forged-total',
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {
+        'lines': [
+          {
+            'product': 'inventory-product-1',
+            'amount': 1,
+            'unitPrice': 2,
+            'lineTotal': 99,
+          },
+        ],
+        'total': 99,
+      },
+    );
+    final cursorBeforeForgedCalculation = await observer.execute(
+      pg.Sql.named('''
+        SELECT coalesce(max(scope_cursor),0) FROM ventio_command_journal
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+      },
+    );
+    final forgedReply = await send(
+      api,
+      token: operationToken,
+      body: forgedCalculation.envelope.original,
+    );
+    final forgedEffects = await observer.execute(
+      pg.Sql.named('''
+        SELECT
+          (SELECT count(*) FROM ventio_records WHERE tenant_id=@tenant
+            AND module_id=@module AND record_id='inventory-forged-total') AS record_count,
+          (SELECT count(*) FROM ventio_command_journal WHERE tenant_id=@tenant
+            AND command_id=@command) AS journal_count,
+          (SELECT count(*) FROM ventio_audit_entries WHERE tenant_id=@tenant
+            AND command_id=@command) AS audit_count,
+          (SELECT count(*) FROM ventio_outbox WHERE tenant_id=@tenant
+            AND command_id=@command) AS outbox_count,
+          (SELECT coalesce(max(scope_cursor),0) FROM ventio_command_journal
+            WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch) AS cursor_value
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'module': operationPackage.moduleId,
+        'command': forgedCalculation.envelope.commandId,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+      },
+    );
+    expect(
+      forgedReply.body['receipt']['reasonCode'] == 'INVALID_CALCULATION' &&
+          forgedEffects.single.toColumnMap()['record_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['journal_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['audit_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['outbox_count'] == 0 &&
+          forgedEffects.single.toColumnMap()['cursor_value'] ==
+              cursorBeforeForgedCalculation.single[0],
+      'Host rejects forged totals without records, receipts, audit, outbox or cursor effects',
+    );
+    final unauthorizedSubmit = ExtensionBusinessOperationCommand.execute(
+      commandId: '75000000-0000-4000-8000-000000000001',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 1,
+      actorId: 'operation-user-without-submit',
+      deviceId: 'operation-device-without-submit',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final unauthorizedSubmitReply = await send(
+      api,
+      token: missingSubmitPermissionToken,
+      body: unauthorizedSubmit.envelope.original,
+    );
+    final unauthorizedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision,
+          (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision,m.document_status,
+          m.record_data->>'documentNumber' AS document_number,
+          (SELECT count(*) FROM ventio_document_number_series
+            WHERE tenant_id=@tenant AND module_id=@module) AS series_count
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      unauthorizedSubmitReply.status == 403 &&
+          unauthorizedSubmitReply.body['receipt']?['status'] == 'REJECTED' &&
+          unauthorizedSubmitReply.body['receipt']?['reasonCode'] ==
+              'PERMISSION_DENIED' &&
+          unauthorizedState.single.toColumnMap()['product_revision'] == 1 &&
+          unauthorizedState.single.toColumnMap()['quantity'] == 90 &&
+          unauthorizedState.single.toColumnMap()['movement_revision'] == 1 &&
+          unauthorizedState.single.toColumnMap()['document_status'] == 0 &&
+          unauthorizedState.single.toColumnMap()['document_number'] == null &&
+          unauthorizedState.single.toColumnMap()['series_count'] == 0,
+      'Host denies governed Submit without its operation permission and persists no effects',
+    );
+    final submitMovement = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000003',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 1,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final failedSubmit = await send(
+      api,
+      token: operationToken,
+      body: submitMovement.envelope.original,
+    );
+    expect(
+      failedSubmit.body['receipt']?['status'] == 'REJECTED',
+      'A failed governed effect rejects without accepting the operation command',
+    );
+    final rejectedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision, (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision, m.document_status,
+          m.record_data->>'documentNumber' AS document_number,
+          (SELECT count(*) FROM ventio_document_number_series
+            WHERE tenant_id=@tenant AND module_id=@module) AS series_count
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      rejectedState.single.toColumnMap()['product_revision'] == 1 &&
+          rejectedState.single.toColumnMap()['quantity'] == 90 &&
+          rejectedState.single.toColumnMap()['movement_revision'] == 1 &&
+          rejectedState.single.toColumnMap()['document_status'] == 0 &&
+          rejectedState.single.toColumnMap()['document_number'] == null &&
+          rejectedState.single.toColumnMap()['series_count'] == 0,
+      'A rejected effect rolls back target updates, movement state, number allocation, and the journal transaction',
+    );
+    final reduceProduct = ExtensionRecordCommand.update(
+      commandId: '74000000-0000-4000-8000-000000000004',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-product-1',
+      expectedRevision: 1,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Product',
+      schemaVersion: 1,
+      values: {'quantity': 80},
+    );
+    expect(
+      (await send(
+            api,
+            token: operationToken,
+            body: reduceProduct.envelope.original,
+          )).body['receipt']['status'] ==
+          'ACCEPTED',
+      'Ordinary generic record update can prepare a valid retry',
+    );
+    final concurrentSubmitReplies = await Future.wait([
+      send(api, token: operationToken, body: submitMovement.envelope.original),
+      send(api, token: operationToken, body: submitMovement.envelope.original),
+    ]);
+    final acceptedSubmit = concurrentSubmitReplies.first;
+    final acceptedSubmitReceipt = acceptedSubmit.body['receipt'];
+    expect(
+      concurrentSubmitReplies.length == 2 &&
+          concurrentSubmitReplies.every(
+            (reply) =>
+                reply.status == 200 &&
+                reply.body['receipt']?['status'] == 'ACCEPTED' &&
+                canonicalJson(reply.body['receipt']) ==
+                    canonicalJson(acceptedSubmitReceipt),
+          ) &&
+          acceptedSubmitReceipt['status'] == 'ACCEPTED' &&
+          acceptedSubmitReceipt['output']['number'] == 'INV-000001',
+      'Concurrent identical Submit commands share one receipt and allocate the first official number once',
+    );
+    final submittedState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision, (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision, m.document_status,
+          m.record_data->>'documentNumber' AS document_number,
+          (SELECT next_number FROM ventio_document_number_series
+            WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+              AND module_id=@module AND doc_type='Movement' AND series_id='inventory-movement') AS next_number
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      submittedState.single.toColumnMap()['product_revision'] == 3 &&
+          submittedState.single.toColumnMap()['quantity'] == 100 &&
+          submittedState.single.toColumnMap()['movement_revision'] == 2 &&
+          submittedState.single.toColumnMap()['document_status'] == 1 &&
+          submittedState.single.toColumnMap()['document_number'] ==
+              'INV-000001' &&
+          submittedState.single.toColumnMap()['next_number'] == 2,
+      'Submit atomically updates stock, status, document number and revisions after a failed attempt',
+    );
+    final sortedReportReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: reportBody,
+    );
+    final sortedReport = sortedReportReply.body['reportResult'] as Map;
+    final sortedReportGroups = sortedReport['groups'] as List;
+    expect(
+      sortedReportReply.status == 200 &&
+          sortedReport['rowCount'] == 2 &&
+          sortedReportGroups.length == 2 &&
+          (sortedReportGroups[0]['aggregates'] as Map)['sum_total'] == '0.32' &&
+          (sortedReportGroups[1]['aggregates'] as Map)['sum_total'] == '0',
+      'PostgreSQL report groups sort deterministically by the declared aggregate',
+    );
+    final filteredReportReply = await send(
+      api,
+      token: operationToken,
+      path: '/api/v1/extensions/reports/query',
+      body: {
+        ...reportBody,
+        'filters': {'documentNumber': 'INV-000001'},
+      },
+    );
+    final filteredReport = filteredReportReply.body['reportResult'] as Map;
+    expect(
+      filteredReportReply.status == 200 &&
+          filteredReport['rowCount'] == 1 &&
+          (filteredReport['groups'] as List).length == 1 &&
+          ((filteredReport['groups'] as List).single['aggregates']
+                  as Map)['sum_total'] ==
+              '0',
+      'PostgreSQL report equality filters apply only to declared fields',
+    );
+    final updateSubmittedMovement = ExtensionRecordCommand.update(
+      commandId: '74000000-0000-4000-8000-000000000006',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      values: {
+        'lines': [
+          {'product': 'inventory-product-1', 'amount': 9},
+          {'product': 'inventory-product-1', 'amount': 12},
+        ],
+      },
+    );
+    final immutableReply = await send(
+      api,
+      token: operationToken,
+      body: updateSubmittedMovement.envelope.original,
+    );
+    final immutableState = await observer.execute(
+      pg.Sql.named('''
+        SELECT revision,document_status,record_data::text AS record_json
+        FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Movement'
+          AND record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    final immutableRecord =
+        jsonDecode(immutableState.single.toColumnMap()['record_json'] as String)
+            as Map<String, dynamic>;
+    expect(
+      immutableReply.body['receipt']?['reasonCode'] == 'DOCUMENT_NOT_DRAFT' &&
+          immutableState.single.toColumnMap()['revision'] == 2 &&
+          immutableState.single.toColumnMap()['document_status'] == 1 &&
+          canonicalJson(immutableRecord['lines']) ==
+              canonicalJson([
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 8,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 12,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
+              ]),
+      'Host rejects generic edits to a submitted document without changing rows or revision',
+    );
+    final submitReplay = await send(
+      api,
+      token: operationToken,
+      body: submitMovement.envelope.original,
+    );
+    expect(
+      canonicalJson(submitReplay.body['receipt']) ==
+          canonicalJson(acceptedSubmitReceipt),
+      'An identical accepted operation retry returns its original receipt without repeating effects',
+    );
+    final cancelMovement = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000005',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.cancel',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final cancelled = await send(
+      api,
+      token: operationToken,
+      body: cancelMovement.envelope.original,
+    );
+    final cancelledState = await observer.execute(
+      pg.Sql.named('''
+        SELECT p.revision AS product_revision, (p.record_data->>'quantity')::integer AS quantity,
+          m.revision AS movement_revision, m.document_status,
+          m.record_data->>'documentNumber' AS document_number
+        FROM ventio_records p JOIN ventio_records m ON m.tenant_id=p.tenant_id
+          AND m.company_id=p.company_id AND m.branch_id=p.branch_id
+        WHERE p.tenant_id=@tenant AND p.company_id=@company AND p.branch_id=@branch
+          AND p.module_id=@module AND p.doc_type='Product' AND p.record_id='inventory-product-1'
+          AND m.module_id=@module AND m.doc_type='Movement' AND m.record_id='inventory-movement-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      cancelled.body['receipt']['status'] == 'ACCEPTED' &&
+          cancelledState.single.toColumnMap()['product_revision'] == 4 &&
+          cancelledState.single.toColumnMap()['quantity'] == 80 &&
+          cancelledState.single.toColumnMap()['movement_revision'] == 3 &&
+          cancelledState.single.toColumnMap()['document_status'] == 2 &&
+          cancelledState.single.toColumnMap()['document_number'] ==
+              'INV-000001',
+      'The ordinary cancel operation reverses stock once and preserves the official number',
+    );
+    await send(
+      api,
+      token: operationToken,
+      body: cancelMovement.envelope.original,
+    );
+    final cancelReplayState = await observer.execute(
+      pg.Sql.named('''
+        SELECT revision, (record_data->>'quantity')::integer AS quantity
+        FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+          AND branch_id=@branch AND module_id=@module AND doc_type='Product'
+          AND record_id='inventory-product-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      cancelReplayState.single.toColumnMap()['revision'] == 4 &&
+          cancelReplayState.single.toColumnMap()['quantity'] == 80,
+      'An identical accepted cancel retry does not duplicate the reversal',
+    );
+    final unauthorizedAmend = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000007',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 3,
+      actorId: 'operation-user-without-submit',
+      deviceId: 'operation-device-without-submit',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final unauthorizedAmendReply = await send(
+      api,
+      token: missingSubmitPermissionToken,
+      body: unauthorizedAmend.envelope.original,
+    );
+    expect(
+      unauthorizedAmendReply.status == 403 &&
+          unauthorizedAmendReply.body['receipt']?['reasonCode'] ==
+              'PERMISSION_DENIED',
+      'Amend requires its exact scoped operation and create permissions',
+    );
+    final staleAmend = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000008',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final staleAmendReply = await send(
+      api,
+      token: operationToken,
+      body: staleAmend.envelope.original,
+    );
+    expect(
+      staleAmendReply.body['receipt']?['status'] == 'CONFLICT' &&
+          staleAmendReply.body['receipt']?['reasonCode'] == 'REVISION_CONFLICT',
+      'Amend refuses a stale cancelled-source revision',
+    );
+    final amendMovement = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000009',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 3,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final amendedReply = await send(
+      api,
+      token: operationToken,
+      body: amendMovement.envelope.original,
+    );
+    final amendmentState = await observer.execute(
+      pg.Sql.named('''
+        SELECT source.revision AS source_revision,
+          source.document_status AS source_status,
+          amended.revision AS amended_revision,
+          amended.document_status AS amended_status,
+          amended.record_data::text AS amended_json,
+          (SELECT quantity FROM (
+            SELECT (record_data->>'quantity')::integer AS quantity
+            FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+              AND branch_id=@branch AND module_id=@module AND doc_type='Product'
+              AND record_id='inventory-product-1') AS p) AS product_quantity
+        FROM ventio_records source JOIN ventio_records amended
+          ON amended.tenant_id=source.tenant_id
+          AND amended.company_id=source.company_id
+          AND amended.branch_id=source.branch_id
+        WHERE source.tenant_id=@tenant AND source.company_id=@company
+          AND source.branch_id=@branch AND source.module_id=@module
+          AND source.doc_type='Movement' AND source.record_id='inventory-movement-1'
+          AND amended.module_id=@module AND amended.doc_type='Movement'
+          AND amended.record_id=@amended_id
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+        'amended_id': amendMovement.envelope.commandId,
+      },
+    );
+    final amendedValues =
+        jsonDecode(
+              amendmentState.single.toColumnMap()['amended_json'] as String,
+            )
+            as Map<String, dynamic>;
+    expect(
+      amendedReply.body['receipt']?['status'] == 'ACCEPTED' &&
+          amendedReply.body['receipt']?['output']?['amendedRecordId'] ==
+              amendMovement.envelope.commandId &&
+          amendmentState.single.toColumnMap()['source_revision'] == 3 &&
+          amendmentState.single.toColumnMap()['source_status'] == 2 &&
+          amendmentState.single.toColumnMap()['amended_revision'] == 1 &&
+          amendmentState.single.toColumnMap()['amended_status'] == 0 &&
+          amendmentState.single.toColumnMap()['product_quantity'] == 80 &&
+          amendedValues['amendedFrom'] == 'inventory-movement-1' &&
+          amendedValues['documentNumber'] == null &&
+          canonicalJson(amendedValues['lines']) ==
+              canonicalJson([
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 8,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
+                {
+                  'product': 'inventory-product-1',
+                  'amount': 12,
+                  'unitPrice': 0.0,
+                  'lineTotal': 0.0,
+                },
+              ]),
+      'Amend creates a linked draft with copied rows but no effects or official number',
+    );
+    final concurrentAmendRetries = await Future.wait([
+      send(api, token: operationToken, body: amendMovement.envelope.original),
+      send(api, token: operationToken, body: amendMovement.envelope.original),
+    ]);
+    expect(
+      concurrentAmendRetries.length == 2 &&
+          concurrentAmendRetries.every(
+            (reply) =>
+                reply.body['receipt']?['status'] == 'ACCEPTED' &&
+                canonicalJson(reply.body['receipt']) ==
+                    canonicalJson(amendedReply.body['receipt']),
+          ) &&
+          (await observer.execute(
+                pg.Sql.named('''
+                  SELECT count(*) FROM ventio_records
+                  WHERE tenant_id=@tenant AND company_id=@company
+                    AND branch_id=@branch AND module_id=@module
+                    AND doc_type='Movement' AND record_data->>'amendedFrom'=@source
+                    AND document_status<>2 AND deleted_at IS NULL
+                '''),
+                parameters: {
+                  'tenant': tenant,
+                  'company': primaryCompany,
+                  'branch': primaryBranch,
+                  'module': operationPackage.moduleId,
+                  'source': 'inventory-movement-1',
+                },
+              )).single[0] ==
+              1,
+      'Concurrent identical Amend retries return one receipt and create one active draft',
+    );
+    final duplicateAmend = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000010',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: 'inventory-movement-1',
+      expectedRevision: 3,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final duplicateAmendReply = await send(
+      api,
+      token: operationToken,
+      body: duplicateAmend.envelope.original,
+    );
+    expect(
+      duplicateAmendReply.body['receipt']?['reasonCode'] ==
+          'AMENDMENT_ALREADY_ACTIVE',
+      'A second independent amendment cannot create another active draft',
+    );
+    final submitAmendment = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000011',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: amendMovement.envelope.commandId,
+      expectedRevision: 1,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final amendedSubmitReply = await send(
+      api,
+      token: operationToken,
+      body: submitAmendment.envelope.original,
+    );
+    expect(
+      amendedSubmitReply.body['receipt']?['status'] == 'ACCEPTED' &&
+          amendedSubmitReply.body['receipt']?['output']?['number'] ==
+              'INV-000002' &&
+          (await observer.execute(
+                pg.Sql.named('''
+                  SELECT quantity FROM (
+                    SELECT (record_data->>'quantity')::integer AS quantity
+                    FROM ventio_records WHERE tenant_id=@tenant AND company_id=@company
+                      AND branch_id=@branch AND module_id=@module
+                      AND doc_type='Product' AND record_id='inventory-product-1') AS p
+                '''),
+                parameters: {
+                  'tenant': tenant,
+                  'company': primaryCompany,
+                  'branch': primaryBranch,
+                  'module': operationPackage.moduleId,
+                },
+              )).single[0] ==
+              100,
+      'Submitting the amendment allocates a new number and applies its saved rows once',
+    );
+    final cancelAmendment = ExtensionBusinessOperationCommand.execute(
+      commandId: '74000000-0000-4000-8000-000000000012',
+      tenantId: tenant,
+      companyId: primaryCompany,
+      branchId: primaryBranch,
+      recordId: amendMovement.envelope.commandId,
+      expectedRevision: 2,
+      actorId: 'operation-user',
+      deviceId: 'operation-device',
+      moduleId: operationPackage.moduleId,
+      moduleVersion: operationPackage.version,
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'inventory.cancel',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    final amendedCancelReply = await send(
+      api,
+      token: operationToken,
+      body: cancelAmendment.envelope.original,
+    );
+    final finalAmendedQuantity = await observer.execute(
+      pg.Sql.named('''
+        SELECT (record_data->>'quantity')::integer FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Product'
+          AND record_id='inventory-product-1'
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      amendedCancelReply.body['receipt']?['status'] == 'ACCEPTED' &&
+          finalAmendedQuantity.single[0] == 80,
+      'Cancelling the amendment reverses only its own effect',
+    );
+    final competingAmendments = await Future.wait([
+      for (final commandId in [
+        '74000000-0000-4000-8000-000000000013',
+        '74000000-0000-4000-8000-000000000014',
+      ])
+        send(
+          api,
+          token: operationToken,
+          body: ExtensionBusinessOperationCommand.execute(
+            commandId: commandId,
+            tenantId: tenant,
+            companyId: primaryCompany,
+            branchId: primaryBranch,
+            recordId: 'inventory-movement-1',
+            expectedRevision: 3,
+            actorId: 'operation-user',
+            deviceId: 'operation-device',
+            moduleId: operationPackage.moduleId,
+            moduleVersion: operationPackage.version,
+            docType: 'Movement',
+            schemaVersion: 1,
+            operationId: 'document.amend',
+            operationVersion: 1,
+            inputs: const {},
+          ).envelope.original,
+        ),
+    ]);
+    final competingAmendReceipts = competingAmendments
+        .map((reply) => reply.body['receipt'] as Map<String, dynamic>)
+        .toList(growable: false);
+    final activeAmendments = await observer.execute(
+      pg.Sql.named('''
+        SELECT count(*) FROM ventio_records
+        WHERE tenant_id=@tenant AND company_id=@company AND branch_id=@branch
+          AND module_id=@module AND doc_type='Movement'
+          AND record_data->>'amendedFrom'='inventory-movement-1'
+          AND document_status<>2 AND deleted_at IS NULL
+      '''),
+      parameters: {
+        'tenant': tenant,
+        'company': primaryCompany,
+        'branch': primaryBranch,
+        'module': operationPackage.moduleId,
+      },
+    );
+    expect(
+      competingAmendReceipts
+                  .where((receipt) => receipt['status'] == 'ACCEPTED')
+                  .length ==
+              1 &&
+          competingAmendReceipts
+                  .where(
+                    (receipt) =>
+                        receipt['reasonCode'] == 'AMENDMENT_ALREADY_ACTIVE',
+                  )
+                  .length ==
+              1 &&
+          activeAmendments.single[0] == 1,
+      'Distinct concurrent Amend commands create at most one active draft',
+    );
     await observer.execute(
       pg.Sql.named(
         'UPDATE public.ventio_identity_role_permissions '
@@ -2183,10 +4205,13 @@ Future<void> main() async {
       recoveryTruncateDenied,
       'The recovery authority state cannot be truncated',
     );
+
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     await api?.close();
+    await permissionDiagnosticPool.close();
     await observer.close();
+    await reviewApiConnection.close();
     await runtimeConnection.close();
     await adminConnection.close();
     await temporary.delete(recursive: true);

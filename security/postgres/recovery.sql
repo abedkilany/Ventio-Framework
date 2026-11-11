@@ -32,6 +32,55 @@ BEGIN
   RETURN ventio_security.recovery_fingerprint();
 END $fn$;
 
+-- The first-install broker may establish external recovery evidence once, but
+-- only for a completely empty Host database and only through the scoped API
+-- login. Repeating the same authority is safe after a crash before the witness
+-- is marked ready; choosing a different authority or adopting existing data is
+-- rejected.
+CREATE OR REPLACE FUNCTION ventio_security.initialize_first_host_recovery(
+    p_authority text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE state ventio_security.recovery_state%ROWTYPE;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') THEN
+    RAISE EXCEPTION 'First Host recovery initialization caller is not authorized'
+      USING ERRCODE='42501';
+  END IF;
+  IF p_authority IS NULL OR p_authority !~ '^[A-Za-z0-9_-]{43}$' THEN
+    RAISE EXCEPTION 'Invalid first Host recovery authority'
+      USING ERRCODE='22023';
+  END IF;
+  PERFORM pg_catalog.pg_advisory_xact_lock(86744321);
+  SELECT * INTO state FROM ventio_security.recovery_state
+    WHERE singleton FOR UPDATE;
+  IF NOT EXISTS (SELECT FROM public.ventio_identity_users) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_credentials) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_devices) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_grants) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_branches) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_audit) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_roles) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_role_permissions) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_role_assignments) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_pairings) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_credential_reissues) AND
+      NOT EXISTS (SELECT FROM public.ventio_identity_device_activity) THEN
+    IF state.enforced IS FALSE AND state.authority_id='unconfigured' AND
+        state.generation=0 THEN
+      UPDATE ventio_security.recovery_state
+        SET enforced=true, authority_id=p_authority WHERE singleton;
+      RETURN;
+    END IF;
+    IF state.enforced IS TRUE AND state.authority_id=p_authority AND
+        state.generation=1 THEN
+      RETURN;
+    END IF;
+  END IF;
+  RAISE EXCEPTION 'First Host recovery is already configured or contains identity data'
+    USING ERRCODE='42501';
+END $fn$;
+
 -- Remove the legacy fingerprint-only admission function. Bootstrap reapplies
 -- the narrow function ACL after installing the current recovery functions.
 DROP FUNCTION IF EXISTS ventio_security.admit_recovery(text);
@@ -174,6 +223,8 @@ BEGIN
   RETURN NEW;
 END $fn$;
 
+-- Device-authentication telemetry is intentionally excluded: it is not an
+-- authorization input and must not advance Recovery Authority generations.
 DO $recovery_triggers$
 DECLARE t text;
 BEGIN
@@ -182,7 +233,8 @@ BEGIN
     'ventio_identity_credentials','ventio_identity_branches',
     'ventio_identity_grants','ventio_identity_roles',
     'ventio_identity_role_permissions','ventio_identity_role_assignments',
-    'ventio_identity_audit',
+    'ventio_identity_audit','ventio_identity_pairings',
+    'ventio_identity_credential_reissues',
     'ventio_schema_migrations'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_lock ON public.%I', t);
@@ -191,7 +243,11 @@ BEGIN
       'FOR EACH STATEMENT EXECUTE FUNCTION ventio_security.lock_recovery_mutation()', t);
     EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_mark ON public.%I', t);
     EXECUTE format('CREATE TRIGGER ventio_recovery_mark '
-      'AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON public.%I '
+      'AFTER INSERT OR UPDATE OR DELETE ON public.%I '
+      'FOR EACH ROW EXECUTE FUNCTION ventio_security.mark_recovery_mutation()', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS ventio_recovery_truncate_mark ON public.%I', t);
+    EXECUTE format('CREATE TRIGGER ventio_recovery_truncate_mark '
+      'AFTER TRUNCATE ON public.%I '
       'FOR EACH STATEMENT EXECUTE FUNCTION ventio_security.mark_recovery_mutation()', t);
   END LOOP;
 
@@ -241,4 +297,76 @@ BEGIN
   INSERT INTO public.ventio_identity_audit(tenant_id,operator_label,action,subject_id,details)
     SELECT tenant_id,p_label,'RECOVERY_REENROLLMENT_REQUIRED',p_authority,'{}'::jsonb
     FROM public.ventio_identity_users GROUP BY tenant_id;
+END $fn$;
+
+-- Reconcile only the exact initial-administrator transaction recorded by the
+-- service-owned pending witness. This returns a fingerprint and performs no
+-- database mutation; the caller must match the request receipt before invoking
+-- it and then durably replace its pending witness.
+CREATE OR REPLACE FUNCTION ventio_security.reconcile_pending_first_admin(
+    p_authority text, p_request_id text, p_tenant text, p_actor text,
+    p_company text, p_branch text, p_device text, p_credential text,
+    p_token_digest text, p_expires_at timestamptz)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE state ventio_security.recovery_state%ROWTYPE;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') THEN
+    RAISE EXCEPTION 'Pending first administrator reconciliation caller is not authorized'
+      USING ERRCODE='42501';
+  END IF;
+  IF p_authority IS NULL OR p_authority !~ '^[A-Za-z0-9_-]{43}$' OR
+      p_request_id IS NULL OR p_request_id !~ '^[A-Za-z0-9_-]{43}$' OR
+      p_tenant IS NULL OR p_actor IS NULL OR p_company IS NULL OR
+      p_branch IS NULL OR p_device IS NULL OR p_credential IS NULL OR
+      p_token_digest IS NULL OR p_token_digest !~ '^[0-9a-f]{64}$' OR
+      p_expires_at IS NULL THEN
+    RAISE EXCEPTION 'Invalid pending first administrator receipt'
+      USING ERRCODE='22023';
+  END IF;
+  PERFORM pg_catalog.pg_advisory_xact_lock(86744321);
+  SELECT * INTO state FROM ventio_security.recovery_state
+    WHERE singleton FOR UPDATE;
+  IF state.enforced IS DISTINCT FROM true OR
+      state.authority_id IS DISTINCT FROM p_authority OR
+      NOT EXISTS (
+        SELECT FROM public.ventio_identity_users u
+        WHERE u.tenant_id=p_tenant AND u.actor_id=p_actor) OR
+      (SELECT count(*) FROM public.ventio_identity_users) <> 1 OR
+      EXISTS (
+        SELECT FROM public.ventio_identity_users u
+        WHERE u.tenant_id IS DISTINCT FROM p_tenant OR
+          u.actor_id IS DISTINCT FROM p_actor) OR
+      NOT EXISTS (
+        SELECT FROM public.ventio_identity_branches b
+        WHERE b.tenant_id=p_tenant AND b.company_id=p_company AND
+          b.branch_id=p_branch) OR
+      NOT EXISTS (
+        SELECT FROM public.ventio_identity_devices d
+        WHERE d.tenant_id=p_tenant AND d.actor_id=p_actor AND
+          d.device_id=p_device) OR
+      NOT EXISTS (
+        SELECT FROM public.ventio_identity_credentials c
+        WHERE c.tenant_id=p_tenant AND c.actor_id=p_actor AND
+          c.device_id=p_device AND c.credential_id=p_credential AND
+          c.token_digest=p_token_digest AND c.expires_at=p_expires_at AND
+          c.allowed_scopes=jsonb_build_array(jsonb_build_object(
+            'companyId',p_company,'branchId',p_branch,'permissions',
+            to_jsonb(ARRAY['host.status.read','host.diagnostics.read',
+              'identity.users.manage','identity.devices.manage',
+              'identity.pairing.manage','identity.roles.manage']::text[])))) OR
+      NOT EXISTS (
+        SELECT FROM public.ventio_identity_audit a
+        WHERE a.tenant_id=p_tenant AND a.action='INITIAL_ADMIN_BOOTSTRAPPED' AND
+          a.subject_id=p_actor AND
+          a.details->>'bootstrapRequestId'=p_request_id AND
+          a.details->>'companyId'=p_company AND
+          a.details->>'branchId'=p_branch AND
+          a.details->>'deviceId'=p_device AND
+          a.details->>'credentialId'=p_credential AND
+          (a.details->>'expiresAt')::timestamptz=p_expires_at) THEN
+    RAISE EXCEPTION 'Pending first administrator transaction cannot be reconciled'
+      USING ERRCODE='28000';
+  END IF;
+  RETURN ventio_security.recovery_fingerprint();
 END $fn$;

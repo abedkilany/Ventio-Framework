@@ -33,6 +33,8 @@ class LocalExtension {
     required this.description,
     required this.version,
     required this.dependencies,
+    required this.reportDefinitions,
+    required this.printFormatDefinitions,
     required this.state,
     required this.updatedAtUtc,
   });
@@ -42,6 +44,8 @@ class LocalExtension {
   final String description;
   final String version;
   final Map<String, String> dependencies;
+  final List<Map<String, dynamic>> reportDefinitions;
+  final List<Map<String, dynamic>> printFormatDefinitions;
   final ExtensionState state;
   final DateTime updatedAtUtc;
 
@@ -67,12 +71,33 @@ class LocalExtension {
       semverParts(version);
       dependencies[id] = version;
     }
+    final rawReports = jsonDecode(row['reports_json'] as String? ?? '[]');
+    if (rawReports is! List || rawReports.any((report) => report is! Map)) {
+      throw const FormatException('Stored extension reports are invalid.');
+    }
+    final rawPrintFormats = jsonDecode(
+      row['print_formats_json'] as String? ?? '[]',
+    );
+    if (rawPrintFormats is! List ||
+        rawPrintFormats.any((format) => format is! Map)) {
+      throw const FormatException(
+        'Stored extension print formats are invalid.',
+      );
+    }
     return LocalExtension(
       moduleId: row['module_id']! as String,
       displayName: row['display_name']! as String,
       description: row['description']! as String,
       version: row['version']! as String,
       dependencies: Map.unmodifiable(dependencies),
+      reportDefinitions: List.unmodifiable(
+        rawReports.map((report) => Map<String, dynamic>.from(report as Map)),
+      ),
+      printFormatDefinitions: List.unmodifiable(
+        rawPrintFormats.map(
+          (format) => Map<String, dynamic>.from(format as Map),
+        ),
+      ),
       state: ExtensionState.fromDatabase(row['state']),
       updatedAtUtc: DateTime.parse(row['updated_at_utc']! as String).toUtc(),
     );
@@ -143,6 +168,8 @@ class LocalExtensionRecord {
     this.hostRevision,
     this.pendingCommandId,
     this.authorityState = 'LOCAL_ONLY',
+    this.documentStatus = 0,
+    this.isDeleted = false,
     this.conflictRevision,
     this.conflictValues,
     Iterable<String>? readableFields,
@@ -169,6 +196,8 @@ class LocalExtensionRecord {
   final int? hostRevision;
   final String? pendingCommandId;
   final String authorityState;
+  final int documentStatus;
+  final bool isDeleted;
   final int? conflictRevision;
   final Map<String, dynamic>? conflictValues;
 
@@ -210,6 +239,8 @@ class LocalExtensionRecord {
       hostRevision: row['host_revision'] as int?,
       pendingCommandId: row['pending_command_id'] as String?,
       authorityState: row['authority_state'] as String? ?? 'LOCAL_ONLY',
+      documentStatus: row['document_status'] as int? ?? 0,
+      isDeleted: (row['is_deleted'] as int? ?? 0) == 1,
       conflictRevision: row['conflict_revision'] as int?,
       conflictValues: conflictValues,
       readableFields: _decodeFieldSet(row['readable_fields_json']),
@@ -281,7 +312,7 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 9,
+        version: 12,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -295,6 +326,8 @@ class LocalExtensionStore {
               description TEXT NOT NULL,
               version TEXT NOT NULL,
               dependencies_json TEXT NOT NULL DEFAULT '{}',
+              reports_json TEXT NOT NULL DEFAULT '[]',
+              print_formats_json TEXT NOT NULL DEFAULT '[]',
               state TEXT NOT NULL CHECK (state IN ('DRAFT', 'ACTIVE_LOCAL', 'DISABLED_LOCAL')),
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL
@@ -328,6 +361,9 @@ class LocalExtensionStore {
               pending_command_id TEXT,
               authority_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY'
                 CHECK (authority_state IN ('LOCAL_ONLY', 'PENDING', 'HOST_ACCEPTED', 'CONFLICT', 'REJECTED')),
+              document_status INTEGER NOT NULL DEFAULT 0
+                CHECK (document_status IN (0, 1, 2)),
+              is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
               conflict_revision INTEGER
                 CHECK (conflict_revision IS NULL OR conflict_revision > 0),
               conflict_data_json TEXT,
@@ -540,6 +576,46 @@ class LocalExtensionStore {
               )
             ''');
           }
+          if (oldVersion < 10) {
+            final recordTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_recordsTable],
+            );
+            if (recordTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN document_status INTEGER
+                  NOT NULL DEFAULT 0 CHECK (document_status IN (0, 1, 2))
+              ''');
+              await database.execute('''
+                ALTER TABLE $_recordsTable ADD COLUMN is_deleted INTEGER
+                  NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1))
+              ''');
+            }
+          }
+          if (oldVersion < 11) {
+            final extensionTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_extensionsTable],
+            );
+            if (extensionTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_extensionsTable ADD COLUMN reports_json TEXT
+                  NOT NULL DEFAULT '[]'
+              ''');
+            }
+          }
+          if (oldVersion < 12) {
+            final extensionTable = await database.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [_extensionsTable],
+            );
+            if (extensionTable.isNotEmpty) {
+              await database.execute('''
+                ALTER TABLE $_extensionsTable ADD COLUMN print_formats_json TEXT
+                  NOT NULL DEFAULT '[]'
+              ''');
+            }
+          }
         },
       ),
     );
@@ -596,6 +672,8 @@ class LocalExtensionStore {
           'description': summary,
           'version': version,
           'dependencies_json': canonicalJson(normalizedDependencies),
+          'reports_json': '[]',
+          'print_formats_json': '[]',
           'state': ExtensionState.draft.databaseValue,
           'created_at_utc': now,
           'updated_at_utc': now,
@@ -672,17 +750,30 @@ class LocalExtensionStore {
   Future<bool> hasHostRecordReadDenial({
     required HostConnectionProfile profile,
     required String moduleId,
+  }) async =>
+      await hostRecordReadDenialCode(profile: profile, moduleId: moduleId) !=
+      null;
+
+  Future<String?> hostRecordReadDenialCode({
+    required HostConnectionProfile profile,
+    required String moduleId,
   }) async {
     _ensureOpen();
     final key = _hostRecordDenialKey(profile, moduleId);
     final rows = await _database.query(
       _hostRecordDenialsTable,
+      columns: const ['reason_code'],
       where: '''endpoint = ? AND tenant_id = ? AND company_id = ?
         AND branch_id = ? AND actor_id = ? AND device_id = ? AND module_id = ?''',
       whereArgs: key,
       limit: 1,
     );
-    return rows.isNotEmpty;
+    if (rows.isEmpty) return null;
+    final code = rows.single['reason_code'];
+    if (code is! String || !RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(code)) {
+      return 'HOST_ACCESS_DENIED';
+    }
+    return code;
   }
 
   Future<void> markHostRecordReadDenied({
@@ -780,6 +871,9 @@ class LocalExtensionStore {
         'extension.${moduleId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
     final exportDocTypes = docTypes
         .map((type) => jsonDecode(jsonEncode(type)) as Map<String, dynamic>)
+        .toList(growable: false);
+    final exportReports = extension.reportDefinitions
+        .map((report) => jsonDecode(jsonEncode(report)) as Map<String, dynamic>)
         .toList(growable: false);
     final catalog = <String, String>{};
     void addLabel(Object? rawKey, Object? rawLabel) {
@@ -907,7 +1001,104 @@ class LocalExtensionStore {
             addLabel(rawLabel['labelKey'], rawLabel['label']);
           }
         }
+        if (rawField['childDocType'] case final Map<String, dynamic> child) {
+          final childName = child['name'];
+          final childLabel = child['label'];
+          if (childName is! String || childLabel is! String) {
+            throw const ExtensionStoreException(
+              'INVALID_BUNDLE_METADATA',
+              'A child DocType needs a stable name and label before export.',
+            );
+          }
+          final childNamespace =
+              '$fieldNamespace.child.${childName.toLowerCase()}';
+          child['labelKey'] = collisionSafeLabelKey(
+            key: child['labelKey'],
+            label: childLabel,
+            fallbackKey: '$childNamespace.label',
+          );
+          addLabel(child['labelKey'], childLabel);
+          final childFields = child['fields'];
+          if (childFields is! List) {
+            throw const ExtensionStoreException(
+              'INVALID_BUNDLE_METADATA',
+              'A child DocType has an invalid fields definition.',
+            );
+          }
+          for (final rawChildField in childFields) {
+            if (rawChildField is! Map<String, dynamic> ||
+                rawChildField['name'] is! String) {
+              throw const ExtensionStoreException(
+                'INVALID_BUNDLE_METADATA',
+                'A child field needs a stable name before it can be exported.',
+              );
+            }
+            final childFieldNamespace =
+                '$childNamespace.field.${(rawChildField['name'] as String).toLowerCase()}';
+            rawChildField['labelKey'] = collisionSafeLabelKey(
+              key: rawChildField['labelKey'],
+              label: rawChildField['label'],
+              fallbackKey: '$childFieldNamespace.label',
+            );
+            addLabel(rawChildField['labelKey'], rawChildField['label']);
+            if (rawChildField.containsKey('descriptionKey')) {
+              rawChildField['descriptionKey'] = collisionSafeLabelKey(
+                key: rawChildField['descriptionKey'],
+                label: rawChildField['description'],
+                fallbackKey: '$childFieldNamespace.description',
+              );
+              addLabel(
+                rawChildField['descriptionKey'],
+                rawChildField['description'],
+              );
+            }
+            final childEnumLabels = rawChildField['enumLabels'];
+            if (childEnumLabels is Map) {
+              for (final entry in childEnumLabels.entries) {
+                final rawLabel = entry.value;
+                if (rawLabel is! Map) {
+                  throw const ExtensionStoreException(
+                    'INVALID_BUNDLE_METADATA',
+                    'A child enum option has an invalid label definition.',
+                  );
+                }
+                final option = entry.key.toString().toLowerCase();
+                rawLabel['labelKey'] = collisionSafeLabelKey(
+                  key: rawLabel['labelKey'],
+                  label: rawLabel['label'],
+                  fallbackKey: '$childFieldNamespace.enum.$option',
+                );
+                addLabel(rawLabel['labelKey'], rawLabel['label']);
+              }
+            }
+          }
+        }
       }
+    }
+    for (final report in exportReports) {
+      addLabel(report['labelKey'], report['label']);
+      final aggregates = report['aggregates'];
+      if (aggregates is! List) {
+        throw const ExtensionStoreException(
+          'INVALID_BUNDLE_METADATA',
+          'A report needs an aggregate definition.',
+        );
+      }
+      for (final aggregate in aggregates) {
+        if (aggregate is! Map<String, dynamic>) {
+          throw const ExtensionStoreException(
+            'INVALID_BUNDLE_METADATA',
+            'A report aggregate has an invalid definition.',
+          );
+        }
+        addLabel(aggregate['labelKey'], aggregate['label']);
+      }
+    }
+    final exportPrintFormats = extension.printFormatDefinitions
+        .map((format) => jsonDecode(jsonEncode(format)) as Map<String, dynamic>)
+        .toList(growable: false);
+    for (final format in exportPrintFormats) {
+      addLabel(format['labelKey'], format['label']);
     }
 
     return ExtensionBundle.fromJson({
@@ -931,6 +1122,8 @@ class LocalExtensionStore {
         'offline': {'enabled': false, 'allowedCommands': <String>[]},
       },
       'docTypes': exportDocTypes,
+      if (exportReports.isNotEmpty) 'reports': exportReports,
+      if (exportPrintFormats.isNotEmpty) 'printFormats': exportPrintFormats,
       'dependencyVersions': extension.dependencies,
       'englishCatalog': catalog,
     });
@@ -954,6 +1147,8 @@ class LocalExtensionStore {
     final incomingByName = <String, Map<String, dynamic>>{
       for (final json in bundle.docTypeJson) json['name'] as String: json,
     };
+    final incomingReports = canonicalJson(bundle.reportJson);
+    final incomingPrintFormats = canonicalJson(bundle.printFormatJson);
     final now = _now();
 
     await _database.transaction((transaction) async {
@@ -1026,6 +1221,9 @@ class LocalExtensionStore {
           final unchanged =
               current.displayName == displayName &&
               current.description == description &&
+              canonicalJson(current.reportDefinitions) == incomingReports &&
+              canonicalJson(current.printFormatDefinitions) ==
+                  incomingPrintFormats &&
               _sameDependencies(current.dependencies, dependencies) &&
               incomingByName.length == existingByName.length &&
               incomingByName.entries.every(
@@ -1058,6 +1256,8 @@ class LocalExtensionStore {
             'description': description,
             'version': bundle.version,
             'dependencies_json': canonicalJson(dependencies),
+            'reports_json': incomingReports,
+            'print_formats_json': incomingPrintFormats,
             'updated_at_utc': now,
           },
           where: 'module_id = ?',
@@ -1070,6 +1270,8 @@ class LocalExtensionStore {
           'description': description,
           'version': bundle.version,
           'dependencies_json': canonicalJson(dependencies),
+          'reports_json': incomingReports,
+          'print_formats_json': incomingPrintFormats,
           'state': ExtensionState.draft.databaseValue,
           'created_at_utc': now,
           'updated_at_utc': now,
@@ -1083,7 +1285,7 @@ class LocalExtensionStore {
       for (final entry in incomingByName.entries) {
         final definition = DocTypeDefinition.fromJson(entry.value);
         _validateDefinition(definition);
-        if (definition.fields.any(
+        if (definition.allFields.any(
           (field) =>
               field.type == 'reference' &&
               !knownNames.contains(field.referenceTo),
@@ -1258,7 +1460,7 @@ class LocalExtensionStore {
       final knownNames =
           existingNames.map((row) => row['doctype_name']! as String).toSet()
             ..add(definition.name);
-      for (final field in definition.fields.where(
+      for (final field in definition.allFields.where(
         (item) => item.type == 'reference',
       )) {
         if (!knownNames.contains(field.referenceTo)) {
@@ -1319,6 +1521,113 @@ class LocalExtensionStore {
         );
       }
     });
+  }
+
+  /// Saves one data-only report definition in the local extension draft.
+  /// The definition is exported with the ordinary package and gains no Host
+  /// authority until that package is reviewed and approved.
+  Future<void> saveReportDefinition({
+    required String moduleId,
+    required Map<String, dynamic> metadata,
+  }) async {
+    _ensureOpen();
+    final extension = await getExtension(moduleId);
+    if (extension == null) {
+      throw const ExtensionStoreException(
+        'UNKNOWN_MODULE',
+        'Create the extension before adding a report.',
+      );
+    }
+    final definitions = (await listDocTypes(
+      moduleId,
+    )).map(DocTypeDefinition.fromJson).toList(growable: false);
+    final report = ReportDefinition.fromJson(
+      metadata,
+      moduleId: moduleId,
+      docTypes: definitions,
+    );
+    final reports = extension.reportDefinitions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final existing = reports.indexWhere((item) => item['id'] == report.id);
+    if (existing < 0 &&
+        reports.length >= ReportDefinition.maxReportsPerBundle) {
+      throw const ExtensionStoreException(
+        'TOO_MANY_REPORTS',
+        'An extension may define at most 32 reports.',
+      );
+    }
+    if (existing < 0) {
+      reports.add(report.toJson());
+    } else {
+      if (canonicalJson(reports[existing]) == canonicalJson(report.toJson())) {
+        return;
+      }
+      reports[existing] = report.toJson();
+    }
+    await _database.update(
+      _extensionsTable,
+      {
+        'reports_json': canonicalJson(reports),
+        'version': _nextPatch(extension.version),
+        'updated_at_utc': _now(),
+      },
+      where: 'module_id = ?',
+      whereArgs: [moduleId],
+    );
+  }
+
+  /// Saves a bounded data-only print format in an ordinary extension draft.
+  Future<void> savePrintFormatDefinition({
+    required String moduleId,
+    required Map<String, dynamic> metadata,
+  }) async {
+    _ensureOpen();
+    final extension = await getExtension(moduleId);
+    if (extension == null) {
+      throw const ExtensionStoreException(
+        'UNKNOWN_MODULE',
+        'Create the extension before adding a print format.',
+      );
+    }
+    final definitions = (await listDocTypes(
+      moduleId,
+    )).map(DocTypeDefinition.fromJson).toList(growable: false);
+    final format = PrintFormatDefinition.fromJson(
+      metadata,
+      moduleId: moduleId,
+      docTypes: definitions,
+    );
+    final formats = extension.printFormatDefinitions
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final existing = formats.indexWhere((item) => item['id'] == format.id);
+    if (existing < 0 &&
+        formats.length >= PrintFormatDefinition.maxFormatsPerBundle) {
+      throw const ExtensionStoreException(
+        'TOO_MANY_PRINT_FORMATS',
+        'An extension may define at most 32 print formats.',
+      );
+    }
+    if (existing >= 0 &&
+        canonicalJson(formats[existing]) == canonicalJson(format.toJson())) {
+      return;
+    }
+    if (existing < 0) {
+      formats.add(format.toJson());
+    } else {
+      formats[existing] = format.toJson();
+    }
+    await _database.update(
+      _extensionsTable,
+      {
+        'print_formats_json': canonicalJson(formats),
+        'version': _nextPatch(extension.version),
+        'updated_at_utc': _now(),
+      },
+      where: 'module_id = ?',
+      whereArgs: [moduleId],
+    );
   }
 
   Future<void> activate(String moduleId) async {
@@ -1420,8 +1729,27 @@ class LocalExtensionStore {
       );
       final definition = DocTypeDefinition.fromJson(metadata);
       _requireOperation(definition, 'create');
-      _validatePayload(definition, values);
-      await _validateReferences(transaction, definition, values, scope);
+      final storedValues = definition.applyDefaults(values);
+      if (definition.fields.any(
+        (field) =>
+            field.readOnly &&
+            field.calculation == null &&
+            values.containsKey(field.name) &&
+            values[field.name] != field.defaultValue,
+      )) {
+        throw const ExtensionStoreException(
+          'READ_ONLY_FIELD',
+          'A read-only field cannot be set by a record creator.',
+        );
+      }
+      final namingSeries = definition.namingSeries;
+      if (namingSeries != null) {
+        storedValues[namingSeries.field] = namingSeries.provisionalName(
+          recordId,
+        );
+      }
+      _validatePayload(definition, storedValues);
+      await _validateReferences(transaction, definition, storedValues, scope);
       final knownFields = definition.fields.map((field) => field.name).toSet();
       final readMask = readableFields == null
           ? null
@@ -1437,7 +1765,6 @@ class LocalExtensionStore {
           (createMask != null && !knownFields.containsAll(createMask))) {
         throw const FormatException('Host field permission mask is invalid.');
       }
-      final storedValues = Map<String, dynamic>.of(values);
       if (readMask != null) {
         storedValues.removeWhere((field, _) => !readMask.contains(field));
       }
@@ -1452,6 +1779,8 @@ class LocalExtensionStore {
         'data_json': canonicalJson(storedValues),
         'schema_version': definition.schemaVersion,
         'revision': 1,
+        'document_status': 0,
+        'is_deleted': 0,
         'sync_state': 'LOCAL_ONLY',
         'readable_fields_json': readMask == null
             ? null
@@ -1506,7 +1835,7 @@ class LocalExtensionStore {
         _recordsTable,
         where: '''record_id = ? AND module_id = ? AND doctype_name = ?
           AND organization_id = ? AND company_id = ?
-          AND branch_id = ?''',
+          AND branch_id = ? AND is_deleted = 0''',
         whereArgs: [
           recordId,
           moduleId,
@@ -1527,6 +1856,12 @@ class LocalExtensionStore {
           'Wait for the current Host command to resolve before editing this record again.',
         );
       }
+      if (current.documentStatus != 0) {
+        throw const ExtensionStoreException(
+          'DOCUMENT_NOT_DRAFT',
+          'Only draft documents can be edited.',
+        );
+      }
       if (current.authorityState == 'CONFLICT' &&
           (current.conflictValues == null ||
               current.conflictRevision == null ||
@@ -1540,6 +1875,18 @@ class LocalExtensionStore {
         throw ExtensionStoreException(
           'REVISION_CONFLICT',
           'The record is at revision ${current.revision}; reload before saving.',
+        );
+      }
+      if (definition.fields.any(
+        (field) =>
+            field.readOnly &&
+            field.calculation == null &&
+            values.containsKey(field.name) &&
+            values[field.name] != current.values[field.name],
+      )) {
+        throw const ExtensionStoreException(
+          'READ_ONLY_FIELD',
+          'A read-only field cannot be changed after record creation.',
         );
       }
       final effectiveReadMask = readableFields == null
@@ -1565,14 +1912,15 @@ class LocalExtensionStore {
       if (effectiveReadMask case final readMask?) {
         mergedValues.removeWhere((field, _) => !readMask.contains(field));
       }
-      _validatePayload(definition, mergedValues, partial: true);
+      final calculatedValues = definition.calculateValues(mergedValues);
+      _validatePayload(definition, calculatedValues, partial: true);
       await _validateReferences(transaction, definition, values, scope);
       final nextRevision = current.revision + 1;
       final now = _now();
       final changed = await transaction.update(
         _recordsTable,
         {
-          'data_json': canonicalJson(mergedValues),
+          'data_json': canonicalJson(calculatedValues),
           'schema_version': definition.schemaVersion,
           'revision': nextRevision,
           'pending_command_id': null,
@@ -1617,7 +1965,7 @@ class LocalExtensionStore {
         schemaVersion: definition.schemaVersion,
         revision: nextRevision,
         values: Map.unmodifiable(
-          jsonDecode(canonicalJson(mergedValues)) as Map<String, dynamic>,
+          jsonDecode(canonicalJson(calculatedValues)) as Map<String, dynamic>,
         ),
         updatedAtUtc: DateTime.parse(now),
         hostRevision: current.hostRevision,
@@ -1633,15 +1981,25 @@ class LocalExtensionStore {
     required String recordId,
     required RecordScope scope,
     required String commandId,
+    String operation = 'update',
   }) async {
     _ensureOpen();
     scope.validate();
     if (commandId.isEmpty || commandId.length > 80) {
       throw ArgumentError.value(commandId, 'commandId');
     }
+    if (operation != 'create' &&
+        operation != 'update' &&
+        operation != 'delete') {
+      throw ArgumentError.value(operation, 'operation');
+    }
     final changed = await _database.update(
       _recordsTable,
-      {'pending_command_id': commandId, 'authority_state': 'PENDING'},
+      {
+        'pending_command_id': commandId,
+        'authority_state': 'PENDING',
+        if (operation == 'delete') 'is_deleted': 1,
+      },
       where: '''record_id = ? AND organization_id = ? AND company_id = ?
         AND branch_id = ? AND (pending_command_id IS NULL OR pending_command_id = ?)''',
       whereArgs: [
@@ -1660,16 +2018,280 @@ class LocalExtensionStore {
     }
   }
 
+  /// Persists the offline copy for a governed Amend command and marks its
+  /// cancelled source pending in the same SQLite transaction. The copy uses
+  /// the command ID as its provisional record ID, matching the Host receipt.
+  Future<LocalExtensionRecord> createAmendmentDraft({
+    required String moduleId,
+    required String docTypeName,
+    required String sourceRecordId,
+    required RecordScope scope,
+    required int expectedSourceRevision,
+    required String commandId,
+    required String linkField,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    if (expectedSourceRevision < 1 ||
+        commandId.isEmpty ||
+        commandId.length > 80) {
+      throw ArgumentError('Amendment revision and command ID are required.');
+    }
+    return _database.transaction((transaction) async {
+      final definition = DocTypeDefinition.fromJson(
+        await _loadActiveDocType(transaction, moduleId, docTypeName),
+      );
+      _requireOperation(definition, 'create');
+      final link = definition.fields.where((field) => field.name == linkField);
+      if (link.length != 1 ||
+          link.single.type != 'reference' ||
+          link.single.referenceTo != docTypeName ||
+          !link.single.readOnly ||
+          link.single.required) {
+        throw const ExtensionStoreException(
+          'INVALID_AMENDMENT_FIELD',
+          'Amendment requires an optional read-only self-reference field.',
+        );
+      }
+      final sourceRows = await transaction.query(
+        _recordsTable,
+        where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+          AND organization_id = ? AND company_id = ? AND branch_id = ?
+          AND is_deleted = 0''',
+        whereArgs: [
+          sourceRecordId,
+          moduleId,
+          docTypeName,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+        limit: 1,
+      );
+      if (sourceRows.isEmpty) {
+        throw const ExtensionStoreException(
+          'AMENDMENT_SOURCE_UNAVAILABLE',
+          'The cancelled source is not available in this scope.',
+        );
+      }
+      final source = LocalExtensionRecord.fromRow(sourceRows.single);
+      if (source.hostRevision != expectedSourceRevision ||
+          source.documentStatus != 2) {
+        throw const ExtensionStoreException(
+          'AMENDMENT_SOURCE_CHANGED',
+          'Amend requires the current Host-accepted cancelled revision.',
+        );
+      }
+
+      final existingCopy = await transaction.query(
+        _recordsTable,
+        where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+          AND organization_id = ? AND company_id = ? AND branch_id = ?''',
+        whereArgs: [
+          commandId,
+          moduleId,
+          docTypeName,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+        limit: 1,
+      );
+      if (existingCopy.isNotEmpty) {
+        final copy = LocalExtensionRecord.fromRow(existingCopy.single);
+        final linkMatches = copy.values[linkField] == sourceRecordId;
+        final commandMatches = copy.pendingCommandId == commandId;
+        final terminalState = {
+          'HOST_ACCEPTED',
+          'REJECTED',
+          'CONFLICT',
+        }.contains(copy.authorityState);
+        final followUpCommandPending =
+            copy.authorityState == 'PENDING' && copy.pendingCommandId != null;
+        if (!linkMatches ||
+            (!commandMatches && !terminalState && !followUpCommandPending)) {
+          throw ExtensionStoreException(
+            'AMENDMENT_COPY_MISMATCH',
+            'The provisional amendment copy no longer matches its link or '
+                'pending command (linkMatches=$linkMatches, '
+                'commandMatches=$commandMatches, '
+                'authorityState=${copy.authorityState}).',
+          );
+        }
+        return copy;
+      }
+
+      final candidateRows = await transaction.query(
+        _recordsTable,
+        where: '''module_id = ? AND doctype_name = ? AND organization_id = ?
+          AND company_id = ? AND branch_id = ? AND is_deleted = 0''',
+        whereArgs: [
+          moduleId,
+          docTypeName,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+        ],
+      );
+      for (final row in candidateRows) {
+        if (row['document_status'] == 2) continue;
+        final data = jsonDecode(row['data_json']! as String);
+        if (data is Map && data[linkField] == sourceRecordId) {
+          throw const ExtensionStoreException(
+            'AMENDMENT_ALREADY_ACTIVE',
+            'An active local amendment already exists for this source.',
+          );
+        }
+      }
+      if ((source.pendingCommandId != null &&
+              source.pendingCommandId != commandId) ||
+          (source.authorityState != 'HOST_ACCEPTED' &&
+              !(source.authorityState == 'PENDING' &&
+                  source.pendingCommandId == commandId) &&
+              !(source.pendingCommandId == null &&
+                  {'REJECTED', 'CONFLICT'}.contains(source.authorityState)))) {
+        throw const ExtensionStoreException(
+          'RECORD_COMMAND_PENDING',
+          'Resolve the source record command before amending it.',
+        );
+      }
+
+      final namingSeries = definition.namingSeries;
+      final amendedValues = Map<String, dynamic>.of(source.values)
+        ..remove(namingSeries?.field)
+        ..[linkField] = sourceRecordId;
+      final storedValues = definition.applyDefaults(amendedValues);
+      if (namingSeries != null) {
+        storedValues[namingSeries.field] = namingSeries.provisionalName(
+          commandId,
+        );
+      }
+      _validatePayload(definition, storedValues);
+      await _validateReferences(transaction, definition, storedValues, scope);
+      if (source.readableFields case final readMask?) {
+        storedValues.removeWhere(
+          (field, _) => field != linkField && !readMask.contains(field),
+        );
+      }
+      final now = _now();
+      await transaction.insert(_recordsTable, {
+        'record_id': commandId,
+        'module_id': moduleId,
+        'doctype_name': docTypeName,
+        'organization_id': scope.organizationId,
+        'company_id': scope.companyId,
+        'branch_id': scope.branchId,
+        'data_json': canonicalJson(storedValues),
+        'schema_version': definition.schemaVersion,
+        'revision': 1,
+        'document_status': 0,
+        'is_deleted': 0,
+        'sync_state': 'LOCAL_ONLY',
+        'pending_command_id': commandId,
+        'authority_state': 'PENDING',
+        'readable_fields_json': source.readableFields == null
+            ? null
+            : canonicalJson(source.readableFields!.toList()..sort()),
+        'writable_fields_json': source.writableFields == null
+            ? null
+            : canonicalJson(source.writableFields!.toList()..sort()),
+        'creatable_fields_json': source.creatableFields == null
+            ? null
+            : canonicalJson(source.creatableFields!.toList()..sort()),
+        'created_at_utc': now,
+        'updated_at_utc': now,
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
+      final changed = await transaction.update(
+        _recordsTable,
+        {'pending_command_id': commandId, 'authority_state': 'PENDING'},
+        where: '''record_id = ? AND organization_id = ? AND company_id = ?
+          AND branch_id = ? AND revision = ?
+          AND (pending_command_id IS NULL OR pending_command_id = ?)''',
+        whereArgs: [
+          sourceRecordId,
+          scope.organizationId,
+          scope.companyId,
+          scope.branchId,
+          source.revision,
+          commandId,
+        ],
+      );
+      if (changed != 1) {
+        throw const ExtensionStoreException(
+          'RECORD_SYNC_STATE_CHANGED',
+          'The source changed while its amendment was being saved.',
+        );
+      }
+      return LocalExtensionRecord(
+        recordId: commandId,
+        moduleId: moduleId,
+        docTypeName: docTypeName,
+        scope: scope,
+        schemaVersion: definition.schemaVersion,
+        revision: 1,
+        values: Map.unmodifiable(storedValues),
+        updatedAtUtc: DateTime.parse(now),
+        pendingCommandId: commandId,
+        authorityState: 'PENDING',
+        readableFields: source.readableFields,
+        writableFields: source.writableFields,
+        creatableFields: source.creatableFields,
+      );
+    });
+  }
+
+  Future<void> deleteLocalRecord({
+    required String moduleId,
+    required String docTypeName,
+    required String recordId,
+    required RecordScope scope,
+  }) async {
+    _ensureOpen();
+    scope.validate();
+    final definition = DocTypeDefinition.fromJson(
+      await _loadActiveDocType(_database, moduleId, docTypeName),
+    );
+    _requireOperation(definition, 'delete');
+    final changed = await _database.update(
+      _recordsTable,
+      {'is_deleted': 1, 'updated_at_utc': _now()},
+      where: '''record_id = ? AND module_id = ? AND doctype_name = ?
+        AND organization_id = ? AND company_id = ? AND branch_id = ?
+        AND host_revision IS NULL AND pending_command_id IS NULL
+        AND is_deleted = 0''',
+      whereArgs: [
+        recordId,
+        moduleId,
+        docTypeName,
+        scope.organizationId,
+        scope.companyId,
+        scope.branchId,
+      ],
+    );
+    if (changed != 1) {
+      throw const ExtensionStoreException(
+        'RECORD_SYNC_STATE_CHANGED',
+        'Only an unshared local record with no pending command can be removed locally.',
+      );
+    }
+  }
+
   Future<void> applyHostReceipt({
     required String recordId,
     required RecordScope scope,
     required String commandId,
     required CommandReceipt receipt,
+    String operation = 'update',
+    int? documentStatus,
+    Map<String, dynamic> valueUpdates = const {},
   }) async {
     _ensureOpen();
     scope.validate();
     if (receipt.commandId != commandId) {
       throw const FormatException('Host receipt command ID mismatch.');
+    }
+    if (documentStatus != null && (documentStatus < 0 || documentStatus > 2)) {
+      throw const FormatException('Host document status is invalid.');
     }
     final rows = await _database.query(
       _recordsTable,
@@ -1697,12 +2319,25 @@ class LocalExtensionStore {
       final hasNewerPending =
           current.pendingCommandId != null &&
           current.pendingCommandId != commandId;
+      final authorizedUpdates = Map<String, dynamic>.of(valueUpdates)
+        ..removeWhere(
+          (field, _) =>
+              current.readableFields != null &&
+              !current.readableFields!.contains(field),
+        );
+      final mergedValues = Map<String, dynamic>.of(current.values)
+        ..addAll(authorizedUpdates);
       await _database.update(
         _recordsTable,
         {
           'host_revision': hostRevision,
           if (!hasNewerPending) 'pending_command_id': null,
           'authority_state': hasNewerPending ? 'PENDING' : 'HOST_ACCEPTED',
+          if (!hasNewerPending) 'is_deleted': operation == 'delete' ? 1 : 0,
+          if (!hasNewerPending && documentStatus != null)
+            'document_status': documentStatus,
+          if (!hasNewerPending && authorizedUpdates.isNotEmpty)
+            'data_json': canonicalJson(mergedValues),
         },
         where: '''record_id = ? AND organization_id = ? AND company_id = ?
           AND branch_id = ?''',
@@ -1728,9 +2363,10 @@ class LocalExtensionStore {
       {
         'pending_command_id': null,
         'authority_state': receipt.status,
+        'is_deleted': 0,
         'conflict_revision': null,
         'conflict_data_json': null,
-        if (hostRevision != null && hostRevision > 0)
+        if (hostRevision != null && hostRevision > 0 && operation != 'amend')
           'host_revision': hostRevision,
       },
       where: '''record_id = ? AND organization_id = ? AND company_id = ?
@@ -2133,7 +2769,7 @@ class LocalExtensionStore {
       _recordsTable,
       where: '''record_id = ? AND module_id = ? AND doctype_name = ?
         AND organization_id = ? AND company_id = ?
-        AND branch_id = ?''',
+        AND branch_id = ? AND is_deleted = 0''',
       whereArgs: [
         recordId,
         moduleId,
@@ -2216,6 +2852,9 @@ class LocalExtensionStore {
     if (limit < 1 || limit > 1000) {
       throw ArgumentError.value(limit, 'limit', 'Must be between 1 and 1000');
     }
+    if (search.length > 256 || filterContains.length > 256) {
+      throw ArgumentError('Record search input exceeds the supported bound.');
+    }
     final definition = DocTypeDefinition.fromJson(
       await _loadActiveDocType(_database, moduleId, docTypeName),
     );
@@ -2243,7 +2882,7 @@ class LocalExtensionStore {
 
     final conditions = <String>[
       'module_id = ? AND doctype_name = ? AND organization_id = ? '
-          'AND company_id = ? AND branch_id = ?',
+          'AND company_id = ? AND branch_id = ? AND is_deleted = 0',
     ];
     final parameters = <Object?>[
       moduleId,
@@ -2340,7 +2979,8 @@ class LocalExtensionStore {
     final rows = await _database.query(
       _recordsTable,
       where: '''organization_id = ? AND company_id = ? AND branch_id = ?
-        AND authority_state = 'LOCAL_ONLY' AND pending_command_id IS NULL''',
+        AND authority_state = 'LOCAL_ONLY' AND pending_command_id IS NULL
+        AND is_deleted = 0''',
       whereArgs: [scope.organizationId, scope.companyId, scope.branchId],
       orderBy: 'updated_at_utc ASC, record_id ASC',
       limit: limit,
@@ -2401,20 +3041,16 @@ class LocalExtensionStore {
     Map<String, dynamic> values,
     RecordScope scope,
   ) async {
-    for (final field in definition.fields.where(
-      (item) => item.type == 'reference',
-    )) {
-      final value = values[field.name];
-      if (value == null) continue;
+    for (final reference in definition.referencesIn(values)) {
       final targets = await transaction.query(
         _recordsTable,
         columns: const ['record_id'],
         where: '''record_id = ? AND module_id = ? AND doctype_name = ?
           AND organization_id = ? AND company_id = ? AND branch_id = ?''',
         whereArgs: [
-          value,
+          reference.recordId,
           definition.moduleId,
-          field.referenceTo,
+          reference.targetDocType,
           scope.organizationId,
           scope.companyId,
           scope.branchId,
@@ -2424,7 +3060,7 @@ class LocalExtensionStore {
       if (targets.isEmpty) {
         throw ExtensionStoreException(
           'INVALID_REFERENCE',
-          '${field.name} must reference a record of ${field.referenceTo} in the same organization, company and branch.',
+          '${reference.fieldPath} must reference a record of ${reference.targetDocType} in the same organization, company and branch.',
         );
       }
     }
@@ -2463,7 +3099,7 @@ class LocalExtensionStore {
         'An extension can declare field permissions only in its own namespace. A Host administrator grants them separately.',
       );
     }
-    for (final field in definition.fields) {
+    for (final field in definition.allFields) {
       if (!_fieldName.hasMatch(field.name) || field.name.length > 80) {
         throw ExtensionStoreException(
           'INVALID_FIELD_NAME',
@@ -2485,7 +3121,8 @@ class LocalExtensionStore {
     Map<String, dynamic> values, {
     bool partial = false,
   }) {
-    final issues = definition.validatePayload(values, partial: partial);
+    final normalized = definition.calculateValues(values);
+    final issues = definition.validatePayload(normalized, partial: partial);
     if (issues.isNotEmpty) {
       throw ExtensionStoreException('INVALID_RECORD', issues.join(', '));
     }

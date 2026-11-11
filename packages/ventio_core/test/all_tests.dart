@@ -91,6 +91,7 @@ Map<String, dynamic> extensionBundleJson() => {
         'extension.com_example_assets.module.name': 'Assets',
         'extension.com_example_assets.asset.name': 'Asset',
         'extension.com_example_assets.asset.name_value': 'Name',
+        'extension.com_example_assets.asset.document_number': 'Document Number',
       },
     };
 
@@ -115,6 +116,218 @@ Principal actor(
 MaintenancePrototype fresh() => bootstrapMaintenancePrototype(root);
 
 void main() {
+  test('Business amend effects require a Host-owned self-reference', () {
+    final source = extensionBundleJson();
+    final type = (source['docTypes'] as List).single as Map<String, dynamic>;
+    (type['fields'] as List).add({
+      'name': 'amendedFrom',
+      'type': 'reference',
+      'referenceTo': 'Asset',
+      'required': false,
+      'readOnly': true,
+      'label': 'Amended From',
+      'labelKey': 'extension.com_example_assets.asset.amended_from',
+    });
+    (source['englishCatalog'] as Map<String, dynamic>)[
+        'extension.com_example_assets.asset.amended_from'] = 'Amended From';
+    type['businessOperations'] = [
+      {
+        'id': 'document.amend',
+        'version': 1,
+        'permission': 'extension.com_example_assets.asset.amend',
+        'inputs': <String, dynamic>{},
+        'outputs': {
+          'amendedRecordId': {'type': 'text', 'required': true},
+        },
+        'effects': [
+          {
+            'type': 'document.amend',
+            'linkField': 'amendedFrom',
+            'output': 'amendedRecordId',
+          },
+        ],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    check(
+      bundle.docTypes.single.businessOperations.single.effects.single.type ==
+              'document.amend' &&
+          canonicalJson(bundle.toJson()) == canonicalJson(source),
+      'A valid amend operation did not parse and round-trip',
+    );
+
+    final clientWritableLink = changed(source);
+    final link = ((clientWritableLink['docTypes'] as List).single
+        as Map<String, dynamic>)['fields'] as List;
+    (link.last as Map<String, dynamic>)['readOnly'] = false;
+    checkThrows(
+      () => ExtensionBundle.fromJson(clientWritableLink),
+      'An amendment link controlled by clients was accepted',
+    );
+
+    final mixedEffects = changed(source);
+    final mixedOperation = ((mixedEffects['docTypes'] as List).single
+        as Map<String, dynamic>)['businessOperations'] as List;
+    (((mixedOperation.single as Map<String, dynamic>)['effects'] as List)
+        .add({'type': 'document.transition', 'targetStatus': 1}));
+    checkThrows(
+      () => ExtensionBundle.fromJson(mixedEffects),
+      'An amend effect combined with another effect was accepted',
+    );
+  });
+
+  test('Business operation contracts are bounded and data-only', () {
+    final source = extensionBundleJson();
+    final type = (source['docTypes'] as List).single as Map<String, dynamic>;
+    type['naming'] = {
+      'seriesId': 'asset-number',
+      'field': 'documentNumber',
+      'prefix': 'AS-',
+      'padding': 4,
+    };
+    (type['fields'] as List).add({
+      'name': 'documentNumber',
+      'type': 'text',
+      'required': false,
+      'readOnly': true,
+      'maxLength': 128,
+      'label': 'Document Number',
+      'labelKey': 'extension.com_example_assets.asset.document_number',
+    });
+    (type['ui'] as Map)['formFields'] = ['name', 'documentNumber'];
+    (type['ui'] as Map)['listColumns'] = ['name', 'documentNumber'];
+    (type['ui'] as Map)['detailFields'] = ['name', 'documentNumber'];
+    type['businessOperations'] = [
+      {
+        'id': 'inventory.submit',
+        'version': 1,
+        'permission': 'extension.com_example_assets.inventory.submit',
+        'inputs': {
+          'reason': {'type': 'text', 'required': false, 'maxLength': 120},
+        },
+        'outputs': {
+          'number': {'type': 'text', 'required': true, 'maxLength': 80},
+        },
+        'effects': [
+          {
+            'type': 'document.allocate_number',
+            'field': 'documentNumber',
+            'output': 'number',
+          },
+          {'type': 'document.transition', 'targetStatus': 1},
+        ],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    final operation = bundle.docTypes.single.businessOperations.single;
+    check(
+      operation.id == 'inventory.submit' &&
+          operation.version == 1 &&
+          operation.inputs['reason']!.maxLength == 120 &&
+          operation.effects.length == 2,
+      'Business operation contract did not parse',
+    );
+    check(
+      canonicalJson(bundle.toJson()) == canonicalJson(source),
+      'Operation metadata was not preserved in the approved package',
+    );
+
+    final executable = changed(source);
+    final executableType =
+        (executable['docTypes'] as List).single as Map<String, dynamic>;
+    (executableType['businessOperations'] as List).single['effects'] = [
+      {'type': 'arbitrary.dart'},
+    ];
+    checkThrows(
+      () => ExtensionBundle.fromJson(executable),
+      'An extension-defined executable effect was accepted',
+    );
+
+    final unproducedOutput = changed(source);
+    final unproducedType =
+        (unproducedOutput['docTypes'] as List).single as Map<String, dynamic>;
+    (unproducedType['businessOperations'] as List).single['outputs'] = {
+      'unproduced': {'type': 'text', 'required': true},
+    };
+    checkThrows(
+      () => ExtensionBundle.fromJson(unproducedOutput),
+      'An output without a matching Host effect was accepted',
+    );
+
+    final duplicateAllocation = changed(source);
+    final duplicateType = (duplicateAllocation['docTypes'] as List).single
+        as Map<String, dynamic>;
+    final duplicateOperation =
+        (duplicateType['businessOperations'] as List).single as Map;
+    (duplicateOperation['outputs'] as Map)['number_copy'] = {
+      'type': 'text',
+      'required': true,
+    };
+    (duplicateOperation['effects'] as List).insert(1, {
+      'type': 'document.allocate_number',
+      'field': 'documentNumber',
+      'output': 'number_copy',
+    });
+    checkThrows(
+      () => ExtensionBundle.fromJson(duplicateAllocation),
+      'Multiple number allocations in one operation were accepted',
+    );
+
+    final missingSubmit = changed(source);
+    final missingSubmitType =
+        (missingSubmit['docTypes'] as List).single as Map<String, dynamic>;
+    (missingSubmitType['businessOperations'] as List).single['effects'] = [
+      {
+        'type': 'document.allocate_number',
+        'field': 'documentNumber',
+        'output': 'number'
+      },
+    ];
+    checkThrows(
+      () => ExtensionBundle.fromJson(missingSubmit),
+      'Number allocation outside a submit transition was accepted',
+    );
+  });
+
+  test('Business operation commands have a strict bounded wire shape', () {
+    final command = ExtensionBusinessOperationCommand.execute(
+      commandId: uuid(109),
+      tenantId: 'example-tenant',
+      companyId: 'example-company',
+      branchId: 'example-branch',
+      recordId: uuid(110),
+      expectedRevision: 3,
+      actorId: 'example-user',
+      deviceId: 'example-device',
+      moduleId: 'com.example.assets',
+      moduleVersion: '0.1.0',
+      docType: 'Asset',
+      schemaVersion: 1,
+      operationId: 'inventory.submit',
+      operationVersion: 1,
+      inputs: {'reason': 'Count verified'},
+    );
+    final parsed =
+        ExtensionBusinessOperationCommand.fromEnvelope(command.envelope);
+    check(
+      parsed.operationId == 'inventory.submit' &&
+          parsed.operationVersion == 1 &&
+          parsed.inputs['reason'] == 'Count verified' &&
+          parsed.envelope.expectedRevision == 3,
+      'A valid operation command did not round-trip',
+    );
+    final nested = changed(command.envelope.original);
+    (nested['payload'] as Map)['inputs'] = {
+      'reason': {'code': 'forbidden'}
+    };
+    checkThrows(
+      () => ExtensionBusinessOperationCommand.fromEnvelope(
+        CommandEnvelope.fromJson(nested),
+      ),
+      'Nested executable-like command input was accepted',
+    );
+  });
+
   test('Principal grants stay bound to exact company and branch pairs', () {
     final principal = Principal(
       actorId: 'user',
@@ -175,6 +388,23 @@ void main() {
     check(
       canonicalJson(bundle.toJson()) == canonicalJson(source),
       'Extension bundle did not round-trip canonically',
+    );
+    final outsidePackageRelation = changed(source);
+    final relationType = (outsidePackageRelation['docTypes'] as List).single
+        as Map<String, dynamic>;
+    (relationType['fields'] as List).add({
+      'name': 'externalAsset',
+      'type': 'reference',
+      'referenceTo': 'ExternalAsset',
+      'required': false,
+      'label': 'External asset',
+      'labelKey': 'extension.com_example_assets.asset.external_asset',
+    });
+    (outsidePackageRelation['englishCatalog'] as Map<String, dynamic>)[
+        'extension.com_example_assets.asset.external_asset'] = 'External asset';
+    checkThrows(
+      () => ExtensionBundle.fromJson(outsidePackageRelation),
+      'A package reference target outside the module was accepted',
     );
     final generatedPage = changed(source);
     final generatedPageType =
@@ -536,6 +766,520 @@ void main() {
     );
   });
 
+  test('Long text and table fields preserve their typed value shapes', () {
+    final longText = FieldDefinition.fromJson({
+      'name': 'notes',
+      'type': 'long_text',
+      'required': true,
+      'minLength': 2,
+      'maxLength': 2000,
+      'label': 'Notes',
+      'labelKey': 'extension.example.asset.notes',
+    });
+    check(
+      longText.validate('A') == 'TOO_SHORT' &&
+          longText.validate('Long description') == null &&
+          longText.validate(List.filled(2001, 'x').join()) == 'TOO_LONG',
+      'Long text bounds were not enforced',
+    );
+
+    final table = FieldDefinition.fromJson({
+      'name': 'lines',
+      'type': 'table',
+      'required': true,
+      'label': 'Lines',
+      'labelKey': 'extension.example.asset.lines',
+    });
+    check(
+      table.validate([
+            {'itemCode': 'SKU-1', 'quantity': 3},
+          ]) ==
+          null,
+      'A flat child-row table was rejected',
+    );
+    check(
+      table.validate([]) == 'INVALID_TABLE' &&
+          table.validate([
+                {
+                  'nested': {'unsupported': true}
+                },
+              ]) ==
+              'INVALID_TABLE' &&
+          table.validate(
+                List.generate(
+                    maxRowsPerTableField + 1, (index) => {'row': index}),
+              ) ==
+              'INVALID_TABLE',
+      'Required, nested, or oversized table data was accepted',
+    );
+  });
+
+  test('Child DocType rows validate defaults, fields, references and bounds',
+      () {
+    final raw = changed(
+      (extensionBundleJson()['docTypes'] as List).single
+          as Map<String, dynamic>,
+    );
+    final fields = raw['fields'] as List;
+    fields.add({
+      'name': 'lines',
+      'type': 'table',
+      'required': true,
+      'label': 'Lines',
+      'labelKey': 'extension.com_example_assets.asset.lines',
+      'childDocType': {
+        'name': 'AssetLine',
+        'label': 'Asset line',
+        'labelKey': 'extension.com_example_assets.asset.line',
+        'fields': [
+          {
+            'name': 'asset',
+            'type': 'reference',
+            'referenceTo': 'Asset',
+            'required': true,
+            'label': 'Asset',
+            'labelKey': 'extension.com_example_assets.asset.line_asset',
+          },
+          {
+            'name': 'quantity',
+            'type': 'decimal',
+            'required': true,
+            'default': 1.25,
+            'precision': 2,
+            'label': 'Quantity',
+            'labelKey': 'extension.com_example_assets.asset.line_quantity',
+          },
+        ],
+      },
+    });
+    ((raw['ui'] as Map<String, dynamic>)['formFields'] as List).add('lines');
+    final definition = DocTypeDefinition.fromJson(raw);
+    final normalized = definition.applyDefaults({
+      'name': 'Grouped asset',
+      'lines': [
+        {'asset': 'asset-1'},
+      ],
+    });
+    check(
+      definition.validatePayload(normalized).isEmpty &&
+          ((normalized['lines'] as List).single as Map)['quantity'] == 1.25,
+      'Child row defaults were not applied and validated',
+    );
+    check(
+      definition.referencesIn(normalized).single.recordId == 'asset-1' &&
+          definition.referencesIn(normalized).single.targetDocType == 'Asset',
+      'Nested child references were not discoverable for scoped validation',
+    );
+    final package = extensionBundleJson();
+    final packageDocType =
+        (package['docTypes'] as List).single as Map<String, dynamic>;
+    (packageDocType['fields'] as List).add(fields.last);
+    ((packageDocType['ui'] as Map<String, dynamic>)['formFields'] as List)
+        .add('lines');
+    (package['englishCatalog'] as Map<String, String>).addAll({
+      'extension.com_example_assets.asset.lines': 'Lines',
+      'extension.com_example_assets.asset.line': 'Asset line',
+      'extension.com_example_assets.asset.line_asset': 'Asset',
+      'extension.com_example_assets.asset.line_quantity': 'Quantity',
+    });
+    final packageRoundTrip = ExtensionBundle.fromJson(
+      ExtensionBundle.fromJson(package).toJson(),
+    );
+    check(
+      packageRoundTrip.docTypes.single.fields.last.childDocType?.name ==
+              'AssetLine' &&
+          packageRoundTrip.docTypes.single.fields.last.childDocType!.fields.last
+                  .precision ==
+              2,
+      'Extension package did not retain nested child schema metadata',
+    );
+    check(
+      definition.validatePayload({
+        'name': 'Invalid child',
+        'lines': [
+          {'asset': 'asset-1', 'quantity': 1.234},
+        ],
+      }).isNotEmpty,
+      'Child decimal precision was not enforced',
+    );
+    check(
+      definition.validatePayload({
+        'name': 'Unknown child key',
+        'lines': [
+          {'asset': 'asset-1', 'extra': 'not declared'},
+        ],
+      }).isNotEmpty,
+      'Unknown child fields were accepted',
+    );
+    check(
+      definition.validatePayload({
+        'name': 'Too many rows',
+        'lines': List.generate(501, (_) => {'asset': 'asset-1'}),
+      }).isNotEmpty,
+      'The child row count exceeded the bounded table contract',
+    );
+    final invalidNested = changed(raw);
+    final child = (((invalidNested['fields'] as List).last
+        as Map)['childDocType'] as Map<String, dynamic>);
+    ((child['fields'] as List).last as Map<String, dynamic>)['type'] = 'table';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidNested),
+      'Nested child tables were accepted',
+    );
+    final invalidPermission = changed(raw);
+    final permissionChild = (((invalidPermission['fields'] as List).last
+        as Map)['childDocType'] as Map<String, dynamic>);
+    ((permissionChild['fields'] as List).first
+            as Map<String, dynamic>)['readPermission'] =
+        'extension.com_example_assets.asset.secret.read';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidPermission),
+      'A child field escaped the parent table permission boundary',
+    );
+  });
+
+  test('Declarative line and parent totals use exact decimal arithmetic', () {
+    final raw = changed(
+      (extensionBundleJson()['docTypes'] as List).single
+          as Map<String, dynamic>,
+    );
+    final fields = raw['fields'] as List;
+    fields.add({
+      'name': 'lines',
+      'type': 'table',
+      'required': true,
+      'label': 'Lines',
+      'labelKey': 'extension.com_example_assets.asset.lines',
+      'childDocType': {
+        'name': 'AssetLine',
+        'label': 'Asset line',
+        'labelKey': 'extension.com_example_assets.asset.line',
+        'fields': [
+          for (final (name, label) in [
+            ('quantity', 'Quantity'),
+            ('unitPrice', 'Unit price'),
+          ])
+            {
+              'name': name,
+              'type': 'decimal',
+              'required': true,
+              'precision': 2,
+              'label': label,
+              'labelKey': name == 'unitPrice'
+                  ? 'extension.com_example_assets.asset.unit_price'
+                  : 'extension.com_example_assets.asset.quantity',
+            },
+          {
+            'name': 'lineTotal',
+            'type': 'decimal',
+            'required': true,
+            'precision': 2,
+            'calculation': {
+              'type': 'multiply',
+              'leftField': 'quantity',
+              'rightField': 'unitPrice',
+            },
+            'label': 'Line total',
+            'labelKey': 'extension.com_example_assets.asset.line_total',
+          },
+        ],
+      },
+    });
+    fields.add({
+      'name': 'total',
+      'type': 'decimal',
+      'required': true,
+      'precision': 2,
+      'readOnly': true,
+      'calculation': {
+        'type': 'sum',
+        'rowsField': 'lines',
+        'valueField': 'lineTotal',
+      },
+      'label': 'Total',
+      'labelKey': 'extension.com_example_assets.asset.total',
+    });
+    ((raw['ui'] as Map<String, dynamic>)['formFields'] as List)
+      ..add('lines')
+      ..add('total');
+    final definition = DocTypeDefinition.fromJson(raw);
+    final input = {
+      'name': 'Exact calculation',
+      'lines': [
+        {'quantity': 0.1, 'unitPrice': 0.2},
+        {'quantity': 2, 'unitPrice': 0.15},
+      ],
+    };
+    final calculated = definition.calculateValues(input);
+    final rows = calculated['lines'] as List;
+    check(
+      (rows[0] as Map)['lineTotal'] == 0.02 &&
+          (rows[1] as Map)['lineTotal'] == 0.3 &&
+          calculated['total'] == 0.32 &&
+          definition.validatePayload(calculated).isEmpty,
+      'Line or parent totals did not use exact declared decimal scales',
+    );
+    checkThrows(
+      () => definition.calculateValues(
+        {
+          'name': 'Forged value',
+          'lines': [
+            {
+              'quantity': 0.1,
+              'unitPrice': 0.2,
+              'lineTotal': 999,
+            },
+          ],
+        },
+        verifyCalculatedFields: {'lines'},
+      ),
+      'A forged child total was accepted',
+    );
+    checkThrows(
+      () => definition.calculateValues({
+        'name': 'Rounds silently',
+        'lines': [
+          {'quantity': 0.1, 'unitPrice': 0.15},
+        ],
+      }),
+      'A product requiring implicit rounding was accepted',
+    );
+    checkThrows(
+      () => ExactDecimal.toScaledInteger(0.1 + 0.2, 2),
+      'Binary floating-point noise was accepted as a two-place decimal',
+    );
+    final invalid = changed(raw);
+    final invalidTotal =
+        (invalid['fields'] as List).last as Map<String, dynamic>;
+    invalidTotal['calculation'] = {
+      'type': 'sum',
+      'rowsField': 'missingLines',
+      'valueField': 'lineTotal',
+    };
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalid),
+      'A calculation referencing a missing child table was accepted',
+    );
+  });
+
+  test('Reports validate bounded fields, aggregates and package labels', () {
+    final source = extensionBundleJson();
+    final asset = (source['docTypes'] as List).single as Map<String, dynamic>;
+    (asset['fields'] as List).add({
+      'name': 'assetValue',
+      'type': 'decimal',
+      'required': true,
+      'precision': 2,
+      'label': 'Asset value',
+      'labelKey': 'extension.com_example_assets.asset.asset_value',
+    });
+    final ui = asset['ui'] as Map<String, dynamic>;
+    (ui['listColumns'] as List).add('assetValue');
+    (ui['formFields'] as List).add('assetValue');
+    (ui['detailFields'] as List).add('assetValue');
+    final catalog = source['englishCatalog'] as Map<String, String>;
+    catalog['extension.com_example_assets.asset.asset_value'] = 'Asset value';
+    catalog['extension.com_example_assets.report.asset_summary'] =
+        'Asset summary';
+    catalog['extension.com_example_assets.report.asset_summary.count'] =
+        'Count';
+    catalog['extension.com_example_assets.report.asset_summary.value_total'] =
+        'Total value';
+    source['reports'] = [
+      {
+        'id': 'asset_summary',
+        'docType': 'Asset',
+        'label': 'Asset summary',
+        'labelKey': 'extension.com_example_assets.report.asset_summary',
+        'filters': ['name'],
+        'groupBy': 'name',
+        'sortBy': 'count',
+        'descending': false,
+        'aggregates': [
+          {
+            'id': 'count',
+            'operation': 'count',
+            'label': 'Count',
+            'labelKey':
+                'extension.com_example_assets.report.asset_summary.count',
+          },
+          {
+            'id': 'value_total',
+            'operation': 'sum',
+            'field': 'assetValue',
+            'label': 'Total value',
+            'labelKey':
+                'extension.com_example_assets.report.asset_summary.value_total',
+          },
+        ],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    check(
+      bundle.reports.single.filterFields.single == 'name' &&
+          bundle.reports.single.groupBy == 'name' &&
+          bundle.reports.single.aggregates.last.field == 'assetValue' &&
+          (ExtensionBundle.fromJson(bundle.toJson()).toJson()['reports']
+                      as List)
+                  .length ==
+              1,
+      'A bounded declarative report did not validate and round-trip',
+    );
+    final invalidFilter = changed(source);
+    (((invalidFilter['reports'] as List).single
+        as Map<String, dynamic>)['filters'] as List)[0] = 'unknownField';
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidFilter),
+      'A report was allowed to filter on an unknown field',
+    );
+    final invalidSum = changed(source);
+    final report =
+        (invalidSum['reports'] as List).single as Map<String, dynamic>;
+    ((report['aggregates'] as List).last as Map<String, dynamic>)['field'] =
+        'name';
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidSum),
+      'A report was allowed to sum a text field',
+    );
+  });
+
+  test('Print formats are bounded, data-only, namespaced and round trip', () {
+    final source = extensionBundleJson();
+    final catalog = source['englishCatalog'] as Map<String, String>;
+    const labelKey = 'extension.com_example_assets.print.asset_summary';
+    catalog[labelKey] = 'Asset summary';
+    source['printFormats'] = [
+      {
+        'id': 'asset_summary',
+        'docType': 'Asset',
+        'label': 'Asset summary',
+        'labelKey': labelKey,
+        'pageSize': 'a4',
+        'orientation': 'portrait',
+        'blocks': [
+          {'type': 'field', 'field': 'name'},
+        ],
+      },
+    ];
+    final bundle = ExtensionBundle.fromJson(source);
+    final roundTrip = ExtensionBundle.fromJson(bundle.toJson());
+    check(
+      bundle.printFormats.single.blocks.single.field == 'name' &&
+          roundTrip.printFormats.single.pageSize == 'a4',
+      'A valid print format did not validate and round trip',
+    );
+
+    final invalidBlock = changed(source);
+    (((invalidBlock['printFormats'] as List).single
+            as Map<String, dynamic>)['blocks']
+        as List)[0] = {'type': 'html', 'source': '<script/>'};
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidBlock),
+      'An executable print block was accepted',
+    );
+    final invalidField = changed(source);
+    ((((invalidField['printFormats'] as List).single
+            as Map<String, dynamic>)['blocks'] as List)[0]
+        as Map<String, dynamic>)['field'] = 'unknown';
+    checkThrows(
+      () => ExtensionBundle.fromJson(invalidField),
+      'A print block referencing an unknown field was accepted',
+    );
+  });
+
+  test('Field precision, defaults, read-only and descriptions are enforced',
+      () {
+    final amount = FieldDefinition.fromJson({
+      'name': 'amount',
+      'type': 'decimal',
+      'required': false,
+      'precision': 2,
+      'minValue': 0,
+      'maxValue': 100,
+      'default': 1.25,
+      'readOnly': true,
+      'label': 'Amount',
+      'labelKey': 'extension.example.invoice.amount',
+      'description': 'Approved amount.',
+      'descriptionKey': 'extension.example.invoice.amount_description',
+    });
+    check(
+      amount.validate(1.25) == null &&
+          amount.validate(1.234) == 'INVALID_PRECISION' &&
+          amount.defaultValue == 1.25 &&
+          amount.readOnly &&
+          amount.descriptionKey ==
+              'extension.example.invoice.amount_description',
+      'Decimal precision, default, read-only, or presentation metadata failed',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson({
+        'name': 'amount',
+        'type': 'integer',
+        'required': false,
+        'precision': 2,
+        'label': 'Amount',
+        'labelKey': 'extension.example.invoice.amount',
+      }),
+      'Precision was allowed on a non-decimal field',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson({
+        'name': 'amount',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'default': 1.234,
+        'label': 'Amount',
+        'labelKey': 'extension.example.invoice.amount',
+      }),
+      'An invalid decimal default was accepted',
+    );
+    checkThrows(
+      () => FieldDefinition.fromJson({
+        'name': 'amount',
+        'type': 'text',
+        'required': false,
+        'description': 'Missing translation key',
+        'label': 'Amount',
+        'labelKey': 'extension.example.invoice.amount',
+      }),
+      'A user-visible field description without a stable key was accepted',
+    );
+    final package = extensionBundleJson();
+    final rawDocType =
+        (package['docTypes'] as List).single as Map<String, dynamic>;
+    ((rawDocType['fields'] as List).single as Map<String, dynamic>)['default'] =
+        'Default asset';
+    final docType = DocTypeDefinition.fromJson(rawDocType);
+    final normalized = docType.applyDefaults({});
+    check(
+      normalized['name'] == 'Default asset' &&
+          docType.validatePayload(normalized).isEmpty,
+      'A declared default was not applied during payload normalization',
+    );
+    final previousJson = changed(
+      (extensionBundleJson()['docTypes'] as List).single
+          as Map<String, dynamic>,
+    );
+    final previousField =
+        ((previousJson['fields'] as List).single as Map<String, dynamic>)
+          ..['type'] = 'decimal'
+          ..remove('maxLength')
+          ..['precision'] = 4;
+    final nextJson = changed(previousJson)..['schemaVersion'] = 2;
+    (((nextJson['fields'] as List).single as Map<String, dynamic>)
+      ..['precision'] = 2);
+    checkThrows(
+      () => validateDocTypeUpgrade(
+        DocTypeDefinition.fromJson(previousJson),
+        DocTypeDefinition.fromJson(nextJson),
+      ),
+      'A schema upgrade tightened decimal precision over saved values',
+    );
+    check(previousField['precision'] == 4, 'Previous precision was mutated');
+  });
+
   test('Host rejects extension records outside declared field bounds', () {
     const fixture = '../../fixtures/inspection';
     final modules = ModuleRegistry();
@@ -551,6 +1295,28 @@ void main() {
       'label': 'Related inspection',
       'labelKey': 'inspection.record.related_inspection',
     });
+    (doctype['fields'] as List).addAll([
+      {
+        'name': 'taxRate',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'label': 'Tax rate',
+        'labelKey': 'inspection.record.tax_rate',
+      },
+      {
+        'name': 'approvedRate',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'default': 1.25,
+        'readOnly': true,
+        'label': 'Approved rate',
+        'labelKey': 'inspection.record.approved_rate',
+        'description': 'Host managed approved rate.',
+        'descriptionKey': 'inspection.record.approved_rate_description',
+      },
+    ]);
     ((doctype['ui'] as Map<String, dynamic>)['formFields'] as List)
         .add('relatedInspection');
     ((doctype['fields'] as List).first as Map<String, dynamic>)['minLength'] =
@@ -569,7 +1335,12 @@ void main() {
     );
     final englishCatalog = loadJsonFile(
       '$fixture/localization/en.inspection.json',
-    )..['inspection.record.related_inspection'] = 'Related inspection';
+    )
+      ..['inspection.record.related_inspection'] = 'Related inspection'
+      ..['inspection.record.tax_rate'] = 'Tax rate'
+      ..['inspection.record.approved_rate'] = 'Approved rate'
+      ..['inspection.record.approved_rate_description'] =
+          'Host managed approved rate.';
     DeclarativeModuleInstaller(
       modules: modules,
       docTypes: docTypes,
@@ -607,7 +1378,7 @@ void main() {
       deviceId: command.deviceId,
       companyIds: {command.companyId},
       branchIds: {command.branchId},
-      permissions: {'inspection.create'},
+      permissions: {'inspection.create', 'inspection.read'},
     );
 
     check(
@@ -640,6 +1411,43 @@ void main() {
     check(
       parentReceipt.accepted,
       'Host accepts a reference target in the same branch (${parentReceipt.reasonCode})',
+    );
+    final storedParent = host.readRecord(
+      'EquipmentInspection',
+      parent.aggregateId,
+      principal,
+      companyId: command.companyId,
+      branchId: command.branchId,
+    );
+    check(
+      storedParent?.data['approvedRate'] == 1.25,
+      'Host did not apply and persist the declared read-only default',
+    );
+
+    final precisionRaw = Map<String, dynamic>.from(parentRaw)
+      ..['commandId'] = uuid(907)
+      ..['aggregateId'] = 'inspection-invalid-precision'
+      ..['payload'] = Map<String, dynamic>.from(parentPayload)
+      ..['payload']['taxRate'] = 1.234;
+    check(
+      host
+              .execute(CommandEnvelope.fromJson(precisionRaw), principal)
+              .reasonCode ==
+          'INVALID_PAYLOAD',
+      'Host accepted a decimal outside its declared precision',
+    );
+
+    final readOnlyRaw = Map<String, dynamic>.from(parentRaw)
+      ..['commandId'] = uuid(908)
+      ..['aggregateId'] = 'inspection-readonly-override'
+      ..['payload'] = Map<String, dynamic>.from(parentPayload)
+      ..['payload']['approvedRate'] = 9.99;
+    check(
+      host
+              .execute(CommandEnvelope.fromJson(readOnlyRaw), principal)
+              .reasonCode ==
+          'READ_ONLY_FIELD',
+      'Host accepted a client override of a read-only field',
     );
 
     final childPayload = Map<String, dynamic>.from(parentPayload)
@@ -816,6 +1624,26 @@ void main() {
       update.operation == 'update' && update.envelope.expectedRevision == 3,
       'Generic update command lost its optimistic revision',
     );
+    final deletion = ExtensionRecordCommand.delete(
+      commandId: uuid(904),
+      tenantId: 'tenant',
+      companyId: 'company',
+      branchId: 'branch',
+      recordId: 'asset-1',
+      expectedRevision: 3,
+      actorId: 'actor',
+      deviceId: 'device',
+      moduleId: 'com.example.assets',
+      moduleVersion: '0.1.0',
+      docType: 'Asset',
+      schemaVersion: 1,
+    );
+    check(
+      deletion.operation == 'delete' &&
+          deletion.envelope.expectedRevision == 3 &&
+          deletion.values.isEmpty,
+      'Generic delete command carries only its record identity and revision',
+    );
     checkThrows(
       () => ExtensionRecordCommand.update(
         commandId: uuid(903),
@@ -917,6 +1745,86 @@ void main() {
       'A required field was hidden from the generated form',
     );
   });
+  test('DocType and field identifiers are validated by Core metadata', () {
+    final invalidDocType =
+        loadJsonFile('$root/examples/maintenance_doctype.json')
+          ..['name'] = 'Invalid DocType';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidDocType),
+      'Core accepted an invalid DocType identifier',
+    );
+
+    final invalidField =
+        loadJsonFile('$root/examples/maintenance_doctype.json');
+    (invalidField['fields'] as List).first['name'] = 'InvalidField';
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidField),
+      'Core accepted an invalid field identifier',
+    );
+  });
+  test('Document naming series metadata is bounded and protected', () {
+    final valid = loadJsonFile('$root/examples/maintenance_doctype.json');
+    (valid['fields'] as List).add({
+      'name': 'documentNumber',
+      'type': 'text',
+      'required': false,
+      'readOnly': true,
+      'maxLength': 64,
+      'label': 'Document Number',
+      'labelKey': 'maintenance.request.document_number',
+    });
+    valid['ui']['formFields'].add('documentNumber');
+    valid['ui']['listColumns'].add('documentNumber');
+    valid['naming'] = {
+      'seriesId': 'maintenance-request',
+      'field': 'documentNumber',
+      'prefix': 'MR-',
+      'padding': 6,
+    };
+    final definition = DocTypeDefinition.fromJson(valid);
+    check(
+      definition.namingSeries?.toJson().toString() ==
+          '{seriesId: maintenance-request, field: documentNumber, prefix: MR-, padding: 6}',
+      'A valid naming series was not retained as declarative metadata',
+    );
+    check(
+      definition.namingSeries!.formatNumber(1) == 'MR-000001' &&
+          definition.namingSeries!.formatNumber(1000000) == 'MR-1000000',
+      'Official number formatting did not pad without truncating',
+    );
+    checkThrows(
+      () => definition.namingSeries!.formatNumber(0),
+      'Zero or negative series values were accepted',
+    );
+
+    final invalidPrefix =
+        loadJsonFile('$root/examples/maintenance_doctype.json')
+          ..['naming'] = {
+            'seriesId': 'maintenance-request',
+            'field': 'documentNumber',
+            'prefix': 'MR-{{sql}}',
+            'padding': 6,
+          };
+    (invalidPrefix['fields'] as List).add((valid['fields'] as List).last);
+    invalidPrefix['ui']['formFields'].add('documentNumber');
+    checkThrows(
+      () => DocTypeDefinition.fromJson(invalidPrefix),
+      'A template or executable expression was accepted as a series prefix',
+    );
+
+    final writableField =
+        loadJsonFile('$root/examples/maintenance_doctype.json')
+          ..['naming'] = valid['naming'];
+    (writableField['fields'] as List).add({
+      ...(valid['fields'] as List).last as Map<String, dynamic>,
+      'readOnly': false,
+    });
+    writableField['ui']['formFields'].add('documentNumber');
+    checkThrows(
+      () => DocTypeDefinition.fromJson(writableField),
+      'A client-writable field was accepted as the official document number',
+    );
+  });
   test('DocTypes default operations and can restrict their declared surface',
       () {
     final json = loadJsonFile('$root/examples/maintenance_doctype.json');
@@ -939,9 +1847,10 @@ void main() {
       'read': 'maintenance.read',
       'delete': 'maintenance.delete',
     };
-    checkThrows(
-      () => DocTypeDefinition.fromJson(json),
-      'Unsupported operation was accepted',
+    final deletable = DocTypeDefinition.fromJson(json);
+    check(
+      deletable.operations.join(',') == 'read,delete',
+      'A declared safe-delete operation was not retained',
     );
 
     json['operations'] = ['read'];
@@ -963,6 +1872,18 @@ void main() {
             'Maintenance Requests',
         'Fallback failed');
   });
+  test('Enum metadata preserves stable label keys and English fallbacks', () {
+    final json = loadJsonFile('$root/examples/maintenance_doctype.json');
+    final definition = DocTypeDefinition.fromJson(json);
+    final status =
+        definition.fields.singleWhere((field) => field.name == 'status');
+    check(
+      status.enumLabels['new'] == 'New' &&
+          status.enumLabelKeys['new'] == 'maintenance.request.status.new',
+      'Enum display label metadata was not preserved',
+    );
+    check(status.enumValues.contains('new'), 'Stable enum ID changed');
+  });
   test('English catalog supports interpolation', () {
     check(
         fresh().english.text('core.error.validation_required_field',
@@ -976,6 +1897,55 @@ void main() {
     checkThrows(() => en.registerCatalog({'demo.screen.title': 'Other'}),
         'Duplicate allowed');
   });
+  test('Optional display catalogs preserve English fallbacks and placeholders',
+      () {
+    final catalog = EnglishCatalog()
+      ..registerCatalog({'demo.message.greeting': 'Hello {name}'})
+      ..registerFallback('extension.demo.item.label', 'Inventory item');
+    catalog.registerTranslationCatalog('en-XA', {
+      'demo.message.greeting': '[Hëllö {name}]',
+      'extension.demo.item.label': '[Ínvëntöry ítëm]',
+    });
+    check(
+      catalog.text('demo.message.greeting', locale: 'en-XA', params: {
+            'name': 'Sam',
+          }) ==
+          '[Hëllö Sam]',
+      'Pseudo-localized message or interpolation failed',
+    );
+    check(
+      catalog.text('demo.message.greeting', params: {'name': 'Sam'}) ==
+          'Hello Sam',
+      'English was not retained as the default',
+    );
+    check(
+      catalog.text('demo.message.greeting', locale: 'fr') == 'Hello {name}',
+      'Missing locale did not fall back to English',
+    );
+    catalog.removeTranslationCatalog('en-XA');
+    check(
+      catalog.text('extension.demo.item.label', locale: 'en-XA') ==
+          'Inventory item',
+      'Removing the optional catalog did not restore English',
+    );
+  });
+  test('Optional display catalogs reject unknown keys and changed placeholders',
+      () {
+    final catalog = EnglishCatalog()
+      ..registerCatalog({'demo.message.greeting': 'Hello {name}'});
+    checkThrows(
+      () => catalog.registerTranslationCatalog('en-XA', {
+        'other.module.label': 'Unexpected',
+      }),
+      'Unknown translation key was accepted',
+    );
+    checkThrows(
+      () => catalog.registerTranslationCatalog('en-XA', {
+        'demo.message.greeting': 'Hello {person}',
+      }),
+      'Changed interpolation placeholder was accepted',
+    );
+  });
   test('Module manifest parses V1.2 declarations', () {
     final manifest = ModuleManifest.fromJson(
         loadJsonFile('$root/examples/maintenance_manifest.json'));
@@ -986,6 +1956,49 @@ void main() {
         manifest.offlineEnabled &&
             manifest.offlineCommands.single == 'maintenance.create',
         'Offline metadata lost');
+  });
+  test('Module and dependency IDs fail closed when invalid', () {
+    final source = loadJsonFile('$root/examples/maintenance_manifest.json');
+    final invalidModule = Map<String, dynamic>.from(source)
+      ..['moduleId'] = 'Invalid Module ID';
+    checkThrows(
+      () => ModuleManifest.fromJson(invalidModule),
+      'Invalid module identifier was accepted',
+    );
+
+    final invalidDependency = Map<String, dynamic>.from(source)
+      ..['dependencies'] = ['com.example.Valid', 'bad dependency'];
+    checkThrows(
+      () => ModuleManifest.fromJson(invalidDependency),
+      'Invalid dependency identifier was accepted',
+    );
+
+    final valid = ModuleManifest.fromJson(source);
+    final manuallyConstructed = ModuleManifest(
+      moduleId: 'Invalid Module ID',
+      version: valid.version,
+      minPlatformApi: valid.minPlatformApi,
+      displayName: valid.displayName,
+      displayNameKey: valid.displayNameKey,
+      englishCatalog: valid.englishCatalog,
+      dependencies: valid.dependencies,
+      docTypes: valid.docTypes,
+      commands: valid.commands,
+      requiredCapabilities: valid.requiredCapabilities,
+      offlineEnabled: valid.offlineEnabled,
+      offlineCommands: valid.offlineCommands,
+    );
+    checkThrows(
+      () => ModuleRegistry().install(
+        manuallyConstructed,
+        [
+          DocTypeDefinition.fromJson(
+            loadJsonFile('$root/examples/maintenance_doctype.json'),
+          ),
+        ],
+      ),
+      'Registry accepted an invalid manually constructed module ID',
+    );
   });
   test('Malformed manifest version is rejected', () {
     final json = loadJsonFile('$root/examples/maintenance_manifest.json');
@@ -1596,6 +2609,200 @@ void main() {
     unknown['scope'] = 'client-controlled';
     checkThrows(() => CommandReceipt.fromJson(unknown),
         'Receipt with unsupported authority field was accepted');
+  });
+  test(
+      'Official Ventio Inventory Operations package is ordinary declarative metadata',
+      () {
+    final package = ExtensionBundle.fromJson(
+      loadJsonFile('../../examples/ventio_inventory_operations/extension.json'),
+    );
+    check(package.moduleId == 'com.ventio.inventory_operations',
+        'Official module identity changed');
+    check(package.manifest.displayName == 'Ventio Inventory Operations',
+        'Official extension display name changed');
+    check(
+        package.docTypes.length == 2 &&
+            package.docTypes.any((type) => type.name == 'Product') &&
+            package.docTypes.any((type) => type.name == 'Movement'),
+        'Official package must define Product and Movement');
+    final movement =
+        package.docTypes.singleWhere((type) => type.name == 'Movement');
+    check(
+        movement.fields
+                .singleWhere((field) => field.name == 'lines')
+                .childDocType
+                ?.fields
+                .length ==
+            4,
+        'Movement line schema changed');
+    check(
+        movement.businessOperations.length == 3 &&
+            movement.businessOperations
+                .any((operation) => operation.id == 'inventory.submit') &&
+            movement.businessOperations
+                .any((operation) => operation.id == 'inventory.cancel') &&
+            movement.businessOperations
+                .any((operation) => operation.id == 'document.amend'),
+        'Governed lifecycle declarations are incomplete');
+    check(
+        package.reports.single.id == 'movement_totals' &&
+            package.printFormats.single.id == 'inventory_movement',
+        'Official report or print format is missing');
+    check(
+        package.manifest.commands.isEmpty &&
+            package.manifest.requiredCapabilities.isEmpty &&
+            !package.manifest.offlineEnabled &&
+            package.manifest.offlineCommands.isEmpty,
+        'Official package must not ship executable handlers');
+  });
+  test('Management readiness contract is versioned and self-consistent', () {
+    final checkedAtUtc = DateTime.utc(2026, 10, 29);
+    final ready = HostReadinessSnapshot(
+      checkedAtUtc: checkedAtUtc,
+      hostVersion: '0.1.0',
+      components: ManagementComponent.values
+          .map(
+            (component) => ManagementComponentHealth(
+              component: component,
+              state: ManagementHealthState.ready,
+              checkedAtUtc: checkedAtUtc,
+            ),
+          )
+          .toList(),
+    );
+    final roundTrip = HostReadinessSnapshot.fromJson(ready.toJson());
+    check(
+        roundTrip.overallState == ManagementHealthState.ready &&
+            roundTrip.components.length == ManagementComponent.values.length,
+        'Host readiness round-trip lost a component or status');
+    final inconsistent = changed(ready.toJson())
+      ..['overallState'] = ManagementHealthState.unavailable.wireValue;
+    checkThrows(() => HostReadinessSnapshot.fromJson(inconsistent),
+        'Readiness accepted a summary that disagrees with component details');
+    final unsupported = changed(ready.toJson())
+      ..['secret'] = 'must-not-be-forward-compatible';
+    checkThrows(() => HostReadinessSnapshot.fromJson(unsupported),
+        'Readiness accepted an unsupported field');
+  });
+  test(
+      'Management diagnostics serialize safe fields and reject secret material',
+      () {
+    final event = ManagementDiagnosticEvent(
+      code: 'HOST_UNAVAILABLE',
+      component: 'host_api',
+      category: ManagementDiagnosticCategory.apiExecution,
+      severity: ManagementDiagnosticSeverity.error,
+      occurredAtUtc: DateTime.utc(2026, 10, 29),
+      correlationId: 'cor_0123456789abcdef0123456789abcdef',
+      retryable: true,
+      messageKey: 'host_api.error.host_unavailable',
+      safeExplanation: 'The Host could not complete this request.',
+      recommendedAction: 'Retry safely and share the correlation ID.',
+      protectedTechnicalCode: '42501',
+      protectedFailureType: 'StateError',
+      protectedFailureSource: 'RecoveryAuthority.change',
+    );
+    final encoded = jsonEncode(event.toJson());
+    check(
+        identityRolesManagePermission == 'identity.roles.manage' &&
+            identityUsersManagePermission == 'identity.users.manage' &&
+            identityDevicesManagePermission == 'identity.devices.manage' &&
+            identityPairingManagePermission == 'identity.pairing.manage',
+        'Management permissions expose stable cross-client contracts');
+    check(
+        event.toJson()['managementApiVersion'] == managementApiVersion &&
+            event.correlationId.startsWith('cor_') &&
+            event.protectedTechnicalCode == '42501' &&
+            event.protectedFailureType == 'StateError' &&
+            event.protectedFailureSource == 'RecoveryAuthority.change' &&
+            !encoded.contains('token') &&
+            !encoded.contains('technicalDetails') &&
+            !encoded.contains('42501') &&
+            !encoded.contains('StateError') &&
+            !encoded.contains('RecoveryAuthority.change'),
+        'Diagnostic event must serialize only versioned user-safe fields');
+    final apiError = ManagementApiError(
+      code: 'HOST_UNAVAILABLE',
+      messageKey: 'host_api.error.host_unavailable',
+      message: 'Outcome may be unknown. Retry the identical command.',
+      retryable: true,
+      correlationId: event.correlationId,
+    );
+    check(
+        ManagementApiError.fromJson(apiError.toJson()).correlationId ==
+                event.correlationId &&
+            ManagementApiError.fromJson(apiError.toJson()).retryable,
+        'Management error envelope round-trips its code and correlation ID');
+    final extra = changed(apiError.toJson())..['technicalDetails'] = 'private';
+    checkThrows(() => ManagementApiError.fromJson(extra),
+        'Management error contract exposed a technical detail field');
+    checkThrows(
+        () => ManagementDiagnosticEvent(
+              code: 'HOST_UNAVAILABLE',
+              component: 'host_api',
+              category: ManagementDiagnosticCategory.apiExecution,
+              severity: ManagementDiagnosticSeverity.error,
+              occurredAtUtc: DateTime.utc(2026, 10, 29),
+              correlationId: 'cor_0123456789abcdef0123456789abcdef',
+              retryable: true,
+              messageKey: 'host_api.error.host_unavailable',
+              safeExplanation: 'The Host could not complete this request.',
+              recommendedAction: 'Use token=abcdefghijklmnop1234 now.',
+            ),
+        'Diagnostic copy accepted a token-shaped secret');
+  });
+  test('Management inventory and synchronization contracts omit credentials',
+      () {
+    final device = ManagedDeviceSummary(
+      deviceId: 'device-001',
+      actorId: 'user-001',
+      role: HostDeviceRole.client,
+      registrationState: DeviceRegistrationState.registered,
+      registeredAtUtc: DateTime.utc(2026, 10, 29),
+    );
+    final credential = ManagedCredentialSummary(
+      credentialId: 'credential-001',
+      deviceId: 'device-001',
+      state: CredentialLifecycleState.active,
+      expiresAtUtc: DateTime.utc(2026, 11, 29),
+    );
+    final pairing = ManagedPairingSummary(
+      pairingId: 'pairing-001',
+      deviceRole: HostDeviceRole.client,
+      state: PairingLifecycleState.issued,
+      expiresAtUtc: DateTime.utc(2026, 10, 29, 0, 5),
+    );
+    final encoded = jsonEncode([
+      device.toJson(),
+      credential.toJson(),
+      pairing.toJson(),
+      HostSynchronizationSummary(
+        state: SynchronizationState.attentionRequired,
+        pending: 2,
+        accepted: 4,
+        rejected: 1,
+        conflicts: 1,
+        retryable: 1,
+        lastErrorCode: 'HOST_UNAVAILABLE',
+      ).toJson(),
+    ]);
+    check(
+        !encoded.contains('token') &&
+            !encoded.contains('digest') &&
+            !encoded.contains('pairingCode') &&
+            encoded.contains('CLIENT') &&
+            encoded.contains('host.status.read') == false,
+        'Inventory contracts must not carry secrets or derive permissions from device role');
+    checkThrows(
+        () => HostSynchronizationSummary(
+              state: SynchronizationState.idle,
+              pending: -1,
+              accepted: 0,
+              rejected: 0,
+              conflicts: 0,
+              retryable: 0,
+            ),
+        'Synchronization summary accepted a negative count');
   });
   print('RESULT: $passed passed, $failed failed');
   if (failed > 0) throw StateError('$failed tests failed');

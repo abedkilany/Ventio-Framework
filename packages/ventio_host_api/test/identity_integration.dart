@@ -46,11 +46,14 @@ Future<void> mustFail(Future<void> Function() action, String label) async {
   check(failed, label);
 }
 
-Future<void> waitUntil(Future<bool> Function() condition, String label) async {
+Future<void> waitUntil(
+  Future<bool> Function() condition,
+  String label, {
+  Duration timeout = const Duration(seconds: 8),
+}) async {
   final watch = Stopwatch()..start();
   while (!await condition()) {
-    if (watch.elapsed > const Duration(seconds: 8))
-      throw StateError('Timed out: $label');
+    if (watch.elapsed > timeout) throw StateError('Timed out: $label');
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
 }
@@ -80,24 +83,36 @@ Future<void> main() async {
       pg.Connection.openFromUrl(runtimeUrl);
   final db = await connect();
   final adminConnection = await pg.Connection.openFromUrl(administrationUrl);
+  final authorityDirectory = await createPrivateTestDirectory(
+    'ventio-identity-integration-',
+  );
+  final authority = RecoveryAuthority(
+    '${authorityDirectory.path}/authority.json',
+  );
   final tenant = 'identity-${DateTime.now().microsecondsSinceEpoch}';
   final otherTenant = '$tenant-other';
   final admin = IdentityAdministration(
     connection: adminConnection,
     tenantId: tenant,
     operatorLabel: 'integration-operator',
+    authority: authority,
   );
   final otherAdmin = IdentityAdministration(
     connection: adminConnection,
     tenantId: otherTenant,
     operatorLabel: 'integration-operator',
+    authority: authority,
   );
   final prototype = bootstrapMaintenancePrototype('../../spec/v1.2');
-  final authenticator = PersistentTokenAuthenticator(connect: runtimeConnect);
+  final authenticator = PersistentTokenAuthenticator(
+    connect: runtimeConnect,
+    admission: authority,
+  );
   PersistentCommandExecutor executor({
     Future<pg.Connection> Function()? open,
   }) => PersistentCommandExecutor(
     connect: open ?? runtimeConnect,
+    admission: authority,
     modules: prototype.modules,
     docTypes: prototype.docTypes,
     bindings: const [
@@ -110,6 +125,29 @@ Future<void> main() async {
   Process? child;
   Future<Reply> submit(String token, Map<String, dynamic> body) =>
       send(api!, token: token, body: body);
+  Future<String> issueScopedCredential(
+    IdentityAdministration administration, {
+    required String actorId,
+    required String deviceId,
+    required String credentialId,
+    required DateTime expiresAt,
+    required List<Map<String, Object?>> allowedScopes,
+  }) async {
+    final outputPath =
+        '${authorityDirectory.path}/credential-${OpaqueToken.generate()}.json';
+    await administration.provisionToFile(
+      actorId: actorId,
+      deviceId: deviceId,
+      credentialId: credentialId,
+      expiresAt: expiresAt,
+      allowedScopes: allowedScopes,
+      outputPath: outputPath,
+    );
+    final credential =
+        jsonDecode(await PrivateFiles.read(outputPath)) as Map<String, dynamic>;
+    return credential['token'] as String;
+  }
+
   Future<String> provision(
     IdentityAdministration administration,
     String actor,
@@ -132,12 +170,20 @@ Future<void> main() async {
       'branch-001',
       'maintenance.read',
     );
-    return administration.issueCredential(
+    return issueScopedCredential(
+      administration,
       actorId: actor,
       deviceId: device,
       credentialId: credential,
       expiresAt:
           expiresAt ?? DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
   }
 
@@ -187,12 +233,24 @@ Future<void> main() async {
       db,
       Directory('../../migrations/postgres'),
     ).apply();
+    await authority.resetForReenrollment(
+      adminConnection,
+      'identity-integration-reset',
+    );
     final token = await provision(admin, 'user-001', 'device-001', 'primary');
-    final secondToken = await admin.issueCredential(
+    final secondToken = await issueScopedCredential(
+      admin,
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'secondary',
       expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     final foreignToken = await provision(
       otherAdmin,
@@ -258,11 +316,24 @@ Future<void> main() async {
       companyId: 'company-002',
       branchId: 'branch-002',
     );
-    final roleToken = await admin.issueCredential(
+    final roleToken = await issueScopedCredential(
+      admin,
       actorId: 'role-user',
       deviceId: 'role-device',
       credentialId: 'role-credential',
       expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+        {
+          'companyId': 'company-002',
+          'branchId': 'branch-002',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     final roleSession = (await authenticator.authenticate(roleToken))!;
     check(
@@ -278,33 +349,19 @@ Future<void> main() async {
           ),
       'Assigned role contributes permissions only at each assigned scope',
     );
-    final scopedRoleToken = OpaqueToken.generate();
-    await adminConnection.execute(
-      pg.Sql.named(
-        'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
-      ),
-      parameters: {
-        'change': jsonEncode({
-          'tenantId': tenant,
-          'operatorLabel': 'integration-operator',
-          'action': 'CREDENTIAL_PROVISIONED',
-          'actorId': 'role-user',
-          'deviceId': 'role-device',
-          'credentialId': 'role-credential-scoped',
-          'tokenDigest': OpaqueToken.digest(scopedRoleToken),
-          'expiresAt': DateTime.now()
-              .toUtc()
-              .add(const Duration(hours: 1))
-              .toIso8601String(),
-          'allowedScopes': [
-            {
-              'companyId': 'company-001',
-              'branchId': 'branch-001',
-              'permissions': ['maintenance.create'],
-            },
-          ],
-        }),
-      },
+    final scopedRoleToken = await issueScopedCredential(
+      admin,
+      actorId: 'role-user',
+      deviceId: 'role-device',
+      credentialId: 'role-credential-scoped',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create'],
+        },
+      ],
     );
     final scopedRoleSession = (await authenticator.authenticate(
       scopedRoleToken,
@@ -415,12 +472,26 @@ Future<void> main() async {
       'branch-002',
       'maintenance.create',
     );
+    final secondBranchToken = await issueScopedCredential(
+      admin,
+      actorId: 'user-001',
+      deviceId: 'device-001',
+      credentialId: 'second-branch',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-002',
+          'branchId': 'branch-002',
+          'permissions': ['maintenance.create'],
+        },
+      ],
+    );
     final pair = scoped(tenant, 3)
       ..['companyId'] = 'company-002'
       ..['branchId'] = 'branch-002';
     check(
-      (await submit(token, pair)).status == 200,
-      'An explicitly granted second company and branch is accepted',
+      (await submit(secondBranchToken, pair)).status == 200,
+      'A separate credential with the second branch scope is accepted',
     );
     await mustFail(
       () => admin.grant(
@@ -502,11 +573,19 @@ Future<void> main() async {
       'Credential revocation is idempotent and remains denied',
     );
     await mustFail(() async {
-      await admin.issueCredential(
+      await issueScopedCredential(
+        admin,
         actorId: 'user-001',
         deviceId: 'device-001',
         credentialId: 'secondary',
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        allowedScopes: [
+          {
+            'companyId': 'company-001',
+            'branchId': 'branch-001',
+            'permissions': ['maintenance.create', 'maintenance.read'],
+          },
+        ],
       );
     }, 'Revoked credential ID cannot be overwritten by issuance');
     await mustFail(
@@ -531,6 +610,7 @@ Future<void> main() async {
         connection: adminConnection,
         tenantId: tenant,
         operatorLabel: 'rollback-test',
+        authority: authority,
       );
       await mustFail(
         () => brokenAudit.revokeDevice('device-001'),
@@ -546,20 +626,41 @@ Future<void> main() async {
       );
     }
 
+    await admin.createUser('expiry-user');
+    await admin.registerDevice('expiry-user', 'expiry-device');
+    await admin.grant(
+      'expiry-user',
+      'company-001',
+      'branch-001',
+      'maintenance.create',
+    );
+    await admin.grant(
+      'expiry-user',
+      'company-001',
+      'branch-001',
+      'maintenance.read',
+    );
     final expiry =
         (await db.execute('SELECT clock_timestamp()')).single[0] as DateTime;
-    final expiringToken = await provision(
+    final expiringToken = await issueScopedCredential(
       admin,
-      'expiry-user',
-      'expiry-device',
-      'expiring',
-      expiresAt: expiry.add(const Duration(seconds: 2)),
+      actorId: 'expiry-user',
+      deviceId: 'expiry-device',
+      credentialId: 'expiring',
+      expiresAt: expiry.add(const Duration(seconds: 30)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
+    final expiringSession = await authenticator.authenticate(expiringToken);
     check(
-      await authenticator.authenticate(expiringToken) != null,
+      expiringSession != null,
       'Time-limited credential authenticates before expiry',
     );
-    final expiringSession = (await authenticator.authenticate(expiringToken))!;
     final lockConnection = await connect();
     final commandConnection = await runtimeConnect();
     final commandPid =
@@ -578,11 +679,24 @@ Future<void> main() async {
       await unlock.future;
     });
     await locked.future;
+    await waitUntil(
+      () async =>
+          (await db.execute(
+                pg.Sql.named('''
+                  SELECT expires_at <= clock_timestamp() + interval '2 seconds'
+                  FROM ventio_identity_credentials WHERE token_digest = @digest
+                '''),
+                parameters: {'digest': OpaqueToken.digest(expiringToken)},
+              )).single[0]
+              as bool,
+      'Credential approaches expiry before the delayed command starts',
+      timeout: const Duration(seconds: 35),
+    );
     final delayedExpiry = executor(open: () async => commandConnection).execute(
       CommandEnvelope.fromJson(
         scoped(tenant, 5, actor: 'expiry-user', device: 'expiry-device'),
       ),
-      expiringSession,
+      expiringSession!,
     );
     try {
       await waitUntil(
@@ -656,6 +770,7 @@ Future<void> main() async {
     final admitted = raceHost.executeAuthorized(
       CommandEnvelope.fromJson(raceCommand),
       (tx) async {
+        await authority.admit(tx);
         final resolved = await const PostgresIdentityStore().resolve(
           tx,
           OpaqueToken.digest(raceToken),
@@ -671,6 +786,7 @@ Future<void> main() async {
       connection: revocationConnection,
       tenantId: tenant,
       operatorLabel: 'race-operator',
+      authority: authority,
     );
     final revoking = revoker.revokeDevice('race-device');
     try {
@@ -685,9 +801,10 @@ Future<void> main() async {
     } finally {
       finishCommand.complete();
     }
+    final raceReceipt = await admitted;
     check(
-      (await admitted)['status'] == 'ACCEPTED',
-      'Command authorized before revocation commits once',
+      raceReceipt['status'] == 'ACCEPTED',
+      'Command authorized before revocation commits once: ${jsonEncode(raceReceipt)}',
     );
     await revoking;
     await raceConnection.close();
@@ -731,6 +848,7 @@ Future<void> main() async {
     final policyAccepted = policyHost.executeAuthorized(policyCommand, (
       tx,
     ) async {
+      await authority.admit(tx);
       final resolved = await const PostgresIdentityStore().resolve(
         tx,
         OpaqueToken.digest(policyToken),
@@ -745,6 +863,7 @@ Future<void> main() async {
       connection: policyAdminConnection,
       tenantId: tenant,
       operatorLabel: 'policy-operator',
+      authority: authority,
     );
     final changingPolicy = policyAdmin.revokeGrant(
       'policy-user',
@@ -777,17 +896,33 @@ Future<void> main() async {
     );
 
     await admin.registerDevice('user-001', 'alternate-device');
-    final alternateToken = await admin.issueCredential(
+    final alternateToken = await issueScopedCredential(
+      admin,
       actorId: 'user-001',
       deviceId: 'alternate-device',
       credentialId: 'alternate',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
-    final anotherActiveToken = await admin.issueCredential(
+    final anotherActiveToken = await issueScopedCredential(
+      admin,
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'another-active',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     final beforeRevocation = await counts();
     final beforeRevocationSession = (await authenticator.authenticate(token))!;
@@ -825,11 +960,19 @@ Future<void> main() async {
       'Revoked device tombstone cannot be replaced',
     );
     await mustFail(() async {
-      await admin.issueCredential(
+      await issueScopedCredential(
+        admin,
         actorId: 'user-001',
         deviceId: 'device-001',
         credentialId: 'revival',
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        allowedScopes: [
+          {
+            'companyId': 'company-001',
+            'branchId': 'branch-001',
+            'permissions': ['maintenance.create', 'maintenance.read'],
+          },
+        ],
       );
     }, 'New credential issuance cannot revive a revoked device');
     await admin.revokeDevice('device-001');
@@ -951,11 +1094,19 @@ Future<void> main() async {
       'survivor-device',
       'survivor-credential',
     );
-    final revokedSurvivorToken = await otherAdmin.issueCredential(
+    final revokedSurvivorToken = await issueScopedCredential(
+      otherAdmin,
       actorId: 'survivor',
       deviceId: 'survivor-device',
       credentialId: 'survivor-revoked',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      allowedScopes: [
+        {
+          'companyId': 'company-001',
+          'branchId': 'branch-001',
+          'permissions': ['maintenance.create', 'maintenance.read'],
+        },
+      ],
     );
     await otherAdmin.revokeCredential('survivor-revoked');
     final survivorCommand = scoped(
@@ -978,6 +1129,7 @@ Future<void> main() async {
           'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
           'VENTIO_ENABLE_LOCAL_HOST': 'yes',
           'VENTIO_TEST_ALLOW_STDIN_SHUTDOWN': 'yes',
+          'VENTIO_RECOVERY_AUTHORITY_FILE': authority.path,
           'VENTIO_HOST_DATABASE_URL': runtimeUrl,
           'VENTIO_HOST_PORT': '0',
         },
@@ -1133,28 +1285,34 @@ Future<void> main() async {
   } finally {
     child?.kill(ProcessSignal.sigkill);
     await api?.close();
-    // Only these two generated test tenants are removed from the disposable DB.
-    for (final table in [
-      'ventio_outbox',
-      'ventio_audit_entries',
-      'ventio_command_journal',
-      'ventio_records',
-      'ventio_identity_audit',
-      'ventio_identity_role_assignments',
-      'ventio_identity_role_permissions',
-      'ventio_identity_roles',
-      'ventio_identity_grants',
-      'ventio_identity_credentials',
-      'ventio_identity_devices',
-      'ventio_identity_users',
-      'ventio_identity_branches',
-    ]) {
-      await db.execute(
-        pg.Sql.named('DELETE FROM $table WHERE tenant_id IN (@tenant, @other)'),
-        parameters: {'tenant': tenant, 'other': otherTenant},
-      );
-    }
+    // Only these generated test tenants are removed, under Recovery Authority.
+    await authority.change(db, (tx) async {
+      for (final table in [
+        'ventio_outbox',
+        'ventio_audit_entries',
+        'ventio_command_journal',
+        'ventio_records',
+        'ventio_identity_audit',
+        'ventio_identity_role_assignments',
+        'ventio_identity_role_permissions',
+        'ventio_identity_roles',
+        'ventio_identity_grants',
+        'ventio_identity_credentials',
+        'ventio_identity_device_activity',
+        'ventio_identity_devices',
+        'ventio_identity_users',
+        'ventio_identity_branches',
+      ]) {
+        await tx.execute(
+          pg.Sql.named(
+            'DELETE FROM $table WHERE tenant_id IN (@tenant, @other)',
+          ),
+          parameters: {'tenant': tenant, 'other': otherTenant},
+        );
+      }
+    });
     await adminConnection.close();
     await db.close();
+    await authorityDirectory.delete(recursive: true);
   }
 }

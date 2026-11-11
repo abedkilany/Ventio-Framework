@@ -1,0 +1,142 @@
+{
+  "formatVersion": 1,
+  "package": {
+    "classification": "Internal acceptance candidate",
+    "clientVersion": "0.1.18",
+    "releaseStatus": "BLOCKED",
+    "hostInstallerSha256": "",
+    "clientInstallerSha256": "",
+    "sourceRevision": "",
+    "sourceSnapshotSha256": ""
+  },
+  "run": {
+    "runId": "",
+    "operator": "",
+    "startedAtUtc": "",
+    "completedAtUtc": "",
+    "notes": ""
+  },
+  "devices": {
+    "host": {
+      "machine": "ABEDKILANY",
+      "address": "192.168.1.102",
+      "windowsVersion": "",
+      "cpu": "",
+      "ramGiB": "",
+      "packageVersion": "",
+      "serviceStates": {
+        "VentioHost": "",
+        "VentioPostgres": ""
+      }
+    },
+    "client1": {
+      "address": "192.168.1.105",
+      "windowsVersion": "",
+      "cpu": "",
+      "ramGiB": "",
+      "packageVersion": "",
+      "deviceId": "",
+      "tenant": "AB",
+      "company": "CD",
+      "branch": "EF"
+    },
+    "client2": {
+      "address": "",
+      "windowsVersion": "",
+      "packageVersion": "",
+      "deviceId": "",
+      "tenant": "AB",
+      "company": "CD",
+      "branch": "EF"
+    }
+  },
+  "scenarios": {
+    "A_hostReadiness": {
+      "status": "NOT TESTED",
+      "hostVersion": "",
+      "readinessComponents": {},
+      "httpsListenerPort": "",
+      "correlationId": "",
+      "evidenceFiles": []
+    },
+    "B_httpsTrust": {
+      "status": "NOT TESTED",
+      "endpointSanIdentity": "",
+      "certificateSha256": "",
+      "outOfBandFingerprintConfirmedBy": "",
+      "windowsTrustValidation": "",
+      "clientPinRefresh": "",
+      "evidenceFiles": []
+    },
+    "C_clientEnrollment": {
+      "status": "NOT TESTED",
+      "existingEnrollmentPreserved": "",
+      "reconnectedAfterRestart": "",
+      "scopeVerified": "",
+      "safeCorrelationId": "",
+      "evidenceFiles": []
+    },
+    "D_extensionLifecycle": {
+      "status": "NOT TESTED",
+      "moduleId": "sync.test",
+      "version": "0.1.0",
+      "candidateFound": "",
+      "reviewerScopeVerified": "",
+      "reviewerPermissionVerified": "",
+      "selfReviewDenied": "",
+      "ownerApprovalAuthorizationRecorded": "",
+      "decision": "",
+      "packageSha256": "",
+      "clientPackageState": "",
+      "evidenceFiles": []
+    },
+    "E_pendingRecordSynchronization": {
+      "status": "NOT TESTED",
+      "recordId": "SYNC-TEST-001",
+      "originalOperationId": "",
+      "initialState": "",
+      "operationWasPreserved": "",
+      "hostAccepted": "",
+      "hostReceiptId": "",
+      "receiptVerified": "",
+      "durableClientReceipt": "",
+      "finalClientState": "",
+      "duplicateEffectObserved": "",
+      "evidenceFiles": []
+    },
+    "F_independentClientReadback": {
+      "status": "NOT TESTED",
+      "secondDeviceId": "",
+      "readPermissionVerified": "",
+      "recordRevision": "",
+      "recordVisible": "",
+      "unauthorizedReadDenied": "",
+      "evidenceFiles": []
+    },
+    "G_releasePerformance": {
+      "status": "NOT TESTED",
+      "runs": [],
+      "summaryFiles": [],
+      "comparisonConditions": "",
+      "evidenceFiles": []
+    },
+    "H_installedUpgrade": {
+      "status": "NOT TESTED",
+      "isolatedWindowsVm": "",
+      "priorHostVersion": "",
+      "preservedDataVerified": "",
+      "recoveryAuthorityVerified": "",
+      "migrationsApplied": [],
+      "hostReadinessAfterUpgrade": "",
+      "clientConnectivityAfterUpgrade": "",
+      "evidenceFiles": []
+    }
+  },
+  "sensitiveDataCheck": {
+    "containsCredentials": false,
+    "containsTokens": false,
+    "containsPairingCodes": false,
+    "containsPrivateKeys": false,
+    "containsDatabaseConnectionStrings": false
+  }
+}

@@ -9,9 +9,9 @@ import 'transport_fixture.dart';
 
 /// Authenticated HTTPS transport for an approved Host endpoint.
 ///
-/// TLS certificate validation is provided by dart:io defaults. This class
-/// never follows redirects and never accepts a caller-provided certificate
-/// bypass. Plain HTTP remains limited to loopback development Hosts.
+/// TLS uses platform trust roots until the user explicitly pins a Host
+/// certificate during Client enrollment. Pinned Hosts are constrained to that
+/// exact certificate. This class never follows redirects or bypasses TLS.
 class HttpHostCommandTransport implements CommandTransport {
   HttpHostCommandTransport({
     required Uri endpoint,
@@ -44,7 +44,11 @@ class HttpHostCommandTransport implements CommandTransport {
 
     final uri = endpoint.replace(path: '/api/v1/commands');
     final watch = Stopwatch()..start();
-    final client = _clientFactory()..connectionTimeout = timeout;
+    final client = await credentials.createHttpClient(
+      endpoint,
+      fallbackFactory: _clientFactory,
+    );
+    client.connectionTimeout = timeout;
     try {
       final request = await client.postUrl(uri).timeout(_remaining(watch));
       request.followRedirects = false;
@@ -71,7 +75,12 @@ class HttpHostCommandTransport implements CommandTransport {
             return bytes;
           })
           .timeout(_remaining(watch));
-      return _parseResponse(response.statusCode, body, envelope.commandId);
+      return _parseResponse(
+        response.statusCode,
+        body,
+        envelope.commandId,
+        correlationHeader: response.headers.value('X-Correlation-ID'),
+      );
     } on HostTransportException {
       rethrow;
     } on TimeoutException {
@@ -95,8 +104,9 @@ class HttpHostCommandTransport implements CommandTransport {
   TransportResponse _parseResponse(
     int statusCode,
     List<int> bytes,
-    String commandId,
-  ) {
+    String commandId, {
+    String? correlationHeader,
+  }) {
     final decoded = jsonDecode(utf8.decode(bytes));
     final response = requireMap(decoded, 'response');
     if (requireInt(response, 'apiVersion') != apiVersion) {
@@ -110,12 +120,18 @@ class HttpHostCommandTransport implements CommandTransport {
           : const <String, dynamic>{};
       final code = error['code'];
       final retryable = error['retryable'];
+      final bodyCorrelation = response['correlationId'];
+      final correlationId = _validatedCorrelationId(
+        bodyCorrelation,
+        correlationHeader,
+      );
       throw HostTransportException(
         code is String && RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(code)
             ? code
             : 'HOST_HTTP_ERROR',
         statusCode: statusCode,
         retryable: retryable == true || statusCode >= 500,
+        correlationId: correlationId,
       );
     }
     final receipt = CommandReceipt.fromJson(requireMap(rawReceipt, 'receipt'));
@@ -128,6 +144,23 @@ class HttpHostCommandTransport implements CommandTransport {
       source: TransportSource.host,
       receipt: receipt.toJson(),
     );
+  }
+
+  String? _validatedCorrelationId(Object? bodyValue, String? headerValue) {
+    bool valid(String value) => RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(value);
+
+    if (bodyValue != null && (bodyValue is! String || !valid(bodyValue))) {
+      throw const HostTransportException('HOST_INVALID_RESPONSE');
+    }
+    if (headerValue != null && !valid(headerValue)) {
+      throw const HostTransportException('HOST_INVALID_RESPONSE');
+    }
+    if (bodyValue is String &&
+        headerValue != null &&
+        bodyValue != headerValue) {
+      throw const HostTransportException('HOST_INVALID_RESPONSE');
+    }
+    return bodyValue is String ? bodyValue : headerValue;
   }
 
   int _statusCodeFor(CommandReceipt receipt) => switch (receipt.status) {
@@ -158,13 +191,15 @@ class HostTransportException implements Exception {
     this.code, {
     this.statusCode,
     this.retryable = false,
+    this.correlationId,
   });
 
   final String code;
   final int? statusCode;
   final bool retryable;
+  final String? correlationId;
 
   @override
   String toString() =>
-      'Host transport error: $code${statusCode == null ? '' : ' ($statusCode)'}';
+      'Host transport error: $code${statusCode == null ? '' : ' ($statusCode)'}${correlationId == null ? '' : ' [$correlationId]'}';
 }

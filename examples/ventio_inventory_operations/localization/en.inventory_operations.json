@@ -1,0 +1,19 @@
+{
+  "extension.com_ventio_inventory_operations.name": "Ventio Inventory Operations",
+  "extension.com_ventio_inventory_operations.print.inventory_movement": "Inventory Movement",
+  "extension.com_ventio_inventory_operations.product.name": "Product",
+  "extension.com_ventio_inventory_operations.product.quantity": "Quantity",
+  "extension.com_ventio_inventory_operations.movement.name": "Movement",
+  "extension.com_ventio_inventory_operations.movement.product": "Product",
+  "extension.com_ventio_inventory_operations.movement.lines": "Lines",
+  "extension.com_ventio_inventory_operations.movement.line": "Movement Line",
+  "extension.com_ventio_inventory_operations.movement.amount": "Amount",
+  "extension.com_ventio_inventory_operations.movement.unit_price": "Unit price",
+  "extension.com_ventio_inventory_operations.movement.line_total": "Line total",
+  "extension.com_ventio_inventory_operations.movement.total": "Total",
+  "extension.com_ventio_inventory_operations.movement.number": "Document Number",
+  "extension.com_ventio_inventory_operations.movement.amended_from": "Amended From",
+  "extension.com_ventio_inventory_operations.report.movement_totals": "Movement totals",
+  "extension.com_ventio_inventory_operations.report.movement_totals.row_count": "Count",
+  "extension.com_ventio_inventory_operations.report.movement_totals.sum_total": "Total"
+}

@@ -1,0 +1,1 @@
+{"formatVersion":1,"occurredAtUtc":"2026-11-08T23:34:01.7298526+00:00","stage":"HOST_ENGINE_EXITED_BEFORE_READY","exceptionType":"InvalidOperationException","hresult":-2146233079,"hostProcessExitCode":2,"hostProcessFailureType":null,"hostProcessSqlState":null}

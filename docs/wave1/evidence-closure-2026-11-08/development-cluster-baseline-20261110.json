@@ -1,0 +1,7 @@
+{
+  "PostgresSystemIdentifier": "7706529747229262104",
+  "ControlState": "in production",
+  "RecoveryAuthorityWitnessPresent": true,
+  "LanCertificateSha256": "d083b712474bfef190d42d18763fec537e5cfeaf706c3bf45e79f3cf619edf3d",
+  "LanEnabled": true
+}

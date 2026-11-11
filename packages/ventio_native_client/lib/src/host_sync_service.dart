@@ -35,6 +35,28 @@ class HostSyncIdentityMismatchException implements Exception {
       'HOST_QUEUE_IDENTITY_MISMATCH: pending work belongs to another Host identity or scope.';
 }
 
+/// User-safe failure details for synchronization UI. It deliberately carries
+/// only a stable code and a correlation reference, never a raw exception.
+class HostSyncFailureException implements Exception {
+  HostSyncFailureException({
+    required this.code,
+    required this.correlationId,
+    required this.retryable,
+  }) {
+    if (!RegExp(r'^[A-Z][A-Z0-9_]{0,79}$').hasMatch(code) ||
+        !RegExp(r'^cor_[a-f0-9]{32}$').hasMatch(correlationId)) {
+      throw ArgumentError('Invalid safe synchronization failure.');
+    }
+  }
+
+  final String code;
+  final String correlationId;
+  final bool retryable;
+
+  @override
+  String toString() => '$code [$correlationId]';
+}
+
 /// Sends durable local intent to the Host and persists only real Host receipts.
 /// If transport fails after dispatch, the queue entry stays retryable with the
 /// same command ID so the Host's idempotency journal can reconcile the outcome.

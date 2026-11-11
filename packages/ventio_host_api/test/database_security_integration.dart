@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:postgres/postgres.dart' as pg;
@@ -50,21 +51,30 @@ Future<void> main() async {
   final runtime = await pg.Connection.openFromUrl(runtimeUrl);
   final administration = await pg.Connection.openFromUrl(adminUrl);
   final migration = await pg.Connection.openFromUrl(migrationUrl);
+  final authorityDirectory = await createPrivateTestDirectory(
+    'ventio-database-security-',
+  );
+  final authority = RecoveryAuthority(
+    '${authorityDirectory.path}/authority.json',
+  );
   final tenant = 'rls-${DateTime.now().microsecondsSinceEpoch}';
   final otherTenant = '$tenant-other';
   final admin = IdentityAdministration(
     connection: administration,
     tenantId: tenant,
     operatorLabel: 'security-test',
+    authority: authority,
   );
   final otherAdmin = IdentityAdministration(
     connection: administration,
     tenantId: otherTenant,
     operatorLabel: 'security-test',
+    authority: authority,
   );
   final proto = bootstrapMaintenancePrototype('../../spec/v1.2');
   final executor = PersistentCommandExecutor(
     connect: () => pg.Connection.openFromUrl(runtimeUrl),
+    admission: authority,
     modules: proto.modules,
     docTypes: proto.docTypes,
     bindings: const [
@@ -73,7 +83,39 @@ Future<void> main() async {
   );
   final auth = PersistentTokenAuthenticator(
     connect: () => pg.Connection.openFromUrl(runtimeUrl),
+    admission: authority,
   );
+  var credentialNumber = 0;
+  Future<String> issue(
+    IdentityAdministration a, {
+    required String actorId,
+    required String deviceId,
+    required String credentialId,
+    required DateTime expiresAt,
+    String companyId = 'company-001',
+    String branchId = 'branch-001',
+  }) async {
+    final outputPath =
+        '${authorityDirectory.path}/credential-${credentialNumber++}.json';
+    await a.provisionToFile(
+      actorId: actorId,
+      deviceId: deviceId,
+      credentialId: credentialId,
+      expiresAt: expiresAt,
+      allowedScopes: [
+        {
+          'companyId': companyId,
+          'branchId': branchId,
+          'permissions': ['maintenance.create'],
+        },
+      ],
+      outputPath: outputPath,
+    );
+    final result =
+        jsonDecode(await PrivateFiles.read(outputPath)) as Map<String, dynamic>;
+    return result['token'] as String;
+  }
+
   Future<String> provision(IdentityAdministration a) async {
     await a.createUser('user-001');
     await a.registerBranch('company-001', 'branch-001');
@@ -84,7 +126,8 @@ Future<void> main() async {
       'branch-001',
       'maintenance.create',
     );
-    return a.issueCredential(
+    return issue(
+      a,
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'credential',
@@ -97,6 +140,14 @@ Future<void> main() async {
     String digest,
     Map<String, dynamic> body,
   ) async {
+    try {
+      await authority.admit(tx);
+    } on pg.ServerException catch (error) {
+      final diagnostic = await authority.inspectSchemaUpgradeAdmission(owner);
+      throw StateError(
+        'Test Recovery Authority admission failed (${diagnostic.name}): ${error.message}',
+      );
+    }
     await const PostgresIdentityStore().resolve(
       tx,
       digest,
@@ -130,8 +181,33 @@ Future<void> main() async {
   }
 
   try {
+    await authority.resetForReenrollment(
+      administration,
+      'database-security-integration-reset',
+    );
     await verifyRuntimeConnection(runtime);
     check(true, 'Restricted runtime login passes the security profile');
+    final unavailableSeries = await runtime.runTx(
+      (tx) => tx.execute(
+        'SELECT series_id FROM public.ventio_document_number_series',
+      ),
+    );
+    check(
+      unavailableSeries.isEmpty,
+      'Number series are hidden without an authorized governed submit context',
+    );
+    await denied(
+      () => runtime.runTx(
+        (tx) => tx.execute('''
+          INSERT INTO public.ventio_document_number_series
+            (tenant_id,company_id,branch_id,module_id,doc_type,series_id,
+             prefix,padding,next_number)
+          VALUES ('forged-tenant','company-001','branch-001',
+             'com.example.numbering','NumberedDocument','main','DOC-',6,2)
+        '''),
+      ),
+      'Number series cannot be initialized without authorized governed submit',
+    );
     await rejectsProfile(
       owner,
       'Superuser connection is rejected for Host operation',
@@ -218,6 +294,49 @@ Future<void> main() async {
     );
     await denied(
       () => runtime.execute(
+        pg.Sql.named(
+          'SELECT ventio_security.admin_change(CAST(@change AS jsonb))',
+        ),
+        parameters: {
+          'change': jsonEncode({
+            'tenantId': 'runtime-bootstrap-attempt',
+            'operatorLabel': 'runtime-bootstrap-test',
+            'action': 'INITIAL_ADMIN_BOOTSTRAPPED',
+            'actorId': 'forged-admin',
+            'companyId': 'forged-company',
+            'branchId': 'forged-branch',
+            'deviceId': 'forged-device',
+            'credentialId': 'forged-credential',
+            'tokenDigest': List.filled(64, 'a').join(),
+            'expiresAt': DateTime.now()
+                .toUtc()
+                .add(const Duration(days: 1))
+                .toIso8601String(),
+          }),
+        },
+      ),
+      'Runtime cannot invoke the trusted first-administrator bootstrap operation',
+    );
+    await denied(
+      () => runtime.execute(
+        "SELECT ventio_security.bootstrap_first_admin('{}'::jsonb)",
+      ),
+      'Runtime cannot invoke the dedicated first-administrator bootstrap function',
+    );
+    await denied(
+      () => runtime.execute(
+        "SELECT ventio_security.initialize_first_host_recovery('invalid')",
+      ),
+      'Runtime cannot initialize the first Host recovery authority',
+    );
+    await denied(
+      () => runtime.execute(
+        "SELECT ventio_security.reconcile_pending_first_admin('a','b','c','d','e','f','g','h','i',now())",
+      ),
+      'Runtime cannot reconcile a pending first-administrator transaction',
+    );
+    await denied(
+      () => runtime.execute(
         "SELECT ventio_security.identity_snapshot('x',NULL,NULL)",
       ),
       'Runtime cannot invoke private identity helpers',
@@ -236,6 +355,7 @@ Future<void> main() async {
       'ventio_identity_role_permissions',
       'ventio_identity_role_assignments',
       'ventio_identity_audit',
+      'ventio_identity_pairings',
     ]) {
       await denied(
         () => runtime.execute('SELECT * FROM public.$table'),
@@ -311,13 +431,23 @@ Future<void> main() async {
       'branch-002',
       'maintenance.create',
     );
+    final secondBranchToken = await issue(
+      admin,
+      actorId: 'user-001',
+      deviceId: 'device-001',
+      credentialId: 'credential-second-branch',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      companyId: 'company-002',
+      branchId: 'branch-002',
+    );
+    final secondBranchPrincipal = (await auth.authenticate(secondBranchToken))!;
     final anotherBranch = command(tenant, id: 2)
       ..['companyId'] = 'company-002'
       ..['branchId'] = 'branch-002';
     check(
       (await executor.execute(
             CommandEnvelope.fromJson(anotherBranch),
-            principal,
+            secondBranchPrincipal,
           ))['status'] ==
           'ACCEPTED',
       'Second registered company and branch remain compatible',
@@ -327,7 +457,7 @@ Future<void> main() async {
       ..['branchId'] = 'branch-002';
     final hiddenReply = await executor.execute(
       CommandEnvelope.fromJson(hiddenCollision),
-      principal,
+      secondBranchPrincipal,
     );
     check(
       hiddenReply['reasonCode'] == 'COMMAND_ID_REUSED' &&
@@ -594,13 +724,14 @@ Future<void> main() async {
     );
     final expiration =
         (await owner.execute('SELECT clock_timestamp()')).single[0] as DateTime;
-    final expiringToken = await otherAdmin.issueCredential(
+    final expiringToken = await issue(
+      otherAdmin,
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'sql-expiring',
-      expiresAt: expiration.add(const Duration(seconds: 2)),
+      expiresAt: expiration.add(const Duration(seconds: 30)),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 2100));
+    await Future<void>.delayed(const Duration(milliseconds: 30100));
     await runtime.runTx((tx) async {
       await bind(tx, OpaqueToken.digest(expiringToken), foreignBody);
       check(
@@ -710,31 +841,44 @@ Future<void> main() async {
     );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
-    for (final table in [
-      'ventio_outbox',
-      'ventio_audit_entries',
-      'ventio_command_journal',
-      'ventio_records',
-      'ventio_identity_audit',
-      'ventio_identity_role_assignments',
-      'ventio_identity_role_permissions',
-      'ventio_identity_roles',
-      'ventio_identity_grants',
-      'ventio_identity_credentials',
-      'ventio_identity_devices',
-      'ventio_identity_users',
-      'ventio_identity_branches',
-    ]) {
-      await owner.execute(
-        pg.Sql.named(
-          'DELETE FROM public.$table WHERE tenant_id IN (@tenant,@other)',
-        ),
-        parameters: {'tenant': tenant, 'other': otherTenant},
-      );
-    }
+    // The final permitted direct SQL proof above is intentionally outside
+    // Recovery Authority and advances the database fingerprint. Re-enroll the
+    // disposable fixture before authority-managed cleanup instead of adopting
+    // that external mutation as trusted state.
+    await authority.resetForReenrollment(
+      administration,
+      'database-security-integration-cleanup-reset',
+    );
+    await authority.change(owner, (tx) async {
+      for (final table in [
+        'ventio_outbox',
+        'ventio_audit_entries',
+        'ventio_command_journal',
+        'ventio_records',
+        'ventio_identity_audit',
+        'ventio_identity_pairings',
+        'ventio_identity_role_assignments',
+        'ventio_identity_role_permissions',
+        'ventio_identity_roles',
+        'ventio_identity_grants',
+        'ventio_identity_credentials',
+        'ventio_identity_device_activity',
+        'ventio_identity_devices',
+        'ventio_identity_users',
+        'ventio_identity_branches',
+      ]) {
+        await tx.execute(
+          pg.Sql.named(
+            'DELETE FROM public.$table WHERE tenant_id IN (@tenant,@other)',
+          ),
+          parameters: {'tenant': tenant, 'other': otherTenant},
+        );
+      }
+    });
     await migration.close();
     await administration.close();
     await runtime.close();
     await owner.close();
+    await authorityDirectory.delete(recursive: true);
   }
 }

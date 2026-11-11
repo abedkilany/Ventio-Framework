@@ -1,0 +1,30 @@
+{
+  "OwnerResult": "REPAIR_TEST_RUNNER_RESTORED",
+  "EvidenceDirectory": "C:\\ProgramData\\Ventio\\RecoveryEvidence\\wave1-runner-repair-5ab355551df94dd5a7f4b1acf0cb1559",
+  "InstallerLogSha256": "23875B7CBD776D69B7DE9C6E9660A0D53BDA3E96A0FC6B347C0282F52739D756",
+  "InstallerLogCompletionUtc": "2026-11-10T16:52:42.6746264Z",
+  "HeldAndRestoredRunnerSha256": "7D6EE8CD6769F9B52C852867D3DE5A12381732229233FE11D69EBAFF6AA7DA76",
+  "Build": "0.1.18+19",
+  "ManifestSha256": "2DF44A90C73EA7B72DD19F252EA38C1090E4D538ACE2F888445F3AAF6EBE5F3B",
+  "VerifiedPayloadEntries": 74,
+  "PayloadMismatches": 0,
+  "ServicesRunningAutomatic": 2,
+  "PostgresSystemIdentifier": "7706529747229262104",
+  "RecoveryWitnessPresent": true,
+  "HostRestartDelaysMs": [
+    5000,
+    30000,
+    60000
+  ],
+  "PinnedHttps": 200,
+  "TlsVerify": 0,
+  "CertificateSha256": "d083b712474bfef190d42d18763fec537e5cfeaf706c3bf45e79f3cf619edf3d",
+  "Record": {
+    "Name": "W1-RETENTION-CONTROL-01",
+    "Revision": 1,
+    "Scope": "wave1lab / fixture / devhost",
+    "Id": "53f2e2b4-2708-4f91-b6f0-9f75f8d4d7dd"
+  },
+  "BeforeRebootWindowsBootUtc": "2026-11-09T18:43:20.5003810Z",
+  "PostRepairUi": "GetCursorPos access denied (0x80070005), one retry"
+}

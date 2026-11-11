@@ -11,7 +11,8 @@ sources = {
     for p in (root / 'migrations/postgres').glob('*.sql')
 }
 profile = (root / 'security/postgres/schema_profile.sql').read_text()
-entries = re.findall(r"\('([^']+)','([a-f0-9]{64})'\)", profile)
+reviewed_profile = profile.split('    legacy(name,sha256) AS (VALUES', 1)[0]
+entries = re.findall(r"\('([^']+)','([a-f0-9]{64})'\)", reviewed_profile)
 if len(entries) != len(sources) or dict(entries) != sources:
     raise SystemExit('Schema profile differs from reviewed migration sources')
 print('Schema profile matches all migration sources')

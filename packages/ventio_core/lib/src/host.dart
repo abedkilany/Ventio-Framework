@@ -43,7 +43,9 @@ DocTypeDefinition validateTrustedCreateBinding(ModuleRegistry modules,
       !capability.effects.toSet().containsAll({'records', 'audit', 'outbox'}) ||
       !capability.requiredPermissions.contains(declaration.permission) ||
       docType.permissions['create'] != declaration.permission ||
-      docType.fields.any((field) => field.type == 'decimal')) {
+      docType.fields.any(
+        (field) => field.type == 'decimal' && field.precision == null,
+      )) {
     throw const ContractError('INVALID_BINDING',
         'Trusted binding requires an installed operational DocType and transactional create capability');
   }
@@ -212,18 +214,32 @@ class InMemoryHost {
       }
       valuesForStorage.remove(field.name);
     }
-    final issues = docType.validatePayload(valuesForStorage);
+    if (docType.fields.any(
+      (field) =>
+          field.readOnly &&
+          field.calculation == null &&
+          valuesForStorage.containsKey(field.name) &&
+          valuesForStorage[field.name] != field.defaultValue,
+    )) {
+      return failure('REJECTED', 'READ_ONLY_FIELD');
+    }
+    late final Map<String, dynamic> normalizedValues;
+    try {
+      normalizedValues = docType.calculateValues(
+        valuesForStorage,
+        verifyCalculatedFields: valuesForStorage.keys.toSet(),
+      );
+    } on ContractError catch (error) {
+      return failure('REJECTED', error.code);
+    }
+    final issues = docType.validatePayload(normalizedValues);
     if (issues.isNotEmpty) {
       return failure('REJECTED', 'INVALID_PAYLOAD');
     }
-    for (final field in docType.fields.where(
-      (field) => field.type == 'reference',
-    )) {
-      final reference = valuesForStorage[field.name];
-      if (reference == null) continue;
+    for (final reference in docType.referencesIn(normalizedValues)) {
       final targetKey = '${command.tenantId}\u0000${command.companyId}\u0000'
           '${command.branchId}\u0000${module.moduleId}\u0000'
-          '${field.referenceTo}\u0000$reference';
+          '${reference.targetDocType}\u0000${reference.recordId}';
       if (!_state.records.containsKey(targetKey)) {
         return failure('REJECTED', 'INVALID_REFERENCE');
       }
@@ -247,7 +263,7 @@ class InMemoryHost {
         branchId: command.branchId,
         docType: docType.name,
         revision: 1,
-        data: valuesForStorage);
+        data: normalizedValues);
     final receipt = CommandReceipt(
         commandId: command.commandId,
         status: 'ACCEPTED',

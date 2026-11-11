@@ -11,7 +11,7 @@ BEGIN;
 DO $roles$
 DECLARE n text;
 BEGIN
-  FOREACH n IN ARRAY ARRAY['ventio_owner','ventio_runtime','ventio_identity_admin','ventio_migrator'] LOOP
+  FOREACH n IN ARRAY ARRAY['ventio_owner','ventio_runtime','ventio_identity_admin','ventio_identity_api','ventio_migrator'] LOOP
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = n) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', n);
     ELSIF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = n
@@ -24,12 +24,12 @@ GRANT ventio_owner TO ventio_migrator WITH INHERIT FALSE, SET TRUE;
 ALTER FUNCTION public.ventio_validate_extension_schema_upgrade(text,text,text)
   OWNER TO ventio_owner;
 REVOKE ALL ON FUNCTION public.ventio_validate_extension_schema_upgrade(text,text,text)
-  FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 -- A prior recovery profile kept pgcrypto beside callable RLS functions. Move
 -- that extension as the trusted cluster administrator before reducing to the
 -- non-superuser owner role below.
 CREATE SCHEMA IF NOT EXISTS ventio_crypto AUTHORIZATION ventio_owner;
-REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 DO $crypto_upgrade$
 DECLARE crypto_schema text; crypto_owner name;
 BEGIN
@@ -45,11 +45,11 @@ END $crypto_upgrade$;
 DO $database$
 BEGIN
   EXECUTE format('REVOKE ALL ON DATABASE %I FROM PUBLIC', current_database());
-  EXECUTE format('GRANT CONNECT ON DATABASE %I TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_migrator', current_database());
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_identity_api, ventio_migrator', current_database());
   EXECUTE format('GRANT CREATE ON DATABASE %I TO ventio_owner', current_database());
 END $database$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-GRANT USAGE ON SCHEMA public TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_migrator;
+GRANT USAGE ON SCHEMA public TO ventio_owner, ventio_runtime, ventio_identity_admin, ventio_identity_api, ventio_migrator;
 GRANT CREATE ON SCHEMA public TO ventio_owner;
 DO $ownership$
 DECLARE t text;
@@ -58,16 +58,19 @@ BEGIN
     'ventio_identity_users','ventio_identity_devices','ventio_identity_credentials','ventio_identity_branches',
     'ventio_identity_grants','ventio_identity_roles','ventio_identity_role_permissions',
     'ventio_identity_role_assignments','ventio_identity_audit','ventio_extension_packages',
-    'ventio_extension_package_events','ventio_schema_migrations'] LOOP
+    'ventio_identity_pairings','ventio_identity_device_activity',
+    'ventio_identity_credential_reissues','host_schema_upgrade_receipts',
+    'ventio_extension_package_events','ventio_document_number_series',
+    'ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
   END LOOP;
 END $ownership$;
 SET LOCAL ROLE ventio_owner;
 CREATE SCHEMA IF NOT EXISTS ventio_security AUTHORIZATION ventio_owner;
 REVOKE ALL ON SCHEMA ventio_security FROM PUBLIC;
-GRANT USAGE ON SCHEMA ventio_security TO ventio_runtime, ventio_identity_admin;
+GRANT USAGE ON SCHEMA ventio_security TO ventio_runtime, ventio_identity_admin, ventio_identity_api;
 CREATE SCHEMA IF NOT EXISTS ventio_crypto AUTHORIZATION ventio_owner;
-REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON SCHEMA ventio_crypto FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA ventio_crypto;
 DO $crypto$
 DECLARE crypto_schema text; crypto_owner name;
@@ -88,9 +91,9 @@ END $crypto$;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE ventio_owner REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 CREATE TABLE IF NOT EXISTS ventio_security.command_bindings (
   command_type text NOT NULL,
   command_version integer NOT NULL,
@@ -110,15 +113,21 @@ BEGIN
   FOREACH t IN ARRAY ARRAY['public.ventio_identity_users','public.ventio_identity_devices',
     'public.ventio_identity_credentials','public.ventio_identity_branches','public.ventio_identity_grants',
     'public.ventio_identity_roles','public.ventio_identity_role_permissions',
-    'public.ventio_identity_role_assignments',
-    'public.ventio_identity_audit','public.ventio_extension_packages',
-    'public.ventio_extension_package_events','public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
+    'public.ventio_identity_role_assignments','public.ventio_identity_device_activity',
+    'public.ventio_identity_audit','public.ventio_identity_pairings',
+    'public.ventio_identity_credential_reissues',
+    'public.host_schema_upgrade_receipts',
+    'public.ventio_extension_packages',
+    'public.ventio_extension_package_events','public.ventio_document_number_series',
+    'public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS owner_access ON %s', t);
     EXECUTE format('CREATE POLICY owner_access ON %s TO ventio_owner USING (true) WITH CHECK (true)', t);
   END LOOP;
 END $protected$;
+REVOKE ALL ON public.host_schema_upgrade_receipts
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 INSERT INTO ventio_security.command_bindings
   (command_type,command_version,doc_type,create_permission,read_permission,module_id) VALUES
   ('maintenance.create', 1, 'MaintenanceRequest', 'maintenance.create', 'maintenance.read','com.ventio.maintenance'),
@@ -170,7 +179,7 @@ BEGIN
         JOIN public.ventio_identity_role_permissions rp
           USING (tenant_id,role_id)
         WHERE a.tenant_id=c.tenant_id AND a.actor_id=c.actor_id
-          AND rp.permission <> 'identity.roles.manage'
+          AND rp.permission !~ '^(identity|host|system|security|recovery|authorization)\.'
     ) effective
     WHERE (p_company IS NULL OR effective.company_id=p_company)
       AND (p_branch IS NULL OR effective.branch_id=p_branch)
@@ -217,8 +226,19 @@ CREATE OR REPLACE FUNCTION ventio_security.extension_policy(p_package jsonb, p_m
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
   SELECT coalesce(jsonb_object_agg(item->>'name', jsonb_build_object(
-    'moduleId',item->>'moduleId','operations',item->'operations',
-    'permissions',item->'permissions')), '{}'::jsonb)
+    'moduleId',item->>'moduleId',
+    'operations',coalesce(item->'operations','[]'::jsonb) || coalesce((
+      SELECT jsonb_agg((operation->>'id') || '@' || (operation->>'version'))
+      FROM jsonb_array_elements(coalesce(item->'businessOperations','[]'::jsonb)) AS declared(operation)
+    ),'[]'::jsonb),
+    'permissions',coalesce(item->'permissions','{}'::jsonb) || coalesce((
+      SELECT jsonb_object_agg((operation->>'id') || '@' || (operation->>'version'),
+        operation->'permission')
+      FROM jsonb_array_elements(coalesce(item->'businessOperations','[]'::jsonb)) AS declared(operation)
+    ),'{}'::jsonb),
+    'businessOperations',coalesce(item->'businessOperations','[]'::jsonb),
+    'fields',coalesce(item->'fields','[]'::jsonb),
+    'naming',item->'naming')), '{}'::jsonb)
   FROM jsonb_array_elements(p_package->'docTypes') AS rows(item)
   WHERE item->>'moduleId'=p_module
 $fn$;
@@ -240,6 +260,7 @@ SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
     nullif(current_setting('ventio.doc_type',true),''),
     nullif(current_setting('ventio.operation',true),''),
     nullif(current_setting('ventio.expected_revision',true),''),
+    nullif(current_setting('ventio.operation_inputs',true),''),
     p_identity, p_policy
   )::text
 $fn$;
@@ -375,6 +396,21 @@ BEGIN
   PERFORM set_config('ventio.extension_policy_snapshot', '', true);
   PERFORM set_config('ventio.extension_context_proof', '', true);
   result := ventio_security.identity_snapshot(p_digest, p_company, p_branch);
+  -- Authentication telemetry is recorded only by the authentication lookup.
+  -- The command transaction resolves identity again under locks, but must not
+  -- contend on this non-authority row while another command is in flight.
+  IF result IS NOT NULL AND p_type IS NULL AND p_version IS NULL AND
+      p_command IS NULL AND p_aggregate IS NULL THEN
+    INSERT INTO public.ventio_identity_device_activity
+      (tenant_id,device_id,actor_id,last_authenticated_at,authentication_count)
+      VALUES (result->>'tenantId',result->>'deviceId',result->>'actorId',clock_timestamp(),1)
+      ON CONFLICT (tenant_id,device_id) DO UPDATE
+        SET last_authenticated_at=EXCLUDED.last_authenticated_at,
+            authentication_count=public.ventio_identity_device_activity.authentication_count+1
+        WHERE public.ventio_identity_device_activity.actor_id=EXCLUDED.actor_id
+          AND public.ventio_identity_device_activity.last_authenticated_at
+            < clock_timestamp()-interval '1 minute';
+  END IF;
   IF result IS NOT NULL AND p_company IS NOT NULL AND p_branch IS NOT NULL THEN
     PERFORM set_config('ventio.credential_digest', p_digest, true);
     PERFORM set_config('ventio.company_id', p_company, true);
@@ -406,7 +442,7 @@ BEGIN
   IF p_company IS DISTINCT FROM nullif(current_setting('ventio.company_id', true), '') OR
      p_branch IS DISTINCT FROM nullif(current_setting('ventio.branch_id', true), '') THEN RETURN false; END IF;
   command_type := current_setting('ventio.command_type', true);
-  IF command_type IN ('extension.record.create','extension.record.update','extension.record.query') THEN
+  IF command_type IN ('extension.record.create','extension.record.update','extension.record.delete','extension.record.query','extension.operation.execute') THEN
     dynamic_operation := nullif(current_setting('ventio.operation',true),'');
     dynamic_module := nullif(current_setting('ventio.module_id',true),'');
     dynamic_version := nullif(current_setting('ventio.module_version',true),'');
@@ -414,7 +450,10 @@ BEGIN
     IF dynamic_module IS NULL OR dynamic_version IS NULL OR dynamic_name IS NULL OR
         (command_type='extension.record.create' AND dynamic_operation IS DISTINCT FROM 'create') OR
         (command_type='extension.record.update' AND dynamic_operation IS DISTINCT FROM 'update') OR
-        (command_type='extension.record.query' AND dynamic_operation IS DISTINCT FROM 'read') THEN
+        (command_type='extension.record.delete' AND dynamic_operation IS DISTINCT FROM 'delete') OR
+        (command_type='extension.record.query' AND dynamic_operation IS DISTINCT FROM 'read') OR
+        (command_type='extension.operation.execute' AND
+          (dynamic_operation IS NULL OR dynamic_operation !~ '^[a-z][a-z0-9]*(\.[a-z0-9]+|_[a-z0-9]+|-[a-z0-9]+)*@[1-9][0-9]{0,2}$')) THEN
       RETURN false;
     END IF;
     cached_context := ventio_security.cached_extension_authorization(
@@ -479,12 +518,93 @@ BEGIN
       END IF;
       RETURN identity->'permissions' ? read_permission;
     END IF;
+    IF p_mode='record_reference_guard' THEN
+      IF dynamic_operation <> 'delete' OR p_subject=dynamic_name THEN
+        RETURN false;
+      END IF;
+      target_doc_type := policy->p_subject;
+      IF target_doc_type->>'moduleId' IS DISTINCT FROM dynamic_module OR
+          NOT (identity->'permissions' ? operation_permission) THEN
+        RETURN false;
+      END IF;
+      RETURN EXISTS (
+        SELECT 1 FROM jsonb_array_elements(
+          coalesce(target_doc_type->'fields','[]'::jsonb)) AS fields(item)
+        WHERE item->>'type'='reference'
+          AND item->>'referenceTo'=dynamic_name
+      );
+    END IF;
     IF p_mode='record_insert' THEN
       RETURN dynamic_operation='create' AND can_create AND p_subject=dynamic_name
         AND nullif(current_setting('ventio.aggregate_id',true),'') IS NOT NULL;
     END IF;
+    IF p_mode='record_amend_insert' THEN
+      RETURN dynamic_operation ~ '@[1-9][0-9]{0,2}$' AND can_create
+        AND p_subject=dynamic_name
+        AND p_actor=nullif(current_setting('ventio.command_id',true),'')
+        AND identity->'permissions' ? (dynamic_doc_type->'permissions'->>'create')
+        AND EXISTS (
+          SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+          CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+          WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+            AND effects.effect->>'type'='document.amend'
+        );
+    END IF;
     IF p_mode='record_update' THEN
-      RETURN dynamic_operation='update' AND can_create AND p_subject=dynamic_name;
+      RETURN (dynamic_operation IN ('update','delete') AND can_create AND p_subject=dynamic_name) OR
+        (dynamic_operation ~ '@[1-9][0-9]{0,2}$' AND can_create AND
+          EXISTS (SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+            CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+            WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+      AND effects.effect->>'type' IN ('document.allocate_number','document.transition','record.increment','record.increment_rows','document.amend')
+              AND p_subject=dynamic_name));
+    END IF;
+    IF p_mode='record_effect_update' THEN
+      IF dynamic_operation !~ '@[1-9][0-9]{0,2}$' OR NOT can_create THEN RETURN false; END IF;
+      RETURN EXISTS (
+        SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+        CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+        WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+          AND effects.effect->>'type' IN ('record.increment','record.increment_rows')
+          AND effects.effect->>'targetDocType'=p_subject
+          AND p_actor=CASE WHEN effects.effect->>'type'='record.increment_rows'
+            THEN nullif(current_setting('ventio.effect_target_id',true),'')
+            ELSE ((nullif(current_setting('ventio.operation_inputs',true),'')::jsonb)
+              ->>(effects.effect->>'targetIdInput')) END
+          AND identity->'permissions' ? ((policy->p_subject)->'permissions'->>'read')
+          AND identity->'permissions' ? ((policy->p_subject)->'permissions'->>'update')
+          AND EXISTS (
+            SELECT FROM jsonb_array_elements(coalesce((policy->p_subject)->'fields','[]'::jsonb)) AS fields(field)
+            WHERE fields.field->>'name'=effects.effect->>'field'
+              AND (fields.field->>'readPermission' IS NULL OR
+                   identity->'permissions' ? (fields.field->>'readPermission'))
+              AND (fields.field->>'writePermission' IS NULL OR
+                   identity->'permissions' ? (fields.field->>'writePermission'))
+          )
+      );
+    END IF;
+    IF p_mode='series_allocate' THEN
+      RETURN can_create AND p_subject=dynamic_name
+        AND jsonb_typeof(dynamic_doc_type->'naming')='object'
+        AND EXISTS (SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+          CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+          WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+            AND effects.effect->>'type'='document.allocate_number'
+            AND effects.effect->>'field'=dynamic_doc_type->'naming'->>'field');
+    END IF;
+    IF p_mode IN ('record_transition_source','record_transition_target') THEN
+      IF NOT can_create OR dynamic_operation !~ '@[1-9][0-9]{0,2}$' THEN RETURN false; END IF;
+      RETURN EXISTS (
+        SELECT FROM jsonb_array_elements(dynamic_doc_type->'businessOperations') AS ops(item)
+        CROSS JOIN LATERAL jsonb_array_elements(ops.item->'effects') AS effects(effect)
+        WHERE (ops.item->>'id') || '@' || (ops.item->>'version')=dynamic_operation
+          AND effects.effect->>'type'='document.transition'
+          AND p_subject=dynamic_name
+          AND (p_mode<>'record_transition_target' OR effects.effect->>'targetStatus'=p_actor)
+          AND (p_mode<>'record_transition_source' OR
+            (effects.effect->>'targetStatus'='1' AND p_actor='0') OR
+            (effects.effect->>'targetStatus'='2' AND p_actor='1'))
+      );
     END IF;
     IF p_mode='journal_read' THEN RETURN can_create; END IF;
     IF p_mode IN ('journal_write','audit_write','outbox_write') THEN
@@ -539,25 +659,76 @@ ALTER TABLE public.ventio_audit_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ventio_audit_entries FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.ventio_outbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ventio_outbox FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.ventio_document_number_series ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ventio_document_number_series FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS runtime_select ON public.ventio_records;
 DROP POLICY IF EXISTS runtime_insert ON public.ventio_records;
 CREATE POLICY runtime_select ON public.ventio_records FOR SELECT TO ventio_runtime
-  USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_read', doc_type)
-    AND module_id = current_setting('ventio.module_id',true));
-CREATE POLICY runtime_insert ON public.ventio_records FOR INSERT TO ventio_runtime
-  WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_insert', doc_type)
+  USING ((ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_read', doc_type)
+      OR ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_reference_guard', doc_type))
     AND module_id = current_setting('ventio.module_id',true)
-    AND record_id = current_setting('ventio.aggregate_id', true));
+    AND (deleted_at IS NULL OR
+      (current_setting('ventio.operation',true)='delete'
+        AND record_id=current_setting('ventio.aggregate_id',true))));
+CREATE POLICY runtime_insert ON public.ventio_records FOR INSERT TO ventio_runtime
+  WITH CHECK (module_id = current_setting('ventio.module_id',true)
+    AND ((ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_insert', doc_type)
+      AND record_id = current_setting('ventio.aggregate_id', true))
+      OR (ventio_security.scope_allows(tenant_id, company_id, branch_id,
+          'record_amend_insert', doc_type, record_id)
+        AND record_id = current_setting('ventio.command_id', true))));
 DROP POLICY IF EXISTS runtime_update ON public.ventio_records;
 CREATE POLICY runtime_update ON public.ventio_records FOR UPDATE TO ventio_runtime
-  USING (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
+  USING ((ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
     AND module_id = current_setting('ventio.module_id',true)
     AND record_id = current_setting('ventio.aggregate_id', true)
     AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer)
-  WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
-    AND module_id = current_setting('ventio.module_id',true)
-    AND record_id = current_setting('ventio.aggregate_id', true)
-    AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1);
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_transition_source', doc_type, document_status::text)
+      AND module_id = current_setting('ventio.module_id',true)
+      AND record_id = current_setting('ventio.aggregate_id', true)
+      AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer)
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_effect_update', doc_type, record_id)
+      AND module_id = current_setting('ventio.module_id',true)))
+  WITH CHECK (
+    (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_update', doc_type)
+      AND module_id = current_setting('ventio.module_id',true)
+      AND record_id = current_setting('ventio.aggregate_id', true)
+      AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1
+      AND ((current_setting('ventio.operation',true)='update' AND deleted_at IS NULL AND document_status=0)
+        OR (current_setting('ventio.command_type',true)='extension.operation.execute' AND deleted_at IS NULL AND document_status=0)
+        OR (current_setting('ventio.operation',true)='delete'
+          AND deleted_at IS NOT NULL AND document_status=0)))
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_effect_update', doc_type, record_id)
+      AND module_id = current_setting('ventio.module_id',true))
+    OR (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'record_transition_target', doc_type, document_status::text)
+      AND module_id = current_setting('ventio.module_id',true)
+      AND record_id = current_setting('ventio.aggregate_id', true)
+      AND revision = nullif(current_setting('ventio.expected_revision',true),'')::integer + 1));
+DROP POLICY IF EXISTS runtime_series_select ON public.ventio_document_number_series;
+CREATE POLICY runtime_series_select ON public.ventio_document_number_series
+  FOR SELECT TO ventio_runtime
+  USING (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true));
+DROP POLICY IF EXISTS runtime_series_insert ON public.ventio_document_number_series;
+CREATE POLICY runtime_series_insert ON public.ventio_document_number_series
+  FOR INSERT TO ventio_runtime
+  WITH CHECK (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true));
+DROP POLICY IF EXISTS runtime_series_update ON public.ventio_document_number_series;
+CREATE POLICY runtime_series_update ON public.ventio_document_number_series
+  FOR UPDATE TO ventio_runtime
+  USING (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true))
+  WITH CHECK (ventio_security.scope_allows(tenant_id,company_id,branch_id,
+      'series_allocate',doc_type)
+    AND module_id=current_setting('ventio.module_id',true)
+    AND doc_type=current_setting('ventio.doc_type',true));
 -- Reviewed schema migrations run only inside the fixed extension approval
 -- function. The owner is NOLOGIN; its record access is enabled only when that
 -- function is called by the restricted identity-administration role.
@@ -592,30 +763,67 @@ CREATE POLICY runtime_insert ON public.ventio_outbox FOR INSERT TO ventio_runtim
   WITH CHECK (ventio_security.scope_allows(tenant_id, company_id, branch_id, 'outbox_write', command_id));
 GRANT SELECT, INSERT ON public.ventio_records, public.ventio_command_journal,
   public.ventio_audit_entries, public.ventio_outbox TO ventio_runtime;
-GRANT UPDATE (revision, record_data, updated_at) ON public.ventio_records TO ventio_runtime;
+GRANT UPDATE (revision, record_data, updated_at, deleted_at, document_status) ON public.ventio_records TO ventio_runtime;
 GRANT UPDATE (receipt, scope_cursor) ON public.ventio_command_journal TO ventio_runtime;
+GRANT SELECT, INSERT ON public.ventio_document_number_series TO ventio_runtime;
+GRANT UPDATE (next_number) ON public.ventio_document_number_series TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
+\ir pairing.sql
 \ir schema_profile.sql
+\ir credential_reissues.sql
 \ir runtime_check.sql
-REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
-REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin;
+REVOKE ALL ON ALL TABLES IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_security FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
 GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,integer,text,text),
   ventio_security.scope_allows(text,text,text,text,text,text,text), ventio_security.assert_runtime(), ventio_security.assert_schema(),
   ventio_security.admit_recovery(text,text),
   ventio_security.resolve_extension_read_identity(text,text,text,text,text,text),
-  ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint),
+  ventio_security.resolve_extension_identity(text,text,text,text,integer,text,text,text,text,text,text,bigint,jsonb),
   ventio_security.submit_extension_package(text,text,text,text,text,text,text,jsonb),
   ventio_security.read_approved_extension_package(text,text,text,text,text,text),
   ventio_security.list_approved_extension_packages(text,text,text,text,text,text,integer),
-  ventio_security.identity_roles_snapshot(text,text,text)
+  ventio_security.identity_roles_snapshot(text,text,text),
+  ventio_security.identity_users_snapshot(text,text,text),
+  ventio_security.identity_users_audit_snapshot(text,text,text),
+  ventio_security.identity_devices_snapshot(text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
-  ventio_security.scoped_admin_change(text,text,text,jsonb),
   ventio_security.admit_recovery(text,text),
   ventio_security.recovery_snapshot(),
   ventio_security.reset_recovery(text,text),
   ventio_security.read_extension_submission(text,text,text),
   public.ventio_validate_extension_schema_upgrade(text,text,text),
   ventio_security.assert_schema() TO ventio_identity_admin;
+GRANT EXECUTE ON FUNCTION
+  ventio_security.scoped_admin_change(text,text,text,jsonb),
+  ventio_security.scoped_user_admin_change(text,text,text,jsonb),
+  ventio_security.scoped_pairing_create(text,text,text,text,text,text),
+  ventio_security.permission_denial_reason(text,text,text,text,text),
+  ventio_security.trusted_windows_pairing_create(text,text,text,text,text,text,text,text,text[],text),
+  ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text),
+  ventio_security.credential_reissue_claim(text,text),
+  ventio_security.credential_reissue_pending_claim(text),
+  ventio_security.credential_reissue_finalize(text,text),
+  ventio_security.scoped_pairing_redeem(text,text,text,text),
+  ventio_security.scoped_device_revoke(text,text,text,text),
+  ventio_security.scoped_device_credential_rotate(text,text,text,text,text,text,text),
+  ventio_security.list_extension_submissions(text,text,text,text,integer),
+  ventio_security.review_extension_submission(text,text,text,text,text,text,text,text,text),
+  ventio_security.get_extension_submission_scoped(text,text,text,text,text,text),
+  ventio_security.admit_recovery(text,text),
+  ventio_security.recovery_snapshot(),
+  ventio_security.initialize_first_host_recovery(text),
+  ventio_security.reconcile_pending_first_admin(text,text,text,text,text,text,text,text,text,timestamp with time zone),
+  ventio_security.bootstrap_first_admin(jsonb),
+  ventio_security.assert_schema()
+  TO ventio_identity_api;
+-- pgcrypto functions are extension members and may remain owned by the cluster
+-- bootstrap login even though the extension is assigned to ventio_owner. Reset
+-- the temporary SET ROLE before hardening their ACLs. Only SECURITY DEFINER
+-- functions owned by ventio_owner need to call these crypto primitives.
+RESET ROLE;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_crypto
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_crypto TO ventio_owner;
 COMMIT;

@@ -7,12 +7,14 @@ import 'package:postgres/postgres.dart' as pg;
 import '../test_support.dart' show hasForcedTerminationExitCode;
 
 class TestHost {
+  static int _nextLabel = 0;
   final Process process;
   final List<Map<String, dynamic>> _events = [];
   final List<String> _safeDiagnostics = [];
   int? _exitCode;
   late final int port;
-  TestHost._(this.process) {
+  final String applicationName;
+  TestHost._(this.process, this.applicationName) {
     process.exitCode.then((code) => _exitCode = code);
     process.stdout
         .transform(utf8.decoder)
@@ -43,8 +45,14 @@ class TestHost {
           }
         }, onError: (Object _) {});
   }
+
+  String get observedEvents =>
+      _events.map((event) => event['event']).join(', ');
+
+  String get safeDiagnostics => _safeDiagnostics.join('; ');
+
   static Future<TestHost> attach(Process process) async {
-    final host = TestHost._(process);
+    final host = TestHost._(process, '');
     host.port = (await host.event('ready'))['port'] as int;
     return host;
   }
@@ -56,6 +64,19 @@ class TestHost {
     String? authorityFile,
   }) async {
     final crash = stage != null;
+    final applicationName = 'ventio-recovery-${++_nextLabel}';
+    String taggedUrl(String value) {
+      final uri = Uri.parse(value);
+      return uri
+          .replace(
+            queryParameters: {
+              ...uri.queryParameters,
+              'application_name': applicationName,
+            },
+          )
+          .toString();
+    }
+
     final p = await Process.start(
       Platform.resolvedExecutable,
       [
@@ -70,16 +91,16 @@ class TestHost {
         if (authorityFile != null)
           'VENTIO_RECOVERY_AUTHORITY_FILE': authorityFile,
         'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
-        'VENTIO_TEST_RUNTIME_DATABASE_URL': url,
+        'VENTIO_TEST_RUNTIME_DATABASE_URL': taggedUrl(url),
         'VENTIO_ENABLE_LOCAL_HOST': 'yes',
         'VENTIO_HOST_DATABASE_URL': url,
         'VENTIO_HOST_PORT': '0',
         if (stage != null) 'VENTIO_TEST_CRASH_STAGE': stage,
         if (executionUrl != null)
-          'VENTIO_TEST_EXECUTION_DATABASE_URL': executionUrl,
+          'VENTIO_TEST_EXECUTION_DATABASE_URL': taggedUrl(executionUrl),
       },
     );
-    final result = TestHost._(p);
+    final result = TestHost._(p, applicationName);
     try {
       result.port = (await result.event('ready'))['port'] as int;
       return result;
@@ -105,8 +126,12 @@ class TestHost {
           'Host exited with status $exitCode before $name$diagnostic',
         );
       }
-      if (DateTime.now().isAfter(deadline))
-        throw StateError('Host event timed out: $name');
+      if (DateTime.now().isAfter(deadline)) {
+        final observed = observedEvents;
+        throw StateError(
+          'Host event timed out: $name (observed: ${observed.isEmpty ? 'none' : observed})',
+        );
+      }
       // A short bounded poll avoids losing a signal between inspection/listen.
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
@@ -166,11 +191,14 @@ Future<HttpOutcome> request(
   }
 }
 
-Future<void> waitFor(Future<bool> Function() condition, String label) async {
+Future<void> waitFor(
+  Future<bool> Function() condition,
+  String label, {
+  Duration timeout = const Duration(seconds: 15),
+}) async {
   final watch = Stopwatch()..start();
   while (!await condition()) {
-    if (watch.elapsed > const Duration(seconds: 15))
-      throw StateError('Timed out: $label');
+    if (watch.elapsed > timeout) throw StateError('Timed out: $label');
     await Future<void>.delayed(const Duration(milliseconds: 30));
   }
 }

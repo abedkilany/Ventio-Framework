@@ -1,0 +1,703 @@
+-- Included by bootstrap.sql as ventio_owner after administration.sql.
+
+CREATE OR REPLACE FUNCTION ventio_security.identity_pairing_manager_allowed(
+    p_digest text, p_tenant text, p_company text, p_branch text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+BEGIN
+  IF NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_tenant IS NULL OR p_company IS NULL OR p_branch IS NULL OR
+      length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      length(trim(p_branch)) NOT BETWEEN 1 AND 256 THEN
+    RETURN false;
+  END IF;
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.tenant_id=p_tenant
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+      AND u.disabled_at IS NULL AND d.revoked_at IS NULL;
+  IF NOT FOUND OR credential_row.allowed_scopes IS NULL OR NOT EXISTS (
+      SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
+      WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
+        AND s->'permissions' ? 'identity.pairing.manage') THEN
+    RETURN false;
+  END IF;
+  RETURN EXISTS (
+    SELECT FROM public.ventio_identity_grants g
+    WHERE g.tenant_id=p_tenant AND g.actor_id=credential_row.actor_id
+      AND g.company_id=p_company AND g.branch_id=p_branch
+      AND g.permission='identity.pairing.manage');
+END $fn$;
+
+-- The raw pairing code is deliberately absent from every SQL argument. Only
+-- its digest, plus a fixed CLIENT role and one exact branch, enter the database.
+\ir pairing_create.sql
+
+-- Safe classification for a 403 after the current-session projection denied a
+-- permission. This reports only whether this credential's own exact-scope
+-- grant exists and whether its fixed ceiling admits it; it never returns
+-- grant rows, credential metadata, or permission lists.
+CREATE OR REPLACE FUNCTION ventio_security.permission_denial_reason(
+    p_digest text, p_tenant text, p_company text, p_branch text,
+    p_permission text)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+        granted boolean := false;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_tenant IS NULL OR p_company IS NULL OR p_branch IS NULL OR
+      p_permission IS NULL OR p_permission !~ '^[a-z][a-z0-9_.]{0,255}$' THEN
+    RETURN 'AUTHORIZATION_STATE_UNAVAILABLE';
+  END IF;
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.tenant_id=p_tenant
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+      AND u.disabled_at IS NULL AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND THEN RETURN 'AUTHORIZATION_STATE_UNAVAILABLE'; END IF;
+
+  IF credential_row.allowed_scopes IS NOT NULL AND NOT EXISTS (
+      SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
+      WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch) THEN
+    RETURN 'CREDENTIAL_SCOPE_DENIED';
+  END IF;
+
+  SELECT EXISTS (
+      SELECT FROM public.ventio_identity_grants g
+        WHERE g.tenant_id=p_tenant AND g.actor_id=credential_row.actor_id
+          AND g.company_id=p_company AND g.branch_id=p_branch
+          AND g.permission=p_permission
+      UNION ALL
+      SELECT FROM public.ventio_identity_role_assignments a
+        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
+        WHERE a.tenant_id=p_tenant AND a.actor_id=credential_row.actor_id
+          AND a.company_id=p_company AND a.branch_id=p_branch
+          AND rp.permission=p_permission)
+    INTO granted;
+  IF NOT granted THEN RETURN 'USER_PERMISSION_DENIED'; END IF;
+  IF credential_row.allowed_scopes IS NOT NULL AND NOT EXISTS (
+      SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
+      WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
+        AND s->'permissions' ? p_permission) THEN
+    RETURN 'CREDENTIAL_CEILING_DENIED';
+  END IF;
+  RETURN 'AUTHORIZATION_STATE_UNAVAILABLE';
+END $fn$;
+
+REVOKE ALL ON FUNCTION ventio_security.permission_denial_reason(
+    text,text,text,text,text)
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+GRANT EXECUTE ON FUNCTION ventio_security.permission_denial_reason(
+    text,text,text,text,text) TO ventio_identity_api;
+
+-- A local Windows administrator may explicitly admit a narrowly scoped Client
+-- pairing when the requesting Host user's credential ceiling is too small to
+-- issue it through ordinary pairing. This function is reachable only through
+-- the Host service's authenticated administrator pipe; it still requires a
+-- live pairing-manager credential, exact direct authority, current target
+-- grants/roles, Recovery Authority proof and an auditable one-time digest.
+CREATE OR REPLACE FUNCTION ventio_security.trusted_windows_pairing_create(
+    p_operator_digest text, p_tenant text, p_operator_actor text,
+    p_company text, p_branch text,
+    p_target_actor text, p_pairing_id text, p_pairing_digest text,
+    p_permissions text[], p_windows_admin_tag text)
+RETURNS timestamptz LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE operator_row public.ventio_identity_credentials%ROWTYPE;
+        target_disabled timestamptz; target_permissions text[] := '{}';
+        created_at_value timestamptz; expires_at_value timestamptz;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      NOT ventio_security.recovery_guard() OR
+      p_operator_digest IS NULL OR p_operator_digest !~ '^[0-9a-f]{64}$' OR
+      p_tenant IS NULL OR length(trim(p_tenant)) NOT BETWEEN 1 AND 256 OR
+      p_operator_actor IS NULL OR length(trim(p_operator_actor)) NOT BETWEEN 1 AND 256 OR
+      p_company IS NULL OR length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      p_branch IS NULL OR length(trim(p_branch)) NOT BETWEEN 1 AND 256 OR
+      p_target_actor IS NULL OR length(trim(p_target_actor)) NOT BETWEEN 1 AND 256 OR
+      p_pairing_id IS NULL OR p_pairing_id !~ '^pair_[0-9a-f]{32}$' OR
+      p_pairing_digest IS NULL OR p_pairing_digest !~ '^[0-9a-f]{64}$' OR
+      p_windows_admin_tag IS NULL OR p_windows_admin_tag !~ '^[0-9a-f]{16}$' OR
+      p_permissions IS NULL OR cardinality(p_permissions) NOT BETWEEN 1 AND 64 OR
+      cardinality(ARRAY(SELECT DISTINCT permission FROM unnest(p_permissions) permission))
+        <> cardinality(p_permissions) OR
+      EXISTS (SELECT FROM unnest(p_permissions) permission WHERE
+        permission IS NULL OR permission !~ '^[a-z][a-z0-9_.]+$' OR
+        length(permission)>256 OR
+        permission ~ '^(identity|host|system|security|recovery|authorization)\.') THEN
+    RAISE EXCEPTION 'Invalid trusted pairing request' USING ERRCODE='22023';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(86744321);
+  SELECT c.* INTO operator_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_operator_digest AND c.actor_id=p_operator_actor
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+      AND u.disabled_at IS NULL AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND OR operator_row.tenant_id IS DISTINCT FROM p_tenant OR
+      NOT ventio_security.identity_pairing_manager_allowed(
+      p_operator_digest,operator_row.tenant_id,p_company,p_branch) THEN
+    RAISE EXCEPTION 'Trusted pairing operator is unavailable' USING ERRCODE='42501';
+  END IF;
+
+  SELECT disabled_at INTO target_disabled
+    FROM public.ventio_identity_users
+    WHERE tenant_id=operator_row.tenant_id AND actor_id=p_target_actor
+    FOR UPDATE;
+  IF NOT FOUND OR target_disabled IS NOT NULL OR NOT EXISTS (
+      SELECT FROM public.ventio_identity_branches b
+      WHERE b.tenant_id=operator_row.tenant_id AND b.company_id=p_company
+        AND b.branch_id=p_branch) THEN
+    RAISE EXCEPTION 'Trusted pairing target is unavailable' USING ERRCODE='P0002';
+  END IF;
+
+  -- If delivery was ambiguous, do not mint another code for the same user
+  -- while the previous one can still be redeemed. The audit row is the
+  -- durable marker; no pairing secret is recoverable from it.
+  IF EXISTS (SELECT FROM public.ventio_identity_pairings p
+      JOIN public.ventio_identity_audit e
+        ON e.tenant_id=p.tenant_id AND e.subject_id=p.pairing_id
+        AND e.action='TRUSTED_PAIRING_CREATED'
+      WHERE p.tenant_id=operator_row.tenant_id AND p.actor_id=p_target_actor
+        AND p.company_id=p_company AND p.branch_id=p_branch
+        AND p.created_at>=clock_timestamp()-interval '5 minutes') THEN
+    RAISE EXCEPTION 'Trusted pairing code is not recoverable yet'
+      USING ERRCODE='P0001';
+  END IF;
+
+  SELECT coalesce(array_agg(permission ORDER BY permission),'{}'::text[])
+    INTO target_permissions FROM (
+      SELECT g.permission FROM public.ventio_identity_grants g
+        WHERE g.tenant_id=operator_row.tenant_id AND g.actor_id=p_target_actor
+          AND g.company_id=p_company AND g.branch_id=p_branch
+      UNION
+      SELECT rp.permission FROM public.ventio_identity_role_assignments a
+        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
+        WHERE a.tenant_id=operator_row.tenant_id AND a.actor_id=p_target_actor
+          AND a.company_id=p_company AND a.branch_id=p_branch
+    ) target_effective;
+  IF NOT p_permissions <@ target_permissions THEN
+    RAISE EXCEPTION 'Trusted pairing permissions are not currently granted' USING ERRCODE='42501';
+  END IF;
+
+  IF EXISTS (SELECT FROM public.ventio_identity_pairings p
+      WHERE p.pairing_id=p_pairing_id) THEN
+    RAISE EXCEPTION 'Trusted pairing request reference is already used'
+      USING ERRCODE='23505';
+  END IF;
+  IF (SELECT count(*) FROM public.ventio_identity_pairings p
+      WHERE p.tenant_id=operator_row.tenant_id
+        AND p.created_by_actor_id=operator_row.actor_id
+        AND p.company_id=p_company AND p.branch_id=p_branch
+        AND p.created_at>=clock_timestamp()-interval '15 minutes')>=10 THEN
+    RAISE EXCEPTION 'Pairing issue rate limit reached' USING ERRCODE='54000';
+  END IF;
+
+  created_at_value := clock_timestamp();
+  expires_at_value := created_at_value + interval '5 minutes';
+  INSERT INTO public.ventio_identity_pairings
+    (pairing_id,pairing_digest,tenant_id,actor_id,company_id,branch_id,
+     created_by_actor_id,allowed_permissions,created_at,expires_at)
+    VALUES (p_pairing_id,p_pairing_digest,operator_row.tenant_id,p_target_actor,
+      p_company,p_branch,operator_row.actor_id,p_permissions,
+      created_at_value,expires_at_value);
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    VALUES (operator_row.tenant_id,'windows-admin:'||p_windows_admin_tag,
+      'TRUSTED_PAIRING_CREATED',p_pairing_id,jsonb_build_object(
+        'operatorActorId',operator_row.actor_id,'actorId',p_target_actor,
+        'deviceRole','CLIENT','companyId',p_company,'branchId',p_branch,
+        'permissions',to_jsonb(p_permissions),
+        'expiresAtUtc',to_char(expires_at_value AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+  RETURN expires_at_value;
+END $fn$;
+
+REVOKE ALL ON FUNCTION ventio_security.trusted_windows_pairing_create(
+    text,text,text,text,text,text,text,text,text[],text)
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+GRANT EXECUTE ON FUNCTION ventio_security.trusted_windows_pairing_create(
+    text,text,text,text,text,text,text,text,text[],text)
+  TO ventio_identity_api;
+
+-- Redemption consumes the pairing row, registers a CLIENT and inserts one
+-- device-bound credential atomically. The lease is fixed at 30 days, matching
+-- the existing Host credential lifecycle ceiling.
+CREATE OR REPLACE FUNCTION ventio_security.scoped_pairing_redeem(
+    p_pairing_digest text, p_device_id text, p_credential_id text,
+    p_credential_digest text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE pairing_row public.ventio_identity_pairings%ROWTYPE;
+        user_disabled timestamptz; now_value timestamptz;
+        expires_value timestamptz; scopes jsonb;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      NOT ventio_security.recovery_guard() OR
+      p_pairing_digest IS NULL OR p_pairing_digest !~ '^[0-9a-f]{64}$' OR
+      p_device_id IS NULL OR p_device_id !~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' OR
+      p_device_id ~ '^[A-Za-z0-9_-]{43,128}$' OR
+      p_credential_id IS NULL OR p_credential_id !~ '^cred_[0-9a-f]{32}$' OR
+      p_credential_digest IS NULL OR p_credential_digest !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'Invalid pairing redemption request' USING ERRCODE='22023';
+  END IF;
+  PERFORM pg_advisory_xact_lock(86744321);
+  SELECT * INTO pairing_row FROM public.ventio_identity_pairings
+    WHERE pairing_digest=p_pairing_digest
+      AND redeemed_at IS NULL AND revoked_at IS NULL
+      AND expires_at>clock_timestamp()
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pairing credential unavailable' USING ERRCODE='P0002';
+  END IF;
+  SELECT disabled_at INTO user_disabled FROM public.ventio_identity_users
+    WHERE tenant_id=pairing_row.tenant_id AND actor_id=pairing_row.actor_id
+    FOR SHARE;
+  IF NOT FOUND OR user_disabled IS NOT NULL THEN
+    RAISE EXCEPTION 'Pairing credential unavailable' USING ERRCODE='P0002';
+  END IF;
+  IF EXISTS (SELECT FROM public.ventio_identity_devices d
+      WHERE d.tenant_id=pairing_row.tenant_id AND d.device_id=p_device_id) THEN
+    RAISE EXCEPTION 'Device identity already exists' USING ERRCODE='23505';
+  END IF;
+
+  now_value := clock_timestamp();
+  expires_value := now_value + interval '30 days';
+  scopes := jsonb_build_array(jsonb_build_object(
+    'companyId',pairing_row.company_id,'branchId',pairing_row.branch_id,
+    'permissions',to_jsonb(pairing_row.allowed_permissions)));
+  INSERT INTO public.ventio_identity_devices
+    (tenant_id,actor_id,device_id,device_role)
+    VALUES (pairing_row.tenant_id,pairing_row.actor_id,p_device_id,'CLIENT');
+  -- The pairing table references the enrolled device, so create the device
+  -- before recording the redemption. Both writes remain in this transaction.
+  UPDATE public.ventio_identity_pairings
+    SET redeemed_at=now_value,redeemed_device_id=p_device_id
+    WHERE pairing_id=pairing_row.pairing_id;
+  INSERT INTO public.ventio_identity_credentials
+    (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes)
+    VALUES (pairing_row.tenant_id,pairing_row.actor_id,p_device_id,
+      p_credential_id,p_credential_digest,expires_value,scopes);
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    VALUES (pairing_row.tenant_id,'api:pairing',
+      'DEVICE_ENROLLED',p_device_id,jsonb_build_object(
+        'pairingId',pairing_row.pairing_id,'actorId',pairing_row.actor_id,
+        'deviceRole','CLIENT','companyId',pairing_row.company_id,
+        'branchId',pairing_row.branch_id,
+        'credentialId',p_credential_id,
+        'expiresAtUtc',to_char(expires_value AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+  RETURN jsonb_build_object(
+    'tenantId',pairing_row.tenant_id,'actorId',pairing_row.actor_id,
+    'deviceId',p_device_id,'deviceRole','CLIENT',
+    'credentialId',p_credential_id,'companyId',pairing_row.company_id,
+    'branchId',pairing_row.branch_id,
+    'expiresAtUtc',to_char(expires_value AT TIME ZONE 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'));
+END $fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.identity_device_manager_allowed(
+    p_digest text, p_tenant text, p_company text, p_branch text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+BEGIN
+  IF NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_tenant IS NULL OR p_company IS NULL OR p_branch IS NULL OR
+      length(trim(p_company)) NOT BETWEEN 1 AND 256 OR
+      length(trim(p_branch)) NOT BETWEEN 1 AND 256 THEN
+    RETURN false;
+  END IF;
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.tenant_id=p_tenant
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+      AND u.disabled_at IS NULL AND d.revoked_at IS NULL;
+  IF NOT FOUND OR credential_row.allowed_scopes IS NULL OR NOT EXISTS (
+      SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
+      WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
+        AND s->'permissions' ? 'identity.devices.manage') THEN
+    RETURN false;
+  END IF;
+  RETURN EXISTS (
+    SELECT FROM public.ventio_identity_grants g
+    WHERE g.tenant_id=p_tenant AND g.actor_id=credential_row.actor_id
+      AND g.company_id=p_company AND g.branch_id=p_branch
+      AND g.permission='identity.devices.manage');
+END $fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.identity_devices_snapshot(
+    p_digest text, p_company text, p_branch text)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+        items jsonb;
+BEGIN
+  IF NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_company IS NULL OR p_branch IS NULL THEN
+    RETURN NULL;
+  END IF;
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.revoked_at IS NULL
+      AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL
+      AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND OR NOT ventio_security.identity_device_manager_allowed(
+      p_digest,credential_row.tenant_id,p_company,p_branch) THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT coalesce(jsonb_agg(device_item ORDER BY created_at DESC,device_id),
+      '[]'::jsonb) INTO items
+    FROM (
+      SELECT jsonb_build_object(
+        'deviceId',d.device_id,
+        'actorId',d.actor_id,
+        'role',coalesce(d.device_role,'UNKNOWN'),
+        'registrationState',CASE WHEN d.revoked_at IS NULL
+          THEN 'REGISTERED' ELSE 'REVOKED' END,
+        'registeredAtUtc',to_char(d.created_at AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        -- Last successful authentication is informational only. It is not an
+        -- online/offline signal; the timestamp is recorded at most once/minute.
+        'lastAuthenticatedAtUtc',(SELECT to_char(activity.last_authenticated_at AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+          FROM public.ventio_identity_device_activity activity
+          WHERE activity.tenant_id=d.tenant_id AND activity.device_id=d.device_id
+            AND activity.actor_id=d.actor_id),
+        'credentials',coalesce((
+          SELECT jsonb_agg(jsonb_build_object(
+            'credentialId',c.credential_id,
+            'permissions',coalesce((
+              SELECT scope->'permissions'
+                FROM jsonb_array_elements(c.allowed_scopes) scope
+                WHERE scope->>'companyId'=p_company
+                  AND scope->>'branchId'=p_branch
+                LIMIT 1),'[]'::jsonb),
+            'state',CASE WHEN EXISTS (
+                SELECT FROM public.ventio_identity_audit rotated
+                WHERE rotated.tenant_id=c.tenant_id
+                  AND rotated.action='CREDENTIAL_ROTATED'
+                  AND rotated.details->>'previousCredentialId'=c.credential_id)
+              THEN 'ROTATED'
+              WHEN c.revoked_at IS NOT NULL THEN 'REVOKED'
+              WHEN c.expires_at<=clock_timestamp() THEN 'EXPIRED'
+              ELSE 'ACTIVE' END,
+            'expiresAtUtc',to_char(c.expires_at AT TIME ZONE 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+            'revokedAtUtc',CASE WHEN c.revoked_at IS NULL THEN NULL ELSE
+              to_char(c.revoked_at AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END
+          ) ORDER BY c.issued_at DESC,c.credential_id)
+          FROM public.ventio_identity_credentials c
+          WHERE c.tenant_id=d.tenant_id AND c.actor_id=d.actor_id
+            AND c.device_id=d.device_id AND (
+              c.allowed_scopes IS NULL OR EXISTS (
+                SELECT FROM jsonb_array_elements(c.allowed_scopes) scope
+                WHERE scope->>'companyId'=p_company
+                  AND scope->>'branchId'=p_branch))
+        ),'[]'::jsonb)
+      ) AS device_item,d.device_id,d.created_at
+      FROM public.ventio_identity_devices d
+      WHERE d.tenant_id=credential_row.tenant_id AND (
+        EXISTS (SELECT FROM public.ventio_identity_grants g
+          WHERE g.tenant_id=d.tenant_id AND g.actor_id=d.actor_id
+            AND g.company_id=p_company AND g.branch_id=p_branch) OR
+        EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+          WHERE a.tenant_id=d.tenant_id AND a.actor_id=d.actor_id
+            AND a.company_id=p_company AND a.branch_id=p_branch))
+      ORDER BY d.created_at DESC,d.device_id
+      LIMIT 1000
+    ) scoped_devices;
+
+  RETURN jsonb_build_object(
+    'tenantId',credential_row.tenant_id,
+    'companyId',p_company,
+    'branchId',p_branch,
+    'items',items)::text;
+END $fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.scoped_device_revoke(
+    p_digest text, p_company text, p_branch text, p_device text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
+        target_device public.ventio_identity_devices%ROWTYPE;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_company IS NULL OR p_branch IS NULL OR
+      p_device IS NULL OR
+      p_device !~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$' OR
+      p_device ~ '^[A-Za-z0-9_-]{43,128}$' THEN
+    RAISE EXCEPTION 'Invalid device revocation request' USING ERRCODE='22023';
+  END IF;
+  PERFORM pg_advisory_xact_lock(86744321);
+  SELECT c.* INTO credential_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.revoked_at IS NULL
+      AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL
+      AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND OR NOT ventio_security.identity_device_manager_allowed(
+      p_digest,credential_row.tenant_id,p_company,p_branch) THEN
+    RAISE EXCEPTION 'Device administration denied' USING ERRCODE='42501';
+  END IF;
+
+  SELECT d.* INTO target_device
+    FROM public.ventio_identity_devices d
+    WHERE d.tenant_id=credential_row.tenant_id AND d.device_id=p_device
+      AND d.revoked_at IS NULL AND (
+        EXISTS (SELECT FROM public.ventio_identity_grants g
+          WHERE g.tenant_id=d.tenant_id AND g.actor_id=d.actor_id
+            AND g.company_id=p_company AND g.branch_id=p_branch) OR
+        EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+          WHERE a.tenant_id=d.tenant_id AND a.actor_id=d.actor_id
+            AND a.company_id=p_company AND a.branch_id=p_branch))
+    FOR UPDATE OF d;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Device unavailable' USING ERRCODE='P0002';
+  END IF;
+
+  -- A branch-scoped administrator cannot revoke a device whose active
+  -- credential ceiling includes another branch. Keep that impact opaque.
+  IF EXISTS (SELECT FROM public.ventio_identity_credentials c
+      WHERE c.tenant_id=target_device.tenant_id
+        AND c.actor_id=target_device.actor_id
+        AND c.device_id=target_device.device_id
+        AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+        AND (c.allowed_scopes IS NULL AND (
+          EXISTS (SELECT FROM public.ventio_identity_grants g
+            WHERE g.tenant_id=c.tenant_id AND g.actor_id=c.actor_id
+              AND (g.company_id,g.branch_id) IS DISTINCT FROM (p_company,p_branch)) OR
+          EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+            WHERE a.tenant_id=c.tenant_id AND a.actor_id=c.actor_id
+              AND (a.company_id,a.branch_id) IS DISTINCT FROM (p_company,p_branch))) OR
+          (c.allowed_scopes IS NOT NULL AND EXISTS (
+            SELECT FROM jsonb_array_elements(c.allowed_scopes) scope
+            WHERE scope->>'companyId' IS DISTINCT FROM p_company OR
+              scope->>'branchId' IS DISTINCT FROM p_branch)))) THEN
+    RAISE EXCEPTION 'Device scope exceeds requested branch'
+      USING ERRCODE='42501';
+  END IF;
+
+  UPDATE public.ventio_identity_devices
+    SET revoked_at=clock_timestamp()
+    WHERE tenant_id=target_device.tenant_id AND device_id=target_device.device_id;
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    SELECT r.tenant_id,'api:'||credential_row.actor_id,
+      'CREDENTIAL_REISSUE_REJECTED',r.device_id,jsonb_build_object(
+        'operationId',r.operation_id,'deviceId',r.device_id,
+        'actorId',r.actor_id,'companyId',r.company_id,
+        'branchId',r.branch_id,'reason','DEVICE_REVOKED')
+      FROM public.ventio_identity_credential_reissues r
+      WHERE r.tenant_id=target_device.tenant_id
+        AND r.device_id=target_device.device_id AND r.state='PREPARED';
+  UPDATE public.ventio_identity_credential_reissues
+    SET state='REJECTED',delivery_ciphertext=NULL
+    WHERE tenant_id=target_device.tenant_id
+      AND device_id=target_device.device_id AND state='PREPARED';
+  UPDATE public.ventio_identity_credentials
+    SET revoked_at=clock_timestamp()
+    WHERE tenant_id=target_device.tenant_id AND actor_id=target_device.actor_id
+      AND device_id=target_device.device_id AND revoked_at IS NULL;
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    VALUES (credential_row.tenant_id,
+      CASE WHEN credential_row.actor_id ~ '^usr_[0-9a-f]{32}$'
+        THEN 'api:'||credential_row.actor_id ELSE 'Host administrator' END,
+      'DEVICE_REVOKED',target_device.device_id,jsonb_build_object(
+        'operatorActorId',credential_row.actor_id,
+        'deviceId',target_device.device_id,
+        'companyId',p_company,'branchId',p_branch));
+  RETURN true;
+END $fn$;
+
+-- Rotate one exact-branch device credential without exposing its prior token.
+-- The replacement inherits the prior credential's full (single-branch) scope
+-- ceiling. The new bearer is generated by Host and only its digest reaches SQL.
+CREATE OR REPLACE FUNCTION ventio_security.scoped_device_credential_rotate(
+    p_digest text, p_company text, p_branch text, p_device text,
+    p_previous_credential_id text, p_credential_id text,
+    p_credential_digest text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE manager_row public.ventio_identity_credentials%ROWTYPE;
+        target_row public.ventio_identity_credentials%ROWTYPE;
+        device_row public.ventio_identity_devices%ROWTYPE;
+        expires_value timestamptz;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      EXISTS (SELECT FROM pg_catalog.pg_roles r WHERE r.rolname=session_user
+        AND (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR
+          r.rolcreaterole OR r.rolreplication)) OR
+      NOT ventio_security.recovery_guard() OR
+      p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' OR
+      p_company IS NULL OR p_branch IS NULL OR
+      p_device IS NULL OR p_device !~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$' OR
+      p_device ~ '^[A-Za-z0-9_-]{43,128}$' OR
+      p_previous_credential_id IS NULL OR
+      length(trim(p_previous_credential_id)) NOT BETWEEN 1 AND 256 OR
+      p_credential_id IS NULL OR p_credential_id !~ '^cred_[0-9a-f]{32}$' OR
+      p_credential_digest IS NULL OR p_credential_digest !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'Invalid device credential rotation request'
+      USING ERRCODE='22023';
+  END IF;
+  PERFORM pg_advisory_xact_lock(86744321);
+  SELECT c.* INTO manager_row
+    FROM public.ventio_identity_credentials c
+    JOIN public.ventio_identity_users u
+      ON u.tenant_id=c.tenant_id AND u.actor_id=c.actor_id
+    JOIN public.ventio_identity_devices d
+      ON d.tenant_id=c.tenant_id AND d.actor_id=c.actor_id AND d.device_id=c.device_id
+    WHERE c.token_digest=p_digest AND c.revoked_at IS NULL
+      AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL
+      AND d.revoked_at IS NULL
+    FOR SHARE OF c,u,d;
+  IF NOT FOUND OR NOT ventio_security.identity_device_manager_allowed(
+      p_digest,manager_row.tenant_id,p_company,p_branch) THEN
+    RAISE EXCEPTION 'Device administration denied' USING ERRCODE='42501';
+  END IF;
+
+  SELECT d.* INTO device_row
+    FROM public.ventio_identity_devices d
+    WHERE d.tenant_id=manager_row.tenant_id AND d.device_id=p_device
+      AND d.revoked_at IS NULL AND (
+        EXISTS (SELECT FROM public.ventio_identity_grants g
+          WHERE g.tenant_id=d.tenant_id AND g.actor_id=d.actor_id
+            AND g.company_id=p_company AND g.branch_id=p_branch) OR
+        EXISTS (SELECT FROM public.ventio_identity_role_assignments a
+          WHERE a.tenant_id=d.tenant_id AND a.actor_id=d.actor_id
+            AND a.company_id=p_company AND a.branch_id=p_branch))
+    FOR UPDATE OF d;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Device unavailable' USING ERRCODE='P0002';
+  END IF;
+
+  SELECT c.* INTO target_row FROM public.ventio_identity_credentials c
+    WHERE c.tenant_id=device_row.tenant_id AND c.actor_id=device_row.actor_id
+      AND c.device_id=device_row.device_id
+      AND c.credential_id=p_previous_credential_id
+      AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Active device credential unavailable' USING ERRCODE='P0002';
+  END IF;
+  IF target_row.allowed_scopes IS NULL OR
+      jsonb_typeof(target_row.allowed_scopes)<>'array' OR
+      jsonb_array_length(target_row.allowed_scopes)<>1 OR
+      target_row.allowed_scopes->0->>'companyId' IS DISTINCT FROM p_company OR
+      target_row.allowed_scopes->0->>'branchId' IS DISTINCT FROM p_branch THEN
+    RAISE EXCEPTION 'Credential scope exceeds requested branch'
+      USING ERRCODE='42501';
+  END IF;
+  IF target_row.allowed_scopes->0->'permissions' IS NULL OR
+      jsonb_typeof(target_row.allowed_scopes->0->'permissions')<>'array' THEN
+    RAISE EXCEPTION 'Invalid credential scope' USING ERRCODE='22023';
+  END IF;
+
+  expires_value := clock_timestamp()+interval '30 days';
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    SELECT r.tenant_id,'api:'||manager_row.actor_id,
+      'CREDENTIAL_REISSUE_REJECTED',r.device_id,jsonb_build_object(
+        'operationId',r.operation_id,'deviceId',r.device_id,
+        'actorId',r.actor_id,'companyId',r.company_id,
+        'branchId',r.branch_id,'reason','SOURCE_CREDENTIAL_ROTATED')
+      FROM public.ventio_identity_credential_reissues r
+      WHERE r.tenant_id=device_row.tenant_id
+        AND r.device_id=device_row.device_id AND r.state='PREPARED';
+  UPDATE public.ventio_identity_credential_reissues
+    SET state='REJECTED',delivery_ciphertext=NULL
+    WHERE tenant_id=device_row.tenant_id
+      AND device_id=device_row.device_id AND state='PREPARED';
+  UPDATE public.ventio_identity_credentials
+    SET revoked_at=clock_timestamp()
+    WHERE token_digest=target_row.token_digest AND revoked_at IS NULL;
+  INSERT INTO public.ventio_identity_credentials
+    (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes)
+    VALUES (target_row.tenant_id,target_row.actor_id,target_row.device_id,
+      p_credential_id,p_credential_digest,expires_value,target_row.allowed_scopes);
+  INSERT INTO public.ventio_identity_audit
+    (tenant_id,operator_label,action,subject_id,details)
+    VALUES (manager_row.tenant_id,
+      CASE WHEN manager_row.actor_id ~ '^usr_[0-9a-f]{32}$'
+        THEN 'api:'||manager_row.actor_id ELSE 'Host administrator' END,
+      'CREDENTIAL_ROTATED',p_device,jsonb_build_object(
+        'operatorActorId',manager_row.actor_id,'deviceId',p_device,
+        'companyId',p_company,'branchId',p_branch,
+        'previousCredentialId',target_row.credential_id,
+        'credentialId',p_credential_id,
+        'expiresAtUtc',to_char(expires_value AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+  RETURN jsonb_build_object(
+    'tenantId',target_row.tenant_id,'actorId',target_row.actor_id,
+    'deviceId',target_row.device_id,'credentialId',p_credential_id,
+    'companyId',p_company,'branchId',p_branch,
+    'expiresAtUtc',to_char(expires_value AT TIME ZONE 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'));
+END $fn$;

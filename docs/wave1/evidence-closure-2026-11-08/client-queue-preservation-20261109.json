@@ -1,0 +1,45 @@
+{
+  "source": "Client 192.168.1.105; database and sidecar SHA-256 values verified on Client both before and after Wave1fix15 repeat install; preserved copies captured before and refreshed after install with matching hashes",
+  "database": "ventio_native_client.sqlite3",
+  "files": {
+    "client-wave1fix15-installer.log": {
+      "length": 824100,
+      "sha256": "a0e65ff0b2dbd15af403fcf725f7c334dbec1f9f2fc961aaae46159496b08c77"
+    },
+    "ventio_native_client.sqlite3": {
+      "length": 4096,
+      "sha256": "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+    },
+    "ventio_native_client.sqlite3-shm": {
+      "length": 32768,
+      "sha256": "c35020473aed1b4642cd726cad727b63fff2824ad68cedd7ffb73c7cbd890479"
+    },
+    "ventio_native_client.sqlite3-wal": {
+      "length": 28872,
+      "sha256": "ddbd8192448225df9bbd5ea53076ff48434d736c3d88561b11c35aad37f41406"
+    },
+    "client-wave1fix15-uninstall.log": {
+      "length": 225961,
+      "sha256": "e6f2a3186d1d8d7a5090d861d80fee59d8a5ee1e04ce773bd8089a2c6ef72d76"
+    },
+    "client-wave1fix15-reinstall.log": {
+      "length": 617701,
+      "sha256": "0e8651c444c6bbc2a5d059368919f805f3300eb7dbc2fd13a1c4c78388fbfade"
+    }
+  },
+  "table": "local_commands",
+  "rows": [
+    {
+      "command_id": "986963e9-1695-458a-85cc-aa5f4267aad8",
+      "type": "extension.record.create",
+      "host_status": "PENDING",
+      "attempt_count": 0,
+      "created_at_utc": "2026-11-07T22:29:32.597183Z",
+      "updated_at_utc": "2026-11-07T22:29:32.597183Z",
+      "last_attempt_at_utc": null,
+      "containsHistoricalId": true
+    }
+  ],
+  "historicalSyncTest001Present": true,
+  "contentsOmitted": true
+}

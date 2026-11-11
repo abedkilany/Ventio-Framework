@@ -9,8 +9,12 @@ import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
 import 'package:ventio_native_client/src/extension_studio_page.dart';
 import 'package:ventio_native_client/src/host_credentials.dart';
+import 'package:ventio_native_client/src/host_device_management.dart';
 import 'package:ventio_native_client/src/host_extension_packages.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
+import 'package:ventio_native_client/src/local_diagnostics.dart';
+import 'package:ventio_native_client/src/queued_record_reconciliation.dart';
+import 'package:ventio_native_client/src/transport_fixture.dart';
 
 class _MemoryCredentialBackend implements HostCredentialBackend {
   final values = <String, String>{};
@@ -30,7 +34,23 @@ class _MemoryCredentialBackend implements HostCredentialBackend {
 }
 
 class _FakeHostPackageClient extends HostExtensionPackageClient {
-  _FakeHostPackageClient({required super.endpoint, required super.credentials});
+  _FakeHostPackageClient({
+    required super.endpoint,
+    required super.credentials,
+    this.canManageUsers = false,
+    this.canManageDevices = false,
+    this.canManagePairings = false,
+    this.canReadHostStatus = false,
+    this.roleAdministrationAvailable = true,
+    this.canManageRoles = false,
+  });
+
+  final bool canManageUsers;
+  final bool canManageDevices;
+  final bool canManagePairings;
+  final bool canReadHostStatus;
+  final bool roleAdministrationAvailable;
+  final bool canManageRoles;
 
   HostApprovedPackagePage registryPage = HostApprovedPackagePage(
     packages: const [],
@@ -47,15 +67,38 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
     actorId: 'user-1',
     deviceId: 'device-1',
     persistent: true,
-    roleAdministrationAvailable: true,
+    roleAdministrationAvailable: roleAdministrationAvailable,
     scopes: [
       HostScopeGrant(
         companyId: 'company-1',
         branchId: 'branch-1',
-        permissions: const {
-          'extension.package.read',
-          'extension.package.submit',
-        },
+        permissions:
+            const {'extension.package.read', 'extension.package.submit'}
+                .union(
+                  canManageUsers
+                      ? {identityUsersManagePermission}
+                      : const <String>{},
+                )
+                .union(
+                  canManageDevices
+                      ? {manageHostDevicesPermission}
+                      : const <String>{},
+                )
+                .union(
+                  canManagePairings
+                      ? {manageHostPairingPermission}
+                      : const <String>{},
+                )
+                .union(
+                  canReadHostStatus
+                      ? {hostStatusReadPermission}
+                      : const <String>{},
+                )
+                .union(
+                  canManageRoles
+                      ? {identityRolesManagePermission}
+                      : const <String>{},
+                ),
       ),
     ],
   );
@@ -94,6 +137,40 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
   }
 }
 
+class _MemoryDiagnosticEventSource implements DiagnosticEventSource {
+  _MemoryDiagnosticEventSource(this.event);
+
+  final ManagementDiagnosticEvent event;
+  final recorded = <ManagementDiagnosticEvent>[];
+
+  @override
+  Future<ManagementDiagnosticEvent> record(LocalDiagnosticInput input) async {
+    final saved = ManagementDiagnosticEvent(
+      code: input.code,
+      component: input.component,
+      category: input.category,
+      severity: input.severity,
+      occurredAtUtc: input.occurredAtUtc ?? DateTime.now().toUtc(),
+      correlationId: input.correlationId ?? newLocalCorrelationId(),
+      retryable: input.retryable,
+      messageKey: input.messageKey,
+      safeExplanation: input.safeExplanation,
+      recommendedAction: input.recommendedAction,
+    );
+    recorded.add(saved);
+    return saved;
+  }
+
+  @override
+  Future<List<ManagementDiagnosticEvent>> recent({int limit = 100}) async =>
+      [...recorded, event].reversed.take(limit).toList(growable: false);
+
+  @override
+  Future<String> exportJson({int limit = 100}) async => jsonEncode({
+    'events': [event.toJson()],
+  });
+}
+
 class _FakeRecordQueryClient extends HostExtensionPackageClient {
   _FakeRecordQueryClient({
     required super.endpoint,
@@ -106,6 +183,8 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
   Object? queryError;
   String? queriedCompany;
   String? queriedBranch;
+  String? queriedCursor;
+  String? queriedRecordId;
 
   @override
   Future<HostExtensionRecordPage> queryRecords({
@@ -121,11 +200,14 @@ class _FakeRecordQueryClient extends HostExtensionPackageClient {
     String filterContains = '',
     String? sortField,
     bool descending = false,
+    String? cursor,
     int offset = 0,
     int limit = 50,
   }) async {
     queriedCompany = companyId;
     queriedBranch = branchId;
+    queriedCursor = cursor;
+    queriedRecordId = recordId;
     final error = queryError;
     if (error != null) throw error;
     return page;
@@ -248,6 +330,812 @@ void main() {
     },
   );
 
+  testWidgets('Removal is blocked by unresolved extension commands', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.pending_removal';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Pending Removal',
+      description: '',
+    );
+    final command = ExtensionRecordCommand.create(
+      commandId: '00000000-0000-4000-8000-000000000002',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      recordId: 'inventory-move-2',
+      actorId: 'operator-1',
+      deviceId: 'desktop-1',
+      moduleId: moduleId,
+      moduleVersion: '0.1.0',
+      docType: 'InventoryMove',
+      schemaVersion: 1,
+      values: const {'reference': 'MOVE-0002'},
+    );
+    await queue.enqueue(command.envelope);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          scope: const RecordScope(
+            organizationId: 'tenant-1',
+            companyId: 'company-1',
+            branchId: 'branch-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Remove'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove').last);
+    await tester.pumpAndSettle();
+
+    expect(await store.getExtension(moduleId), isNotNull);
+    expect(
+      find.text(
+        'Resolve this extension’s queued Host commands before removing it.',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Extension Studio builds and exports a bounded report', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.report_builder';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Report Builder',
+      description: '',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'label': 'Asset',
+      'labelKey': 'extension.com_example_report_builder.asset',
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': 'extension.com_example_report_builder.asset.read',
+        'create': 'extension.com_example_report_builder.asset.create',
+        'update': 'extension.com_example_report_builder.asset.update',
+      },
+      'fields': [
+        {
+          'name': 'title',
+          'type': 'text',
+          'required': true,
+          'label': 'Title',
+          'labelKey': 'extension.com_example_report_builder.asset.title',
+          'maxLength': 100,
+        },
+      ],
+      'ui': {
+        'listColumns': ['title'],
+        'formFields': ['title'],
+      },
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          scope: const RecordScope(
+            organizationId: 'local-organization',
+            companyId: 'local-company',
+            branchId: 'local-branch',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add report'));
+    await tester.pumpAndSettle();
+    final fields = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(fields.at(0), 'asset_count');
+    await tester.enterText(fields.at(1), 'Asset count');
+    await tester.tap(find.text('Save report'));
+    await tester.pumpAndSettle();
+    final saved = await store.getExtension(moduleId);
+    expect(saved!.reportDefinitions.single['id'], 'asset_count');
+    final exported = await store.exportBundle(moduleId);
+    expect(exported.reports.single.docType, 'Asset');
+    expect(
+      exported
+          .englishCatalog['extension.com_example_report_builder.report.asset_count'],
+      'Asset count',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Extension Studio builds and exports a declarative print format', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.print_builder';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Print Builder',
+      description: '',
+    );
+    await store.saveDocType({
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'label': 'Asset',
+      'labelKey': 'extension.com_example_print_builder.asset',
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': 'extension.com_example_print_builder.asset.read',
+        'create': 'extension.com_example_print_builder.asset.create',
+        'update': 'extension.com_example_print_builder.asset.update',
+      },
+      'fields': [
+        {
+          'name': 'title',
+          'type': 'text',
+          'required': true,
+          'label': 'Title',
+          'labelKey': 'extension.com_example_print_builder.asset.title',
+          'maxLength': 100,
+        },
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': 'extension.com_example_print_builder.asset.lines',
+          'childDocType': {
+            'name': 'AssetLine',
+            'label': 'Asset line',
+            'labelKey': 'extension.com_example_print_builder.asset.line',
+            'fields': [
+              {
+                'name': 'product',
+                'type': 'text',
+                'required': true,
+                'maxLength': 100,
+                'label': 'Product',
+                'labelKey': 'extension.com_example_print_builder.asset.product',
+              },
+            ],
+          },
+        },
+      ],
+      'ui': {
+        'listColumns': ['title'],
+        'formFields': ['title'],
+      },
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          scope: const RecordScope(
+            organizationId: 'local-organization',
+            companyId: 'local-company',
+            branchId: 'local-branch',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Add print format'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Add print format'));
+    await tester.pumpAndSettle();
+    final inputs = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(inputs.at(0), 'asset_receipt');
+    await tester.enterText(inputs.at(1), 'Asset receipt');
+    await tester.tap(find.text('Field to add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Title').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add field block'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Child table to add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lines').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add table block'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add page break'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save print format'));
+    await tester.pumpAndSettle();
+    final saved = (await store.getExtension(moduleId))!;
+    expect(saved.printFormatDefinitions.single['id'], 'asset_receipt');
+    final exported = await store.exportBundle(moduleId);
+    expect(exported.printFormats.single.blocks.map((block) => block.type), [
+      'field',
+      'table',
+      'page_break',
+    ]);
+    expect(
+      exported
+          .englishCatalog['extension.com_example_print_builder.print.asset_receipt'],
+      'Asset receipt',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Generated form round-trips long text and table rows', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.typed_fields';
+    const permission = 'extension.com_example_typed_fields.asset';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 80,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'notes',
+          'type': 'long_text',
+          'required': true,
+          'maxLength': 2000,
+          'label': 'Notes',
+          'labelKey': '$permission.notes',
+        },
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': '$permission.lines',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['name', 'notes'],
+        'formFields': ['name', 'notes', 'lines'],
+        'detailFields': ['name', 'notes', 'lines'],
+      },
+      'label': 'Asset',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Typed Fields',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final inputs = find.byType(TextFormField);
+    await tester.enterText(inputs.at(0), 'Pump');
+    await tester.enterText(inputs.at(1), 'Installed beside the west workshop.');
+    await tester.enterText(
+      inputs.at(2),
+      '[{"itemCode":"SEAL-1","quantity":3}]',
+    );
+    await tester.scrollUntilVisible(
+      find.text('Save on device'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+
+    final record = (await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: scope,
+    )).single;
+    expect(record.values['notes'], 'Installed beside the west workshop.');
+    expect(record.values['lines'], [
+      {'itemCode': 'SEAL-1', 'quantity': 3},
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Typed child grid edits rows and queues the parent atomically', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.child_grid';
+    const key = 'extension.com_example_child_grid.order';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Order',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': '$key.lines',
+          'childDocType': {
+            'name': 'OrderLine',
+            'label': 'Order line',
+            'labelKey': '$key.child.orderline.label',
+            'fields': [
+              {
+                'name': 'itemCode',
+                'type': 'text',
+                'required': true,
+                'maxLength': 40,
+                'label': 'Item code',
+                'labelKey': '$key.child.orderline.itemcode.label',
+              },
+              {
+                'name': 'quantity',
+                'type': 'decimal',
+                'required': true,
+                'precision': 2,
+                'default': 1.0,
+                'label': 'Quantity',
+                'labelKey': '$key.child.orderline.quantity.label',
+              },
+              {
+                'name': 'unitPrice',
+                'type': 'decimal',
+                'required': true,
+                'precision': 2,
+                'default': 0.2,
+                'label': 'Unit price',
+                'labelKey': '$key.child.orderline.unit_price.label',
+              },
+              {
+                'name': 'lineTotal',
+                'type': 'decimal',
+                'required': true,
+                'precision': 2,
+                'calculation': {
+                  'type': 'multiply',
+                  'leftField': 'quantity',
+                  'rightField': 'unitPrice',
+                },
+                'label': 'Line total',
+                'labelKey': '$key.child.orderline.line_total.label',
+              },
+            ],
+          },
+        },
+        {
+          'name': 'total',
+          'type': 'decimal',
+          'required': true,
+          'precision': 2,
+          'readOnly': true,
+          'calculation': {
+            'type': 'sum',
+            'rowsField': 'lines',
+            'valueField': 'lineTotal',
+          },
+          'label': 'Total',
+          'labelKey': '$key.total',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$key.read',
+        'create': '$key.create',
+        'update': '$key.update',
+      },
+      'ui': {
+        'listColumns': ['lines'],
+        'formFields': ['lines', 'total'],
+        'detailFields': ['lines', 'total'],
+      },
+      'label': 'Order',
+      'labelKey': '$key.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Child Grid',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: const HostConnectionProfile(
+            endpoint: 'http://127.0.0.1:8080',
+            tenantId: 'tenant-1',
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            actorId: 'operator-1',
+            deviceId: 'desktop-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final addRow = find.byTooltip('Add row');
+    await tester.tap(addRow);
+    await tester.pumpAndSettle();
+    await tester.tap(addRow);
+    await tester.pumpAndSettle();
+    await tester.tap(addRow);
+    await tester.pumpAndSettle();
+
+    Finder childInput(String label) => find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
+    );
+    final save = find.text('Save on device');
+    Future<void> saveForm() async {
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+    }
+
+    final itemCodes = childInput('Item code');
+    await tester.enterText(itemCodes.at(0), 'A-1');
+    await tester.enterText(itemCodes.at(1), 'B-2');
+    await tester.enterText(itemCodes.at(2), '');
+    final quantities = childInput('Quantity');
+    await tester.enterText(quantities.at(0), '2.5');
+    await tester.enterText(quantities.at(1), '3.0');
+    await tester.enterText(quantities.at(2), '4.0');
+
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await saveForm();
+    expect(find.text('Enter item code.'), findsOneWidget);
+    expect(
+      await store.listRecords(
+        moduleId: moduleId,
+        docTypeName: 'Order',
+        scope: scope,
+      ),
+      isEmpty,
+    );
+
+    await tester.enterText(childInput('Item code').at(2), 'C-3');
+    await tester.enterText(childInput('Quantity').at(2), '4.123');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await saveForm();
+    expect(find.text('Check the value for Quantity.'), findsOneWidget);
+    expect(
+      await store.listRecords(
+        moduleId: moduleId,
+        docTypeName: 'Order',
+        scope: scope,
+      ),
+      isEmpty,
+    );
+    await tester.enterText(childInput('Quantity').at(2), '4.0');
+    final removeThirdRow = find.byTooltip('Remove row').last;
+    await tester.ensureVisible(removeThirdRow);
+    await tester.tap(removeThirdRow);
+    await tester.pumpAndSettle();
+    final moveSecondRowUp = find.byTooltip('Move row up').last;
+    await tester.ensureVisible(moveSecondRowUp);
+    await tester.tap(moveSecondRowUp);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await saveForm();
+    final records = await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Order',
+      scope: scope,
+    );
+    final record = records.single;
+    const expectedLines = [
+      {'itemCode': 'B-2', 'quantity': 3.0, 'unitPrice': 0.2, 'lineTotal': 0.6},
+      {'itemCode': 'A-1', 'quantity': 2.5, 'unitPrice': 0.2, 'lineTotal': 0.5},
+    ];
+    expect(canonicalJson(record.values['lines']), canonicalJson(expectedLines));
+    expect(record.values['total'], 1.1);
+    final queued = await queue.list();
+    final pending = queued.single;
+    expect(pending.hostStatus, HostCommandStatus.pending);
+    expect(
+      canonicalJson(
+        (pending.envelope.payload['values'] as Map<String, dynamic>)['lines'],
+      ),
+      canonicalJson(expectedLines),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Generated form shows and queues provisional document names', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.named_assets';
+    const permission = 'extension.com_example_named_assets.asset';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 80,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'documentNumber',
+          'type': 'text',
+          'required': false,
+          'readOnly': true,
+          'maxLength': 64,
+          'label': 'Document Number',
+          'labelKey': '$permission.document_number',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['documentNumber', 'name'],
+        'formFields': ['name', 'documentNumber'],
+        'detailFields': ['documentNumber', 'name'],
+      },
+      'naming': {
+        'seriesId': 'asset-series',
+        'field': 'documentNumber',
+        'prefix': 'AST-',
+        'padding': 6,
+      },
+      'label': 'Asset',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Named Assets',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: const HostConnectionProfile(
+            endpoint: 'http://127.0.0.1:8080',
+            tenantId: 'tenant-1',
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            actorId: 'operator-1',
+            deviceId: 'desktop-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final provisionalNumber = tester.widget<TextField>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Document Number',
+      ),
+    );
+    expect(provisionalNumber.controller!.text, startsWith('LOCAL-'));
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == 'Name',
+      ),
+      'Pump',
+    );
+    final save = find.text('Save on device');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final record = (await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Asset',
+      scope: scope,
+    )).single;
+    expect(record.values['documentNumber'], 'LOCAL-${record.recordId}');
+    final pending = (await queue.list()).single;
+    final commandValues =
+        (pending.envelope.payload['values'] as Map<String, dynamic>);
+    expect(commandValues.containsKey('documentNumber'), isFalse);
+    expect(commandValues['name'], 'Pump');
+  });
+
+  testWidgets('Generated form applies defaults and enforces field precision', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.field_properties';
+    const permission = 'extension.com_example_field_properties.invoice';
+    const scope = RecordScope(
+      organizationId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    );
+    final metadata = <String, dynamic>{
+      'name': 'Invoice',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'amount',
+          'type': 'decimal',
+          'required': true,
+          'minValue': 0,
+          'maxValue': 9,
+          'precision': 2,
+          'default': 1.25,
+          'label': 'Amount',
+          'labelKey': '$permission.amount',
+        },
+        {
+          'name': 'status',
+          'type': 'text',
+          'required': true,
+          'maxLength': 40,
+          'default': 'Pending',
+          'readOnly': true,
+          'label': 'Status',
+          'labelKey': '$permission.status',
+          'description': 'Managed by the Host.',
+          'descriptionKey': '$permission.status_description',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['amount', 'status'],
+        'formFields': ['amount', 'status'],
+        'detailFields': ['amount', 'status'],
+      },
+      'label': 'Invoice',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Field Properties',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordFormPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Finder labeledField(String label) => find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
+    );
+    expect(tester.widget<TextField>(labeledField('Status')).readOnly, isTrue);
+    expect(find.textContaining('Managed by the Host.'), findsOneWidget);
+    await tester.enterText(labeledField('Amount'), '-1');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a value of at least 0.'), findsOneWidget);
+
+    await tester.enterText(labeledField('Amount'), '10');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a value no greater than 9.'), findsOneWidget);
+
+    await tester.enterText(labeledField('Amount'), '1.234');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Enter a value with no more than 2 decimal places.'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(labeledField('Amount'), '1.2');
+    await tester.tap(find.text('Save on device'));
+    await tester.pumpAndSettle();
+    final record = (await store.listRecords(
+      moduleId: moduleId,
+      docTypeName: 'Invoice',
+      scope: scope,
+    )).single;
+    expect(record.values, {'amount': 1.2, 'status': 'Pending'});
+  });
+
   testWidgets('Builder verifies Host and saves an exact granted scope', (
     tester,
   ) async {
@@ -277,7 +1165,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Connect Host'));
+    await tester.tap(find.byTooltip('Host settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('No Host connection configured'), findsOneWidget);
+    await tester.tap(find.text('Configure Host connection'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).at(0), endpoint.toString());
     await tester.enterText(find.byType(TextField).at(1), token);
@@ -294,9 +1185,446 @@ void main() {
     expect(profile?.companyId, 'company-1');
     expect(profile?.branchId, 'branch-1');
     expect(backend.values.values, contains(token));
-    expect(find.textContaining('Host connected'), findsOneWidget);
+    expect(find.textContaining('Host profile selected'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Users administration entry depends on the Host user permission, not device mode',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const endpoint = 'https://host.example.test';
+      const profile = HostConnectionProfile(
+        endpoint: endpoint,
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+        deviceId: 'device-1',
+      );
+      await store.saveHostProfile(profile);
+      final backend = _MemoryCredentialBackend();
+      final vault = HostCredentialVault(backend);
+      await vault.save(Uri.parse(endpoint), 'a' * 43);
+
+      Future<Widget> app({required bool canManageUsers}) async => MaterialApp(
+        home: ExtensionStudioPage(
+          key: ValueKey(canManageUsers),
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    canManageUsers: canManageUsers,
+                  ),
+        ),
+      );
+
+      await tester.pumpWidget(await app(canManageUsers: false));
+      await tester.pumpAndSettle();
+      expect(find.text('Users & permissions'), findsNothing);
+
+      await tester.pumpWidget(await app(canManageUsers: true));
+      await tester.pumpAndSettle();
+      expect(find.text('Users & permissions'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Host overview and role admin entries require exact scoped permissions',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const endpoint = 'https://host.example.test';
+      const profile = HostConnectionProfile(
+        endpoint: endpoint,
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+        deviceId: 'device-1',
+      );
+      await store.saveHostProfile(profile);
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(Uri.parse(endpoint), 'a' * 43);
+
+      Future<Widget> app({
+        required bool canReadHostStatus,
+        required bool roleAdministrationAvailable,
+        required bool canManageRoles,
+      }) async => MaterialApp(
+        home: ExtensionStudioPage(
+          key: ValueKey((
+            canReadHostStatus,
+            roleAdministrationAvailable,
+            canManageRoles,
+          )),
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    canReadHostStatus: canReadHostStatus,
+                    roleAdministrationAvailable: roleAdministrationAvailable,
+                    canManageRoles: canManageRoles,
+                  ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        await app(
+          canReadHostStatus: false,
+          roleAdministrationAvailable: true,
+          canManageRoles: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host overview'), findsNothing);
+      expect(find.text('Manage roles & access'), findsNothing);
+
+      await tester.pumpWidget(
+        await app(
+          canReadHostStatus: true,
+          roleAdministrationAvailable: false,
+          canManageRoles: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host overview'), findsOneWidget);
+      expect(find.text('Manage roles & access'), findsNothing);
+
+      await tester.pumpWidget(
+        await app(
+          canReadHostStatus: true,
+          roleAdministrationAvailable: true,
+          canManageRoles: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Manage roles & access'), findsOneWidget);
+
+      tester.view.physicalSize = const Size(390, 800);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Workspace actions'));
+      await tester.pumpAndSettle();
+      final roleMenuEntry = find.ancestor(
+        of: find.text('Manage roles & access').last,
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+      );
+      expect(roleMenuEntry, findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Host device entry follows scoped user permissions, independent of device role',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const endpoint = 'https://host.example.test';
+      const profile = HostConnectionProfile(
+        endpoint: endpoint,
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+        deviceId: 'device-1',
+      );
+      await store.saveHostProfile(profile);
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await vault.save(Uri.parse(endpoint), 'a' * 43);
+
+      Future<Widget> app({
+        required bool canManageDevices,
+        required bool canManagePairings,
+      }) async => MaterialApp(
+        home: ExtensionStudioPage(
+          key: ValueKey((canManageDevices, canManagePairings)),
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                    canManageDevices: canManageDevices,
+                    canManagePairings: canManagePairings,
+                  ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        await app(canManageDevices: false, canManagePairings: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host devices & pairing'), findsNothing);
+
+      await tester.pumpWidget(
+        await app(canManageDevices: true, canManagePairings: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host devices & pairing'), findsOneWidget);
+
+      await tester.pumpWidget(
+        await app(canManageDevices: false, canManagePairings: true),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Host devices & pairing'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'local diagnostics and Host settings are available before authentication',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final diagnostic = ManagementDiagnosticEvent(
+        code: 'PAIRING_TOKEN_EXPIRED',
+        component: 'client.pairing',
+        category: ManagementDiagnosticCategory.pairing,
+        severity: ManagementDiagnosticSeverity.warning,
+        occurredAtUtc: DateTime.utc(2026, 10, 29, 18),
+        correlationId: 'cor_0123456789abcdef0123456789abcdef',
+        retryable: true,
+        messageKey: 'native.diagnostics.pairing_token_expired',
+        safeExplanation: 'The pairing code expired before enrollment.',
+        recommendedAction: 'Generate a new temporary code on the Host.',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(
+            store: store,
+            queue: queue,
+            diagnosticEventSource: _MemoryDiagnosticEventSource(diagnostic),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Local diagnostics'), findsOneWidget);
+      expect(find.byTooltip('Host settings'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Host settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('No Host connection configured'), findsOneWidget);
+      expect(
+        find.text('No permissions are granted for this scope.'),
+        findsNothing,
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Local diagnostics'));
+      await tester.pumpAndSettle();
+      expect(find.text('PAIRING_TOKEN_EXPIRED'), findsOneWidget);
+      expect(
+        find.text('The pairing code expired before enrollment.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Local diagnostics'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Host Settings binds a legacy profile to the authenticated admin device',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const profile = HostConnectionProfile(
+        endpoint: 'https://host.example.test',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        actorId: 'user-1',
+      );
+      await store.saveHostProfile(profile);
+      final backend = _MemoryCredentialBackend();
+      final vault = HostCredentialVault(backend);
+      await vault.save(Uri.parse(profile.endpoint), 'a' * 43);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(
+            store: store,
+            queue: queue,
+            credentialVault: vault,
+            hostPackageClientFactory:
+                ({required endpoint, required credentials}) =>
+                    _FakeHostPackageClient(
+                      endpoint: endpoint,
+                      credentials: credentials,
+                      canManageUsers: true,
+                      canManageDevices: true,
+                      canManagePairings: true,
+                      canReadHostStatus: true,
+                      canManageRoles: true,
+                    ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect((await store.getHostProfile())?.deviceId, 'device-1');
+      await tester.tap(find.byTooltip('Host settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Verified Host session'), findsOneWidget);
+      expect(find.text('device-1'), findsOneWidget);
+      expect(find.text('identity.users.manage'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Host Settings rejects a mismatched saved device identity', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const profile = HostConnectionProfile(
+      endpoint: 'https://host.example.test',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      actorId: 'user-1',
+      deviceId: 'another-device',
+    );
+    await store.saveHostProfile(profile);
+    final vault = HostCredentialVault(_MemoryCredentialBackend());
+    await vault.save(Uri.parse(profile.endpoint), 'a' * 43);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExtensionStudioPage(
+          store: store,
+          queue: queue,
+          credentialVault: vault,
+          hostPackageClientFactory:
+              ({required endpoint, required credentials}) =>
+                  _FakeHostPackageClient(
+                    endpoint: endpoint,
+                    credentials: credentials,
+                  ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Host settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Host session is not verified'), findsOneWidget);
+    expect((await store.getHostProfile())?.deviceId, 'another-device');
+  });
+
+  testWidgets(
+    'Client enrollment entry is available without deriving permissions from device role',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final vault = HostCredentialVault(_MemoryCredentialBackend());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(
+            store: store,
+            queue: queue,
+            credentialVault: vault,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('client-pairing-open')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('client-pairing-open')));
+      await tester.pumpAndSettle();
+      expect(find.text('Connect this Client to a Host'), findsOneWidget);
+      expect(
+        find.textContaining('CLIENT identifies this device role only'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'durable synchronization queue is available in the integrated app',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await queue.enqueue(
+        CommandEnvelope.fromJson({
+          'protocolVersion': 0,
+          'commandId': '00e0ca03-e259-4958-87fc-69fd40e23f11',
+          'type': 'extension.example.create',
+          'typeVersion': 1,
+          'tenantId': 'tenant-1',
+          'companyId': 'company-1',
+          'branchId': 'branch-1',
+          'aggregateId': 'record-pending',
+          'expectedRevision': null,
+          'dependsOn': <String>[],
+          'payload': <String, Object?>{'name': 'Pending work'},
+          'clientContext': <String, Object?>{
+            'deviceId': 'device-1',
+            'actorId': 'user-1',
+            'moduleVersion': '0.1.0',
+            'docTypeVersion': 1,
+            'clientTimestamp': '2026-10-29T18:00:00Z',
+          },
+        }),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExtensionStudioPage(store: store, queue: queue),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Synchronization'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Synchronization status'), findsOneWidget);
+      expect(find.text('Pending: 1'), findsOneWidget);
+      expect(find.text('Host confirmed: 0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'Changed Host profile identity stops sync before queue attempts',
@@ -339,12 +1667,27 @@ void main() {
       );
 
       final vault = HostCredentialVault(_MemoryCredentialBackend());
+      final diagnosticSource = _MemoryDiagnosticEventSource(
+        ManagementDiagnosticEvent(
+          code: 'HOST_UNREACHABLE',
+          component: 'client.synchronization',
+          category: ManagementDiagnosticCategory.networkTls,
+          severity: ManagementDiagnosticSeverity.warning,
+          occurredAtUtc: DateTime.utc(2026, 10, 29, 18),
+          correlationId: 'cor_0123456789abcdef0123456789abcdef',
+          retryable: true,
+          messageKey: 'native.diagnostics.host_sync_failed',
+          safeExplanation: 'A safe local diagnostic seed.',
+          recommendedAction: 'Open synchronization and retry.',
+        ),
+      );
       await tester.pumpWidget(
         MaterialApp(
           home: ExtensionStudioPage(
             store: store,
             queue: queue,
             credentialVault: vault,
+            diagnosticEventSource: diagnosticSource,
             hostPackageClientFactory:
                 ({required endpoint, required credentials}) =>
                     _FakeHostPackageClient(
@@ -358,9 +1701,14 @@ void main() {
       await tester.tap(find.byTooltip('Sync pending records'));
       await tester.pumpAndSettle();
 
+      expect(diagnosticSource.recorded, hasLength(1));
       expect(
-        find.textContaining('HOST_PROFILE_IDENTITY_CHANGED'),
-        findsOneWidget,
+        diagnosticSource.recorded.single.code,
+        'HOST_PROFILE_IDENTITY_CHANGED',
+      );
+      expect(
+        diagnosticSource.recorded.single.safeExplanation,
+        isNot(contains('saved-user')),
       );
       final entry = (await queue.list()).single;
       expect(entry.hostStatus, HostCommandStatus.pending);
@@ -526,7 +1874,13 @@ void main() {
       );
       await tester.enterText(nameDialogFields.at(0), 'name');
       await tester.enterText(nameDialogFields.at(1), 'Name');
-      await tester.enterText(nameDialogFields.at(2), '3');
+      final minimumLengthField = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Minimum length',
+      );
+      await tester.ensureVisible(minimumLengthField);
+      await tester.enterText(minimumLengthField, '3');
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
@@ -557,12 +1911,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Whole number').last);
       await tester.pumpAndSettle();
-      final quantityFields = find.descendant(
-        of: quantityDialog,
-        matching: find.byType(TextFormField),
+      Finder labeledField(String label) => find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == label,
       );
-      await tester.enterText(quantityFields.at(2), '1');
-      await tester.enterText(quantityFields.at(3), '10');
+      await tester.enterText(labeledField('Minimum value'), '1');
+      await tester.enterText(labeledField('Maximum value'), '10');
       await tester.ensureVisible(find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
@@ -676,6 +2030,19 @@ void main() {
     );
     await tester.enterText(permissionField('Field ID'), 'secret');
     await tester.enterText(permissionField('Label'), 'Secret');
+    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Decimal').last);
+    await tester.pumpAndSettle();
+    final descriptionField = permissionField('Field description');
+    await tester.ensureVisible(descriptionField);
+    await tester.enterText(descriptionField, 'A protected value.');
+    final defaultField = permissionField('Default value');
+    await tester.ensureVisible(defaultField);
+    await tester.enterText(defaultField, '1.25');
+    final precisionField = permissionField('Decimal places');
+    await tester.ensureVisible(precisionField);
+    await tester.enterText(precisionField, '2');
     final readPermission =
         'extension.com_example_field_acl_builder.profile.secret.read';
     final writePermission =
@@ -686,6 +2053,21 @@ void main() {
     final writeField = permissionField('Write permission (optional)');
     await tester.ensureVisible(writeField);
     await tester.enterText(writeField, writePermission);
+    await tester.ensureVisible(find.text('Save field'));
+    await tester.tap(find.text('Save field'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    Finder newFieldInput(String label) => find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
+    );
+    await tester.enterText(newFieldInput('Field ID'), 'status');
+    await tester.enterText(newFieldInput('Label'), 'Status');
+    final defaultValueField = newFieldInput('Default value');
+    await tester.ensureVisible(defaultValueField);
+    await tester.enterText(defaultValueField, 'Pending');
+    await tester.tap(find.byType(CheckboxListTile).last);
     await tester.ensureVisible(find.text('Save field'));
     await tester.tap(find.text('Save field'));
     await tester.pumpAndSettle();
@@ -707,10 +2089,27 @@ void main() {
     final definition = (await store.listDocTypes(
       'com.example.field_acl_builder',
     )).single;
-    final field = (definition['fields'] as List).single as Map;
+    final savedFields = (definition['fields'] as List).cast<Map>();
+    final field = savedFields.singleWhere((item) => item['name'] == 'secret');
     expect(field['readPermission'], readPermission);
     expect(field['writePermission'], writePermission);
+    expect(field['default'], 1.25);
+    expect(field['description'], 'A protected value.');
+    expect(field['precision'], 2);
+    final status = savedFields.singleWhere((item) => item['name'] == 'status');
+    expect(status['readOnly'], isTrue);
+    expect(status['default'], 'Pending');
     final bundle = await store.exportBundle('com.example.field_acl_builder');
+    final bundledSecret = bundle.docTypes.single.fields.singleWhere(
+      (item) => item.name == 'secret',
+    );
+    expect(bundledSecret.defaultValue, 1.25);
+    expect(bundledSecret.precision, 2);
+    expect(bundledSecret.description, 'A protected value.');
+    expect(
+      bundle.englishCatalog[field['descriptionKey']],
+      'A protected value.',
+    );
     expect(bundle.manifest.minPlatformApi, '0.3.0');
   });
 
@@ -810,6 +2209,389 @@ void main() {
         ],
       },
     ]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('DocType Builder saves declarative numbering settings', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.numbered_asset';
+    const permission = 'extension.com_example_numbered_asset.asset';
+    final metadata = <String, dynamic>{
+      'name': 'Asset',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 80,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'documentNumber',
+          'type': 'text',
+          'required': false,
+          'readOnly': true,
+          'maxLength': 64,
+          'label': 'Document Number',
+          'labelKey': '$permission.document_number',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'ui': {
+        'listColumns': ['documentNumber', 'name'],
+        'formFields': ['name', 'documentNumber'],
+        'detailFields': ['documentNumber', 'name'],
+      },
+      'naming': {
+        'seriesId': 'asset',
+        'field': 'documentNumber',
+        'prefix': 'AST-',
+        'padding': 4,
+      },
+      'label': 'Asset',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Numbered Asset',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DocTypeBuilderPage(
+          store: store,
+          moduleId: moduleId,
+          existing: metadata,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Enable document numbering'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Enable document numbering'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Enable governed document lifecycle'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final lifecycleSwitch = find.ancestor(
+      of: find.text('Enable governed document lifecycle'),
+      matching: find.byType(SwitchListTile),
+    );
+    await tester.ensureVisible(lifecycleSwitch);
+    await tester.tap(lifecycleSwitch);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(lifecycleSwitch).value, isTrue);
+    final prefix = tester.widget<TextField>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Number prefix',
+      ),
+    );
+    expect(prefix.controller!.text, 'AST-');
+    final save = find.text('Save DocType');
+    await tester.scrollUntilVisible(
+      save,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final saved = await store.getDocType(moduleId, 'Asset');
+    expect(
+      saved?['schemaVersion'],
+      2,
+      reason: 'Builder failed to save metadata.',
+    );
+    expect(saved?['naming'], metadata['naming']);
+    expect(saved?['businessOperations'], hasLength(3));
+    expect(
+      (saved?['fields'] as List).cast<Map>().any(
+        (field) =>
+            field['name'] == 'amendedFrom' &&
+            field['type'] == 'reference' &&
+            field['referenceTo'] == 'Asset' &&
+            field['readOnly'] == true &&
+            field['required'] == false,
+      ),
+      isTrue,
+    );
+    expect(saved?['ui']['detailFields'], contains('amendedFrom'));
+    final savedDefinition = DocTypeDefinition.fromJson(saved!);
+    expect(
+      savedDefinition.businessOperations.map((operation) => operation.id),
+      containsAll(['document.submit', 'document.cancel', 'document.amend']),
+    );
+    final submit = savedDefinition.businessOperations.singleWhere(
+      (operation) => operation.id == 'document.submit',
+    );
+    expect(
+      submit.permission,
+      'extension.com_example_numbered_asset.asset.submit',
+    );
+    expect(submit.effects.map((effect) => effect.type), [
+      'document.allocate_number',
+      'document.transition',
+    ]);
+    final amend = savedDefinition.businessOperations.singleWhere(
+      (operation) => operation.id == 'document.amend',
+    );
+    expect(amend.effects.single.type, 'document.amend');
+    expect(amend.effects.single.linkField, 'amendedFrom');
+
+    expect(tester.takeException(), isNull);
+  });
+
+  test(
+    'Governed operation commands persist and recover from the local queue',
+    () async {
+      final command = ExtensionBusinessOperationCommand.execute(
+        commandId: '00000000-0000-4000-8000-000000000201',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        recordId: '00000000-0000-4000-8000-000000000202',
+        expectedRevision: 4,
+        actorId: 'actor-1',
+        deviceId: 'device-1',
+        moduleId: 'com.example.numbered_asset',
+        moduleVersion: '0.1.0',
+        docType: 'Asset',
+        schemaVersion: 2,
+        operationId: 'document.submit',
+        operationVersion: 1,
+        inputs: const {},
+      );
+      await queue.enqueue(command.envelope);
+      await queue.close();
+      queue = await LocalCommandQueue.open(
+        factory: databaseFactoryFfiNoIsolate,
+        path: '${directory.path}${Platform.pathSeparator}commands.sqlite3',
+      );
+      final recovered = await queue.list(limit: 10);
+      expect(recovered, hasLength(1));
+      final parsed = ExtensionBusinessOperationCommand.fromEnvelope(
+        recovered.single.envelope,
+      );
+      expect(parsed.operationId, 'document.submit');
+      expect(parsed.envelope.expectedRevision, 4);
+      expect(recovered.single.isPending, isTrue);
+    },
+  );
+
+  testWidgets('DocType Builder authors a typed child DocType', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const moduleId = 'com.example.child_builder';
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Child Builder',
+      description: '',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DocTypeBuilderPage(store: store, moduleId: moduleId),
+      ),
+    );
+    await tester.pumpAndSettle();
+    var inputs = find.byType(TextFormField);
+    await tester.enterText(inputs.at(0), 'Order');
+    await tester.enterText(inputs.at(1), 'Order');
+    await tester.enterText(inputs.at(2), 'A parent with typed child rows.');
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+
+    Finder fieldInput(String label) => find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == label,
+      ),
+    );
+    Future<void> invokeDialogAction(String label) async {
+      final action = find
+          .ancestor(of: find.text(label), matching: find.byType(FilledButton))
+          .last;
+      tester.widget<FilledButton>(action).onPressed!.call();
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> selectFieldDialogOption(
+      String fieldLabel,
+      String option,
+    ) async {
+      final dropdown = find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.decoration.labelText == fieldLabel,
+      );
+      await tester.ensureVisible(dropdown.last);
+      await tester.tap(dropdown.last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option).last);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> addDecimalChildField(String name, String label) async {
+      await tester.tap(find.text('Add child field'));
+      await tester.pumpAndSettle();
+      await tester.enterText(fieldInput('Field ID'), name);
+      await tester.enterText(fieldInput('Label'), label);
+      await selectFieldDialogOption('Data type', 'Decimal');
+      await tester.enterText(fieldInput('Decimal places'), '2');
+      await invokeDialogAction('Save field');
+    }
+
+    Future<void> selectCalculationOption(
+      String fieldLabel,
+      String option,
+    ) async {
+      final dropdown = find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String?> &&
+            widget.decoration.labelText == fieldLabel,
+      );
+      await tester.ensureVisible(dropdown.last);
+      await tester.tap(dropdown.last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option).last);
+      await tester.pumpAndSettle();
+    }
+
+    await tester.enterText(fieldInput('Field ID'), 'lines');
+    await tester.enterText(fieldInput('Label'), 'Lines');
+    final fieldType = find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byType(DropdownButtonFormField<String>),
+    );
+    await tester.ensureVisible(fieldType);
+    await tester.pumpAndSettle();
+    await tester.tap(fieldType);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Child table').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Configure child DocType'));
+    await tester.pumpAndSettle();
+
+    inputs = find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(inputs.at(0), 'OrderLine');
+    await tester.enterText(inputs.at(1), 'Order line');
+    await tester.tap(find.text('Add child field'));
+    await tester.pumpAndSettle();
+    inputs = find.descendant(
+      of: find.byType(AlertDialog).last,
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(fieldInput('Field ID'), 'itemCode');
+    await tester.enterText(fieldInput('Label'), 'Item code');
+    await invokeDialogAction('Save field');
+    expect(find.text('itemCode · text'), findsOneWidget);
+    await addDecimalChildField('quantity', 'Quantity');
+    await addDecimalChildField('unitPrice', 'Unit price');
+    await tester.tap(find.text('Add child field'));
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldInput('Field ID'), 'lineTotal');
+    await tester.enterText(fieldInput('Label'), 'Line total');
+    await selectFieldDialogOption('Data type', 'Decimal');
+    await tester.enterText(fieldInput('Decimal places'), '2');
+    await selectCalculationOption(
+      'Calculated value',
+      'Multiply two row fields',
+    );
+    await selectCalculationOption('First number field', 'quantity');
+    await selectCalculationOption('Second number field', 'unitPrice');
+    await invokeDialogAction('Save field');
+    await invokeDialogAction('Save child DocType');
+    expect(find.text('Edit child DocType · OrderLine'), findsOneWidget);
+    await invokeDialogAction('Save field');
+
+    await tester.tap(find.text('Add field'));
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldInput('Field ID'), 'total');
+    await tester.enterText(fieldInput('Label'), 'Total');
+    await selectFieldDialogOption('Data type', 'Decimal');
+    await tester.enterText(fieldInput('Decimal places'), '2');
+    await selectCalculationOption('Calculated value', 'Sum a child row field');
+    await selectCalculationOption('Child table', 'lines');
+    await selectCalculationOption('Child number field to sum', 'lineTotal');
+    await invokeDialogAction('Save field');
+
+    final saveDocType = find.text('Save DocType');
+    await tester.scrollUntilVisible(
+      saveDocType,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await invokeDialogAction('Save DocType');
+    final saved = await store.getDocType(moduleId, 'Order');
+    expect(
+      saved,
+      isNotNull,
+      reason: tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byType(SnackBar),
+              matching: find.byType(Text),
+            ),
+          )
+          .map((text) => text.data)
+          .join(' | '),
+    );
+    final table = (saved!['fields'] as List).cast<Map>().singleWhere(
+      (field) => field['name'] == 'lines',
+    );
+    expect(table['childDocType']['name'], 'OrderLine');
+    expect(
+      (table['childDocType']['fields'] as List).cast<Map>().first['name'],
+      'itemCode',
+    );
+    final childFields = table['childDocType']['fields'] as List;
+    expect((childFields.last as Map)['calculation'], {
+      'type': 'multiply',
+      'leftField': 'quantity',
+      'rightField': 'unitPrice',
+    });
+    final total = (saved['fields'] as List).cast<Map>().singleWhere(
+      (field) => field['name'] == 'total',
+    );
+    expect(total['calculation'], {
+      'type': 'sum',
+      'rowsField': 'lines',
+      'valueField': 'lineTotal',
+    });
+    final bundle = await store.exportBundle(moduleId);
+    expect(
+      bundle.englishCatalog.containsKey(
+        'extension.com_example_child_builder.order.child.orderline.label',
+      ),
+      isTrue,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -999,7 +2781,8 @@ void main() {
       credentials: vault,
       page: HostExtensionRecordPage(
         packageSha256: digest,
-        hasMore: false,
+        hasMore: true,
+        nextCursor: 'host-record-page-2',
         records: [
           HostExtensionRecord(
             recordId: 'host-asset-1',
@@ -1030,8 +2813,13 @@ void main() {
 
     expect(find.text('Host-authoritative records'), findsOneWidget);
     expect(find.text('Host record'), findsOneWidget);
+    expect(find.text('Revision 7 · confirmed by Host'), findsOneWidget);
     expect(fakeClient.queriedCompany, profile.companyId);
     expect(fakeClient.queriedBranch, profile.branchId);
+    expect(find.text('Load more Host records'), findsOneWidget);
+    await tester.tap(find.text('Load more Host records'));
+    await tester.pumpAndSettle();
+    expect(fakeClient.queriedCursor, 'host-record-page-2');
     final imported = await store.getRecord(
       moduleId: moduleId,
       docTypeName: 'Asset',
@@ -1294,6 +3082,7 @@ void main() {
       await tester.pumpWidget(await page('denied'));
       await tester.pumpAndSettle();
       expect(find.text('Host denied record access'), findsOneWidget);
+      expect(find.text('Host error code: PERMISSION_DENIED'), findsOneWidget);
       expect(find.text('Cached private record'), findsNothing);
       expect(
         (await store.getRecord(
@@ -1310,6 +3099,13 @@ void main() {
           moduleId: moduleId,
         ),
         isTrue,
+      );
+      expect(
+        await store.hostRecordReadDenialCode(
+          profile: profile,
+          moduleId: moduleId,
+        ),
+        'PERMISSION_DENIED',
       );
 
       fakeClient.queryError = const HostPackageTransportException(
@@ -1344,6 +3140,13 @@ void main() {
           moduleId: moduleId,
         ),
         isFalse,
+      );
+      expect(
+        await store.hostRecordReadDenialCode(
+          profile: profile,
+          moduleId: moduleId,
+        ),
+        isNull,
       );
     },
   );
@@ -1529,6 +3332,15 @@ void main() {
           'labelKey': '$permissionPrefix.name',
           'maxLength': 120,
         },
+        {
+          'name': 'documentNumber',
+          'type': 'text',
+          'required': false,
+          'readOnly': true,
+          'maxLength': 64,
+          'label': 'Document Number',
+          'labelKey': '$permissionPrefix.document_number',
+        },
       ],
       'operations': ['read', 'create', 'update'],
       'permissions': {
@@ -1537,8 +3349,15 @@ void main() {
         'update': '$permissionPrefix.update',
       },
       'ui': {
-        'listColumns': ['name'],
-        'formFields': ['name'],
+        'listColumns': ['documentNumber', 'name'],
+        'formFields': ['name', 'documentNumber'],
+        'detailFields': ['documentNumber', 'name'],
+      },
+      'naming': {
+        'seriesId': 'asset',
+        'field': 'documentNumber',
+        'prefix': 'AST-',
+        'padding': 6,
       },
       'label': 'Asset',
       'labelKey': '$permissionPrefix.title',
@@ -1599,6 +3418,14 @@ void main() {
     expect(
       entries.single.envelope.payload['values']['name'],
       'Recovered after restart',
+    );
+    expect(
+      entries.single.envelope.payload['values'].containsKey('documentNumber'),
+      isFalse,
+    );
+    expect(
+      localRecord.values['documentNumber'],
+      'LOCAL-${localRecord.recordId}',
     );
     final recovered = await store.getRecord(
       moduleId: moduleId,
@@ -1672,6 +3499,16 @@ void main() {
 
     await tester.tap(find.text('Add DocType'));
     await tester.pumpAndSettle();
+    final builderScroll = find
+        .descendant(
+          of: find.byType(DocTypeBuilderPage),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Scrollable &&
+                widget.axisDirection == AxisDirection.down,
+          ),
+        )
+        .first;
     fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'LayoutRecord');
     await tester.enterText(fields.at(1), 'Layout Record');
@@ -1710,7 +3547,16 @@ void main() {
 
     for (final operation in ['create', 'update']) {
       final operationToggle = find.widgetWithText(CheckboxListTile, operation);
+      await tester.scrollUntilVisible(
+        operationToggle,
+        180,
+        scrollable: builderScroll,
+      );
       await tester.ensureVisible(operationToggle);
+      // scrollUntilVisible stops as soon as any part of the tile enters the
+      // viewport. The tap center can remain just below the test viewport.
+      await tester.drag(builderScroll, const Offset(0, -160));
+      await tester.pumpAndSettle();
       await tester.tap(operationToggle);
       await tester.pumpAndSettle();
     }
@@ -1718,7 +3564,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Generated form fields'),
       240,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScroll,
     );
     final formCard = find.ancestor(
       of: find.text('Generated form fields'),
@@ -1735,7 +3581,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Details page fields'),
       240,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScroll,
     );
     final detailsCard = find.ancestor(
       of: find.text('Details page fields'),
@@ -1748,11 +3594,10 @@ void main() {
     await tester.ensureVisible(hideNameFromDetails);
     await tester.tap(hideNameFromDetails);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('Generated page settings'),
-      240,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.drag(builderScroll, const Offset(0, 700));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Generated page settings'));
+    await tester.pumpAndSettle();
     final pageTitleField = find.byWidgetPredicate(
       (widget) =>
           widget is TextField && widget.decoration?.labelText == 'Page title',
@@ -1779,8 +3624,10 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Save DocType'),
       200,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScroll,
     );
+    await tester.ensureVisible(find.text('Save DocType'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save DocType'));
     await tester.pumpAndSettle();
 
@@ -1943,6 +3790,425 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'Printing refreshes an accepted record from its exact Host scope',
+    (tester) async {
+      const moduleId = 'com.example.print_records';
+      const scope = RecordScope(
+        organizationId: 'tenant-print',
+        companyId: 'company-print',
+        branchId: 'branch-print',
+      );
+      const permission = 'extension.com_example_print_records.asset';
+      final metadata = <String, dynamic>{
+        'name': 'Asset',
+        'moduleId': moduleId,
+        'schemaVersion': 1,
+        'kind': 'operational',
+        'fields': [
+          {
+            'name': 'name',
+            'type': 'text',
+            'required': true,
+            'maxLength': 120,
+            'label': 'Name',
+            'labelKey': '$permission.name',
+          },
+        ],
+        'operations': ['read', 'create', 'update'],
+        'permissions': {
+          'read': '$permission.read',
+          'create': '$permission.create',
+          'update': '$permission.update',
+        },
+        'ui': {
+          'listColumns': ['name'],
+          'formFields': ['name'],
+        },
+        'label': 'Asset',
+        'labelKey': '$permission.label',
+      };
+      await store.createExtension(
+        moduleId: moduleId,
+        displayName: 'Print Records',
+        description: '',
+      );
+      await store.saveDocType(metadata);
+      await store.savePrintFormatDefinition(
+        moduleId: moduleId,
+        metadata: const {
+          'id': 'asset_receipt',
+          'docType': 'Asset',
+          'label': 'Asset receipt',
+          'labelKey': 'extension.com_example_print_records.print.asset_receipt',
+          'pageSize': 'a4',
+          'orientation': 'portrait',
+          'blocks': [
+            {'type': 'field', 'field': 'name'},
+          ],
+        },
+      );
+      await store.activate(moduleId);
+      final bundle = await store.exportBundle(moduleId);
+      final digest = sha256
+          .convert(utf8.encode(canonicalJson(bundle.toJson())))
+          .toString();
+      final created = await store.createRecord(
+        moduleId: moduleId,
+        docTypeName: 'Asset',
+        scope: scope,
+        values: const {'name': 'Stale local value'},
+        recordId: 'print-record-1',
+      );
+      await store.markRecordPending(
+        recordId: created.recordId,
+        scope: scope,
+        commandId: 'print-accepted-command',
+      );
+      await store.applyHostReceipt(
+        recordId: created.recordId,
+        scope: scope,
+        commandId: 'print-accepted-command',
+        receipt: CommandReceipt(
+          commandId: 'print-accepted-command',
+          status: 'ACCEPTED',
+          hostRevision: 3,
+        ),
+      );
+      final accepted = (await store.getRecord(
+        moduleId: moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: scope,
+      ))!;
+      final queryClient = _FakeRecordQueryClient(
+        endpoint: Uri.parse('https://host.example.test'),
+        credentials: HostCredentialVault(_MemoryCredentialBackend()),
+        page: HostExtensionRecordPage(
+          records: [
+            HostExtensionRecord(
+              recordId: created.recordId,
+              revision: 4,
+              updatedAtUtc: '2026-10-28T10:00:00Z',
+              values: const {'name': 'Fresh Host value'},
+            ),
+          ],
+          packageSha256: digest,
+          hasMore: false,
+          readableFields: const {'name'},
+        ),
+      );
+      var printedName = '';
+      List<int>? printedBytes;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DynamicRecordDetailsPage(
+            store: store,
+            moduleId: moduleId,
+            definition: DocTypeDefinition.fromJson(metadata),
+            scope: scope,
+            moduleVersion: bundle.version,
+            hostProfile: const HostConnectionProfile(
+              endpoint: 'https://host.example.test',
+              tenantId: 'tenant-print',
+              companyId: 'company-print',
+              branchId: 'branch-print',
+              actorId: 'print-actor',
+              deviceId: 'print-device',
+            ),
+            credentialVault: HostCredentialVault(_MemoryCredentialBackend()),
+            hostPackageClientFactory:
+                ({required endpoint, required credentials}) => queryClient,
+            printPdf: (name, bytes) async {
+              printedName = name;
+              printedBytes = bytes;
+            },
+            record: accepted,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Print record'), findsOneWidget);
+      await tester.tap(find.byTooltip('Print record'));
+      await tester.pumpAndSettle();
+      expect(queryClient.queriedRecordId, created.recordId);
+      expect(queryClient.queriedCompany, 'company-print');
+      expect(queryClient.queriedBranch, 'branch-print');
+      expect(printedName, 'asset_receipt-print-record-1.pdf');
+      expect(String.fromCharCodes(printedBytes!.take(5)), '%PDF-');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Amend queues a local draft copy for a cancelled document', (
+    tester,
+  ) async {
+    const moduleId = 'com.example.amendable_records';
+    const scope = RecordScope(
+      organizationId: 'tenant-amend',
+      companyId: 'company-amend',
+      branchId: 'branch-amend',
+    );
+    const permission = 'extension.com_example_amendable_records.movement';
+    final metadata = <String, dynamic>{
+      'name': 'Movement',
+      'moduleId': moduleId,
+      'schemaVersion': 1,
+      'kind': 'operational',
+      'fields': [
+        {
+          'name': 'name',
+          'type': 'text',
+          'required': true,
+          'maxLength': 120,
+          'label': 'Name',
+          'labelKey': '$permission.name',
+        },
+        {
+          'name': 'amendedFrom',
+          'type': 'reference',
+          'referenceTo': 'Movement',
+          'required': false,
+          'readOnly': true,
+          'label': 'Amended From',
+          'labelKey': '$permission.amended_from',
+        },
+      ],
+      'operations': ['read', 'create', 'update'],
+      'permissions': {
+        'read': '$permission.read',
+        'create': '$permission.create',
+        'update': '$permission.update',
+      },
+      'businessOperations': [
+        {
+          'id': 'document.amend',
+          'version': 1,
+          'permission': '$permission.amend',
+          'inputs': <String, dynamic>{},
+          'outputs': {
+            'amendedRecordId': {'type': 'text', 'required': true},
+          },
+          'effects': [
+            {
+              'type': 'document.amend',
+              'linkField': 'amendedFrom',
+              'output': 'amendedRecordId',
+            },
+          ],
+        },
+      ],
+      'ui': {
+        'listColumns': ['name'],
+        'formFields': ['name'],
+        'detailFields': ['name', 'amendedFrom'],
+      },
+      'label': 'Movement',
+      'labelKey': '$permission.label',
+    };
+    await store.createExtension(
+      moduleId: moduleId,
+      displayName: 'Amendable Records',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(moduleId);
+    await store.createRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      scope: scope,
+      values: const {'name': 'Cancelled source'},
+      recordId: 'movement-cancelled-source',
+    );
+    await store.markRecordPending(
+      recordId: 'movement-cancelled-source',
+      scope: scope,
+      commandId: 'cancel-movement-source',
+    );
+    await store.applyHostReceipt(
+      recordId: 'movement-cancelled-source',
+      scope: scope,
+      commandId: 'cancel-movement-source',
+      receipt: CommandReceipt(
+        commandId: 'cancel-movement-source',
+        status: 'ACCEPTED',
+        hostRevision: 3,
+      ),
+      documentStatus: 2,
+    );
+    final source = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: 'movement-cancelled-source',
+      scope: scope,
+    ))!;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DynamicRecordDetailsPage(
+          store: store,
+          queue: queue,
+          moduleId: moduleId,
+          definition: DocTypeDefinition.fromJson(metadata),
+          scope: scope,
+          moduleVersion: '0.1.0',
+          hostProfile: const HostConnectionProfile(
+            endpoint: 'https://host.example.test',
+            tenantId: 'tenant-amend',
+            companyId: 'company-amend',
+            branchId: 'branch-amend',
+            actorId: 'amend-actor',
+            deviceId: 'amend-device',
+          ),
+          record: source,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Amend document'), findsOneWidget);
+    await tester.tap(find.text('Amend document'));
+    await tester.pumpAndSettle();
+
+    final queued = await queue.list(limit: 10);
+    expect(queued, hasLength(1));
+    final operation = ExtensionBusinessOperationCommand.fromEnvelope(
+      queued.single.envelope,
+    );
+    expect(operation.operationId, 'document.amend');
+    expect(queued.single.isPending, isTrue);
+    final amendment = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: queued.single.envelope.commandId,
+      scope: scope,
+    ))!;
+    expect(amendment.values['amendedFrom'], source.recordId);
+    expect(amendment.documentStatus, 0);
+    expect(amendment.authorityState, 'PENDING');
+    expect(
+      (await store.getRecord(
+        moduleId: moduleId,
+        docTypeName: 'Movement',
+        recordId: source.recordId,
+        scope: scope,
+      ))!.pendingCommandId,
+      queued.single.envelope.commandId,
+    );
+
+    await queue.recordAttempt(queued.single.envelope.commandId);
+    await queue.recordHostReceipt(
+      queued.single.envelope.commandId,
+      TransportResponse(
+        apiVersion: hostApiVersion,
+        source: TransportSource.host,
+        receipt: CommandReceipt(
+          commandId: queued.single.envelope.commandId,
+          status: 'ACCEPTED',
+          hostRevision: 3,
+          scopeCursor: 'scope-v1-1',
+          output: {'amendedRecordId': queued.single.envelope.commandId},
+        ).toJson(),
+      ),
+    );
+    await reconcileQueuedRecords(store, queue);
+    final acceptedSource = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: source.recordId,
+      scope: scope,
+    ))!;
+    final acceptedAmendment = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: queued.single.envelope.commandId,
+      scope: scope,
+    ))!;
+    expect(acceptedSource.documentStatus, 2);
+    expect(acceptedSource.authorityState, 'HOST_ACCEPTED');
+    expect(acceptedSource.pendingCommandId, isNull);
+    expect(acceptedAmendment.documentStatus, 0);
+    expect(acceptedAmendment.authorityState, 'HOST_ACCEPTED');
+    expect(acceptedAmendment.hostRevision, 1);
+    expect(acceptedAmendment.pendingCommandId, isNull);
+
+    await store.markRecordPending(
+      recordId: acceptedAmendment.recordId,
+      scope: scope,
+      commandId: 'cancel-amended-draft',
+    );
+    await store.applyHostReceipt(
+      recordId: acceptedAmendment.recordId,
+      scope: scope,
+      commandId: 'cancel-amended-draft',
+      receipt: CommandReceipt(
+        commandId: 'cancel-amended-draft',
+        status: 'ACCEPTED',
+        hostRevision: 2,
+      ),
+      documentStatus: 2,
+    );
+    final rejectedCommand = ExtensionBusinessOperationCommand.execute(
+      commandId: '00000000-0000-4000-8000-000000000701',
+      tenantId: scope.organizationId,
+      companyId: scope.companyId,
+      branchId: scope.branchId,
+      recordId: source.recordId,
+      expectedRevision: 3,
+      actorId: 'amend-actor',
+      deviceId: 'amend-device',
+      moduleId: moduleId,
+      moduleVersion: '0.1.0',
+      docType: 'Movement',
+      schemaVersion: 1,
+      operationId: 'document.amend',
+      operationVersion: 1,
+      inputs: const {},
+    );
+    await queue.enqueue(rejectedCommand.envelope);
+    final rejectedLocalDraft = await store.createAmendmentDraft(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: scope,
+      expectedSourceRevision: 3,
+      commandId: rejectedCommand.envelope.commandId,
+      linkField: 'amendedFrom',
+    );
+    await queue.recordAttempt(rejectedCommand.envelope.commandId);
+    await queue.recordHostReceipt(
+      rejectedCommand.envelope.commandId,
+      TransportResponse(
+        apiVersion: hostApiVersion,
+        source: TransportSource.host,
+        receipt: CommandReceipt(
+          commandId: rejectedCommand.envelope.commandId,
+          status: 'REJECTED',
+          reasonCode: 'PERMISSION_DENIED',
+        ).toJson(),
+      ),
+    );
+    await reconcileQueuedRecords(store, queue);
+    final rejectedSource = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: source.recordId,
+      scope: scope,
+    ))!;
+    final reconciledRejectedDraft = (await store.getRecord(
+      moduleId: moduleId,
+      docTypeName: 'Movement',
+      recordId: rejectedLocalDraft.recordId,
+      scope: scope,
+    ))!;
+    expect(rejectedSource.authorityState, 'REJECTED');
+    expect(rejectedSource.pendingCommandId, isNull);
+    expect(reconciledRejectedDraft.authorityState, 'REJECTED');
+    expect(reconciledRejectedDraft.hostRevision, isNull);
+    expect(reconciledRejectedDraft.values['amendedFrom'], source.recordId);
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('The full builder setup flow fits a phone-sized viewport', (
     tester,
   ) async {
@@ -1986,11 +4252,22 @@ void main() {
     await tester.enterText(fields.at(0), 'PhoneNote');
     await tester.enterText(fields.at(1), 'Phone Note');
     await tester.enterText(fields.at(2), 'A note created from a compact view.');
+    final builderList = find
+        .descendant(
+          of: find.byType(DocTypeBuilderPage),
+          matching: find.byType(ListView),
+        )
+        .first;
+    final builderScrollable = find
+        .descendant(of: builderList, matching: find.byType(Scrollable))
+        .first;
     await tester.scrollUntilVisible(
       find.text('Add field'),
       120,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScrollable,
     );
+    await tester.ensureVisible(find.text('Add field'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add field'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -2009,8 +4286,10 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Save DocType'),
       160,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: builderScrollable,
     );
+    await tester.ensureVisible(find.text('Save DocType'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save DocType'));
     await tester.pumpAndSettle();
 

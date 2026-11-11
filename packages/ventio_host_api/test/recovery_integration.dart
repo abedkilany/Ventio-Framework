@@ -182,30 +182,29 @@ Future<void> main() async {
       'branch-002',
       'maintenance.create',
     );
+    await administration.close();
+    administration = null;
     final alpha = next();
     final beta = next()
       ..['companyId'] = 'company-002'
       ..['branchId'] = 'branch-002';
     final a = await host(stage: 'before_commit');
     final ar = request(a, token, alpha);
-    await a.event('barrier');
+    await _barrierBeforeResponse(a, ar);
     final b = await host(stage: 'unused');
     final br = request(b, token, alpha);
-    final pid = (await b.event('executing'))['backend'];
     await waitFor(
-      () async =>
-          (await control!.execute(
-            pg.Sql.named(
-              "SELECT wait_event_type='Lock' FROM pg_stat_activity WHERE pid=@pid",
-            ),
-            parameters: {'pid': pid},
-          )).single[0] ==
-          true,
-      'duplicate reservation lock',
+      () async => (await control!.execute(
+        pg.Sql.named(
+          "SELECT pid FROM pg_stat_activity WHERE application_name=@app AND wait_event_type='Lock' LIMIT 1",
+        ),
+        parameters: {'app': b.applicationName},
+      )).isNotEmpty,
+      'concurrent Host lock wait',
     );
     final c = await host(stage: 'after_commit');
     final cr = request(c, token, beta);
-    await c.event('barrier');
+    await _barrierBeforeResponse(c, cr);
     final betaReceipt = await savedReceipt(control, beta);
     await Future.wait([kill(a), kill(c)]);
     await Future.wait([ar, cr]);
@@ -318,7 +317,7 @@ Future<void> main() async {
     final afterResponse = request(afterHost, token, after);
     await afterHost.event('barrier');
     final afterReceipt = await savedReceipt(control, after);
-    await administration.close();
+    await administration?.close();
     administration = null;
     await control.close();
     control = null;
@@ -582,7 +581,15 @@ Future<void> main() async {
               .replace(userInfo: 'ventio_migration_test:migration_test_only')
               .toString(),
         },
-      ).timeout(const Duration(seconds: 120));
+      ).timeout(const Duration(minutes: 10));
+      if (result.exitCode != 0) {
+        stderr.writeln(
+          'RESTORED $suite exited with status ${result.exitCode}; stdout:',
+        );
+        stderr.write(result.stdout);
+        stderr.writeln('RESTORED $suite stderr:');
+        stderr.write(result.stderr);
+      }
       check(result.exitCode == 0, 'Full $suite passes on restored cluster');
       for (final line in (result.stdout as String).split('\n')) {
         if (line.startsWith('RESULT:')) stdout.writeln('RESTORED $line');
@@ -605,6 +612,25 @@ Future<void> main() async {
     await control?.close();
     await fixture.close();
   }
+}
+
+Future<void> _barrierBeforeResponse(
+  TestHost host,
+  Future<HttpOutcome> response,
+) async {
+  await Future.any<void>([
+    host.event('barrier'),
+    response.then<void>((outcome) {
+      final error = outcome.body?['error'];
+      final code = error is Map ? error['code'] : null;
+      throw StateError(
+        'Host request returned before its crash barrier '
+        '(status: ${outcome.status}, code: $code, '
+        'events: ${host.observedEvents.isEmpty ? 'none' : host.observedEvents}, '
+        'diagnostics: ${host.safeDiagnostics.isEmpty ? 'none' : host.safeDiagnostics})',
+      );
+    }),
+  ]);
 }
 
 Future<String> provisionWith(

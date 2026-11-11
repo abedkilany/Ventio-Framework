@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ventio_core/ventio_core.dart';
 
+import 'app_localization.dart';
 import 'command_id.dart';
 import 'local_command_queue.dart';
 import 'transport_fixture.dart';
@@ -134,11 +135,11 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ventio Framework'),
+        title: const VentioText('native.ui.ventio_framework'),
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 16),
-            child: Center(child: Text('Offline-first proof')),
+            child: Center(child: VentioText('native.ui.offline_first_proof')),
           ),
         ],
       ),
@@ -149,20 +150,23 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                Text(
-                  'Maintenance Requests',
+                VentioText(
+                  'native.ui.maintenance_requests',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Create requests offline. A local save is provisional and is not Host approval.',
+                const VentioText(
+                  'native.ui.create_requests_offline_a_local_save_is_provisional_and_is_not_host_appr',
                 ),
                 const SizedBox(height: 16),
-                const _NoticeCard(
+                _NoticeCard(
                   icon: Icons.cloud_off_outlined,
-                  title: 'Local-only demonstration',
-                  body:
-                      'No Host connection is configured. The fixture below is simulated and cannot confirm shared state.',
+                  title: context.ventioText(
+                    'native.ui.local_only_demonstration',
+                  ),
+                  body: context.ventioText(
+                    'native.ui.no_host_connection_is_configured_the_fixture_below_is_simulated_and_cann',
+                  ),
                 ),
                 const SizedBox(height: 20),
                 _requestForm(context),
@@ -170,23 +174,29 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'Local command queue',
+                      child: VentioText(
+                        'native.ui.local_command_queue',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
-                    Text('${_entries.length} saved'),
+                    Text(
+                      context.ventioText(
+                        'native.ui.saved_count',
+                        params: {'count': _entries.length},
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 if (_loading)
                   const Center(child: CircularProgressIndicator())
                 else if (_entries.isEmpty)
-                  const _NoticeCard(
+                  _NoticeCard(
                     icon: Icons.inbox_outlined,
-                    title: 'No requests yet',
-                    body:
-                        'Saved requests will remain in this device’s local queue after the app restarts.',
+                    title: context.ventioText('native.ui.no_requests_yet'),
+                    body: context.ventioText(
+                      'native.ui.saved_requests_will_remain_in_this_device_s_local_queue_after_the_app_re',
+                    ),
                   )
                 else
                   for (final entry in _entries) _entryCard(context, entry),
@@ -205,12 +215,15 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('New request', style: Theme.of(context).textTheme.titleMedium),
+            VentioText(
+              'native.ui.new_request',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _customerName,
-              decoration: const InputDecoration(
-                labelText: 'Customer name',
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.customer_name'),
                 border: OutlineInputBorder(),
               ),
               textInputAction: TextInputAction.next,
@@ -218,8 +231,8 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
             const SizedBox(height: 12),
             TextField(
               controller: _deviceModel,
-              decoration: const InputDecoration(
-                labelText: 'Device model',
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.device_model'),
                 border: OutlineInputBorder(),
               ),
               textInputAction: TextInputAction.next,
@@ -227,8 +240,8 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
             const SizedBox(height: 12),
             TextField(
               controller: _problemDescription,
-              decoration: const InputDecoration(
-                labelText: 'Problem description',
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.problem_description'),
                 border: OutlineInputBorder(),
               ),
               minLines: 2,
@@ -240,7 +253,9 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
               child: FilledButton.icon(
                 onPressed: _saving ? null : _saveRequest,
                 icon: const Icon(Icons.save_outlined),
-                label: Text(_saving ? 'Saving…' : 'Save locally'),
+                label: _saving
+                    ? const VentioText('native.ui.saving')
+                    : const VentioText('native.ui.save_locally'),
               ),
             ),
           ],
@@ -270,7 +285,12 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
                   ),
                   label: Text(entry.hostStatus.label),
                 ),
-                Text('Command ${entry.envelope.commandId}'),
+                Text(
+                  context.ventioText(
+                    'native.ui.command_id',
+                    params: {'commandId': entry.envelope.commandId},
+                  ),
+                ),
               ],
             ),
             Text('${payload['customerName']} · ${payload['deviceModel']}'),
@@ -278,12 +298,18 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
             Text('${payload['problemDescription']}'),
             const SizedBox(height: 8),
             Text(
-              'Saved on this device · ${entry.attemptCount} fixture/transport attempts',
+              context.ventioText(
+                'native.ui.saved_attempts',
+                params: {'count': entry.attemptCount},
+              ),
             ),
             if (entry.fixtureReceipt != null) ...[
               const SizedBox(height: 10),
               Text(
-                'Fixture response: ${entry.fixtureReceipt!.status}. This is simulated and is not Host confirmation.',
+                context.ventioText(
+                  'native.ui.fixture_status',
+                  params: {'status': entry.fixtureReceipt!.status},
+                ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -294,7 +320,7 @@ class _MaintenanceRequestPageState extends State<MaintenanceRequestPage> {
                 child: OutlinedButton.icon(
                   onPressed: () => _runFixture(entry),
                   icon: const Icon(Icons.science_outlined),
-                  label: const Text('Run local fixture'),
+                  label: const VentioText('native.ui.run_local_fixture'),
                 ),
               ),
             ],

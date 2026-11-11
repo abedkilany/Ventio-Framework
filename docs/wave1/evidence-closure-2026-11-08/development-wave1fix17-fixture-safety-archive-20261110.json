@@ -1,0 +1,62 @@
+{
+  "RecordedUtc": "2026-11-10T18:35:43Z",
+  "Archive": "C:\\ProgramData\\Ventio-Wave1-Safety-e6eae4b0ec484ad7abb815b79b3cea36",
+  "VerifiedManifest": "archive-verified-manifest.json",
+  "Source": "Owner-provided elevated archive audit output",
+  "InitialArchiveCheck": "INCOMPLETE - a protected recovery evidence executable could not be hashed by the first inventory despite the success message",
+  "Audit": "VENTIO_FIXTURE_ARCHIVE_AUDIT_PASS",
+  "Entries": 9888,
+  "PostgresSystemIdentifier": "7706529747229262104",
+  "VerifiedScope": "Complete archive inventory, SHA-256, ownership and access ACLs; protected evidence source/copy hash matched via Windows backup mode; clean PostgreSQL shutdown",
+  "LiveFixtureAfterAudit": "Both services Automatic and Running; original pinned HTTPS passed",
+  "RecoveryStaging": {
+    "Result": "VENTIO_FIXTURE_RECOVERY_STAGE_PASS",
+    "Source": "Owner-provided elevated recovery staging output",
+    "Path": "C:\\ProgramData\\Ventio-Wave1-Safety-e6eae4b0ec484ad7abb815b79b3cea36\\restore-stage-3aed55eae6c5424aacd38c1dc4bfbb16",
+    "PostgresSystemIdentifier": "7706529747229262104",
+    "Entries": 9888,
+    "RecordedUtc": "2026-11-10T18:37:46Z",
+    "RunningRestore": "NOT_RUN"
+  },
+  "ExplicitDeletion": {
+    "Status": "PASS - EXPLICIT REMOVAL AND PRESERVATION OUTSIDE PRODUCT ROOT",
+    "RecordedUtc": "2026-11-10T18:46:13Z",
+    "DeleteCheckboxSelectedScreenshot": "owner-development-wave1fix17-explicit-delete-choice-20261110.png",
+    "DeleteCheckboxScreenshotSha256": "35A88BAF6AAC9DDB59470BE7763B3DE9948B1352030584492DD4D92C1959A75E",
+    "UninstallSuccessScreenshot": "owner-development-wave1fix17-explicit-delete-complete-20261110.png",
+    "UninstallSuccessScreenshotSha256": "9DF765BD6A4F9035A19479BEB79DE2848D070A6384B8B32C3C7E0FB99ED093B1",
+    "FrameworkRootPresent": false,
+    "FrameworkRunnerPresent": false,
+    "FrameworkRegistrationPresent": false,
+    "ProductServicesPresent": [],
+    "ArchiveOuterDirectoryPresent": true,
+    "ArchiveInteriorAccess": "Protected from the unelevated verification shell",
+    "VentioxDirectoryAndSeparateExecutableHashMatch": true,
+    "ProtectedArchivePostDelete": {
+      "Source": "Owner-provided elevated boundary check",
+      "Result": "VENTIO_EXPLICIT_DELETE_BOUNDARY_PASS",
+      "OriginalArchiveCluster": "7706529747229262104",
+      "VerifiedStagedEntries": 9888
+    }
+  },
+  "UnrelatedPreDeleteBaseline": {
+    "SeparateVentioVersion": "1.0.64+64",
+    "SeparateVentioExecutableSha256": "41E0859CBE261E65040B06E1713A78E8F2E9D7C44C50FD43DFBDBA195544C9CA",
+    "VentioxDirectoryExists": true,
+    "VentioxCreatedUtc": "2026-06-12T13:30:17Z"
+  },
+  "CleanReinstall": {
+    "Status": "PASS - APPLICATION FILES ONLY",
+    "LogName": "Ventio-Wave1fix17-Clean-20261110-204836.log",
+    "LogSha256": "6942DBE49E8C7D0FCEA018FBD814A51D1D1C25C7713155D8C650E5D6B4E3C9A3",
+    "ExitCode": 0,
+    "VerifiedPayloadEntries": 76,
+    "ProgramDataRootPresentBeforeSetup": false,
+    "VentioServicesPresentBeforeSetup": [],
+    "ControlledCollision": {
+      "Address": "127.0.0.1",
+      "Port": 54329,
+      "OwnerProcess": "powershell"
+    }
+  }
+}

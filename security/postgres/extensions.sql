@@ -39,8 +39,8 @@ BEGIN
     IF saved.package_sha256 IS DISTINCT FROM p_sha256 OR saved.package_json IS DISTINCT FROM p_package THEN
       RETURN jsonb_build_object('status','CONFLICT','reasonCode','PACKAGE_VERSION_EXISTS');
     END IF;
-    IF saved.status='REVOKED' THEN
-      RETURN jsonb_build_object('status','CONFLICT','reasonCode','PACKAGE_RELEASE_REVOKED');
+    IF saved.status IN ('REVOKED','REJECTED') THEN
+      RETURN jsonb_build_object('status','CONFLICT','reasonCode','PACKAGE_RELEASE_CLOSED');
     END IF;
     RETURN jsonb_build_object('status',saved.status,'moduleId',p_module,
       'version',p_version,'packageSha256',p_sha256);
@@ -179,6 +179,8 @@ BEGIN
       'ventio.command_type','ventio.command_version','ventio.command_id',
       'ventio.aggregate_id','ventio.module_id','ventio.module_version',
       'ventio.doc_type','ventio.operation','ventio.expected_revision',
+      'ventio.operation_inputs',
+      'ventio.effect_target_id',
       'ventio.extension_identity_snapshot','ventio.extension_policy_snapshot',
       'ventio.extension_context_proof'] LOOP
     PERFORM set_config(expected_type, '', true);
@@ -245,6 +247,8 @@ BEGIN
   PERFORM set_config('ventio.doc_type',p_doc_type,true);
   PERFORM set_config('ventio.operation','read',true);
   PERFORM set_config('ventio.expected_revision','',true);
+  PERFORM set_config('ventio.operation_inputs','',true);
+  PERFORM set_config('ventio.effect_target_id','',true);
   PERFORM ventio_security.bind_extension_authorization(
     identity,package_row.package_json,p_digest,p_company,p_branch);
   RETURN jsonb_build_object('identity',identity,
@@ -254,15 +258,18 @@ END $fn$;
 -- Resolve a generic record command against a Host-approved declarative package.
 -- The package row is locked in the command transaction so revocation cannot
 -- race an accepted write. No metadata in this package is executable code.
+DROP FUNCTION IF EXISTS ventio_security.resolve_extension_identity(
+    text,text,text,text,integer,text,text,text,text,text,text,bigint);
 CREATE OR REPLACE FUNCTION ventio_security.resolve_extension_identity(
     p_digest text, p_company text, p_branch text, p_type text,
     p_version integer, p_command text, p_aggregate text,
     p_module text, p_module_version text, p_doc_type text,
-    p_operation text, p_expected_revision bigint)
+    p_operation text, p_expected_revision bigint, p_operation_inputs jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE identity jsonb; package_row public.ventio_extension_packages%ROWTYPE;
         doc_type jsonb; permission text; expected_type text;
+        business_operation jsonb; input_item record;
         release_reason text;
 BEGIN
   FOREACH expected_type IN ARRAY ARRAY[
@@ -270,11 +277,12 @@ BEGIN
       'ventio.command_type','ventio.command_version','ventio.command_id',
       'ventio.aggregate_id','ventio.module_id','ventio.module_version',
       'ventio.doc_type','ventio.operation','ventio.expected_revision',
+      'ventio.operation_inputs',
       'ventio.extension_identity_snapshot','ventio.extension_policy_snapshot',
       'ventio.extension_context_proof'] LOOP
     PERFORM set_config(expected_type, '', true);
   END LOOP;
-  IF p_type IS NULL OR p_type NOT IN ('extension.record.create','extension.record.update') OR
+  IF p_type IS NULL OR p_type NOT IN ('extension.record.create','extension.record.update','extension.record.delete','extension.operation.execute') OR
       p_version IS DISTINCT FROM 1 OR
       p_module IS NULL OR p_module_version IS NULL OR p_doc_type IS NULL OR
       p_command IS NULL OR p_aggregate IS NULL OR
@@ -284,8 +292,23 @@ BEGIN
         (p_operation IS DISTINCT FROM 'update' OR
          p_expected_revision IS NULL OR p_expected_revision < 1 OR
          p_expected_revision >= 2147483647)) OR
+      (p_type = 'extension.record.delete' AND
+        (p_operation IS DISTINCT FROM 'delete' OR
+         p_expected_revision IS NULL OR p_expected_revision < 1 OR
+         p_expected_revision >= 2147483647)) OR
+      (p_type = 'extension.operation.execute' AND
+        (p_operation !~ '^[a-z][a-z0-9]*(\.[a-z0-9]+|_[a-z0-9]+|-[a-z0-9]+)*@[1-9][0-9]{0,2}$' OR
+         p_expected_revision IS NULL OR p_expected_revision < 1 OR
+         p_expected_revision >= 2147483647 OR
+         jsonb_typeof(p_operation_inputs) IS DISTINCT FROM 'object' OR
+         (SELECT count(*) FROM jsonb_object_keys(p_operation_inputs))>32)) OR
       (p_operation = 'create' AND p_expected_revision IS NOT NULL) OR
       p_operation IS NULL THEN
+    RETURN NULL;
+  END IF;
+  IF p_type<>'extension.operation.execute' AND
+      (jsonb_typeof(p_operation_inputs) IS DISTINCT FROM 'object' OR
+       (SELECT count(*) FROM jsonb_object_keys(p_operation_inputs))<>0) THEN
     RETURN NULL;
   END IF;
   identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
@@ -316,14 +339,62 @@ BEGIN
   FROM jsonb_array_elements(package_row.package_json->'docTypes') AS rows(item)
   WHERE item->>'name'=p_doc_type AND item->>'moduleId'=p_module
   LIMIT 1;
-  IF doc_type IS NULL OR
-      jsonb_typeof(doc_type->'operations') IS DISTINCT FROM 'array' OR
-      NOT (doc_type->'operations' ? p_operation) THEN
+  IF doc_type IS NULL OR jsonb_typeof(doc_type->'operations') IS DISTINCT FROM 'array' THEN
     RETURN jsonb_build_object('identity',identity,'package',NULL,
       'reasonCode','EXTENSION_NOT_APPROVED');
   END IF;
-  permission := doc_type->'permissions'->>p_operation;
-  IF p_operation='update' THEN
+  IF p_type='extension.operation.execute' THEN
+    SELECT item INTO business_operation
+    FROM jsonb_array_elements(coalesce(doc_type->'businessOperations','[]'::jsonb)) AS declared(item)
+    WHERE item->>'id'=split_part(p_operation,'@',1)
+      AND item->>'version'=split_part(p_operation,'@',2)
+    LIMIT 1;
+    IF business_operation IS NULL THEN
+      RETURN jsonb_build_object('identity',identity,'package',NULL,
+        'reasonCode','EXTENSION_NOT_APPROVED');
+    END IF;
+    permission := business_operation->>'permission';
+    FOR input_item IN
+      SELECT key, value FROM jsonb_each(p_operation_inputs)
+    LOOP
+      IF NOT (business_operation->'inputs' ? input_item.key) OR
+          jsonb_typeof(input_item.value) IN ('array','object') THEN
+        RETURN jsonb_build_object('identity',identity,'package',NULL,
+          'reasonCode','INVALID_PAYLOAD');
+      END IF;
+    END LOOP;
+    FOR input_item IN
+      SELECT key, value FROM jsonb_each(business_operation->'inputs')
+    LOOP
+      IF coalesce((input_item.value->>'required')::boolean,false) AND
+          (NOT (p_operation_inputs ? input_item.key) OR
+           jsonb_typeof(p_operation_inputs->input_item.key)='null') THEN
+        RETURN jsonb_build_object('identity',identity,'package',NULL,
+          'reasonCode','INVALID_PAYLOAD');
+      END IF;
+      IF p_operation_inputs ? input_item.key THEN
+        IF (input_item.value->>'type'='text' AND jsonb_typeof(p_operation_inputs->input_item.key) NOT IN ('string','null')) OR
+           (input_item.value->>'type' IN ('integer','decimal') AND jsonb_typeof(p_operation_inputs->input_item.key) NOT IN ('number','null')) OR
+           (input_item.value->>'type'='boolean' AND jsonb_typeof(p_operation_inputs->input_item.key) NOT IN ('boolean','null')) OR
+           (input_item.value->>'type' IN ('date','reference') AND jsonb_typeof(p_operation_inputs->input_item.key) NOT IN ('string','null')) OR
+           (input_item.value->>'type'='text' AND input_item.value ? 'maxLength' AND length(p_operation_inputs->>input_item.key)>(input_item.value->>'maxLength')::integer) OR
+           (input_item.value->>'type'='integer' AND (p_operation_inputs->>input_item.key) !~ '^-?[0-9]+$') OR
+           (input_item.value->>'type'='decimal' AND input_item.value ? 'precision' AND
+             (p_operation_inputs->>input_item.key)::numeric <>
+               round((p_operation_inputs->>input_item.key)::numeric,(input_item.value->>'precision')::integer)) THEN
+          RETURN jsonb_build_object('identity',identity,'package',NULL,
+            'reasonCode','INVALID_PAYLOAD');
+        END IF;
+      END IF;
+    END LOOP;
+  ELSE
+    IF NOT (doc_type->'operations' ? p_operation) THEN
+      RETURN jsonb_build_object('identity',identity,'package',NULL,
+        'reasonCode','EXTENSION_NOT_APPROVED');
+    END IF;
+    permission := doc_type->'permissions'->>p_operation;
+  END IF;
+  IF p_operation IN ('update','delete') OR p_type='extension.operation.execute' THEN
     IF doc_type->'permissions'->>'read' IS NULL OR
         doc_type->'permissions'->>'read' NOT LIKE
           'extension.' || regexp_replace(p_module,'[^a-z0-9]+','_','g') || '.%' THEN
@@ -340,7 +411,7 @@ BEGIN
       SELECT FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
       WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
         AND item->>'permission'=permission
-    ) OR (p_operation='update' AND NOT EXISTS (
+    ) OR ((p_operation IN ('update','delete') OR p_type='extension.operation.execute') AND NOT EXISTS (
       SELECT FROM jsonb_array_elements(identity->'scopeGrants') AS grants(item)
       WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
         AND item->>'permission'=doc_type->'permissions'->>'read'
@@ -360,6 +431,8 @@ BEGIN
   PERFORM set_config('ventio.doc_type',p_doc_type,true);
   PERFORM set_config('ventio.operation',p_operation,true);
   PERFORM set_config('ventio.expected_revision',coalesce(p_expected_revision::text,''),true);
+  PERFORM set_config('ventio.operation_inputs',p_operation_inputs::text,true);
+  PERFORM set_config('ventio.effect_target_id','',true);
   PERFORM ventio_security.bind_extension_authorization(
     identity,package_row.package_json,p_digest,p_company,p_branch);
   RETURN jsonb_build_object('identity',identity,
@@ -386,4 +459,125 @@ BEGIN
   RETURN jsonb_build_object('status',package_row.status,'moduleId',package_row.module_id,
     'version',package_row.version,'packageSha256',package_row.package_sha256,
     'package',package_row.package_json);
+END $fn$;
+
+-- Authenticated administrators review only candidates submitted into their
+-- exact tenant/company/branch. The API cannot read package tables directly.
+CREATE OR REPLACE FUNCTION ventio_security.list_extension_submissions(
+    p_digest text, p_tenant text, p_company text, p_branch text, p_limit integer)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE identity jsonb; entries jsonb;
+BEGIN
+  IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 3 THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_PAGE');
+  END IF;
+  identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
+  IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
+      NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(identity->'scopeGrants') AS g(item)
+        WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+          AND item->>'permission'='extension.package.review'
+      ) THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED');
+  END IF;
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'moduleId',candidate.module_id,'version',candidate.version,
+      'packageSha256',candidate.package_sha256,'package',candidate.package_json,
+      'submittedBy',candidate.submitted_by,'submittedAt',candidate.submitted_at)
+      ORDER BY candidate.submitted_at,candidate.module_id,candidate.version),'[]'::jsonb)
+    INTO entries
+    FROM (
+      SELECT * FROM public.ventio_extension_packages
+      WHERE tenant_id=p_tenant AND submitted_company_id=p_company
+        AND submitted_branch_id=p_branch AND status='SUBMITTED'
+        AND submitted_by IS DISTINCT FROM identity->>'actorId'
+      ORDER BY submitted_at,module_id,version LIMIT p_limit
+    ) candidate;
+  RETURN jsonb_build_object('status','OK','entries',entries);
+END $fn$;
+
+-- Mutations are re-authorized against the current credential and scope inside
+-- the admitted transaction. A submitter cannot review their own candidate.
+CREATE OR REPLACE FUNCTION ventio_security.review_extension_submission(
+    p_digest text, p_tenant text, p_company text, p_branch text,
+    p_module text, p_version text, p_sha256 text, p_decision text, p_reason text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE identity jsonb; candidate public.ventio_extension_packages%ROWTYPE;
+BEGIN
+  IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
+      pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
+      pg_has_role(session_user,'ventio_owner','MEMBER') OR
+      pg_has_role(session_user,'ventio_migrator','MEMBER') OR
+      NOT ventio_security.recovery_guard() THEN
+    RAISE EXCEPTION 'Extension review caller is not authorized'
+      USING ERRCODE='42501';
+  END IF;
+  IF p_decision NOT IN ('APPROVE','REJECT') OR
+      p_module !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$' OR length(p_module)>128 OR
+      p_version !~ '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' OR
+      p_sha256 !~ '^[0-9a-f]{64}$' OR
+      (p_decision='REJECT' AND length(trim(coalesce(p_reason,''))) NOT BETWEEN 1 AND 500) OR
+      (p_decision='APPROVE' AND coalesce(p_reason,'')<>'') THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_REVIEW');
+  END IF;
+  identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
+  IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
+      NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(identity->'scopeGrants') AS g(item)
+        WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+          AND item->>'permission'='extension.package.review'
+      ) THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED');
+  END IF;
+  SELECT * INTO candidate FROM public.ventio_extension_packages
+    WHERE tenant_id=p_tenant AND module_id=p_module AND version=p_version
+      AND submitted_company_id=p_company AND submitted_branch_id=p_branch
+      FOR UPDATE;
+  IF NOT FOUND OR candidate.status<>'SUBMITTED' OR
+      candidate.package_sha256 IS DISTINCT FROM p_sha256 THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','CANDIDATE_CHANGED');
+  END IF;
+  IF candidate.submitted_by=identity->>'actorId' THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','SELF_REVIEW_FORBIDDEN');
+  END IF;
+  PERFORM ventio_security.admin_change(jsonb_build_object(
+    'tenantId',p_tenant,'operatorLabel',identity->>'actorId',
+    'action',CASE WHEN p_decision='APPROVE'
+      THEN 'EXTENSION_PACKAGE_APPROVED' ELSE 'EXTENSION_PACKAGE_REJECTED' END,
+    'moduleId',p_module,'version',p_version,'packageSha256',p_sha256,
+    'reason',CASE WHEN p_decision='REJECT' THEN trim(p_reason) ELSE NULL END));
+  RETURN jsonb_build_object('status',CASE WHEN p_decision='APPROVE'
+    THEN 'APPROVED' ELSE 'REJECTED' END,'moduleId',p_module,
+    'version',p_version,'packageSha256',p_sha256);
+END $fn$;
+
+CREATE OR REPLACE FUNCTION ventio_security.get_extension_submission_scoped(
+    p_digest text, p_tenant text, p_company text, p_branch text,
+    p_module text, p_version text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
+DECLARE identity jsonb; candidate public.ventio_extension_packages%ROWTYPE;
+BEGIN
+  IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
+  identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
+  IF identity IS NULL OR identity->>'tenantId' IS DISTINCT FROM p_tenant OR
+      NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(identity->'scopeGrants') AS g(item)
+        WHERE item->>'companyId'=p_company AND item->>'branchId'=p_branch
+          AND item->>'permission'='extension.package.review'
+      ) THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED');
+  END IF;
+  SELECT * INTO candidate FROM public.ventio_extension_packages
+    WHERE tenant_id=p_tenant AND submitted_company_id=p_company
+      AND submitted_branch_id=p_branch AND module_id=p_module AND version=p_version
+      AND status='SUBMITTED';
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  RETURN jsonb_build_object('status',candidate.status,'moduleId',candidate.module_id,
+    'version',candidate.version,'packageSha256',candidate.package_sha256,
+    'package',candidate.package_json,'submittedBy',candidate.submitted_by,
+    'submittedAt',candidate.submitted_at);
 END $fn$;

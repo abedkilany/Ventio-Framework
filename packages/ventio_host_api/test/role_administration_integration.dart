@@ -17,10 +17,15 @@ class _RoleTestExecutor implements AuthoritativeCommandExecutor {
 }
 
 Future<void> main() async {
+  final auditUrl = Platform.environment['VENTIO_TEST_DATABASE_URL'];
   final runtimeUrl = Platform.environment['VENTIO_TEST_RUNTIME_DATABASE_URL'];
   final adminUrl = Platform.environment['VENTIO_TEST_ADMIN_DATABASE_URL'];
-  if (runtimeUrl == null ||
+  final apiAdminUrl =
+      Platform.environment['VENTIO_TEST_API_ADMIN_DATABASE_URL'];
+  if (auditUrl == null ||
+      runtimeUrl == null ||
       adminUrl == null ||
+      apiAdminUrl == null ||
       Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'] != 'yes' ||
       Uri.parse(
             runtimeUrl,
@@ -41,6 +46,7 @@ Future<void> main() async {
   }
 
   final adminConnection = await pg.Connection.openFromUrl(adminUrl);
+  final auditConnection = await pg.Connection.openFromUrl(auditUrl);
   final temporary = await createPrivateTestDirectory('ventio-role-api-');
   final authority = RecoveryAuthority('${temporary.path}/authority.json');
   final tenant = 'role-api-${DateTime.now().toUtc().microsecondsSinceEpoch}';
@@ -135,11 +141,24 @@ Future<void> main() async {
       ],
       directGrants: [(companyA, branchA, 'extension.example.item.read')],
     );
+    final statusReaderToken = await provision(
+      actorId: 'status-reader',
+      deviceId: 'status-reader-device',
+      credentialId: 'status-reader-credential',
+      scopes: [
+        {
+          'companyId': companyA,
+          'branchId': branchA,
+          'permissions': [hostStatusReadPermission],
+        },
+      ],
+      directGrants: [(companyA, branchA, hostStatusReadPermission)],
+    );
 
     Future<pg.Connection> connectRuntime() =>
         pg.Connection.openFromUrl(runtimeUrl);
     Future<pg.Connection> connectAdministration() =>
-        pg.Connection.openFromUrl(adminUrl);
+        pg.Connection.openFromUrl(apiAdminUrl);
     final runtimeProbe = await connectRuntime();
     try {
       await verifyRuntimeConnection(runtimeProbe);
@@ -152,6 +171,16 @@ Future<void> main() async {
     } finally {
       await adminProbe.close();
     }
+    var trustedLocalProfileRejected = false;
+    try {
+      await verifyIdentityAdministrationConnection(adminConnection);
+    } on StateError {
+      trustedLocalProfileRejected = true;
+    }
+    check(
+      trustedLocalProfileRejected,
+      'The broad trusted local operator profile is rejected by the persistent API verifier',
+    );
     api = await HostApi.bind(
       authenticator: PersistentTokenAuthenticator(
         connect: connectRuntime,
@@ -162,6 +191,10 @@ Future<void> main() async {
         connectRuntime: connectRuntime,
         connectAdministration: connectAdministration,
         admission: authority,
+      ),
+      readinessProvider: PostgresHostReadinessProvider(
+        connect: connectRuntime,
+        recoveryAuthority: authority,
       ),
     );
 
@@ -203,6 +236,45 @@ Future<void> main() async {
       noAccess.status == 403 &&
           noAccess.body['error']['code'] == 'PERMISSION_DENIED',
       'A data reader without a direct management grant cannot list roles',
+    );
+    Future<Reply> readiness(
+      String token, {
+      String company = companyA,
+      String branch = branchA,
+    }) => send(
+      api!,
+      token: token,
+      path: HostManagementRoutes.readiness,
+      body: {
+        'managementApiVersion': managementApiVersion,
+        'companyId': company,
+        'branchId': branch,
+      },
+    );
+    final deniedReadiness = await readiness(readerToken);
+    check(
+      deniedReadiness.status == 403 &&
+          deniedReadiness.body['error']['code'] == 'PERMISSION_DENIED',
+      'A general data reader cannot inspect Host readiness',
+    );
+    final crossBranchReadiness = await readiness(
+      statusReaderToken,
+      branch: branchB,
+    );
+    check(
+      crossBranchReadiness.status == 403,
+      'Readiness checks cannot cross the credential exact-scope boundary',
+    );
+    final ready = await readiness(statusReaderToken);
+    final readySnapshot = HostReadinessSnapshot.fromJson(
+      ready.body['readiness'],
+    );
+    check(
+      ready.status == 200 &&
+          readySnapshot.overallState == ManagementHealthState.ready &&
+          ready.body['correlationId'] ==
+              ready.headers.value('X-Correlation-ID'),
+      'Persistent scoped identity receives actual PostgreSQL and recovery readiness',
     );
     final crossBranch = await roles(
       directManagerToken,
@@ -388,9 +460,38 @@ Future<void> main() async {
       revokedManager.status == 403,
       'Revoking the direct management grant takes effect on the next request',
     );
+    final roleAudit = await auditConnection.execute(
+      pg.Sql.named('''
+        SELECT action, subject_id, details::text, database_actor
+        FROM ventio_identity_audit
+        WHERE tenant_id = @tenant AND action LIKE 'ROLE_%'
+      '''),
+      parameters: {'tenant': tenant},
+    );
+    final roleActions = roleAudit.map((row) => row[0] as String).toSet();
+    final assignmentWasAudited = roleAudit.any((row) {
+      final details = jsonDecode(row[2] as String) as Map<String, dynamic>;
+      return row[0] == 'ROLE_ASSIGNED' &&
+          row[1] == 'reader-a' &&
+          details['roleId'] == 'branch-editor' &&
+          details['companyId'] == companyA &&
+          details['branchId'] == branchA;
+    });
+    check(
+      roleActions.containsAll({
+            'ROLE_CREATED',
+            'ROLE_RENAMED',
+            'ROLE_PERMISSION_GRANTED',
+            'ROLE_ASSIGNED',
+          }) &&
+          assignmentWasAudited &&
+          roleAudit.every((row) => (row[3] as String).isNotEmpty),
+      'Role changes are durably audited with exact assignment scope and database actor',
+    );
     stdout.writeln('RESULT: $assertions passed, 0 failed');
   } finally {
     await api?.close();
+    await auditConnection.close();
     await adminConnection.close();
     await temporary.delete(recursive: true);
   }

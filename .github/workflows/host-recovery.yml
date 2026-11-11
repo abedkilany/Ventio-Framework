@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/host-recovery.yml'
+      - '.github/workflows/host-api.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_host/**'
       - 'packages/ventio_host_api/**'
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/host-recovery.yml'
+      - '.github/workflows/host-api.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_host/**'
       - 'packages/ventio_host_api/**'

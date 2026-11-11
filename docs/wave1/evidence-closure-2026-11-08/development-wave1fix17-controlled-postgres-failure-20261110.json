@@ -1,0 +1,38 @@
+{
+  "RecordedUtc": "2026-11-10T19:08:23Z",
+  "OwnerExport": {
+    "managementApiVersion": 1,
+    "exportedAtUtc": "2026-11-10T19:02:09.340548Z",
+    "events": [
+      {
+        "source": "device",
+        "managementApiVersion": 1,
+        "code": "HOST_SETUP_PROVISIONING_FAILED",
+        "component": "client.host_setup.postgres_service_provisioning",
+        "category": "host_startup",
+        "severity": "ERROR",
+        "occurredAtUtc": "2026-11-10T19:01:17.109758Z",
+        "correlationId": "cor_1ac078574b2a09fa6495814be83c864a",
+        "retryable": false,
+        "messageKey": "native.diagnostics.host_setup_failed",
+        "safeExplanation": "Host setup failed during postgres service provisioning.",
+        "recommendedAction": "Keep existing Host data intact. Share this sanitized report with an authorized Host operator before attempting recovery."
+      }
+    ]
+  },
+  "Screenshot": "owner-development-wave1fix17-controlled-postgres-failure-20261110.png",
+  "ScreenshotSha256": "DD7DBC9BD97D996FB0C77A2E90280DACCBC2539656256AB4CDA4EBD0FB9D305C",
+  "BrokerStatus": {
+    "OperationId": "8ea12bd7ed5fb0b5e2aa37f28496aed4",
+    "State": "failed",
+    "Phase": "POSTGRES_SERVICE_PROVISIONING",
+    "FailureCode": "HOST_SETUP_PROVISIONING_FAILED"
+  },
+  "IndependentCli": {
+    "Listener": "127.0.0.1:54329 owned by the fixture PowerShell",
+    "VentioServices": [],
+    "ProductDataRootPresent": true,
+    "ReadOnlyInstalledPostgresProvisioner": "POSTGRES_PORT_IN_USE"
+  },
+  "Disposition": "Sanitized export passed. Exact failure propagation and safe retry were not demonstrated by the installed candidate."
+}

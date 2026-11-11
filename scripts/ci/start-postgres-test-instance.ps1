@@ -27,6 +27,7 @@ foreach ($tool in @($pgCtl, $initdb, $createdb, $pgIsReady)) {
 Write-Output '::add-mask::ventio_test_only'
 Write-Output '::add-mask::runtime_test_only'
 Write-Output '::add-mask::admin_test_only'
+Write-Output '::add-mask::user_api_test_only'
 Write-Output '::add-mask::migration_test_only'
 Write-Output '::add-mask::restore_fixture_only'
 
@@ -53,7 +54,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL initdb failed.' }
     Remove-Item -LiteralPath $passwordFile -Force
 
-    $pgOptions = "-h 127.0.0.1 -p $port -c listen_addresses=127.0.0.1 -c logging_collector=off"
+    $pgOptions = "-h 127.0.0.1 -p $port -c listen_addresses=127.0.0.1 -c logging_collector=off -c max_prepared_transactions=1"
     & $pgCtl -D $dataDirectory -l $logFile -o $pgOptions -w -t 60 start
     if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not start within one minute.' }
 
@@ -79,6 +80,7 @@ try {
         VENTIO_DATABASE_URL = "postgresql://ventio:ventio_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_TEST_RUNTIME_DATABASE_URL = "postgresql://ventio_runtime_test:runtime_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_TEST_ADMIN_DATABASE_URL = "postgresql://ventio_admin_test:admin_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
+        VENTIO_TEST_API_ADMIN_DATABASE_URL = "postgresql://ventio_user_api_test:user_api_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_TEST_MIGRATION_DATABASE_URL = "postgresql://ventio_migration_test:migration_test_only@127.0.0.1:$port/ventio_host_test?sslmode=disable"
         VENTIO_ALLOW_DATABASE_TESTS = 'yes'
         VENTIO_ALLOW_POSTGRES_CRASH_TEST = 'yes'

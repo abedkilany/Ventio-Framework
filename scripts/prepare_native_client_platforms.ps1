@@ -10,8 +10,27 @@ $lockfileBytes = [System.IO.File]::ReadAllBytes($lockPath)
 $existingPlatforms = @('android', 'windows') | Where-Object {
     Test-Path -LiteralPath (Join-Path $clientDirectory $_)
 }
-if ($existingPlatforms.Count -gt 0) {
-    throw "Refusing to regenerate existing platform folders ($($existingPlatforms -join ', ')). Preserve or back them up before generating fresh runners."
+if ($existingPlatforms.Count -eq 2) {
+    $requiredFiles = @(
+        'android/app/src/main/AndroidManifest.xml',
+        'android/app/build.gradle.kts',
+        'windows/CMakeLists.txt',
+        'windows/runner/main.cpp'
+    )
+    foreach ($relativePath in $requiredFiles) {
+        if (-not (Test-Path -LiteralPath (Join-Path $clientDirectory $relativePath) -PathType Leaf)) {
+            throw "Existing native runner is incomplete: $relativePath"
+        }
+    }
+    $manifest = Get-Content -LiteralPath (Join-Path $clientDirectory 'android/app/src/main/AndroidManifest.xml') -Raw
+    if ($manifest -notmatch 'android\.permission\.INTERNET') {
+        throw 'Existing Android runner lacks the required INTERNET permission.'
+    }
+    Write-Output 'Using the reviewed Android and Windows platform runners already present in the checkout.'
+    return
+}
+if ($existingPlatforms.Count -eq 1) {
+    throw "Native runner checkout is incomplete ($($existingPlatforms -join ', ')); refusing to overwrite the existing platform folder."
 }
 
 Push-Location $clientDirectory

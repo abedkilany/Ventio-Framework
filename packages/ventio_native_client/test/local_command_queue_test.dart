@@ -91,6 +91,74 @@ void main() {
     },
   );
 
+  test(
+    'Generic delete intent survives queue restart as a provisional command',
+    () async {
+      final command = ExtensionRecordCommand.delete(
+        commandId: '00000000-0000-4000-8000-000000000036',
+        tenantId: 'tenant-west',
+        companyId: 'company-west',
+        branchId: 'branch-7',
+        recordId: 'inventory-move-1',
+        expectedRevision: 7,
+        actorId: 'operator-1',
+        deviceId: 'desktop-1',
+        moduleId: 'com.example.inventory',
+        moduleVersion: '1.0.0',
+        docType: 'InventoryMove',
+        schemaVersion: 1,
+      );
+      await queue.enqueue(command.envelope);
+
+      await reopenQueue();
+      final restored = await queue.getById(command.envelope.commandId);
+
+      expect(restored, isNotNull);
+      expect(restored!.envelope.type, ExtensionRecordCommand.deleteType);
+      expect(restored.envelope.expectedRevision, 7);
+      expect(restored.hostStatus, HostCommandStatus.pending);
+      expect(restored.isHostConfirmed, isFalse);
+      expect(restored.hostReceipt, isNull);
+    },
+  );
+
+  test(
+    'Child rows stay inside the parent command after queue restart',
+    () async {
+      const lines = [
+        {'itemCode': 'B-2', 'quantity': 3.0},
+        {'itemCode': 'A-1', 'quantity': 2.5},
+      ];
+      final command = ExtensionRecordCommand.create(
+        commandId: 'c03a0000-0000-4000-8000-000000000001',
+        tenantId: 'tenant-west',
+        companyId: 'company-west',
+        branchId: 'branch-7',
+        recordId: 'order-1',
+        actorId: 'operator-1',
+        deviceId: 'desktop-1',
+        moduleId: 'com.example.orders',
+        moduleVersion: '1.0.0',
+        docType: 'Order',
+        schemaVersion: 1,
+        values: const {'lines': lines},
+      );
+      await queue.enqueue(command.envelope);
+
+      await reopenQueue();
+      final restored = await queue.getById(command.envelope.commandId);
+      expect(restored, isNotNull);
+      expect(restored!.hostStatus, HostCommandStatus.pending);
+      expect(
+        canonicalJson(
+          (restored.envelope.payload['values']
+              as Map<String, dynamic>)['lines'],
+        ),
+        canonicalJson(lines),
+      );
+    },
+  );
+
   test('Duplicate command IDs cannot overwrite the original intent', () async {
     final original = await maintenanceEnvelope();
     await queue.enqueue(original);
@@ -111,6 +179,33 @@ void main() {
     expect(
       rows.single.envelope.payload['problemDescription'],
       original.payload['problemDescription'],
+    );
+  });
+
+  test('Unresolved extension commands block removal of their module', () async {
+    final command = ExtensionRecordCommand.create(
+      commandId: '00000000-0000-4000-8000-000000000001',
+      tenantId: 'tenant-west',
+      companyId: 'company-west',
+      branchId: 'branch-7',
+      recordId: 'inventory-move-1',
+      actorId: 'operator-1',
+      deviceId: 'desktop-1',
+      moduleId: 'com.example.inventory',
+      moduleVersion: '1.0.0',
+      docType: 'InventoryMove',
+      schemaVersion: 1,
+      values: const {'reference': 'MOVE-0001'},
+    );
+    await queue.enqueue(command.envelope);
+
+    expect(
+      await queue.hasUnresolvedCommandsForModule('com.example.inventory'),
+      isTrue,
+    );
+    expect(
+      await queue.hasUnresolvedCommandsForModule('com.example.catalog'),
+      isFalse,
     );
   });
 

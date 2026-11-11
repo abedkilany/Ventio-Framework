@@ -11,3 +11,18 @@ packages/ventio_core/pubspec.lock
 .env.*
 __pycache__/
 *.pyc
+
+# Local packaging outputs and installer-validation residue.
+/dist/windows/
+/deliverables/
+/.installer-validation-temp/
+/artifacts/
+/packages/ventio_native_client/.build-codex-generated-*/
+/packages/ventio_native_client/b[0-9]*/
+/packages/ventio_native_client/build-*/
+
+# Generated .NET build output for the Windows setup broker.
+/installer/windows/setup-broker/bin/
+/installer/windows/setup-broker/obj/
+/installer/windows/setup-broker.tests/bin/
+/installer/windows/setup-broker.tests/obj/

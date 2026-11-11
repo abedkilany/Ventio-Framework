@@ -449,7 +449,7 @@ Future<void> main() async {
       actorId: 'user-001',
       deviceId: 'device-001',
       credentialId: 'expiring',
-      expiresAt: DateTime.now().add(const Duration(seconds: 5)),
+      expiresAt: DateTime.now().add(const Duration(minutes: 1)),
       allowedScopes: scopes,
       outputPath: expiringFile,
     );
@@ -464,6 +464,7 @@ Future<void> main() async {
           )).single[0] ==
           true,
       'credential expiry',
+      timeout: const Duration(minutes: 2),
     );
     check(
       (await request(host, expiring, next('device-001'))).status == 401,

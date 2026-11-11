@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/host-engineering-gate.yml'
+      - '.github/workflows/host-api.yml'
       - 'scripts/ci/**'
       - 'packages/ventio_core/**'
       - 'packages/ventio_host/**'
@@ -19,6 +20,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/host-engineering-gate.yml'
+      - '.github/workflows/host-api.yml'
       - 'scripts/ci/**'
       - 'packages/ventio_core/**'
       - 'packages/ventio_host/**'
@@ -61,6 +63,7 @@ jobs:
         working-directory: packages/ventio_host_api
     steps:
       - name: Verify PostgreSQL is published only on loopback
+        working-directory: ${{ github.workspace }}
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
           POSTGRES_HOST_PORT: ${{ job.services.postgres.ports['5432'] }}

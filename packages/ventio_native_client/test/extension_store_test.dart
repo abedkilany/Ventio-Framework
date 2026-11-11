@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
+import 'package:ventio_native_client/src/local_command_queue.dart';
 
 const _moduleId = 'com.example.asset_register';
 const _scope = RecordScope(
@@ -129,6 +130,1275 @@ void main() {
     expect(restored.state, ExtensionState.active);
     expect((await store.listDocTypes(_moduleId)).single['name'], 'Asset');
   });
+
+  test(
+    'Official inventory package stores provisional offline creates and edits across SQLite restart',
+    () async {
+      const moduleId = 'com.ventio.inventory_operations';
+      const productId = 'inventory-product-offline';
+      const movementId = 'inventory-movement-offline';
+      const productCommandId = '84000000-0000-4000-8000-000000000001';
+      const movementCommandId = '84000000-0000-4000-8000-000000000002';
+      const updateCommandId = '84000000-0000-4000-8000-000000000003';
+      var queue = await LocalCommandQueue.open(
+        factory: databaseFactoryFfi,
+        path: '${directory.path}${Platform.pathSeparator}commands.sqlite3',
+      );
+      try {
+        final bundleJson = Map<String, dynamic>.from(
+          jsonDecode(
+                await File(
+                  '../../examples/ventio_inventory_operations/extension.json',
+                ).readAsString(),
+              )
+              as Map,
+        );
+        final bundle = ExtensionBundle.fromJson(bundleJson);
+        await store.installBundle(bundle);
+        await store.activate(moduleId);
+
+        final product = await store.createRecord(
+          moduleId: moduleId,
+          docTypeName: 'Product',
+          scope: _scope,
+          recordId: productId,
+          values: const {'quantity': 12.0},
+        );
+        final movement = await store.createRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          scope: _scope,
+          recordId: movementId,
+          values: const {
+            'lines': [
+              {'product': productId, 'amount': 2.0, 'unitPrice': 0.5},
+              {'product': productId, 'amount': 1.5, 'unitPrice': 0.4},
+            ],
+          },
+        );
+        expect(movement.values['documentNumber'], 'LOCAL-$movementId');
+        expect(movement.values['total'], 1.6);
+        expect(movement.values['lines'], [
+          {
+            'product': productId,
+            'amount': 2.0,
+            'unitPrice': 0.5,
+            'lineTotal': 1.0,
+          },
+          {
+            'product': productId,
+            'amount': 1.5,
+            'unitPrice': 0.4,
+            'lineTotal': 0.6,
+          },
+        ]);
+
+        final productCommand = ExtensionRecordCommand.create(
+          commandId: productCommandId,
+          tenantId: _scope.organizationId,
+          companyId: _scope.companyId,
+          branchId: _scope.branchId,
+          recordId: productId,
+          actorId: 'inventory-operator',
+          deviceId: 'inventory-desktop',
+          moduleId: moduleId,
+          moduleVersion: '1.0.0',
+          docType: 'Product',
+          schemaVersion: 1,
+          values: product.values,
+        );
+        await queue.enqueue(productCommand.envelope);
+        await store.markRecordPending(
+          recordId: productId,
+          scope: _scope,
+          commandId: productCommandId,
+          operation: 'create',
+        );
+
+        final movementValues = Map<String, dynamic>.of(movement.values)
+          ..remove('documentNumber');
+        final movementCommand = ExtensionRecordCommand.create(
+          commandId: movementCommandId,
+          tenantId: _scope.organizationId,
+          companyId: _scope.companyId,
+          branchId: _scope.branchId,
+          recordId: movementId,
+          actorId: 'inventory-operator',
+          deviceId: 'inventory-desktop',
+          moduleId: moduleId,
+          moduleVersion: '1.0.0',
+          docType: 'Movement',
+          schemaVersion: 1,
+          values: movementValues,
+          dependsOn: const [productCommandId],
+        );
+        await queue.enqueue(movementCommand.envelope);
+        await store.markRecordPending(
+          recordId: movementId,
+          scope: _scope,
+          commandId: movementCommandId,
+          operation: 'create',
+        );
+
+        const hostMovementId = 'inventory-movement-host-accepted';
+        await store.applyHostRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          scope: _scope,
+          recordId: hostMovementId,
+          revision: 4,
+          updatedAtUtc: DateTime.utc(2026, 10, 28),
+          readableFields: const [
+            'lines',
+            'total',
+            'documentNumber',
+            'amendedFrom',
+          ],
+          writableFields: const ['lines'],
+          creatableFields: const ['lines'],
+          values: const {
+            'documentNumber': 'INV-000021',
+            'lines': [
+              {'product': productId, 'amount': 2.0, 'unitPrice': 0.5},
+            ],
+          },
+        );
+        final edited = await store.updateRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: hostMovementId,
+          scope: _scope,
+          expectedRevision: 4,
+          values: const {
+            'lines': [
+              {'product': productId, 'amount': 3.0, 'unitPrice': 0.5},
+            ],
+          },
+        );
+        expect(edited.values['total'], 1.5);
+        final updateCommand = ExtensionRecordCommand.update(
+          commandId: updateCommandId,
+          tenantId: _scope.organizationId,
+          companyId: _scope.companyId,
+          branchId: _scope.branchId,
+          recordId: hostMovementId,
+          expectedRevision: 4,
+          actorId: 'inventory-operator',
+          deviceId: 'inventory-desktop',
+          moduleId: moduleId,
+          moduleVersion: '1.0.0',
+          docType: 'Movement',
+          schemaVersion: 1,
+          values: {'lines': edited.values['lines']},
+        );
+        await queue.enqueue(updateCommand.envelope);
+        await store.markRecordPending(
+          recordId: hostMovementId,
+          scope: _scope,
+          commandId: updateCommandId,
+        );
+
+        await queue.close();
+        await store.close();
+        await openStore();
+        queue = await LocalCommandQueue.open(
+          factory: databaseFactoryFfi,
+          path: '${directory.path}${Platform.pathSeparator}commands.sqlite3',
+        );
+        final restoredMovement = await store.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: movementId,
+          scope: _scope,
+        );
+        final restoredEdit = await store.getRecord(
+          moduleId: moduleId,
+          docTypeName: 'Movement',
+          recordId: hostMovementId,
+          scope: _scope,
+        );
+        final pending = await queue.list(limit: 10);
+        final pendingById = {
+          for (final entry in pending) entry.envelope.commandId: entry,
+        };
+        expect(
+          (await store.getExtension(moduleId))?.state,
+          ExtensionState.active,
+        );
+        expect(restoredMovement?.values['documentNumber'], 'LOCAL-$movementId');
+        expect(restoredMovement?.values['total'], 1.6);
+        expect(restoredMovement?.pendingCommandId, movementCommandId);
+        expect(restoredEdit?.values['total'], 1.5);
+        expect(restoredEdit?.pendingCommandId, updateCommandId);
+        expect(pendingById.keys, {
+          productCommandId,
+          movementCommandId,
+          updateCommandId,
+        });
+        expect(pendingById[movementCommandId]!.envelope.dependsOn, [
+          productCommandId,
+        ]);
+        expect(
+          (pendingById[movementCommandId]!.envelope.payload['values']
+                  as Map<String, dynamic>)
+              .containsKey('documentNumber'),
+          isFalse,
+        );
+        expect(pending.every((entry) => entry.isPending), isTrue);
+      } finally {
+        await queue.close();
+      }
+    },
+  );
+
+  test(
+    'Saved report definitions persist and export with package labels',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: 'Track assets.',
+      );
+      final asset = _docType();
+      asset['labelKey'] = 'extension.com_example_asset_register.asset.name';
+      (asset['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.asset.field_name';
+      await store.saveDocType(asset);
+      final report = {
+        'id': 'asset_count',
+        'docType': 'Asset',
+        'label': 'Asset count',
+        'labelKey': 'extension.com_example_asset_register.report.asset_count',
+        'filters': ['name'],
+        'groupBy': 'name',
+        'sortBy': 'asset_count',
+        'descending': false,
+        'aggregates': [
+          {
+            'id': 'asset_count',
+            'operation': 'count',
+            'label': 'Count',
+            'labelKey':
+                'extension.com_example_asset_register.report.asset_count.count',
+          },
+        ],
+      };
+      await store.saveReportDefinition(moduleId: _moduleId, metadata: report);
+      final saved = (await store.getExtension(_moduleId))!;
+      expect(saved.version, '0.1.1');
+      expect(saved.reportDefinitions.single['id'], 'asset_count');
+      await store.close();
+      await openStore();
+      final restored = (await store.getExtension(_moduleId))!;
+      expect(restored.reportDefinitions.single['filters'], ['name']);
+      final bundle = await store.exportBundle(_moduleId);
+      final roundTrip = ExtensionBundle.fromJson(bundle.toJson());
+      expect(roundTrip.reports.single.id, 'asset_count');
+      expect(
+        roundTrip
+            .englishCatalog['extension.com_example_asset_register.report.asset_count.count'],
+        'Count',
+      );
+    },
+  );
+
+  test(
+    'Saved print formats persist and export with English package labels',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: 'Track assets.',
+      );
+      final asset = _docType();
+      asset['labelKey'] = 'extension.com_example_asset_register.asset.name';
+      (asset['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.asset.field_name';
+      await store.saveDocType(asset);
+      await store.savePrintFormatDefinition(
+        moduleId: _moduleId,
+        metadata: const {
+          'id': 'asset_receipt',
+          'docType': 'Asset',
+          'label': 'Asset receipt',
+          'labelKey':
+              'extension.com_example_asset_register.print.asset_receipt',
+          'pageSize': 'a4',
+          'orientation': 'portrait',
+          'blocks': [
+            {'type': 'field', 'field': 'name'},
+            {'type': 'page_break'},
+            {'type': 'field', 'field': 'name'},
+          ],
+        },
+      );
+      expect(
+        (await store.getExtension(_moduleId))!.printFormatDefinitions,
+        hasLength(1),
+      );
+      await store.close();
+      await openStore();
+      final bundle = await store.exportBundle(_moduleId);
+      expect(bundle.printFormats.single.id, 'asset_receipt');
+      expect(
+        bundle
+            .englishCatalog['extension.com_example_asset_register.print.asset_receipt'],
+        'Asset receipt',
+      );
+      final installed = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: '${directory.path}${Platform.pathSeparator}installed.sqlite3',
+      );
+      await installed.installBundle(bundle);
+      expect(
+        (await installed.getExtension(
+          _moduleId,
+        ))!.printFormatDefinitions.single['id'],
+        'asset_receipt',
+      );
+      await installed.close();
+    },
+  );
+
+  test(
+    'Accepted governed operation receipt reconciles status and official number',
+    () async {
+      final definition =
+          _docType(
+              fields: [
+                _textField(),
+                {
+                  ..._textField(
+                    name: 'documentNumber',
+                    required: false,
+                    maxLength: 64,
+                  ),
+                  'readOnly': true,
+                },
+              ],
+            )
+            ..['naming'] = {
+              'seriesId': 'asset',
+              'field': 'documentNumber',
+              'prefix': 'AST-',
+              'padding': 4,
+            };
+      await createActiveExtension(docType: definition);
+      final local = await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Pump'},
+        recordId: 'operation-result-record',
+      );
+      await store.applyHostRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        recordId: local.recordId,
+        revision: 1,
+        values: const {'name': 'Pump', 'documentNumber': 'LOCAL-PUMP'},
+        updatedAtUtc: DateTime.utc(2026, 10, 24),
+      );
+      await store.markRecordPending(
+        recordId: local.recordId,
+        scope: _scope,
+        commandId: 'submit-command',
+      );
+      await store.applyHostReceipt(
+        recordId: local.recordId,
+        scope: _scope,
+        commandId: 'submit-command',
+        receipt: CommandReceipt(
+          commandId: 'submit-command',
+          status: 'ACCEPTED',
+          hostRevision: 2,
+          scopeCursor: 'scope-v1-2',
+        ),
+        documentStatus: 1,
+        valueUpdates: const {'documentNumber': 'AST-0001'},
+      );
+      final reconciled = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: local.recordId,
+        scope: _scope,
+      ))!;
+      expect(reconciled.documentStatus, 1);
+      expect(reconciled.values['documentNumber'], 'AST-0001');
+      expect(reconciled.hostRevision, 2);
+      expect(reconciled.pendingCommandId, isNull);
+      expect(reconciled.authorityState, 'HOST_ACCEPTED');
+    },
+  );
+
+  test('Amend stores and reconciles a durable local draft copy', () async {
+    final definition =
+        _docType(
+            name: 'Movement',
+            fields: [
+              _textField(),
+              {
+                ..._textField(
+                  name: 'documentNumber',
+                  required: false,
+                  maxLength: 64,
+                ),
+                'readOnly': true,
+              },
+              {
+                'name': 'amendedFrom',
+                'type': 'reference',
+                'referenceTo': 'Movement',
+                'required': false,
+                'readOnly': true,
+                'label': 'Amended From',
+                'labelKey': 'asset_register.movement.amended_from',
+              },
+              {
+                'name': 'lines',
+                'type': 'table',
+                'required': true,
+                'label': 'Lines',
+                'labelKey': 'asset_register.movement.lines',
+                'childDocType': {
+                  'name': 'MovementLine',
+                  'label': 'Movement line',
+                  'labelKey': 'asset_register.movement.line',
+                  'fields': [
+                    {
+                      'name': 'description',
+                      'type': 'text',
+                      'required': true,
+                      'label': 'Description',
+                      'labelKey': 'asset_register.movement.description',
+                    },
+                  ],
+                },
+              },
+            ],
+          )
+          ..['naming'] = {
+            'seriesId': 'movement',
+            'field': 'documentNumber',
+            'prefix': 'MOV-',
+            'padding': 4,
+          };
+    await createActiveExtension(docType: definition);
+    final source = await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      scope: _scope,
+      values: const {
+        'name': 'Original movement',
+        'lines': [
+          {'description': 'First line'},
+          {'description': 'Second line'},
+        ],
+      },
+      recordId: 'movement-source',
+    );
+    await store.applyHostRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      scope: _scope,
+      recordId: source.recordId,
+      revision: 1,
+      values: const {
+        'name': 'Original movement',
+        'documentNumber': 'MOV-0001',
+        'lines': [
+          {'description': 'First line'},
+          {'description': 'Second line'},
+        ],
+      },
+      updatedAtUtc: DateTime.utc(2026, 10, 24),
+    );
+    await store.markRecordPending(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'submit-source',
+    );
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'submit-source',
+      receipt: CommandReceipt(
+        commandId: 'submit-source',
+        status: 'ACCEPTED',
+        hostRevision: 2,
+      ),
+      documentStatus: 1,
+    );
+    await expectLater(
+      store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Movement',
+        recordId: source.recordId,
+        scope: _scope,
+        expectedRevision: 1,
+        values: const {'name': 'Must remain immutable'},
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'DOCUMENT_NOT_DRAFT',
+        ),
+      ),
+    );
+    await store.markRecordPending(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'cancel-source',
+    );
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'cancel-source',
+      receipt: CommandReceipt(
+        commandId: 'cancel-source',
+        status: 'ACCEPTED',
+        hostRevision: 3,
+      ),
+      documentStatus: 2,
+    );
+
+    final amendment = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: 'amend-local-copy',
+      linkField: 'amendedFrom',
+    );
+    expect(amendment.recordId, 'amend-local-copy');
+    expect(amendment.documentStatus, 0);
+    expect(amendment.authorityState, 'PENDING');
+    expect(amendment.pendingCommandId, 'amend-local-copy');
+    expect(amendment.values['amendedFrom'], source.recordId);
+    expect(amendment.values['documentNumber'], 'LOCAL-amend-local-copy');
+    expect(amendment.values['lines'], source.values['lines']);
+    final retriedAmendment = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: 'amend-local-copy',
+      linkField: 'amendedFrom',
+    );
+    expect(retriedAmendment.recordId, amendment.recordId);
+    expect(retriedAmendment.values['amendedFrom'], source.recordId);
+    await expectLater(
+      store.createAmendmentDraft(
+        moduleId: _moduleId,
+        docTypeName: 'Movement',
+        sourceRecordId: source.recordId,
+        scope: _scope,
+        expectedSourceRevision: 3,
+        commandId: 'another-local-amendment',
+        linkField: 'amendedFrom',
+      ),
+      throwsA(
+        isA<ExtensionStoreException>().having(
+          (error) => error.code,
+          'code',
+          'AMENDMENT_ALREADY_ACTIVE',
+        ),
+      ),
+    );
+
+    await store.close();
+    await openStore();
+    final persisted = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: amendment.recordId,
+      scope: _scope,
+    ))!;
+    expect(persisted.values['lines'], amendment.values['lines']);
+    expect(persisted.pendingCommandId, amendment.pendingCommandId);
+    expect(persisted.documentStatus, 0);
+
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: amendment.recordId,
+      receipt: CommandReceipt(
+        commandId: amendment.recordId,
+        status: 'ACCEPTED',
+        hostRevision: 3,
+      ),
+    );
+    await store.applyHostReceipt(
+      recordId: amendment.recordId,
+      scope: _scope,
+      commandId: amendment.recordId,
+      receipt: CommandReceipt(
+        commandId: amendment.recordId,
+        status: 'ACCEPTED',
+        hostRevision: 1,
+        output: const {'amendedRecordId': 'amend-local-copy'},
+      ),
+      operation: 'amend',
+      documentStatus: 0,
+    );
+    final acceptedSource = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: source.recordId,
+      scope: _scope,
+    ))!;
+    final acceptedAmendment = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: amendment.recordId,
+      scope: _scope,
+    ))!;
+    expect(acceptedSource.documentStatus, 2);
+    expect(acceptedSource.hostRevision, 3);
+    expect(acceptedSource.pendingCommandId, isNull);
+    expect(acceptedAmendment.authorityState, 'HOST_ACCEPTED');
+    expect(acceptedAmendment.hostRevision, 1);
+    expect(acceptedAmendment.documentStatus, 0);
+
+    await store.markRecordPending(
+      recordId: amendment.recordId,
+      scope: _scope,
+      commandId: 'cancel-amendment-copy',
+    );
+    final amendmentReplayDuringFollowUp = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: amendment.recordId,
+      linkField: 'amendedFrom',
+    );
+    expect(amendmentReplayDuringFollowUp.recordId, amendment.recordId);
+    expect(
+      amendmentReplayDuringFollowUp.pendingCommandId,
+      'cancel-amendment-copy',
+    );
+    await store.applyHostReceipt(
+      recordId: amendment.recordId,
+      scope: _scope,
+      commandId: 'cancel-amendment-copy',
+      receipt: CommandReceipt(
+        commandId: 'cancel-amendment-copy',
+        status: 'ACCEPTED',
+        hostRevision: 2,
+      ),
+      documentStatus: 2,
+    );
+    final rejectedDraft = await store.createAmendmentDraft(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      sourceRecordId: source.recordId,
+      scope: _scope,
+      expectedSourceRevision: 3,
+      commandId: 'amend-rejected-copy',
+      linkField: 'amendedFrom',
+    );
+    final rejectedReceipt = CommandReceipt(
+      commandId: 'amend-rejected-copy',
+      status: 'REJECTED',
+      reasonCode: 'PERMISSION_DENIED',
+    );
+    await store.applyHostReceipt(
+      recordId: source.recordId,
+      scope: _scope,
+      commandId: 'amend-rejected-copy',
+      receipt: rejectedReceipt,
+    );
+    await store.applyHostReceipt(
+      recordId: rejectedDraft.recordId,
+      scope: _scope,
+      commandId: 'amend-rejected-copy',
+      receipt: rejectedReceipt,
+      operation: 'amend',
+    );
+    final rejectedAmendment = (await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Movement',
+      recordId: rejectedDraft.recordId,
+      scope: _scope,
+    ))!;
+    expect(rejectedAmendment.authorityState, 'REJECTED');
+    expect(rejectedAmendment.hostRevision, isNull);
+    expect(rejectedAmendment.values['lines'], amendment.values['lines']);
+  });
+
+  test(
+    'Draft delete tombstones are hidden and rejected pending deletes restore',
+    () async {
+      final definition = _docType();
+      definition['operations'] = ['read', 'create', 'update', 'delete'];
+      (definition['permissions'] as Map<String, dynamic>)['delete'] =
+          'extension.com_example_asset_register.asset.delete';
+      await createActiveExtension(docType: definition);
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Pump'},
+        recordId: 'asset-delete-queued',
+      );
+      await store.markRecordPending(
+        recordId: 'asset-delete-queued',
+        scope: _scope,
+        commandId: 'delete-command-1',
+        operation: 'delete',
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-queued',
+          scope: _scope,
+        ),
+        isNull,
+      );
+      await store.applyHostReceipt(
+        recordId: 'asset-delete-queued',
+        scope: _scope,
+        commandId: 'delete-command-1',
+        operation: 'delete',
+        receipt: CommandReceipt(
+          commandId: 'delete-command-1',
+          status: 'REJECTED',
+          reasonCode: 'PERMISSION_DENIED',
+        ),
+      );
+      expect(
+        (await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-queued',
+          scope: _scope,
+        ))?.values['name'],
+        'Pump',
+      );
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Valve'},
+        recordId: 'asset-delete-stale-receipt',
+      );
+      await store.markRecordPending(
+        recordId: 'asset-delete-stale-receipt',
+        scope: _scope,
+        commandId: 'delete-command-2',
+        operation: 'delete',
+      );
+      await store.applyHostReceipt(
+        recordId: 'asset-delete-stale-receipt',
+        scope: _scope,
+        commandId: 'older-update-command',
+        receipt: CommandReceipt(
+          commandId: 'older-update-command',
+          status: 'ACCEPTED',
+          hostRevision: 2,
+          scopeCursor: 'scope-v1-2',
+        ),
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-stale-receipt',
+          scope: _scope,
+        ),
+        isNull,
+      );
+      await store.applyHostReceipt(
+        recordId: 'asset-delete-stale-receipt',
+        scope: _scope,
+        commandId: 'delete-command-2',
+        operation: 'delete',
+        receipt: CommandReceipt(
+          commandId: 'delete-command-2',
+          status: 'REJECTED',
+          reasonCode: 'PERMISSION_DENIED',
+        ),
+      );
+      expect(
+        (await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-stale-receipt',
+          scope: _scope,
+        ))?.values['name'],
+        'Valve',
+      );
+      await store.deleteLocalRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: 'asset-delete-queued',
+        scope: _scope,
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: 'asset-delete-queued',
+          scope: _scope,
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'Module identifiers are validated and duplicate installs fail closed',
+    () async {
+      await expectLater(
+        store.createExtension(
+          moduleId: 'Invalid Module ID',
+          displayName: 'Invalid',
+          description: '',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'INVALID_MODULE_ID',
+          ),
+        ),
+      );
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: '',
+      );
+      await expectLater(
+        store.createExtension(
+          moduleId: _moduleId,
+          displayName: 'Duplicate Asset Register',
+          description: '',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'DUPLICATE_MODULE',
+          ),
+        ),
+      );
+      expect((await store.listExtensions()).map((item) => item.moduleId), [
+        _moduleId,
+      ]);
+    },
+  );
+
+  test('Long text and table values survive SQLite record restart', () async {
+    final metadata = _docType(
+      fields: [
+        _textField(),
+        {
+          'name': 'notes',
+          'type': 'long_text',
+          'required': true,
+          'maxLength': 2000,
+          'label': 'Notes',
+          'labelKey': 'extension.com_example_asset_register.asset.notes',
+        },
+        {
+          'name': 'lines',
+          'type': 'table',
+          'required': false,
+          'label': 'Lines',
+          'labelKey': 'extension.com_example_asset_register.asset.lines',
+        },
+      ],
+    );
+    metadata['labelKey'] = 'extension.com_example_asset_register.asset.name';
+    (metadata['fields'] as List).first['labelKey'] =
+        'extension.com_example_asset_register.asset.field.name.label';
+    await store.createExtension(
+      moduleId: _moduleId,
+      displayName: 'Asset Register',
+      description: '',
+    );
+    await store.saveDocType(metadata);
+    await store.activate(_moduleId);
+    final values = <String, dynamic>{
+      'name': 'Pump',
+      'notes': 'Long service description',
+      'lines': [
+        {'itemCode': 'SEAL-1', 'quantity': 2},
+      ],
+    };
+    await store.createRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      scope: _scope,
+      values: values,
+      recordId: 'asset-typed-fields',
+    );
+    final roundTrip = ExtensionBundle.fromJson(
+      (await store.exportBundle(_moduleId)).toJson(),
+    );
+    expect(roundTrip.docTypes.single.fields.map((field) => field.type), [
+      'text',
+      'long_text',
+      'table',
+    ]);
+
+    await store.close();
+    await openStore();
+    final restored = await store.getRecord(
+      moduleId: _moduleId,
+      docTypeName: 'Asset',
+      recordId: 'asset-typed-fields',
+      scope: _scope,
+    );
+    expect(restored!.values, values);
+  });
+
+  test(
+    'Typed child rows validate references and survive SQLite restart',
+    () async {
+      await store.createExtension(
+        moduleId: _moduleId,
+        displayName: 'Asset Register',
+        description: '',
+      );
+      final product = _docType(name: 'Product');
+      product['labelKey'] =
+          'extension.com_example_asset_register.product.label';
+      (product['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.product.name';
+      await store.saveDocType(product);
+
+      final order = _docType(
+        name: 'Order',
+        fields: [
+          _textField(),
+          {
+            'name': 'lines',
+            'type': 'table',
+            'required': true,
+            'label': 'Lines',
+            'labelKey': 'extension.com_example_asset_register.order.lines',
+            'childDocType': {
+              'name': 'OrderLine',
+              'label': 'Order line',
+              'labelKey':
+                  'extension.com_example_asset_register.order.order_line',
+              'fields': [
+                {
+                  'name': 'product',
+                  'type': 'reference',
+                  'referenceTo': 'Product',
+                  'required': true,
+                  'label': 'Product',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.line_product',
+                },
+                {
+                  'name': 'quantity',
+                  'type': 'integer',
+                  'required': true,
+                  'default': 1,
+                  'minValue': 1,
+                  'label': 'Quantity',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.line_quantity',
+                },
+                {
+                  'name': 'unitPrice',
+                  'type': 'decimal',
+                  'required': false,
+                  'precision': 2,
+                  'default': 0.25,
+                  'label': 'Unit price',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.unit_price',
+                },
+                {
+                  'name': 'lineTotal',
+                  'type': 'decimal',
+                  'required': true,
+                  'precision': 2,
+                  'calculation': {
+                    'type': 'multiply',
+                    'leftField': 'quantity',
+                    'rightField': 'unitPrice',
+                  },
+                  'label': 'Line total',
+                  'labelKey':
+                      'extension.com_example_asset_register.order.line_total',
+                },
+              ],
+            },
+          },
+          {
+            'name': 'total',
+            'type': 'decimal',
+            'required': true,
+            'precision': 2,
+            'readOnly': true,
+            'calculation': {
+              'type': 'sum',
+              'rowsField': 'lines',
+              'valueField': 'lineTotal',
+            },
+            'label': 'Total',
+            'labelKey': 'extension.com_example_asset_register.order.total',
+          },
+        ],
+      );
+      order['labelKey'] = 'extension.com_example_asset_register.order.label';
+      (order['fields'] as List).first['labelKey'] =
+          'extension.com_example_asset_register.order.name';
+      await store.saveDocType(order);
+      await store.activate(_moduleId);
+      final childBundle = await store.exportBundle(_moduleId);
+      final childRoundTrip = ExtensionBundle.fromJson(
+        ExtensionBundle.fromJson(childBundle.toJson()).toJson(),
+      );
+      expect(
+        childRoundTrip.docTypes
+            .singleWhere((docType) => docType.name == 'Order')
+            .fields
+            .singleWhere((field) => field.name == 'lines')
+            .childDocType
+            ?.fields
+            .singleWhere((field) => field.name == 'product')
+            .labelKey,
+        'extension.com_example_asset_register.order.line_product',
+      );
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Product',
+        scope: _scope,
+        recordId: 'product-1',
+        values: {'name': 'Gear'},
+      );
+      final values = {
+        'name': 'Order A',
+        'lines': [
+          {'product': 'product-1'},
+        ],
+      };
+      await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Order',
+        scope: _scope,
+        recordId: 'order-1',
+        values: values,
+      );
+      await store.updateRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Order',
+        scope: _scope,
+        recordId: 'order-1',
+        expectedRevision: 1,
+        values: {
+          'lines': [
+            {'product': 'product-1', 'quantity': 2, 'unitPrice': 0.25},
+          ],
+        },
+      );
+      final restoredValue = (await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Order',
+        scope: _scope,
+        recordId: 'order-1',
+      ))!.values;
+      expect(restoredValue['lines'], [
+        {
+          'product': 'product-1',
+          'quantity': 2,
+          'unitPrice': 0.25,
+          'lineTotal': 0.5,
+        },
+      ]);
+      expect(restoredValue['total'], 0.5);
+
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Order',
+          scope: _scope,
+          recordId: 'order-bad-reference',
+          values: {
+            'name': 'Invalid',
+            'lines': [
+              {'product': 'missing-product'},
+            ],
+          },
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'INVALID_REFERENCE',
+          ),
+        ),
+      );
+      expect(
+        await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Order',
+          scope: _scope,
+          recordId: 'order-bad-reference',
+        ),
+        isNull,
+      );
+
+      await store.close();
+      await openStore();
+      expect(
+        (await store.getRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Order',
+          scope: _scope,
+          recordId: 'order-1',
+        ))!.values,
+        restoredValue,
+      );
+    },
+  );
+
+  test(
+    'Field defaults persist and read-only fields reject client changes',
+    () async {
+      final definition = _docType(
+        fields: [
+          _textField(),
+          {
+            'name': 'status',
+            'type': 'text',
+            'required': true,
+            'maxLength': 40,
+            'default': 'Pending review',
+            'readOnly': true,
+            'label': 'Status',
+            'labelKey': 'extension.com_example_asset_register.asset.status',
+          },
+        ],
+      );
+      await createActiveExtension(docType: definition);
+      final created = await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Pump'},
+        recordId: 'asset-default-field',
+      );
+      expect(created.values['status'], 'Pending review');
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: const {'name': 'Unsafe', 'status': 'Approved'},
+          recordId: 'asset-readonly-create',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'READ_ONLY_FIELD',
+          ),
+        ),
+      );
+      await expectLater(
+        store.updateRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          recordId: created.recordId,
+          scope: _scope,
+          expectedRevision: created.revision,
+          values: const {'status': 'Approved'},
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'READ_ONLY_FIELD',
+          ),
+        ),
+      );
+      await store.close();
+      await openStore();
+      final restored = await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: created.recordId,
+        scope: _scope,
+      );
+      expect(restored!.values['status'], 'Pending review');
+    },
+  );
+
+  test(
+    'Naming series drafts use a provisional label without client input',
+    () async {
+      final definition =
+          _docType(
+              fields: [
+                _textField(),
+                {
+                  'name': 'documentNumber',
+                  'type': 'text',
+                  'required': false,
+                  'readOnly': true,
+                  'maxLength': 64,
+                  'label': 'Document Number',
+                  'labelKey': 'asset_register.asset.document_number',
+                },
+              ],
+            )
+            ..['naming'] = {
+              'seriesId': 'asset-series',
+              'field': 'documentNumber',
+              'prefix': 'AST-',
+              'padding': 6,
+            };
+      await createActiveExtension(docType: definition);
+      const recordId = 'a1000000-0000-4000-8000-000000000001';
+      final created = await store.createRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        scope: _scope,
+        values: const {'name': 'Pump'},
+        recordId: recordId,
+      );
+      expect(created.values['documentNumber'], 'LOCAL-$recordId');
+      await expectLater(
+        store.createRecord(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          values: const {'name': 'Forged', 'documentNumber': 'AST-000001'},
+          recordId: 'a1000000-0000-4000-8000-000000000002',
+        ),
+        throwsA(
+          isA<ExtensionStoreException>().having(
+            (error) => error.code,
+            'code',
+            'READ_ONLY_FIELD',
+          ),
+        ),
+      );
+      await store.close();
+      await openStore();
+      final restored = await store.getRecord(
+        moduleId: _moduleId,
+        docTypeName: 'Asset',
+        recordId: recordId,
+        scope: _scope,
+      );
+      expect(restored!.values['documentNumber'], 'LOCAL-$recordId');
+    },
+  );
 
   test('Host scope profile persists across a database reopen', () async {
     const profile = HostConnectionProfile(
@@ -1418,6 +2688,25 @@ void main() {
         'Atlas',
         'Zebra',
       ]);
+      await expectLater(
+        store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          search: List.filled(257, 'x').join(),
+        ),
+        throwsArgumentError,
+      );
+      await expectLater(
+        store.listRecords(
+          moduleId: _moduleId,
+          docTypeName: 'Asset',
+          scope: _scope,
+          filterField: 'name',
+          filterContains: List.filled(257, 'x').join(),
+        ),
+        throwsArgumentError,
+      );
       await expectLater(
         store.listRecords(
           moduleId: _moduleId,

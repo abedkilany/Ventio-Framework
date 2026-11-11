@@ -6,6 +6,26 @@ import 'authentication.dart';
 import 'private_files.dart';
 import 'recovery_authority.dart';
 
+const List<String> initialHostAdministratorPermissions = [
+  'host.status.read',
+  'host.diagnostics.read',
+  'identity.users.manage',
+  'identity.devices.manage',
+  'identity.pairing.manage',
+  'identity.roles.manage',
+  'extension.package.review',
+];
+
+class InitialHostAdministratorCredential {
+  const InitialHostAdministratorCredential({
+    required this.actorId,
+    required this.token,
+  });
+
+  final String actorId;
+  final String token;
+}
+
 /// Server maintenance facade. The DB login needs only EXECUTE on admin_change;
 /// direct identity DML and DDL are denied. Every change and audit is one DB call.
 class IdentityAdministration {
@@ -13,12 +33,14 @@ class IdentityAdministration {
   final String tenantId;
   final String operatorLabel;
   final RecoveryAuthority? authority;
+  final pg.Connection? bootstrapConnection;
 
   IdentityAdministration({
     required this.connection,
     required this.tenantId,
     required this.operatorLabel,
     this.authority,
+    this.bootstrapConnection,
   }) {
     _identifier(tenantId);
     _identifier(operatorLabel);
@@ -51,6 +73,70 @@ class IdentityAdministration {
   Future<void> createUser(String actorId) {
     _identifier(actorId);
     return _change('USER_CREATED', {'actorId': actorId});
+  }
+
+  /// Atomically seeds the first scoped Host administrator for a tenant.
+  /// This method is for a trusted local bootstrap broker only: it creates one
+  /// user, branch, device, direct management grants and a scoped credential.
+  /// The caller receives the raw token once; it is never stored in PostgreSQL.
+  Future<InitialHostAdministratorCredential> bootstrapFirstAdministrator({
+    required String companyId,
+    required String branchId,
+    required String deviceId,
+    required String credentialId,
+    required DateTime expiresAt,
+    String? requestId,
+    InitialHostAdministratorCredential? credential,
+  }) async {
+    if (authority == null || bootstrapConnection == null) {
+      throw StateError(
+        'Trusted recovery-admitted bootstrap connection is required',
+      );
+    }
+    for (final value in [companyId, branchId, deviceId, credentialId]) {
+      _identifier(value);
+    }
+    final expiry = expiresAt.toUtc();
+    final now = DateTime.now().toUtc();
+    if (!expiry.isAfter(now) ||
+        expiry.isAfter(now.add(const Duration(days: 30)))) {
+      throw ArgumentError('Initial administrator credential expiry is invalid');
+    }
+    final bootstrapRequestId = requestId ?? OpaqueToken.generate();
+    if (!OpaqueToken.isValid(bootstrapRequestId)) {
+      throw ArgumentError('Initial administrator request ID is invalid');
+    }
+    final initialCredential =
+        credential ??
+        InitialHostAdministratorCredential(
+          actorId: 'usr_${OpaqueToken.generate()}',
+          token: OpaqueToken.generate(),
+        );
+    _identifier(initialCredential.actorId);
+    if (!OpaqueToken.isValid(initialCredential.token)) {
+      throw ArgumentError('Initial administrator token is invalid');
+    }
+    final request = jsonEncode({
+      'tenantId': tenantId,
+      'operatorLabel': operatorLabel,
+      'actorId': initialCredential.actorId,
+      'companyId': companyId,
+      'branchId': branchId,
+      'deviceId': deviceId,
+      'credentialId': credentialId,
+      'tokenDigest': OpaqueToken.digest(initialCredential.token),
+      'requestId': bootstrapRequestId,
+      'expiresAt': expiry.toIso8601String(),
+    });
+    await authority!.change(bootstrapConnection!, (session) async {
+      await session.execute(
+        pg.Sql.named(
+          'SELECT ventio_security.bootstrap_first_admin(CAST(@request AS jsonb))',
+        ),
+        parameters: {'request': request},
+      );
+    }, requireAdmissionProof: true);
+    return initialCredential;
   }
 
   Future<void> registerBranch(String companyId, String branchId) {
@@ -281,6 +367,11 @@ class IdentityAdministration {
   Future<void> disableUser(String actorId) {
     _identifier(actorId);
     return _change('USER_DISABLED', {'actorId': actorId});
+  }
+
+  Future<void> enableUser(String actorId) {
+    _identifier(actorId);
+    return _change('USER_ENABLED', {'actorId': actorId});
   }
 }
 

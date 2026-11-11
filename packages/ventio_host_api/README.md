@@ -20,7 +20,7 @@
 > identity-file provider and launcher described below remain test-only; they are
 > not used by the persistent assembly. External network deployment has not been end-to-end verified.
 
-Persistent role administration update: the authenticated `/api/v1/identity/roles/*` routes require both `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` and `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`. The restricted database connection is checked against the `ventio_identity_admin` profile. The Host process must run as the configured recovery-authority owner so it can advance the protected witness after an authorized change. Role changes revalidate the persistent credential, its direct `identity.roles.manage` grant and exact branch ceiling inside the recovery-admitted transaction. Renaming, changing permissions, or deleting a shared role requires authority in every branch where it is assigned. The reserved role-management permission cannot be delegated through a role. If either setting is omitted, startup fails closed when only one is configured; role routes remain unavailable when both are omitted.
+Persistent Host role and user administration require both `VENTIO_HOST_IDENTITY_API_DATABASE_URL` and `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`. The API connection is checked against the dedicated `ventio_identity_api` profile: it can execute only the scoped role/user mutations and Recovery Authority admission/read functions, cannot execute raw `admin_change` or recovery reset, and has no direct identity table or sequence privileges. The broader `ventio_identity_admin` profile remains for the separate trusted local operator CLI and is rejected by the persistent API verifier. The Host process must run as the configured Recovery Authority owner so it can advance the protected witness after an authorized change. Role and user changes revalidate the persistent credential, direct grant, and exact branch ceiling inside the recovery-admitted transaction. Shared role changes require authority in every branch where assigned. Reserved security namespaces cannot be delegated through roles or user grants. If only one of the API database URL and Host-write setting is configured, startup fails closed; the management routes remain unavailable when both are omitted.
 
 # Ventio Host API v0.1
 
@@ -42,7 +42,9 @@ External TLS listeners are supported when explicitly configured, but a productio
 - `POST /api/v1/extensions/records/query`: searches or fetches bounded pages of
   records for one Host-approved DocType, using its metadata to validate fields
   and its exact company/branch read grant on every request.
-- `POST /api/v1/identity/roles/*`: persistent-identity role administration when the restricted `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` is configured; every operation checks direct authority for the exact branch on Host.
+- `POST /api/v1/identity/roles/*`: persistent-identity role administration when the restricted `VENTIO_HOST_IDENTITY_API_DATABASE_URL` is configured; every operation checks direct authority for the exact branch on Host.
+- `POST /api/v1/management/users/{list,audit,create,grant,revoke,disable}`: exact-scope user inventory, sanitized audit history, unprivileged user creation, direct permission changes, and guarded disablement. Every action requires a direct `identity.users.manage` grant and a matching credential ceiling.
+- `POST /api/v1/management/devices/list` and `/revoke`: exact-scope device and credential metadata plus Host-side device revocation. Both require a direct `identity.devices.manage` grant, matching credential ceiling and Recovery Authority admission; revocation is denied if an active credential scope extends outside the selected branch.
 - `GET /api/v1/session`: authenticated identity discovery for the current
   tenant, device and exact company/branch grants; it never returns credentials.
 - `GET /healthz`: unauthenticated process liveness only, not database readiness.
@@ -106,17 +108,24 @@ Set these private environment variables:
 - `VENTIO_DEVELOPMENT_IDENTITY_FILE`: absolute path to a private JSON file outside
   the repository. Restrict access using operating-system file permissions.
 - `VENTIO_HOST_PORT`: optional, defaults to 8080; 0 chooses an available port.
+- `VENTIO_HOST_DIAGNOSTICS_FILE`: optional absolute path to a bounded durable
+  diagnostics ring buffer. The parent directory must already have a protected
+  ACL owned by the Host service identity. Protected SQLSTATE/type/source fields
+  are kept in this file; the public diagnostic JSON omits them. If unset, the
+  launcher uses an in-memory buffer for local development.
 - `VENTIO_HOST_BIND_ADDRESS`: optional, defaults to `127.0.0.1`. Use a specific
   interface address for a remote Host; wildcard addresses still require TLS.
 - `VENTIO_HOST_TLS_CERTIFICATE_FILE` and `VENTIO_HOST_TLS_PRIVATE_KEY_FILE`:
   required absolute paths for any non-loopback listener.
-- `VENTIO_HOST_IDENTITY_ADMIN_DATABASE_URL` and
-  `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`: configure both to enable Host role
-  administration. Run the Host under the recovery-authority owner SID/UID; this
-  trusted service identity can advance the witness only through the guarded
-  recovery-admitted change path. Use a restricted identity-admin login, never a
-  database owner, superuser, or migrator. Without this profile, use the trusted
-  operator CLI and keep the Host role routes disabled.
+- `VENTIO_HOST_IDENTITY_API_DATABASE_URL` and
+  `VENTIO_RECOVERY_AUTHORITY_HOST_WRITES=yes`: configure both to enable remote
+  Host role and user administration. Use a dedicated `ventio_identity_api`
+  login; never give the persistent API the trusted local identity-admin,
+  database owner, superuser, or migrator profile. Run the Host under the
+  Recovery Authority owner SID/UID so it can advance the witness only through
+  guarded recovery-admitted mutations. The trusted local operator CLI keeps its
+  separate `ventio_identity_admin` connection. Without the API profile, keep
+  the remote management routes disabled.
 
 Private identity file structure (all values are illustrative, not credentials):
 

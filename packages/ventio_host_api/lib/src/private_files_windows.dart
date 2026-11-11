@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -304,22 +305,27 @@ try {
         FileSystemEntityType.file) {
       throw StateError('Windows private-file runtime is unavailable');
     }
-    final process = await Process.start(powershell.path, [
-      '-NoLogo',
-      '-NoProfile',
-      '-NonInteractive',
-      '-EncodedCommand',
-      encodedScript,
-    ]);
-    final stdout = process.stdout.fold<List<int>>(<int>[], (bytes, chunk) {
-      if (bytes.length + chunk.length > 2 * 1024 * 1024) {
-        throw const FormatException('Protected file output too large');
-      }
-      bytes.addAll(chunk);
-      return bytes;
-    });
-    final stderr = process.stderr.transform(utf8.decoder).join();
+    Process? process;
+    Future<List<int>>? stdout;
+    Future<String>? stderr;
+    var phase = 'start';
     try {
+      process = await Process.start(powershell.path, [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        encodedScript,
+      ]);
+      stdout = process.stdout.fold<List<int>>(<int>[], (bytes, chunk) {
+        if (bytes.length + chunk.length > 2 * 1024 * 1024) {
+          throw const FormatException('Protected file output too large');
+        }
+        bytes.addAll(chunk);
+        return bytes;
+      });
+      stderr = process.stderr.transform(utf8.decoder).join();
+      phase = 'send_request';
       process.stdin.write(
         jsonEncode({
           'operation': operation,
@@ -329,21 +335,38 @@ try {
           'data': data,
         }),
       );
+      phase = 'close_request';
       await process.stdin.close().timeout(const Duration(seconds: 10));
+      phase = 'wait_for_helper';
       final code = await process.exitCode.timeout(const Duration(seconds: 10));
+      phase = 'collect_output';
       await stderr;
       final result = utf8.decode(await stdout);
-      if (code != 0) throw StateError('Protected file operation failed');
+      if (code != 0) {
+        phase = 'helper_rejected';
+        throw StateError('Protected file operation failed');
+      }
       if (operation == 'read' || operation.startsWith('witness-read')) {
         return utf8.decode(base64Decode(result.trim()));
       }
       return result;
-    } catch (error) {
-      process.kill();
-      await process.exitCode.timeout(const Duration(seconds: 2));
-      await stderr;
-      await stdout;
-      throw StateError('Protected file operation failed');
+    } catch (_) {
+      final child = process;
+      if (child != null) {
+        child.kill();
+        try {
+          await child.exitCode.timeout(const Duration(seconds: 2));
+        } on TimeoutException {
+          // Do not delay reporting a private-file helper failure indefinitely.
+        }
+      }
+      try {
+        await stderr!;
+        await stdout!;
+      } catch (_) {
+        // Drain failures are deliberately excluded from public error text.
+      }
+      throw StateError('Protected file operation failed ($operation, $phase)');
     }
   }
 }

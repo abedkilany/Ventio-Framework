@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>لوحة تقدم Ventio Wave 1 — Host/Client</title>
+  <style>
+    :root { color-scheme: light; --ink: #192b35; --muted: #536874; --line: #d5e0e3; --paper: #f4f8f7; --card: #fff; --teal: #155d56; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.65 "Segoe UI", Arial, sans-serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 18px 56px; }
+    h1, h2, h3 { line-height: 1.3; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 4vw, 2.4rem); }
+    h2 { margin-top: 30px; font-size: 1.35rem; }
+    h3 { margin: 0 0 8px; font-size: 1rem; }
+    p { margin: 8px 0; }
+    a { color: #075b86; }
+    .eyebrow { color: var(--teal); font-weight: 700; letter-spacing: .02em; }
+    .summary, .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 16px; margin: 20px 0; }
+    .metric { font-size: 1.65rem; font-weight: 750; color: var(--teal); }
+    .label { display: block; color: var(--muted); font-size: .88rem; }
+    .bar { height: 14px; border-radius: 99px; background: #e4eceb; overflow: hidden; }
+    .bar > span { display: block; width: 60%; height: 100%; background: var(--teal); }
+    .muted { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+    .status { display: inline-block; border: 1px solid currentColor; border-radius: 999px; padding: 1px 9px; font-size: .78rem; font-weight: 750; white-space: nowrap; }
+    .pass { color: #17613d; background: #e8f5ec; }
+    .progress { color: #805000; background: #fff5d8; }
+    .fail { color: #922d28; background: #ffedeb; }
+    .blocked { color: #713a87; background: #f6edfa; }
+    .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 800px; }
+    th, td { text-align: right; vertical-align: top; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+    th { background: #eaf1ef; }
+    tr:last-child td { border-bottom: 0; }
+    ul { margin: 6px 0; padding-right: 22px; }
+    li + li { margin-top: 4px; }
+    .callout { border-right: 4px solid #bb8122; padding: 10px 14px; background: #fff8e8; }
+    footer { border-top: 1px solid var(--line); margin-top: 32px; padding-top: 14px; color: var(--muted); font-size: .9rem; }
+    @media (max-width: 560px) { main { padding: 20px 12px 40px; } .summary, .card { padding: 14px; } }
+  </style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">لوحة التقدم الهندسي</p>
+  <h1>Ventio Wave 1 — إدارة Host/Client</h1>
+  <p>تعرض هذه اللوحة مراحل Wave 1 الإحدى عشرة وأوزان قبولها. سجل Extension Builder السابق، الذي يغطي 23 قدرة، دليل تاريخي مستقل ولا يدخل في هذا التقييم.</p>
+
+  <section class="summary" aria-label="ملخص التقدم الحالي">
+    <div>
+      <span class="label">الإنجاز المقبول في Wave 1</span>
+      <span class="metric">100%</span>
+      <div class="bar" role="img" aria-label="نسبة الإنجاز المقبول 100%"><span style="width:100%"></span></div>
+      <small>100 نقطة مقبولة من أصل 100 — القبول الهندسي الداخلي</small>
+    </div>
+    <div>
+      <span class="label">المهمة الهندسية الحالية</span>
+      <strong>أُغلق القبول الهندسي الداخلي لـWave 1</strong><br>
+      <span class="status pass">Stage 9 مغلقة (PASS)</span>
+    </div>
+    <div>
+      <span class="label">حالة المراحل الرسمية</span>
+      <strong>11 مكتمل (PASS)</strong>
+    </div>
+    <div>
+      <span class="label">مرجع Git للمصدر المختبر</span>
+      <strong><code>17edf08</code> مع تغييرات محلية موثقة</strong><br>
+      <small>أحدث مرشح داخلي: Wave1fix19 ‏0.1.18. اختبارات التثبيت الفعلي موثقة على Wave1fix18 والإصدارات السابقة المختبرة. <a href="../wave1/evidence-closure-2026-11-08/development-wave1fix19-candidate-20261111.json">دليل المرشح وبصمته</a>.</small>
+    </div>
+  </section>
+
+  <div class="callout"><strong>قاعدة القبول:</strong> لا تحصل المرحلة على وزنها إلا بعد تنفيذ جميع شروط الخروج واجتياز التحقق المطلوب. لا يُمنح رصيد جزئي. اكتمال تنفيذ Task هندسية لا يغيّر النسبة المقبولة ما لم تُغلق بوابة المرحلة الرسمية.</div>
+<!-- WAVE1-CLOSURE-STATUS:START -->
+<section class="card" aria-label="Wave 1 closure checkpoint">
+  <h2>Wave 1 Closure Checkpoint</h2>
+  <p><strong>Accepted progress:</strong> 100% (weighted stage ledger; unchanged until whole gates pass).</p>
+  <p><strong>Current operation:</strong> Wave 1 internal engineering acceptance is closed. Preserve the accepted lab fixture and evidence.</p>
+  <p><strong>Latest verified checkpoint:</strong> Stage 9 audit passed; all eleven gates accepted at 100% for the internal lab.</p>
+  <p><strong>Last updated:</strong> <time datetime="2026-11-10T22:25:05Z">2026-11-11 00:25:01 Asia/Beirut</time></p>
+  <div class="table-wrap"><table><thead><tr><th>Gate</th><th>Current status</th></tr></thead><tbody>
+    <tr><th>Stage 10</th><td>PASS — 20/20 accepted for the internal Windows candidate. Installed upgrade, restore, repair, default retention, explicit deletion, fresh install/failure handling and private service/configuration checks passed. Candidate remains unsigned.</td></tr>
+<tr><th>Stage 3</th><td>PASS — 11/11 accepted. Installed clean setup, exact failure/export, guarded retry, app interruption/resume, first-admin persistence, authenticated readiness and safe repeat passed. Prior reboot evidence applies to byte-identical Host/PostgreSQL executables.</td></tr>
+<tr><th>Stage 8</th><td>PASS — 6/6 accepted. Physical enrollment, submission, distinct authorized review, offline delivery, receipts, independent Windows/Android readback and permission denial passed. Stage 3/10 dependencies are now closed. Android Name sorting remains owner-deferred.</td></tr>
+<tr><th>Stage 9</th><td>PASS — 3/3 accepted. Scoped security/compatibility audit and W1-UI-001 regression complete. Verified internal Windows candidate, no additional owner UI checks, and production restrictions recorded.</td></tr>
+  </tbody></table></div>
+  <p><strong>Historical grouped closure runs:</strong> PASS 87 · FAIL 19 · BLOCKED 8 · NOT RUN 22. These totals include superseded attempts.</p>
+  <p><strong>Pending mandatory owner UI:</strong> None for Wave 1 internal acceptance.</p>
+  <p><strong>Active limitations:</strong> Production distribution remains blocked by unsigned packaging, unverified commercial toolchain licensing and no demonstrated sole-owner recovery without a valid operator. Android Name sorting remains deferred. Wave1fix19 was built and verified; the installed lifecycle evidence is on Wave1fix18 and tested predecessors.</p>
+  <div class="grid">
+    <section><h3>Completed operations</h3><ul><li>Verified Host and Client physical UUIDs differ despite duplicate hostname text</li>
+<li>Diagnosed the exact missing extension runtime function in the installed Host startup path from PostgreSQL event 2783</li>
+<li>Added migration 036 to restore ten scoped extension runtime definitions and intended ACLs on upgraded databases</li>
+<li>Passed 22-check disposable Recovery Authority upgrade regression, including function restoration, ACL boundaries, identity preservation, and recovery scenarios</li>
+<li>Dart analysis and Windows installer path-contract checks passed</li>
+<li>Built and checksum-verified Wave1fix11 0.1.18 Windows installer</li>
+<li>Installed Host 0.1.18+19; verified both Ventio services and HTTPS health before reboot</li>
+<li>Enabled and verified Host LAN HTTPS listener, certificate fingerprint, and Private firewall rule</li>
+<li>Installed Client 0.1.18+19 and verified pinned HTTPS health before Host reboot</li>
+<li>Preserved Host failure event, installer logs, trust-helper failure, post-reboot probes, and checksums</li>
+<li>Reconnected to Host over SSH with existing ventio_lab key; verified ABEDKILANY, abedkilany account, and High Integrity token</li>
+<li>Verified Host sshd, VentioHost, and VentioPostgres Running/Automatic; port 8443 listening; pinned HTTPS /healthz returned HTTP 200 alive</li>
+<li>Finalized Wave1fix12 evidence: reboot-time SSH outage cause, Client queue check, pinned TLS regression, Client trust validation, and Client repeat-install data preservation</li>
+<li>Verified Host Ventio virtual service identities and protected ProgramData, Host, and PostgreSQL data ACLs without modifying them</li>
+<li>Rechecked final 0.1.18 internal installer SHA-256 against its manifest; Authenticode signature status recorded</li>
+<li>Connected to Host RDP, visually confirmed machine name, and inspected Ventio Host Setup and Host Settings without changing state</li>
+<li>Reconnected to Host with existing ventio_lab key; verified ABEDKILANY, abedkilany account, High Integrity token, and both Ventio services Running/Automatic</li>
+<li>Verified current certificate-pinned Host HTTPS /healthz from Development: HTTP 200, TLS verify result 0, alive response</li>
+<li>Inspected the installed Host Setup retry and read-only sanitized diagnostic: existing-profile session authentication failed; no second bootstrap or Host state change occurred</li>
+<li>Preserved read-only copies of Host user diagnostic/profile SQLite metadata and sidecars in the Wave1fix14 evidence directory</li>
+<li>Fixed HostSetup transport-code collapsing and passed focused Host Setup regression suite 26/26 plus targeted Flutter analysis</li>
+<li>Built unsigned 0.1.18 Wave1fix14 Windows acceptance candidate; Inno compile and installer path, prerequisite, and Host privilege boundary checks passed</li>
+<li>Transferred the candidate installer to Host temporary storage and independently verified its SHA-256 matches the Development artifact</li>
+<li>Reproduced Host in-place installer post-install failure HOST_LAN_HOST_SERVICE_MUST_BE_STOPPED and preserved the full Inno log</li>
+<li>Traced installer ordering: Recovery Authority upgrade starts VentioHost before the LAN listener helper enforces its stopped-service precondition</li>
+<li>Added the supported Host stop step between database upgrade and LAN configuration and a regression contract for this ordering; path-contract suite passed</li>
+<li>Built and ran Wave1fix15 on Host; in-place installer exited 0 and post-upgrade services, LAN HTTPS liveness, and recovery-policy cleanup verified</li>
+<li>Reconfirmed Host and Client are distinct physical systems using UUID and MachineGuid despite duplicate computer-name text</li>
+<li>Preserved a read-only Client queue database/WAL/SHM snapshot; confirmed SYNC-TEST-001 remains in the pending envelope with zero attempts</li>
+<li>Transferred checksum-matched Wave1fix15 installer to Client and completed physical same-version repeat installation with local-data hashes unchanged</li>
+<li>Completed scoped Stage 9 source review; installer ordering contract recheck passed and git diff --check returned exit 0 with line-ending warnings only</li>
+<li>Ran the physical Client silent uninstall and reinstall; application files/registry were removed then restored, while all user app-support hashes remained unchanged</li>
+<li>Passed the disposable Host removal diagnostic archive and partial-install state regression suite</li>
+<li>Passed Host product data-root ACL regression checks for restricted service traversal and boundary enforcement</li>
+<li>Reconnected to Host with ventio_lab; verified authenticated High Integrity administrative SSH, ABEDKILANY identity, 0.1.18, three Automatic Running services, and listeners on 22/3389/8443</li>
+<li>Verified Development-to-Host certificate-pinned HTTPS /healthz: HTTP 200, TLS verify result 0, alive response; this is liveness, not authenticated readiness</li>
+<li>Correlated post-reboot network outage with Host Wi-Fi disconnects at 12:48:13 and 13:19:13 and current DHCP lease at 13:20:42; sshd listening at 12:47:34 and successful key authentication at 12:47:54; precise WLAN trigger not established</li>
+<li>Opened Host RDP and verified an Active abedkilany rdp-tcp#0 session with quser over SSH; Computer Use cannot capture the RDP desktop because the foreground window reports no process ID, so Overview remains visually unverified</li>
+<li>Verified the live pinned-TLS management-readiness route rejects a request without bearer credentials with HTTP 401 UNAUTHENTICATED; no readiness result was claimed</li>
+<li>Correlated post-reboot Wi-Fi loss to two Kernel-Power sleeps with reason Button or Lid and Power Button wake events; WLAN/NDIS low-power transitions and delayed DHCP align with the sleep intervals</li>
+<li>Changed only AC lid-close and power-button actions from Sleep to Do nothing on the dedicated Host; DC actions remained Sleep and AC sleep-after remained Never</li>
+<li>Rebooted Host to regress the sleep-policy correction; first bounded SSH check passed, High Integrity/services/TLS verified, corrected AC settings persisted, and no post-boot sleep event appeared after the prior 53-second transition window</li>
+<li>Reauthenticated to Host with the existing ventio_lab key; verified ABEDKILANY, account abedkilany\abedkilany, High Integrity SID S-1-16-12288, Automatic/Running sshd/VentioHost/VentioPostgres, listeners 22/3389/8443, and HTTPS /healthz alive HTTP 200</li>
+<li>Verified four installed Host SetupStatus records as complete first-administrator broker handoffs; source semantics confirm ACK completion but not live readiness</li>
+<li>Verified the Wave1fix15 repair-test installer against its manifest and Host-side SHA-256, preserved the pre-test Client executable and PostgreSQL cluster identifier, and recorded the local policy rejection before installer execution</li>
+<li>Verified after the blocked installer attempt that the Host executable hash and PostgreSQL system identifier were unchanged, services remained Automatic/Running, and /healthz returned HTTP 200</li>
+<li>Refreshed Computer Use inventory; no Host RDP or Ventio window was available, and no capture retry or UI input was made</li>
+<li>Compared the Host&#x27;s pre-upgrade PostgreSQL backup and current cluster with pg_controldata; matching system identifier verifies cluster lineage only</li>
+<li>Reviewed four existing Host installer/connection failure cases and recorded their observed codes, corrections, and acceptance limits without rerunning them</li>
+<li>Freshly reconnected to Host over ventio_lab SSH; verified identity, High Integrity, services, listeners, installed version 0.1.18, and HTTPS health</li>
+<li>Sampled the newest 200 Host Application events over authenticated SSH; the known PostgreSQL missing-routine signature was absent from 85 PostgreSQL event XMLs</li>
+<li>Revalidated the Wave1fix15 Windows acceptance installer SHA-256 against its manifest; Authenticode remains NotSigned</li>
+<li>Ran git diff --check on the current tracked diff; exit 0 with line-ending normalization warnings only</li>
+<li>Revalidated Host SSH/services/HTTPS and physical Client-to-Host TCP 8443; inspected the authenticated readiness API contract and documented the one owner-confirmed Host UI capture</li>
+<li>Verified current Host LAN certificate fingerprint against preserved PEM and physical Client pinned HTTPS health after Host recovery</li>
+<li>Rehashed Client SQLite/WAL/SHM and confirmed exact match to the preserved SYNC-TEST-001 snapshot</li>
+<li>Audited the installer process-creation rejection against Codex execution policy and Development Windows policy event channels</li>
+<li>Verified Development and Host copies of Ventio-Setup-0.1.18.exe against SHA-256 8e921367a6a7139a232fdf0a9f5fd3d1d61703bbf53d25c3ca705991d446b284; both are 104200244 bytes. Development Authenticode status is NotSigned. Installer was not run.</li>
+<li>Located the Host pre-upgrade backup by its recorded timestamp and verified its data directory file count and byte total exactly match the backup manifest; no data or service state changed.</li>
+<li>Verified High Integrity SSH and physical hardware UUIDs for Host and Client; reused existing successful physical upgrade/reboot/retention results</li>
+<li>Verified 74 installed Host payload entries against the exact Development build manifest and matched installed Flutter runner and AOT on both computers</li>
+<li>Passed focused Flutter (45), PostgreSQL extension review (145), coordinated schema upgrade (23), Setup Broker, Host Service, provisioning redaction and installer path checks</li>
+<li>Added isolated migration regression for scoped business payload, revision, status and non-deletion across Recovery Authority-coordinated upgrade</li>
+<li>Prepared the consolidated owner UI checklist and exact policy-gated repair procedure</li>
+<li>Fixed the dashboard validator to identify the formal ledger and history despite the inserted checkpoint table; validation passed at 60%</li>
+<li>Built and signature-verified the internal Android 0.1.18+19 APK in an isolated copy without overwriting prior Android or Windows artifacts</li>
+<li>Verified Windows upgrade backup diagnostics for four failure paths, restricted ACLs, partial evidence retention, and prior backup preservation</li>
+<li>Fresh physical Host and Client installation after owner removal verified against the same SHA-256 and pinned payload manifest</li>
+<li>Fresh Host first-admin handoff and verified LAN health from physical Client</li>
+<li>Owner evidence for authenticated Host readiness and initial physical Client enrollment</li>
+<li>Owner verified Host device inventory and persisted Client profile after reopen</li>
+<li>Reopened physical Client reached authenticated Host registry and was denied the missing scoped grant</li>
+<li>Physical registry distinguished scoped user grant from device credential ceiling</li>
+<li>Physical Client approved registry read succeeded in CD / EF</li>
+<li>Owner reviewer list loaded empty; sync.test fixture staged on physical Client</li>
+<li>Owner enrolled publisher Client in separate Windows profile</li>
+<li>Physical publisher submission verified and reviewer digest reproduced</li>
+<li>Owner verified independent Client approval and approved registry publication</li>
+<li>Physical Client installed the Host-approved sync.test package</li>
+<li>Physical offline Product creation queued with no Host attempts</li>
+<li>Physical offline command persisted after reopen and Host accepted it on first attempt</li>
+<li>Physical Android browser reached Host health after its certificate warning</li>
+<li>Corroborated physical Android enrollment through authenticated scoped approved registry access</li>
+<li>Verified SYNC-W1-OFFLINE-01 revision 1 on an independently enrolled physical Android Client</li>
+<li>Physical Android queued create confirmed by Host on first attempt</li>
+<li>Independent physical Windows readback of Android-created record passed</li>
+<li>Physical Windows Client denied Product read for separate test account</li>
+<li>Physical Android pending command survived offline phone restart</li>
+<li>Verified clean Framework Host paths, services, ports and candidate integrity on native Development. Focused Windows guard rechecks passed.</li>
+<li>Native Development Framework install and installed fresh plan verified</li>
+<li>Development first administrator and authenticated readiness after app reopen verified</li>
+<li>Repaired Development LAN using verified installed helper and confirmed pinned HTTPS plus Private LocalSubnet firewall</li>
+<li>Wave1fix16 candidate built for first-run LAN ordering repair</li>
+<li>Development synthetic submitter created and pinned control client preflight passed</li>
+<li>Installed Wave1fix16 upgrade and verified backup restore preserved the authenticated control row</li>
+<li>Owner-run native Wave1fix16 repair verified with authenticated record preservation</li>
+<li>Windows reboot and automatic Ventio service startup verified</li>
+<li>Authenticated Host Overview passed after the Development Windows reboot</li>
+<li>Built and verified the internal Wave1fix17 installer with the retained-Host reactivation command</li>
+<li>Wave1fix17 upgrade logged success and passed installed payload, automatic services and pinned HTTPS checks</li>
+<li>Owner&#x27;s elevated PostgreSQL control read matched the original cluster identifier on Wave1fix17</li>
+<li>Wave1fix17 pre-removal baseline passed including the authenticated Product control row</li>
+<li>Owner verified the Framework uninstall checkbox defaults to retaining Host data</li>
+<li>Wave1fix17 default-retention uninstall completed and the Framework runner and services were removed</li>
+<li>Retained data and original cluster verified after removal, Wave1fix17 reinstalled and reactivation plan passed</li>
+<li>Retained Host services were re-registered and returned to Automatic and Running with pinned HTTPS</li>
+<li>Installed Wave1fix17 Host retention cycle passed with authenticated same-record readback after reactivation</li>
+<li>Protected archive outside the deletion boundary passed the 9,888-entry audit</li>
+<li>Same-machine recovery copy staged and verified before explicit fixture deletion</li>
+<li>Explicit Framework uninstall removed the native Host data root, runner and services</li>
+<li>Explicit-delete boundaries and clean Wave1fix17 install verified; controlled PostgreSQL collision ready</li>
+<li>Installed Host Setup exported a sanitized profile-guard diagnostic before provisioning</li>
+<li>Installed port-collision failure reproduced with a sanitized export and exact-code propagation gap identified</li>
+<li>Built verified Wave1fix18 with exact port-collision diagnostics and guarded retry</li>
+<li>Windows PowerShell refused the owner replay script before execution</li>
+<li>Disposable Windows account uses the default Restricted script policy; ordinary installer path selected</li>
+<li>Wave1fix18 installed payload verified and the controlled PostgreSQL collision remains ready</li>
+<li>Installed Wave1fix18 correctly reported the PostgreSQL collision and exported sanitized retry guidance</li>
+<li>Wave1fix18 retried after port release and the Broker reached HOST_READINESS while the app was closed</li>
+<li>Installed failure, safe retry, app interruption and authenticated resume passed on Wave1fix18</li>
+<li>Elevated installed audit passed payload, service identity, protected ACL and consumed-handoff checks</li>
+<li>Stages 3, 10 and 8 accepted after installed safe repeat; formal weighted acceptance is 97%</li>
+<li>W1-UI-001 reproduced with a successful grant and failed read, corrected, and verified by 17 focused Flutter tests and targeted analysis.</li>
+<li>Wave1fix19 Windows Release and installer verification passed; the 76 critical Host hashes match the installed Wave1fix18 payload and only data/app.so differs among the 16 Client files.</li>
+<li>Stage 9 audit passed; all eleven gates accepted at 100% for the internal lab.</li></ul></section>
+    <section><h3>Detected defects</h3><ul><li>PowerShell/.NET Framework File.Replace rejected a null backup path in PostgreSQL config replacement; corrected in prior closure work</li>
+<li>The same null-backup replacement overload blocked Recovery Authority request rotation and related protected config writes; corrected with same-directory backup paths</li>
+<li>Trusted schema verifier queried credential_reissue_pending_claim(text,text) instead of declared one-argument signature; corrected</li>
+<li>Installed upgrade migration history omitted scoped extension runtime definitions present in fresh bootstrap; Host startup failed SQLSTATE 42883 for list_extension_submissions</li>
+<li>Supported Client Windows trust helper rejects the Host certificate under normal chain validation; no TLS bypass used</li>
+<li>Before correction, Host entered sleep twice after reboot with Kernel-Power reason Button or Lid and woke from Power Button; NDIS/WLAN disconnect and delayed DHCP aligned with the sleep intervals. AC lid-close/power-button actions were changed to Do nothing and the correction survived a controlled reboot without repeat sleep through the prior sleep window.</li>
+<li>Computer Use connects to Host RDP but monitor capture fails with IGraphicsCaptureItemInterop.CreateForMonitor 0x80070057; Host Overview remains visually unverified</li>
+<li>Duplicate Host/Client Windows hostname text; physical UUIDs confirm distinct computers</li>
+<li>Installed Host Setup existing-profile verification records only HOST_SESSION_AUTHENTICATION_FAILED and discards the validated Host transport response code, preventing exact diagnosis; underlying saved-session cause remains unresolved</li>
+<li>Wave1fix14 in-place Host installer allowed Recovery Authority upgrade to start VentioHost and then called the LAN helper without stopping it; helper correctly failed HOST_LAN_HOST_SERVICE_MUST_BE_STOPPED</li>
+<li>Existing-owner recovery gap when no valid Ventio operator credential remains; the exact reason for the observed 401 is unverified.</li>
+<li>W1-UI-001: saved permission acknowledgement and failed list refresh were conflated. Corrected in Wave1fix19; the cause of the intermittent read failure remains unknown.</li>
+<li>Physical Android Product list failed after the Host query with Sort by Name. Local SQLite field sorting is a suspect; exact exception unverified. Owner deferred repair until after Wave 1. Excluded from Stage 8 acceptance.</li>
+<li>Record list cards incorrectly labeled Host-accepted rows as local only. Confirmed unconditional subtitle in source.</li>
+<li>Fresh Host LAN setup probes the API before first-admin acknowledgement and rolls back to loopback. Reproduced on Wave1fix15.</li>
+<li>Installed retained-Host lifecycle originally lacked reactivation after default removal; Wave1fix17 reactivation and authenticated readback passed.</li>
+<li>Installed Host Setup loses POSTGRES_PORT_IN_USE in the broker allowlist and leaves the failed operation terminal. The clean-only guard also rejects the protected diagnostic directory created during the failed preflight.</li></ul></section>
+    <section><h3>Implemented fixes</h3><ul><li>Use unique same-directory replacement backups for affected Windows File.Replace operations</li>
+<li>Use declared one-argument credential-reissue signature in trusted schema verifier</li>
+<li>Add migration 036 with conditional scoped restoration of ten extension runtime functions and intended ACLs</li>
+<li>Add regression reproducing a missing extension function and verifying migration restoration, ACL boundaries, and identity preservation</li>
+<li>Parse PostgreSQL quoted function signature safely in the Host startup diagnostic allowlist</li>
+<li>Preserve validated HostPackageTransportException codes through existing-profile Host Setup session verification; regression test covers surfaced safe code</li>
+<li>Stop VentioHost after successful Recovery Authority database upgrade and before LAN listener configuration while preserving the maintenance recovery-policy journal</li>
+<li>On the dedicated AC-powered Host test machine, set Balanced-plan lid-close and power-button actions to Do nothing on AC only (DC values unchanged); verify persistence and no recurrence of the sleep outage after a controlled reboot</li>
+<li>Select the formal progress ledger and milestone history tables by their headers in the dashboard validator.</li>
+<li>Record cards distinguish Host-accepted rows, local-only rows and other authority states. Focused widget regression passed. Deployment pending.</li>
+<li>Stage LAN TLS before bootstrap and publish LAN readiness after engine startup under the dedicated service identity; verified on the fresh installed Wave1fix18 fixture.</li>
+<li>Same-machine retained-Host reactivation added and verified with actual uninstall/reinstall, the original cluster and pin and the identical authorized control row.</li>
+<li>Wave1fix18 propagates POSTGRES_PORT_IN_USE and permits a new setup operation only for that exact failed phase with no registered services. Protected diagnostics-only state is accepted; existing data, migration credentials and other failures stay guarded.</li>
+<li>Separate confirmed user changes from list reload errors; refresh reads the list without replaying the mutation.</li></ul></section>
+  </div>
+  <h3>Supporting evidence</h3><ul><li><a href="../wave1/evidence-closure-2026-11-08/host-upgrade-root-cause-2026-11-09.md">Host upgrade root cause and corrections</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix2-service-start/installer.log">Wave1fix2 failed service-start installer log</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix2-service-start/backup-manifest.json">Wave1fix2 protected backup manifest</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix2-service-start/schema-upgrade-result.json">Wave1fix2 sanitized schema-upgrade result</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix2-service-start/upgrade-transcript.log">Wave1fix2 upgrade transcript</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix4-readiness/startup-failure.json">Wave1fix4 sanitized startup failure</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix4-readiness/schema-upgrade-result.json">Wave1fix4 completed upgrade result</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix4-readiness/installer.log">Wave1fix4 installer log</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix5-readiness/startup-failure.json">Wave1fix5 sanitized startup failure</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix5-readiness/schema-upgrade-result.json">Wave1fix5 completed upgrade result</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix5-readiness/installer.log">Wave1fix5 installer log</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/execution-history.jsonl">Append-only execution history</a></li>
+<li><a href="../wave1/final-audit-preparation-20261102.md">Existing formal stage ledger</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix8-readiness/startup-failure.json">Wave1fix8 Host readiness evidence</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix9-installer-sha256.txt">Wave1fix9 installer checksum</a></li>
+<li><a href="../wave1/wave1-final-closure-2026-11-09.md">Current Wave 1 closure report</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix11-acceptance-evidence.md">Wave1fix11 acceptance evidence</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix11-readiness/installer.log">Wave1fix11 Host installer log</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix11-readiness/missing-extension-function-postgres-event.xml">PostgreSQL missing-function event record</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-schema-upgrade-disposable-regression-wave1fix10.log">Migration 036 regression log (22 checks)</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix11-readiness/client-trust-helper-failure.log">Client certificate trust failure</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix11-readiness/post-reboot-access-check.txt">Host post-reboot reachability</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix11-readiness/installer-sha256.txt">Wave1fix11 installer SHA-256</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix12-resumed-checkpoint-2026-11-09.md">Wave1fix12 resumed checkpoint</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix12-current-check.log">Fresh Host SSH, service, and TLS check</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/pinned-tls-regression-wave1fix12.log">Pinned TLS automated regression</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/client-repeat-install-postcheck-wave1fix12.log">Client repeat-install result</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix12-current-check.log">Host service identity and ACL verification</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix12-installer-check.txt">Final Windows acceptance installer checksum</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix13-ui-evidence-2026-11-09.md">Wave1fix13 physical Host UI inspection</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix14-resumed-2026-11-09.md">Wave1fix14 Host access, setup failure, and diagnostic correction</a></li>
+<li><a href="../wave1/../../artifacts/ventio-windows-acceptance-0.1.18-wave1fix14-20261109/installers/unified/Ventio-Setup-SHA256SUMS.txt">Wave1fix14 Windows acceptance installer checksum</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix14-resumed-2026-11-09.md">Wave1fix15 physical Host in-place upgrade</a></li>
+<li><a href="../wave1/../../artifacts/ventio-windows-acceptance-0.1.18-wave1fix15-20261109/installers/unified/Ventio-Setup-SHA256SUMS.txt">Wave1fix15 installer SHA-256</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix15-client-repeat-install-and-host-reboot-2026-11-09.md">Wave1fix15 Client repeat install and Host reboot checkpoint</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/client-queue-preservation-20261109.json">Preserved Client pending queue summary</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-wave1fix15-reboot-probes.log">Host reboot-persistence command output</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/client-preserved-2026-11-09/client-wave1fix15-installer.log">Physical Client Wave1fix15 installer log</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix15-client-repeat-install-and-host-reboot-2026-11-09.md">Wave1fix15 scoped Stage 9 review and physical follow-up</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/client-preserved-2026-11-09/client-wave1fix15-uninstall.log">Client silent uninstall/reinstall logs</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/client-preserved-2026-11-09/client-wave1fix15-reinstall.log">Client silent reinstall log</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-removal-diagnostic-archive-regression-20261109.log">Host removal and product-data-root regression outputs</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix15-final-installer-check-20261109.txt">Wave1fix15 final installer hash/signature check</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-reboot-connectivity-investigation-2026-11-09.md">Host reboot network investigation</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-reboot-connectivity-investigation-2026-11-09.md">Host AC sleep correction and reboot regression</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-current-ssh-services-health-2026-11-09.md">Host current SSH, services, and HTTPS revalidation</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-setup-status-and-repair-check-2026-11-09.md">Installed Host SetupStatus and repair-check disposition</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-post-upgrade-backup-identity-2026-11-09.md">Host pre-upgrade backup cluster identity comparison</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/stage10-historical-failure-evidence-review-2026-11-09.md">Stage 10 historical failure evidence review</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-current-ssh-recheck-2026-11-09.md">Fresh Host SSH/service/HTTPS recheck</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-current-startup-event-sample-2026-11-09.md">Current Host startup event sample</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/wave1fix15-installer-artifact-recheck-2026-11-09.md">Wave1fix15 installer artifact recheck</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/stage9-source-hygiene-check-2026-11-09.md">Stage 9 source hygiene check</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-rdp-launch-computer-use-limitation-2026-11-09.md">Host RDP Computer Use launch limitation</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-assisted-ui-and-authentication-status-2026-11-09.md">Owner-assisted UI and authenticated CLI status</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/installer-process-policy-source-and-client-queue-2026-11-09.md">Installer policy source and Client queue/TLS checks</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/installer-process-policy-source-and-client-queue-2026-11-09.md">Installer process-policy source and verified installer</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-post-upgrade-backup-identity-2026-11-09.md">Host pre-upgrade backup identity and manifest verification</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/host-administrator-credential-recovery-investigation-2026-11-09.md">Host administrator credential recovery investigation</a></li>
+<li><a href="../wave1/wave1-ssh-engineering-completion-2026-11-09.md">SSH-only engineering completion and acceptance matrix</a></li>
+<li><a href="../wave1/WAVE1-OWNER-UI-ACCEPTANCE.md">Consolidated owner UI acceptance</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-only-installed-host-payload.log">Installed Host payload integrity</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-only-extension-review-regression.log">Isolated scoped review integration (145)</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-only-upgrade-business-record-regression.log">Isolated upgrade/business-row preservation (23)</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-only-android-build.log">Android 0.1.18+19 build and verified test signature</a></li>
+<li><a href="../wave1/../../artifacts/ventio-android-acceptance-0.1.18-20261109/Ventio-Android-0.1.18+19-internal.apk">Android 0.1.18+19 internal test APK</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-only-upgrade-backup-failure-matrix.log">Windows backup failure matrix (32 checks)</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-fresh-reinstall-host-20261109.log">Clean physical reinstall — Host</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-fresh-reinstall-client-20261109.log">Clean physical reinstall — Client</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-fresh-bootstrap-host-20261109.log">Installed first-admin state</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-post-bootstrap-lan-enable-20261109.log">Post-bootstrap LAN helper</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-fresh-bootstrap-client-20261109.log">Physical Client TLS after fresh Host setup</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-host-authenticated-ready-20261109.png">Owner authenticated Host Overview READY</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-enrolled-20261109.png">Owner physical Client enrollment</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-profile-after-reopen-20261109.png">Owner Client profile persisted after reopen</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-host-device-inventory-20261109.png">Owner Host device inventory cross-check</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-registry-user-permission-denied-20261109.png">Owner physical Client registry authorization denial</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-package-read-granted-20261109.png">Owner scoped package read user grant</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-registry-ceiling-denied-20261109.png">Owner existing Client credential ceiling denial</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-approved-registry-access-20261109.png">Owner authorized registry result</a></li>
+<li><a href="../wave1/../../fixtures/wave1/sync-test-extension.json">Validated fresh sync.test candidate</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-review-registry-empty-20261109.png">Owner empty candidate review list</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-publisher-client-enrolled-20261109.png">Publisher Client enrollment</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-sync-test-candidate-submitted-20261109.png">Owner physical pending sync.test submission</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-sync-test-approved-20261109.png">Owner Client approval</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-sync-test-registry-visible-20261109.png">Owner approved package visible</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-installed-approved-sync-test-20261109.png">Owner approved installation</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-user-list-error-after-grant-20261109.png">W1-UI-001 error immediately after grant</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-user-list-recovered-after-refresh-20261109.png">W1-UI-001 persisted grants after Refresh</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-offline-product-pending-20261110.jpeg">Owner offline Product queued</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-pending-after-reopen-20261110.png">Owner queue after offline reopen</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-client-host-confirmed-20261110.png">Owner Host confirmation</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-client-offline-product-receipt-20261110.log">SSH read-only stored Host receipt</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/ssh-client-offline-product-reconciled-20261110.log">SSH read-only reconciled Product</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-enrollment-network-failure-20261110.jpg">Physical Android enrollment failure</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-browser-health-20261110.jpeg">Physical Android browser Host liveness</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-approved-registry-20261110.jpg">Physical Android approved registry</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-product-readback-failure-20261110.jpg">Physical Android Product list failure</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-independent-product-readback-20261110.jpeg">Independent physical Android Product readback</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-offline-product-pending-20261110.jpeg">Physical Android queued create</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-offline-product-confirmed-20261110.jpeg">Physical Android Host-confirmed create</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-windows-android-product-readback-20261110.png">Independent Windows readback of Android-created Product</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-windows-product-read-denied-20261110.png">Physical Windows Product read denial</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-android-offline-product-pending-20261110.jpeg">Physical Android pending after offline phone restart</a></li>
+<li><a href="../wave1/wave1-ssh-engineering-completion-2026-11-09.md#2026-11-10-native-development-preflight">Native Development Host preflight</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix15-installed-attestation-20261110.log">Native Development installed Framework attestation</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-host-first-run-readiness-20261110.log">Native Development first run and authenticated readiness</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-host-setup-complete-no-uac-20261110.png">Owner Development setup completed without prompt</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix16-candidate-20261110.json">Wave1fix16 LAN bootstrap installer attestation</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-cluster-baseline-20261110.json">Native pre-upgrade PostgreSQL and LAN identity</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-business-record-before-fix16-20261110.json">Development pre-upgrade authenticated control row</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-business-record-after-fix16-20261110.json">Development post-upgrade authenticated control row</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-fix16-upgrade-backup-verification-20261110.json">Development upgrade backup inventory and cluster identity</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-business-record-after-restore-20261110.json">Development post-restore authenticated control row and readiness</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix16-repair-verification-20261110.json">Development same-version runner repair</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix16-post-reboot-20261110.json">Development reboot and pinned HTTPS</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-host-overview-post-reboot-20261110.png">Development owner-authenticated Host Overview after Windows reboot</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix17-candidate-20261110.json">Wave1fix17 retained-Host reactivation candidate</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix17-installed-baseline-20261110.json">Installed Wave1fix17 pre-removal checkpoint</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix17-uninstall-retention-choice-20261110.png">Owner screenshot of the default retention choice</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix17-uninstall-complete-20261110.png">Owner screenshot of the completed retention uninstall</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix17-fixture-safety-archive-20261110.json">Development protected archive audit before explicit deletion</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix17-explicit-delete-choice-20261110.png">Owner selection of explicit Framework data deletion</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix17-explicit-delete-complete-20261110.png">Owner confirmation of completed explicit uninstall</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix17-host-profile-guard-report-20261110.json">Owner sanitized Host profile guard report</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix17-host-profile-guard-20261110.png">Owner screenshot of the installed Host profile guard</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix17-controlled-postgres-failure-20261110.json">Installed controlled PostgreSQL port collision report</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix17-controlled-postgres-failure-20261110.png">Owner screenshot of the controlled PostgreSQL failure</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix18-candidate-20261110.json">Verified Wave1fix18 Windows candidate</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix18-installed-20261110.json">Wave1fix18 installed payload and fixture preflight</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix18-postgres-port-collision-20261110.png">Owner screenshot of the corrected port collision</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix18-retry-closed-runner-20261110.jsonl">Wave1fix18 retry trace with the Flutter runner closed</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix18-authenticated-resume-ready-20261110.png">Wave1fix18 authenticated resume and READY overview</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix18-resume-scope-20261110.png">Wave1fix18 restored scope before resume</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix18-repeat-setup-screen-20261111.png">Reopened setup screen awaiting repeated readiness check</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix18-safe-repeat-ready-20261111.png">Installed safe repeated readiness</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/owner-development-wave1fix18-safe-repeat-steps-20261111.png">Installed completed repeated setup steps</a></li>
+<li><a href="../wave1/final-audit-preparation-20261102.md">Final scoped audit and closure decision</a></li>
+<li><a href="../wave1/final-acceptance-report.md">Final formal acceptance record</a></li>
+<li><a href="../wave1/evidence-closure-2026-11-08/development-wave1fix19-candidate-20261111.json">Verified Wave1fix19 Windows candidate and file delta</a></li>
+<li><a href="../wave1/WAVE1-OWNER-UI-ACCEPTANCE.md">Completed owner UI acceptance checklist</a></li></ul>
+  <p class="muted">Refresh after appending an evidence event and updating dashboard-state.json: run <code>python scripts/wave1/update_progress_dashboard.py</code> from the repository root. This is a standalone HTML file; it does not refresh itself automatically.</p>
+</section>
+<!-- WAVE1-CLOSURE-STATUS:END -->
+
+  <h2>جاهزية Host المستقلة</h2>
+  <section class="card">
+    <h3>الحالة: مكتمل (PASS)</h3>
+    <p>على كمبيوتر Windows 11 منفصل، أُجري تثبيت جديد وأُكمل Host Setup عبر Flutter. بعد إعادة التشغيل، أُغلق Flutter وتأكد المالك من بقاء الخدمتين تعملان، ثم أعاد فتح التطبيق. أظهرت الصور Host Overview بحالة <code>READY</code> وHost Settings بجلسة مدير موثقة.</p>
+    <p><strong>ما تم التحقق منه:</strong> إتمام خطوات إعداد Host الست، والخدمتان <code>VentioPostgres</code> و<code>Ventio Host Engine</code> بحالة <code>Running</code> وبدء <code>Automatic</code> بهويتي الخدمة المقصودتين، وجاهزية API وPostgreSQL والمخطط وRecovery Authority، واستعادة جلسة المدير بالنطاق الدقيق والصلاحيات الست بعد إعادة التشغيل.</p>
+    <p><strong>دليل الشبكة (2026-11-01):</strong> على جهاز التطوير ذي Host قائم، اكتمل تحديث المثبت دون إعادة تهيئة قاعدة البيانات. خدمتا Host وPostgreSQL تعملان بهويتيهما المقصودتين، والمنفذ <code>8443</code> يستمع على <code>0.0.0.0</code>، وطلب HTTPS محلي إلى <code>/healthz</code> أعاد <code>200</code>. قاعدة الجدار الناري مفعّلة على البرنامج الصحيح، ومنفذ TCP <code>8443</code>، وملف تعريف <code>Private</code>، ونطاق <code>LocalSubnet</code>. صور المالك بعد تثبيت النسخة ذات البصمة المطابقة تعرض في Host Settings عنوان LAN ‏<code>https://HOST_PRIVATE_LAN_IP:8443</code> وبصمة شهادة TLS وتحذير الشهادة الذاتية. من جهاز الاختبار <code>CLIENT_PRIVATE_LAN_IP</code> أعاد طلب HTTPS إلى <code>/healthz</code> الاستجابة <code>200</code> ‏(<code>alive</code>)؛ استخدم curl خيار <code>--insecure</code>، لذا لم يتحقق من بصمة الشهادة. هذا الجهاز لديه أيضاً خدمتا Host وPostgreSQL محلياً، ولذلك يصلح لفحص الشبكة لكنه ليس تثبيت Client نظيفاً.</p>
+     <p><strong>دليل ما بعد إعادة التشغيل:</strong> بعد إعادة تشغيل Host، أظهرت Services الخدمتين <code>Ventio Host Engine</code> و<code>VentioPostgres</code> بحالة <code>Running</code> وبدء <code>Automatic</code> بهويتيهما المقصودتين. بقيت Host Settings تعرض مستمع HTTPS وبصمة الشهادة والجلسة الموثقة. ومن جهاز آخر نجح <code>Test-NetConnection</code> من <code>CLIENT_PRIVATE_LAN_IP</code> إلى <code>HOST_PRIVATE_LAN_IP:8443</code> بنتيجة <code>TcpTestSucceeded: True</code>. هذه الأدلة تغلق متطلبات Host Standalone Readiness؛ إقران Client فعلي والتحقق من الثقة بالشهادة داخل Client يظلان خطوتين منفصلتين. عيب الاسترداد <code>HOST_DATABASE_RECOVERY_ROLE_ROTATION_FAILED</code> مستقل لمسارات الاسترداد والترقية ولا يمنع جاهزية التثبيت الجديد. كان إجمالي القبول وقت توثيق هذا الدليل <code>20%</code>؛ ارتفع القبول الرسمي لاحقاً إلى <code>60%</code> بعد قبول Stages 1 و2 و5 و6.</p>
+    <p><strong>إعادة فحص منفصلة (2026-11-02):</strong> على حاسوب التطوير الحالي، وجدت القراءة فقط أن خدمتي <code>VentioHost</code> و<code>VentioPostgres</code> متوقفتان، وأن طلب <code>http://127.0.0.1:8080/healthz</code> رُفض. لم تُشغّل أو تُعدّل أو تُحذف خدمة أو بيانات. هذه الحالة لا تنقض دليل إعادة التشغيل على حاسوب Windows 11 المنفصل، ولا تحدد سبب توقف الخدمات على هذا الحاسوب.</p>
+    <p>التقرير: <a href="../wave1/host-standalone-readiness-20261031.md">Host Standalone Readiness</a>.</p>
+  </section>
+
+  <h2>حالة المراحل والأوزان المقبولة</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>المرحلة</th><th>الوزن</th><th>الحالة</th><th>المقبول</th><th>دليل الخروج أو العمل المتبقي</th></tr></thead>
+      <tbody>
+        <tr><td>0 — تدقيق خط الأساس والخطة</td><td>4%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>4%</td><td>توثيق بنية المستودع والعقود والهوية والاسترداد وSQLite والمزامنة والمخاطر في <a href="../wave1/implementation-plan.md">خطة التنفيذ</a>. أُعيد حساب الأوزان بعد إضافة Stage 10.</td></tr>
+        <tr><td>1 — عقود الإدارة الأساسية</td><td>8%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>8%</td><td>اجتازت عقود Host API ‏70/70، وعقود المستخدمين 15/15 عند قبول Stage 1 (والإعادة الأحدث 16/16 ضمن Stage 2)، وعقود الأجهزة 12/12 واختبارات Core ‏81/81. اجتازت PostgreSQL 118/118، إدارة المستخدمين 28/28، الأدوار 20/20، والاقتران 24/24، وتكامل HTTP وإعادة تشغيل العمليات 34/34، وRecovery Authority 11/11، والهوية والإبطال وإعادة التشغيل 79/79. اجتاز اختبار Windows المرتفع ACL لهوية <code>NT SERVICE\VentioHost</code>. <a href="../wave1/stage01-management-contracts-20261102.md">سجل القبول</a>.</td></tr>
+        <tr><td>2 — هوية المستخدمين والأدوار والصلاحيات</td><td>12%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>12%</td><td>آخر تشغيل PostgreSQL معزول <code>20261102174121596-1</code> اجتاز 118/118 للأمان و40/40 لإدارة المستخدمين و20/20 للأدوار و24/24 للأجهزة (202/202). اجتاز تكامل Host HTTP/PostgreSQL للمستخدمين الصلاحيات الدقيقة والتعطيل وإعادة التفعيل وسجل التدقيق والعزل بين الفروع. اجتازت عقود المستخدمين 16/16 واختبارات Flutter للمستخدمين والأدوار 13/13، والتحليل وبناء Windows Release. اجتاز ربط Flutter الحي بـHost ضمن Stage 5. <a href="../wave1/stage02-identity-and-permissions-20261102.md">سجل القبول</a>.</td></tr>
+        <tr><td>3 — إعداد البداية الموحد</td><td>11%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>11%</td><td>الإعداد المثبت النظيف والفشل المنقح وإعادة المحاولة والاستئناف بعد إغلاق Flutter وحفظ أول مدير والجاهزية المصادَق عليها والتكرار الآمن اجتازت. فحوص ACL المرتفعة اجتازت. دليل reboot السابق صالح للمحركات المطابقة بالبايت. <a href="../wave1/wave1-ssh-engineering-completion-2026-11-09.md">الأدلة الحالية</a>.</td></tr>
+        <tr><td>4 — الاقتران الآمن وإدارة الأجهزة</td><td>9%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>9%</td><td>اجتازت اختبارات PostgreSQL المعزولة 24/24، مع التحقق من الاقتران لمرة واحدة، وتدوير وإبطال الاعتماد، والعزل حسب الفرع، ومنع إعادة الاستخدام، والتدقيق المنقح. أدلة المرحلة مسجلة في تقارير Wave 1.</td></tr>
+        <tr><td>5 — واجهة إدارة Host المدمجة</td><td>10%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>10%</td><td>اجتاز تشغيل Windows المعزول <code>20261102010615881-1</code> عدد 8/8 من تحقق Host و1/1 لاختبار Flutter الحي. شمل Overview وSettings والمستخدمين وسجل التدقيق والإنشاء والمنح/الإلغاء، إنشاء دور، قائمة الأجهزة ورمز الاقتران، Diagnostics وSynchronization. تحققت بوابة القارئ، وحالة Host غير المتاح، ورفض Host للمستخدم غير المخول والنطاق الآخر. اجتازت اختبارات الشاشة 34/34 والتحليل وبناء Windows Release. <a href="../wave1/stage05-host-administration-ui-20261102.md">سجل القبول</a>.</td></tr>
+        <tr><td>6 — مركز التشخيص الشامل</td><td>10%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>10%</td><td>اجتازت الأدلة السابقة 16/16 لاختبارات التشخيص و70/70 لعقود Host API وتشغيل PostgreSQL/Host المعزول <code>20261102175242706-1</code> ‏11/11 و1/1 تكامل Flutter. أكد المالك الحدث المحلي وتصديره، وحدث Host حقيقي <code>PAIRING_INVALID_OR_EXPIRED</code> مع <code>source=host</code> ومعرّف <code>cor_132a87155648e6f9a83eefefaa0a9318</code> استمر بعد إعادة تشغيل خدمة Host ثم بعد إعادة تشغيل Windows في 2026-11-04. أعاد فحص الجاهزية اللاحق <code>READY</code> لجميع المكونات الأربعة، وظل الحدث متاحاً بالمعرّف نفسه ونجح التصدير المنقح. اجتاز اختبار التحديث بعد فصل/عودة Host داخل جلسة Flutter واحدة 25/25 مع التحليل وبناء Windows Release. المرحلة مقبولة بالكامل: 10/10؛ الإجمالي 60%. <a href="../wave1/stage06-diagnostics-center-20261102.md">سجل Stage 6 التفصيلي</a>.</td></tr>
+        <tr><td>7 — التكامل غير المتصل والمزامنة</td><td>7%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>7%</td><td>تحقق اتصال Host وPostgreSQL مع SQLite من بقاء الأوامر المعلقة، وإيصالات Host، وثبات هوية الأمر عند إعادة المحاولة، وإظهار تعارضات الإصدارات القديمة وحفظها بعد إعادة فتح SQLite.</td></tr>
+        <tr><td>8 — التحقق الشامل والتقوية</td><td>6%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>6%</td><td>اجتازت دورة الأجهزة الفعلية من الاقتران وإرسال الإضافة ومراجعتها بهوية مخوّلة مختلفة إلى الكتابة دون اتصال وإيصال Host والقراءة المستقلة ورفض الصلاحيات. أُغلقت تبعيات Stage 3 و10. فرز Android المؤجل مستثنى بقرار المالك. <a href="../wave1/wave1-ssh-engineering-completion-2026-11-09.md">الأدلة الحالية</a>.</td></tr>
+        <tr><td>9 — التدقيق النهائي وبوابة الإصدار</td><td>3%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>3%</td><td>اكتمل التدقيق المحدد النطاق، ونجح اختبار إصلاح W1-UI-001 وبناء مرشح Windows الداخلي. قيود التوزيع الإنتاجي موثقة. <a href="../wave1/final-audit-preparation-20261102.md">التدقيق النهائي</a>.</td></tr>
+        <tr><td>10 — مثبت Windows الموحد والتهيئة والنشر</td><td>20%</td><td><span class="status pass">مكتمل (PASS)</span></td><td>20%</td><td>اجتاز المثبت الداخلي 0.1.18 Wave1fix18 وفحوص الترقية والاستعادة والإصلاح والاحتفاظ والحذف الصريح والإعداد النظيف والفشل المنقح والخدمات المحمية. أعيد استخدام الأدلة السابقة غير المتأثرة. المثبت غير موقع. <a href="../wave1/wave1-ssh-engineering-completion-2026-11-09.md">الأدلة الحالية</a>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="muted">الأقسام التاريخية التالية تحتفظ بتسلسل العمل السابق. حالة القبول الحالية موضحة في الملخص وسجل المراحل أعلاه.</p>
+  <h2>العمل والتحقق — سجل تاريخي</h2>
+  <p>القوائم التالية تحفظ محطات العمل السابقة وعوائقها آنذاك. الحالة الحالية في ملخص الإغلاق وجدول القبول أعلاه.</p>
+  <div class="grid">
+    <section class="card"><h3>الأعمال المنجزة</h3><ul>
+      <li>أُنجز Task 02: وسيط Named Pipe ثابت العملية، يسمح لمستخدم محلي بصلاحية Administrator فقط، ويرفض اتصال NETWORK؛ ويقيّد الرسائل إلى تهيئة أول مدير أو إقرار استلام بيانات الاعتماد.</li>
+      <li>يُحفظ إيصال العملية في ملف DPAPI محمي، ويرتبط بـSID الخاص بالمُثبّت والطلب نفسه. لا تُكشف بيانات الاعتماد مجدداً بعد الإقرار، وتظل إعادة المحاولة للطلب نفسه ممكنة قبل الإقرار.</li>
+      <li>تُهيأ Recovery Authority من خلال معاملة قاعدة بيانات فارغة، ويُسمح باستعادة انقطاع ما بعد الالتزام فقط عند تطابق إيصال المدير الأول بالكامل. يسجل التدقيق بيانات منقحة دون الرمز السري أو بصمته.</li>
+      <li>أضيفت أداة <code>ventio_identity_bootstrap.exe</code> إلى تعريف بناء payload وفحص manifest والتسجيل والتحقق. لم يُستبدل payload أو المثبت الحالي.</li>
+      <li>في Task 03، لا تعلن الخدمة حالة Running حتى ينجح Host في فحوص قاعدة البيانات وRecovery Authority وربط المستمع؛ ويُتحقق من SHA-256 للملفات التنفيذية الأربعة قبل التسجيل.</li>
+      <li>ينتظر إجراء التسجيل تأكيد Running بعد البدء. اجتازت اختبارات الخدمة وPowerShell المحددة، لكن هذا تحقق برمجي ومخططي فقط.</li>
+      <li>في Batch 1 فُصل تثبيت التطبيق عن تهيئة قاعدة البيانات، وأُضيف broker ثابت العملية تحت Program Files مع UAC وهوية طالب مطابقة، وفحص manifest، وخطوات إعداد Host جديد فقط؛ اجتازت اختبارات broker والعقود وفحص البيانات القديمة.</li>
+      <li>في Batch 2 أُضيف اختيار Host/Client ومعالج Host داخل التطبيق المشترك، مع استئناف النتيجة المشفرة عبر DPAPI والتخزين الآمن للرمز والتحقق من جاهزية Host. اجتازت اختبارات Flutter المركزة 8/8 والتحليل.</li>
+      <li>كشف أول تشغيل على الجهاز أن مجلد <code>C:\ProgramData\Ventio</code> يمنح كتابة واسعة، فيرفض broker فحص المسار ولا يكتب سجل بدء. بعد نقل السجل إلى <code>C:\Program Files\Ventio\SetupStatus</code> ظهر فشل بدء محدد بعد 30 ثانية، لكن سبب غياب سجل Broker بقي غير معلوم.</li>
+      <li>بُني Host payload مع PostgreSQL 16.15: ‏1,692 ملفاً و287,593,753 بايت؛ يصرّح manifest بأن قاعدة البيانات والاعتمادات غير مضمنة. أُصلح توافق سكربت البناء مع Windows PowerShell 5.1.</li>
+      <li>في Task 05 أُضيفت تهيئة Host والترحيلات وبيانات اعتماد migrator المحمية والنسخ الاحتياطي قبل الترقية والإزالة مع اختيار الاحتفاظ؛ ثُبتت التغييرات في <code>844ed05</code>.</li>
+      <li>في Task 06 أُضيفت صفحة Host Settings لعرض الإعداد المحلي والنطاق الموثق وصلاحيات النطاق المحدد فقط؛ تُحدّث هوية Host قبل عرضها ولا تكشف بيانات الاعتماد.</li>
+      <li>أُصلح ربط Host Settings: يُستخدم <code>deviceId</code> الذي يرجعه Host بعد جلسة مصادق عليها، ولا يُقبل جهاز محفوظ مختلف. تظل مطابقة المستأجر والمستخدم والنطاق والصلاحيات إلزامية.</li>
+      <li>بعد تثبيت جديد على كمبيوتر Windows 11 منفصل وإعادة تشغيله، أظهرت صور المالك اكتمال Host Setup، وخدمتي PostgreSQL وVentioHost تعملان بهويتيهما المقصودتين، وHost Overview بحالة <code>READY</code>، وHost Settings بجلسة مدير موثقة ونطاق دقيق وست صلاحيات.</li>
+      <li>بُني Host payload في هذا التحقق، وفيه PostgreSQL 16.15 دون قاعدة بيانات أو بيانات اعتماد، وثُبتت بصمات الملفات. بُني أيضاً المثبت الموحد الجديد، لكن لم يُشغّل على هذا Host حفاظاً على قاعدة البيانات والخدمات القائمة.</li>
+      <li>اجتاز اختبار تاريخي لحزمة Client مستقلة التثبيت والإزالة مع الحفاظ على بيانات خارج التطبيق؛ هذا لا يثبت دورة المثبت الموحد الحالي. فحوص مصدر المثبت الحالي تؤكد أن Flutter first-run يعرض Host وClient، وتبقى دورة اختيار Client دون إنشاء خدمات Host بحاجة إلى اختبار تثبيت معزول.</li>
+      <li>في Task 08 اجتازت إعادة التحقق PostgreSQL ‏190/190 والمدير الأول 11/11 واختبارات Flutter ‏65/65 واختبارات Host Service والوسيط؛ لم تُغلق بذلك بوابات التشغيل المثبت.</li>
+    </ul></section>
+    <section class="card"><h3>المتطلبات المتبقية</h3><ul>
+      <li>استكمال أدلة Stage 3/10 على تشغيل خيار Client من Flutter first-run دون تهيئة أو تسجيل خدمات Host، وعلى تهيئة Host في اختيار Host، مع دورة installer وخدمات معزولة ومرتفعـة. وسم التوقيع والتطوير بوضوح.</li>
+      <li>أُغلقت جاهزية Host المستقلة بعد نجاح إعادة التشغيل والوصول عبر TCP من جهاز آخر. اختبار إقران Client والتحقق من بصمة الشهادة ضمن Client يظل منفصلاً وخارج هذا الهدف.</li>
+      <li>أُغلقت Stages 1 و2 و5 و6. تحقق Stage 6 يشمل حدث Host المثبت عبر إعادة تشغيل الخدمة وWindows reboot لاحق لإنشاء الحدث، وجاهزية المكونات الأربعة وتصديراً منقحاً ناجحاً.</li>
+      <li>استكشاف عيب استرداد اعتماد PostgreSQL <code>HOST_DATABASE_RECOVERY_ROLE_ROTATION_FAILED</code> بصورة مستقلة قبل قبول سيناريوهات الاسترداد أو الترقية.</li>
+      <li>Task G: اكتمل تكامل Host/Client المحلي ومحاكي Android. تبقى دورة Host/Client المثبتة، وClient مادي ثانٍ وعتاد Android لإغلاق Stage 8/9.</li>
+      <li>تبقى اختبارات Host/Client بين جهازين وAndroid الفعلي ضمن Wave 1 الأوسع، وخارج هدف Host Standalone Readiness الحالي. التوقيع التجاري وترخيص Inno Setup مطلوبان قبل إصدار تجاري فقط.</li>
+    </ul></section>
+    <section class="card"><h3>الاختبارات والتحققات التي تحتاج إلى متابعة</h3><ul>
+      <li>محاولة أولى لاختبار التهيئة كشفت التباساً في SQL حول <code>expires_at</code>؛ صُحح الاسم وأُعيد الاختبار بنجاح.</li>
+      <li>أظهرت محاولة تشغيل اختبار التهيئة ضمن قاعدة اختبار مشتركة أن الاختبار يغيّر حالة البيانات التي تعتمد عليها اختبارات أخرى؛ فُصل الاختبار وشُغّل على PostgreSQL مؤقت مستقل.</li>
+      <li>النتيجة النهائية الحالية: إعادة تشغيل Host Security اجتازت 190/190 واختبار المدير الأول 11/11؛ تقارير التشغيل موثقة أدناه.</li>
+    </ul></section>
+    <section class="card"><h3>العوائق الحالية</h3><ul>
+      <li>صور التثبيت الجديد وإعادة التشغيل على كمبيوتر Windows 11 الثاني متاحة في المحادثة؛ لا توجد حتى الآن سجلات آلية من ذلك الجهاز لتفاصيل المثبت والشهادة والجدار الناري.</li>
+      <li>اجتاز test-postgres-single-user-recovery.ps1 تدوير اعتماد على قاعدة مؤقتة، لكنه لم يعِد إنتاج الفشل التاريخي <code>HOST_DATABASE_RECOVERY_ROLE_ROTATION_FAILED</code>؛ يبقى سببه الداخلي غير معروف، وتظل استعادة البيانات الموجودة وقبول ترقية Host مفتوحين.</li>
+      <li>اجتاز ACL لكل من جذر البيانات وملف Recovery Authority ومجلده المباشر. نجح فحص LAN من جهاز آخر إلى TCP 8443 بعد إعادة تشغيل Host؛ لا يتطلب هدف الجاهزية المستقلة إقران Client فعلياً.</li>
+      <li>المثبت التطويري غير موقّع. التوقيع وترخيص Inno Setup التجاري مطلوبان للتوزيع التجاري فقط، ولا يمنعان الاختبارات التطويرية المعزولة.</li>
+      <li>التصميم الحالي يثبت التطبيق المشترك وحمولة Host في الحزمة الموحدة؛ ثم يعرض اختيار Host/Client في Flutter first-run. اختبار حزمة Client المنفصلة لا يثبت دورة تثبيت الحزمة الموحدة أو خدمات Host.</li>
+    </ul></section>
+    <section class="card"><h3>المخاطر النشطة</h3><ul>
+      <li>نجح اختبار UAC/الإعداد المصور مرة واحدة بحسب صور المالك على كمبيوتر Windows 11 منفصل؛ يلزم الاحتفاظ بالأدلة الأصلية عند مراجعة Stage 3 وStage 10.</li>
+      <li>المستمع الخارجي وTCP والجدار الناري اجتازت التحقق بعد إعادة التشغيل. شهادة Host ذاتية التوقيع؛ على أي Client مستقبلي مطابقة بصمتها وإقرار الثقة وفق شاشة الاقتران.</li>
+      <li>تقرير القبول ولوحة التقدم موحّدان حالياً على قبول 60%؛ Stage 10 ما زالت قيد التنفيذ وبوزن مقبول صفر.</li>
+      <li>قدرة تنفيذ الكود لا تثبت قبول أي مرحلة. كان القبول 20% عند إعداد سجل هذه المحطة؛ القبول الحالي المثبت 60% بعد قبول Stages 1 و2 و5 و6.</li>
+    </ul></section>
+    <section class="card"><h3>أحدث تحقق سابق موثق</h3><ul>
+      <li>اختبارات Flutter المركزة لإعداد Host وHost Settings: <code>63 passed, 0 failed</code>، بما فيها ربط الملف القديم بالـ<code>deviceId</code> الموثق ورفض الجهاز غير المطابق؛ <code>flutter analyze --no-pub</code> بلا ملاحظات.</li>
+      <li>عقود Host API: <code>70 passed, 0 failed</code>، وتشمل رفض الجلسة المجهولة أو المنتهية أو الملغاة، ومنع تزوير هوية الجهاز والنطاق والصلاحيات.</li>
+      <li>اختبارات .NET لخدمة Host والوسيط الإداري اجتازت مسارات الاستعداد والإيقاف أثناء bootstrap وNamed Pipe وACL وDPAPI وربط الطلب بالمستدعي ومنع الوسائط الحرة.</li>
+      <li>في فحص 2026-11-01 على جهاز التطوير: ظهرت <code>VentioPostgres</code> و<code>VentioHost</code> بحالة <code>Running</code> وبدء <code>Automatic</code> بهويتي <code>NT SERVICE\VentioPostgres</code> و<code>NT SERVICE\VentioHost</code>. نجح <code>pg_isready</code> على <code>127.0.0.1:54329</code> وأعاد <code>/healthz</code> الحالة <code>200</code>؛ طلب الجلسة بلا اعتماد أعاد <code>401</code>. فحص القراءة فقط في 2026-11-02 وجد الخدمتين متوقفتين؛ لم تُشغّل أو تُعدّل.</li>
+      <li>في حالة 2026-11-01، بعد إغلاق Flutter وإعادة فتحه، استعيدت جلسة المدير؛ أظهرت Host Settings هوية المدير والجهاز والنطاق والصلاحيات الست، وأظهر Host Overview الحالة <code>READY</code> لمكونات API وPostgreSQL والمخطط وRecovery Authority.</li>
+      <li>على كمبيوتر Windows 11 الثاني بعد إعادة التشغيل، أغلق المالك Flutter وتأكد من بقاء الخدمتين <code>Running</code> بهويتيهما المقصودتين، ثم أعاد فتحه؛ أظهرت الصور Host Overview بحالة <code>READY</code> وHost Settings بجلسة المدير الموثقة.</li>
+      <li>أظهر تدقيق PowerShell للقراءة فقط أن <code>recovery.witness</code> ومجلد <code>C:\ProgramData\Ventio\Host</code> مملوكان لـ<code>NT SERVICE\VentioHost</code>، وACL كليهما محمي ولا يسمح إلا بـ<code>FullControl</code> الصريح وغير الموروث لهوية الخدمة و<code>SYSTEM</code> و<code>Administrators</code>. لم تُسجل أي قواعد لمستخدمين عاديين؛ بقي جذر البيانات الأب بحاجة إلى الفحص.</li>
+      <li>أظهر تدقيق PowerShell للقراءة فقط أن جذر <code>C:\ProgramData\Ventio</code> مملوك لـ<code>BUILTIN\Administrators</code> ومحمي؛ تمنح قواعده <code>FullControl</code> لـ<code>SYSTEM</code> و<code>Administrators</code>، و<code>ReadAndExecute</code> فقط لخدمتي Ventio. كما أن مجلد <code>C:\ProgramData\Ventio\Host</code> وملف <code>recovery.witness</code> مملوكان لـ<code>NT SERVICE\VentioHost</code> ومحميان بقواعد <code>FullControl</code> صريحة للخدمة و<code>SYSTEM</code> و<code>Administrators</code>. لا توجد قواعد لمستخدمين عاديين.</li>
+      <li>بعد تثبيت Host جديد على كمبيوتر Windows 11 الثاني وإعادة تشغيل Windows، أظهرت صور المالك الخدمتين بحالة <code>Running</code> ونوع بدء <code>Automatic</code> وتحت SID الخدمتين المقصودين؛ وأظهر Host Overview جميع فحوص الجاهزية <code>READY</code> وHost Settings جلسة المدير الموثقة بعد الإقلاع.</li>
+      <li>بُني المثبت التطويري الموحد بالإصدار <code>0.1.0</code> في <code>dist/windows/host-standalone-readiness-20261031/Ventio-Setup-0.1.0.exe</code>، حجمه <code>84,906,485</code> بايت، SHA-256 <code>4697ae82da0993494b14979a842c9a2083312b9fef5ea5e8f18aaceb6234c6f7</code>، وحالته <code>NotSigned</code>. حمولة manifest لا تحتوي قاعدة بيانات أو اعتمادات.</li>
+      <li>لم يُشغّل المثبت على الجهاز الحالي، ولم تُجرَ إعادة تشغيل Windows أو إعداد نظيف لـHost أو فحص UAC/TLS خارجي؛ بقيت بيانات وخدمات Host القائمة دون تهيئة أو حذف.</li>
+    </ul></section>
+    <section class="card"><h3>مراجع Git</h3><ul>
+      <li>مصدر التطبيق المختبر: <code>f437a5b99901cdbee6036717326cc99329e9aef6</code> على الفرع <code>codex/extension-platform</code>.</li>
+      <li>Task 02: <code>69e1a10</code>؛ Task 03: <code>c0273bf</code>؛ Task 05: <code>844ed05</code>؛ Task 06: <code>f437a5b</code>. بقيت ملفات المستخدم الأخرى خارج هذه commits.</li>
+      <li>نقطة حفظ لوحة Task 07: <code>648c4ff</code>.</li>
+      <li>تقرير تدقيق Task 08: <code>95fc4a6</code>.</li>
+      <li>تفاصيل الأدلة السابقة في <a href="../wave1/final-acceptance-report.md">تقرير القبول</a> و<a href="../wave1/implementation-plan.md">خطة التنفيذ</a>؛ وتفاصيل تدقيق Task 08 في <a href="../wave1/task08-final-engineering-audit-2026-10-30.md">تقرير التدقيق النهائي</a>.</li>
+    </ul></section>
+    <section class="card"><h3>بوابة القبول النهائي</h3><p>الأوزان الأحد عشر مجموعها 100%. كان المقبول في سجل Task 04–06 التاريخي 20%؛ القبول الرسمي الحالي 60% للمراحل 0، 1، 2، 4، 5، 6، و7. لا تكفي اختبارات المخطط أو الواجهة لتمرير بوابة دورة حياة الخدمة والمنتج المثبت. لا يُعلن اكتمال Wave 1 ما دامت أي بوابة إلزامية مفتوحة أو غير متحققة.</p></section>
+  </div>
+
+  <h2>أحدث محطات العمل</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>التاريخ</th><th>العمل والدليل</th><th>أثره على القبول</th><th>المرجع</th></tr></thead>
+      <tbody>
+        <tr><td>2026-10-30 11:25</td><td>اجتاز تهيئة PostgreSQL 16.15 والترحيلات وتكوين الأدوار وDPAPI في بيئة مؤقتة. لم تُنشأ خدمة Windows.</td><td>دليل تهيئة معزولة؛ لا وزن إضافي للمرحلة 10.</td><td><code>scripts/windows/provision-postgres-service.ps1 -TestInitDbOnly -TestMigrations</code></td></tr>
+        <tr><td>2026-10-30 12:19</td><td>أضيفت عملية قاعدة بيانات منفصلة لإنشاء المدير الأول، ولا تُنفذ إلا بإثبات Recovery Authority ضمن المعاملة.</td><td>نجاح الاختبار الوظيفي لا يغلق بوابة الواجهة أو دورة حياة الخدمة.</td><td><code>security/postgres/administration.sql</code></td></tr>
+        <tr><td>2026-10-30 17:21</td><td>اكتمل وسيط المدير الأول مع إيصال DPAPI واستعادة الطلب نفسه؛ اجتاز 11 اختباراً مستقلاً ومجموعة Host Security ‏190/190.</td><td>Task 02 مكتمل هندسياً؛ لم تتغير أوزان المراحل الرسمية.</td><td><code>69e1a10</code> — تنفيذ Task 02</td></tr>
+        <tr><td>2026-10-30 17:27</td><td>أُضيف انتظار إشارة جاهزية Host وفحص بصمات الملفات عند تسجيل الخدمة؛ اجتازت اختبارات .NET وDart وPowerShell المحددة وفحص مخطط PostgreSQL.</td><td>لم تُختبر دورة الخدمة الفعلية أو إعادة التشغيل بسبب غياب صلاحيات Windows المرتفعة؛ بقيت النسبة المقبولة 20%.</td><td><code>c0273bf</code> — Task 03</td></tr>
+        <tr><td>2026-10-30 20:28</td><td>اكتملت تهيئة Host والترقية ونسخة PostgreSQL قبل الترقية والإزالة الآمنة على مستوى السكربتات؛ اجتاز PostgreSQL المعزول واختبارات DPAPI وC# والعقود.</td><td>لا تغيير في القبول الرسمي. لم يُبنَ المثبت ولم تُختبر الخدمات أو دورة التثبيت الفعلية؛ Stage 10 يبقى 0%.</td><td><code>844ed05</code> — Task 05</td></tr>
+        <tr><td>2026-10-30 20:39</td><td>أُضيفت صفحة Host Settings محلية مع عرض الصلاحيات للنطاق المحدد فقط، وأُتيحت إدارة الأدوار في القائمة المضغوطة. اجتازت اختبارات Flutter المحددة والتحليل.</td><td>لا تغيير في القبول الرسمي؛ بقي الإجمالي 20% حتى التحقق التشغيلي على Host مثبت.</td><td><code>f437a5b</code> — Task 06</td></tr>
+        <tr><td>2026-10-30 20:45</td><td>أُعيد بناء Flutter Windows Release وHost payload والمثبت الموحد إلى مخرجات معزولة؛ اجتاز تثبيت Client وإزالته ورفض Host بوضع per-user.</td><td>تعذر التحقق من تثبيت Host والخدمات الفعلية لغياب صلاحيات الإدارة؛ لا اختبار Android أو جهازين. بقي Stage 10 بلا وزن إضافي، والإجمالي 20%.</td><td><code>%TEMP%\VentioTask07Installer-bcc91ceddeb64199977d4ea8726ddbdc\Ventio-Setup-0.1.0.exe</code>; SHA-256 <code>fba5e52e0e99b43dddad9938bba84ed3e69c05653240249266e666a8f26b8e74</code></td></tr>
+        <tr><td>2026-10-30 23:21</td><td>بدأ تثبيت Host بوضع all-users على الجهاز الحالي وتأكد تطابق SHA-256 للمثبت مع تقرير التدقيق. وصلت التهيئة إلى تسجيل خدمة PostgreSQL ثم أزالت الخدمة بعد الفشل؛ بقي مجلد البيانات فارغاً، ولم تُمس النسخ الاحتياطية.</td><td>فشل provisioning ولم تبدأ خدمة Host؛ لا تغيير في قبول Stage 10 أو النسبة المقبولة، التي بقيت 20%. يلزم كشف الخطأ الداخلي قبل استئناف التثبيت.</td><td><code>0753457</code>؛ حدث Windows System <code>7045</code>؛ SHA-256 <code>fba5e52e0e99b43dddad9938bba84ed3e69c05653240249266e666a8f26b8e74</code></td></tr>
+        <tr><td>2026-10-30 23:37</td><td>أُعيدت المحاولة بمثبّت تشخيصي معزول وبصمة <code>A3160E0AD85C809601939B43FA8E64DC75F64F572A91B1F4F8D4322E4590983F</code>. سجل مُحمي الفشل في <code>POSTGRES_CLUSTER_INITIALIZATION_FAILED</code> داخل <code>provision-postgres-service.ps1</code> عند سطر 139. فحص إداري أكد بقاء مجلد البيانات فارغاً والنسخ الاحتياطية الـ13 دون تغيير.</td><td>لا توجد خدمة Host عاملة؛ بقي Stage 10 دون نقاط إضافية والإجمالي المقبول 20%. لم يُعد التثبيت بعد؛ يجري تعديل التشخيص لالتقاط تفاصيل initdb المنقّحة.</td><td><code>0753457</code>؛ سجل محلي محمي؛ تعديلات التشخيص غير ملتزمة بعد</td></tr>
+        <tr><td>2026-10-30 22:51</td><td>كشف سجل Inno Setup أن محاولة Host الأخيرة توقفت في فحص الحالة قبل تسجيل أي خدمة. كان السبب المحدد رفض سجل التشخيص السابق باعتباره محتوى غير متوقع داخل مجلد Installer. أُضيف قبول ضيق للمجلد المحمي وملفات التشخيص ذات النمط المعروف، مع رفض أي ملف جانبي أو رابط أو ACL غير محمي. اجتازت اختبارات التنقيح وACL وحدود المسار والاستئناف الآمن، واجتاز فحص الحالة الفعلية دون تغيير بيانات أو خدمات.</td><td>لم يبدأ PostgreSQL أو Host؛ مجلد بيانات PostgreSQL ما زال فارغاً. بناء حمولة المثبّت التشخيصي الجديدة جارٍ؛ لا تغيير في قبول Stage 10 أو النسبة المقبولة التي بقيت 20%.</td><td><code>0753457</code>؛ تغييرات غير ملتزمة في <code>provision-host-installation.ps1</code> والاختبار</td></tr>
+        <tr><td>2026-10-30 23:11</td><td>كشف سجل initdb أن رمز Windows المقيّد لم يستطع الكتابة لأن ACL لم تتضمن SID المستخدم صراحة. أضيف ACE مؤقت لهذا الحساب قبل التهيئة، ثم تُعاد ACL المقيدة بعد initdb. اجتاز اختبار PostgreSQL المعزول مع ACL محمية، وفحص مستقل أكد إزالة ACE الموروث من المجلد والملفات التابعة. اجتازت اختبارات مسارات المثبت وتشخيص الفشل. بُنيت حمولة Host والمثبت إلى مسارات معزولة، وطابقت بصمة سكربت provisioning داخل الحمولة المصدر؛ بصمة المثبت <code>1587C4B7F705179C05BA247EBE9A7BD82E75D9BA2AEA9CC6E2E9B31798725B0C</code>. أظهر مترجم Inno عبارة Non-commercial use only.</td><td>الإصلاح لم يُتحقق بعد بالمثبت الفعلي، لذا بقي Stage 10 دون نقاط والإجمالي المقبول 20%. لم يُشغّل اختبار المثبت الجديد لأن نافذة المثبت السابق ما زالت فعالة. خدمات VentioPostgres وVentioHost غير مسجلة في فحص الخدمة الحالي.</td><td><code>0753457</code>؛ تعديلات غير ملتزمة في <code>provision-postgres-service.ps1</code> ولوحة التقدم؛ مثبت معزول غير موقّع</td></tr>
+        <tr><td>2026-10-30 23:15</td><td>عُثر على سبب رسالة “Operation aborted”: استُدعي <code>Abort()</code> من <code>CurStepChanged(ssPostInstall)</code>. أزيل الاستدعاء؛ أصبح المثبت يعرض التحذير، يمنع تشغيل معالج Host عند فشل provisioning، ويعيد exit code غير صفري. اجتاز عقد المسارات وفشل ما بعد التثبيت، وتُرجم المثبت المعزول بنجاح. بصمته <code>ECFC8DAE738DF00A89CABD6480E03D2BA5DEA971A111F78E702D82F9C7F98B56</code>.</td><td>لم يُختبر المثبت الجديد لأن عملية <code>Setup</code> القديمة (PID <code>21768</code>) ما زالت تعرض نافذة <code>Setup</code>. تبقى النسبة المقبولة 20% ولا توجد خدمات Ventio مثبتة.</td><td><code>0753457</code>؛ تعديلات غير ملتزمة في <code>ventio.iss</code> واختبار العقد</td></tr>
+        <tr><td>2026-10-30 23:31</td><td>شُغّل المثبّت المعزول المحدّث بالبصمة <code>ECFC8DAE738DF00A89CABD6480E03D2BA5DEA971A111F78E702D82F9C7F98B56</code> في وضع Host وall-users. اجتازت PostgreSQL مرحلة initdb وأصبحت خدمة <code>VentioPostgres</code> في حالة Running. فشل التشغيل اللاحق عند <code>HOST_SERVICE_STARTUP</code>، <code>ServiceCommandException</code>، السطر 336. سجل Windows أظهر تثبيت Ventio Host Engine؛ لكن فحص SCM بعد الفشل لم يجد خدمة Host. حُفظ سجل التشخيص المحمي في مجلد Temp ببصمة <code>FE738B1C2722E9375AB47FFE9551B2879A63BAA3EC2D555F9E6BC1E28A5FF832</code>؛ لا يحوي تفاصيل رسالة الاستثناء.</td><td>تثبت المحاولة إصلاح وصول initdb وبدء PostgreSQL فقط؛ لا تحقق قبول دورة خدمة Host أو الإعداد الكامل. بقي Stage 10 دون نقاط والإجمالي المقبول 20%.</td><td><code>0753457</code>؛ سجل Windows System <code>7045</code>؛ سجل تشخيص محمي منقول؛ التعديلات غير ملتزمة</td></tr>
+        <tr><td>2026-10-31 01:56</td><td>فُصل provisioning عن Inno Setup وربط اختيار Host/Client ومعالج Host بوسيط UAC ثابت العملية. اجتاز Flutter 188 اختباراً مع اختبارين متخطيين، والتحليل، واختبارات .NET وPowerShell وPostgreSQL المعزول. بُني Host payload ‏1,692 ملفاً؛ بُني مثبت تطويري موحد بحجم 84,870,561 بايت.</td><td>لم يُجرّب Host على VM نظيفة؛ الجهاز الحالي غير مرتفع الصلاحية وخدمة <code>VentioPostgres</code> فيه Running. بقيت النسبة المقبولة 20%. التثبيت machine-wide لا يحقق شرط Client per-user المسجل سابقاً، ويحتاج توافقاً قبل قبول Stage 10.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تعديلات غير ملتزمة. المثبت <code>dist\windows\first-run-mvp-20261031\Ventio-Setup-0.1.0.exe</code>؛ SHA-256 <code>000bf0411c86492f638cc0e881ed19939e9bb9fd33086930dce69ce9ca4a4166</code>.</td></tr>
+        <tr><td>2026-10-31 03:55</td><td>ثُبتت حزمة إصلاح مسار الحالة وأُعيد Host setup؛ لم يظهر سجل Broker. فحص process token وجد Flutter مرتفع الصلاحيات، بينما manifest التطبيق لم يصرح asInvoker. أضيف asInvoker للتطبيق وrequireAdministrator للوسيط وحاجز وقت تشغيل، واجتازت اختبارات Host setup ‏10/10 والتحقق من مدخلات Broker وعقد المثبت، وflutter analyze دون مشكلات. نجح بناء Flutter Release وHost payload والمثبت المعزول.</td><td>لم يبدأ PostgreSQL أو تُسجل أي خدمة. بقي الطلب والنسخ الاحتياطية وأدلة الاسترداد دون تغيير. لم يُثبت الإصلاح الجديد ولم تُعد تجربة Host؛ ما زالت نافذة التطبيق المرتفع مفتوحة. Stage 3 FAIL وStage 10 IN PROGRESS، والإجمالي المقبول 20%.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تغييرات غير ملتزمة. المثبت <code>dist\windows\host-setup-unelevated-fix-20261031-a\Ventio-Setup-0.1.0.exe</code>؛ SHA-256 <code>c54fa466e12a532ffe2722076e063b17cd136dc969c08fae4adc76e864548acb</code>.</td></tr>
+        <tr><td>2026-10-31 10:41</td><td>تطابقت بصمة التطبيق المثبّت مع الإصدار الجديد؛ فحص token أكد <code>TokenElevation=0</code>. بصمة Broker تطابق manifest وACL الملفات تحت Program Files لا تسمح كتابة غير موثوقة. رغم ذلك لا يوجد سجل حالة أو عملية Broker أو خدمة أو بيانات PostgreSQL. فحص الحساب أكد SID مطابقاً، لكن نطاق الطلب المعلّق يختلف عن القيم الظاهرة في الصورة. لم تسجل قنوات Windows المتاحة حدثاً مطابقاً.</td><td>إصلاح صلاحية التطبيق نجح، لكنه لم يحل فقد سجل Broker. لم تتغير بيانات Host أو النسخ الاحتياطية؛ Stage 3 FAIL وStage 10 IN PROGRESS والإجمالي المقبول 20%. يجب الحفاظ على الطلب الحالي وعدم استئنافه بنطاق مختلف.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تعديلات غير ملتزمة. المثبت المطوّر: <code>dist\windows\host-setup-unelevated-fix-20261031-a\Ventio-Setup-0.1.0.exe</code>؛ SHA-256 <code>c54fa466e12a532ffe2722076e063b17cd136dc969c08fae4adc76e864548acb</code>.</td></tr>
+        <tr><td>2026-10-31 10:47</td><td>أكد مالك المشروع أنه بعد تثبيت الإصدار الأخير ضغط مباشرة على <code>Set up Host</code> بعد استعادة قيمه السابقة <code>Test-Project / Test-Company / Test-Branch</code>، فظهرت رسالة غياب سجل التقدم. هذه محاولة جديدة على التطبيق الذي ثبتت بصمته وتأكد تشغيله بصلاحية عادية. ما زالت لا توجد خدمة أو بيانات PostgreSQL أو مجلد حالة Broker. ملف الطلب المحلي يعرض نطاقاً مختلفاً (<code>Test-Business / Test-Company / Test-Office</code>)، ويجري التحقق من تطابق ملف الحالة الذي يقرأه التطبيق.</td><td>فشل Host setup ما زال قائماً؛ لا تغيير في القبول الرسمي أو النسبة 20%. لن يُعاد الضغط قبل تحديد مسار وحالة الطلب وتفسير غياب سجل Broker، مع إبقاء بيانات الإعداد محفوظة.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تغييرات غير ملتزمة؛ بصمة المثبت التطويري الأخير <code>c54fa466e12a532ffe2722076e063b17cd136dc969c08fae4adc76e864548acb</code>.</td></tr>
+        <tr><td>2026-10-31 11:04</td><td>كُشف سبب غياب سجل التقدم في مسار Broker: فحص ACL ضمّ <code>FullControl</code> إلى قناع تقاطع البتات، فاعتبر إذن <code>BUILTIN\Users: ReadAndExecute</code> للقراءة فقط إذناً بالكتابة. فشل التحقق قبل إنشاء الحالة، ثم أخفى المسار الاحتياطي الفشل نفسه. صُحح الفحص ليختبر حقوق الكتابة والحذف وتغيير ACL والبتّين <code>GENERIC_WRITE</code>/<code>GENERIC_ALL</code> فقط، ونُقل نشر مرحلة التحقق إلى ما قبل فحص الحمولة. أضيف اختبار يحمي النطاق المعلّق ويمنع إعادة تشغيله بقيم مختلفة، وأُغلق سباق استعادة النطاق في الواجهة. بُني مثبت تطويري معزول؛ حمولة Host ‏1,692 ملفاً/287,603,236 بايت بلا قاعدة بيانات أو أسرار، وبصمة المثبت <code>77a3888d977beb85afa9e0b4de83966ac9d25f125ce48096a1da9176033a53b2</code>.</td><td>اجتازت اختبارات Host Setup المركزة <code>12/12</code>، واختبار Broker لحقوق ACL والتحقق من الطلب، وتحليل Flutter بلا ملاحظات، وعقد مسارات المثبت وحارسه ومدقق اللوحة. اكتمل البناء والفحص الساكن فقط؛ لم يُثبت المثبت الجديد ولم يُختبر UAC أو Host setup الفعلي. لم تتغير الخدمات أو بيانات PostgreSQL أو قبول المراحل، وبقي الإجمالي 20%.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تعديلات غير ملتزمة. المثبت: <code>dist\windows\host-setup-acl-fix-20261031-a\Ventio-Setup-0.1.0.exe</code>، 84,877,643 بايت؛ SHA-256 <code>77a3888d977beb85afa9e0b4de83966ac9d25f125ce48096a1da9176033a53b2</code>. بناء Inno Setup الحالي للتطوير وغير صالح للتوزيع التجاري.</td></tr>
+        <tr><td>2026-10-31 11:16</td><td>أكد الفحص للقراءة فقط أن Broker المثبّت يطابق الحمولة المصححة، وخدمتا <code>VentioPostgres</code> و<code>VentioHost</code> تعملان بهويتيهما المعزولتين. كما أكد <code>pg_isready</code> أن PostgreSQL يقبل الاتصالات على <code>127.0.0.1:54329</code>. لكن سجل العملية <code>8ef6ef7a9e9f44395a2de90258c84dc2</code> انتهى عند <code>FIRST_ADMINISTRATOR_BOOTSTRAP</code> بالرمز <code>HOST_FIRST_ADMINISTRATOR_FAILED</code>؛ خدمة Host لم تبدأ واجهة API بعد. سبب رسالة «تعذّر التحقق من حالة الخدمة» هو عدم تطابق تنسيق الحالة: Broker كتب مفاتيح <code>PascalCase</code> بينما Flutter كان يقبل <code>camelCase</code> فقط. أُضيف قبول مضبوط للصيغتين وإلزام Broker بالكتابة الموحدة بصيغة <code>camelCase</code>.</td><td>اجتازت اختبارات Host Setup المركزة <code>15/15</code>، واختبار Broker لتسلسل الحالة وحقوق ACL والتحقق من الطلب، وتحليل Flutter، وعقد المثبت ومدقق اللوحة. تغييرات توافق الحالة لم تُبنَ أو تُثبت بعد. فشل إنشاء المدير الأول ما زال غير محلول؛ نطاق ملف الطلب <code>Test-Business / Test-Company / Test-Office</code> ومعرّفه يختلفان عن النطاق الظاهر في الواجهة وسجل الحالة. لا تُعاد المحاولة ولا تُحذف بيانات PostgreSQL أو الأثر المحمي. القبول الرسمي ثابت عند 20%.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تعديلات غير ملتزمة. حالة Broker المحمية في <code>C:\Program Files\Ventio\SetupStatus\8ef6ef7a9e9f44395a2de90258c84dc2.json</code>.</td></tr>
+        <tr><td>2026-10-31 11:37</td><td>تبيّن وجود فرق زمني حقيقي في وسيط first-admin: مهلة قراءة طلب pipe كانت <code>30</code> ثانية تُستخدم أيضاً لتنفيذ العملية، بينما المساعد المقيّد مسموح له بالعمل حتى <code>60</code> ثانية. فُصلت المهلة إلى 30 ثانية لقراءة الطلب و90 ثانية للعملية. أُضيف تمرير رموز فشل ثابتة من المساعد إلى سجل الحالة من دون تمرير استثناءات خام أو أسرار. كما مُنع Flutter من إعادة إطلاق عملية محلية قديمة عندما يغيب سجل الحالة المطابق، ويُحذف checkpoint الجديد فقط عند إلغاء UAC قبل بدء العملية. سبب فشل الجهاز الحالي غير مثبت حتى الآن لأن الإصلاح لم يُثبت عليه.</td><td>اجتازت اختبارات Host Setup المركزة <code>17/17</code>، وفحص استعلام حالة Windows للخدمتين <code>1/1</code>، وتحليل Flutter بلا ملاحظات، واختبارات Host Service وSetup Broker، وعقد المثبت. اجتاز اختبار first-admin على PostgreSQL مؤقت معزول <code>11</code> تحققاً بعد تطبيق 29 migration وتهيئة الأمان؛ أُوقفت قاعدة الاختبار وأزيلت ملفاتها المؤقتة. لم تُلمس قاعدة Host الحالية أو خدماتها. بقي القبول الرسمي <code>20%</code>.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ جميع تغييرات الإصلاح غير ملتزمة. يجري إنشاء نسخة تطويرية معزولة؛ لم تُثبت ولم تُشغّل على Host الجزئي الحالي.</td></tr>
+        <tr><td>2026-10-31 11:42</td><td>اكتمل بناء نسخة تطويرية جديدة من المصدر بعد إصلاحات قراءة حالة الخدمات ونتيجة Broker، وزيادة مهلة first-admin، وحماية إعادة المحاولة عند غياب سجل الحالة المطابق. لا يُثبت هذا البناء أن سبب فشل الجهاز الحالي قد حُسم.</td><td>نجح بناء Flutter Release وحمولة Host ‏(<code>1,692</code> ملفاً، <code>287,607,332</code> بايت) وتجميع Inno Setup. نجح فحص حدود التثبيت الموحد وتأجيل تهيئة قاعدة البيانات والخدمات إلى اختيار Host. لم يُشغّل المثبّت ولم تُعد تهيئة Host الحالي؛ خدمتا Ventio تعملان وPostgreSQL يستجيب للفحص المحلي. القبول الرسمي ثابت عند <code>20%</code>.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تغييرات غير ملتزمة. المثبّت: <code>dist/windows/host-first-admin-repair-20261031-verified/Ventio-Setup-0.1.0.exe</code>، <code>84,880,435</code> بايت؛ SHA-256 <code>94be03ae9f03a1e7960cf682e2daac988c4bb4fa4e05c19bc1d622f8497fb512</code>. نسخة تطويرية غير موقعة وليست صالحة للإصدار التجاري.</td></tr>
+        <tr><td>2026-10-31 12:48</td><td>رفض المثبت التحديث قبل استبدال الملفات لأن خدمة Host لم تتوقف. أظهر الفحص للقراءة فقط أن <code>VentioHost</code> عالقة في <code>STOP_PENDING</code> برقم العملية <code>9492</code>، ولا توجد لها عملية تابعة؛ <code>VentioPostgres</code> ما زالت تعمل. السبب في نسخة الخدمة القديمة: عند انتظار تهيئة المدير الأول كانت تنتظر اكتمال العملية أو خروج Broker ولا تستيقظ عند طلب الإيقاف. أُضيفت إشارة إيقاف ضمن الانتظار كي تصل الخدمة إلى مسار الإنهاء المنظّم. لم يُنهَ أي process ولم تُغيّر قاعدة البيانات.</td><td>اجتازت اختبارات Host Service، ومنها إيقاف الخدمة أثناء انتظار المدير الأول واستمرار مسار نجاح التهيئة. نجح بناء حمولة Host وتجميع المثبت وفحوص حدود Installer. لم يُشغّل البناء الجديد لأن العملية المثبتة القديمة ما زالت عالقة؛ القبول الرسمي ثابت عند <code>20%</code>.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تغييرات غير ملتزمة. المثبت التطويري: <code>dist/windows/host-stop-wait-fix-20261031/Ventio-Setup-0.1.0.exe</code>، <code>84,881,531</code> بايت؛ SHA-256 <code>c4a9ee52a9167bc5c0d56770c52253f65f681886fe3cdd26693e594568f64e32</code>.</td></tr>
+        <tr><td>2026-10-31 13:21</td><td>بناءً على إذن المالك بإكمال الإصلاح، نُفذ إجراء إداري لمرة واحدة عبر UAC: تحقق من بصمة الخدمة القديمة وهويتها ورقم العملية وتاريخ إنشائها ومن غياب أي عمليات تابعة، وحفظ سجلاً محمياً قبل إنهاء محاولة المثبت الفاشلة والخدمة العالقة. عُطلت إعادة تشغيل الخدمة أثناء استبدال الملفات، ثم أُعيد إعداد تشغيلها التلقائي. نجح تثبيت الحزمة المصححة دون تشغيل تهيئة قاعدة البيانات أو تدوير الاعتمادات.</td><td>اجتاز إجراء الإصلاح هدفه الصحيح و<code>12</code> حالة رفض وفحص هوية Windows. انتهى التنفيذ الإداري برمز <code>0</code> وسجل <code>VENTIO_REPAIR_FILES_UPDATED_BOOTSTRAP_PENDING</code>. نجح اختبار الإيقاف العادي للخدمة المثبتة خلال <code>76 ms</code> ثم إعادة تشغيلها؛ ظلت PostgreSQL تعمل أثناء هذا الاختبار. تحققت بصمتا الخدمة وFlutter المثبتتين، وتقبل PostgreSQL الاتصال، وعُرضت الخدمتان بحالة <code>Running</code> في Flutter العادي. لا يزال إنشاء المدير الأول غير مقبول؛ الإجمالي ثابت عند <code>20%</code>.</td><td>الفرع <code>codex/extension-platform</code>، HEAD <code>0753457</code>؛ تغييرات غير ملتزمة. أدلة الحالة: <code>C:\Program Files\Ventio\SetupStatus\maintenance-stuck-bootstrap-20261031.json</code> و<code>maintenance-fixed-stop-test-20261031.json</code>. بصمة الخدمة المثبتة: <code>129e4f4ab295fa161c32be35c09f488107206250b9fab6701d930a9f7b3113c3</code>. سجل التنفيذ تحت <code>C:\ProgramData\Ventio\RecoveryEvidence</code> بصلاحيات محمية.</td></tr>
+        <tr><td>2026-11-01</td><td>عولج فشلان في إعداد LAN: كان Windows يرفض تعيين SID الخاص بـ<code>VentioHost</code> مالكاً لملفات الشهادة دون <code>SeRestorePrivilege</code>؛ أصبح الامتياز مفعّلاً مؤقتاً ومحصوراً في كتابة ACL ثم يُستعاد. وكان فحص TLS يستدعي <code>X509Certificate2.CreateFromPemFile</code> غير المتاح في Windows PowerShell 5.1؛ استُبدل بمحلل PEM متوافق. أُصلح أيضاً التراجع ليوقف خدمة Host قبل استعادة الإعداد المحلي. بعد تحديث المثبت على الجهاز الحالي، بدأ Host وPostgreSQL بهويتيهما المقصودتين، واستمع Host على <code>0.0.0.0:8443</code>، وأعاد HTTPS <code>/healthz</code> الحالة <code>200</code>. قاعدة الجدار الناري مفعّلة ومرتبطة ببرنامج Host وTCP 8443 و<code>LocalSubnet</code> وملف <code>Private</code>. أكد المالك أن SHA-256 للمثبت على الجهاز الآخر يطابق البناء، وأظهرت الصور نقطة LAN <code>https://HOST_PRIVATE_LAN_IP:8443</code> وبصمة الشهادة الذاتية وتحذير الثقة المطلوب للعميل.</td><td>اجتاز اختبار Windows المرتفع تعيين مالك ACL إلى SID الخدمة، وتحليل PowerShell 5.1، واختبار إعداد LAN/DPAPI وعقود المثبت واختبارات Host Service. نجح التحديث على الجهاز الحالي دون إعادة تهيئة قاعدة البيانات. بعد إعادة تشغيل Host أظهرت صور المالك الخدمتين بحالة <code>Running</code> و<code>Automatic</code> بهويتيهما المقصودتين، وبقيت Host Settings تعرض نقطة LAN. نجح <code>Test-NetConnection</code> من جهاز آخر بعد إعادة التشغيل: المصدر <code>CLIENT_PRIVATE_LAN_IP</code> والهدف <code>HOST_PRIVATE_LAN_IP:8443</code> والنتيجة <code>TcpTestSucceeded: True</code>. ومن جهاز الاختبار نفسه أعاد HTTPS <code>/healthz</code> حالة <code>200</code> مع <code>--insecure</code>؛ هذا يؤكد استجابة API عبر LAN، ولا يثبت تحقق بصمة TLS. اكتملت جاهزية Host المستقلة؛ لا تتغير نسبة Wave 1 المقبولة <code>20%</code>.</td><td>المصدر الحالي غير ملتزم وسط تغييرات عمل سابقة. المثبت التطويري <code>dist/windows/host-lan-ps51-fix-20261101-a/Ventio-Setup-0.1.0.exe</code>؛ الحجم <code>84,923,969</code> بايت؛ SHA-256 <code>caa3af0261cc9ac1621d4ccd998b4277d90f1847b0e4df08c5c6b951d8212cfa</code>. نسخة غير موقعة وليست صالحة للإصدار التجاري.</td></tr>
+        <tr><td>2026-11-01</td><td>اكتمل تكليف Host Setup Diagnostics Hardening: تخزين محلي دائم للسياق التشخيصي الآمن مع ترحيل SQLite إضافي، ومعرّف مرجعي محلي، وتصدير منقّح يعمل قبل جاهزية API، واختبارات فشل التخزين. كشف اختبار أرشفة التشخيص خللاً في فحص حدود المسار؛ أُصلح الفحص مع الإبقاء على الحذف محصوراً في جذر Ventio الدقيق.</td><td>اجتاز Flutter ‏210 اختباراً مع حالتي تكامل PostgreSQL اختياريتين متخطيتين، والاختبارات المركزة ‏31/31، والتحليل، وبناء Windows Release. اجتازت اختبارات Broker وHost Service وPowerShell الخاصة بالتشخيص والمسارات، وبُني المثبت التطويري غير الموقّع. لا يغلق ذلك Stage 6؛ ظل قبول Wave 1 يومها 20%.</td><td><a href="../wave1/host-setup-diagnostics-hardening-20261101.md">تقرير الأدلة</a>؛ المثبت <code>dist/windows/host-setup-diagnostics-hardening-20261101-b/Ventio-Setup-0.1.0.exe</code>؛ SHA-256 <code>b9a63b2906b229eb020d2a024d1b2d6f14642c7d6d9b4724855283b00722d1b2</code></td></tr>
+        <tr><td>2026-11-02</td><td>أُغلقت Stage 1 بعد اكتمال عقود الإدارة، والتوافق والأخطاء المنقحة، وترحيلات PostgreSQL وتهيئتها، وحدود Recovery Authority والهوية، والاختبارات السلبية وتكاملات HTTP وقاعدة البيانات وإعادة التشغيل. فشل أول تشغيل لاختبار الهوية في ترتيب تنظيف النشاط بعد إضافة Migration 029؛ صُحح ترتيب التنظيف ثم اجتازت الإعادة 79/79 وأزالت قاعدة الاختبار.</td><td>أُضيفت 8 نقاط موثقة إلى الإجمالي المقبول: 28%. انتقل العمل إلى Stage 2. في فحص مستقل للقراءة فقط وُجدت خدمتا Ventio على حاسوب التطوير متوقفتين؛ لم تُغيّر أي خدمة أو بيانات.</td><td><a href="../wave1/stage01-management-contracts-20261102.md">سجل القبول</a>؛ HEAD ‏<code>9d53ea0</code>، وتوجد تغييرات محلية سابقة غير ملتزمة.</td></tr>
+        <tr><td>2026-11-02</td><td>أُغلقت Stage 2 بعد اختبار صلاحيات المستخدمين والأدوار عبر Host API وقاعدة PostgreSQL معزولة، وفرض RLS والعزل الدقيق، وسقف الاعتماد، وإبطال الهوية والأجهزة، وسجل التدقيق المنقح. أضيف مسار إعادة تفعيل المستخدم وترحيل 030 بعد اكتشاف غيابه؛ اجتازت إعادة التفعيل المصادق عليها وسجلها واختبارات واجهة المستخدم.</td><td>اجتازت الحزمة المعزولة 201/201 ثم اختبار دورة المستخدم المركّز 40/40. اجتازت عقود API ‏16/16 واختبارات Flutter ‏13/13 والتحليل وبناء Windows Release. زاد القبول 12 نقطة إلى 40%؛ انتقل العمل إلى Stage 5. لم تُمس الخدمات المثبتة أو بيانات Host.</td><td><a href="../wave1/stage02-identity-and-permissions-20261102.md">سجل القبول</a>؛ الترحيل <code>030_identity_user_enable.sql</code>؛ HEAD ‏<code>9d53ea0</code>، تغييرات العمل محفوظة دون commit.</td></tr>
+        <tr><td>2026-11-02</td><td>أُغلقت جولات الإغلاق المحلي: Stage 3 setup اختُبر جزئياً 26/26؛ Stage 6 diagnostics عبر Flutter وHost API وعمليات Host مستقلة اجتاز 16/16 و70/70 و7/7 دون إغلاق المرحلة. محاولة واجهة Stage 5 الحية توقفت عند readiness ولم تُحسب نجاحاً. تكامل Stage 8 المحلي اجتاز 27/27 بعمليات عميل ومخازن SQLite منفصلة. بُني Windows Release ومثبت تطويري غير موقع؛ لم تُشغّل دورة حياة على الخدمات والبيانات القائمة.</td><td>لا نقاط قبول جديدة: الإجمالي 40%. بقيت Stages 3 و5 و6 و8 و10 مفتوحة وStage 9 محضرة لكنها BLOCKED. لا يوجد اختبار جهازين فعليين أو Android؛ خدمتا التطوير بقيتا متوقفتين ولم تُعدّل الخدمات أو البيانات.</td><td><a href="../wave1/final-audit-preparation-20261102.md">سجل تدقيق Stage 9</a>؛ <a href="../wave1/final-acceptance-report.md">القبول الرسمي</a>؛ HEAD <code>9d53ea0</code>، لا commit جديد.</td></tr>
+        <tr><td>2026-11-02</td><td>أنشئ AVD مؤقتاً جديداً من صورة Android المثبتة مسبقاً دون تشغيل AVDات المستخدم الموجودة. اجتاز بناء Android Debug واختبار التطبيق على Android 17/API 37 وصولاً عبر HTTPS إلى Host Windows بعنوان LAN مع تحقق شهادة مثبتة، واستمرار العمل Offline ثم الإيصال والقراءة. اكتمل تكامل التشغيل 29/29 وأُوقف المحاكي وحُذف AVD المؤقت.</td><td>زاد دليل Stage 8 المحلي بقبول محاكي Android، لكن القبول الرسمي بقي 40%؛ هذا ليس جهازاً مادياً ولا يحقق دورة حياة Host/Client المثبتة. بقيت Stage 8 وStage 9 مفتوحتين.</td><td><a href="../wave1/final-acceptance-report.md">القبول الرسمي</a>؛ <a href="../wave1/final-audit-preparation-20261102.md">التدقيق</a>؛ تشغيل <code>20261101232100833-1</code>؛ AVD مؤقت محذوف، لا commit جديد.</td></tr>
+        <tr><td>2026-11-02</td><td>بُني مثبت Client منفصل من Windows Release الحالي في مسار معزول؛ اجتاز التثبيت لكل مستخدم، وإعادة التثبيت، والترقية من 0.1.0 إلى 0.1.1، والإزالة مع الاحتفاظ بعلامة بيانات خارج التطبيق. اختُبر المثبت المنفصل فقط؛ لا يضم <code>ventio.iss</code> الحالي خيار Client ويضيف حمولة Host دائماً.</td><td>اكتمل دليل دورة Client package، لكن لا نقاط جديدة للمرحلة 10 ولا تغير في قبول Wave 1 البالغ <code>40%</code>. بقي Host provisioning ودورة الخدمة والمثبت الموحد واختبارات upgrade/data retention الخاصة بقاعدة Host مفتوحة.</td><td><a href="../wave1/final-acceptance-report.md">الأدلة وبصمات المنتجات</a>؛ <a href="../wave1/final-audit-preparation-20261102.md">تدقيق التباين</a>؛ مثبت Client غير موقع في <code>dist/windows/wave1-20261102-stage10-client</code>، لا commit جديد.</td></tr>
+        <tr><td>2026-11-02</td><td>أُغلقت Stage 5: اجتازت واجهة Flutter على Windows تكاملاً حياً مع Host/PostgreSQL معزولين. اختُبرت Overview وSettings، وإدارة المستخدمين وسجل التدقيق والمنح/الإلغاء، والأدوار، والأجهزة ورمز الاقتران، وDiagnostics وSynchronization، إضافة إلى القارئ والنطاق الخارجي وانقطاع Host.</td><td>اجتاز التشغيل <code>20261102010615881-1</code> عدد 8/8 تحقق Host و1/1 تكامل Flutter؛ اجتازت اختبارات الشاشات 34/34 والتحليل وبناء Windows Release. أضيفت 10 نقاط قبول إلى الإجمالي: 50%. انتقل العمل إلى Stage 6؛ ظلت الخدمات وبيانات المنتج دون تعديل.</td><td><a href="../wave1/stage05-host-administration-ui-20261102.md">سجل قبول Stage 5</a>؛ <a href="../wave1/final-acceptance-report.md">القبول الرسمي</a>؛ HEAD <code>9d53ea0</code>، دون commit جديد.</td></tr>
+        <tr><td>2026-11-02</td><td>اكتملت اختبارات Stage 6 المحلية المتكاملة: حقن فشل بدء Host في قاعدة PostgreSQL مؤقتة، وإنشاء السجل المحمي المفقود، واستمراره عبر عمليتين، ورفض طلبات التشخيص دون الإذن أو خارج نطاق الفرع. اختبرت واجهة Flutter الحية عرض حدث Host وحدث SQLite محلي وتصديرهما منقحين؛ اجتاز ACL رفض قراءة ملف التشخيص دون كشف المسار.</td><td>اجتاز التشغيل <code>20261102012139546-1</code> عدد 11/11 تحقق Host و1/1 تكامل Flutter، إضافة إلى 16/16 لاختبارات التشخيص و70/70 لعقود Host API. لا نقاط جديدة: بقيت Stage 6 مفتوحة لأن هوية خدمة SCM المثبتة ودورة إعادة التشغيل/الإقلاع واختبار فشل شاشة الإعداد المثبت لم تثبت. الخدمات والبيانات الموجودة لم تُمس؛ المهمة التالية Task E — Stage 3.</td><td><a href="../wave1/stage06-diagnostics-center-20261102.md">سجل أدلة Stage 6</a>؛ <a href="../wave1/final-audit-preparation-20261102.md">التدقيق</a>؛ الإجمالي الرسمي 50%، دون commit جديد.</td></tr>
+        <tr><td>2026-11-02</td><td>اكتملت اختبارات Stage 3 المتاحة محلياً: Flutter setup 26/26، first-admin/Recovery Authority 11/11، pairing 24/24، وتكامل Host/PostgreSQL/Client 31/31 مع واجهتي Flutter حيتين للـOffline والاقتران. فُحص المثبت الموحد: حزمة واحدة للتطبيق المشترك وحمولة Host، وخيار Host/Client داخل Flutter first-run. اجتازت فحوص المسار والامتيازات.</td><td>لا نقاط قبول جديدة: بقي الإجمالي 50%. Stage 3 مفتوحة لدورة الإعداد والخدمات المرتفعة المثبتة؛ Stage 10 مفتوحة لدورة المثبت والخدمات على Windows نظيف. الخدمات وبيانات المنتج القائمة لم تُمس. انتقل العمل إلى Task G — Stage 8 المحلي، ثم إعداد Stage 9 دون قبول مبكر.</td><td><a href="../wave1/stage03-first-run-setup-20261102.md">أدلة Stage 3</a>؛ <a href="../wave1/final-audit-preparation-20261102.md">سجل التدقيق</a>؛ تشغيل PostgreSQL <code>20261102013653157-1</code>؛ لا commit جديد.</td></tr>
+        <tr><td>2026-11-02</td><td>اكتمل التحقق المحلي المتاح لـStage 8: تشغيل Host/PostgreSQL/Client ‏31/31، وتكامل Client Offline وpairing UI حي، بالإضافة إلى Android emulator ‏29/29 عبر HTTPS مثبت. راجع سجل التدقيق متطلبات الإغلاق بنداً بنداً، وصُحح وصف المثبت الموحد وآلية first-run وفق المصدر.</td><td>لا نقاط جديدة: Stage 8 تبقى BLOCKED لغياب Client مادي إضافي وعتاد Android ودورة Host/Client المثبتة. Stage 9 يبقى BLOCKED لأن Stages 3 و6 و8 و10 مفتوحة. النسبة 50%؛ الخدمات والبيانات القائمة لم تُمس.</td><td><a href="../wave1/stage08-end-to-end-evidence-20261102.md">أدلة Stage 8</a>؛ <a href="../wave1/final-audit-preparation-20261102.md">تدقيق Stage 9</a>؛ تشغيل PostgreSQL <code>20261102013653157-1</code> وAndroid run <code>20261101232100833-1</code>؛ لا commit جديد.</td></tr>
+        <tr><td>2026-11-02</td><td>حُفظت تغييرات Wave 1 المصدرية والاختبارات في commits منفصلة، وصُحح تضمين StackBuilder الذي ظهر في حمولة المثبت رغم استبعاده المعلن. أُعيد بناء Windows Release وحمولة Host والمثبت من commit مصدر معلوم؛ الحمولة 1,694 ملفاً والتحقق من 61 بصمة حرجة ناجح.</td><td>لا نقاط قبول جديدة: قبول Wave 1 الرسمي ثابت عند 50%. اجتازت فحوص المسار والامتيازات وبناء Inno، لكن دورة التثبيت على Windows نظيف ومرتفع الصلاحية لم تُشغّل؛ يظل Stage 10 مفتوحاً.</td><td>مصدر البناء <code>8f50e8cf618d18e5dff99b0f9a63d9db485d73c7</code>؛ المثبت SHA-256 <code>1fe6c68d85c806d06b3fcfbf03f794760858a50c781ecdd0f358cc5772f6ffc6</code>، <code>NotSigned</code>؛ نسخة ما قبل الدمج محفوظة خارج المستودع.</td></tr>
+        <tr><td>2026-11-04</td><td>أُغلقت Stage 6 بعد اجتياز آخر اختبار قبول على Windows الفعلي بعد تحديث Ventio إلى 0.1.7. بقي حدث Host الأصلي <code>PAIRING_INVALID_OR_EXPIRED</code> بالمعرّف <code>cor_132a87155648e6f9a83eefefaa0a9318</code> متاحاً بعد Windows reboot؛ أعادت الجاهزية اللاحقة READY للمكونات الأربعة ونجح تصدير التشخيص المنقح.</td><td>اكتملت جميع بنود القبول: Stage 6 PASS — 10/10. أضيفت 10 نقاط رسمية؛ الإجمالي ارتفع من 50% إلى 60%. لا تغيير في حالة المراحل الأخرى، ولا إعلان اكتمال Wave 1.</td><td><a href="../wave1/stage06-diagnostics-center-20261102.md">سجل قبول Stage 6</a>؛ الحدث <code>2026-11-04T12:03:37.241465Z</code>؛ readiness <code>2026-11-04T15:09:18.993214Z</code>؛ Windows boot <code>2026-11-04 16:51:54</code> Asia/Beirut.</td></tr>
+        <tr><td>2026-11-04</td><td>بُني المثبّت الموحد Ventio 0.1.7 من commit مصدر ثابت. شمل إصلاح LAN HTTPS للـDomain/Private، تطبيع LocalSubnet، حماية rollback، وتشخيصاً منقحاً لفشل الترقية؛ كما تضمّن تعديلات واختبار تحديث Diagnostics داخل الجلسة.</td><td>اجتاز Flutter Windows Release، وحمولة Host (1,694 ملفاً و61 بصمة حرجة)، واختبارات LAN/DPAPI وRecovery Authority وشهادة Host وFlutter وInno. تحديث بيانات الخدمة الحقيقية على VM لم يُنفذ من هذا الجهاز؛ لا نقاط قبول جديدة، والإجمالي يبقى 50%. Stage 6 مفتوحة حتى فحص الحدث بعد reboot لاحق لإنشائه.</td><td>مصدر البناء <code>c1cc23f3a3d5d16e4abdd928a25d5db28bb81190</code>؛ <code>dist/windows/wave1-0.1.7-20261104-c1cc23f/Ventio-Setup-0.1.7.exe</code>؛ SHA-256 <code>afc7a467e7355a32f63beda681ae66bbc9ba077daca4da6398a34e64eed3f32f</code>؛ unsigned.</td></tr>
+        <tr><td>2026-11-05</td><td>أظهر تثبيت Ventio 0.1.7 على Windows 11 فعلي ونظيف عيباً مانعاً للتشغيل: غياب <code>MSVCP140.dll</code>. كشف تدقيق الاعتماديات ضرورة Runtime x64 لتطبيق Flutter والمكونات الأصلية وPostgreSQL. أُضيفت الحزمة الرسمية الموقعة إلى المثبت offline مع تحقق SHA-256/Authenticode، تخطي النسخ الكافية/الأحدث، التوقف الآمن عند الفشل أو طلب reboot، ومنع تشغيل التطبيق قبل تحقق التبعية. بُني المثبت التطويري 0.1.8 من commit <code>422feda60ca66b0f71bcf11eeb891344353899cd</code>؛ حجمه 103,119,347 بايت وSHA-256 <code>3d7211d264d1fc2e7f9fe7b81d62e3ce49312378b8909472280b32a784059ae3</code>، غير موقع.</td><td>نجحت اختبارات كشف/قرار Runtime والتثبيت المحاكى وعدم التخفيض وأعلام التثبيت والفشل/reboot وعقود المثبت والتحقق من الحزمة الموقعة. اجتاز flutter analyze وWindows Release وHost payload build وInno Setup. يلزم اختبار مالك فعلي على PC1/PC2 لـoffline clean install، تشغيل Flutter، Host setup/services/readiness، Client enrollment عبر HTTPS، وترقية تحتفظ بالبيانات والشهادات وRecovery Authority. Stage 10 باقية 0/20، Stage 3 و8 مفتوحتان، وإجمالي Wave 1 يبقى 60%.</td><td><code>dist/windows/wave1-vc-runtime-0.1.8-20261105-422feda/Ventio-Setup-0.1.8.exe</code>؛ المصدر <code>422feda60ca66b0f71bcf11eeb891344353899cd</code>؛ حزمة Microsoft VC++ x64 ‏14.51.36247.0، 18,731,856 بايت، SHA-256 <code>843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c</code>؛ Authenticode Valid.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>أدلة دورة الإغلاق — نقاط تحقق تاريخية</h2>
+  <div class="card">
+     <p><strong>Stage 6 — CLOSED / PASS:</strong> اجتاز التشغيل المعزول <code>20261102175242706-1</code> عدد 11/11 تحقق Host و1/1 تكامل Flutter Windows، و70/70 عقد Host API، إضافة إلى اختبارات الصلاحية والاستمرار والتصدير. أكد المالك أن حدث Host الأصلي بقي بعد Windows reboot لاحق لإنشائه؛ أعادت الجاهزية اللاحقة READY للمكونات الأربعة ونجح التصدير المنقح. اختبارات التحديث بعد تعافي Host في جلسة Flutter واحدة اجتازت ضمن 25/25. قُبل وزن المرحلة كاملاً 10/10، وأصبح الإجمالي 60%. <a href="../wave1/stage06-diagnostics-center-20261102.md">سجل Stage 6 النهائي</a>.</p>
+    <p><strong>Stage 8 محلياً:</strong> اجتاز Android emulator ‏29/29، كما اجتاز تشغيل PostgreSQL/Host/Client المعزول <code>20261102013653157-1</code> ‏31/31 تحقق Host وتكامل Client Offline وواجهة الاقتران الحية. تحقق التكامل من Client مستقل بمخزن SQLite خاص، enrollment عبر HTTPS مثبت، وإيصال Host ونطاق الفرع بعد تسجيل الدخول. هذه عمليات ومحاكاة على حاسوب واحد؛ لا تستبدل قبول دورة التثبيت أو الجهاز الفعلي الإضافي وAndroid hardware. <a href="../wave1/stage08-end-to-end-evidence-20261102.md">تفاصيل Stage 8</a>.</p>
+    <p><strong>Stage 10 artifact:</strong> اجتاز المثبت الموحد فحوص المسار وحدود الامتيازات؛ المصدر يثبت تطبيق Flutter مشتركاً وحمولة Host، مع اختيار Host أو Client في شاشة Flutter first-run. غياب خيار النوع في المثبت مقصود. اختُبرت حزمة Client المنفصلة بتثبيت وترقية وإزالة، كدليل إضافي فقط. المثبتان غير موقّعين رقمياً. لم تُشغّل دورة الحزمة الموحدة لأنها تتطلب Windows نظيفاً وصلاحية مرتفعة؛ يحتوي حاسوب التطوير خدمات Ventio ومسارات بيانات قائمة بقيت دون تعديل. <a href="../wave1/final-acceptance-report.md">سجل القبول</a>.</p>
+    <p><strong>Stage 3:</strong> اكتمل التحقق المحلي من واجهة setup وHost API والاقتران الحي، لكنه لا يغطي تثبيتاً وخدمات SCM حقيقية. <a href="../wave1/stage03-first-run-setup-20261102.md">سجل أدلة Stage 3</a>.</p>
+    <p><strong>سجل التدقيق النهائي:</strong> <a href="../wave1/final-audit-preparation-20261102.md">تدقيق Stage 9 وحدود التوزيع</a>؛ <a href="../wave1/final-acceptance-report.md">سجل القبول الرسمي</a>.</p>
+  </div>
+
+  <h2>الخطوة القادمة</h2>
+   <p><strong>الخطوة القادمة:</strong> لا اختبارات إلزامية متبقية على المالك. قبل التوزيع الإنتاجي يلزم توقيع الحزمة والتحقق من ترخيص البناء وإثبات استرداد وصول المدير الوحيد. خلل فرز Android مؤجّل حسب قرار المالك.</p>
+
+  <footer>آخر تحديث 2026-11-11. القبول الهندسي الداخلي 100%. أحدث مرشح Wave1fix19 ‏0.1.18 غير موقّع. هذه لوحة ثابتة تُحدّث يدوياً ولا يتم تحديثها تلقائياً.</footer>
+</main>
+</body>
+</html>

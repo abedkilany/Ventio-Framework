@@ -1,0 +1,29 @@
+{
+  "Upgrade": {
+    "InstallerLogSha256": "288B522553EA8F7D9B7F5E7742D477560BEEDD540C39C50505ED05E9CE87F3A5",
+    "From": "Wave1fix15",
+    "ProductVersion": "0.1.18",
+    "To": "Wave1fix16",
+    "InstallerExit": 0
+  },
+  "Installed": {
+    "PayloadManifestSha256": "2DF44A90C73EA7B72DD19F252EA38C1090E4D538ACE2F888445F3AAF6EBE5F3B",
+    "TlsVerify": 0,
+    "VerifiedEntries": 74,
+    "Mismatches": 0,
+    "RunningAutomaticServices": 2,
+    "PinnedHttps": 200,
+    "CertificateUnchanged": true
+  },
+  "Query": {
+    "RecordId": "53f2e2b4-2708-4f91-b6f0-9f75f8d4d7dd",
+    "CompanyId": "fixture",
+    "TenantId": "wave1lab",
+    "Values": {
+      "name": "W1-RETENTION-CONTROL-01"
+    },
+    "BranchId": "devhost",
+    "Revision": 1
+  },
+  "RecordedAtUtc": "2026-11-10T16:23:23.6328668Z"
+}

@@ -46,8 +46,25 @@ DatabaseFactory _ffiDatabaseFactory() {
   return databaseFactoryFfi;
 }
 
+/// Explicitly isolates local application data for release-build profiling.
+/// Normal launches continue to use the platform's application-support folder.
+Future<Directory> ventioApplicationSupportDirectory() async {
+  final override = Platform.environment['VENTIO_APP_SUPPORT_DIRECTORY']?.trim();
+  if (override == null || override.isEmpty) {
+    return getApplicationSupportDirectory();
+  }
+  final directory = Directory(override);
+  if (!directory.isAbsolute) {
+    throw const FormatException(
+      'VENTIO_APP_SUPPORT_DIRECTORY must be an absolute path.',
+    );
+  }
+  await directory.create(recursive: true);
+  return directory;
+}
+
 Future<LocalCommandQueue> openDefaultCommandQueue() async {
-  final directory = await getApplicationSupportDirectory();
+  final directory = await ventioApplicationSupportDirectory();
   return LocalCommandQueue.open(
     factory: databaseFactoryForCurrentPlatform(),
     path: p.join(directory.path, 'ventio_native_client.sqlite3'),
@@ -55,7 +72,7 @@ Future<LocalCommandQueue> openDefaultCommandQueue() async {
 }
 
 Future<LocalExtensionStore> openDefaultExtensionStore() async {
-  final directory = await getApplicationSupportDirectory();
+  final directory = await ventioApplicationSupportDirectory();
   return LocalExtensionStore.open(
     factory: databaseFactoryForCurrentPlatform(),
     path: p.join(directory.path, 'ventio_extensions.sqlite3'),

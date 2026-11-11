@@ -4,6 +4,8 @@ import 'dart:collection';
 import 'contracts.dart';
 import 'metadata.dart';
 import 'modules.dart';
+import 'report_metadata.dart';
+import 'print_format_metadata.dart';
 
 /// A bounded, declarative extension package for the trusted generic engines.
 /// It carries no executable commands, scripts, SQL or custom capabilities.
@@ -11,6 +13,10 @@ class ExtensionBundle {
   ExtensionBundle._({
     required this.manifest,
     required this.docTypes,
+    required this.reports,
+    required this.reportJson,
+    required this.printFormats,
+    required this.printFormatJson,
     required this.dependencyVersions,
     required this.englishCatalog,
     required this.manifestJson,
@@ -23,6 +29,10 @@ class ExtensionBundle {
 
   final ModuleManifest manifest;
   final List<DocTypeDefinition> docTypes;
+  final List<ReportDefinition> reports;
+  final List<Map<String, dynamic>> reportJson;
+  final List<PrintFormatDefinition> printFormats;
+  final List<Map<String, dynamic>> printFormatJson;
   final Map<String, String> dependencyVersions;
   final Map<String, String> englishCatalog;
   final Map<String, dynamic> manifestJson;
@@ -35,7 +45,14 @@ class ExtensionBundle {
     _validateJsonTree(source);
     _checkKeys(
       source,
-      const {'manifest', 'docTypes', 'dependencyVersions', 'englishCatalog'},
+      const {
+        'manifest',
+        'docTypes',
+        'reports',
+        'printFormats',
+        'dependencyVersions',
+        'englishCatalog',
+      },
       'extension bundle',
     );
     if (utf8.encode(canonicalJson(source)).length > maxEncodedBytes) {
@@ -131,6 +148,8 @@ class ExtensionBundle {
           'operations',
           'permissions',
           'fields',
+          'naming',
+          'businessOperations',
           'ui',
           'migrations',
         },
@@ -176,6 +195,9 @@ class ExtensionBundle {
             'maxLength',
             'minValue',
             'maxValue',
+            'precision',
+            'default',
+            'readOnly',
             'enumValues',
             'enumLabels',
             'referenceTo',
@@ -183,6 +205,8 @@ class ExtensionBundle {
             'descriptionKey',
             'readPermission',
             'writePermission',
+            'childDocType',
+            'calculation',
           },
           'field',
         );
@@ -198,11 +222,103 @@ class ExtensionBundle {
             _checkKeys(option, const {'label', 'labelKey'}, 'enum label');
           }
         }
+        if (field['childDocType'] case final childValue?) {
+          final child = requireMap(childValue, 'childDocType');
+          _checkKeys(
+            child,
+            const {'name', 'label', 'labelKey', 'fields'},
+            'childDocType',
+          );
+          for (final rawChildField in requireList(child, 'fields')) {
+            final childField = requireMap(
+              rawChildField,
+              'childDocType.fields[]',
+            );
+            _checkKeys(
+              childField,
+              const {
+                'name',
+                'type',
+                'required',
+                'label',
+                'labelKey',
+                'minLength',
+                'maxLength',
+                'minValue',
+                'maxValue',
+                'precision',
+                'default',
+                'readOnly',
+                'enumValues',
+                'enumLabels',
+                'referenceTo',
+                'description',
+                'descriptionKey',
+                'calculation',
+              },
+              'child field',
+            );
+            if (childField['enumLabels'] case final childLabels?) {
+              for (final rawLabel in requireMap(
+                childLabels,
+                'child field.enumLabels',
+              ).values) {
+                _checkKeys(
+                  requireMap(rawLabel, 'child enum label'),
+                  const {'label', 'labelKey'},
+                  'child enum label',
+                );
+              }
+            }
+          }
+        }
       }
       return _freezeMap(json);
     }).toList(growable: false);
     final docTypes =
         docTypeJson.map(DocTypeDefinition.fromJson).toList(growable: false);
+    final rawReports = source['reports'] ?? const <Object>[];
+    if (rawReports is! List ||
+        rawReports.length > ReportDefinition.maxReportsPerBundle) {
+      throw const ContractError(
+          'INVALID_REPORT', 'Too many report definitions.');
+    }
+    final reportJson = rawReports
+        .map((raw) => _freezeMap(requireMap(raw, 'reports[]')))
+        .toList(growable: false);
+    final reports = reportJson
+        .map(
+          (json) => ReportDefinition.fromJson(
+            json,
+            moduleId: manifest.moduleId,
+            docTypes: docTypes,
+          ),
+        )
+        .toList(growable: false);
+    if (reports.map((report) => report.id).toSet().length != reports.length) {
+      throw const ContractError('INVALID_REPORT', 'Report IDs must be unique.');
+    }
+    final rawPrintFormats = source['printFormats'] ?? const <Object>[];
+    if (rawPrintFormats is! List ||
+        rawPrintFormats.length > PrintFormatDefinition.maxFormatsPerBundle) {
+      throw const ContractError(
+          'INVALID_PRINT_FORMAT', 'Too many print formats.');
+    }
+    final printFormatJson = rawPrintFormats
+        .map((raw) => _freezeMap(requireMap(raw, 'printFormats[]')))
+        .toList(growable: false);
+    final printFormats = printFormatJson
+        .map((json) => PrintFormatDefinition.fromJson(
+              json,
+              moduleId: manifest.moduleId,
+              docTypes: docTypes,
+            ))
+        .toList(growable: false);
+    if (printFormats.map((format) => format.id).toSet().length !=
+        printFormats.length) {
+      throw const ContractError(
+          'INVALID_PRINT_FORMAT', 'Print format IDs must be unique.');
+    }
     final hasFieldPermissions = docTypes.any(
       (type) => type.fields.any(
         (field) =>
@@ -251,7 +367,7 @@ class ExtensionBundle {
 
     final doctypeNames = docTypes.map((type) => type.name).toSet();
     for (final type in docTypes) {
-      for (final field in type.fields) {
+      for (final field in type.allFields) {
         if (field.type == 'reference' &&
             !doctypeNames.contains(field.referenceTo)) {
           throw ContractError(
@@ -270,6 +386,14 @@ class ExtensionBundle {
           '${type.name} declares a permission outside its extension namespace.',
         );
       }
+      if (type.businessOperations.any(
+        (operation) => !operation.permission.startsWith(messageNamespace),
+      )) {
+        throw ContractError(
+          'PERMISSION_NAMESPACE',
+          '${type.name} declares an operation permission outside its extension namespace.',
+        );
+      }
       if (type.fields.any(
         (field) => [field.readPermission, field.writePermission]
             .whereType<String>()
@@ -279,6 +403,116 @@ class ExtensionBundle {
           'PERMISSION_NAMESPACE',
           '${type.name} declares a field permission outside its extension namespace.',
         );
+      }
+      for (final operation in type.businessOperations) {
+        for (final effect in operation.effects
+            .where((effect) => effect.type == 'document.amend')) {
+          final linkFields = type.fields.where(
+            (field) => field.name == effect.linkField,
+          );
+          if (!type.operations.contains('create') ||
+              type.permissions['create'] == null ||
+              linkFields.length != 1 ||
+              linkFields.single.type != 'reference' ||
+              linkFields.single.referenceTo != type.name ||
+              !linkFields.single.readOnly ||
+              linkFields.single.required ||
+              linkFields.single.defaultValue != null) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} requires an optional, Host-owned self-reference field and create permission.',
+            );
+          }
+        }
+        for (final effect in operation.effects
+            .where((effect) => effect.type == 'record.increment')) {
+          final targetType = docTypes.where(
+            (candidate) => candidate.name == effect.targetDocType,
+          );
+          final targetField = targetType.isEmpty
+              ? null
+              : targetType.single.fields.where(
+                  (field) => field.name == effect.field,
+                );
+          final targetInput = operation.inputs[effect.targetIdInput];
+          final amountInput = operation.inputs[effect.amountInput];
+          if (!doctypeNames.contains(effect.targetDocType) ||
+              targetInput?.referenceTo != effect.targetDocType ||
+              targetField == null ||
+              targetField.isEmpty ||
+              targetField.single.readOnly ||
+              !{'integer', 'decimal'}.contains(targetField.single.type) ||
+              amountInput == null ||
+              (targetField.single.type == 'integer' &&
+                  amountInput.type != 'integer') ||
+              (targetField.single.type == 'decimal' &&
+                  (targetField.single.precision == null ||
+                      (amountInput.type == 'decimal' &&
+                          (amountInput.precision == null ||
+                              amountInput.precision! >
+                                  targetField.single.precision!))))) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} has an invalid numeric record target.',
+            );
+          }
+          if (!targetType.single.operations.contains('update')) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} targets a DocType that does not enable updates.',
+            );
+          }
+        }
+        for (final effect in operation.effects
+            .where((effect) => effect.type == 'record.increment_rows')) {
+          final table = type.fields.where(
+            (field) => field.name == effect.rowsField && field.type == 'table',
+          );
+          final child = table.isEmpty ? null : table.single.childDocType;
+          final targetType = docTypes.where(
+            (candidate) => candidate.name == effect.targetDocType,
+          );
+          final targetField = targetType.isEmpty
+              ? null
+              : targetType.single.fields.where(
+                  (field) => field.name == effect.field,
+                );
+          final idField = child?.fields.where(
+            (field) => field.name == effect.targetIdField,
+          );
+          final amountField = child?.fields.where(
+            (field) => field.name == effect.amountField,
+          );
+          if (child == null ||
+              targetType.isEmpty ||
+              targetField == null ||
+              targetField.isEmpty ||
+              idField == null ||
+              idField.isEmpty ||
+              amountField == null ||
+              amountField.isEmpty ||
+              idField.single.type != 'reference' ||
+              idField.single.referenceTo != effect.targetDocType ||
+              !idField.single.required ||
+              !{'integer', 'decimal'}.contains(amountField.single.type) ||
+              !amountField.single.required ||
+              targetField.single.readOnly ||
+              !{'integer', 'decimal'}.contains(targetField.single.type) ||
+              (targetField.single.type == 'integer' &&
+                  amountField.single.type != 'integer') ||
+              (targetField.single.type == 'decimal' &&
+                  (targetField.single.precision == null ||
+                      (amountField.single.type == 'decimal' &&
+                          (amountField.single.precision == null ||
+                              amountField.single.precision! >
+                                  targetField.single.precision!)))) ||
+              !targetType.single.operations.contains('update')) {
+            throw ContractError(
+              'INVALID_OPERATION',
+              '${operation.id} has an invalid child-row numeric target.',
+            );
+          }
+        }
       }
     }
 
@@ -364,7 +598,48 @@ class ExtensionBundle {
             requiredLabels.add(key);
           }
         }
+        if (field.childDocType case final child?) {
+          _requireNamespace(child.labelKey, messageNamespace);
+          requiredLabels.add(child.labelKey);
+          final rawChild = requireMap(
+            fieldJson['childDocType'],
+            'childDocType',
+          );
+          for (final rawChildField in requireList(rawChild, 'fields')) {
+            final childFieldJson = requireMap(
+              rawChildField,
+              'childDocType.fields[]',
+            );
+            final childField = FieldDefinition.fromJson(
+              childFieldJson,
+              childField: true,
+            );
+            _requireNamespace(childField.labelKey, messageNamespace);
+            requiredLabels.add(childField.labelKey);
+            if (childField.descriptionKey case final key?) {
+              _requireNamespace(key, messageNamespace);
+              requiredLabels.add(key);
+            }
+            if (childField.type == 'enum') {
+              for (final option in childField.enumLabelKeys.values) {
+                _requireNamespace(option, messageNamespace);
+                requiredLabels.add(option);
+              }
+            }
+          }
+        }
       }
+    }
+    for (final report in reports) {
+      _requireNamespace(report.labelKey, messageNamespace);
+      requiredLabels.add(report.labelKey);
+      for (final aggregate in report.aggregates) {
+        _requireNamespace(aggregate.labelKey, messageNamespace);
+        requiredLabels.add(aggregate.labelKey);
+      }
+    }
+    for (final format in printFormats) {
+      requiredLabels.add(format.labelKey);
     }
     if (requiredLabels.any((key) => !catalog.containsKey(key))) {
       throw const ContractError(
@@ -376,6 +651,10 @@ class ExtensionBundle {
     return ExtensionBundle._(
       manifest: manifest,
       docTypes: List.unmodifiable(docTypes),
+      reports: List.unmodifiable(reports),
+      reportJson: List.unmodifiable(reportJson),
+      printFormats: List.unmodifiable(printFormats),
+      printFormatJson: List.unmodifiable(printFormatJson),
       dependencyVersions: Map.unmodifiable(dependencyVersions),
       englishCatalog: Map.unmodifiable(catalog),
       manifestJson: _freezeMap(rawManifest),
@@ -386,6 +665,8 @@ class ExtensionBundle {
   Map<String, dynamic> toJson() => {
         'manifest': manifestJson,
         'docTypes': docTypeJson,
+        if (reportJson.isNotEmpty) 'reports': reportJson,
+        if (printFormatJson.isNotEmpty) 'printFormats': printFormatJson,
         'dependencyVersions': dependencyVersions,
         'englishCatalog': englishCatalog,
       };

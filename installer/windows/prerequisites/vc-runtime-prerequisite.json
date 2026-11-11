@@ -1,0 +1,11 @@
+{
+  "formatVersion": 1,
+  "architecture": "x64",
+  "fileName": "vc_redist.x64.exe",
+  "packageVersion": "14.51.36247.0",
+  "minimumRuntimeVersion": "14.50.35719.0",
+  "sizeBytes": 18731856,
+  "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c",
+  "downloadUrl": "https://aka.ms/vc14/vc_redist.x64.exe",
+  "publisher": "Microsoft Corporation"
+}

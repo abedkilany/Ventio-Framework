@@ -1,0 +1,33 @@
+{
+  "Recovery": {
+    "RecoveryInstallerLogSha256": "8810BF2D658B82AA7DE25ADF7A7941294C77AB9A0A3FB73CA83C187C53C7DF65",
+    "PreviousClusterBackup": "ventio-postgresql-before-upgrade-20261110T135431018Z-f825d020eb07411fbd5a6d6f104b85a9",
+    "RestoreLogSha256": "E67084FDA9B3FE52CCD00272ADA8AC440BFD5CD98D9D34DE81EAA87F7D83E39B",
+    "QuarantinedOriginalPreserved": true,
+    "RestoreCode": "HOST_UPGRADE_VERIFIED_PREVIOUS_CLUSTER_RESTORED",
+    "RestoreExit": 0,
+    "RecoveryInstallerExit": 0,
+    "CurrentClusterBackupPreserved": true
+  },
+  "Health": {
+    "AuthenticatedOverview": "READY",
+    "OverviewUtc": "2026-11-10T16:27:19Z",
+    "ServicesRunningAutomatic": 2,
+    "OverviewReference": "cor_d46bd183cfb4ca2d46085898898ab21c",
+    "TlsVerify": 0,
+    "RecoveryAuthorityWitnessPresent": true,
+    "ChecksReady": 4,
+    "PinnedHttps": 200,
+    "PostgresSystemIdentifier": "7706529747229262104"
+  },
+  "Query": {
+    "Revision": 1,
+    "BranchId": "devhost",
+    "CompanyId": "fixture",
+    "RecordId": "53f2e2b4-2708-4f91-b6f0-9f75f8d4d7dd",
+    "Values": {
+      "name": "W1-RETENTION-CONTROL-01"
+    },
+    "TenantId": "wave1lab"
+  }
+}

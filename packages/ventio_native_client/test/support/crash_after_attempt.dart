@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:ventio_native_client/ventio_native_client.dart';
+import 'package:ventio_native_client/src/local_command_queue.dart';
 
 Future<void> main(List<String> args) async {
   if (args.length != 2) exit(64);

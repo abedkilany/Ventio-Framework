@@ -17,6 +17,7 @@ abstract interface class ExtensionRecordQueryGateway {
     required String filterContains,
     required String? sortField,
     required bool descending,
+    String? cursor,
     required int offset,
     required int limit,
   });
@@ -25,3 +26,21 @@ abstract interface class ExtensionRecordQueryGateway {
 /// Marker required when record query routes are reachable beyond loopback.
 abstract interface class AuthoritativeExtensionRecordQueryGateway
     implements ExtensionRecordQueryGateway {}
+
+/// Executes a saved, approved report without accepting caller-selected query
+/// structure. Implementations enforce current identity, scope, and field ACLs.
+abstract interface class ExtensionReportQueryGateway {
+  Future<Map<String, dynamic>> queryReport({
+    required AuthenticatedSession session,
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+    required String docType,
+    required String reportId,
+    required Map<String, dynamic> filters,
+  });
+}
+
+abstract interface class AuthoritativeExtensionReportQueryGateway
+    implements ExtensionReportQueryGateway {}

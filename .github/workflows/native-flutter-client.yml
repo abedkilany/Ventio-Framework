@@ -5,21 +5,27 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/native-flutter-client.yml'
+      - '.github/workflows/host-api.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_native_client/**'
       - 'scripts/prepare_native_client_platforms.ps1'
       - 'scripts/ci/**'
       - 'scripts/ci_android/**'
+      - 'scripts/check_localization_gate.py'
+      - 'scripts/test_check_localization_gate.py'
       - 'spec/v1.2/examples/**'
   pull_request:
     branches: [main]
     paths:
       - '.github/workflows/native-flutter-client.yml'
+      - '.github/workflows/host-api.yml'
       - 'packages/ventio_core/**'
       - 'packages/ventio_native_client/**'
       - 'scripts/prepare_native_client_platforms.ps1'
       - 'scripts/ci/**'
       - 'scripts/ci_android/**'
+      - 'scripts/check_localization_gate.py'
+      - 'scripts/test_check_localization_gate.py'
       - 'spec/v1.2/examples/**'
   workflow_dispatch:
 
@@ -66,6 +72,16 @@ jobs:
       - name: Resolve dependencies
         working-directory: packages/ventio_native_client
         run: flutter pub get --enforce-lockfile
+      - name: Install isolated contract validation dependency
+        run: |
+          C:\Python314\python.exe -m pip install --upgrade --disable-pip-version-check --target "%RUNNER_TEMP%\ventio-python-packages-%GITHUB_RUN_ID%" "jsonschema>=4.18,<5"
+          echo PYTHONPATH=%RUNNER_TEMP%\ventio-python-packages-%GITHUB_RUN_ID%>>"%GITHUB_ENV%"
+      - name: Validate contract examples
+        run: python scripts\validate_contracts.py
+      - name: Enforce localization gate
+        run: python scripts\check_localization_gate.py
+      - name: Test localization gate
+        run: python -m unittest scripts.test_check_localization_gate
       - name: Check formatting and static analysis
         working-directory: packages/ventio_native_client
         run: |

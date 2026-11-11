@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:ventio_core/ventio_core.dart';
 
+import 'extension_store.dart';
 import 'host_credentials.dart';
 import 'transport_fixture.dart';
 
@@ -36,6 +37,62 @@ class HostSessionIdentity {
   final bool persistent;
   final bool roleAdministrationAvailable;
   final List<HostScopeGrant> scopes;
+}
+
+class HostSessionIdentityException implements Exception {
+  const HostSessionIdentityException(this.code);
+
+  final String code;
+}
+
+/// Binds a device-local Host profile to the identity returned by the Host API.
+/// The profile supplies only the expected tenant, actor, and selected scope;
+/// the Host remains authoritative for the device ID and permissions.
+HostConnectionProfile bindHostProfileToIdentity({
+  required HostConnectionProfile profile,
+  required HostSessionIdentity identity,
+  bool requireHostAdministration = false,
+}) {
+  final actorId = profile.actorId;
+  final deviceId = profile.deviceId;
+  final matchingScopes = identity.scopes
+      .where(
+        (scope) =>
+            scope.companyId == profile.companyId &&
+            scope.branchId == profile.branchId,
+      )
+      .toList(growable: false);
+  if (!identity.persistent ||
+      profile.tenantId != identity.tenantId ||
+      actorId == null ||
+      actorId != identity.actorId ||
+      (deviceId != null && deviceId != identity.deviceId) ||
+      identity.deviceId.trim().isEmpty ||
+      matchingScopes.length != 1) {
+    throw const HostSessionIdentityException('HOST_SESSION_IDENTITY_MISMATCH');
+  }
+  if (requireHostAdministration &&
+      (!identity.roleAdministrationAvailable ||
+          !matchingScopes.single.permissions.containsAll(const {
+            hostStatusReadPermission,
+            hostDiagnosticsReadPermission,
+            identityUsersManagePermission,
+            identityDevicesManagePermission,
+            identityPairingManagePermission,
+            identityRolesManagePermission,
+          }))) {
+    throw const HostSessionIdentityException(
+      'HOST_FIRST_ADMINISTRATOR_PERMISSIONS_MISSING',
+    );
+  }
+  return HostConnectionProfile(
+    endpoint: profile.endpoint,
+    tenantId: profile.tenantId,
+    companyId: profile.companyId,
+    branchId: profile.branchId,
+    actorId: identity.actorId,
+    deviceId: identity.deviceId,
+  );
 }
 
 class HostIdentityRole {
@@ -86,6 +143,7 @@ class HostExtensionRecordPage {
     required Iterable<HostExtensionRecord> records,
     required this.packageSha256,
     required this.hasMore,
+    this.nextCursor,
     Iterable<String>? readableFields,
     Iterable<String>? writableFields,
     Iterable<String>? creatableFields,
@@ -103,9 +161,34 @@ class HostExtensionRecordPage {
   final List<HostExtensionRecord> records;
   final String packageSha256;
   final bool hasMore;
+  final String? nextCursor;
   final Set<String>? readableFields;
   final Set<String>? writableFields;
   final Set<String>? creatableFields;
+}
+
+class HostExtensionReportResult {
+  HostExtensionReportResult({
+    required this.reportId,
+    required this.packageSha256,
+    required this.rowCount,
+    required Iterable<HostExtensionReportGroup> groups,
+  }) : groups = List.unmodifiable(groups);
+
+  final String reportId;
+  final String packageSha256;
+  final int rowCount;
+  final List<HostExtensionReportGroup> groups;
+}
+
+class HostExtensionReportGroup {
+  HostExtensionReportGroup({
+    required this.key,
+    required Map<String, String> aggregates,
+  }) : aggregates = Map.unmodifiable(aggregates);
+
+  final Object? key;
+  final Map<String, String> aggregates;
 }
 
 class HostApprovedPackageSummary {
@@ -144,6 +227,20 @@ typedef HostExtensionPackageClientFactory =
     });
 
 enum HostPackageSubmissionStatus { submitted, alreadyApproved }
+
+class HostExtensionSubmission {
+  HostExtensionSubmission({
+    required this.bundle,
+    required this.packageSha256,
+    required this.submittedBy,
+    required this.submittedAtUtc,
+  });
+
+  final ExtensionBundle bundle;
+  final String packageSha256;
+  final String submittedBy;
+  final DateTime submittedAtUtc;
+}
 
 /// Authenticated transport for package review and approved-package reads.
 /// It never treats a submitted candidate as an approved installation.
@@ -392,6 +489,108 @@ class HostExtensionPackageClient {
     return HostApprovedPackagePage(packages: packages, hasMore: hasMore);
   }
 
+  Future<List<HostExtensionSubmission>> listSubmissions({
+    required String companyId,
+    required String branchId,
+    int limit = 3,
+  }) async {
+    if (limit < 1 || limit > 3) {
+      throw const HostPackageTransportException('INVALID_PACKAGE_PAGE');
+    }
+    final response = await _request('POST', '/api/v1/extensions/submissions', {
+      'companyId': companyId,
+      'branchId': branchId,
+      'limit': limit,
+    });
+    if (response.statusCode != HttpStatus.ok ||
+        response.body['submissions'] is! List) {
+      throw _responseError(response);
+    }
+    final rawEntries = response.body['submissions'] as List;
+    if (rawEntries.length > limit) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    return rawEntries
+        .map((raw) {
+          if (raw is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final entry = Map<String, dynamic>.from(raw);
+          if (entry.keys.toSet().difference(const {
+                'moduleId',
+                'version',
+                'packageSha256',
+                'package',
+                'submittedBy',
+                'submittedAt',
+              }).isNotEmpty ||
+              entry.length != 6 ||
+              entry['package'] is! Map ||
+              entry['packageSha256'] is! String ||
+              entry['submittedBy'] is! String ||
+              entry['submittedAt'] is! String) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final bundle = ExtensionBundle.fromJson(
+            Map<String, dynamic>.from(entry['package'] as Map),
+          );
+          final canonical = canonicalJson(bundle.toJson());
+          final submittedAt = DateTime.tryParse(entry['submittedAt'] as String);
+          final hash = sha256.convert(utf8.encode(canonical)).toString();
+          if (bundle.moduleId != entry['moduleId'] ||
+              bundle.version != entry['version'] ||
+              hash != entry['packageSha256'] ||
+              submittedAt == null ||
+              !submittedAt.isUtc) {
+            throw const HostPackageTransportException(
+              'HOST_PACKAGE_INTEGRITY_FAILED',
+            );
+          }
+          return HostExtensionSubmission(
+            bundle: bundle,
+            packageSha256: hash,
+            submittedBy: _requiredIdentifier(entry['submittedBy']),
+            submittedAtUtc: submittedAt,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  Future<String> reviewSubmission({
+    required HostExtensionSubmission submission,
+    required String companyId,
+    required String branchId,
+    required String decision,
+    String? reason,
+  }) async {
+    if (!const {'APPROVE', 'REJECT'}.contains(decision) ||
+        (decision == 'REJECT' &&
+            (reason == null || reason.trim().isEmpty || reason.length > 500)) ||
+        (decision == 'APPROVE' && reason != null && reason.isNotEmpty)) {
+      throw const HostPackageTransportException('INVALID_REVIEW');
+    }
+    final response = await _request('POST', '/api/v1/extensions/review', {
+      'companyId': companyId,
+      'branchId': branchId,
+      'moduleId': submission.bundle.moduleId,
+      'version': submission.bundle.version,
+      'packageSha256': submission.packageSha256,
+      'decision': decision,
+      if (reason != null) 'reason': reason.trim(),
+    });
+    final result = response.body['review'];
+    final expectedStatus = decision == 'APPROVE' ? 'APPROVED' : 'REJECTED';
+    if (response.statusCode != HttpStatus.ok ||
+        result is! Map ||
+        result['status'] != expectedStatus ||
+        result['moduleId'] != submission.bundle.moduleId ||
+        result['version'] != submission.bundle.version ||
+        result['packageSha256'] != submission.packageSha256) {
+      throw _responseError(response);
+    }
+    return expectedStatus;
+  }
+
   Future<HostIdentityRoleSnapshot> listRoles({
     required String companyId,
     required String branchId,
@@ -576,16 +775,20 @@ class HostExtensionPackageClient {
     String filterContains = '',
     String? sortField,
     bool descending = false,
+    String? cursor,
     int offset = 0,
     int limit = 50,
   }) async {
     if (search.length > 256 ||
         (recordId != null && (recordId.isEmpty || recordId.length > 128)) ||
         filterContains.length > 256 ||
+        (cursor != null && (cursor.isEmpty || cursor.length > 1024 * 1024)) ||
         (filterField == null && filterContains.isNotEmpty) ||
         filters.length > 10 ||
+        (recordId != null && cursor != null) ||
         offset < 0 ||
         offset > 1000000 ||
+        (cursor != null && offset != 0) ||
         limit < 1 ||
         limit > 50 ||
         (recordId != null &&
@@ -612,6 +815,7 @@ class HostExtensionPackageClient {
       'offset': offset,
       'limit': limit,
     };
+    if (cursor != null) query['cursor'] = cursor;
     if (recordId != null) query['recordId'] = recordId;
     final response = await _request(
       'POST',
@@ -636,8 +840,14 @@ class HostExtensionPackageClient {
     }
     final rawRecords = result['records'];
     final packageSha256 = result['packageSha256'];
+    final nextCursor = result['nextCursor'];
     if (rawRecords is! List ||
         result['hasMore'] is! bool ||
+        (nextCursor != null &&
+            (nextCursor is! String ||
+                nextCursor.isEmpty ||
+                nextCursor.length > 1024 * 1024 ||
+                !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(nextCursor))) ||
         packageSha256 is! String ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(packageSha256)) {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
@@ -695,9 +905,119 @@ class HostExtensionPackageClient {
       records: records,
       packageSha256: packageSha256,
       hasMore: result['hasMore'] as bool,
+      nextCursor: nextCursor as String?,
       readableFields: readableFields,
       writableFields: writableFields,
       creatableFields: creatableFields,
+    );
+  }
+
+  Future<HostExtensionReportResult> queryReport({
+    required String companyId,
+    required String branchId,
+    required String moduleId,
+    required String version,
+    required String docType,
+    required String reportId,
+    Map<String, dynamic> filters = const {},
+  }) async {
+    if (filters.length > ReportDefinition.maxFilters ||
+        filters.entries.any(
+          (entry) =>
+              entry.key.isEmpty ||
+              entry.key.length > 80 ||
+              entry.value == null ||
+              entry.value is Map ||
+              entry.value is List ||
+              (entry.value is String && entry.value.length > 256) ||
+              (entry.value is num && !(entry.value as num).isFinite),
+        )) {
+      throw const HostPackageTransportException('INVALID_REPORT_QUERY');
+    }
+    final response =
+        await _request('POST', '/api/v1/extensions/reports/query', {
+          'companyId': companyId,
+          'branchId': branchId,
+          'moduleId': moduleId,
+          'version': version,
+          'docType': docType,
+          'reportId': reportId,
+          'filters': filters,
+        });
+    final raw = response.body['reportResult'];
+    if (raw is! Map) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    final result = Map<String, dynamic>.from(raw);
+    if (response.statusCode != HttpStatus.ok || result['status'] != 'REPORT') {
+      final reason = result['reasonCode'];
+      final code =
+          reason is String && RegExp(r'^[A-Z0-9_]{1,80}$').hasMatch(reason)
+          ? reason
+          : 'HOST_REPORT_QUERY_FAILED';
+      throw HostPackageTransportException(
+        code,
+        statusCode: response.statusCode,
+      );
+    }
+    const resultKeys = {
+      'status',
+      'reportId',
+      'packageSha256',
+      'rowCount',
+      'groups',
+    };
+    final packageSha256 = result['packageSha256'];
+    final rowCount = result['rowCount'];
+    final groups = result['groups'];
+    if (result.keys.toSet().difference(resultKeys).isNotEmpty ||
+        result.keys.length != resultKeys.length ||
+        result['reportId'] != reportId ||
+        packageSha256 is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(packageSha256) ||
+        rowCount is! int ||
+        rowCount < 0 ||
+        groups is! List ||
+        groups.length > 100) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    final parsedGroups = groups
+        .map((rawGroup) {
+          if (rawGroup is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final group = Map<String, dynamic>.from(rawGroup);
+          if (group.keys.toSet().difference(const {
+                'key',
+                'aggregates',
+              }).isNotEmpty ||
+              group.keys.length != 2 ||
+              group['aggregates'] is! Map) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          final rawAggregates = Map<String, dynamic>.from(
+            group['aggregates'] as Map,
+          );
+          if (rawAggregates.length > ReportDefinition.maxAggregates ||
+              rawAggregates.entries.any(
+                (entry) =>
+                    !RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(entry.key) ||
+                    entry.value is! String ||
+                    (entry.value as String).length > 128,
+              )) {
+            throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+          }
+          return HostExtensionReportGroup(
+            key: group['key'],
+            aggregates: rawAggregates.cast<String, String>(),
+          );
+        })
+        .toList(growable: false);
+    return HostExtensionReportResult(
+      reportId: reportId,
+      packageSha256: packageSha256,
+      rowCount: rowCount,
+      groups: parsedGroups,
     );
   }
 
@@ -711,7 +1031,11 @@ class HostExtensionPackageClient {
       throw const HostPackageTransportException('HOST_CREDENTIAL_MISSING');
     }
     final watch = Stopwatch()..start();
-    final client = _clientFactory()..connectionTimeout = timeout;
+    final client = await credentials.createHttpClient(
+      endpoint,
+      fallbackFactory: _clientFactory,
+    );
+    client.connectionTimeout = timeout;
     try {
       final uri = endpoint.replace(path: path);
       final request = await client

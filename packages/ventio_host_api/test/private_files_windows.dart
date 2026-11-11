@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
 Future<void> main() async {
@@ -54,6 +55,56 @@ Future<void> main() async {
     if (initial['token'] != 'windows-private-test') {
       throw StateError('Protected Windows file round-trip failed');
     }
+    final missingPath =
+        '${directory.path}${Platform.pathSeparator}missing-private-test.json';
+    try {
+      await PrivateFiles.read(missingPath);
+      throw StateError('Missing protected file was unexpectedly readable');
+    } on StateError catch (error) {
+      if (!error.toString().contains('(read, helper_rejected)') ||
+          error.toString().contains(missingPath)) {
+        rethrow;
+      }
+    }
+    final inaccessiblePath =
+        '${directory.path}${Platform.pathSeparator}inaccessible-diagnostics.json';
+    await PrivateFiles.create(inaccessiblePath, {
+      'formatVersion': 1,
+      'events': const <Object?>[],
+    });
+    final denyRead = await Process.run('icacls.exe', [
+      inaccessiblePath,
+      '/deny',
+      '*$sid:(R)',
+    ]);
+    if (denyRead.exitCode != 0) {
+      throw StateError('Could not prepare the isolated inaccessible-log case');
+    }
+    try {
+      Object? inaccessibleFailure;
+      try {
+        await ProtectedManagementDiagnosticLog.open(inaccessiblePath);
+      } on Object catch (error) {
+        inaccessibleFailure = error;
+      }
+      final inaccessibleFailureText = inaccessibleFailure?.toString() ?? '';
+      if (inaccessibleFailure == null ||
+          inaccessibleFailureText.contains(inaccessiblePath) ||
+          inaccessibleFailureText.contains('windows-private-test')) {
+        throw StateError(
+          'An inaccessible protected diagnostic log was accepted or leaked its path (failure=${inaccessibleFailure?.runtimeType ?? 'none'}, pathLeaked=${inaccessibleFailureText.contains(inaccessiblePath)})',
+        );
+      }
+    } finally {
+      final restoreAcl = await Process.run('icacls.exe', [
+        inaccessiblePath,
+        '/remove:d',
+        '*$sid',
+      ]);
+      if (restoreAcl.exitCode != 0) {
+        throw StateError('Could not restore the isolated diagnostics test ACL');
+      }
+    }
     await PrivateFiles.verifyPrivateFile(file);
     await PrivateFiles.replace(file, {'token': 'rotated-private-test'});
     final rotated = jsonDecode(await PrivateFiles.read(file)) as Map;
@@ -61,6 +112,64 @@ Future<void> main() async {
       throw StateError('Protected Windows file replacement failed');
     }
 
+    final diagnosticsPath =
+        '${directory.path}${Platform.pathSeparator}host-diagnostics.json';
+    final diagnosticLog = await ProtectedManagementDiagnosticLog.open(
+      diagnosticsPath,
+      capacity: 2,
+    );
+    final diagnostic = ManagementDiagnosticEvent(
+      code: 'DATABASE_UNAVAILABLE',
+      component: 'host.database',
+      category: ManagementDiagnosticCategory.database,
+      severity: ManagementDiagnosticSeverity.error,
+      occurredAtUtc: DateTime.utc(2026, 10, 30),
+      correlationId: 'cor_0123456789abcdef0123456789abcdef',
+      retryable: true,
+      messageKey: 'native.diagnostics.database_unavailable',
+      safeExplanation: 'The Host cannot reach its configured database.',
+      recommendedAction: 'Check database service status and retry.',
+      protectedTechnicalCode: '08006',
+      protectedFailureType: 'SocketException',
+      protectedFailureSource: 'PostgresPool.connect',
+    );
+    await diagnosticLog.record(diagnostic);
+    final publicEventJson = jsonEncode(diagnostic.toJson());
+    if (publicEventJson.contains('08006') ||
+        publicEventJson.contains('SocketException')) {
+      throw StateError('Public diagnostic JSON exposed protected details');
+    }
+    final reopenedLog = await ProtectedManagementDiagnosticLog.open(
+      diagnosticsPath,
+      capacity: 2,
+    );
+    if (reopenedLog.recent(limit: 2).single.protectedTechnicalCode != '08006' ||
+        reopenedLog.recent(limit: 2).single.protectedFailureType !=
+            'SocketException') {
+      throw StateError('Protected diagnostic log did not survive reopening');
+    }
+    final childDiagnosticPath =
+        '${directory.path}${Platform.pathSeparator}child-host-diagnostics.json';
+    final childWriter = await Process.run(Platform.resolvedExecutable, [
+      'run',
+      'test/recovery/diagnostic_log_probe.dart',
+      childDiagnosticPath,
+    ]).timeout(const Duration(seconds: 30));
+    if (childWriter.exitCode != 0 ||
+        !(childWriter.stdout as String).contains(
+          'DIAGNOSTIC_EVENT_PERSISTED',
+        )) {
+      throw StateError(
+        'Child-process protected diagnostic persistence failed safely.',
+      );
+    }
+    final childLog = await ProtectedManagementDiagnosticLog.open(
+      childDiagnosticPath,
+      capacity: 2,
+    );
+    if (childLog.recent(limit: 2).single.protectedTechnicalCode != '08006') {
+      throw StateError('Child-process diagnostic event was not persisted.');
+    }
     final witnessDirectory = Directory(
       directory.path + Platform.pathSeparator + 'authority',
     );

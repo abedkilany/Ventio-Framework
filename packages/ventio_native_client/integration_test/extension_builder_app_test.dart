@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ventio_native_client/main.dart';
 import 'package:ventio_native_client/src/extension_store.dart';
+import 'package:ventio_native_client/src/extension_studio_page.dart';
 import 'package:ventio_native_client/src/local_command_queue.dart';
 
 Future<void> _scrollTo(
@@ -29,13 +30,42 @@ Future<void> _scrollTo(
   if (targetCount > 1) {
     throw TestFailure('Expected one matching widget, found $targetCount.');
   }
-  final scrollable = verticalScrollables.first;
-  final position = tester.state<ScrollableState>(scrollable).position;
-  if (position.maxScrollExtent <= position.minScrollExtent) {
+  final activePage = [
+    find.byType(DynamicRecordConflictPage),
+    find.byType(DynamicRecordFormPage),
+    find.byType(DynamicRecordDetailsPage),
+    find.byType(DynamicDocTypePage),
+    find.byType(DocTypeBuilderPage),
+    find.byType(ExtensionDetailsPage),
+    find.byType(ExtensionStudioPage),
+  ].firstWhere((page) => page.evaluate().isNotEmpty);
+  final pageScrollables = find.descendant(
+    of: activePage,
+    matching: verticalScrollables,
+  );
+  if (pageScrollables.evaluate().isEmpty) {
+    throw TestFailure('The active Builder page has no vertical scrollable.');
+  }
+  Finder? scrollable;
+  var maxScrollExtent = 0.0;
+  final elements = pageScrollables.evaluate().toList();
+  for (var index = 0; index < elements.length; index++) {
+    final element = elements[index];
+    final candidate = find.byElementPredicate((current) => current == element);
+    final position = tester.state<ScrollableState>(candidate).position;
+    if (position.maxScrollExtent > maxScrollExtent) {
+      maxScrollExtent = position.maxScrollExtent;
+      scrollable = pageScrollables.at(index);
+    }
+  }
+  if (scrollable == null) {
     throw TestFailure(
       'Could not find the target on the active screen, and it cannot scroll.',
     );
   }
+  final position = tester.state<ScrollableState>(scrollable).position;
+  position.jumpTo(position.minScrollExtent);
+  await tester.pumpAndSettle();
   await tester.scrollUntilVisible(
     target,
     delta,
@@ -113,6 +143,16 @@ void main() {
     testRootPath = p.normalize(tempRoot.path);
     testDirectory = await tempRoot.createTemp('ventio_extension_builder_');
     await openClientData();
+    // The native app opens first-run setup without a selected Host profile.
+    // This test exercises the Builder after that routing choice is complete.
+    await store.saveHostProfile(
+      const HostConnectionProfile(
+        endpoint: 'https://fixture.example.test',
+        tenantId: 'fixture-tenant',
+        companyId: 'fixture-company',
+        branchId: 'fixture-branch',
+      ),
+    );
   });
 
   tearDown(() async {
@@ -134,6 +174,7 @@ void main() {
         VentioClientApp(queue: queue, extensionStore: store),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(ExtensionStudioPage), findsOneWidget);
 
       await _scrollTo(tester, find.text('Create your first extension'));
       final createFirstExtension = find.text('Create your first extension');
@@ -188,19 +229,18 @@ void main() {
 
       await tester.tap(find.text('Add field'));
       await tester.pumpAndSettle();
-      final quantityDialog = find.byType(AlertDialog);
-      final quantityFields = find.descendant(
-        of: quantityDialog,
-        matching: find.byType(TextFormField),
+      Finder fieldInput(String label) => find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == label,
       );
-      await tester.enterText(quantityFields.at(0), 'quantity');
-      await tester.enterText(quantityFields.at(1), 'Quantity');
+      await tester.enterText(fieldInput('Field ID'), 'quantity');
+      await tester.enterText(fieldInput('Label'), 'Quantity');
       await tester.tap(find.byType(DropdownButtonFormField<String>).last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Whole number').last);
       await tester.pumpAndSettle();
-      await tester.enterText(quantityFields.at(2), '1');
-      await tester.enterText(quantityFields.at(3), '20');
+      await tester.enterText(fieldInput('Minimum value'), '1');
+      await tester.enterText(fieldInput('Maximum value'), '20');
       await _scrollTo(tester, find.text('Save field'));
       await tester.tap(find.text('Save field'));
       await tester.pumpAndSettle();
@@ -273,17 +313,25 @@ void main() {
       await tester.tap(find.text('Save on device'));
       await tester.pumpAndSettle();
       expect(find.text('Windows device'), findsOneWidget);
+      await _scrollTo(tester, find.text('Windows device'));
       await tester.tap(find.text('Windows device'));
       await tester.pumpAndSettle();
+      expect(find.byType(DynamicRecordDetailsPage), findsOneWidget);
       expect(find.text('Name'), findsOneWidget);
       expect(find.text('Windows device'), findsOneWidget);
       expect(find.text('Quantity'), findsNothing);
 
-      await tester.pageBack();
+      await Navigator.of(
+        tester.element(find.byType(DynamicRecordDetailsPage)),
+      ).maybePop();
       await tester.pumpAndSettle();
-      await tester.pageBack();
+      await Navigator.of(
+        tester.element(find.byType(DynamicDocTypePage)),
+      ).maybePop();
       await tester.pumpAndSettle();
+      expect(find.byType(ExtensionDetailsPage), findsOneWidget);
       await _scrollToTop(tester);
+      await _waitForWidget(tester, find.text('Edit extension details'));
       await _scrollTo(tester, find.text('Disable on device'));
       await tester.tap(find.text('Disable on device'));
       await tester.pumpAndSettle();
@@ -316,9 +364,9 @@ void main() {
         moduleId: 'com.example.windows_acceptance',
         docTypeName: 'Asset',
         scope: const RecordScope(
-          organizationId: 'local-organization',
-          companyId: 'local-company',
-          branchId: 'local-branch',
+          organizationId: 'fixture-tenant',
+          companyId: 'fixture-company',
+          branchId: 'fixture-branch',
         ),
       );
       expect(retainedFirstRecords.single.values['name'], 'Windows device');
@@ -412,9 +460,9 @@ void main() {
         moduleId: 'com.example.windows_acceptance',
         docTypeName: 'Asset',
         scope: const RecordScope(
-          organizationId: 'local-organization',
-          companyId: 'local-company',
-          branchId: 'local-branch',
+          organizationId: 'fixture-tenant',
+          companyId: 'fixture-company',
+          branchId: 'fixture-branch',
         ),
       );
       expect(records, hasLength(1));
@@ -432,9 +480,9 @@ void main() {
         moduleId: 'com.example.location_catalog',
         docTypeName: 'Site',
         scope: const RecordScope(
-          organizationId: 'local-organization',
-          companyId: 'local-company',
-          branchId: 'local-branch',
+          organizationId: 'fixture-tenant',
+          companyId: 'fixture-company',
+          branchId: 'fixture-branch',
         ),
       );
       expect(secondRecords.single.values['code'], 'NORTH-01');

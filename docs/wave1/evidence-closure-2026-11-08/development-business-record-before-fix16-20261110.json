@@ -1,0 +1,25 @@
+{
+  "SourceBuild": "Wave1fix15",
+  "Scope": {
+    "BranchId": "devhost",
+    "CompanyId": "fixture",
+    "TenantId": "wave1lab"
+  },
+  "ActorId": "usr_2e76d69a4bf3d01d129a9b7adeed78c8",
+  "Module": "sync.test",
+  "Version": "0.1.0",
+  "PackageSha256": "a4df670d74699676265015bed7cebe9b0f64c1fe64fb82f93913f43be649174f",
+  "Receipt": {
+    "CommandId": "c7fdcc8d-37a9-4242-88c0-dcef62e21ead",
+    "Status": "ACCEPTED",
+    "HostRevision": 1
+  },
+  "Query": {
+    "RecordId": "53f2e2b4-2708-4f91-b6f0-9f75f8d4d7dd",
+    "Revision": 1,
+    "Values": {
+      "name": "W1-RETENTION-CONTROL-01"
+    }
+  },
+  "RecordedAtUtc": "2026-11-10T13:52:12.9412841Z"
+}

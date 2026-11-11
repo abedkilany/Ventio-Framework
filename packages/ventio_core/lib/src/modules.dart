@@ -32,6 +32,13 @@ class ModuleRegistry {
 
   void validateInstall(
       ModuleManifest module, List<DocTypeDefinition> docTypes) {
+    if (!isValidModuleId(module.moduleId) ||
+        module.dependencies.any((dependency) => !isValidModuleId(dependency))) {
+      throw const ContractError(
+        'INVALID_MODULE_ID',
+        'Module and dependency IDs must be lowercase namespaced identifiers.',
+      );
+    }
     if (_modules.containsKey(module.moduleId)) {
       throw ContractError('DUPLICATE_MODULE', module.moduleId);
     }

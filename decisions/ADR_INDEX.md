@@ -11,6 +11,7 @@
 | ADR-007 | Initial storage and Host language choices | Open | Dart Host, PostgreSQL and SQLite benchmarks |
 | ADR-008 | Trusted native extensions vs. isolated runtime | Open | Capability gaps and sandbox threat proof |
 | **ADR-009** | **English-only built-in product with optional Translation Module** | **Accepted product principle; implementation proposed** | English without module, pseudo-pack activation, missing-key fallback, unchanged business data |
+| **ADR-010** | **Governed operations and document state** | **Accepted for Wave 1 implementation; protocol remains draft** | Shared transaction pipeline, generic delete tombstone, B04 status transitions and retry safety |
 
 No ADR in this package approves rewriting the current Ventio POS/ERP or finalizing public v1 APIs before proofs.
 

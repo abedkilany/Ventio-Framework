@@ -1,4 +1,10 @@
 import 'contracts.dart';
+import 'business_operations.dart';
+import 'exact_decimal.dart';
+
+final RegExp _docTypeIdentifier = RegExp(r'^[A-Z][A-Za-z0-9_]*$');
+final RegExp _docFieldIdentifier = RegExp(r'^[a-z][A-Za-z0-9_]*$');
+const maxRowsPerTableField = 500;
 
 class FieldDefinition {
   final String name;
@@ -12,8 +18,17 @@ class FieldDefinition {
   final int? maxLength;
   final num? minValue;
   final num? maxValue;
+  final int? precision;
+  final Object? defaultValue;
+  final bool readOnly;
+  final String? description;
+  final String? descriptionKey;
   final List<String> enumValues;
+  final Map<String, String> enumLabels;
+  final Map<String, String> enumLabelKeys;
   final String? referenceTo;
+  final ChildDocTypeDefinition? childDocType;
+  final FieldCalculationDefinition? calculation;
 
   const FieldDefinition(
       {required this.name,
@@ -27,13 +42,37 @@ class FieldDefinition {
       required this.maxLength,
       this.minValue,
       this.maxValue,
+      this.precision,
+      this.defaultValue,
+      this.readOnly = false,
+      this.description,
+      this.descriptionKey,
       required this.enumValues,
-      required this.referenceTo});
+      this.enumLabels = const {},
+      this.enumLabelKeys = const {},
+      required this.referenceTo,
+      this.childDocType,
+      this.calculation});
 
-  factory FieldDefinition.fromJson(Map<String, dynamic> json) {
+  factory FieldDefinition.fromJson(
+    Map<String, dynamic> json, {
+    bool childField = false,
+  }) {
+    final name = requireString(json, 'name');
+    if (!_docFieldIdentifier.hasMatch(name) || name.length > 80) {
+      throw const ContractError('INVALID_FIELD', 'Invalid field name.');
+    }
     final type = requireString(json, 'type');
+    if (childField && type == 'table') {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child tables cannot be nested.',
+      );
+    }
     if (![
       'text',
+      'long_text',
+      'table',
       'integer',
       'decimal',
       'boolean',
@@ -54,10 +93,12 @@ class FieldDefinition {
         (maxLength is! int || maxLength < 1 || maxLength > 65535)) {
       throw const ContractError('INVALID_FIELD', 'Invalid maxLength');
     }
-    if (minLength != null && type != 'text') {
+    if ((minLength != null || maxLength != null) &&
+        type != 'text' &&
+        type != 'long_text') {
       throw const ContractError(
         'INVALID_FIELD',
-        'minLength requires a text field',
+        'Text length limits require a text or long text field',
       );
     }
     if (minLength != null && maxLength != null && minLength > maxLength) {
@@ -92,9 +133,57 @@ class FieldDefinition {
         'minValue must not exceed maxValue',
       );
     }
+    final precision = json['precision'];
+    if (precision != null &&
+        (precision is! int ||
+            precision < 0 ||
+            precision > 9 ||
+            type != 'decimal')) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'Precision must be between zero and nine and only applies to decimal fields',
+      );
+    }
+    final rawDefault = json['default'];
+    if (json.containsKey('default') &&
+        (rawDefault == null ||
+            rawDefault is Map ||
+            rawDefault is List ||
+            (rawDefault is num && !rawDefault.isFinite))) {
+      throw const ContractError('INVALID_FIELD', 'Invalid field default');
+    }
+    if (rawDefault != null && (type == 'table' || type == 'reference')) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'Defaults are not supported for table or reference fields',
+      );
+    }
+    final readOnly = json['readOnly'] ?? false;
+    if (readOnly is! bool) {
+      throw const ContractError('INVALID_FIELD', 'Invalid readOnly value');
+    }
+    final description = json['description'];
+    final descriptionKey = json['descriptionKey'];
+    if (description != null &&
+        (description is! String ||
+            description.trim().isEmpty ||
+            description.length > 500)) {
+      throw const ContractError('INVALID_FIELD', 'Invalid field description');
+    }
+    if ((description == null) != (descriptionKey == null) ||
+        (descriptionKey != null &&
+            (descriptionKey is! String ||
+                !_messageKey.hasMatch(descriptionKey)))) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'Field description and namespaced descriptionKey must be provided together',
+      );
+    }
     final options = json['enumValues'] == null
         ? <String>[]
         : strings(requireList(json, 'enumValues'), 'enumValues');
+    final enumLabels = <String, String>{};
+    final enumLabelKeys = <String, String>{};
     final referenceTo = optionalString(json, 'referenceTo');
     if (type == 'enum') {
       if (options.isEmpty)
@@ -110,6 +199,18 @@ class FieldDefinition {
         requireString(item, 'label');
         requireString(item, 'labelKey');
       }
+      for (final entry in labels.entries) {
+        final item = requireMap(entry.value, 'enumLabels[]');
+        enumLabels[entry.key] = requireString(item, 'label');
+        final key = requireString(item, 'labelKey');
+        if (!_messageKey.hasMatch(key)) {
+          throw const ContractError(
+            'INVALID_FIELD',
+            'Enum label keys must be namespaced message keys',
+          );
+        }
+        enumLabelKeys[entry.key] = key;
+      }
     }
     if (type == 'reference' && (referenceTo == null || referenceTo.isEmpty)) {
       throw const ContractError(
@@ -122,6 +223,36 @@ class FieldDefinition {
     }
     final readPermission = optionalString(json, 'readPermission');
     final writePermission = optionalString(json, 'writePermission');
+    if (childField &&
+        (readOnly || readPermission != null || writePermission != null)) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child fields inherit parent table permissions and cannot be read-only.',
+      );
+    }
+    final childDocType = json['childDocType'] == null
+        ? null
+        : ChildDocTypeDefinition.fromJson(
+            requireMap(json['childDocType'], 'childDocType'),
+          );
+    final calculation = json['calculation'] == null
+        ? null
+        : FieldCalculationDefinition.fromJson(
+            requireMap(json['calculation'], 'calculation'),
+          );
+    if (childDocType != null && type != 'table') {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'A child DocType may only be declared on a table field.',
+      );
+    }
+    if (calculation != null &&
+        (type != 'decimal' || precision == null || rawDefault != null)) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Calculated fields require decimal precision and cannot declare defaults.',
+      );
+    }
     for (final entry in {
       'readPermission': readPermission,
       'writePermission': writePermission,
@@ -134,8 +265,8 @@ class FieldDefinition {
         );
       }
     }
-    return FieldDefinition(
-        name: requireString(json, 'name'),
+    final field = FieldDefinition(
+        name: name,
         type: type,
         required: requireBool(json, 'required'),
         label: requireString(json, 'label'),
@@ -146,18 +277,35 @@ class FieldDefinition {
         maxLength: maxLength as int?,
         minValue: minValue as num?,
         maxValue: maxValue as num?,
+        precision: precision as int?,
+        defaultValue: rawDefault,
+        readOnly: readOnly,
+        description: description as String?,
+        descriptionKey: descriptionKey as String?,
         enumValues: List.unmodifiable(options),
-        referenceTo: referenceTo);
+        enumLabels: Map.unmodifiable(enumLabels),
+        enumLabelKeys: Map.unmodifiable(enumLabelKeys),
+        referenceTo: referenceTo,
+        childDocType: childDocType,
+        calculation: calculation);
+    if (rawDefault != null && field.validate(rawDefault) != null) {
+      throw const ContractError(
+        'INVALID_FIELD',
+        'The field default does not satisfy its declared type and constraints',
+      );
+    }
+    return field;
   }
 
   String? validate(Object? value) {
     if (value == null) return required ? 'REQUIRED' : null;
     switch (type) {
       case 'text':
+      case 'long_text':
       case 'reference':
         if (value is! String || (required && value.trim().isEmpty))
           return 'INVALID_TEXT';
-        if (type == 'text' &&
+        if ((type == 'text' || type == 'long_text') &&
             value.isNotEmpty &&
             minLength != null &&
             value.runes.length < minLength!) {
@@ -165,6 +313,48 @@ class FieldDefinition {
         }
         if (maxLength != null && value.runes.length > maxLength!)
           return 'TOO_LONG';
+        return null;
+      case 'table':
+        if (value is! List ||
+            value.length > maxRowsPerTableField ||
+            (required && value.isEmpty)) {
+          return 'INVALID_TABLE';
+        }
+        for (final row in value) {
+          if (row is! Map ||
+              row.isEmpty ||
+              row.keys.any((key) => key is! String) ||
+              row.values.any(
+                (cell) =>
+                    cell is Map ||
+                    cell is List ||
+                    (cell is num && !cell.isFinite) ||
+                    (cell != null &&
+                        cell is! String &&
+                        cell is! bool &&
+                        cell is! num),
+              )) {
+            return 'INVALID_TABLE';
+          }
+          final child = childDocType;
+          if (child != null) {
+            final childValues = Map<String, dynamic>.from(row);
+            if (childValues.keys
+                .toSet()
+                .difference(child.fieldNames)
+                .isNotEmpty) {
+              return 'INVALID_TABLE';
+            }
+            for (final childField in child.fields) {
+              final childValue = childValues.containsKey(childField.name)
+                  ? childValues[childField.name]
+                  : childField.defaultValue;
+              if (childField.validate(childValue) != null) {
+                return 'INVALID_TABLE';
+              }
+            }
+          }
+        }
         return null;
       case 'enum':
         return value is String && enumValues.contains(value)
@@ -174,9 +364,13 @@ class FieldDefinition {
         if (value is! int) return 'INVALID_INTEGER';
         return _validateNumberBounds(value);
       case 'decimal':
-        // Monetary values need a decimal-precision contract before this type can
-        // be used for financial postings. Never use binary doubles for ledgers.
+        // A declared scale bounds ordinary form values. Governed financial
+        // postings still require an exact decimal representation, not doubles.
         if (value is! num || !value.isFinite) return 'INVALID_DECIMAL';
+        if (precision != null &&
+            !_hasAtMostFractionalDigits(value, precision!)) {
+          return 'INVALID_PRECISION';
+        }
         return _validateNumberBounds(value);
       case 'boolean':
         return value is bool ? null : 'INVALID_BOOLEAN';
@@ -200,9 +394,211 @@ class FieldDefinition {
     if (maxValue != null && value > maxValue!) return 'ABOVE_MAXIMUM';
     return null;
   }
+
+  bool _hasAtMostFractionalDigits(num value, int allowed) {
+    final parts = value.abs().toString().toLowerCase().split('e');
+    final mantissa = parts.first;
+    final exponent = parts.length == 2 ? int.tryParse(parts.last) ?? 0 : 0;
+    final fraction = mantissa.split('.').skip(1).firstOrNull ?? '';
+    final significantFraction = fraction.replaceFirst(RegExp(r'0+$'), '');
+    final decimalPlaces = significantFraction.length - exponent;
+    return decimalPlaces <= allowed;
+  }
+}
+
+class ChildDocTypeDefinition {
+  const ChildDocTypeDefinition({
+    required this.name,
+    required this.label,
+    required this.labelKey,
+    required this.fields,
+  });
+
+  final String name;
+  final String label;
+  final String labelKey;
+  final List<FieldDefinition> fields;
+
+  Set<String> get fieldNames => fields.map((field) => field.name).toSet();
+
+  factory ChildDocTypeDefinition.fromJson(Map<String, dynamic> json) {
+    final name = requireString(json, 'name');
+    final label = requireString(json, 'label');
+    final labelKey = requireString(json, 'labelKey');
+    if (!_docTypeIdentifier.hasMatch(name) ||
+        name.length > 80 ||
+        label.trim().isEmpty ||
+        label.length > 120 ||
+        !_messageKey.hasMatch(labelKey)) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child DocType identity and label must be valid.',
+      );
+    }
+    final rawFields = requireList(json, 'fields');
+    if (rawFields.isEmpty || rawFields.length > 50) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'A child DocType must define between 1 and 50 fields.',
+      );
+    }
+    final fields = rawFields
+        .map(
+          (raw) => FieldDefinition.fromJson(
+            requireMap(raw, 'childDocType.fields[]'),
+            childField: true,
+          ),
+        )
+        .toList(growable: false);
+    if (fields.map((field) => field.name).toSet().length != fields.length) {
+      throw const ContractError(
+        'INVALID_CHILD_DOCTYPE',
+        'Child DocType field names must be unique.',
+      );
+    }
+    _validateChildCalculations(fields);
+    return ChildDocTypeDefinition(
+      name: name,
+      label: label,
+      labelKey: labelKey,
+      fields: List.unmodifiable(fields),
+    );
+  }
+}
+
+/// A small data-only calculation understood identically by Core, SQLite and
+/// the PostgreSQL Host.
+class FieldCalculationDefinition {
+  const FieldCalculationDefinition._({
+    required this.type,
+    this.leftField,
+    this.rightField,
+    this.rowsField,
+    this.valueField,
+  });
+
+  final String type;
+  final String? leftField;
+  final String? rightField;
+  final String? rowsField;
+  final String? valueField;
+
+  factory FieldCalculationDefinition.fromJson(Map<String, dynamic> json) {
+    final type = requireString(json, 'type');
+    final allowed = switch (type) {
+      'multiply' => const {'type', 'leftField', 'rightField'},
+      'sum' => const {'type', 'rowsField', 'valueField'},
+      _ => const <String>{},
+    };
+    if (allowed.isEmpty ||
+        json.keys.toSet().difference(allowed).isNotEmpty ||
+        allowed.difference(json.keys.toSet()).isNotEmpty) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Calculation declarations must use a supported bounded shape.',
+      );
+    }
+    final leftField = optionalString(json, 'leftField');
+    final rightField = optionalString(json, 'rightField');
+    final rowsField = optionalString(json, 'rowsField');
+    final valueField = optionalString(json, 'valueField');
+    if (type == 'multiply' &&
+            (leftField == null ||
+                !_docFieldIdentifier.hasMatch(leftField) ||
+                rightField == null ||
+                !_docFieldIdentifier.hasMatch(rightField)) ||
+        type == 'sum' &&
+            (rowsField == null ||
+                !_docFieldIdentifier.hasMatch(rowsField) ||
+                valueField == null ||
+                !_docFieldIdentifier.hasMatch(valueField))) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Calculation field bindings are invalid.',
+      );
+    }
+    return FieldCalculationDefinition._(
+      type: type,
+      leftField: leftField,
+      rightField: rightField,
+      rowsField: rowsField,
+      valueField: valueField,
+    );
+  }
+}
+
+class DocTypeReferenceValue {
+  const DocTypeReferenceValue({
+    required this.fieldPath,
+    required this.targetDocType,
+    required this.recordId,
+  });
+
+  final String fieldPath;
+  final String targetDocType;
+  final String recordId;
 }
 
 final RegExp _messageKey = RegExp(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$');
+
+/// Bounded declarative configuration for a Host-assigned official number.
+/// Number allocation is a governed Host effect, never extension code.
+class DocumentNamingSeries {
+  static final RegExp _idPattern = RegExp(r'^[a-z][a-z0-9_-]{0,63}$');
+  static final RegExp _prefixPattern = RegExp(r'^[A-Z0-9._/-]{0,24}$');
+
+  const DocumentNamingSeries({
+    required this.seriesId,
+    required this.field,
+    required this.prefix,
+    required this.padding,
+  });
+
+  final String seriesId;
+  final String field;
+  final String prefix;
+  final int padding;
+
+  String provisionalName(String recordId) => 'LOCAL-$recordId';
+
+  String formatNumber(int number) {
+    if (number < 1)
+      throw RangeError.value(number, 'number', 'Must be positive');
+    return '$prefix${number.toString().padLeft(padding, '0')}';
+  }
+
+  factory DocumentNamingSeries.fromJson(Map<String, dynamic> json) {
+    const keys = {'seriesId', 'field', 'prefix', 'padding'};
+    final seriesId = requireString(json, 'seriesId');
+    final field = requireString(json, 'field');
+    final prefix = requireString(json, 'prefix');
+    final padding = requireInt(json, 'padding', min: 1);
+    if (json.keys.toSet().difference(keys).isNotEmpty ||
+        keys.difference(json.keys.toSet()).isNotEmpty ||
+        !_idPattern.hasMatch(seriesId) ||
+        !_docFieldIdentifier.hasMatch(field) ||
+        !_prefixPattern.hasMatch(prefix) ||
+        padding > 12) {
+      throw const ContractError(
+        'INVALID_NAMING_SERIES',
+        'Naming series must use a stable ID, known field name, literal safe prefix, and padding from one to twelve.',
+      );
+    }
+    return DocumentNamingSeries(
+      seriesId: seriesId,
+      field: field,
+      prefix: prefix,
+      padding: padding,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'seriesId': seriesId,
+        'field': field,
+        'prefix': prefix,
+        'padding': padding,
+      };
+}
 
 class DocTypeDefinition {
   final String name;
@@ -222,6 +618,8 @@ class DocTypeDefinition {
   final String pageIcon;
   final int pageOrder;
   final List<DocTypeMigration> migrations;
+  final DocumentNamingSeries? namingSeries;
+  final List<BusinessOperationDefinition> businessOperations;
 
   const DocTypeDefinition(
       {required this.name,
@@ -240,14 +638,63 @@ class DocTypeDefinition {
       String? pageTitleKey,
       this.pageIcon = 'list',
       this.pageOrder = 0,
-      this.migrations = const []})
+      this.migrations = const [],
+      this.namingSeries,
+      this.businessOperations = const []})
       : pageTitle = pageTitle ?? label,
         pageTitleKey = pageTitleKey ?? labelKey;
 
   factory DocTypeDefinition.fromJson(Map<String, dynamic> json) {
-    final fields = requireList(json, 'fields')
+    final name = requireString(json, 'name');
+    final moduleId = requireString(json, 'moduleId');
+    if (!_docTypeIdentifier.hasMatch(name) || name.length > 80) {
+      throw const ContractError('INVALID_DOCTYPE', 'Invalid DocType name.');
+    }
+    if (!isValidModuleId(moduleId)) {
+      throw const ContractError('INVALID_MODULE_ID', 'Invalid module ID.');
+    }
+    final rawFields = requireList(json, 'fields');
+    if (rawFields.length > 100) {
+      throw const ContractError(
+        'TOO_MANY_FIELDS',
+        'A DocType may contain at most 100 fields.',
+      );
+    }
+    final fields = rawFields
         .map((field) => FieldDefinition.fromJson(requireMap(field, 'fields[]')))
         .toList();
+    final kind = requireString(json, 'kind');
+    if (!['operational', 'sensitive'].contains(kind)) {
+      throw const ContractError('INVALID_DOCTYPE', 'Unknown DocType kind');
+    }
+    final namingSeries = json['naming'] == null
+        ? null
+        : DocumentNamingSeries.fromJson(
+            requireMap(json['naming'], 'naming'),
+          );
+    final businessOperations = json['businessOperations'] == null
+        ? const <BusinessOperationDefinition>[]
+        : requireList(json, 'businessOperations')
+            .map((operation) => BusinessOperationDefinition.fromJson(
+                  requireMap(operation, 'businessOperations[]'),
+                ))
+            .toList(growable: false);
+    if (businessOperations.length > 32 ||
+        businessOperations.map((item) => item.id).toSet().length !=
+            businessOperations.length) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Business operation IDs must be unique and at most 32 may be declared.',
+      );
+    }
+    if (businessOperations.any((operation) => operation.effects.any((effect) =>
+        effect.type == 'document.allocate_number' &&
+        (namingSeries == null || effect.field != namingSeries.field)))) {
+      throw const ContractError(
+        'INVALID_OPERATION',
+        'Number allocation effects must target the declared naming series field.',
+      );
+    }
     final rawMigrations = json['migrations'];
     final migrations = rawMigrations == null
         ? const <DocTypeMigration>[]
@@ -272,11 +719,28 @@ class DocTypeDefinition {
       throw const ContractError(
           'INVALID_DOCTYPE', 'Fields must be unique and nonempty');
     }
+    if (namingSeries != null) {
+      final targetFields =
+          fields.where((field) => field.name == namingSeries.field);
+      final target = targetFields.isEmpty ? null : targetFields.first;
+      if (kind != 'operational' ||
+          target == null ||
+          target.type != 'text' ||
+          target.required ||
+          !target.readOnly ||
+          target.defaultValue != null ||
+          (target.maxLength != null && target.maxLength! < 42)) {
+        throw const ContractError(
+          'INVALID_NAMING_SERIES',
+          'A naming series requires an operational DocType and an optional, read-only text field without a default and with room for a provisional local name.',
+        );
+      }
+    }
     final operationsRaw = json['operations'];
     final operations = operationsRaw == null
         ? const ['read', 'create', 'update']
         : strings(requireList(json, 'operations'), 'operations');
-    const supportedOperations = {'read', 'create', 'update'};
+    const supportedOperations = {'read', 'create', 'update', 'delete'};
     if (operations.toSet().length != operations.length ||
         operations
             .any((operation) => !supportedOperations.contains(operation))) {
@@ -285,6 +749,7 @@ class DocTypeDefinition {
         'operations must contain unique supported record operations',
       );
     }
+    _validateParentCalculations(fields);
     final permissionsRaw = requireMap(json['permissions'], 'permissions');
     if (permissionsRaw.keys.toSet().difference(operations.toSet()).isNotEmpty ||
         operations.toSet().difference(permissionsRaw.keys.toSet()).isNotEmpty) {
@@ -297,10 +762,6 @@ class DocTypeDefinition {
       for (final operation in operations)
         operation: requireString(permissionsRaw, operation),
     };
-    final kind = requireString(json, 'kind');
-    if (!['operational', 'sensitive'].contains(kind)) {
-      throw const ContractError('INVALID_DOCTYPE', 'Unknown DocType kind');
-    }
     final labelKey = requireString(json, 'labelKey');
     if (!_messageKey.hasMatch(labelKey)) {
       throw const ContractError('INVALID_DOCTYPE', 'Invalid labelKey');
@@ -390,8 +851,8 @@ class DocTypeDefinition {
       );
     }
     return DocTypeDefinition(
-        name: requireString(json, 'name'),
-        moduleId: requireString(json, 'moduleId'),
+        name: name,
+        moduleId: moduleId,
         schemaVersion: requireInt(json, 'schemaVersion', min: 1),
         kind: kind,
         label: requireString(json, 'label'),
@@ -406,7 +867,9 @@ class DocTypeDefinition {
         pageTitleKey: pageTitleKey,
         pageIcon: pageIcon,
         pageOrder: pageOrder,
-        migrations: List.unmodifiable(migrations));
+        migrations: List.unmodifiable(migrations),
+        namingSeries: namingSeries,
+        businessOperations: List.unmodifiable(businessOperations));
   }
 
   List<String> validatePayload(
@@ -420,10 +883,281 @@ class DocTypeDefinition {
     }
     for (final field in fields) {
       if (partial && !payload.containsKey(field.name)) continue;
-      final issue = field.validate(payload[field.name]);
+      final value = payload.containsKey(field.name)
+          ? payload[field.name]
+          : field.defaultValue;
+      final issue = field.validate(value);
       if (issue != null) issues.add('${field.name}:$issue');
     }
     return issues;
+  }
+
+  Iterable<FieldDefinition> get allFields sync* {
+    for (final field in fields) {
+      yield field;
+      if (field.childDocType case final child?) yield* child.fields;
+    }
+  }
+
+  Map<String, dynamic> applyDefaults(Map<String, dynamic> payload) {
+    return calculateValues(payload);
+  }
+
+  /// Applies defaults and recomputes derived fields. When requested, a
+  /// caller-supplied calculated value must exactly match the authoritative
+  /// result at the field's declared decimal scale.
+  Map<String, dynamic> calculateValues(
+    Map<String, dynamic> payload, {
+    Set<String> verifyCalculatedFields = const {},
+  }) {
+    final values = Map<String, dynamic>.of(payload);
+    for (final field in fields) {
+      if (!values.containsKey(field.name) && field.defaultValue != null) {
+        values[field.name] = field.defaultValue;
+      }
+      final child = field.childDocType;
+      final rows = values[field.name];
+      if (child != null && rows is List) {
+        values[field.name] = rows.map((rawRow) {
+          if (rawRow is! Map) return rawRow;
+          final row = _applyChildDefaults(rawRow, child);
+          for (final childField in child.fields) {
+            final calculation = childField.calculation;
+            if (calculation == null) continue;
+            final calculated = _calculateField(
+              childField,
+              calculation,
+              row,
+              childPrecision: {
+                for (final item in child.fields) item.name: item.precision,
+              },
+            );
+            _verifySuppliedCalculation(
+              childField,
+              row,
+              calculated,
+              verifyCalculatedFields.contains(field.name),
+            );
+            row[childField.name] = calculated;
+          }
+          return row;
+        }).toList(growable: false);
+      }
+    }
+    for (final field in fields) {
+      final calculation = field.calculation;
+      if (calculation == null || !values.containsKey(calculation.rowsField)) {
+        continue;
+      }
+      final calculated = _calculateField(field, calculation, values);
+      _verifySuppliedCalculation(
+        field,
+        values,
+        calculated,
+        verifyCalculatedFields.contains(field.name),
+      );
+      values[field.name] = calculated;
+    }
+    return values;
+  }
+
+  void _verifySuppliedCalculation(
+    FieldDefinition field,
+    Map<String, dynamic> source,
+    num calculated,
+    bool rejectMismatch,
+  ) {
+    final provided = source[field.name];
+    if (!rejectMismatch || !source.containsKey(field.name)) return;
+    if (provided is! num ||
+        ExactDecimal.toScaledInteger(provided, field.precision!) !=
+            ExactDecimal.toScaledInteger(calculated, field.precision!)) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'A supplied calculated value does not match its declared calculation.',
+      );
+    }
+  }
+
+  num _calculateField(
+    FieldDefinition target,
+    FieldCalculationDefinition calculation,
+    Map<String, dynamic> values, {
+    Map<String, int?>? childPrecision,
+  }) {
+    try {
+      final outputScale = target.precision!;
+      if (calculation.type == 'multiply') {
+        final left = values[calculation.leftField];
+        final right = values[calculation.rightField];
+        if (left is! num || right is! num) {
+          throw const FormatException('Calculation input is missing.');
+        }
+        final leftField = childPrecision == null
+            ? fields.singleWhere((field) => field.name == calculation.leftField)
+            : null;
+        final rightField = childPrecision == null
+            ? fields
+                .singleWhere((field) => field.name == calculation.rightField)
+            : null;
+        final leftScale = childPrecision == null
+            ? (leftField!.type == 'integer' ? 0 : leftField.precision!)
+            : (childPrecision[calculation.leftField!] ?? 0);
+        final rightScale = childPrecision == null
+            ? (rightField!.type == 'integer' ? 0 : rightField.precision!)
+            : (childPrecision[calculation.rightField!] ?? 0);
+        return ExactDecimal.fromScaledInteger(
+          ExactDecimal.multiply(
+            left,
+            leftScale,
+            right,
+            rightScale,
+            outputScale,
+          ),
+          outputScale,
+        );
+      }
+      final rows = values[calculation.rowsField];
+      if (rows is! List) {
+        throw const FormatException('Calculation rows are missing.');
+      }
+      final child = fields
+          .singleWhere((field) => field.name == calculation.rowsField)
+          .childDocType!;
+      final sourceField = child.fields
+          .singleWhere((field) => field.name == calculation.valueField);
+      final sourceScale =
+          sourceField.type == 'integer' ? 0 : sourceField.precision!;
+      var total = BigInt.zero;
+      for (final row in rows) {
+        if (row is! Map || row[sourceField.name] is! num) {
+          throw const FormatException('Calculated row value is missing.');
+        }
+        final scaled = ExactDecimal.toScaledInteger(
+          row[sourceField.name] as num,
+          sourceScale,
+        );
+        if (sourceScale > outputScale) {
+          final divisor = BigInt.from(10).pow(sourceScale - outputScale);
+          if (scaled.remainder(divisor) != BigInt.zero) {
+            throw const FormatException(
+              'Calculated sum exceeds the declared precision.',
+            );
+          }
+          total += scaled ~/ divisor;
+        } else {
+          total += scaled * BigInt.from(10).pow(outputScale - sourceScale);
+        }
+      }
+      return ExactDecimal.fromScaledInteger(total, outputScale);
+    } on FormatException catch (error) {
+      throw ContractError('INVALID_CALCULATION', error.message);
+    }
+  }
+
+  Map<String, dynamic> _applyChildDefaults(
+    Map rawRow,
+    ChildDocTypeDefinition child,
+  ) {
+    final row = Map<String, dynamic>.from(rawRow);
+    for (final field in child.fields) {
+      if (!row.containsKey(field.name) && field.defaultValue != null) {
+        row[field.name] = field.defaultValue;
+      }
+    }
+    return row;
+  }
+
+  Iterable<DocTypeReferenceValue> referencesIn(
+    Map<String, dynamic> values,
+  ) sync* {
+    for (final field in fields) {
+      final value = values[field.name];
+      if (field.type == 'reference' && value is String) {
+        yield DocTypeReferenceValue(
+          fieldPath: field.name,
+          targetDocType: field.referenceTo!,
+          recordId: value,
+        );
+      }
+      final child = field.childDocType;
+      if (child != null && value is List) {
+        for (var index = 0; index < value.length; index++) {
+          final row = value[index];
+          if (row is! Map) continue;
+          for (final childField in child.fields) {
+            final childValue = row[childField.name];
+            if (childField.type == 'reference' && childValue is String) {
+              yield DocTypeReferenceValue(
+                fieldPath: '${field.name}[$index].${childField.name}',
+                targetDocType: childField.referenceTo!,
+                recordId: childValue,
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+void _validateChildCalculations(List<FieldDefinition> fields) {
+  final byName = {for (final field in fields) field.name: field};
+  for (final target in fields.where((field) => field.calculation != null)) {
+    final calculation = target.calculation!;
+    if (calculation.type != 'multiply' || target.type != 'decimal') {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Child calculations must multiply numeric sibling fields into a decimal field.',
+      );
+    }
+    for (final name in [calculation.leftField!, calculation.rightField!]) {
+      final source = byName[name];
+      if (source == null ||
+          !{'integer', 'decimal'}.contains(source.type) ||
+          source.calculation != null ||
+          (source.type == 'decimal' && source.precision == null)) {
+        throw const ContractError(
+          'INVALID_CALCULATION',
+          'Multiplication inputs must be declared numeric sibling fields without calculations.',
+        );
+      }
+    }
+  }
+}
+
+void _validateParentCalculations(List<FieldDefinition> fields) {
+  for (final target in fields.where((field) => field.calculation != null)) {
+    final calculation = target.calculation!;
+    if (calculation.type != 'sum' ||
+        target.type != 'decimal' ||
+        !target.readOnly) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'Parent calculations must sum typed child rows into a read-only decimal field.',
+      );
+    }
+    final table = fields.where((field) =>
+        field.name == calculation.rowsField &&
+        field.type == 'table' &&
+        field.childDocType != null);
+    if (table.length != 1) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'A parent sum must reference one typed table field.',
+      );
+    }
+    final source = table.single.childDocType!.fields
+        .where((field) => field.name == calculation.valueField);
+    if (source.length != 1 ||
+        !{'integer', 'decimal'}.contains(source.single.type) ||
+        (source.single.type == 'decimal' &&
+            source.single.precision! > target.precision!)) {
+      throw const ContractError(
+        'INVALID_CALCULATION',
+        'A parent sum must reference a numeric child field at no greater precision.',
+      );
+    }
   }
 }
 
@@ -718,6 +1452,8 @@ bool _constraintsWidened(FieldDefinition old, FieldDefinition updated) {
           (old.minValue != null && updated.minValue! <= old.minValue!)) &&
       (updated.maxValue == null ||
           (old.maxValue != null && updated.maxValue! >= old.maxValue!)) &&
+      (updated.precision == null ||
+          (old.precision != null && updated.precision! >= old.precision!)) &&
       (updated.minLength == null ||
           (old.minLength != null && updated.minLength! <= old.minLength!)) &&
       (updated.maxLength == null ||

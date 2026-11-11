@@ -374,6 +374,27 @@ class LocalCommandQueue {
     return List.unmodifiable(rows.map(QueueEntry.fromRow));
   }
 
+  /// Reports whether the durable queue still contains an unresolved command
+  /// that targets [moduleId]. Accepted receipts are final; pending, retryable,
+  /// conflicted, and rejected commands remain available for recovery/review.
+  Future<bool> hasUnresolvedCommandsForModule(String moduleId) async {
+    _ensureOpen();
+    final rows = await _database.query(
+      _table,
+      columns: const ['envelope_json'],
+      where: 'host_status <> ?',
+      whereArgs: [HostCommandStatus.accepted.databaseValue],
+    );
+    for (final row in rows) {
+      final decoded = jsonDecode(row['envelope_json']! as String);
+      final envelope = CommandEnvelope.fromJson(
+        requireMap(decoded, 'envelope'),
+      );
+      if (envelope.payload['moduleId'] == moduleId) return true;
+    }
+    return false;
+  }
+
   Future<void> close() async {
     if (_closed) return;
     _closed = true;

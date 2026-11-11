@@ -57,6 +57,34 @@ Future<int> _count(
   return rows.single[0] as int;
 }
 
+Future<bool> _hasRecord(
+  pg.Connection connection, {
+  required String tenant,
+  required String company,
+  required String branch,
+  required String module,
+  required String docType,
+  required String record,
+}) async {
+  final rows = await connection.execute(
+    pg.Sql.named('''
+      SELECT record_id FROM ventio_records
+      WHERE tenant_id = @tenant AND company_id = @company
+        AND branch_id = @branch AND module_id = @module
+        AND doc_type = @doctype AND record_id = @record
+    '''),
+    parameters: {
+      'tenant': tenant,
+      'company': company,
+      'branch': branch,
+      'module': module,
+      'doctype': docType,
+      'record': record,
+    },
+  );
+  return rows.isNotEmpty;
+}
+
 Future<void> main() async {
   final url = Platform.environment['VENTIO_TEST_DATABASE_URL'];
   final permitted = Platform.environment['VENTIO_ALLOW_DATABASE_TESTS'];
@@ -99,16 +127,52 @@ Future<void> main() async {
     modules.registerTrustedCapability(
       Capability.fromJson(loadJsonFile('$inspectionPath/capability.json')),
     );
+    final inspectionDocType = loadJsonFile('$inspectionPath/doctype.json');
+    (inspectionDocType['fields'] as List).addAll([
+      {
+        'name': 'relatedInspection',
+        'type': 'reference',
+        'referenceTo': 'EquipmentInspection',
+        'required': false,
+        'label': 'Related inspection',
+        'labelKey': 'inspection.record.related_inspection',
+      },
+      {
+        'name': 'feeRate',
+        'type': 'decimal',
+        'required': false,
+        'precision': 2,
+        'label': 'Fee rate',
+        'labelKey': 'inspection.record.fee_rate',
+      },
+      {
+        'name': 'approvalStatus',
+        'type': 'text',
+        'required': false,
+        'maxLength': 40,
+        'default': 'Pending',
+        'readOnly': true,
+        'label': 'Approval status',
+        'labelKey': 'inspection.record.approval_status',
+        'description': 'Managed by the Host.',
+        'descriptionKey': 'inspection.record.approval_status_description',
+      },
+    ]);
+    final inspectionCatalog =
+        loadJsonFile('$inspectionPath/localization/en.inspection.json')
+          ..['inspection.record.fee_rate'] = 'Fee rate'
+          ..['inspection.record.approval_status'] = 'Approval status'
+          ..['inspection.record.approval_status_description'] =
+              'Managed by the Host.'
+          ..['inspection.record.related_inspection'] = 'Related inspection';
     DeclarativeModuleInstaller(
       modules: modules,
       docTypes: docTypes,
       english: prototype.english,
     ).install(
       manifestJson: loadJsonFile('$inspectionPath/manifest.json'),
-      docTypeJsons: [loadJsonFile('$inspectionPath/doctype.json')],
-      englishCatalog: loadJsonFile(
-        '$inspectionPath/localization/en.inspection.json',
-      ),
+      docTypeJsons: [inspectionDocType],
+      englishCatalog: inspectionCatalog,
     );
     DurableCommandHost host(pg.Connection connection) {
       final result = DurableCommandHost(
@@ -294,12 +358,191 @@ Future<void> main() async {
       inspectionReceipt['status'] == 'ACCEPTED',
       'A separate business module uses the same transaction engine',
     );
+    final storedInspection = await conn.execute(
+      pg.Sql.named('''
+        SELECT record_data->>'approvalStatus' AS approval_status
+        FROM ventio_records
+        WHERE tenant_id = @tenant AND module_id = @module
+          AND doc_type = @doctype AND record_id = @record
+      '''),
+      parameters: {
+        'tenant': scope,
+        'module': 'com.ventio.inspection',
+        'doctype': 'EquipmentInspection',
+        'record': inspection.aggregateId,
+      },
+    );
+    check(
+      storedInspection.single.toColumnMap()['approval_status'] == 'Pending',
+      'PostgreSQL Host stores the declared default for an omitted field',
+    );
+    final precisionJson = Map<String, dynamic>.from(inspectionJson)
+      ..['payload'] = Map<String, dynamic>.from(
+        inspectionJson['payload'] as Map<String, dynamic>,
+      )
+      ..['payload']['feeRate'] = 1.234;
+    final invalidPrecision = _command(
+      precisionJson,
+      scope,
+      record: 'inspection-invalid-precision',
+    );
+    check(
+      (await secondHost.execute(
+            invalidPrecision,
+            _principal(invalidPrecision),
+          ))['reasonCode'] ==
+          'INVALID_PAYLOAD',
+      'PostgreSQL Host rejects a decimal outside its declared precision',
+    );
+    final readOnlyJson = Map<String, dynamic>.from(inspectionJson)
+      ..['payload'] = Map<String, dynamic>.from(
+        inspectionJson['payload'] as Map<String, dynamic>,
+      )
+      ..['payload']['approvalStatus'] = 'Approved';
+    final readOnlyOverride = _command(
+      readOnlyJson,
+      scope,
+      record: 'inspection-readonly-override',
+    );
+    check(
+      (await secondHost.execute(
+            readOnlyOverride,
+            _principal(readOnlyOverride),
+          ))['reasonCode'] ==
+          'READ_ONLY_FIELD',
+      'PostgreSQL Host rejects a client override of a read-only field',
+    );
     check(
       inspectionReceipt['scopeCursor'] == 'scope-v1-3',
       'The cursor is shared by accepted commands across modules in one scope',
     );
 
+    final validReferenceJson = Map<String, dynamic>.from(inspectionJson)
+      ..['payload'] = Map<String, dynamic>.from(
+        inspectionJson['payload'] as Map<String, dynamic>,
+      )
+      ..['payload']['relatedInspection'] = inspection.aggregateId;
+    final validReference = _command(
+      validReferenceJson,
+      scope,
+      record: 'inspection-with-reference',
+    );
+    check(
+      (await secondHost.execute(
+            validReference,
+            _principal(validReference),
+          ))['status'] ==
+          'ACCEPTED',
+      'PostgreSQL Host accepts a reference in the same module and exact scope',
+    );
+
+    Future<void> rejectsReferenceTo(
+      String targetId, {
+      required String label,
+    }) async {
+      final invalidReferenceJson = Map<String, dynamic>.from(inspectionJson)
+        ..['payload'] = Map<String, dynamic>.from(
+          inspectionJson['payload'] as Map<String, dynamic>,
+        )
+        ..['payload']['relatedInspection'] = targetId;
+      final invalidReference = _command(
+        invalidReferenceJson,
+        scope,
+        record: 'inspection-invalid-reference-${_counter}',
+      );
+      final response = await secondHost.execute(
+        invalidReference,
+        _principal(invalidReference),
+      );
+      check(
+        response['reasonCode'] == 'INVALID_REFERENCE' &&
+            !await _hasRecord(
+              conn,
+              tenant: scope,
+              company: invalidReference.companyId,
+              branch: invalidReference.branchId,
+              module: 'com.ventio.inspection',
+              docType: 'EquipmentInspection',
+              record: invalidReference.aggregateId,
+            ),
+        label,
+      );
+    }
+
+    await rejectsReferenceTo(
+      'missing-inspection',
+      label:
+          'PostgreSQL Host rejects missing references without storing the record',
+    );
+
+    final otherBranch = _command(
+      inspectionJson,
+      scope,
+      record: 'inspection-other-branch',
+      branch: 'other-branch',
+    );
+    check(
+      (await secondHost.execute(
+            otherBranch,
+            _principal(otherBranch),
+          ))['status'] ==
+          'ACCEPTED',
+      'PostgreSQL Host stores the reference target in another branch',
+    );
+    await rejectsReferenceTo(
+      otherBranch.aggregateId,
+      label: 'PostgreSQL Host rejects a cross-branch reference',
+    );
+
+    final otherCompany = _command(
+      inspectionJson,
+      scope,
+      record: 'inspection-other-company',
+      company: 'other-company',
+    );
+    check(
+      (await secondHost.execute(
+            otherCompany,
+            _principal(otherCompany),
+          ))['status'] ==
+          'ACCEPTED',
+      'PostgreSQL Host stores the reference target in another company',
+    );
+    await rejectsReferenceTo(
+      otherCompany.aggregateId,
+      label: 'PostgreSQL Host rejects a cross-company reference',
+    );
+
+    final otherTenant = _command(
+      inspectionJson,
+      'other-tenant',
+      record: 'inspection-other-tenant',
+    );
+    check(
+      (await secondHost.execute(
+            otherTenant,
+            _principal(otherTenant),
+          ))['status'] ==
+          'ACCEPTED',
+      'PostgreSQL Host stores the reference target in another tenant',
+    );
+    await rejectsReferenceTo(
+      otherTenant.aggregateId,
+      label: 'PostgreSQL Host rejects a cross-tenant reference',
+    );
+
     final failCommand = _command(maintenanceJson, scope, record: 'rollback');
+    final journalCountBeforeFailure = await _count(
+      conn,
+      'ventio_command_journal',
+      scope,
+    );
+    final auditCountBeforeFailure = await _count(
+      conn,
+      'ventio_audit_entries',
+      scope,
+    );
+    final outboxCountBeforeFailure = await _count(conn, 'ventio_outbox', scope);
     final failingHost = DurableCommandHost(
       connection: conn,
       modules: modules,
@@ -338,9 +581,12 @@ Future<void> main() async {
       'Failed transaction rolls back the record',
     );
     check(
-      await _count(conn, 'ventio_command_journal', scope) == 3 &&
-          await _count(conn, 'ventio_audit_entries', scope) == 3 &&
-          await _count(conn, 'ventio_outbox', scope) == 3,
+      await _count(conn, 'ventio_command_journal', scope) ==
+              journalCountBeforeFailure &&
+          await _count(conn, 'ventio_audit_entries', scope) ==
+              auditCountBeforeFailure &&
+          await _count(conn, 'ventio_outbox', scope) ==
+              outboxCountBeforeFailure,
       'Failed transaction rolls back journal, audit and outbox',
     );
     final retryAfterRollback = await firstHost.execute(
@@ -352,7 +598,7 @@ Future<void> main() async {
       'Same command can safely retry after transaction rollback',
     );
     check(
-      retryAfterRollback['scopeCursor'] == 'scope-v1-4',
+      retryAfterRollback['scopeCursor'] == 'scope-v1-5',
       'A rolled-back transaction does not consume a cursor',
     );
 
@@ -386,22 +632,23 @@ Future<void> main() async {
       'Concurrent distinct commands cannot create the same record twice',
     );
     check(
-      await _count(conn, 'ventio_records', scope) == 6 &&
-          await _count(conn, 'ventio_command_journal', scope) == 6 &&
-          await _count(conn, 'ventio_audit_entries', scope) == 6 &&
-          await _count(conn, 'ventio_outbox', scope) == 6,
+      await _count(conn, 'ventio_records', scope) == 9 &&
+          await _count(conn, 'ventio_command_journal', scope) == 9 &&
+          await _count(conn, 'ventio_audit_entries', scope) == 9 &&
+          await _count(conn, 'ventio_outbox', scope) == 9,
       'Record, journal, audit and outbox counts agree after concurrency',
     );
     final committedCursors = await conn.execute(
       pg.Sql.named('''
         SELECT array_agg(scope_cursor ORDER BY scope_cursor)
         FROM ventio_command_journal
-        WHERE tenant_id = @tenant AND scope_cursor IS NOT NULL
+        WHERE tenant_id = @tenant AND company_id = 'test-company'
+          AND branch_id = 'test-branch' AND scope_cursor IS NOT NULL
       '''),
       parameters: {'tenant': scope},
     );
     check(
-      canonicalJson(committedCursors.single[0]) == '[1,2,3,4,5,6]',
+      canonicalJson(committedCursors.single[0]) == '[1,2,3,4,5,6,7]',
       'Only committed accepted commands advance the durable cursor sequence',
     );
     stdout.writeln('RESULT: $assertions passed, 0 failed');

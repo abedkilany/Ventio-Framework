@@ -1,0 +1,10 @@
+{"utc":"2026-11-10T21:46:41.8387901Z","operation":null,"state":null,"phase":null,"failure":null,"runnerPids":[24992]}
+{"utc":"2026-11-10T21:48:50.3310865Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"running","phase":"PAYLOAD_VALIDATION","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:48:57.1193501Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"running","phase":"POSTGRES_SERVICE_PROVISIONING","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:49:12.2250003Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"running","phase":"DATABASE_INITIALIZATION","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:49:17.0288666Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"running","phase":"HOST_SERVICE_REGISTRATION","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:49:19.0451689Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"running","phase":"HOST_CONFIGURATION_PROTECTION","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:49:19.7212664Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"running","phase":"HOST_LAN_CONFIGURATION","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:49:33.0331766Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"running","phase":"FIRST_ADMINISTRATOR_BOOTSTRAP","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:49:42.9752379Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"complete","phase":"HOST_READINESS","failure":null,"runnerPids":[]}
+{"utc":"2026-11-10T21:52:18.3844707Z","operation":"50a30f12d470d4e98e10e3e0a1af208c","state":"complete","phase":"HOST_READINESS","failure":null,"runnerPids":[4940]}

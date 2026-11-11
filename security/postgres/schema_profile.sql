@@ -1,4 +1,14 @@
 -- Approved migration manifest. Regenerate when adding a reviewed migration.
+ALTER TABLE public.host_schema_upgrade_receipts
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.host_schema_upgrade_receipts
+  FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS owner_access ON public.host_schema_upgrade_receipts;
+CREATE POLICY owner_access ON public.host_schema_upgrade_receipts
+  TO ventio_owner USING (true) WITH CHECK (true);
+REVOKE ALL ON public.host_schema_upgrade_receipts
+  FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;
+
 CREATE OR REPLACE FUNCTION ventio_security.assert_schema()
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
@@ -40,9 +50,28 @@ BEGIN
     ('019_identity_role_assignments.sql','011c2e61e247513113391354da08c7dfced6fc7c6fc37886381fe4eb450dc767'),
     ('020_approved_extension_registry.sql','1912702210d1b699acd1672a0c61bae03384c1aabbf6d861b162faf7616c3ace'),
     ('021_extension_update_compatibility.sql','2044a1974db26f0cb61b24b248249d04689bf767ab55377389dff51902324a9e'),
-    ('022_record_data_gin_index.sql','adf1f0791da08c757552d9eb2b306e0e6c15f0c363c08c265434234dec944872'))
+    ('022_record_data_gin_index.sql','adf1f0791da08c757552d9eb2b306e0e6c15f0c363c08c265434234dec944872'),
+    ('023_governed_document_state.sql','8c130e7c9071f3a862be3331dad96a3823c3688164419bc9bd9502575ce60e89'),
+    ('024_document_number_series.sql','3b07f8e0638e0148bf24500eb026a3ad10f80be0bd576217205a3a2fb965f26a'),
+    ('025_identity_audit_scope_index.sql','6462163d7a01ee0abadb1ffad8ac340c468c6b91cc9a403044fe8dc715357bb5'),
+    ('026_identity_pairing.sql','2f2a71d5086622d4f7fad971e1f7c3404d05e8e5705cc48e418b6c3f34eaa7df'),
+    ('027_identity_pairings.sql','568eb70d6cb2e961da4d4e12e9e6b29764aebda5f1ac7e3acf574a79e677f046'),
+    ('028_identity_pairing_rate_index.sql','42b3a71d92420deb65be566c67d1b8d04d8ed47bfd55b20d0cb0928183eb7ace'),
+    ('029_identity_device_activity.sql','f5b1160fa5120c46d095bde4c45ce23460dea9960177f5eafe7a4f5e0423a63b'),
+    ('030_identity_user_enable.sql','9260ac0d93b708479b5602238d1a5573bad0030036cce2cc71797e6c4570df53'),
+    ('031_identity_credential_reissues.sql','29435344e0d7525d6904452e4eb1658cb395946aa26d8596e71a7c1005fc354b'),
+    ('032_identity_credential_reissue_pending.sql','4c5964e34287764cfd29cd747342a4abd88d2518490840164de207720031769d'),
+    ('033_host_schema_upgrade_receipts.sql','b0059094eaa85547205b6e65f565733190cf0c061f9766fbd6d1f7158b4c1255'),
+    ('034_extension_package_rejection.sql','6f835b3d8f2231435f2b39daea9512a23023a7eceb9edfc7f52d8a3007fa4595'),
+    ('035_scoped_extension_approval.sql','b3c3ff19de81b8b24b3f6987863dfc96ffe6210a3e632d973940762d37e0d514'),
+    ('036_scoped_extension_runtime.sql','50147943077d691d9ac9685eb34efaf062c2022fe88a652de2cd480211fa5244')),
+    legacy(name,sha256) AS (VALUES
+      ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
+      ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),
+      ('028_identity_pairing_rate_index.sql','6c975a92942a3e53abe50da9441f94b9fb7b68f2bda5932792c610814dcd6f68'))
     SELECT FROM expected e FULL JOIN public.ventio_schema_migrations m USING(name)
-    WHERE e.sha256 IS DISTINCT FROM m.sha256
+    WHERE e.sha256 IS DISTINCT FROM m.sha256 AND NOT EXISTS (
+      SELECT FROM legacy l WHERE l.name=m.name AND l.sha256=m.sha256)
   ) THEN
     RAISE EXCEPTION 'Unsupported Host schema manifest' USING ERRCODE='55000';
   END IF;
