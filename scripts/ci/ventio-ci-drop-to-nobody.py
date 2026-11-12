@@ -13,10 +13,8 @@ import sys
 
 
 RUNNER_UID = "1001"
-RUNNER_GID = "1001"
-RUNNER_NAME = "actions"
+RUNNER_NAME = "runner"
 TARGET_UID = 65534
-TARGET_GID = 1001
 MAX_REQUEST_BYTES = 1_048_576
 ALLOWED_PROGRAMS = {
     "id": "/usr/bin/id",
@@ -73,10 +71,13 @@ def main() -> None:
         fail("must be invoked by sudo without command-line arguments")
     if (
         os.environ.get("SUDO_UID") != RUNNER_UID
-        or os.environ.get("SUDO_GID") != RUNNER_GID
         or os.environ.get("SUDO_USER") != RUNNER_NAME
     ):
-        fail("caller is not the dedicated actions account")
+        fail("caller is not the GitHub-hosted runner account")
+    caller_gid = os.environ.get("SUDO_GID", "")
+    if not caller_gid.isdecimal():
+        fail("caller primary group is invalid")
+    target_gid = int(caller_gid)
 
     request = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
     if len(request) > MAX_REQUEST_BYTES:
@@ -87,10 +88,10 @@ def main() -> None:
         fail("request must be one JSON object")
     program, arguments, environment = validated_request(payload)
 
-    # Keep the audit's read-only witness group, but perform the UID/GID
+    # Keep the runner-owned read-only witness group, but perform the UID/GID
     # transition before executing commands or job-provided environment values.
-    os.setgroups([TARGET_GID])
-    os.setgid(TARGET_GID)
+    os.setgroups([target_gid])
+    os.setgid(target_gid)
     os.setuid(TARGET_UID)
     os.execvpe(program, arguments, environment)
 

@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -38,16 +38,8 @@ permissions:
 
 jobs:
   native-client-windows-android:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.actor == 'abedkilany' && github.event.pull_request.user.login == 'abedkilany' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'workflow_dispatch' && github.actor == 'abedkilany' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/windows-self-hosted-runner'))
-    runs-on: [self-hosted, Windows, X64, ventio-windows]
+    runs-on: windows-latest
     timeout-minutes: 90
-    env:
-      GIT_CONFIG_COUNT: '1'
-      GIT_CONFIG_KEY_0: safe.directory
-      GIT_CONFIG_VALUE_0: C:/flutter
-      JAVA_HOME: 'C:\Program Files\Android\Android Studio\jbr'
-      ANDROID_HOME: C:\actions-runner\_work\_tool\ventio-android-sdk-36
-      ANDROID_SDK_ROOT: C:\actions-runner\_work\_tool\ventio-android-sdk-36
     defaults:
       run:
         shell: cmd
@@ -55,31 +47,43 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Use the pinned Windows Flutter SDK
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\verify-flutter-sdk.ps1
-      - name: Verify the installed Android Studio JDK
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\verify-android-java.ps1
-      - name: Prepare an isolated Android SDK home for the runner
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\prepare-android-sdk.ps1
-      - name: Seed the isolated SDK with verified local packages
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\seed-android-sdk.ps1
-      - name: Seed the pinned NDK into the isolated Android SDK
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci_android\seed-android-ndk.ps1
-      - name: Verify isolated Android SDK and configure job PATH
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\verify-android-sdk.ps1
+      - name: Set up pinned Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install pinned Android SDK packages
+        shell: pwsh
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+      - name: Set up pinned Flutter SDK and cache dependencies
+        uses: subosito/flutter-action@v2.15.0
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+          pub-cache: true
       - name: Generate native runner scaffolding
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\prepare_native_client_platforms.ps1
       - name: Resolve dependencies
         working-directory: packages/ventio_native_client
         run: flutter pub get --enforce-lockfile
       - name: Install isolated contract validation dependency
+        shell: pwsh
         run: |
-          C:\Python314\python.exe -m pip install --upgrade --disable-pip-version-check --target "%RUNNER_TEMP%\ventio-python-packages-%GITHUB_RUN_ID%" "jsonschema>=4.18,<5"
-          echo PYTHONPATH=%RUNNER_TEMP%\ventio-python-packages-%GITHUB_RUN_ID%>>"%GITHUB_ENV%"
+          $packageRoot = Join-Path $env:RUNNER_TEMP "ventio-python-packages-$env:GITHUB_RUN_ID"
+          python -m pip install --disable-pip-version-check --target $packageRoot 'jsonschema>=4.18,<5'
+          "PYTHONPATH=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Validate contract examples
-        run: python scripts\validate_contracts.py
+        run: python scripts/validate_contracts.py
       - name: Enforce localization gate
-        run: python scripts\check_localization_gate.py
+        run: python scripts/check_localization_gate.py
       - name: Test localization gate
         run: python -m unittest scripts.test_check_localization_gate
       - name: Check formatting and static analysis
@@ -105,6 +109,3 @@ jobs:
       - name: Build Android release APK
         working-directory: packages/ventio_native_client
         run: flutter build apk --release
-      - name: Remove run-scoped Flutter settings and build output
-        if: always()
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\ci\cleanup-native-flutter.ps1
