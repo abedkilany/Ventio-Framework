@@ -45,9 +45,29 @@ try {
     New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $currentSid = $identity.User.Value
-    if ($currentSid -notmatch '^S-1-\d+(?:-\d+)+$') { throw 'Cannot resolve the runner service SID.' }
-    & icacls.exe $fixtureRoot /inheritance:r /grant:r "*$currentSid`:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Could not protect PostgreSQL fixture files with a private Windows ACL.' }
+    if ($currentSid -notmatch '^S-1-\d+(?:-\d+)+$') { throw 'Cannot resolve the runner job SID.' }
+    $inheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+        [Security.AccessControl.InheritanceFlags]::ObjectInherit
+    $accessType = [Security.AccessControl.AccessControlType]::Allow
+    $acl = [Security.AccessControl.DirectorySecurity]::new()
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner([Security.Principal.SecurityIdentifier]::new($currentSid))
+    foreach ($sid in @($currentSid, 'S-1-5-18', 'S-1-5-32-544')) {
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+            [Security.Principal.SecurityIdentifier]::new($sid),
+            [Security.AccessControl.FileSystemRights]::FullControl,
+            $inheritance,
+            [Security.AccessControl.PropagationFlags]::None,
+            $accessType
+        ))
+    }
+    Set-Acl -LiteralPath $fixtureRoot -AclObject $acl
+    $verifiedAcl = Get-Acl -LiteralPath $fixtureRoot
+    if (-not $verifiedAcl.AreAccessRulesProtected -or
+        $verifiedAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $currentSid -or
+        $verifiedAcl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]).Count -ne 3) {
+        throw 'Could not establish the expected private PostgreSQL fixture ACL.'
+    }
 
     [IO.File]::WriteAllText($passwordFile, $postgresPassword, [System.Text.UTF8Encoding]::new($false))
     & $initdb -D $dataDirectory -U ventio --auth-local=scram-sha-256 --auth-host=scram-sha-256 "--pwfile=$passwordFile" --encoding=UTF8 --no-sync
