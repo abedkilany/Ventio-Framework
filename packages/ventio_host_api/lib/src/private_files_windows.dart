@@ -301,7 +301,26 @@ try {
         ..add(unit & 0xff)
         ..add(unit >> 8);
     }
-    final encodedScript = base64Encode(scriptBytes);
+    final compressedScript = base64Encode(GZipCodec().encode(scriptBytes));
+    final bootstrap = r'''
+$ventioPayload = '__VENTIO_COMPRESSED_SCRIPT__'
+$ventioBytes = [Convert]::FromBase64String($ventioPayload)
+$ventioInput = [System.IO.MemoryStream]::new($ventioBytes)
+$ventioGzip = [System.IO.Compression.GZipStream]::new(
+  $ventioInput, [System.IO.Compression.CompressionMode]::Decompress)
+$ventioReader = [System.IO.StreamReader]::new(
+  $ventioGzip, [System.Text.Encoding]::Unicode)
+$ventioScript = $ventioReader.ReadToEnd()
+$ventioReader.Dispose()
+Invoke-Expression $ventioScript
+'''.replaceAll('__VENTIO_COMPRESSED_SCRIPT__', compressedScript);
+    final bootstrapBytes = <int>[];
+    for (final unit in bootstrap.codeUnits) {
+      bootstrapBytes
+        ..add(unit & 0xff)
+        ..add(unit >> 8);
+    }
+    final encodedScript = base64Encode(bootstrapBytes);
     final systemRoot = Platform.environment['SystemRoot'];
     if (systemRoot == null || !Directory(systemRoot).isAbsolute) {
       throw StateError('Windows system directory is unavailable');
