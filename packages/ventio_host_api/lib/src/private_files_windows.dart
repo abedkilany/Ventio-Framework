@@ -271,7 +271,7 @@ try {
     $exceptionType = $_.Exception.GetType().Name
     $exceptionCode = [BitConverter]::ToUInt32(
       [BitConverter]::GetBytes([int]$_.Exception.HResult), 0)
-    [Console]::Error.WriteLine(
+    [Console]::Out.WriteLine(
       'VENTIO_PRIVATE_HELPER_FAILURE:{0}:0x{1:X8}' -f $exceptionType, $exceptionCode)
   }
   [Console]::Error.WriteLine('Protected Windows file operation failed')
@@ -323,7 +323,7 @@ try {
         '-NonInteractive',
         '-EncodedCommand',
         encodedScript,
-      ]);
+      ], environment: Platform.environment);
       stdout = process.stdout.fold<List<int>>(<int>[], (bytes, chunk) {
         if (bytes.length + chunk.length > 2 * 1024 * 1024) {
           throw const FormatException('Protected file output too large');
@@ -354,7 +354,7 @@ try {
         if (Platform.environment['VENTIO_PRIVATE_FILES_DIAGNOSTICS'] == '1') {
           final diagnostic = RegExp(
             r'VENTIO_PRIVATE_HELPER_FAILURE:([A-Za-z]+):(0x[0-9A-Fa-f]{8})',
-          ).firstMatch(helperStderr);
+          ).firstMatch('$helperStderr\n$result');
           if (diagnostic != null) {
             print(
               'Windows private-file helper: ${diagnostic[1]} ${diagnostic[2]}',
