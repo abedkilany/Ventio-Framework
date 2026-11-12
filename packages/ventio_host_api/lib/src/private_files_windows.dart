@@ -302,7 +302,7 @@ try {
         ..add(unit >> 8);
     }
     final compressedScript = base64Encode(GZipCodec().encode(scriptBytes));
-    final bootstrap = r'''
+    final bootstrapSource = r'''
 $ventioPayload = '__VENTIO_COMPRESSED_SCRIPT__'
 $ventioBytes = [Convert]::FromBase64String($ventioPayload)
 $ventioInput = [System.IO.MemoryStream]::new($ventioBytes)
@@ -313,7 +313,11 @@ $ventioReader = [System.IO.StreamReader]::new(
 $ventioScript = $ventioReader.ReadToEnd()
 $ventioReader.Dispose()
 Invoke-Expression $ventioScript
-'''.replaceAll('__VENTIO_COMPRESSED_SCRIPT__', compressedScript);
+''';
+    final bootstrap = bootstrapSource.replaceAll(
+      '__VENTIO_COMPRESSED_SCRIPT__',
+      compressedScript,
+    );
     final bootstrapBytes = <int>[];
     for (final unit in bootstrap.codeUnits) {
       bootstrapBytes
