@@ -235,6 +235,43 @@ Future<void> main() async {
     if (!unsafeDirectoryRefused) {
       throw StateError('An inherited, unprotected directory was accepted');
     }
+    // A protected child must still be refused when an ancestor grants deletion
+    // rights to an untrusted principal. A private child ACL cannot fix its parent.
+    final unsafeAncestor = await Directory(
+      '${directory.path}${Platform.pathSeparator}unsafe-ancestor',
+    ).create();
+    await setPrivateWindowsDirectoryAcl(unsafeAncestor, sid);
+    final protectedChild = await Directory(
+      '${unsafeAncestor.path}${Platform.pathSeparator}protected-child',
+    ).create();
+    await setPrivateWindowsDirectoryAcl(protectedChild, sid);
+    final grantDeleteChild = await Process.run('icacls.exe', [
+      unsafeAncestor.path,
+      '/grant',
+      '*S-1-5-11:(DC)',
+    ]);
+    if (grantDeleteChild.exitCode != 0) {
+      throw StateError('Could not prepare the unsafe ancestor ACL case.');
+    }
+    try {
+      final refusedPath =
+          '${protectedChild.path}${Platform.pathSeparator}must-not-exist.json';
+      var unsafeAncestorRefused = false;
+      try {
+        await PrivateFiles.create(refusedPath, {'probe': 'must-not-write'});
+      } on StateError {
+        unsafeAncestorRefused = true;
+      }
+      if (!unsafeAncestorRefused || await File(refusedPath).exists()) {
+        throw StateError(
+          'An ancestor with untrusted delete-child access was accepted.',
+        );
+      }
+      stdout.writeln('PASS: Untrusted ancestor delete-child access is refused');
+    } finally {
+      await setPrivateWindowsDirectoryAcl(unsafeAncestor, sid);
+    }
+
     stdout.writeln('PASS: Windows ACL-backed private-file operations');
   } finally {
     await directory.delete(recursive: true);

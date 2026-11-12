@@ -158,11 +158,15 @@ Future<Directory> createPrivateTestDirectory(String prefix) async {
     return directory;
   }
 
+  // This override is confined to test fixtures; production paths are unchanged.
+  final privateRoot = Platform.environment['VENTIO_TEST_PRIVATE_ROOT'];
   final runnerTemp = Platform.environment['RUNNER_TEMP'];
   final userProfile = Platform.environment['USERPROFILE'];
-  final basePath = runnerTemp ?? userProfile;
-  if (basePath == null || !Directory(basePath).existsSync()) {
-    throw StateError('A Windows user profile directory is unavailable');
+  final basePath = privateRoot ?? runnerTemp ?? userProfile;
+  if (basePath == null ||
+      !Directory(basePath).isAbsolute ||
+      !Directory(basePath).existsSync()) {
+    throw StateError('A Windows private test storage root is unavailable');
   }
   final directory = Directory(
     '$basePath${Platform.pathSeparator}$prefix$pid-'
