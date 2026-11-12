@@ -269,10 +269,9 @@ try {
 } catch {
   if ($env:VENTIO_PRIVATE_FILES_DIAGNOSTICS -eq '1') {
     $exceptionType = $_.Exception.GetType().Name
-    $exceptionCode = [BitConverter]::ToUInt32(
-      [BitConverter]::GetBytes([int]$_.Exception.HResult), 0)
-    [Console]::Out.WriteLine(
-      'VENTIO_PRIVATE_HELPER_FAILURE:{0}:0x{1:X8}' -f $exceptionType, $exceptionCode)
+    $exceptionCode = ([int]$_.Exception.HResult).ToString('X8')
+    [Console]::Out.WriteLine('VENTIO_PRIVATE_HELPER_FAILURE:' +
+      $exceptionType + ':0x' + $exceptionCode)
   }
   [Console]::Error.WriteLine('Protected Windows file operation failed')
   exit 2
