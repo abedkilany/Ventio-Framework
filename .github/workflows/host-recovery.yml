@@ -73,6 +73,8 @@ jobs:
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -v ON_ERROR_STOP=1 -v expected_database=ventio_host_test -f ..\..\security\postgres\bootstrap.sql
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -f ..\..\security\postgres\test_logins.sql
       - name: Kill Host and PostgreSQL processes, retry and restore into fresh cluster
+        env:
+          VENTIO_PRIVATE_FILES_DIAGNOSTICS: '1'
         run: dart run test/recovery_integration.dart
       - name: Remove disposable PostgreSQL test instance
         if: always()
