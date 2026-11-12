@@ -1129,6 +1129,7 @@ Future<void> main() async {
           'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
           'VENTIO_ENABLE_LOCAL_HOST': 'yes',
           'VENTIO_TEST_ALLOW_STDIN_SHUTDOWN': 'yes',
+          'VENTIO_PRIVATE_FILES_DIAGNOSTICS': '0',
           'VENTIO_RECOVERY_AUTHORITY_FILE': authority.path,
           'VENTIO_HOST_DATABASE_URL': runtimeUrl,
           'VENTIO_HOST_PORT': '0',
@@ -1184,7 +1185,8 @@ Future<void> main() async {
 
     Future<void> stopChild() async {
       child!.stdin.writeln('shutdown');
-      await child!.stdin.flush();
+      // EOF lets the fixture finish cancelling its stdin subscription on Windows.
+      await child!.stdin.close();
       final code = await child!.exitCode.timeout(const Duration(seconds: 20));
       check(code == 0, 'Persistent Host process shuts down cleanly');
       child = null;

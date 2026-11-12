@@ -90,8 +90,15 @@ public sealed class VentioTestObjectOwner : IDisposable
         }
         catch
         {
-            CloseHandle(token);
-            token = IntPtr.Zero;
+            try
+            {
+                if (previousOwner != null) SetOwner(previousOwner);
+            }
+            finally
+            {
+                CloseHandle(token);
+                token = IntPtr.Zero;
+            }
             throw;
         }
     }
@@ -99,7 +106,13 @@ public sealed class VentioTestObjectOwner : IDisposable
     public void Dispose()
     {
         if (token == IntPtr.Zero) return;
-        try { SetOwner(previousOwner); }
+        try
+        {
+            SetOwner(previousOwner);
+            if (!ReadOwner().Equals(previousOwner))
+                throw new InvalidOperationException("CI default object owner was not restored.");
+            Console.WriteLine("VENTIO_TEST_OBJECT_OWNER: restored=" + previousOwner.Value);
+        }
         finally
         {
             CloseHandle(token);

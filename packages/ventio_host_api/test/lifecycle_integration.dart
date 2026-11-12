@@ -667,7 +667,11 @@ Future<void> main() async {
         final process = await Process.start(
           Platform.resolvedExecutable,
           ['run', 'test/recovery/lifecycle_worker.dart', config],
-          environment: {'VENTIO_ALLOW_DATABASE_TESTS': 'yes'},
+          // stdout is the worker's JSON barrier protocol.
+          environment: {
+            'VENTIO_ALLOW_DATABASE_TESTS': 'yes',
+            'VENTIO_PRIVATE_FILES_DIAGNOSTICS': '0',
+          },
         );
         process.stderr.drain<void>();
         final event =
