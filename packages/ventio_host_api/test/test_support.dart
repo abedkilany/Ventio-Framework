@@ -62,6 +62,52 @@ if (-not $verified.AreAccessRulesProtected -or
     $verified.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $ownerSid.Value) {
   throw 'Private test directory owner or inheritance protection did not persist.'
 }
+
+# Diagnostics are test-only and contain ACL metadata, never file contents or credentials.
+if ($env:VENTIO_PRIVATE_FILES_DIAGNOSTICS -eq '1') {
+  $trusted = @($ownerSid.Value, 'S-1-5-18', 'S-1-5-32-544',
+    'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+  $mask = [int](
+    [System.Security.AccessControl.FileSystemRights]::Delete -bor
+    [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+    [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+    [System.Security.AccessControl.FileSystemRights]::TakeOwnership)
+  $cursor = [System.IO.Directory]::GetParent($path)
+  while ($null -ne $cursor) {
+    $ancestorAcl = [System.IO.Directory]::GetAccessControl($cursor.FullName)
+    $ancestorOwner = $ancestorAcl.GetOwner(
+      [System.Security.Principal.SecurityIdentifier]).Value
+    $metadata = [ordered]@{
+      path = $cursor.FullName
+      ownerSid = $ancestorOwner
+      ownerTrusted = ($trusted -contains $ancestorOwner)
+    }
+    [Console]::Out.WriteLine('VENTIO_TEST_ANCESTOR:' +
+      (ConvertTo-Json -InputObject $metadata -Compress))
+    foreach ($rule in $ancestorAcl.GetAccessRules($true, $false,
+        [System.Security.Principal.SecurityIdentifier])) {
+      if ($rule.AccessControlType -ne
+          [System.Security.AccessControl.AccessControlType]::Allow) { continue }
+      if (($rule.PropagationFlags -band
+          [System.Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
+      $destructive = [int]$rule.FileSystemRights -band $mask
+      if ($destructive -eq 0) { continue }
+      $metadata = [ordered]@{
+        path = $cursor.FullName
+        sid = $rule.IdentityReference.Value
+        rights = [string]$rule.FileSystemRights
+        destructiveRights = [string][System.Security.AccessControl.FileSystemRights]$destructive
+        rightsMask = [int]$rule.FileSystemRights
+        trusted = ($trusted -contains $rule.IdentityReference.Value)
+        inheritance = [string]$rule.InheritanceFlags
+        propagation = [string]$rule.PropagationFlags
+      }
+      [Console]::Out.WriteLine('VENTIO_TEST_ANCESTOR:' +
+        (ConvertTo-Json -InputObject $metadata -Compress))
+    }
+    $cursor = $cursor.Parent
+  }
+}
 ''';
   final systemRoot = Platform.environment['SystemRoot'];
   if (systemRoot == null) {
@@ -88,6 +134,13 @@ if (-not $verified.AreAccessRulesProtected -or
       'VENTIO_TEST_PRIVATE_ACL_READER': readerSid ?? '',
     },
   );
+  if (Platform.environment['VENTIO_PRIVATE_FILES_DIAGNOSTICS'] == '1') {
+    for (final line in const LineSplitter().convert(result.stdout as String)) {
+      if (line.startsWith('VENTIO_TEST_ANCESTOR:')) {
+        stdout.writeln(line);
+      }
+    }
+  }
   if (result.exitCode != 0) {
     throw StateError('Cannot prepare protected Windows test storage');
   }
