@@ -4,51 +4,22 @@ import 'dart:io';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
+import 'test_support.dart'
+    show
+        createPrivateTestDirectory,
+        currentWindowsSid,
+        setPrivateWindowsDirectoryAcl;
+
 Future<void> main() async {
   if (!Platform.isWindows) {
     stdout.writeln('SKIP: Windows private-file integration test');
     return;
   }
 
-  final userProfile = Platform.environment['USERPROFILE'];
-  if (userProfile == null || !Directory(userProfile).existsSync()) {
-    throw StateError('A Windows user profile directory is unavailable');
-  }
-  final directory = Directory(
-    userProfile +
-        Platform.pathSeparator +
-        'ventio-private-$pid-' +
-        DateTime.now().microsecondsSinceEpoch.toString(),
-  );
-  await directory.create();
+  final directory = await createPrivateTestDirectory('ventio-private-');
   try {
-    final identity = await Process.run('whoami.exe', [
-      '/user',
-      '/fo',
-      'csv',
-      '/nh',
-    ]);
-    if (identity.exitCode != 0) throw StateError('Cannot resolve current SID');
-    final sid = (identity.stdout as String)
-        .split(',')
-        .last
-        .trim()
-        .replaceAll('"', '');
-    if (!RegExp(r'^S-1-\d+(?:-\d+)+$').hasMatch(sid)) {
-      throw StateError('Windows returned an invalid current SID');
-    }
+    final sid = await currentWindowsSid();
     const readerGroupSid = 'S-1-5-11';
-    final acl = await Process.run('icacls.exe', [
-      directory.path,
-      '/inheritance:r',
-      '/grant:r',
-      '*$sid:(OI)(CI)F',
-      '*S-1-5-18:(OI)(CI)F',
-      '*S-1-5-32-544:(OI)(CI)F',
-    ]);
-    if (acl.exitCode != 0)
-      throw StateError('Cannot prepare a protected test directory');
-
     final file = '${directory.path}${Platform.pathSeparator}secret.json';
     await PrivateFiles.create(file, {'token': 'windows-private-test'});
     final initial = jsonDecode(await PrivateFiles.read(file)) as Map;
@@ -174,18 +145,11 @@ Future<void> main() async {
       directory.path + Platform.pathSeparator + 'authority',
     );
     await witnessDirectory.create();
-    final witnessAcl = await Process.run('icacls.exe', [
-      witnessDirectory.path,
-      '/inheritance:r',
-      '/grant:r',
-      '*$sid:(OI)(CI)F',
-      '*S-1-5-18:(OI)(CI)F',
-      '*S-1-5-32-544:(OI)(CI)F',
-      '*$readerGroupSid:(OI)(CI)RX',
-    ]);
-    if (witnessAcl.exitCode != 0) {
-      throw StateError('Cannot prepare a protected witness directory');
-    }
+    await setPrivateWindowsDirectoryAcl(
+      witnessDirectory,
+      sid,
+      readerSid: readerGroupSid,
+    );
 
     final witness =
         witnessDirectory.path + Platform.pathSeparator + 'authority.json';
