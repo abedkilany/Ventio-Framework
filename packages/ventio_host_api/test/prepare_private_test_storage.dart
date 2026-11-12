@@ -24,7 +24,44 @@ Future<void> main() async {
   try {
     await setPrivateWindowsDirectoryAcl(root, await currentWindowsSid());
     final probe = '${root.path}${Platform.pathSeparator}storage-probe.json';
-    await PrivateFiles.create(probe, {'probe': true});
+    try {
+      await PrivateFiles.create(probe, {'probe': true});
+    } catch (_) {
+      // Report only the failed probe's ACL, never its contents.
+      final acl = await Process.run(
+        'powershell.exe',
+        [
+          '-NoLogo',
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          r'''
+$acl = Get-Acl -LiteralPath $env:VENTIO_TEST_PROBE_PATH
+$metadata = [ordered]@{
+  ownerSid = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+  expectedOwnerSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  protected = $acl.AreAccessRulesProtected
+  rules = @($acl.GetAccessRules($true, $true,
+    [System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
+      [ordered]@{
+        sid = $_.IdentityReference.Value
+        rights = [string]$_.FileSystemRights
+        inherited = $_.IsInherited
+        type = [string]$_.AccessControlType
+      }
+    })
+}
+[Console]::Out.WriteLine('VENTIO_TEST_PROBE_ACL:' +
+  (ConvertTo-Json -InputObject $metadata -Depth 4 -Compress))
+''',
+        ],
+        environment: {'VENTIO_TEST_PROBE_PATH': probe},
+      );
+      for (final line in const LineSplitter().convert(acl.stdout as String)) {
+        if (line.startsWith('VENTIO_TEST_PROBE_ACL:')) stdout.writeln(line);
+      }
+      rethrow;
+    }
     final readback = jsonDecode(await PrivateFiles.read(probe)) as Map;
     if (readback['probe'] != true) {
       throw StateError('Private test storage round-trip failed.');
