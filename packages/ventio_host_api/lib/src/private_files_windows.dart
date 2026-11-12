@@ -8,11 +8,13 @@ class WindowsPrivateFiles {
   static const _script = r'''
 $ErrorActionPreference = 'Stop'
 try {
+  $stage = 'read_request'
   $utf8 = [System.Text.UTF8Encoding]::new($false)
   [Console]::InputEncoding = $utf8
   [Console]::OutputEncoding = $utf8
   $request = ConvertFrom-Json -InputObject ([Console]::In.ReadToEnd())
   $operation = [string]$request.operation
+  $stage = 'validate_target_path'
   $path = [System.IO.Path]::GetFullPath([string]$request.path)
   if ($path -notmatch '^[A-Za-z]:\\') { throw 'local absolute path required' }
   $drive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($path))
@@ -199,14 +201,18 @@ try {
 
   $parent = [System.IO.Path]::GetDirectoryName($path)
   if ([string]::IsNullOrWhiteSpace($parent)) { throw 'parent directory required' }
+  $stage = 'validate_parent_path'
   Assert-PathChain $parent
+  $stage = 'validate_ancestor_acl'
   Assert-SecureAncestors $parent $ownerSid
   if ($runtime -and -not ($identity.Groups | Where-Object { $_.Value -eq $readerSid })) {
     throw 'Host process is not a member of the configured witness reader group'
   }
+  $stage = 'validate_parent_acl'
   Assert-SecureAcl $parent $ownerSid $readerSid $true
 
   if ($action -eq 'read' -or $action -eq 'verify') {
+    $stage = 'validate_target_acl'
     Assert-PathChain $path
     Assert-SecureAcl $path $ownerSid $fileReaderSid $false
     $stream = [System.IO.FileStream]::new($path,
@@ -228,6 +234,7 @@ try {
       $stream.Dispose()
     }
   } else {
+    $stage = 'prepare_write'
     $bytes = $utf8.GetBytes([string]$request.data)
     if ($bytes.Length -gt 1048576) { throw 'file too large' }
     if ($action -eq 'replace') {
@@ -241,10 +248,12 @@ try {
     }
     $stream = $null
     try {
+      $stage = 'create_file'
       $stream = [System.IO.FileStream]::new($writePath,
         [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write,
         [System.IO.FileShare]::ReadWrite, 4096,
         [System.IO.FileOptions]::WriteThrough)
+      $stage = 'apply_file_acl'
       Set-SecureAcl $writePath $currentSid $fileReaderSid $false
       $stream.Write($bytes, 0, $bytes.Length)
       $stream.Flush($true)
@@ -257,6 +266,7 @@ try {
           [System.IO.File]::Delete($backupPath)
         }
       }
+      $stage = 'verify_file_acl'
       Assert-SecureAcl $path $ownerSid $fileReaderSid $false
     } catch {
       if ($null -ne $stream) { $stream.Dispose() }
@@ -270,7 +280,7 @@ try {
   if ($env:VENTIO_PRIVATE_FILES_DIAGNOSTICS -eq '1') {
     $exceptionType = $_.Exception.GetType().Name
     $exceptionCode = ([int]$_.Exception.HResult).ToString('X8')
-    [Console]::Out.WriteLine('VENTIO_PRIVATE_HELPER_FAILURE:' +
+    [Console]::Out.WriteLine('VENTIO_PRIVATE_HELPER_FAILURE:' + $stage + ':' +
       $exceptionType + ':0x' + $exceptionCode)
   }
   [Console]::Error.WriteLine('Protected Windows file operation failed')
@@ -352,11 +362,12 @@ try {
         phase = 'helper_rejected';
         if (Platform.environment['VENTIO_PRIVATE_FILES_DIAGNOSTICS'] == '1') {
           final diagnostic = RegExp(
-            r'VENTIO_PRIVATE_HELPER_FAILURE:([A-Za-z]+):(0x[0-9A-Fa-f]{8})',
+            r'VENTIO_PRIVATE_HELPER_FAILURE:([A-Za-z_]+):([A-Za-z]+):(0x[0-9A-Fa-f]{8})',
           ).firstMatch('$helperStderr\n$result');
           if (diagnostic != null) {
             print(
-              'Windows private-file helper: ${diagnostic[1]} ${diagnostic[2]}',
+              'Windows private-file helper: ${diagnostic[1]} '
+              '${diagnostic[2]} ${diagnostic[3]}',
             );
           }
         }
