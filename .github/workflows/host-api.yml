@@ -38,6 +38,8 @@ jobs:
   host-api:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      VENTIO_PRIVATE_FILES_DIAGNOSTICS: '1'
     defaults:
       run:
         working-directory: packages/ventio_host_api

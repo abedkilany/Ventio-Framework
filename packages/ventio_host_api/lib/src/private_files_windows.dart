@@ -267,6 +267,13 @@ try {
     }
   }
 } catch {
+  if ($env:VENTIO_PRIVATE_FILES_DIAGNOSTICS -eq '1') {
+    $exceptionType = $_.Exception.GetType().Name
+    $exceptionCode = [BitConverter]::ToUInt32(
+      [BitConverter]::GetBytes([int]$_.Exception.HResult), 0)
+    [Console]::Error.WriteLine(
+      'VENTIO_PRIVATE_HELPER_FAILURE:{0}:0x{1:X8}' -f $exceptionType, $exceptionCode)
+  }
   [Console]::Error.WriteLine('Protected Windows file operation failed')
   exit 2
 }
@@ -340,10 +347,20 @@ try {
       phase = 'wait_for_helper';
       final code = await process.exitCode.timeout(const Duration(seconds: 10));
       phase = 'collect_output';
-      await stderr;
+      final helperStderr = await stderr;
       final result = utf8.decode(await stdout);
       if (code != 0) {
         phase = 'helper_rejected';
+        if (Platform.environment['VENTIO_PRIVATE_FILES_DIAGNOSTICS'] == '1') {
+          final diagnostic = RegExp(
+            r'VENTIO_PRIVATE_HELPER_FAILURE:([A-Za-z]+):(0x[0-9A-Fa-f]{8})',
+          ).firstMatch(helperStderr);
+          if (diagnostic != null) {
+            print(
+              'Windows private-file helper: ${diagnostic[1]} ${diagnostic[2]}',
+            );
+          }
+        }
         throw StateError('Protected file operation failed');
       }
       if (operation == 'read' || operation.startsWith('witness-read')) {
