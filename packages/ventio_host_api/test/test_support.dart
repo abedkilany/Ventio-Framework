@@ -105,12 +105,14 @@ Future<Directory> createPrivateTestDirectory(String prefix) async {
     return directory;
   }
 
+  final runnerTemp = Platform.environment['RUNNER_TEMP'];
   final userProfile = Platform.environment['USERPROFILE'];
-  if (userProfile == null || !Directory(userProfile).existsSync()) {
+  final basePath = runnerTemp ?? userProfile;
+  if (basePath == null || !Directory(basePath).existsSync()) {
     throw StateError('A Windows user profile directory is unavailable');
   }
   final directory = Directory(
-    '$userProfile${Platform.pathSeparator}$prefix$pid-'
+    '$basePath${Platform.pathSeparator}$prefix$pid-'
     '${DateTime.now().microsecondsSinceEpoch}',
   );
   await directory.create();
