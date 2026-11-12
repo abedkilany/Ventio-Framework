@@ -332,7 +332,7 @@ try {
         '-NonInteractive',
         '-EncodedCommand',
         encodedScript,
-      ], environment: Platform.environment);
+      ]);
       stdout = process.stdout.fold<List<int>>(<int>[], (bytes, chunk) {
         if (bytes.length + chunk.length > 2 * 1024 * 1024) {
           throw const FormatException('Protected file output too large');
@@ -377,7 +377,14 @@ try {
         return utf8.decode(base64Decode(result.trim()));
       }
       return result;
-    } catch (_) {
+    } catch (error) {
+      if (phase == 'start' &&
+          Platform.environment['VENTIO_PRIVATE_FILES_DIAGNOSTICS'] == '1') {
+        final detail = error is ProcessException
+            ? 'ProcessException ${error.errorCode}'
+            : error.runtimeType.toString();
+        print('Windows private-file process start: $detail');
+      }
       final child = process;
       if (child != null) {
         child.kill();
