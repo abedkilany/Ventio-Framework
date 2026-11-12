@@ -63,7 +63,7 @@ jobs:
       - name: Prepare and verify private Windows test storage
         env:
           VENTIO_PRIVATE_FILES_DIAGNOSTICS: '1'
-        run: dart run test/prepare_private_test_storage.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/prepare_private_test_storage.dart
       - name: Install verified PostgreSQL 16 test tools
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-postgres-tools.ps1
       - name: Start private PostgreSQL 16 test instance
@@ -79,7 +79,7 @@ jobs:
       - name: Kill Host and PostgreSQL processes, retry and restore into fresh cluster
         env:
           VENTIO_PRIVATE_FILES_DIAGNOSTICS: '1'
-        run: dart run test/recovery_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/recovery_integration.dart
       - name: Remove disposable PostgreSQL test instance
         if: always()
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\stop-postgres-test-instance.ps1

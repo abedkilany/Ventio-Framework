@@ -63,16 +63,16 @@ jobs:
       - name: Prepare and verify private Windows test storage
         env:
           VENTIO_PRIVATE_FILES_DIAGNOSTICS: '1'
-        run: dart run test/prepare_private_test_storage.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/prepare_private_test_storage.dart
       - name: Verify Windows ACL-backed private files and durable diagnostics
-        run: dart run test/private_files_windows.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/private_files_windows.dart
       - name: Install verified PostgreSQL 16 test tools
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-postgres-tools.ps1
       - name: Start private PostgreSQL 16 test instance
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\start-postgres-test-instance.ps1
-      - run: dart run test/api_tests.dart
-      - run: dart run test/management_users_api_test.dart
-      - run: dart run test/management_devices_api_test.dart
+      - run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/api_tests.dart
+      - run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_users_api_test.dart
+      - run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_devices_api_test.dart
       - name: Install database security profile in disposable PostgreSQL
         env:
           VENTIO_MIGRATIONS_DIR: ../../migrations/postgres
@@ -84,21 +84,21 @@ jobs:
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -f ..\..\security\postgres\test_logins.sql
       # Run the first-admin bootstrap before tenant-owned integration fixtures.
       - name: Run first-administrator and scoped user administration integration tests
-        run: dart run test/management_users_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_users_integration.dart
       - name: Run isolated HTTP and PostgreSQL integration tests
-        run: dart run test/api_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/api_integration.dart
       - name: Run persistent identity and revocation integration tests
-        run: dart run test/identity_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/identity_integration.dart
       - name: Run direct SQL, least-privilege and RLS isolation tests
-        run: dart run test/database_security_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/database_security_integration.dart
       - name: Run scoped role administration tests
-        run: dart run test/role_administration_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/role_administration_integration.dart
       - name: Run secure device pairing and enrollment integration tests
-        run: dart run test/pairing_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/pairing_integration.dart
       - name: Run extension package approval, scope and recovery integration tests
-        run: dart run test/extension_package_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/extension_package_integration.dart
       - name: Run trusted same-device credential reissue integration tests
-        run: dart run test/credential_reissue_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/credential_reissue_integration.dart
       - name: Remove disposable PostgreSQL test instance
         if: always()
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\stop-postgres-test-instance.ps1
