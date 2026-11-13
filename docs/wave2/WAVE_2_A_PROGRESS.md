@@ -1,6 +1,6 @@
 # Wave 2 A implementation ledger
 
-**WAVE_2_A — PARTIAL IMPLEMENTATION / BLOCKED**
+**WAVE_2_A â€” PARTIAL IMPLEMENTATION / BLOCKED**
 
 Branch: `feature/wave-2-a`. Baseline: `7d74a706ef4bb7f9994d151af486eaa38066e633`.
 Code checkpoint: `059541a0354dba54983880a4e0243bb8ea27efd8`.
@@ -38,3 +38,7 @@ main. The mission scope remains authoritative. Wave 1 closure was read from
 `docs/wave1/final-acceptance-report.md`; historical percentages were not reused as
 current status. See the handoff for exact evidence/limitations and the B plan for
 future gates. No merge into main; stop at this partial A checkpoint.
+
+Draft PR #6 exists: https://github.com/abedkilany/Ventio-Framework/pull/6.
+Initial automatic CI snapshot at documentation head `3466020`: 8 workflows in
+progress, no conclusions. Draft/unmerged state confirmed; no manual dispatch.
