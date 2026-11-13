@@ -93,3 +93,9 @@ After the affected workflows passed, publishing this report starts a new
 complete CI cycle on PR #5. The source is identical to the verified revision
 above; this final commit adds this report only. Its full workflow results are
 available in [PR #5 checks](https://github.com/abedkilany/Ventio-Framework/pull/5/checks).
+
+## Final security review
+
+The Windows helper's PowerShell source is a compile-time constant in the Dart package. Request fields, including paths, SIDs and file data, are serialized as JSON to the child's standard input; they are not interpolated into the PowerShell source or the GZip bootstrap. The bootstrap executes only the decompressed constant source. The diagnostic output remains opt-in and reports only a fixed stage, exception type and HRESULT; it does not print request data, file paths, file contents or exception messages.
+
+The ACL validation and trusted SID set are unchanged by the compression/diagnostic changes. The Windows private-file integration test now includes a PowerShell-looking data string and verifies it round-trips literally without creating its marker file. Existing Windows CI exercises create, read, verify, replacement, refusal, and diagnostics paths through the GZip bootstrap.

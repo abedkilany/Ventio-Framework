@@ -37,7 +37,7 @@ permissions:
   contents: read
 
 jobs:
-  recovery:
+  host-recovery:
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:

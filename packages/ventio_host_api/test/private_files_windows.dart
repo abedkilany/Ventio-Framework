@@ -26,6 +26,20 @@ Future<void> main() async {
     if (initial['token'] != 'windows-private-test') {
       throw StateError('Protected Windows file round-trip failed');
     }
+    final injectionMarker =
+        '${directory.path}${Platform.pathSeparator}injection-marker.txt';
+    final escapedMarker = injectionMarker.replaceAll("'", "''");
+    final injectionPayload =
+        "'; [System.IO.File]::WriteAllText('$escapedMarker', 'injected'); #";
+    final injectionFile =
+        '${directory.path}${Platform.pathSeparator}untrusted-payload.json';
+    await PrivateFiles.create(injectionFile, {'payload': injectionPayload});
+    final injectionRoundTrip =
+        jsonDecode(await PrivateFiles.read(injectionFile)) as Map;
+    if (injectionRoundTrip['payload'] != injectionPayload ||
+        File(injectionMarker).existsSync()) {
+      throw StateError('Untrusted private-file payload was interpreted as PowerShell');
+    }
     final missingPath =
         '${directory.path}${Platform.pathSeparator}missing-private-test.json';
     try {
