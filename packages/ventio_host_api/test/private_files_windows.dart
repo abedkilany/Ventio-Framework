@@ -4,56 +4,43 @@ import 'dart:io';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
+import 'test_support.dart'
+    show
+        createPrivateTestDirectory,
+        currentWindowsSid,
+        setPrivateWindowsDirectoryAcl;
+
 Future<void> main() async {
   if (!Platform.isWindows) {
     stdout.writeln('SKIP: Windows private-file integration test');
     return;
   }
 
-  final userProfile = Platform.environment['USERPROFILE'];
-  if (userProfile == null || !Directory(userProfile).existsSync()) {
-    throw StateError('A Windows user profile directory is unavailable');
-  }
-  final directory = Directory(
-    userProfile +
-        Platform.pathSeparator +
-        'ventio-private-$pid-' +
-        DateTime.now().microsecondsSinceEpoch.toString(),
-  );
-  await directory.create();
+  final directory = await createPrivateTestDirectory('ventio-private-');
   try {
-    final identity = await Process.run('whoami.exe', [
-      '/user',
-      '/fo',
-      'csv',
-      '/nh',
-    ]);
-    if (identity.exitCode != 0) throw StateError('Cannot resolve current SID');
-    final sid = (identity.stdout as String)
-        .split(',')
-        .last
-        .trim()
-        .replaceAll('"', '');
-    if (!RegExp(r'^S-1-\d+(?:-\d+)+$').hasMatch(sid)) {
-      throw StateError('Windows returned an invalid current SID');
-    }
+    final sid = await currentWindowsSid();
     const readerGroupSid = 'S-1-5-11';
-    final acl = await Process.run('icacls.exe', [
-      directory.path,
-      '/inheritance:r',
-      '/grant:r',
-      '*$sid:(OI)(CI)F',
-      '*S-1-5-18:(OI)(CI)F',
-      '*S-1-5-32-544:(OI)(CI)F',
-    ]);
-    if (acl.exitCode != 0)
-      throw StateError('Cannot prepare a protected test directory');
-
     final file = '${directory.path}${Platform.pathSeparator}secret.json';
     await PrivateFiles.create(file, {'token': 'windows-private-test'});
     final initial = jsonDecode(await PrivateFiles.read(file)) as Map;
     if (initial['token'] != 'windows-private-test') {
       throw StateError('Protected Windows file round-trip failed');
+    }
+    final injectionMarker =
+        '${directory.path}${Platform.pathSeparator}injection-marker.txt';
+    final escapedMarker = injectionMarker.replaceAll("'", "''");
+    final injectionPayload =
+        "'; [System.IO.File]::WriteAllText('$escapedMarker', 'injected'); #";
+    final injectionFile =
+        '${directory.path}${Platform.pathSeparator}untrusted-payload.json';
+    await PrivateFiles.create(injectionFile, {'payload': injectionPayload});
+    final injectionRoundTrip =
+        jsonDecode(await PrivateFiles.read(injectionFile)) as Map;
+    if (injectionRoundTrip['payload'] != injectionPayload ||
+        File(injectionMarker).existsSync()) {
+      throw StateError(
+        'Untrusted private-file payload was interpreted as PowerShell',
+      );
     }
     final missingPath =
         '${directory.path}${Platform.pathSeparator}missing-private-test.json';
@@ -174,18 +161,11 @@ Future<void> main() async {
       directory.path + Platform.pathSeparator + 'authority',
     );
     await witnessDirectory.create();
-    final witnessAcl = await Process.run('icacls.exe', [
-      witnessDirectory.path,
-      '/inheritance:r',
-      '/grant:r',
-      '*$sid:(OI)(CI)F',
-      '*S-1-5-18:(OI)(CI)F',
-      '*S-1-5-32-544:(OI)(CI)F',
-      '*$readerGroupSid:(OI)(CI)RX',
-    ]);
-    if (witnessAcl.exitCode != 0) {
-      throw StateError('Cannot prepare a protected witness directory');
-    }
+    await setPrivateWindowsDirectoryAcl(
+      witnessDirectory,
+      sid,
+      readerSid: readerGroupSid,
+    );
 
     final witness =
         witnessDirectory.path + Platform.pathSeparator + 'authority.json';
@@ -271,6 +251,43 @@ Future<void> main() async {
     if (!unsafeDirectoryRefused) {
       throw StateError('An inherited, unprotected directory was accepted');
     }
+    // A protected child must still be refused when an ancestor grants deletion
+    // rights to an untrusted principal. A private child ACL cannot fix its parent.
+    final unsafeAncestor = await Directory(
+      '${directory.path}${Platform.pathSeparator}unsafe-ancestor',
+    ).create();
+    await setPrivateWindowsDirectoryAcl(unsafeAncestor, sid);
+    final protectedChild = await Directory(
+      '${unsafeAncestor.path}${Platform.pathSeparator}protected-child',
+    ).create();
+    await setPrivateWindowsDirectoryAcl(protectedChild, sid);
+    final grantDeleteChild = await Process.run('icacls.exe', [
+      unsafeAncestor.path,
+      '/grant',
+      '*S-1-5-11:(DC)',
+    ]);
+    if (grantDeleteChild.exitCode != 0) {
+      throw StateError('Could not prepare the unsafe ancestor ACL case.');
+    }
+    try {
+      final refusedPath =
+          '${protectedChild.path}${Platform.pathSeparator}must-not-exist.json';
+      var unsafeAncestorRefused = false;
+      try {
+        await PrivateFiles.create(refusedPath, {'probe': 'must-not-write'});
+      } on StateError {
+        unsafeAncestorRefused = true;
+      }
+      if (!unsafeAncestorRefused || await File(refusedPath).exists()) {
+        throw StateError(
+          'An ancestor with untrusted delete-child access was accepted.',
+        );
+      }
+      stdout.writeln('PASS: Untrusted ancestor delete-child access is refused');
+    } finally {
+      await setPrivateWindowsDirectoryAcl(unsafeAncestor, sid);
+    }
+
     stdout.writeln('PASS: Windows ACL-backed private-file operations');
   } finally {
     await directory.delete(recursive: true);

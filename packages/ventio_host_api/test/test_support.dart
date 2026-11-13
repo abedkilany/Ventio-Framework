@@ -4,6 +4,148 @@ import 'dart:io';
 import 'package:ventio_core/ventio_core.dart';
 import 'package:ventio_host_api/ventio_host_api.dart';
 
+Future<String> currentWindowsSid() async {
+  final identity = await Process.run('whoami.exe', [
+    '/user',
+    '/fo',
+    'csv',
+    '/nh',
+  ]);
+  if (identity.exitCode != 0) {
+    throw StateError('Cannot resolve current Windows SID');
+  }
+  final sid = (identity.stdout as String)
+      .split(',')
+      .last
+      .trim()
+      .replaceAll('"', '');
+  if (!RegExp(r'^S-1-\d+(?:-\d+)+$').hasMatch(sid)) {
+    throw StateError('Windows returned an invalid current SID');
+  }
+  return sid;
+}
+
+Future<void> setPrivateWindowsDirectoryAcl(
+  Directory directory,
+  String ownerSid, {
+  String? readerSid,
+}) async {
+  const script = r'''
+$ErrorActionPreference = 'Stop'
+$path = $env:VENTIO_TEST_PRIVATE_ACL_PATH
+$ownerSid = [System.Security.Principal.SecurityIdentifier]::new($env:VENTIO_TEST_PRIVATE_ACL_OWNER)
+$acl = [System.Security.AccessControl.DirectorySecurity]::new()
+$acl.SetAccessRuleProtection($true, $false)
+$inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+  [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+$allow = [System.Security.AccessControl.AccessControlType]::Allow
+$propagation = [System.Security.AccessControl.PropagationFlags]::None
+$acl.SetOwner($ownerSid)
+foreach ($sidText in @($ownerSid.Value, 'S-1-5-18', 'S-1-5-32-544')) {
+  $sid = [System.Security.Principal.SecurityIdentifier]::new($sidText)
+  $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+    $sid, [System.Security.AccessControl.FileSystemRights]::FullControl,
+    $inheritance, $propagation, $allow))
+}
+$readerSid = $env:VENTIO_TEST_PRIVATE_ACL_READER
+if (-not [string]::IsNullOrWhiteSpace($readerSid) -and
+    $readerSid -notin @($ownerSid.Value, 'S-1-5-18', 'S-1-5-32-544')) {
+  $reader = [System.Security.Principal.SecurityIdentifier]::new($readerSid)
+  $rights = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
+    [System.Security.AccessControl.FileSystemRights]::Synchronize
+  $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+    $reader, $rights, $inheritance, $propagation, $allow))
+}
+Set-Acl -LiteralPath $path -AclObject $acl
+$verified = Get-Acl -LiteralPath $path
+if (-not $verified.AreAccessRulesProtected -or
+    $verified.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $ownerSid.Value) {
+  throw 'Private test directory owner or inheritance protection did not persist.'
+}
+
+# Diagnostics are test-only and contain ACL metadata, never file contents or credentials.
+if ($env:VENTIO_PRIVATE_FILES_DIAGNOSTICS -eq '1') {
+  $trusted = @($ownerSid.Value, 'S-1-5-18', 'S-1-5-32-544',
+    'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+  $mask = [int](
+    [System.Security.AccessControl.FileSystemRights]::Delete -bor
+    [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+    [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+    [System.Security.AccessControl.FileSystemRights]::TakeOwnership)
+  $cursor = [System.IO.Directory]::GetParent($path)
+  while ($null -ne $cursor) {
+    $ancestorAcl = [System.IO.Directory]::GetAccessControl($cursor.FullName)
+    $ancestorOwner = $ancestorAcl.GetOwner(
+      [System.Security.Principal.SecurityIdentifier]).Value
+    $metadata = [ordered]@{
+      path = $cursor.FullName
+      ownerSid = $ancestorOwner
+      ownerTrusted = ($trusted -contains $ancestorOwner)
+    }
+    [Console]::Out.WriteLine('VENTIO_TEST_ANCESTOR:' +
+      (ConvertTo-Json -InputObject $metadata -Compress))
+    foreach ($rule in $ancestorAcl.GetAccessRules($true, $false,
+        [System.Security.Principal.SecurityIdentifier])) {
+      if ($rule.AccessControlType -ne
+          [System.Security.AccessControl.AccessControlType]::Allow) { continue }
+      if (($rule.PropagationFlags -band
+          [System.Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
+      $destructive = [int]$rule.FileSystemRights -band $mask
+      if ($destructive -eq 0) { continue }
+      $metadata = [ordered]@{
+        path = $cursor.FullName
+        sid = $rule.IdentityReference.Value
+        rights = [string]$rule.FileSystemRights
+        destructiveRights = [string][System.Security.AccessControl.FileSystemRights]$destructive
+        rightsMask = [int]$rule.FileSystemRights
+        trusted = ($trusted -contains $rule.IdentityReference.Value)
+        inheritance = [string]$rule.InheritanceFlags
+        propagation = [string]$rule.PropagationFlags
+      }
+      [Console]::Out.WriteLine('VENTIO_TEST_ANCESTOR:' +
+        (ConvertTo-Json -InputObject $metadata -Compress))
+    }
+    $cursor = $cursor.Parent
+  }
+}
+''';
+  final systemRoot = Platform.environment['SystemRoot'];
+  if (systemRoot == null) {
+    throw StateError('A Windows system directory is unavailable');
+  }
+  final powershell =
+      '$systemRoot${Platform.pathSeparator}System32${Platform.pathSeparator}'
+      'WindowsPowerShell${Platform.pathSeparator}v1.0${Platform.pathSeparator}'
+      'powershell.exe';
+  final result = await Process.run(
+    powershell,
+    [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      script,
+    ],
+    environment: {
+      'VENTIO_TEST_PRIVATE_ACL_PATH': directory.path,
+      'VENTIO_TEST_PRIVATE_ACL_OWNER': ownerSid,
+      'VENTIO_TEST_PRIVATE_ACL_READER': readerSid ?? '',
+    },
+  );
+  if (Platform.environment['VENTIO_PRIVATE_FILES_DIAGNOSTICS'] == '1') {
+    for (final line in const LineSplitter().convert(result.stdout as String)) {
+      if (line.startsWith('VENTIO_TEST_ANCESTOR:')) {
+        stdout.writeln(line);
+      }
+    }
+  }
+  if (result.exitCode != 0) {
+    throw StateError('Cannot prepare protected Windows test storage');
+  }
+}
+
 Future<Directory> createPrivateTestDirectory(String prefix) async {
   if (!Platform.isWindows) {
     final directory = await Directory.systemTemp.createTemp(prefix);
@@ -16,44 +158,23 @@ Future<Directory> createPrivateTestDirectory(String prefix) async {
     return directory;
   }
 
+  // This override is confined to test fixtures; production paths are unchanged.
+  final privateRoot = Platform.environment['VENTIO_TEST_PRIVATE_ROOT'];
+  final runnerTemp = Platform.environment['RUNNER_TEMP'];
   final userProfile = Platform.environment['USERPROFILE'];
-  if (userProfile == null || !Directory(userProfile).existsSync()) {
-    throw StateError('A Windows user profile directory is unavailable');
+  final basePath = privateRoot ?? runnerTemp ?? userProfile;
+  if (basePath == null ||
+      !Directory(basePath).isAbsolute ||
+      !Directory(basePath).existsSync()) {
+    throw StateError('A Windows private test storage root is unavailable');
   }
   final directory = Directory(
-    '$userProfile${Platform.pathSeparator}$prefix$pid-'
+    '$basePath${Platform.pathSeparator}$prefix$pid-'
     '${DateTime.now().microsecondsSinceEpoch}',
   );
   await directory.create();
   try {
-    final identity = await Process.run('whoami.exe', [
-      '/user',
-      '/fo',
-      'csv',
-      '/nh',
-    ]);
-    if (identity.exitCode != 0) {
-      throw StateError('Cannot resolve current Windows SID');
-    }
-    final sid = (identity.stdout as String)
-        .split(',')
-        .last
-        .trim()
-        .replaceAll('"', '');
-    if (!RegExp(r'^S-1-\d+(?:-\d+)+$').hasMatch(sid)) {
-      throw StateError('Windows returned an invalid current SID');
-    }
-    final acl = await Process.run('icacls.exe', [
-      directory.path,
-      '/inheritance:r',
-      '/grant:r',
-      '*$sid:(OI)(CI)F',
-      '*S-1-5-18:(OI)(CI)F',
-      '*S-1-5-32-544:(OI)(CI)F',
-    ]);
-    if (acl.exitCode != 0) {
-      throw StateError('Cannot prepare protected Windows test storage');
-    }
+    await setPrivateWindowsDirectoryAcl(directory, await currentWindowsSid());
     return directory;
   } catch (_) {
     await directory.delete(recursive: true);
