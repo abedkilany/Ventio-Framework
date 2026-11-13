@@ -604,10 +604,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
               requireList(current, 'readableFields'),
               'fields',
             ).toSet(),
-            writableFields: strings(
-              requireList(current, 'writableFields'),
-              'fields',
-            ).toSet(),
+            writableFields:
+                strings(
+                  requireList(current, 'writableFields'),
+                  'fields',
+                ).toSet().intersection(
+                  strings(
+                    requireList(current, 'readableFields'),
+                    'fields',
+                  ).toSet(),
+                ),
             creatableFields: strings(
               requireList(current, 'creatableFields'),
               'fields',
@@ -1299,6 +1305,24 @@ class _WorkspacePageState extends State<WorkspacePage> {
         body: Column(
           children: [
             if (_busy) const LinearProgressIndicator(),
+            if (_configuration != null &&
+                (requireMap(
+                          _configuration!['body'],
+                          'configuration',
+                        )['maintenanceNotice']
+                        as String)
+                    .isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  requireString(
+                    requireMap(_configuration!['body'], 'configuration'),
+                    'maintenanceNotice',
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             if (_error != null)
               MaterialBanner(
                 content: Text(
@@ -1738,22 +1762,6 @@ class _RecordViewPageState extends State<_RecordViewPage> {
       body: Column(
         children: [
           if (_busy) const LinearProgressIndicator(),
-          if (_configuration != null &&
-              (requireMap(
-                        _configuration!['body'],
-                        'configuration',
-                      )['maintenanceNotice']
-                      as String)
-                  .isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                requireString(
-                  requireMap(_configuration!['body'], 'configuration'),
-                  'maintenanceNotice',
-                ),
-              ),
-            ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(24),
