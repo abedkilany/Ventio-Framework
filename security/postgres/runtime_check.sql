@@ -42,12 +42,19 @@ BEGIN
         'public.ventio_validate_extension_schema_upgrade(text,text,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected runtime DDL or identity capability';
   END IF;
+  IF has_function_privilege(current_user,'ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_claim_job()','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_finish_job(text,text,text,jsonb,boolean)','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_effective_package(text,text,text,jsonb,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Unexpected Wave 2 private capability';
+  END IF;
   FOREACH t IN ARRAY ARRAY['ventio_identity_users','ventio_identity_devices','ventio_identity_credentials',
       'ventio_identity_branches','ventio_identity_grants','ventio_identity_roles',
       'ventio_identity_role_permissions','ventio_identity_role_assignments',
       'ventio_identity_audit','ventio_identity_pairings','ventio_identity_device_activity',
       'ventio_extension_packages',
-      'ventio_extension_package_events','ventio_schema_migrations'] LOOP
+      'ventio_extension_package_events','ventio_wave2_definitions','ventio_wave2_revisions',
+      'ventio_wave2_jobs','ventio_wave2_events','ventio_schema_migrations'] LOOP
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_class pc JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pn.nspname = 'public' AND pc.relname = t AND pc.relrowsecurity AND pc.relforcerowsecurity) THEN
       RAISE EXCEPTION 'Missing protection on private state';

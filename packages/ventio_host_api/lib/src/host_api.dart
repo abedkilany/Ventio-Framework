@@ -18,6 +18,7 @@ import 'pairing_administration.dart';
 import 'recovery_authority.dart';
 import 'role_administration.dart';
 import 'user_administration.dart';
+import 'wave2_platform.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
@@ -47,6 +48,7 @@ class HostApi {
   final IdentityDeviceAdministrationGateway? _identityDeviceAdministration;
   final AuthoritativeIdentityCredentialReissueGateway? _credentialReissues;
   final HostReadinessProvider? _readinessProvider;
+  final AuthoritativeWave2Gateway? _wave2;
   final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
@@ -71,6 +73,7 @@ class HostApi {
     this._identityDeviceAdministration,
     this._credentialReissues,
     this._readinessProvider,
+    this._wave2,
     this._diagnostics,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
@@ -101,6 +104,7 @@ class HostApi {
     IdentityDeviceAdministrationGateway? identityDeviceAdministration,
     AuthoritativeIdentityCredentialReissueGateway? credentialReissues,
     HostReadinessProvider? readinessProvider,
+    AuthoritativeWave2Gateway? wave2,
     ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
@@ -164,6 +168,7 @@ class HostApi {
       identityDeviceAdministration,
       credentialReissues,
       readinessProvider,
+      wave2,
       diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
       maxConcurrentRequests,
@@ -511,6 +516,9 @@ class HostApi {
       '/api/v1/extensions/review' => 'review',
       _ => null,
     };
+    final wave2Action = request.uri.path.startsWith('/api/v1/platform/')
+        ? request.uri.path.substring('/api/v1/platform/'.length)
+        : null;
     final recordQueryRoute =
         request.uri.path == '/api/v1/extensions/records/query';
     final reportQueryRoute =
@@ -530,6 +538,7 @@ class HostApi {
     final diagnosticsRoute =
         request.uri.path == HostManagementRoutes.diagnosticsRecent;
     if (request.uri.path != '/api/v1/commands' &&
+        wave2Action == null &&
         packageRoute == null &&
         extensionReviewRoute == null &&
         !recordQueryRoute &&
@@ -601,6 +610,10 @@ class HostApi {
       });
       return;
     }
+    if (wave2Action != null &&
+        (_wave2 == null || session.credentialDigest == null)) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
     if (packageRoute != null && _extensionPackages == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
@@ -651,7 +664,9 @@ class HostApi {
         request.headers.value(HttpHeaders.contentEncodingHeader) != null) {
       throw const _ApiError(415, 'UNSUPPORTED_MEDIA_TYPE');
     }
-    final bodyLimit = packageRoute == 'submit'
+    final bodyLimit = wave2Action == 'imports/preview'
+        ? StructuredCsv.maxBytes * 6 + 16384
+        : packageRoute == 'submit'
         ? ExtensionBundle.maxEncodedBytes + 8192
         : maxBodyBytes;
     if (request.contentLength > bodyLimit) {
@@ -679,6 +694,24 @@ class HostApi {
     final text = utf8.decode(bytes.takeBytes());
     _validateNesting(text);
     final json = requireMap(jsonDecode(text), 'command');
+    if (wave2Action != null) {
+      final result = await _wave2!.handle(wave2Action, json, session);
+      final status = result['status'] == 'REJECTED'
+          ? 403
+          : result['status'] == 'CONFLICT'
+          ? 409
+          : 200;
+      if (utf8.encode(jsonEncode(result)).length > 4 * 1024 * 1024) {
+        throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+      }
+      _json(request, status, {
+        'apiVersion': 1,
+        'contractVersion': wave2ContractVersion,
+        'correlationId': correlationId,
+        'result': result,
+      });
+      return;
+    }
     if (readinessRoute) {
       await _handleReadiness(request, json, session, correlationId);
       return;

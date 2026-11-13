@@ -183,8 +183,9 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
   @override
   Future<Map<String, dynamic>> execute(
     CommandEnvelope command,
-    AuthenticatedSession session,
-  ) async {
+    AuthenticatedSession session, {
+    bool requireJobAuthorization = false,
+  }) async {
     final digest = session.credentialDigest;
     if (digest == null || !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
       return CommandReceipt(
@@ -217,7 +218,14 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
                 command.type == ExtensionBusinessOperationCommand.commandType) {
               final resolved = await const PostgresIdentityStore()
                   .resolveExtensionCommand(tx, digest, command);
-              if (resolved == null) return null;
+              if (resolved == null ||
+                  (requireJobAuthorization &&
+                      !resolved.principal.allowsInScope(
+                        wave2JobsRunPermission,
+                        command.companyId,
+                        command.branchId,
+                      )))
+                return null;
               resolvedBundle = resolved.bundle != null
                   ? ExtensionBundleAuthorization.approved(
                       resolved.bundle!,
@@ -278,6 +286,7 @@ class PostgresExtensionRecordQueryGateway
     String? cursor,
     required int offset,
     required int limit,
+    bool includeCustomizations = false,
   }) async {
     final digest = session.credentialDigest;
     if (digest == null || !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
@@ -339,10 +348,14 @@ class PostgresExtensionRecordQueryGateway
             )) {
               return const {'status': 'REJECTED', 'reasonCode': 'SCOPE_DENIED'};
             }
-            final matches = bundle.docTypes.where(
-              (definition) =>
-                  definition.moduleId == moduleId && definition.name == docType,
-            );
+            final matches =
+                (includeCustomizations ? bundle : resolved.baseBundle ?? bundle)
+                    .docTypes
+                    .where(
+                      (definition) =>
+                          definition.moduleId == moduleId &&
+                          definition.name == docType,
+                    );
             if (matches.length != 1) {
               return const {
                 'status': 'REJECTED',
@@ -582,9 +595,11 @@ class PostgresExtensionRecordQueryGateway
                 : null;
             return {
               'status': 'RECORDS',
-              'packageSha256': sha256
-                  .convert(utf8.encode(canonicalJson(bundle.toJson())))
-                  .toString(),
+              'packageSha256':
+                  resolved.basePackageSha256 ??
+                  sha256
+                      .convert(utf8.encode(canonicalJson(bundle.toJson())))
+                      .toString(),
               'readableFields': readableFields.toList()..sort(),
               'writableFields': writableFields.toList()..sort(),
               'creatableFields': creatableFields.toList()..sort(),
@@ -955,9 +970,11 @@ class PostgresExtensionReportQueryGateway
             return {
               'status': 'REPORT',
               'reportId': report.id,
-              'packageSha256': sha256
-                  .convert(utf8.encode(canonicalJson(bundle.toJson())))
-                  .toString(),
+              'packageSha256':
+                  resolved.basePackageSha256 ??
+                  sha256
+                      .convert(utf8.encode(canonicalJson(bundle.toJson())))
+                      .toString(),
               'rowCount': rowCount,
               'groups': outputGroups,
             };

@@ -171,7 +171,7 @@ CREATE OR REPLACE FUNCTION ventio_security.resolve_extension_read_identity(
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE identity jsonb; package_row public.ventio_extension_packages%ROWTYPE;
-        doc_type jsonb; permission text; expected_type text;
+        base_package jsonb; doc_type jsonb; permission text; expected_type text;
         release_reason text;
 BEGIN
   FOREACH expected_type IN ARRAY ARRAY[
@@ -212,6 +212,9 @@ BEGIN
     RETURN jsonb_build_object('identity',identity,'package',NULL,
       'reasonCode',release_reason);
   END IF;
+  base_package := package_row.package_json;
+  package_row.package_json := ventio_security.wave2_effective_package(
+    identity->>'tenantId',p_company,p_branch,base_package,package_row.package_sha256);
   SELECT item INTO doc_type
   FROM jsonb_array_elements(package_row.package_json->'docTypes') AS entries(item)
   WHERE item->>'name'=p_doc_type AND item->>'moduleId'=p_module
@@ -252,7 +255,7 @@ BEGIN
   PERFORM ventio_security.bind_extension_authorization(
     identity,package_row.package_json,p_digest,p_company,p_branch);
   RETURN jsonb_build_object('identity',identity,
-    'package',package_row.package_json,'packageSha256',package_row.package_sha256);
+    'basePackage',base_package,'package',package_row.package_json,'packageSha256',package_row.package_sha256);
 END $fn$;
 
 -- Resolve a generic record command against a Host-approved declarative package.
@@ -268,7 +271,7 @@ CREATE OR REPLACE FUNCTION ventio_security.resolve_extension_identity(
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE identity jsonb; package_row public.ventio_extension_packages%ROWTYPE;
-        doc_type jsonb; permission text; expected_type text;
+        base_package jsonb; doc_type jsonb; permission text; expected_type text;
         business_operation jsonb; input_item record;
         release_reason text;
 BEGIN
@@ -335,6 +338,9 @@ BEGIN
     RETURN jsonb_build_object('identity',identity,'package',NULL,
       'reasonCode','EXTENSION_NOT_APPROVED');
   END IF;
+  base_package := package_row.package_json;
+  package_row.package_json := ventio_security.wave2_effective_package(
+    identity->>'tenantId',p_company,p_branch,base_package,package_row.package_sha256);
   SELECT item INTO doc_type
   FROM jsonb_array_elements(package_row.package_json->'docTypes') AS rows(item)
   WHERE item->>'name'=p_doc_type AND item->>'moduleId'=p_module
@@ -436,7 +442,7 @@ BEGIN
   PERFORM ventio_security.bind_extension_authorization(
     identity,package_row.package_json,p_digest,p_company,p_branch);
   RETURN jsonb_build_object('identity',identity,
-    'package',package_row.package_json,'packageSha256',package_row.package_sha256,
+    'basePackage',base_package,'package',package_row.package_json,'packageSha256',package_row.package_sha256,
     'reasonCode',release_reason);
 END $fn$;
 

@@ -24,6 +24,7 @@ Future<void> runLocalHost({
   }
   HostApi? api;
   HostApi? lanApi;
+  Wave2JobWorker? jobWorker;
   pg.Pool<dynamic>? runtimePool;
   pg.Pool<dynamic>? identityApiPool;
   ManagementDiagnosticSink diagnostics = ManagementDiagnosticBuffer();
@@ -207,6 +208,15 @@ Future<void> runLocalHost({
       docTypes: docTypes ?? DocTypeRegistry(),
       bindings: bindings,
     );
+    final wave2 = identityApiPool == null
+        ? null
+        : PostgresWave2Gateway(
+            runtimePool: runtime,
+            administrationPool: identityApiPool,
+            admission: admission,
+            packages: extensionPackages,
+            records: extensionRecordQueries,
+          );
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
       listenAddress: address,
@@ -215,6 +225,11 @@ Future<void> runLocalHost({
       extensionPackages: extensionPackages,
       extensionPackageReview: extensionPackageReview,
       extensionRecordQueries: extensionRecordQueries,
+      extensionReportQueries: PostgresExtensionReportQueryGateway(
+        pool: runtime,
+        admission: admission,
+      ),
+      wave2: wave2,
       identityRoleAdministration: roleAdministration,
       identityUserAdministration: userAdministration,
       identityPairing: pairingAdministration,
@@ -247,6 +262,11 @@ Future<void> runLocalHost({
         extensionPackages: extensionPackages,
         extensionPackageReview: extensionPackageReview,
         extensionRecordQueries: extensionRecordQueries,
+        extensionReportQueries: PostgresExtensionReportQueryGateway(
+          pool: runtime,
+          admission: admission,
+        ),
+        wave2: wave2,
         identityRoleAdministration: roleAdministration,
         identityUserAdministration: userAdministration,
         identityPairing: pairingAdministration,
@@ -260,9 +280,17 @@ Future<void> runLocalHost({
         'Persistent Host LAN listener ready on https://$lanAddressText:${lanApi.port}',
       );
     }
+    if (identityApiPool != null) {
+      jobWorker = Wave2JobWorker(
+        administrationPool: identityApiPool,
+        admission: admission,
+        executor: executor,
+      )..start();
+    }
     stdout.writeln('VENTIO_HOST_READY');
   } catch (error) {
     try {
+      await jobWorker?.close();
       await lanApi?.close();
       await api?.close();
     } catch (_) {
@@ -329,6 +357,7 @@ Future<void> runLocalHost({
   }
   await shutdown.future;
   try {
+    await jobWorker?.close();
     await lanApi?.close();
     await api.close();
   } finally {

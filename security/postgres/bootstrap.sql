@@ -61,6 +61,7 @@ BEGIN
     'ventio_identity_pairings','ventio_identity_device_activity',
     'ventio_identity_credential_reissues','host_schema_upgrade_receipts',
     'ventio_extension_package_events','ventio_document_number_series',
+    'ventio_wave2_definitions','ventio_wave2_revisions','ventio_wave2_jobs','ventio_wave2_events',
     'ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
   END LOOP;
@@ -119,6 +120,7 @@ BEGIN
     'public.host_schema_upgrade_receipts',
     'public.ventio_extension_packages',
     'public.ventio_extension_package_events','public.ventio_document_number_series',
+    'public.ventio_wave2_definitions','public.ventio_wave2_revisions','public.ventio_wave2_jobs','public.ventio_wave2_events',
     'public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
@@ -372,6 +374,7 @@ BEGIN
   RETURN jsonb_build_object('identity',identity,'policy',policy);
 END $fn$;
 
+\ir wave2.sql
 \ir extensions.sql
 
 -- Legacy command bindings re-read identity in policy evaluation. Extension
@@ -786,7 +789,13 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.identity_roles_snapshot(text,text,text),
   ventio_security.identity_users_snapshot(text,text,text),
   ventio_security.identity_users_audit_snapshot(text,text,text),
-  ventio_security.identity_devices_snapshot(text,text,text)
+  ventio_security.identity_devices_snapshot(text,text,text),
+  ventio_security.wave2_history(text,text,text,text,text,text,text),
+  ventio_security.wave2_record_activity(text,text,text,text,text,text,text,text,bigint,text),
+  ventio_security.wave2_definitions(text,text,text,text),
+  ventio_security.wave2_jobs_list(text,text,text),
+  ventio_security.wave2_submit_job(text,text,text,text,jsonb),
+  ventio_security.wave2_cancel_job(text,text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
   ventio_security.admit_recovery(text,text),
@@ -796,6 +805,9 @@ GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
   public.ventio_validate_extension_schema_upgrade(text,text,text),
   ventio_security.assert_schema() TO ventio_identity_admin;
 GRANT EXECUTE ON FUNCTION
+  ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb),
+  ventio_security.wave2_claim_job(),
+  ventio_security.wave2_finish_job(text,text,text,jsonb,boolean),
   ventio_security.scoped_admin_change(text,text,text,jsonb),
   ventio_security.scoped_user_admin_change(text,text,text,jsonb),
   ventio_security.scoped_pairing_create(text,text,text,text,text,text),

@@ -1353,6 +1353,26 @@ class DurableCommandHost {
               'details': jsonEncode(audit),
             },
           );
+          if (command.type.startsWith('extension.')) {
+            await tx.execute(
+              pg.Sql.named('''
+              SELECT ventio_security.wave2_record_activity(@tenant,@company,@branch,@actor,@command,
+                @module,@doc,@record,@revision,@type)
+            '''),
+              parameters: {
+                'tenant': command.tenantId,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'actor': command.actorId,
+                'command': command.commandId,
+                'module': moduleId,
+                'doc': docType.name,
+                'record': command.aggregateId,
+                'revision': recordRevision,
+                'type': command.type,
+              },
+            );
+          }
           await testFaultInjector?.call('after_audit');
           final event = <String, dynamic>{
             'tenantId': command.tenantId,

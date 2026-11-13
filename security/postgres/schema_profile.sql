@@ -64,7 +64,8 @@ BEGIN
     ('033_host_schema_upgrade_receipts.sql','b0059094eaa85547205b6e65f565733190cf0c061f9766fbd6d1f7158b4c1255'),
     ('034_extension_package_rejection.sql','6f835b3d8f2231435f2b39daea9512a23023a7eceb9edfc7f52d8a3007fa4595'),
     ('035_scoped_extension_approval.sql','b3c3ff19de81b8b24b3f6987863dfc96ffe6210a3e632d973940762d37e0d514'),
-    ('036_scoped_extension_runtime.sql','50147943077d691d9ac9685eb34efaf062c2022fe88a652de2cd480211fa5244')),
+    ('036_scoped_extension_runtime.sql','50147943077d691d9ac9685eb34efaf062c2022fe88a652de2cd480211fa5244'),
+    ('037_wave2_platform.sql','f06236bcd2bc9a9e1fa69bc8d11ccf78a6a0c65283d894508227393f347c15c3')),
     legacy(name,sha256) AS (VALUES
       ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
       ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),
