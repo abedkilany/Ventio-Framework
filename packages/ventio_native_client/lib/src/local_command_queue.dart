@@ -53,6 +53,7 @@ class QueueEntry {
     this.lastAttemptAtUtc,
     this.hostReceipt,
     this.fixtureReceipt,
+    this.projectToLocalRecords = true,
   });
 
   final CommandEnvelope envelope;
@@ -65,6 +66,10 @@ class QueueEntry {
 
   /// A fixture response is stored separately and is never Host confirmation.
   final CommandReceipt? fixtureReceipt;
+
+  /// Effective-metadata forms retain receipts here without changing the
+  /// immutable base-package record cache.
+  final bool projectToLocalRecords;
 
   bool get isHostConfirmed =>
       hostStatus == HostCommandStatus.accepted && hostReceipt?.accepted == true;
@@ -119,6 +124,7 @@ class QueueEntry {
           ? null
           : date(row['last_attempt_at_utc']),
       hostReceipt: hostReceipt,
+      projectToLocalRecords: (row['project_local_records'] ?? 1) == 1,
       fixtureReceipt: parseReceipt(
         row['fixture_receipt_json'],
         'fixtureReceipt',
@@ -142,7 +148,7 @@ class LocalCommandQueue {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -162,6 +168,7 @@ class LocalCommandQueue {
               created_at_utc TEXT NOT NULL,
               updated_at_utc TEXT NOT NULL,
               last_attempt_at_utc TEXT,
+              project_local_records INTEGER NOT NULL DEFAULT 1 CHECK (project_local_records IN (0,1)),
               CHECK (
                 (host_status = 'PENDING' AND host_receipt_json IS NULL) OR
                 (host_status <> 'PENDING' AND host_receipt_json IS NOT NULL)
@@ -173,12 +180,22 @@ class LocalCommandQueue {
             ON $_table(created_at_utc DESC)
           ''');
         },
+        onUpgrade: (database, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await database.execute(
+              'ALTER TABLE $_table ADD COLUMN project_local_records INTEGER NOT NULL DEFAULT 1 CHECK (project_local_records IN (0,1))',
+            );
+          }
+        },
       ),
     );
     return LocalCommandQueue._(database, clock ?? DateTime.now);
   }
 
-  Future<void> enqueue(CommandEnvelope envelope) async {
+  Future<void> enqueue(
+    CommandEnvelope envelope, {
+    bool projectToLocalRecords = true,
+  }) async {
     _ensureOpen();
     // Validate and persist Core's immutable original envelope, not a second
     // client-specific command representation.
@@ -204,6 +221,7 @@ class LocalCommandQueue {
         'command_id': envelope.commandId,
         'type': envelope.type,
         'envelope_json': canonicalJson(envelope.original),
+        'project_local_records': projectToLocalRecords ? 1 : 0,
         'host_status': HostCommandStatus.pending.databaseValue,
         'host_receipt_json': null,
         'fixture_receipt_json': null,
