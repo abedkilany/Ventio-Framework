@@ -38,7 +38,9 @@ Future<void> main() async {
         jsonDecode(await PrivateFiles.read(injectionFile)) as Map;
     if (injectionRoundTrip['payload'] != injectionPayload ||
         File(injectionMarker).existsSync()) {
-      throw StateError('Untrusted private-file payload was interpreted as PowerShell');
+      throw StateError(
+        'Untrusted private-file payload was interpreted as PowerShell',
+      );
     }
     final missingPath =
         '${directory.path}${Platform.pathSeparator}missing-private-test.json';
