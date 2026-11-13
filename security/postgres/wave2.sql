@@ -262,8 +262,11 @@ BEGIN
   SELECT coalesce(jsonb_agg(item ORDER BY created_at DESC),'[]') INTO entries FROM (
     SELECT created_at,jsonb_build_object('jobId',job_id,'actorId',actor_id,'state',state,
       'processed',next_index,'total',jsonb_array_length(commands),'attempts',attempts,
-      'outcomes',outcomes,'updatedAtUtc',updated_at) item
-    FROM public.ventio_wave2_jobs WHERE tenant_id=identity->>'tenantId'
+      'outcomes',outcomes,'updatedAtUtc',updated_at,
+      'errorCode',(SELECT e.detail->>'code' FROM public.ventio_wave2_events e WHERE e.tenant_id=j.tenant_id
+        AND e.company_id=j.company_id AND e.branch_id=j.branch_id AND e.subject_id=j.job_id AND e.event_type='JOB_FAILED'
+        ORDER BY e.event_id DESC LIMIT 1)) item
+    FROM public.ventio_wave2_jobs j WHERE tenant_id=identity->>'tenantId'
       AND company_id=p_company AND branch_id=p_branch AND (actor_id=identity->>'actorId' OR
         ventio_security.wave2_allowed(identity,p_company,p_branch,'platform.jobs.manage'))
     ORDER BY created_at DESC LIMIT 100) page;
