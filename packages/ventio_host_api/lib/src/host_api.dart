@@ -8,6 +8,7 @@ import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
+import 'command_validation.dart';
 import 'credential_reissue.dart';
 import 'device_administration.dart';
 import 'extension_packages.dart';
@@ -804,7 +805,7 @@ class HostApi {
       await _handleExtensionReportQuery(request, json, session);
       return;
     }
-    _validateWireShape(json);
+    validateHostCommandWireShape(json);
     final command = CommandEnvelope.fromJson(json);
     // Persistent scope/permissions are resolved inside the execution transaction.
     // Only identity claims are checked against the authenticated snapshot here.
@@ -2373,62 +2374,6 @@ bool _isSafeAuditLabel(Object? raw) {
     return false;
   }
   return true;
-}
-
-void _validateWireShape(Map<String, dynamic> json) {
-  const allowed = {
-    'protocolVersion',
-    'commandId',
-    'type',
-    'typeVersion',
-    'tenantId',
-    'companyId',
-    'branchId',
-    'aggregateId',
-    'expectedRevision',
-    'dependsOn',
-    'payload',
-    'clientContext',
-  };
-  final context = requireMap(json['clientContext'], 'clientContext');
-  if (json.keys.any((key) => !allowed.contains(key)) ||
-      context.keys.any(
-        (key) => !{
-          'deviceId',
-          'actorId',
-          'moduleVersion',
-          'docTypeVersion',
-          'clientTimestamp',
-        }.contains(key),
-      ) ||
-      !RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(requireString(json, 'type'))) {
-    throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  if (context.containsKey('clientTimestamp') &&
-      (context['clientTimestamp'] is! String ||
-          !RegExp(
-            r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$',
-          ).hasMatch(context['clientTimestamp'] as String) ||
-          DateTime.tryParse(context['clientTimestamp'] as String) == null)) {
-    throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  for (final key in [
-    'tenantId',
-    'companyId',
-    'branchId',
-    'aggregateId',
-    'type',
-  ]) {
-    if (requireString(json, key).length > 256)
-      throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  for (final key in ['actorId', 'deviceId']) {
-    if (requireString(context, key).length > 256)
-      throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  if (json['dependsOn'] is List && (json['dependsOn'] as List).length > 128) {
-    throw const _ApiError(400, 'INVALID_COMMAND');
-  }
 }
 
 /// Bound parser recursion before decoding adversarial nested JSON.

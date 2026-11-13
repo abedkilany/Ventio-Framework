@@ -209,7 +209,10 @@ List<ImportPreviewRow> previewCsvImport({
           value = null;
         } else {
           value = switch (field.type) {
-            'integer' => int.tryParse(text),
+            'integer' =>
+              RegExp(r'^[+-]?[0-9]+$').hasMatch(text)
+                  ? int.tryParse(text)
+                  : null,
             'decimal' => _decimalCell(text, field.precision),
             'table' => _tableCell(text),
             'boolean' => switch (text) {
@@ -241,7 +244,8 @@ num? _decimalCell(String text, int? precision) {
   final match = RegExp(r'^([+-]?)([0-9]+)(?:\.([0-9]+))?$').firstMatch(text);
   if (match == null) return null;
   final fraction = (match.group(3) ?? '').replaceFirst(RegExp(r'0+$'), '');
-  final scale = precision ?? 9;
+  final scale = precision ?? fraction.length;
+  if (scale > 9) return null;
   if (fraction.length > scale || match.group(2)!.length > 16) return null;
   var scaled = BigInt.parse(
     '${match.group(2)}${fraction.padRight(scale, '0')}',

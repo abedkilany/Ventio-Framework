@@ -285,6 +285,7 @@ Future<void> runLocalHost({
         administrationPool: identityApiPool,
         admission: admission,
         executor: executor,
+        diagnostics: diagnostics,
       )..start();
     }
     stdout.writeln('VENTIO_HOST_READY');

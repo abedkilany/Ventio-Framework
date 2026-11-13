@@ -42,6 +42,8 @@ class MetadataCustomization {
       );
     }
     semverParts(requireString(source, 'moduleVersion'));
+    final customNamespace =
+        'extension.${requireString(source, 'moduleId').replaceAll(RegExp(r'[^a-z0-9]+'), '_')}.custom.';
     final fields = requireList(source, 'fields');
     if (fields.length > 20) {
       throw const ContractError(
@@ -67,6 +69,7 @@ class MetadataCustomization {
       if (!RegExp(r'^custom_[A-Za-z0-9_]{1,73}$').hasMatch(definition.name) ||
           !names.add(definition.name) ||
           definition.required ||
+          !definition.labelKey.startsWith(customNamespace) ||
           !const {
             'text',
             'long_text',
@@ -95,6 +98,12 @@ class MetadataCustomization {
         );
       }
       requireString(properties, 'labelKey');
+      if (!requireString(properties, 'labelKey').startsWith(customNamespace)) {
+        throw const ContractError(
+          'INVALID_CUSTOMIZATION',
+          'Custom labels require a separate customization namespace.',
+        );
+      }
     }
     final ui = requireMap(source['ui'], 'ui');
     wave2Keys(ui, const {
@@ -106,6 +115,26 @@ class MetadataCustomization {
       'pageIcon',
       'pageOrder',
     });
+    if (ui.containsKey('pageTitle') != ui.containsKey('pageTitleKey') ||
+        (ui.containsKey('pageTitleKey') &&
+            !requireString(ui, 'pageTitleKey').startsWith(customNamespace))) {
+      throw const ContractError(
+        'INVALID_CUSTOMIZATION',
+        'Custom page titles require a separate namespaced label key.',
+      );
+    }
+    for (final key in ['listColumns', 'formFields', 'detailFields']) {
+      if (!ui.containsKey(key)) continue;
+      final fields = strings(requireList(ui, key), key);
+      if (fields.isEmpty ||
+          fields.length > 100 ||
+          fields.toSet().length != fields.length) {
+        throw const ContractError(
+          'INVALID_CUSTOMIZATION',
+          'Layouts require unique, bounded field lists.',
+        );
+      }
+    }
     // Deep-copy before freezing: caller-owned Maps cannot change a validated overlay.
     return MetadataCustomization._(_freeze(source) as Map<String, dynamic>);
   }

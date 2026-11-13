@@ -63,9 +63,7 @@ class SavedRecordView {
         'Invalid view columns or sort.',
       );
     }
-    return SavedRecordView._(
-      jsonDecode(canonicalJson(source)) as Map<String, dynamic>,
-    );
+    return SavedRecordView._(immutableJson(source) as Map<String, dynamic>);
   }
 }
 

@@ -5,8 +5,10 @@ import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
+import 'command_validation.dart';
 import 'extension_packages.dart';
 import 'identity_store.dart';
+import 'management.dart';
 import 'persistent_identity.dart';
 import 'postgres_connections.dart';
 import 'recovery_authority.dart';
@@ -137,6 +139,8 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
         });
         return runtimePool.withConnection((connection) async {
           await verifyRuntimeConnection(connection);
+          await connection.execute("SET statement_timeout = '15s'");
+          await connection.execute("SET lock_timeout = '5s'");
           return connection.runTx((tx) async {
             await admission.admit(tx);
             final resolved = await const PostgresIdentityStore()
@@ -311,7 +315,9 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           );
         }
         for (final raw in rawCommands) {
-          final command = CommandEnvelope.fromJson(requireMap(raw, 'command'));
+          final wire = requireMap(raw, 'command');
+          validateHostCommandWireShape(wire);
+          final command = CommandEnvelope.fromJson(wire);
           if (!session.principal.withinScope(
                 tenantId: command.tenantId,
                 companyId: command.companyId,
@@ -415,15 +421,18 @@ class Wave2JobWorker {
     required this.administrationPool,
     required this.admission,
     required this.executor,
+    required this.diagnostics,
     this.interval = const Duration(seconds: 3),
   });
   final pg.Pool<dynamic> administrationPool;
   final RecoveryAuthority admission;
   final PersistentCommandExecutor executor;
+  final ManagementDiagnosticSink diagnostics;
   final Duration interval;
   Timer? _timer;
   Future<void>? _pending;
   bool _closing = false;
+  DateTime? _lastInfrastructureDiagnostic;
 
   void start() {
     if (_closing || _timer != null)
@@ -431,9 +440,36 @@ class Wave2JobWorker {
     _timer = Timer.periodic(interval, (_) {
       if (_pending != null || _closing) return;
       _pending = _tick()
-          .catchError((Object _) {
+          .catchError((Object _) async {
             // The durable lease expires and retries after infrastructure failure.
             // Never log commands, digests, raw database errors or business values.
+            final now = DateTime.now().toUtc();
+            if (_lastInfrastructureDiagnostic == null ||
+                now.difference(_lastInfrastructureDiagnostic!) >=
+                    const Duration(minutes: 1)) {
+              _lastInfrastructureDiagnostic = now;
+              try {
+                await diagnostics.record(
+                  ManagementDiagnosticEvent(
+                    code: 'HOST_JOB_WORKER_UNAVAILABLE',
+                    component: 'host.jobs',
+                    category: ManagementDiagnosticCategory.apiExecution,
+                    severity: ManagementDiagnosticSeverity.error,
+                    occurredAtUtc: now,
+                    correlationId:
+                        'cor_${OpaqueToken.digest(OpaqueToken.generate()).substring(0, 32)}',
+                    retryable: true,
+                    messageKey: 'host_api.error.job_worker_unavailable',
+                    safeExplanation:
+                        'The Host job worker could not make progress. Durable commands retain their identities.',
+                    recommendedAction:
+                        'Review Host database and Recovery Authority readiness before retrying.',
+                  ),
+                );
+              } catch (_) {
+                /* Preserve durable retry state if diagnostics fail. */
+              }
+            }
           })
           .whenComplete(() => _pending = null);
     });
