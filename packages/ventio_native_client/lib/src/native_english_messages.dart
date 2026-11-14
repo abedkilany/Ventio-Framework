@@ -1413,4 +1413,10 @@ const ventioNativeEnglishMessages = <String, String>{
       'No record changes to save. Untouched protected values are preserved.',
   'native.wave2.edit_custom_field_label': 'Edit custom field label',
   'native.wave2.save_reviewed_label': 'Save label in draft',
+  'native.wave2.enter_scope_name': 'Enter a scope name',
+  'native.wave2.enter_page_size': 'Enter 1 to 100',
+  'native.wave2.enter_import_bound': 'Enter 1 to 500',
+  'native.wave2.list_columns': 'List columns',
+  'native.wave2.form_fields': 'Form fields',
+  'native.wave2.detail_fields': 'Detail fields',
 };

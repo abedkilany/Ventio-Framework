@@ -71,7 +71,7 @@ BEGIN
  FOR approved IN SELECT DISTINCT ON(tenant_id,company_id,branch_id) * FROM public.ventio_wave2_operations
   WHERE operation='APPLY_POLICY' AND state='SUCCEEDED' ORDER BY tenant_id,company_id,branch_id,created_at DESC LOOP
   identity:=ventio_security.identity_snapshot(approved.credential_digest,approved.company_id,approved.branch_id);
-  IF NOT ventio_security.wave2_allowed(identity,approved.company_id,approved.branch_id,'platform.operations.manage') THEN CONTINUE; END IF;
+  IF identity->>'tenantId' IS DISTINCT FROM approved.tenant_id OR identity->>'actorId' IS DISTINCT FROM approved.actor_id OR NOT ventio_security.wave2_allowed(identity,approved.company_id,approved.branch_id,'platform.operations.manage') THEN CONTINUE; END IF;
   SELECT body,revision INTO definition,definition_revision FROM public.ventio_wave2_definitions WHERE tenant_id=approved.tenant_id AND company_id=approved.company_id AND branch_id=approved.branch_id
    AND owner_id='' AND kind='backup_policy' AND definition_id='scope';
   IF definition IS DISTINCT FROM approved.body->'policy' OR definition_revision IS DISTINCT FROM (approved.body->>'policyRevision')::bigint OR NOT coalesce((definition->>'enabled')::boolean,false) OR
@@ -92,7 +92,7 @@ BEGIN
   IF (pending.scheduled_for IS NOT NULL AND pending.policy_operation_id IS DISTINCT FROM (SELECT operation_id FROM public.ventio_wave2_operations a WHERE a.tenant_id=pending.tenant_id AND a.company_id=pending.company_id AND a.branch_id=pending.branch_id AND a.operation='APPLY_POLICY' AND a.state='SUCCEEDED' ORDER BY a.created_at DESC LIMIT 1)) OR
    (pending.body ? 'policyRevision' AND (pending.body->>'policyRevision')::bigint IS DISTINCT FROM (SELECT revision FROM public.ventio_wave2_definitions WHERE tenant_id=pending.tenant_id AND company_id=pending.company_id AND branch_id=pending.branch_id AND kind='backup_policy' AND owner_id='' AND definition_id='scope')) OR
    (pending.body ? 'policy' AND pending.body->'policy' IS DISTINCT FROM (SELECT body FROM public.ventio_wave2_definitions WHERE tenant_id=pending.tenant_id AND company_id=pending.company_id AND branch_id=pending.branch_id AND kind='backup_policy' AND owner_id='' AND definition_id='scope')) OR
-   NOT ventio_security.wave2_allowed(identity,pending.company_id,pending.branch_id,'platform.operations.manage') OR pending.created_at<clock_timestamp()-interval '1 day' THEN
+   identity->>'tenantId' IS DISTINCT FROM pending.tenant_id OR identity->>'actorId' IS DISTINCT FROM pending.actor_id OR NOT ventio_security.wave2_allowed(identity,pending.company_id,pending.branch_id,'platform.operations.manage') OR pending.created_at<clock_timestamp()-interval '1 day' THEN
    UPDATE public.ventio_wave2_operations SET state='EXPIRED',updated_at=clock_timestamp(),result=jsonb_build_object('code','AUTHORIZATION_OR_REQUEST_EXPIRED') WHERE operation_id=pending.operation_id;
    CONTINUE; END IF;
   pending.offer_id:=coalesce(pending.offer_id,gen_random_uuid()::text);pending.offer_until:=clock_timestamp()+interval '2 minutes';
@@ -126,6 +126,7 @@ BEGIN
    jsonb_build_object('backupName',p_result->>'backupName','reconciledFromProtectedLocalJournal',true),p_offer,'RUNNING');
   SELECT * INTO saved FROM public.ventio_wave2_operations WHERE operation_id=p_id;
  END IF;
+ IF saved.tenant_id IS DISTINCT FROM p_result->>'tenantId' OR saved.company_id IS DISTINCT FROM p_result->>'companyId' OR saved.branch_id IS DISTINCT FROM p_result->>'branchId' OR saved.actor_id IS DISTINCT FROM p_result->>'actorId' OR saved.operation IS DISTINCT FROM p_result->>'operation' THEN RAISE EXCEPTION 'Operation result context mismatch' USING ERRCODE='42501'; END IF;
  IF saved.state IN ('SUCCEEDED','FAILED') OR (saved.state=p_result->>'state' AND saved.result=p_result) THEN RETURN true; END IF;
  -- Filesystem claim can survive service/DB downtime and lease expiry. The
  -- private offer identity still fences an old or unrelated result.

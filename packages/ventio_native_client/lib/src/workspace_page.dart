@@ -407,7 +407,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                           ),
                         ),
                         validator: (v) => v == null || v.trim().isEmpty
-                            ? 'Enter a name'
+                            ? context.ventioText(
+                                'native.wave2.enter_scope_name',
+                              )
                             : null,
                       ),
                       TextFormField(
@@ -448,7 +450,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
                         validator: (v) =>
                             (int.tryParse(v ?? '') ?? 0) < 1 ||
                                 (int.tryParse(v ?? '') ?? 101) > 100
-                            ? 'Enter 1 to 100'
+                            ? context.ventioText('native.wave2.enter_page_size')
                             : null,
                       ),
                       TextFormField(
@@ -462,7 +464,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                         validator: (v) =>
                             (int.tryParse(v ?? '') ?? 0) < 1 ||
                                 (int.tryParse(v ?? '') ?? 501) > 500
-                            ? 'Enter 1 to 500'
+                            ? context.ventioText(
+                                'native.wave2.enter_import_bound',
+                              )
                             : null,
                       ),
                       TextFormField(
@@ -2636,11 +2640,13 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
             for (final layout in _layouts.entries) ...[
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Text(switch (layout.key) {
-                  'listColumns' => 'List columns',
-                  'formFields' => 'Form fields',
-                  _ => 'Detail fields',
-                }),
+                child: Text(
+                  context.ventioText(switch (layout.key) {
+                    'listColumns' => 'native.wave2.list_columns',
+                    'formFields' => 'native.wave2.form_fields',
+                    _ => 'native.wave2.detail_fields',
+                  }),
+                ),
               ),
               Wrap(
                 spacing: 8,
