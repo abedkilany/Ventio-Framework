@@ -5,16 +5,15 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-14
-Last updated: 2026-11-14 20:41 UTC
+Last updated: 2026-11-14 22:56 UTC
 
 The exact candidate product commit was used by GitHub-hosted CI and the
 acceptance-package workflow. All nine candidate workflows completed
-successfully by 2026-11-14 15:14 UTC. The candidate package was later verified
-and installed on both physical test computers; the full physical acceptance
-run remains incomplete. No product code was changed during this verification.
-These report documents are maintained separately from the product source. All
-test results below remain tied to product/package commit `fb341a78…`; a
-documentation-only update is not treated as a new product test run.
+successfully by 2026-11-14 15:14 UTC. Package and physical evidence below remains
+tied to `fb341a78…`. A later diagnostic correction in `f11bf27` preserves safe
+Host transport error codes; its focused test and analyzer pass, but it has not
+yet run in CI or been packaged/installed physically. The full physical
+acceptance run remains incomplete.
 
 The report-only PR head `50832447b8445849692787977f31865883868b6d` also
 completed all nine GitHub Actions workflows successfully: Core Foundation
@@ -48,13 +47,17 @@ will create a newer PR head and may start CI; no workflow was stopped.
 
 | Machine | Verified identity | OS / build | PowerShell | Initial free C: | Recorded state |
 |---|---|---|---|---:|---|
-| VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity | Windows 11 Pro 26H2, 10.0.26300.9974 | 5.1.26100.9818 | 63.5 GB initial | Latest SSH-only continuation: Host/PostgreSQL provisioned; PostgreSQL 16.15 and fresh migrations 001–040 pass checksum/profile checks. First-admin local-only bootstrap blocks API readiness and dependent tests. |
+| VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity | Windows 11 Pro 26H2, 10.0.26300.9974 | 5.1.26100.9818 | 63.5 GB initial | Owner cleared prior Ventio data and reinstalled the verified package. Current broker operation completed; services run and `/healthz` returns 200. Client first-admin session authentication fails. Earlier migration/RLS results predate the data clear and are not current-database evidence. |
 | VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity | Windows 11 Pro 26H2, 10.0.26300.9974 | 5.1.26100.9818 | 147.3 GB initial | Client remains installed from prior verified package. No changes were made to TEST-02 in the resumed SSH-only continuation; no real Host sync has run. |
 
 SSH succeeded for all four named accounts during initial preflight. At the
 current checkpoint, SSH identifies the intended machine/account pair on each
 host and `quser` previously showed active RDP sessions `codex-1` and `codex-3`.
-No restart was performed, so post-reboot SSH/RDP continuity is not established.
+After the first session error, the owner reported a power interruption. SSH
+later recorded boot time `2026-11-14T22:02:07.500Z`; Host/PostgreSQL services
+and health were subsequently observed ready on that earlier install. This was
+an unplanned reboot, not a controlled crash-recovery test. The later clean
+install occurred after that reboot.
 On the latest check, SSH again returned VENTIO-TEST-01 for Codex-1 and
 VENTIO-TEST-02 for Codex-3; `query user` reported RDP session ID 4 as Active on
 both. The owner unlocked the TEST-02 desktop; its RDP window showed the Windows
@@ -215,7 +218,7 @@ no organizational signing path available at present. `VentioHost` and
 `C:\ProgramData\Ventio` is absent. No cluster, database or Host data was
 created. Defender and Code Integrity stayed enabled.
 
-## SSH-only resumed physical tests — 2026-11-14 20:31 UTC
+## Earlier SSH-only physical tests before owner clean reinstall — 2026-11-14 20:31 UTC
 
 This section is authoritative for the resumed run and supersedes earlier
 statements that TEST-01 had no Host/PostgreSQL installation. Execution used
@@ -293,12 +296,12 @@ TEST-02 was not modified during this continuation.
 
 | Gate | Result | Executed evidence / outstanding scenarios |
 |---|---|---|
-| B0 environment | **PARTIAL** | SSH machine identities, current OS/PowerShell versions, package hashes and Defender/Code Integrity state were verified. No machine reboot or reboot-continuity test was performed. |
+| B0 environment | **PARTIAL** | SSH machine identities, OS/PowerShell versions, package hashes and security state were verified. An unplanned power interruption/reboot followed the earlier session error; SSH and services returned afterward. No controlled crash/reboot recovery test was performed. |
 | B1 static/core/contracts | **PASS in candidate CI** | All nine candidate workflows PASS. |
-| B2 PostgreSQL/identity/security | **PARTIAL — physical profile passed** | On TEST-01, physical PostgreSQL 16.15 fresh migrations 001–040 matched all 40 normalized checksums. Checked tables enforce RLS; runtime/identity roles passed least-privilege denials. Wave 1 upgrade, full scope isolation, identity API and Recovery Authority reconciliation remain open. |
-| B3 Host/data | **PARTIAL** | Host/PostgreSQL installed and normal service restart persistence passed. Host API waits for first admin; SSH first-admin attempt is denied by the intentional local-only pipe policy. Data-processing, durable-job and administration acceptance remains unrun. |
-| B4 native/offline | **PARTIAL / BLOCKED** | Client package is present on both computers. No GUI was used in this resumed execution. No Host connection, real two-computer sync, offline edit, conflict/receipt recovery, Android device UI, protected-field, workspace/view/report or UI permissions/scaling test ran. Applicable GUI cases: **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
-| B5 backup/restore/operations | **PARTIAL** | Services are installed on TEST-01 and orderly restart passed. Task Scheduler, product approval, physical backup/tamper/retention, interrupted backup, disposable product restore and Recovery Authority reconciliation did not run. CI logical restore remains separate evidence. |
+| B2 PostgreSQL/identity/security | **PARTIAL — earlier physical profile passed** | On the earlier TEST-01 database, PostgreSQL 16.15 migrations 001–040 matched all 40 checksums and selected RLS/least-privilege denials passed. The owner later deleted that database; repeat these checks on the current clean DB. Wave 1 upgrade, full scope isolation, identity API and Recovery Authority reconciliation remain open. |
+| B3 Host/data | **PARTIAL / BLOCKED** | Earlier install passed provisioning and orderly service restart. On the current clean install, broker operation completed and `/healthz` returns 200, but authenticated session validation failed. Data-processing, durable-job and administration acceptance remains unrun. |
+| B4 native/offline | **PARTIAL / BLOCKED** | The owner used the local Host setup UI, but authenticated session validation failed. No authenticated Host use, real two-computer sync, offline edit, conflict/receipt recovery, Android device UI, protected-field, workspace/view/report or UI permissions/scaling test passed. Applicable remaining GUI cases: **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B5 backup/restore/operations | **PARTIAL** | An orderly service restart passed on the earlier install; the current clean install has running services, but controlled restart persistence was not repeated. Task Scheduler, product approval, physical backup/tamper/retention, interrupted backup, disposable product restore and Recovery Authority reconciliation did not run. CI logical restore remains separate evidence. |
 | B6 final audit | **NOT COMPLETE** | Physical gates, capability matrix, defect regression adjacency and exact-candidate final rerun remain open. |
 
 The fixed-scope capability IDs are
@@ -369,16 +372,61 @@ specific positive and negative cases are recorded against the exact candidate.
 
 ## Not executed
 
-**NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED:** local Ventio first-admin
-completion; Windows UI navigation, permissions/scaling and interactive
-uninstall/cleanup; Android device UI; and any GUI-only local approval workflow.
+**Executed but failed:** the owner completed the local broker setup flow on
+TEST-01, but the Client failed to establish the authenticated first-admin
+session (`HOST_SESSION_AUTHENTICATION_FAILED`). The diagnostic correction that
+would expose the safe Host response is not yet installed.
+
+**NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED:** remaining Windows UI
+navigation, permissions/scaling and interactive uninstall/cleanup; Android
+device UI; and other GUI-only local approval workflows.
 
 Other unexecuted mandatory scenarios: representative Wave 1 physical upgrade;
-complete cross-tenant/company/branch and identity authorization; Host API and
-operations/data processing; real two-computer synchronization, offline changes
+complete cross-tenant/company/branch and identity authorization; completion of
+authenticated Host API/session verification; Host operations/data processing;
+real two-computer synchronization, offline changes
 and conflict/receipt recovery; Task Scheduler; product backup integrity,
 corruption, retention and interruption; disposable product restore and
 Recovery Authority reconciliation; forced process crash or computer reboot;
 and the full B6 capability/regression audit. Physical fresh migrations 001–040
 and selected RLS/least-privilege checks did execute and pass as recorded above.
-No product build or test was run on the owner's primary workstation.
+The focused Dart test and analyzer ran in the repository worktree on the
+execution workstation, not on TEST-01 or TEST-02. No Windows package was built
+or physically installed from that workstation.
+
+## Owner clean-install follow-up — 2026-11-14
+
+After the owner removed the previous TEST-01 Ventio data and installed the
+verified package again, local scope `Test-01` / `Codex-01` / `Codex` was used.
+The UI exported `HOST_SETUP_STATUS_UNAVAILABLE` at 22:29:33 UTC. SSH later
+observed operation `0793a94d97f202699fbbff49b5db5cc8` in `complete` state at
+22:31:08 UTC, with the protected result file present, both Windows services
+Running, and `/healthz` returning 200. The owner then exported
+`HOST_SESSION_AUTHENTICATION_FAILED` at 22:35:55 UTC while the UI was at
+“store the administrator credential securely.”
+
+After this second error, SSH still showed the same completed operation and
+protected result (metadata only), running services, and `/healthz` 200. No
+Ventio Event Log provider or recent Ventio Application event was found. Source
+inspection places the failure after the client stores the bootstrap token and
+calls `GET /api/v1/session`; a Host transport failure was being collapsed to a
+generic authentication code. `f11bf27` fixes this loss of safe diagnostics.
+The actual Host response remains unknown pending a package built from the fix.
+
+The owner reported the power interruption followed the earlier 21:59:20 UTC
+session error; SSH later recorded boot time `2026-11-14T22:02:07.500Z`. The
+clean-install error at 22:35:55 UTC occurred after that reboot, so the prior
+interruption is not considered its cause. The owner cleared this clean
+installation after prior physical migration/RLS tests, so those earlier
+database results do not certify the current database; rerun them on the current
+fresh installation.
+
+Source-level regression evidence on `f11bf27`:
+
+- `flutter test test/host_setup_test.dart`: **28 passed**.
+- `dart analyze lib/src/host_setup.dart test/host_setup_test.dart`: **No issues found**.
+- `dart format` completed; it reported that `flutter_lints` was not resolved by
+  the formatter's lint include, but the focused analyzer ran clean after
+  dependency resolution.
+- No new installer, package CI result, or physical install exists yet for
+  `f11bf27`; physical status remains tied to `fb341a78…`.

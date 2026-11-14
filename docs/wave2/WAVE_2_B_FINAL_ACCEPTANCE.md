@@ -3,18 +3,17 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-14 20:41 UTC
+Last updated: 2026-11-14 22:56 UTC
 
-This candidate is not submitted as verified or production-ready. All nine
-candidate CI workflows passed on the tested product commit and latest observed
-report-only PR head before this documentation update. SSH-only physical testing
-provisioned PostgreSQL and Host services on TEST-01; migrations 001–040,
-selected RLS/least-privilege checks and orderly service restart passed. Host
-first-administrator Bootstrap is intentionally local-only and rejects the
-remote SSH network token, so the Host API is not ready. The two-device sync,
-complete security/operations matrix, backup/restore and GUI acceptance gates
-remain unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION /
-BLOCKED**.
+This candidate is not submitted as verified or production-ready. The previous
+package and its nine CI workflows passed on product commit `fb341a78…`. After
+the owner performed local setup on a clean TEST-01 install, the broker reached
+`complete`, both services ran and `/healthz` returned 200, but the Client could
+not establish the first-administrator session. A diagnostic source correction
+in `f11bf27` passed focused unit and analyzer checks; it is not yet in CI or a
+physical package. The exact Host response and the two-device sync, complete
+security/operations matrix, backup/restore and GUI acceptance gates remain
+unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
 
 ## Candidate and environment
 
@@ -24,8 +23,11 @@ BLOCKED**.
   unmerged and still Draft
 - Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 - Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
-- The report updates are documentation-only. All CI and artifact evidence below
-  remains tied to the tested product commit `fb341a78…`.
+- Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026`
+- All prior CI/package and physical installation evidence remains tied to
+  `fb341a78…`. The correction in `f11bf27` preserves safe Host transport error
+  codes and has focused source tests only; it is not packaged or physically
+  verified.
 - All nine PR workflows also passed on documentation-only head
   `50832447b8445849692787977f31865883868b6d`; Host API run `43619047598` and
   Windows acceptance-package run `43619047645` are included. No product source
@@ -42,8 +44,9 @@ BLOCKED**.
 - Current access: SSH identifies Codex-1 on TEST-01 and Codex-3 on TEST-02;
   `query user` reports both RDP sessions Active. The owner unlocked the TEST-02
   desktop during follow-up; all four accounts were previously verified as
-  local Administrators at High Integrity. No reboot has been run, so
-  post-restart continuity is unverified.
+  local Administrators at High Integrity. An unplanned power interruption
+  occurred after the earlier session error; SSH reconnected afterward and
+  services were observed running. No controlled reboot-recovery test was run.
 - The SSH-only continuation installed `VentioPostgres` and `VentioHost` on
   TEST-01; see the detailed result below. TEST-02's client install remains
   available as the independent client. GUI acceptance and interactive
@@ -58,15 +61,15 @@ BLOCKED**.
 
 | Gate | Status | Acceptance evidence |
 |---|---|---|
-| B0 | Partial | Machine identities, current OS/PowerShell versions, SSH, isolated roots, artifact hashes, Defender and effective TEST-01 policy state verified. No Windows reboot was performed. |
+| B0 | Partial | Machine identities, current OS/PowerShell versions, SSH, isolated roots, artifact hashes, Defender and effective TEST-01 policy state verified. An unplanned power interruption followed the earlier session error; SSH and services returned afterward, but this was not a controlled recovery test. |
 | B1 | **PASS in candidate CI** | All nine candidate workflows passed on product commit `fb341a78…`; all nine also passed on latest checked report-only PR head `96c6573…` (run IDs listed in the SSH-only evidence). This does not substitute for physical acceptance. |
-| B2 | Partial | Physical TEST-01 PostgreSQL 16.15 fresh migrations 001–040 and selected RLS/least-privilege profile passed. Wave 1 upgrade, full isolation/identity matrix and Recovery Authority reconciliation remain open. |
-| B3 | Partial | Host/PostgreSQL provisioning and orderly service restart passed. First-admin Bootstrap failed through remote SSH by design; Host API and remaining operations/data scenarios are blocked or unexecuted. |
-| B4 | Partial / blocked | No real Host connection or two-computer synchronization. GUI-dependent client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
-| B5 | Partial | Physical services and orderly restart verified. Scheduler, local approval, product backup integrity/retention, interrupted backup, disposable restore and recovery reconciliation not run. |
+| B2 | Partial | Migrations 001–040 and selected RLS/least-privilege checks passed on the earlier TEST-01 database, which the owner later deleted. The current clean database has not yet had checksum/RLS revalidation. Wave 1 upgrade, full isolation/identity matrix and Recovery Authority reconciliation remain open. |
+| B3 | Partial / blocked | On the current clean install, broker setup completed, services run and `/healthz` returns 200. Client session authentication fails; authenticated Host operations/data scenarios remain unverified. |
+| B4 | Partial / blocked | Owner ran local Host setup, but authenticated session validation failed. No authenticated Host use or two-computer synchronization passed. Remaining GUI-dependent Client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B5 | Partial | An orderly restart passed on the earlier install; the current clean install has running services but no controlled restart retest. Scheduler, local approval, product backup integrity/retention, interrupted backup, disposable restore and recovery reconciliation not run. |
 | B6 | Not complete | Physical gates, capability audit and final acceptance audit are open. |
 
-## SSH-only resumed physical evidence
+## Earlier SSH-only physical evidence (before owner clean reinstall)
 
 The resumed execution followed the mandatory SSH/CLI-only rule: no Computer
 Use, RDP interaction, screenshots, mouse automation or GUI control. This
@@ -101,13 +104,13 @@ installation.
   registration and LAN configuration completed. It failed only at
   `FIRST_ADMINISTRATOR_BOOTSTRAP`, error `HOST_FIRST_ADMIN_PIPE_CONNECT_FAILED`,
   exit 7.
-- **Why first admin is blocked:** SSH `Codex-1` token includes
+- **Why the first remote attempt stopped:** SSH `Codex-1` token included
   `NT AUTHORITY\NETWORK` SID `S-1-5-2`. Source inspection confirms the first
   administrator named pipe denies this network SID and requires a local
   caller. A remote resume reproduced the same failure. No alternate identity,
   scheduled task, UAC bypass, or security policy bypass was tried. This is a
-  deliberate authorization boundary; local first-admin completion remains a
-  manual owner requirement.
+  deliberate authorization boundary. The owner later completed the local
+  broker setup flow; authenticated Client session validation remains blocked.
 - **Physical PostgreSQL and security checks:** PostgreSQL 16.15 is ready on
   `127.0.0.1:54329`. Fresh migrations `001`–`040` matched the packaged files
   and normalized SHA-256 checksums: 40/40 matched, zero mismatches. Checked
@@ -121,8 +124,8 @@ installation.
 - **Services:** `VentioPostgres` and `VentioHost` are Automatic and Running
   under `NT SERVICE\VentioPostgres` and `NT SERVICE\VentioHost`. An orderly
   stop/start cycle completed and `pg_isready` passed afterward. This is not
-  crash, power-loss or reboot recovery. Host API remains unavailable until the
-  first administrator is created.
+  crash, power-loss or reboot recovery. At this historical checkpoint, Host
+  API readiness awaited first-admin completion.
 - **TEST-02 and synchronization:** TEST-02 was not altered during the resumed
   run. Its Client package is present, but no real connection, second identity,
   offline operation, conflict or receipt was tested. Existing CI is not
@@ -130,9 +133,12 @@ installation.
 
 ### Manual and unexecuted tests
 
-The following are explicitly **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**:
+The owner executed the local Host setup UI, but the Client failed to establish
+the authenticated first-administrator session (`HOST_SESSION_AUTHENTICATION_FAILED`).
+This is an attempted and failed scenario, not a passed acceptance gate.
 
-- Complete first administrator setup using the supported local Ventio UI.
+The following remain **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**:
+
 - Windows Client first-run/navigation/permissions/scaling and interactive
   uninstall/cleanup scenarios.
 - Android UI or device scenarios and any Windows local approval workflow that
@@ -155,11 +161,16 @@ capability/regression closure.
   14.51.36247 endpoint and adds diagnostics without weakening the gate.
   Candidate package workflow run `43605015043` passed, so this defect is
   closed.
-- No application-source defect was confirmed or changed during the SSH-only
-  continuation. Initial Code Integrity events 3033/3077 blocked the unsigned
-  broker while SAC was enforced; after the owner disabled SAC on TEST-01 and
-  the effective state was verified, the broker provisioned services/database
-  and stopped at the intentional local-only first-admin boundary (WB-ACC-06).
+- WB-PKG-02 is a confirmed diagnostic defect: the first-admin session path
+  replaced a safe Host transport code with `HOST_SESSION_AUTHENTICATION_FAILED`.
+  Commit `f11bf27` preserves the validated code; its 28-test focused suite and
+  scoped analyzer passed. This correction does not yet identify the underlying
+  TEST-01 Host response and has not been packaged or physically tested.
+- Initial Code Integrity events 3033/3077 blocked the unsigned broker while SAC
+  was enforced; after the owner disabled SAC on TEST-01 and the effective state
+  was verified, the broker completed provisioning and first-admin handoff.
+  The clean-install broker also completed, but Client session authentication
+  failed (WB-ACC-06). This does not establish that SAC caused the session error.
 - CI's completed security suites cover direct SQL, least privilege, forced RLS,
   identity/revocation, scoped roles, credential reissue and recovery cases.
 - No credentials or production data were used. No password was entered into
@@ -197,6 +208,25 @@ capability/regression closure.
   remains explicit; no events are inferred.
 - The Wave 2 A handoff's Windows development-Host shutdown-timeout risk has not
   been reproduced or assessed in this physical run.
+
+## Owner clean-install diagnostic — 2026-11-14
+
+The owner deleted the old Ventio data, reinstalled the verified package, and
+used scope `Test-01` / `Codex-01` / `Codex`. Operation
+`0793a94d97f202699fbbff49b5db5cc8` reached `complete` at 22:31:08 UTC. The
+protected first-admin result remained present, both services were Running, and
+`/healthz` returned 200. The UI exported `HOST_SESSION_AUTHENTICATION_FAILED`
+at 22:35:55 UTC while showing the credential-storage step. SSH inspection found
+no Ventio Event Log provider or recent Ventio Application event. The failure is
+after broker handoff; its exact Host HTTP response is not available in the
+installed build because of WB-PKG-02.
+
+The owner reports that power was lost after the earlier 21:59:20 UTC session
+error; SSH later recorded boot time `2026-11-14T22:02:07.500Z`. The clean-install
+error at 22:35:55 UTC occurred after that reboot, so the earlier outage is not
+attributed as its cause. Previous physical migration/RLS evidence predates the
+data clear and does not certify the new database. Fresh database/security
+checks remain pending.
 
 ## Windows artifact and installation
 
@@ -239,10 +269,10 @@ copies passed the size/hash check.
 
 ## Required before Wave_2_B can be submitted for owner acceptance
 
-1. Complete first-administrator setup using Ventio's supported local interface
-   on TEST-01, preserving the current pipe authorization and all remaining
-   Windows protections. Then verify Host API readiness and continue physical
-   identity/authorization and operational tests through SSH/CLI where possible.
+1. Build/install the diagnostic correction on TEST-01 without clearing its
+   clean Host database. Capture the safe Host response from the session check,
+   resolve the authentication failure, and verify the authenticated profile.
+   Preserve the existing pipe authorization and all Windows protections.
 2. Complete the TEST-02 interactive Client/uninstall checks. Record GUI cases as
    **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED** until owner validation is
    performed.
@@ -253,8 +283,8 @@ copies passed the size/hash check.
    to positive/negative evidence, document every unexecuted case and rerun
    affected regressions on the exact final product commit.
 
-**Readiness recommendation:** Do not begin Wave_2_C while the local first-admin
-blocker and mandatory physical gates remain open. The unsigned installer/broker
+**Readiness recommendation:** Do not begin Wave_2_C while first-administrator
+session authentication and mandatory physical gates remain open. The unsigned installer/broker
 also remains a deployment limitation on machines enforcing code-signing
 policies. Keep PR #6 Draft and unmerged. Reassess only after every mandatory
 gate passes and owner acceptance is separately recorded. This report does not

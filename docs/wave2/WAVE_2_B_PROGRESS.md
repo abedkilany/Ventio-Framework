@@ -1,29 +1,30 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current blocker: local first-administrator bootstrap and remaining mandatory acceptance gates.
+Current blocker: authenticated first-administrator session verification and remaining mandatory acceptance gates.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
-Last updated: 2026-11-14 20:41 UTC
+Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested; not yet packaged or installed)
+Last updated: 2026-11-14 22:56 UTC
 
-Wave_2_C and merge into `main` are out of scope. The current product candidate
-has no application-source changes after the package correction in
-`fb341a7`; the acceptance-package workflow and reports are the Wave_2_B
-verification additions. Report documents are committed separately; they do not
-change the tested product/package commit `fb341a78` or its recorded CI results.
+Wave_2_C and merge into `main` are out of scope. Physical package evidence
+remains tied to `fb341a78`; the diagnostic correction in `f11bf27` preserves
+safe Host transport error codes but has not yet been packaged or installed on
+TEST-01. The reports distinguish this source-level correction from physical
+candidate evidence.
 
 ## Gate ledger
 
 | Gate | Status | Evidence / remaining work |
 |---|---|---|
-| B0 — Environment and tooling | **PARTIAL** | SSH-only access reverified Codex-1/TEST-01 and Codex-3/TEST-02. Both are Windows 11 Pro 26H2, build 26300.9974, PowerShell 5.1.26100.9818. Artifact hashes remain verified. No computer reboot was performed. |
+| B0 — Environment and tooling | **PARTIAL** | SSH-only access reverified Codex-1/TEST-01 and Codex-3/TEST-02. Both are Windows 11 Pro 26H2, build 26300.9974, PowerShell 5.1.26100.9818. After the first session error, an owner-reported power interruption caused an unplanned reboot; SSH later observed the new boot time and running services. This is not a controlled recovery acceptance test. |
 | B1 — Static, core and contract verification | **PASS in candidate CI** | All nine workflows passed on product commit `fb341a78…` and report-only PR head `96c6573c…` (all nine run IDs recorded in test results). CI is not physical acceptance evidence. |
-| B2 — PostgreSQL, identity and security | **PARTIAL — physical DB/security profile passed** | TEST-01 physical PostgreSQL 16.15 initialized fresh migrations 001–040 (40 files, no checksum mismatch). Forced RLS and least-privilege smoke checks passed. Wave 1 upgrade, cross-scope authorization matrix, identity API and Recovery Authority tests remain blocked or unexecuted until first-admin bootstrap. |
-| B3 — Host operations and data processing | **PARTIAL** | Host/PostgreSQL services were installed and an orderly service restart passed. First-admin bootstrap failed through SSH by design because the remote Windows token is denied by the local-only named-pipe ACL. Host API and remaining processing/operations scenarios did not run. |
-| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | Client packages remain installed on both computers. No GUI was used in this resumed run. Real Host connection, two-computer synchronization, offline edits, conflicts, receipts and Android/UI cases remain unexecuted; GUI cases are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
-| B5 — Backup, restore and Windows operations | **PARTIAL** | Physical VentioPostgres/VentioHost services run on TEST-01 and orderly restart persistence passed. Scheduling, approval, product backup integrity/retention, interruption, disposable restore and reconciliation remain unexecuted. |
+| B2 — PostgreSQL, identity and security | **PARTIAL — current clean DB not re-audited** | Earlier physical fresh migrations 001–040 and selected RLS/least-privilege checks passed before the owner cleared Ventio data. The new database was created successfully, but migration checksum/RLS checks have not been repeated on this clean install. Identity APIs and cross-scope authorization remain unverified. |
+| B3 — Host operations and data processing | **PARTIAL / BLOCKED** | On the owner's clean reinstall, broker operation `0793a94d97f202699fbbff49b5db5cc8` reached `complete`; services run and `/healthz` returns 200. Client session authentication still fails, so authenticated Host operations/data processing remain unverified. |
+| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | Owner ran local Host setup UI, but Client could not validate the first-administrator session. Real authenticated Host use, two-computer synchronization, offline edits, conflicts, receipts and Android/UI cases remain unexecuted or blocked. |
+| B5 — Backup, restore and Windows operations | **PARTIAL** | An orderly restart passed on the earlier installation. The new clean install has running services, but no controlled restart was repeated after the data clear. Scheduling, approval, product backup integrity/retention, interruption, disposable restore and reconciliation remain unexecuted. |
 | B6 — Full regression and final acceptance audit | **NOT COMPLETE** | Physical gates, capability audit and final rerun on a delivered package remain open. |
 
 ## Lab state and boundary
@@ -187,15 +188,16 @@ RDP interaction, screenshots, mouse automation or GUI control was used.
 
 ### Current gate disposition
 
-- **Passed physically:** TEST-01 Host/PostgreSQL provisioning through database
-  initialization; fresh migrations 001–040/checksums; checked RLS and
-  least-privilege profile; normal service restart persistence; SSH identity and
-  security-state checks.
-- **Blocked:** first administrator, Host API readiness and dependent physical
-  identity/authorization and real synchronization tests. Local UI completion is
-  required under the product's current local-only first-admin security design.
-- **Not executed — manual owner validation required:** Ventio UI first-admin
-  completion, interactive Windows Client flows, Android device UI, uninstall
+- **Passed physically on the earlier install:** TEST-01 Host/PostgreSQL
+  provisioning through database initialization; fresh migrations
+  001–040/checksums; checked RLS and least-privilege profile; normal service
+  restart persistence; SSH identity and security-state checks. The owner later
+  cleared that database; repeat database checks on the current clean install.
+- **Blocked:** authenticated first-administrator session and dependent physical
+  identity/authorization and real synchronization tests. The owner completed
+  local setup, but the Client failed to validate the session.
+- **Not executed — manual owner validation required:** remaining interactive
+  Windows Client flows, Android device UI, uninstall
   cleanup, and any test requiring GUI-only local approval. Use the exact status
   `NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED` in the detailed results.
 - **Not executed:** representative Wave 1 upgrade fixture; full cross-tenant,
@@ -204,16 +206,19 @@ RDP interaction, screenshots, mouse automation or GUI control was used.
   backup; disposable product restore and Recovery Authority reconciliation;
   crash/reboot recovery; complete 22-capability matrix and B6 audit.
 
-No application-source defect was confirmed or fixed in this continuation. The
-recorded database and service checks do not close Wave_2_B. The required final
-disposition remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+The owner-managed clean reinstall completed provisioning but reproduced a
+Client session failure. A confirmed diagnostic defect was corrected in
+`f11bf27`: bootstrap session transport failures now retain their validated
+Host error code. Focused unit tests and analysis pass; the correction still
+needs a package build and physical retry. The required final disposition
+remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
 
 ## Next steps
 
-1. Complete first-administrator bootstrap through Ventio's local supported
-   interface on TEST-01. Keep Defender and Code Integrity protections enabled;
-   no remote bypass is acceptable. After the local step, SSH can continue with
-   API and non-GUI verification.
+1. Build/install the diagnostic correction on TEST-01 without deleting the
+   clean Host database, then capture the safe Host response code from the
+   session check. Keep Defender and Code Integrity protections enabled; no
+   remote bypass is acceptable.
 2. Repeat the uninstall from TEST-02's Codex-3 interactive session and verify
    cleanup; under the SSH-only rule classify it as
    `NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED`.
