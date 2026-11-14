@@ -1,0 +1,141 @@
+name: Wave 2 B Windows Acceptance Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/wave2-b-windows-acceptance-package.yml'
+      - '.github/workflows/native-flutter-client.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/**'
+      - 'packages/ventio_postgres/**'
+      - 'packages/ventio_native_client/**'
+      - 'installer/windows/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'scripts/ci/**'
+      - 'scripts/windows/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/wave2-b-windows-acceptance-package.yml'
+      - '.github/workflows/native-flutter-client.yml'
+      - 'packages/ventio_core/**'
+      - 'packages/ventio_host/**'
+      - 'packages/ventio_host_api/**'
+      - 'packages/ventio_postgres/**'
+      - 'packages/ventio_native_client/**'
+      - 'installer/windows/**'
+      - 'migrations/postgres/**'
+      - 'security/postgres/**'
+      - 'scripts/ci/**'
+      - 'scripts/windows/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows-acceptance-package:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up pinned Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.7
+      - name: Set up .NET SDK for the Windows Host services
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Resolve Host package dependencies
+        shell: pwsh
+        run: |
+          Push-Location packages/ventio_host_api
+          try { dart pub get --enforce-lockfile } finally { Pop-Location }
+          Push-Location packages/ventio_postgres
+          try { dart pub get --enforce-lockfile } finally { Pop-Location }
+      - name: Install verified PostgreSQL 16 runtime tools
+        shell: pwsh
+        run: ./scripts/ci/install-postgres-tools.ps1
+      - name: Build isolated Host payload
+        shell: pwsh
+        run: ./scripts/windows/build-host-payload.ps1 -PostgresBinDirectory "$env:VENTIO_TEST_POSTGRES_BIN_DIR"
+      - name: Set up pinned Flutter SDK
+        uses: subosito/flutter-action@v2.15.0
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+          pub-cache: true
+      - name: Generate native Windows runner scaffolding
+        shell: pwsh
+        run: ./scripts/prepare_native_client_platforms.ps1
+      - name: Resolve Flutter dependencies
+        working-directory: packages/ventio_native_client
+        shell: pwsh
+        run: flutter pub get --enforce-lockfile
+      - name: Build Windows release client
+        working-directory: packages/ventio_native_client
+        shell: pwsh
+        run: flutter build windows --release
+      - name: Install pinned Inno Setup compiler with signature verification
+        shell: pwsh
+        run: |
+          $installerPath = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.4.exe'
+          Invoke-WebRequest -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe' -OutFile $installerPath
+          $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
+          $publisher = if ($signature.SignerCertificate) { $signature.SignerCertificate.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false) } else { '' }
+          $fileVersion = [version](Get-Item -LiteralPath $installerPath).VersionInfo.ProductVersion
+          if ($signature.Status -ne 'Valid' -or $publisher -ne 'Pyrsys B.V.' -or $fileVersion -ne [version]'6.7.4') { throw 'Inno Setup signature, publisher, or version verification failed.' }
+          $install = Start-Process -FilePath $installerPath -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru -WindowStyle Hidden
+          if ($install.ExitCode -ne 0 -or -not (Test-Path -LiteralPath "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" -PathType Leaf)) { throw 'Inno Setup 6.7.4 installation failed.' }
+      - name: Download and verify Microsoft Visual C++ runtime
+        shell: pwsh
+        run: |
+          $manifest = Get-Content installer/windows/prerequisites/vc-runtime-prerequisite.json -Raw | ConvertFrom-Json
+          $runtimePath = Join-Path $env:RUNNER_TEMP $manifest.fileName
+          Invoke-WebRequest -Uri $manifest.downloadUrl -OutFile $runtimePath
+          ./scripts/windows/test-vc-runtime-package.ps1 -RuntimeInstallerPath $runtimePath
+          "VENTIO_VC_REDIST_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Build and verify unified Windows installer
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "ventio-wave2-package-$env:GITHUB_RUN_ID"
+          if (Test-Path -LiteralPath $output) { throw 'Isolated package output already exists.' }
+          ./scripts/windows/build-windows-installer.ps1 -SkipFlutterBuild -InstallerOutputDirectory $output -VCRedistPath $env:VENTIO_VC_REDIST_PATH
+          $installer = Get-ChildItem -LiteralPath $output -Filter 'Ventio-Setup-*.exe' -File | Select-Object -First 1
+          if ($null -eq $installer) { throw 'Unified Windows installer was not generated.' }
+          $runtime = Get-Content installer/windows/prerequisites/vc-runtime-prerequisite.json -Raw | ConvertFrom-Json
+          $evidence = @(
+            "testedCommit=$env:GITHUB_SHA",
+            "runnerOS=$([Environment]::OSVersion.VersionString)",
+            "dart=$(dart --version 2>&1)",
+            "flutter=$(flutter --version --machine | ConvertFrom-Json | Select-Object -ExpandProperty frameworkVersion)",
+            "postgres=$( & "$env:VENTIO_TEST_POSTGRES_BIN_DIR\postgres.exe" --version )",
+            "dotnet=$(dotnet --version)",
+            "innoSetup=6.7.4",
+            "vcRuntime=$($runtime.packageVersion)",
+            "installer=$($installer.Name)",
+            "installerBytes=$($installer.Length)",
+            "installerSha256=$((Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+          )
+          Set-Content -LiteralPath (Join-Path $output 'wave2-build-evidence.txt') -Encoding utf8 -Value $evidence
+      - name: Retain candidate installer and build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ventio-wave2-windows-acceptance-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/ventio-wave2-package-${{ github.run_id }}/Ventio-Setup-*.exe
+            ${{ runner.temp }}/ventio-wave2-package-${{ github.run_id }}/Ventio-Setup-SHA256SUMS.txt
+            ${{ runner.temp }}/ventio-wave2-package-${{ github.run_id }}/wave2-build-evidence.txt
+          if-no-files-found: error
+          retention-days: 30
