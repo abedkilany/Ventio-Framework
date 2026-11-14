@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-14 17:56 UTC
+Last updated: 2026-11-14 18:43 UTC
 
 This candidate is not submitted as verified or production-ready. All nine
 candidate CI workflows have passed, and the exact artifact was verified,
@@ -28,17 +28,24 @@ currently available for producing a compatible Windows candidate.
   `50832447b8445849692787977f31865883868b6d`; Host API run `43619047598` and
   Windows acceptance-package run `43619047645` are included. No product source
   changed on that head, and the candidate under test remains `fb341a78…`.
+- All nine workflows also passed on the latest observed report-only head
+  `1d78ca5e80284e8040320544701589063756fd48`, including Host API
+  `43623933317`, Native `43623933340` and package `43623933314`. No product
+  source changed; product verification remains tied to `fb341a78…`.
 - Test machines: VENTIO-TEST-01 (`192.168.1.106`) and VENTIO-TEST-02
   (`192.168.1.107`), Windows 11 Pro build 26300, PowerShell 5.1.26100.9711
 - Current access: SSH identifies Codex-1 on TEST-01 and Codex-3 on TEST-02;
-  `quser` confirms both designated RDP sessions Active. All four accounts were
-  previously verified as local Administrators at High Integrity. No reboot has
-  been run, so post-restart continuity is unverified.
+  `query user` reports both RDP sessions Active. The owner unlocked the TEST-02
+  desktop during follow-up; all four accounts were previously verified as
+  local Administrators at High Integrity. No reboot has been run, so
+  post-restart continuity is unverified.
 - The latest SSH recheck confirmed both Host/PostgreSQL services and
   `C:\ProgramData\Ventio` remain absent. The local TEST-01 RDP window was
   minimized and Computer Use could not activate it after a refreshed selection;
-  no interactive uninstall retest was performed. TEST-02's lock screen was not
-  accessed.
+  no interactive uninstall retest was performed. TEST-02's unlocked desktop
+  was visible, but Computer Use could not operate Start/Settings. SSH confirms
+  its installation directory and uninstall key remain, with no uninstaller
+  process active.
 - Candidate build evidence: workflow-installed Dart 3.13.7 and .NET SDK 8.0.428
   were used for Host compilation; Flutter 3.44.1, PostgreSQL 16.15, Inno Setup
   6.7.4 and VC++ runtime 14.51.36247.0 are recorded. The packaged evidence
@@ -49,11 +56,11 @@ currently available for producing a compatible Windows candidate.
 
 | Gate | Status | Acceptance evidence |
 |---|---|---|
-| B0 | Partial | Machine identities, versions, SSH, designated RDP sessions, isolated roots and exact artifact hashes/size are recorded. Package is installed on both machines. TEST-02 RDP remains locked. Restart continuity and some optional tooling probes remain open. |
-| B1 | **PASS in candidate CI** | All nine candidate workflows passed, including Host API run `43605015106` and package workflow run `43605015043`. This does not substitute for physical acceptance. |
+| B0 | Partial | Machine identities, versions, SSH, designated RDP sessions, isolated roots and exact artifact hashes/size are recorded. Package is installed on both machines. The owner unlocked TEST-02 RDP, but its UI could not be controlled by Computer Use. Restart continuity and some optional tooling probes remain open. |
+| B1 | **PASS in candidate CI** | All nine candidate workflows passed on product commit `fb341a78…` (Host API `43605015106`; package `43605015043`) and latest report-only PR head `1d78ca5…` (Host API `43623933317`; Native `43623933340`; package `43623933314`). This does not substitute for physical acceptance. |
 | B2 | Partial / blocked | PostgreSQL 16 CI covers migrations/bootstrap, RLS, identity, least privilege and logical recovery. No physical migration, representative Wave 1 upgrade, Recovery Authority reconciliation or isolation matrix has run. TEST-01 Host provisioning is blocked by the unsigned broker's Code Integrity failure. |
 | B3 | Partial | CI covers portions of API, persistence, durable jobs, identity, package approval and recovery. Complete scenario-by-scenario operations/data processing acceptance is open. |
-| B4 | Partial / blocked | Windows Client installation and launch passed on both machines. TEST-01 scope entry and Host setup reached UAC, but Code Integrity blocked the unsigned Setup Broker. TEST-02 package files and registration were restored by rerunning the verified installer; RDP remains locked and interactive uninstall retest is pending. No Host connection, real two-computer sync, offline edit, conflict/receipt recovery, Android UI or permissions/scaling evidence. |
+| B4 | Partial / blocked | Windows Client installation and launch passed on both machines. TEST-01 scope entry and Host setup reached UAC, but Code Integrity blocked the unsigned Setup Broker. TEST-02 was restored from the verified installer; its desktop was later unlocked, but Computer Use could not operate Start/Settings. The latest SSH check still finds the install directory and registration, so interactive uninstall retest is pending. No Host connection, real two-computer sync, offline edit, conflict/receipt recovery, Android UI or permissions/scaling evidence. |
 | B5 | Not executed physically | No physical service lifecycle, Task Scheduler/local approval, backup/tamper/retention, interrupted backup or disposable restore/reconciliation. |
 | B6 | Not complete | Physical gates, capability audit and final acceptance audit are open. |
 
@@ -130,8 +137,10 @@ unavailable. Both `VentioHost` and `VentioPostgres` remain unregistered, and
 `C:\ProgramData\Ventio` is absent; no database or Host data was created. TEST-02
 had a silent SSH uninstall probe that removed registration but left the active
 Client and six files. The verified installer was rerun over SSH and restored its
-registration/version and files (exit 0); its RDP capture remains at the lock
-screen, so visual confirmation and interactive uninstall retest are pending.
+registration/version and files (exit 0). The owner later unlocked the RDP
+desktop, but Computer Use could not operate it. The latest SSH check still finds
+the install directory and uninstall registration, so interactive uninstall
+and cleanup verification remain pending.
 
 Initial direct artifact downloads on the lab computers returned HTTP 403.
 Identified incomplete candidate files were hashed and removed. Automatic

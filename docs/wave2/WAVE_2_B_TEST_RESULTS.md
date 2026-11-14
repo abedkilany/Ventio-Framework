@@ -5,7 +5,7 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-14
-Last updated: 2026-11-14 17:56 UTC
+Last updated: 2026-11-14 18:43 UTC
 
 The exact candidate product commit was used by GitHub-hosted CI and the
 acceptance-package workflow. All nine candidate workflows completed
@@ -25,12 +25,21 @@ Flutter/Extension Builder `43619047614`, and Host API `43619047598`. No product
 code changed on that report-only commit; the tested product candidate remains
 `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`.
 
+All nine workflows completed successfully on the latest observed report-only
+PR head `1d78ca5e80284e8040320544701589063756fd48`: Host Persistence
+`43623933401`, Durable Commands `43623933305`, Windows Acceptance Package
+`43623933314`, Core Foundation `43623933304`, Host Engineering `43623933279`,
+Host Crash Recovery `43623933428`, Credential Lifecycle `43623933267`, Native
+Flutter/Extension Builder `43623933340`, and Host API `43623933317`. This head
+also changed documentation only; product verification remains tied to
+`fb341a78eca1bb897e2ce09f1271dae39bbd7d11`.
+
 ## Environment and fixtures
 
 | Machine | Verified identity | OS / build | PowerShell | Initial free C: | Recorded state |
 |---|---|---|---|---:|---|
 | VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 63.5 GB initial | `Codex-1` SSH identity and active RDP session verified. Unified package installed machine-wide; Host scope entered and setup invoked. UAC was approved for `VentioSetupBroker.exe`, then Code Integrity blocked the unsigned broker. No Host/PostgreSQL services or `C:\ProgramData\Ventio` were created. |
-| VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 147.3 GB initial | `Codex-3` SSH identity verified; RDP currently shows the lock screen. Installer exit code 0 and first launch reached Welcome. After the inconclusive silent-uninstall probe, the verified installer was rerun over SSH with exit code 0; uninstall registration/version and application files are restored. No post-repair visual check or interactive uninstall retest was possible. Both Host/PostgreSQL services and ProgramData\Ventio are absent. |
+| VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 147.3 GB initial | `Codex-3` SSH identity verified. The owner unlocked its RDP desktop during this follow-up; Computer Use displayed it but could not operate Start/Settings. Installer exit code 0 and first launch reached Welcome. The verified installer restored the package after the earlier partial silent-uninstall probe. Latest SSH checks confirm the install directory and uninstall registration remain, while `unins000.exe` is not running. Both Host/PostgreSQL services and ProgramData\Ventio are absent. |
 
 SSH succeeded for all four named accounts during initial preflight. At the
 current checkpoint, SSH identifies the intended machine/account pair on each
@@ -38,10 +47,10 @@ host and `quser` previously showed active RDP sessions `codex-1` and `codex-3`.
 No restart was performed, so post-reboot SSH/RDP continuity is not established.
 On the latest check, SSH again returned VENTIO-TEST-01 for Codex-1 and
 VENTIO-TEST-02 for Codex-3; `query user` reported RDP session ID 4 as Active on
-both. A Computer Use inspection found the local TEST-01 RDP window minimized,
-and activation failed after refreshing the selected window once. No UI input
-or interactive uninstall was performed. TEST-02's previously observed lock
-screen was not touched.
+both. The owner unlocked the TEST-02 desktop; its RDP window showed the Windows
+desktop, but Computer Use could not open Start/Settings and the window later
+minimized. No uninstaller process was found and the install directory and
+uninstall key remained. No interactive uninstall was performed.
 Earlier in this run, RDP screens could be captured and clicked. Long
 `type_text` calls were unreliable, but focused key-by-key input populated and
 visibly verified all three TEST-01 scope IDs; no owner intervention was
@@ -204,7 +213,7 @@ created. Defender and Code Integrity stayed enabled.
 | B1 static/core/contracts | **PASS in candidate CI** | All nine candidate workflows PASS. |
 | B2 PostgreSQL/identity/security | **PARTIAL** | Candidate CI covers migration/bootstrap, RLS, least privilege, direct SQL, identity, scoped roles, pairing and logical recovery. No physical 001–040 run, representative 001–036 physical upgrade, or test-machine cross-tenant/company/branch matrix has been executed. |
 | B3 Host/data | **PARTIAL** | Candidate CI covers portions of Host API, persistence, durable jobs, credential lifecycle, package review and recovery. Physical customization rebasing, full CSV source-row correlation, durable Windows job recovery, organization/settings UI, history pagination/redaction and Host restart scenarios remain unrun. |
-| B4 native/offline | **PARTIAL / BLOCKED** | Windows Client installed and launched on both machines. TEST-01 Host setup was invoked, but Code Integrity blocked the unsigned broker after UAC approval. TEST-02 package files/registration were restored from the verified installer; its RDP session remains locked, so interactive uninstall retest is pending. No Host connection, real two-computer sync, offline edit, conflict/receipt recovery, Android UI test, protected-field, workspace/view/report or UI permissions/scaling scenario has run. |
+| B4 native/offline | **PARTIAL / BLOCKED** | Windows Client installed and launched on both machines. TEST-01 Host setup was invoked, but Code Integrity blocked the unsigned broker after UAC approval. TEST-02's RDP desktop was unlocked, but Computer Use could not operate it; SSH confirms the restored install files and registration remain, so interactive uninstall retest is pending. No Host connection, real two-computer sync, offline edit, conflict/receipt recovery, Android UI test, protected-field, workspace/view/report or UI permissions/scaling scenario has run. |
 | B5 backup/restore/operations | **NOT RUN PHYSICALLY** | No installed Host, Task Scheduler, local approval, physical backup, tamper/corruption, retention, interrupted backup, disposable restore or Recovery Authority reconciliation. CI logical database restore tests passed on the recovery workflow. |
 | B6 final audit | **NOT COMPLETE** | Physical gates, capability matrix, defect regression adjacency and exact-candidate final rerun remain open. |
 
