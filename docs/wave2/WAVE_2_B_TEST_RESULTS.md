@@ -5,27 +5,31 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-14
-Last updated: 2026-11-14 16:42 UTC
+Last updated: 2026-11-14 17:02 UTC
 
 The exact candidate product commit was used by GitHub-hosted CI and the
 acceptance-package workflow. All nine candidate workflows completed
 successfully by 2026-11-14 15:14 UTC. The candidate package was later verified
 and installed on both physical test computers; the full physical acceptance
 run remains incomplete. No product code was changed during this verification.
+These report documents are maintained separately from the product source. All
+test results below remain tied to product/package commit `fb341a78…`; a
+documentation-only update is not treated as a new product test run.
 
 ## Environment and fixtures
 
 | Machine | Verified identity | OS / build | PowerShell | Initial free C: | Recorded state |
 |---|---|---|---|---:|---|
-| VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 63.5 GB initial | `Codex-1` SSH identity and active RDP session verified. Unified package installed; Ventio is open at Host setup. Both Host/PostgreSQL services are still absent. |
-| VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 147.3 GB initial | `Codex-3` SSH identity and active RDP session verified. Installer exit code 0 and first launch reached Welcome. After the inconclusive silent-uninstall probe, the installation is partial and RDP shows the lock screen; restore and interactive retest are pending. Both Host/PostgreSQL services and ProgramData\Ventio are absent. |
+| VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 63.5 GB initial | `Codex-1` SSH identity and active RDP session verified. Unified package installed machine-wide; Host scope entered and setup invoked. UAC was approved for `VentioSetupBroker.exe`, then Code Integrity blocked the unsigned broker. No Host/PostgreSQL services or `C:\ProgramData\Ventio` were created. |
+| VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 147.3 GB initial | `Codex-3` SSH identity verified; RDP currently shows the lock screen. Installer exit code 0 and first launch reached Welcome. After the inconclusive silent-uninstall probe, the verified installer was rerun over SSH with exit code 0; uninstall registration/version and application files are restored. No post-repair visual check or interactive uninstall retest was possible. Both Host/PostgreSQL services and ProgramData\Ventio are absent. |
 
 SSH succeeded for all four named accounts during initial preflight. At the
 current checkpoint, SSH identifies the intended machine/account pair on each
-host and `quser` shows active RDP sessions `codex-1` and `codex-3`. No restart
-was performed, so post-reboot SSH/RDP continuity is not established. The RDP
-screens can be captured and clicked; long text entry through the CUA controller
-has not populated the Host scope field reliably.
+host and `quser` previously showed active RDP sessions `codex-1` and `codex-3`.
+No restart was performed, so post-reboot SSH/RDP continuity is not established.
+The RDP screens can be captured and clicked. Long `type_text` calls were
+unreliable, but focused key-by-key input populated and visibly verified all
+three TEST-01 scope IDs; no owner intervention was required for that entry.
 
 The exact starting-source archive on TEST-01 is
 `C:\VentioTest\downloads\Ventio-Framework-9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61.zip`,
@@ -147,6 +151,30 @@ The Code Integrity log contains earlier events 3033/3077 mentioning an
 minutes after the probe found no new 3033/3077 event. The earlier events cannot
 be tied to the probed file hash from the available event text.
 
+### TEST-01 Host setup — Code Integrity block
+
+The TEST-01 Host setup screen showed PostgreSQL and Ventio Host as Not
+installed. The following disposable scope was entered and visually verified:
+Tenant `wave2b-20261114-ventio01`, Company `company-test01`, Branch
+`branch-test01`. Pressing **Set up Host** launched the expected UAC request for
+`VentioSetupBroker.exe` (Publisher: Unknown); the explicitly authorized UAC
+approval was accepted. The app then reported that its protected local setup
+component was unavailable.
+
+The installed broker exists at
+`C:\Program Files\Ventio\host-payload\VentioSetupBroker.exe` (67,592,883
+bytes; its computed SHA-256 matches the installed payload manifest:
+`bfb4d9bc9f06b11d537a10215ec4dfcf65d9ce78b11150eb53df6a348bd083f4`;
+Authenticode `NotSigned`). New Code Integrity Operational events 3033 at
+`2026-11-14 16:54:52.120 UTC` and 3077 at `2026-11-14 16:54:53.202 UTC` identify
+`svchost.exe` attempting to load that exact installed path and report that the
+broker does not meet Enterprise signing-level requirements, policy ID
+`{0283ac0f-fff1-49ae-ada1-8a933130cad6}`. This correlates the UI failure to
+the actual Code Integrity block; it is not inferred from the generic UI error.
+`VentioHost` and `VentioPostgres` remain unregistered, and
+`C:\ProgramData\Ventio` is absent. No cluster, database or Host data was
+created. Defender and Code Integrity stayed enabled.
+
 ## Physical gate results
 
 | Gate | Result | Executed evidence / outstanding scenarios |
@@ -155,7 +183,7 @@ be tied to the probed file hash from the available event text.
 | B1 static/core/contracts | **PASS in candidate CI** | All nine candidate workflows PASS. |
 | B2 PostgreSQL/identity/security | **PARTIAL** | Candidate CI covers migration/bootstrap, RLS, least privilege, direct SQL, identity, scoped roles, pairing and logical recovery. No physical 001–040 run, representative 001–036 physical upgrade, or test-machine cross-tenant/company/branch matrix has been executed. |
 | B3 Host/data | **PARTIAL** | Candidate CI covers portions of Host API, persistence, durable jobs, credential lifecycle, package review and recovery. Physical customization rebasing, full CSV source-row correlation, durable Windows job recovery, organization/settings UI, history pagination/redaction and Host restart scenarios remain unrun. |
-| B4 native/offline | **PARTIAL** | Windows Client installed and launched on both machines; TEST-01 shows Host setup and TEST-02 reached Welcome before the uninstaller probe. TEST-02 now needs package repair and an unlocked RDP desktop. No Host connection, real two-computer sync, offline edit, conflict/receipt recovery, Android UI test, protected-field, workspace/view/report or UI permissions/scaling scenario has run. |
+| B4 native/offline | **PARTIAL / BLOCKED** | Windows Client installed and launched on both machines. TEST-01 Host setup was invoked, but Code Integrity blocked the unsigned broker after UAC approval. TEST-02 package files/registration were restored from the verified installer; its RDP session remains locked, so interactive uninstall retest is pending. No Host connection, real two-computer sync, offline edit, conflict/receipt recovery, Android UI test, protected-field, workspace/view/report or UI permissions/scaling scenario has run. |
 | B5 backup/restore/operations | **NOT RUN PHYSICALLY** | No installed Host, Task Scheduler, local approval, physical backup, tamper/corruption, retention, interrupted backup, disposable restore or Recovery Authority reconciliation. CI logical database restore tests passed on the recovery workflow. |
 | B6 final audit | **NOT COMPLETE** | Physical gates, capability matrix, defect regression adjacency and exact-candidate final rerun remain open. |
 
@@ -208,10 +236,11 @@ specific positive and negative cases are recorded against the exact candidate.
   placed in source, scripts, reports or CI. No live product data was accessed.
 - Defender and Code Integrity remained enabled: `WinDefend` is RUNNING and the
   Code Integrity Operational log is enabled on both machines. The installer,
-  Client, Host broker and service binaries are unsigned. Installation and
-  launch succeeded without an observed application-control block; this does
-  not resolve the inherited unsigned deployment limitation or prior
-  uninstaller block.
+  Client, Host broker and service binaries are unsigned. Installer and Client
+  installation/launch succeeded, but TEST-01's Setup Broker was blocked under
+  the Enterprise signing-level policy; see the exact event/path/hash evidence
+  above. No policy was weakened. TEST-02's uninstaller result remains
+  inconclusive across SSH/RDP sessions.
 - Wave 1 history did not capture old cross-record target events or prior field
   values. No historical events are inferred.
 - The Wave 2 A handoff records Windows development-Host shutdown timeouts in
