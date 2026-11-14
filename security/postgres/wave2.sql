@@ -10,13 +10,13 @@ SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
       AND item->>'permission'=permission)
 $fn$;
 
-CREATE OR REPLACE FUNCTION ventio_security.wave2_custom_labels(overlay jsonb)
+CREATE OR REPLACE FUNCTION ventio_security.wave2_custom_labels(p_overlay jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
 DECLARE labels jsonb:='{}'; item record;
 BEGIN
- FOR item IN SELECT f->>'labelKey' key,f->'label' value FROM jsonb_array_elements(coalesce(overlay->'fields','[]')) f
-  UNION ALL SELECT overlay #>> '{properties,labelKey}',overlay #> '{properties,label}' WHERE overlay->'properties' ? 'labelKey'
-  UNION ALL SELECT overlay #>> '{ui,pageTitleKey}',overlay #> '{ui,pageTitle}' WHERE overlay->'ui' ? 'pageTitleKey' LOOP
+ FOR item IN SELECT f->>'labelKey' key,f->'label' value FROM jsonb_array_elements(coalesce(p_overlay->'fields','[]')) f
+  UNION ALL SELECT p_overlay #>> '{properties,labelKey}',p_overlay #> '{properties,label}' WHERE p_overlay->'properties' ? 'labelKey'
+  UNION ALL SELECT p_overlay #>> '{ui,pageTitleKey}',p_overlay #> '{ui,pageTitle}' WHERE p_overlay->'ui' ? 'pageTitleKey' LOOP
   IF labels ? item.key AND labels->item.key IS DISTINCT FROM item.value THEN RAISE EXCEPTION 'Conflicting customization labels' USING ERRCODE='23514'; END IF;
   labels:=labels||jsonb_build_object(item.key,item.value);
  END LOOP;
