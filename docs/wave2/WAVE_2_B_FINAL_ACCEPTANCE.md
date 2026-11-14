@@ -20,8 +20,10 @@ verified on the test machines.
 - Test machines: VENTIO-TEST-01 (`192.168.1.106`) and VENTIO-TEST-02
   (`192.168.1.107`), Windows 11 Pro build 26300, PowerShell 5.1.26100.9711
 - Accounts: Codex-1/2 and Codex-3/4 verified as local Administrators at High
-  Integrity through SSH. RDP endpoints are reachable; designated RDP session
-  identities and UI control remain outstanding.
+  Integrity through SSH. RDP endpoints were reachable during initial preflight;
+  the latest check found TCP/22 and TCP/3389 unreachable on both machines while
+  artifact staging was underway. Designated RDP session identities and UI
+  control remain outstanding.
 
 ## Verification gates
 
@@ -78,7 +80,8 @@ verified artifact through an approved channel.
 
 ## Required before Wave_2_B can be submitted for owner acceptance
 
-1. Verify artifact size and digest on both test computers.
+1. Restore approved network access, then verify artifact size and digest on
+   both test computers.
 2. Install the exact candidate with Defender and Code Integrity enabled; record
    installer signature/application-control behavior, Host/Client launch and
    service lifecycle.

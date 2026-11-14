@@ -16,7 +16,7 @@ verification additions.
 
 | Gate | Status | Evidence / remaining work |
 |---|---|---|
-| B0 — Environment and tooling | **PARTIAL** | SSH as all four named local administrators was verified on the two dedicated Windows 11 Pro 26300 machines. PowerShell is 5.1.26100.9711. RDP TCP/3389 is reachable, but TEST-02 shows an existing `AbedKilany` session rather than Codex-3/4. The owner is staging the candidate package on both machines and was asked to leave RDP sessions open as Codex-1 and Codex-3. No reboot/SSH-continuity check has been run. |
+| B0 — Environment and tooling | **PARTIAL / CURRENTLY UNREACHABLE** | SSH as all four named local administrators was verified earlier on the two dedicated Windows 11 Pro 26300 machines. PowerShell is 5.1.26100.9711. Initial RDP TCP/3389 checks passed, but the latest checks found both TCP/22 and TCP/3389 unreachable on both machines while the owner stages the candidate package. TEST-02 previously showed an existing `AbedKilany` session rather than Codex-3/4. No reboot/SSH-continuity check has been run. |
 | B1 — Static, core and contract verification | **PASS in candidate CI** | All nine candidate workflows completed successfully, including Host API run `43605015106` and the Windows acceptance-package workflow. All eight pre-existing workflows also passed on starting commit `9bd0e9e…`. This automated evidence does not close physical gates. |
 | B2 — PostgreSQL, identity and security | **PARTIAL** | Candidate CI exercised PostgreSQL 16, the checked-in migrations, bootstrap/security profile, direct SQL, least privilege, RLS, identity/revocation, scoped roles, pairing and recovery. Fresh migration and compatibility tests were not run on either physical test machine; there is no physical upgrade fixture. |
 | B3 — Host operations and data processing | **PARTIAL** | Candidate CI covered Host API, persistence, durable commands, credential lifecycle, extension package approval and crash/restore test suites. Full scenario-by-scenario Wave 2 capability acceptance and physical Host operations remain open. The Wave 2 A handoff's Windows Host shutdown-timeout risk has not been reproduced or assessed. |
@@ -33,8 +33,9 @@ verification additions.
   5.1.26100.9711. Initial free space was 63.5 GB and 147.3 GB respectively.
 - All four SSH identities (`Codex-1` through `Codex-4`) were verified as
   local Administrators at High Integrity. RDP endpoints accepted TCP
-  connections; the active session identity is not yet the designated test
-  identity.
+  connections during initial preflight; a later check found TCP/22 and TCP/3389
+  unreachable on both machines. The active session identity was not verified as
+  the designated test identity.
 - TEST-01 contains only the isolated starting-source archive in
   `C:\VentioTest\downloads`; TEST-02's downloads directory is empty.
   The source archive is for `9bd0e9e…`, not the built candidate.
@@ -46,7 +47,8 @@ verification additions.
   No installer was run. A local relay attempt was rejected by automatic
   approval review with `blocked by policy`; it was stopped without saving the
   package locally. The owner is now staging the artifact through an approved
-  channel.
+  channel. The exact artifact path was last confirmed absent before both
+  machines became unreachable, so staging remains unverified.
 - Defender and Code Integrity remained enabled. No system accounts, policies,
   network configuration, non-Ventio services or preserved data were changed.
 

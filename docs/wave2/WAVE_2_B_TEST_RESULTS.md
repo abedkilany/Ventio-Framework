@@ -18,11 +18,13 @@ incomplete. No product code was changed during this verification.
 | VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 63.5 GB | No Ventio/PostgreSQL install, service or database. Isolated `C:\VentioTest` root. Starting-source archive staged; candidate package pending. |
 | VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity | Windows 11 Pro 10.0.26300 | 5.1.26100.9711 | 147.3 GB | No Ventio/PostgreSQL install, service or database. Isolated `C:\VentioTest` root. Downloads directory empty. Existing RDP session is `AbedKilany`, not Codex-3/4. |
 
-SSH succeeded for all four named accounts. Both RDP endpoints accepted TCP
-connections on port 3389. No restart was performed, so post-reboot SSH/RDP
-continuity is not established. CUA and Sky each failed to activate the selected
-RDP window with `failed to activate captured window`; refreshing and
-reselecting did not resolve it.
+SSH succeeded for all four named accounts during initial preflight. Both RDP
+endpoints initially accepted TCP connections on port 3389. A later check during
+owner artifact staging found TCP/22 and TCP/3389 unreachable on both machines;
+the candidate path was absent at the last successful SSH check. No restart was
+performed, so post-reboot SSH/RDP continuity is not established. CUA and Sky
+each failed to activate the selected RDP window with `failed to activate
+captured window`; refreshing and reselecting did not resolve it.
 
 The exact starting-source archive on TEST-01 is
 `C:\VentioTest\downloads\Ventio-Framework-9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61.zip`,
@@ -118,7 +120,7 @@ test machines via an approved channel.
 
 | Gate | Result | Executed evidence / outstanding scenarios |
 |---|---|---|
-| B0 environment | **PARTIAL** | Machine identity, OS, PowerShell, SSH administrators, RDP TCP reachability, baseline and isolated directories checked. Designated interactive RDP sessions, package verification, restart continuity and remaining tooling are outstanding. |
+| B0 environment | **PARTIAL / CURRENTLY UNREACHABLE** | Machine identity, OS, PowerShell, SSH administrators, initial RDP TCP reachability, baseline and isolated directories checked. Latest TCP/22 and TCP/3389 probes failed for both machines during owner staging. Designated interactive RDP sessions, package verification, restart continuity and remaining tooling are outstanding. |
 | B1 static/core/contracts | **PASS in candidate CI** | All nine candidate workflows PASS. |
 | B2 PostgreSQL/identity/security | **PARTIAL** | Candidate CI covers migration/bootstrap, RLS, least privilege, direct SQL, identity, scoped roles, pairing and logical recovery. No physical 001–040 run, representative 001–036 physical upgrade, or test-machine cross-tenant/company/branch matrix has been executed. |
 | B3 Host/data | **PARTIAL** | Candidate CI covers portions of Host API, persistence, durable jobs, credential lifecycle, package review and recovery. Physical customization rebasing, full CSV source-row correlation, durable Windows job recovery, organization/settings UI, history pagination/redaction and Host restart scenarios remain unrun. |
