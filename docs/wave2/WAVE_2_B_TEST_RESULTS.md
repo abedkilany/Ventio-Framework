@@ -5,7 +5,7 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-14
-Last updated: 2026-11-14 17:02 UTC
+Last updated: 2026-11-14 17:48 UTC
 
 The exact candidate product commit was used by GitHub-hosted CI and the
 acceptance-package workflow. All nine candidate workflows completed
@@ -15,6 +15,15 @@ run remains incomplete. No product code was changed during this verification.
 These report documents are maintained separately from the product source. All
 test results below remain tied to product/package commit `fb341a78…`; a
 documentation-only update is not treated as a new product test run.
+
+The report-only PR head `50832447b8445849692787977f31865883868b6d` also
+completed all nine GitHub Actions workflows successfully: Core Foundation
+`43619047607`, Host Engineering `43619047608`, Host Persistence `43619047677`,
+Durable Commands `43619047612`, Crash Recovery `43619047596`, Credential
+Lifecycle `43619047822`, Windows Acceptance Package `43619047645`, Native
+Flutter/Extension Builder `43619047614`, and Host API `43619047598`. No product
+code changed on that report-only commit; the tested product candidate remains
+`fb341a78eca1bb897e2ce09f1271dae39bbd7d11`.
 
 ## Environment and fixtures
 
@@ -171,7 +180,12 @@ Authenticode `NotSigned`). New Code Integrity Operational events 3033 at
 broker does not meet Enterprise signing-level requirements, policy ID
 `{0283ac0f-fff1-49ae-ada1-8a933130cad6}`. This correlates the UI failure to
 the actual Code Integrity block; it is not inferred from the generic UI error.
-`VentioHost` and `VentioPostgres` remain unregistered, and
+Read-only `CiTool.exe -lp` checks on TEST-01 and TEST-02 confirmed the same
+policy ID `{0283ac0f-fff1-49ae-ada1-8a933130cad6}`, Friendly Name
+`VerifiedAndReputableDesktop`, and `Policy is Signed: true`, `Authorized: true`,
+`Is Currently Enforced: true` on both computers. The owner confirmed there is
+no organizational signing path available at present. `VentioHost` and
+`VentioPostgres` remain unregistered, and
 `C:\ProgramData\Ventio` is absent. No cluster, database or Host data was
 created. Defender and Code Integrity stayed enabled.
 
@@ -239,7 +253,9 @@ specific positive and negative cases are recorded against the exact candidate.
   Client, Host broker and service binaries are unsigned. Installer and Client
   installation/launch succeeded, but TEST-01's Setup Broker was blocked under
   the Enterprise signing-level policy; see the exact event/path/hash evidence
-  above. No policy was weakened. TEST-02's uninstaller result remains
+  above. `VerifiedAndReputableDesktop` was confirmed signed, authorized and
+  enforced on both machines. The owner reports no institutional signing path
+  is currently available. No policy was weakened. TEST-02's uninstaller remains
   inconclusive across SSH/RDP sessions.
 - Wave 1 history did not capture old cross-record target events or prior field
   values. No historical events are inferred.

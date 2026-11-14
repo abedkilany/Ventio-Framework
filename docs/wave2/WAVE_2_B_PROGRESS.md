@@ -1,11 +1,11 @@
 # Wave 2 B verification progress
 
-**Current status: PARTIAL VERIFICATION / BLOCKED ON CODE INTEGRITY COMPATIBILITY AND REMAINING ACCEPTANCE GATES**
+**Current status: PARTIAL VERIFICATION / BLOCKED ON SIGNING PATH AND REMAINING ACCEPTANCE GATES**
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
-Last updated: 2026-11-14 17:02 UTC
+Last updated: 2026-11-14 17:48 UTC
 
 Wave_2_C and merge into `main` are out of scope. The current product candidate
 has no application-source changes after the package correction in
@@ -18,7 +18,7 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
 | Gate | Status | Evidence / remaining work |
 |---|---|---|
 | B0 — Environment and tooling | **PARTIAL** | SSH is currently working as Codex-1 on VENTIO-TEST-01 and Codex-3 on VENTIO-TEST-02; both designated RDP sessions are Active. Both Windows 11 Pro 26300 / PowerShell 5.1.26100.9711 identities and candidate ZIPs were checked. The ZIP is 103,796,488 bytes with SHA-256 `0c83cd20…13114ae` on each machine. No reboot/SSH-continuity check has been run. |
-| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine candidate workflows completed successfully, including Host API run `43605015106` and the Windows acceptance-package workflow. All eight pre-existing workflows also passed on starting commit `9bd0e9e…`. This automated evidence does not close physical gates. |
+| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine candidate workflows passed on product commit `fb341a78…` (Host API `43605015106`; package `43605015043`). All nine also passed on report-only PR head `50832447…`, including Host API `43619047598` and package `43619047645`; no product code changed in that report commit. All eight pre-existing workflows passed on starting commit `9bd0e9e…`. This automated evidence does not close physical gates. |
 | B2 — PostgreSQL, identity and security | **PARTIAL** | Candidate CI exercised PostgreSQL 16, the checked-in migrations, bootstrap/security profile, direct SQL, least privilege, RLS, identity/revocation, scoped roles, pairing and recovery. Fresh migration and compatibility tests were not run on either physical test machine; there is no physical upgrade fixture. |
 | B3 — Host operations and data processing | **PARTIAL** | Candidate CI covered Host API, persistence, durable commands, credential lifecycle, extension package approval and crash/restore test suites. Full scenario-by-scenario Wave 2 capability acceptance and physical Host operations remain open. The Wave 2 A handoff's Windows Host shutdown-timeout risk has not been reproduced or assessed. |
 | B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | The candidate Windows Client was installed and launched on both computers. TEST-01's scope was entered and setup invoked through Ventio; after UAC approval, Code Integrity blocked the unsigned Setup Broker. TEST-02 was restored from the verified installer after the inconclusive uninstall probe; its RDP session remains at the lock screen. No Host connection, two-computer synchronization, offline/conflict scenario or Android device UI test has run. |
@@ -59,6 +59,9 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
   `{0283ac0f-fff1-49ae-ada1-8a933130cad6}`). The 67,592,883-byte broker is
   `NotSigned`, SHA-256
   `bfb4d9bc9f06b11d537a10215ec4dfcf65d9ce78b11150eb53df6a348bd083f4`.
+  Read-only `CiTool.exe -lp` inspection on both machines identifies this as
+  `VerifiedAndReputableDesktop`, signed, authorized and currently enforced.
+  The owner confirmed no organizational signing path is currently available.
   No Host/PostgreSQL service or `C:\ProgramData\Ventio` was created. This is a
   confirmed deployment-policy incompatibility; no protection was changed.
 - Defender and Code Integrity remain enabled. Installer and application
@@ -96,12 +99,21 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
 9. Restored TEST-02 from the verified installer (exit code 0); registry version
    and application files were restored. Its locked RDP session prevents visual
    confirmation and the required interactive uninstall retest.
+10. Verified the active Code Integrity policy metadata on both computers. The
+    policy is signed, authorized and enforced; the owner confirmed that no
+    institutional code-signing route is available at this time.
+11. Confirmed all nine pull-request workflows also passed on report-only head
+    `50832447b8445849692787977f31865883868b6d`, including Host API run
+    `43619047598`. Product verification remains tied to
+    `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`.
 
 ## Next steps
 
-1. Supply a release candidate whose Setup Broker satisfies the existing
-   Enterprise signing policy, then repeat the exact supported Host setup on
-   TEST-01 with Code Integrity left enabled. Do not retry by weakening policy.
+1. Establish an organization-approved signing path and supply a release
+   candidate whose Setup Broker satisfies the existing Enterprise signing
+   policy; the owner reports no such path is currently available. Then repeat
+   the exact supported Host setup on TEST-01 with Code Integrity enabled. Do not
+   retry by weakening policy.
 2. When TEST-02's RDP session is available, repeat the uninstall from that same
    interactive session and verify complete cleanup.
 3. After Host provisioning succeeds, verify service identities, ACLs, fresh

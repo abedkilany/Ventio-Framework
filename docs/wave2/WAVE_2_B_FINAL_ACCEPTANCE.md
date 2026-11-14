@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-14 17:02 UTC
+Last updated: 2026-11-14 17:48 UTC
 
 This candidate is not submitted as verified or production-ready. All nine
 candidate CI workflows have passed, and the exact artifact was verified,
@@ -11,7 +11,8 @@ installed and launched on both dedicated Windows test computers. TEST-01 Host
 setup was attempted through the supported UI, but Code Integrity blocked the
 unsigned Setup Broker after UAC approval. Mandatory database/operations
 scenarios, real two-computer synchronization and physical backup/restore gates
-remain incomplete.
+remain incomplete. The owner confirmed there is no institutional signing path
+currently available for producing a compatible Windows candidate.
 
 ## Candidate and environment
 
@@ -23,6 +24,10 @@ remain incomplete.
 - Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 - The report updates are documentation-only. All CI and artifact evidence below
   remains tied to the tested product commit `fb341a78…`.
+- All nine PR workflows also passed on documentation-only head
+  `50832447b8445849692787977f31865883868b6d`; Host API run `43619047598` and
+  Windows acceptance-package run `43619047645` are included. No product source
+  changed on that head, and the candidate under test remains `fb341a78…`.
 - Test machines: VENTIO-TEST-01 (`192.168.1.106`) and VENTIO-TEST-02
   (`192.168.1.107`), Windows 11 Pro build 26300, PowerShell 5.1.26100.9711
 - Current access: SSH identifies Codex-1 on TEST-01 and Codex-3 on TEST-02;
@@ -70,7 +75,11 @@ remain incomplete.
   `bfb4d9bc9f06b11d537a10215ec4dfcf65d9ce78b11150eb53df6a348bd083f4`, and
   policy `{0283ac0f-fff1-49ae-ada1-8a933130cad6}`. They state that the broker
   did not meet Enterprise signing-level requirements. `WinDefend` is RUNNING;
-  no protection setting was changed. Host service lifecycle remains untested.
+  no protection setting was changed. `CiTool.exe -lp` identifies the policy
+  on both test computers as `VerifiedAndReputableDesktop`, signed, authorized
+  and currently enforced. The owner confirmed no institutional signing path is
+  currently available, so the compatible signed candidate needed to resume
+  Host setup is an external blocker. Host service lifecycle remains untested.
   A silent SSH uninstall on TEST-02 returned 0 but left the RDP Client process
   and six application files after removing its uninstall registration; the
   verified installer restored the registration/version and files (exit 0), but
@@ -128,10 +137,12 @@ copies passed the size/hash check.
 
 ## Required before Wave_2_B can be submitted for owner acceptance
 
-1. Provide a signed candidate whose Setup Broker meets the existing Enterprise
-   signing policy, then retry Host setup on TEST-01 through Ventio's supported
-   flow with Code Integrity enabled. Verify service identities, ACLs, migrations
-   001–040, first administrator, Recovery Authority and readiness.
+1. Establish an organization-approved signing path and provide a signed
+   candidate whose Setup Broker meets the existing Enterprise signing policy;
+   the owner reports no such path is currently available. Then retry Host setup
+   on TEST-01 through Ventio's supported flow with Code Integrity enabled.
+   Verify service identities, ACLs, migrations 001–040, first administrator,
+   Recovery Authority and readiness.
 2. When TEST-02's RDP session is available, visually confirm the restored Client
    and repeat uninstall from that interactive session.
 3. Execute the physical migration/upgrade, identity/authorization, Host
