@@ -2,8 +2,8 @@
 
 Candidate: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-14 22:56 UTC
-Physical package evidence remains tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`; diagnostic correction commit `f11bf27e83dd6b206fc63289bbf325471a1ee026` passed focused source tests but is not packaged or physically installed.
+Last updated: 2026-11-14 23:32 UTC
+Physical installation evidence remains tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`; correction `f11bf27e83dd6b206fc63289bbf325471a1ee026` is included in package candidate `b3a5f585b8c641321fa3fc33503eb10ca00837f0` and has not been physically installed.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
 acceptance blockers.
@@ -13,7 +13,7 @@ acceptance blockers.
 | ID | Severity | Status | Summary | Reproduction, cause and correction |
 |---|---|---|---|---|
 | WB-PKG-01 | High | **CLOSED — correction passed candidate regression** | The Windows package gate rejected the Visual C++ runtime fetched through Microsoft's moving latest-version URL because its size or SHA-256 differed from the pinned repository metadata. | Reproduced in run `43603493035`, job `132473048657`. The integrity check was retained. Commit `fb341a7` pins the Microsoft 14.51.36247 endpoint and logs actual runtime metadata. Candidate package run `43605015043` completed successfully, including the unchanged runtime integrity and installer verification steps. No application source changed. |
-| WB-PKG-02 | Medium | **SOURCE FIXED — PACKAGE AND PHYSICAL RETEST PENDING** | Bootstrap session failures discarded the safe Host transport error and were reported only as `HOST_SESSION_AUTHENTICATION_FAILED`. | Reproduced in `LocalHostSetupCredentialStore.saveCredentialAndProfile` with a safe `HOST_CREDENTIAL_EXPIRED`/401 response. Unlike `verifyAndBindExistingProfile`, the bootstrap path replaced `HostPackageTransportException.code` with a generic code. Commit `f11bf27` preserves the validated Host code; focused regression confirms the error is retained and the failed credential is rolled back. This improves diagnosis; the actual TEST-01 session failure remains unresolved until the updated build is installed and its safe response is observed. |
+| WB-PKG-02 | Medium | **SOURCE FIXED — PACKAGE BUILT; PHYSICAL RETEST PENDING** | Bootstrap session failures discarded the safe Host transport error and were reported only as `HOST_SESSION_AUTHENTICATION_FAILED`. | Reproduced in `LocalHostSetupCredentialStore.saveCredentialAndProfile` with a safe `HOST_CREDENTIAL_EXPIRED`/401 response. Unlike `verifyAndBindExistingProfile`, the bootstrap path replaced `HostPackageTransportException.code` with a generic code. Commit `f11bf27` preserves the validated Host code; focused regression confirms the error is retained and the failed credential is rolled back. Windows Acceptance Package run `43650771423` succeeded on `b3a5f585`; artifact SHA-256 is `aea0a03f95589eec58bf70df6a1685ff66a4ba59ce464bda7f683472e2a89173`. Physical installation and observation of the Host response remain pending. |
 
 ## Open environment and acceptance blockers
 
@@ -89,10 +89,18 @@ WB-PKG-02 fixes that diagnostic loss. The actual Host response is not yet known.
 The owner reported the power interruption followed the earlier 21:59:20 UTC
 session error; SSH later recorded boot time `2026-11-14T22:02:07.500Z`. The
 clean-install session error at 22:35:55 UTC occurred after that reboot, so the
-earlier outage does not explain this later failure.
+earlier outage does not explain this later failure. A read-only SSH check found
+`HOST_JOB_WORKER_UNAVAILABLE` at 22:34:38.505 UTC, 77 seconds before the
+session error. The worker event is emitted for any failed database/Recovery
+Authority tick and does not identify the exception. Persistent session auth
+also reads PostgreSQL per request, making a shared backend fault plausible but
+unconfirmed. `/healthz` is process liveness, not database readiness. At 23:17
+UTC, the configured PostgreSQL port 54329 returned `accepting connections` to
+the bundled `pg_isready`; this current listener check does not validate
+authenticated database access or the earlier Recovery Authority path.
 
 The prior SSH-only migrations/RLS checks belong to the installation that was
 subsequently removed; they do not certify the new clean database. Retest them
-on the current database. The source diagnostic fix has not yet been packaged or
-installed. Do not clear Host data or relax the pipe/UAC/security boundaries to
-retry this session.
+on the current database. The source diagnostic fix is packaged in candidate
+`b3a5f585` but is not installed. Do not clear Host data or relax the
+pipe/UAC/security boundaries to retry this session.

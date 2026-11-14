@@ -5,15 +5,20 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-14
-Last updated: 2026-11-14 22:56 UTC
+Last updated: 2026-11-14 23:32 UTC
 
-The exact candidate product commit was used by GitHub-hosted CI and the
-acceptance-package workflow. All nine candidate workflows completed
-successfully by 2026-11-14 15:14 UTC. Package and physical evidence below remains
-tied to `fb341a78…`. A later diagnostic correction in `f11bf27` preserves safe
-Host transport error codes; its focused test and analyzer pass, but it has not
-yet run in CI or been packaged/installed physically. The full physical
-acceptance run remains incomplete.
+The diagnostic candidate head is `b3a5f585b8c641321fa3fc33503eb10ca00837f0`.
+At 23:32 UTC, eight of its nine PR workflows had completed successfully.
+Host API run `43650771447` remained in progress at
+`Run extension package approval, scope and recovery integration tests`, with
+no failure reported. The Windows Acceptance Package workflow completed
+successfully (run `43650771423`) and produced artifact
+`ventio-wave2-windows-acceptance-b3a5f585b8c641321fa3fc33503eb10ca00837f0`
+(103,810,454 bytes; SHA-256
+`aea0a03f95589eec58bf70df6a1685ff66a4ba59ce464bda7f683472e2a89173`). This
+package includes the diagnostic correction in `f11bf27`. It has not been
+physically installed. Earlier physical evidence remains tied to
+`fb341a78…`; full physical acceptance remains incomplete.
 
 The report-only PR head `50832447b8445849692787977f31865883868b6d` also
 completed all nine GitHub Actions workflows successfully: Core Foundation
@@ -411,7 +416,8 @@ Ventio Event Log provider or recent Ventio Application event was found. Source
 inspection places the failure after the client stores the bootstrap token and
 calls `GET /api/v1/session`; a Host transport failure was being collapsed to a
 generic authentication code. `f11bf27` fixes this loss of safe diagnostics.
-The actual Host response remains unknown pending a package built from the fix.
+The actual Host response remains unknown pending installation and execution of
+the package built from the fix.
 
 The owner reported the power interruption followed the earlier 21:59:20 UTC
 session error; SSH later recorded boot time `2026-11-14T22:02:07.500Z`. The
@@ -428,5 +434,34 @@ Source-level regression evidence on `f11bf27`:
 - `dart format` completed; it reported that `flutter_lints` was not resolved by
   the formatter's lint include, but the focused analyzer ran clean after
   dependency resolution.
-- No new installer, package CI result, or physical install exists yet for
-  `f11bf27`; physical status remains tied to `fb341a78…`.
+- Windows Acceptance Package CI succeeded on `b3a5f585`; artifact metadata and
+  SHA-256 are recorded above. The diagnostic candidate is not physically
+  installed, so physical evidence remains tied to `fb341a78…`.
+
+## 2026-11-14 23:32 UTC — SSH-only diagnostic correlation
+
+Read-only SSH inspection of TEST-01 confirmed operation
+`0793a94d97f202699fbbff49b5db5cc8` remained `complete` at 22:31:08.425 UTC;
+`VentioHost` and `VentioPostgres` were Running. The Host's sanitized
+`host-diagnostics.jsonl` recorded `HOST_JOB_WORKER_UNAVAILABLE` in component
+`host.jobs` at 22:34:38.505 UTC, 77 seconds before the Client event
+`HOST_SESSION_AUTHENTICATION_FAILED` at 22:35:55.809 UTC.
+
+Source inspection shows that the worker emits the generic event when its
+administration-pool tick fails, including identity-connection verification,
+Recovery Authority admission, or the durable-job claim. The diagnostic omits
+the underlying exception. Persistent token authentication also resolves the
+token from PostgreSQL and applies Recovery Authority admission for each
+request. This makes a shared backend-readiness issue plausible, but the time
+correlation does not prove causality. `/healthz` confirms process liveness only
+and does not certify database readiness. The client build installed during
+this failure discarded all safe Host transport codes in the post-storage
+`GET /api/v1/session` check; the new `b3a5f585` package preserves the code, but
+must be installed and exercised to identify the actual response. No evidence
+from this check implicates Smart App Control or DPAPI.
+
+At 23:17 UTC, the configured PostgreSQL listener was confirmed on `127.0.0.1`
+port `54329`; the Ventio-bundled `pg_isready` returned `accepting connections`
+(exit 0). This read-only check confirms current listener readiness only. It
+does not establish authenticated SQL access, migration state, or Recovery
+Authority admission at the earlier error time.

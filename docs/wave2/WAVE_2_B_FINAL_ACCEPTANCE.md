@@ -3,16 +3,26 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-14 22:56 UTC
+Last updated: 2026-11-14 23:32 UTC
 
 This candidate is not submitted as verified or production-ready. The previous
-package and its nine CI workflows passed on product commit `fb341a78…`. After
+package and its nine CI workflows passed on product commit `fb341a78…`. On
+diagnostic candidate `b3a5f585`, the Windows acceptance-package workflow
+succeeded and emitted an artifact; eight of nine candidate PR workflows had
+succeeded and Host API remained in progress at 23:32 UTC at its extension
+package approval/recovery integration test, without a reported failure. After
 the owner performed local setup on a clean TEST-01 install, the broker reached
-`complete`, both services ran and `/healthz` returned 200, but the Client could
-not establish the first-administrator session. A diagnostic source correction
-in `f11bf27` passed focused unit and analyzer checks; it is not yet in CI or a
-physical package. The exact Host response and the two-device sync, complete
-security/operations matrix, backup/restore and GUI acceptance gates remain
+`complete`, both services ran and
+`/healthz` returned 200, but the Client could not establish the
+first-administrator session. SSH found a generic Host job-worker failure 77
+seconds before the Client session error. A PostgreSQL probe at 23:17 UTC
+accepted connections on configured port 54329, but this does not confirm the prior
+authenticated session or Recovery Authority path. The worker event is a
+plausible shared backend readiness signal, not a proven cause. Correction
+`f11bf27` preserves the safe Host response code and is included in the new
+package, which has not yet been physically installed. The actual Host response,
+two-device synchronization, security/operations matrix, backup/restore and GUI
+acceptance gates remain
 unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
 
 ## Candidate and environment
@@ -24,10 +34,13 @@ unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
 - Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 - Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 - Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026`
+- Diagnostic package candidate: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
+- Windows Acceptance Package run `43650771423`: success; artifact
+  `ventio-wave2-windows-acceptance-b3a5f585b8c641321fa3fc33503eb10ca00837f0`,
+  SHA-256 `aea0a03f95589eec58bf70df6a1685ff66a4ba59ce464bda7f683472e2a89173`.
 - All prior CI/package and physical installation evidence remains tied to
   `fb341a78…`. The correction in `f11bf27` preserves safe Host transport error
-  codes and has focused source tests only; it is not packaged or physically
-  verified.
+  codes; it is packaged in `b3a5f585` but not physically verified.
 - All nine PR workflows also passed on documentation-only head
   `50832447b8445849692787977f31865883868b6d`; Host API run `43619047598` and
   Windows acceptance-package run `43619047645` are included. No product source
@@ -62,7 +75,7 @@ unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
 | Gate | Status | Acceptance evidence |
 |---|---|---|
 | B0 | Partial | Machine identities, current OS/PowerShell versions, SSH, isolated roots, artifact hashes, Defender and effective TEST-01 policy state verified. An unplanned power interruption followed the earlier session error; SSH and services returned afterward, but this was not a controlled recovery test. |
-| B1 | **PASS in candidate CI** | All nine candidate workflows passed on product commit `fb341a78…`; all nine also passed on latest checked report-only PR head `96c6573…` (run IDs listed in the SSH-only evidence). This does not substitute for physical acceptance. |
+| B1 | Partial / CI in progress | Prior CI passed on `fb341a78…` and report-only heads. On diagnostic candidate `b3a5f585`, eight of nine workflows were successful at 23:32 UTC, including Windows Acceptance Package; Host API run `43650771447` remained active at its extension package approval/recovery integration test. Focused client test/analyzer passed on `f11bf27`. |
 | B2 | Partial | Migrations 001–040 and selected RLS/least-privilege checks passed on the earlier TEST-01 database, which the owner later deleted. The current clean database has not yet had checksum/RLS revalidation. Wave 1 upgrade, full isolation/identity matrix and Recovery Authority reconciliation remain open. |
 | B3 | Partial / blocked | On the current clean install, broker setup completed, services run and `/healthz` returns 200. Client session authentication fails; authenticated Host operations/data scenarios remain unverified. |
 | B4 | Partial / blocked | Owner ran local Host setup, but authenticated session validation failed. No authenticated Host use or two-computer synchronization passed. Remaining GUI-dependent Client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
@@ -161,11 +174,12 @@ capability/regression closure.
   14.51.36247 endpoint and adds diagnostics without weakening the gate.
   Candidate package workflow run `43605015043` passed, so this defect is
   closed.
-- WB-PKG-02 is a confirmed diagnostic defect: the first-admin session path
+- WB-PKG-02 was a confirmed diagnostic defect: the first-admin session path
   replaced a safe Host transport code with `HOST_SESSION_AUTHENTICATION_FAILED`.
   Commit `f11bf27` preserves the validated code; its 28-test focused suite and
-  scoped analyzer passed. This correction does not yet identify the underlying
-  TEST-01 Host response and has not been packaged or physically tested.
+  scoped analyzer passed. The Windows package CI on `b3a5f585` succeeded, but
+  the correction does not yet identify the underlying TEST-01 Host response
+  and has not been physically tested.
 - Initial Code Integrity events 3033/3077 blocked the unsigned broker while SAC
   was enforced; after the owner disabled SAC on TEST-01 and the effective state
   was verified, the broker completed provisioning and first-admin handoff.
@@ -269,7 +283,7 @@ copies passed the size/hash check.
 
 ## Required before Wave_2_B can be submitted for owner acceptance
 
-1. Build/install the diagnostic correction on TEST-01 without clearing its
+1. Install the diagnostic candidate on TEST-01 without clearing its
    clean Host database. Capture the safe Host response from the session check,
    resolve the authentication failure, and verify the authenticated profile.
    Preserve the existing pipe authorization and all Windows protections.

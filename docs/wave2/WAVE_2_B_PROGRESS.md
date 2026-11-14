@@ -6,14 +6,19 @@ Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
-Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested; not yet packaged or installed)
-Last updated: 2026-11-14 22:56 UTC
+Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
+Candidate package commit: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
+Last updated: 2026-11-14 23:32 UTC
 
-Wave_2_C and merge into `main` are out of scope. Physical package evidence
-remains tied to `fb341a78`; the diagnostic correction in `f11bf27` preserves
-safe Host transport error codes but has not yet been packaged or installed on
-TEST-01. The reports distinguish this source-level correction from physical
-candidate evidence.
+Wave_2_C and merge into `main` are out of scope. Prior physical installation
+evidence remains tied to `fb341a78`. The diagnostic correction is included in
+candidate `b3a5f585`; the Windows Acceptance Package workflow succeeded and
+created artifact `ventio-wave2-windows-acceptance-b3a5f585b8c641321fa3fc33503eb10ca00837f0`
+(103,810,454 bytes; SHA-256 `aea0a03f95589eec58bf70df6a1685ff66a4ba59ce464bda7f683472e2a89173`).
+It has not been installed on TEST-01. Eight of nine candidate workflows had
+completed successfully; Host API run `43650771447` remained in progress at
+`Run extension package approval, scope and recovery integration tests` at
+23:32 UTC, with no failure reported.
 
 ## Gate ledger
 
@@ -209,13 +214,35 @@ RDP interaction, screenshots, mouse automation or GUI control was used.
 The owner-managed clean reinstall completed provisioning but reproduced a
 Client session failure. A confirmed diagnostic defect was corrected in
 `f11bf27`: bootstrap session transport failures now retain their validated
-Host error code. Focused unit tests and analysis pass; the correction still
-needs a package build and physical retry. The required final disposition
+Host error code. Focused unit tests and analysis pass, and the candidate
+package built successfully. SSH inspection then found a Host job-worker
+diagnostic immediately before the Client session failure; this is a plausible
+shared PostgreSQL/Recovery Authority readiness issue, not a proven cause. The
+candidate has not been installed or retried physically. Final disposition
 remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+### 2026-11-14 23:32 UTC — SSH-only diagnostic correlation
+
+On TEST-01, the latest SSH check confirmed operation
+`0793a94d97f202699fbbff49b5db5cc8` still `complete` at 22:31:08.425 UTC and
+both `VentioHost` and `VentioPostgres` were Running. The Host diagnostic file
+contained `HOST_JOB_WORKER_UNAVAILABLE` (`host.jobs`) at 22:34:38.505 UTC,
+about 77 seconds before the Client's `HOST_SESSION_AUTHENTICATION_FAILED` at
+22:35:55.809 UTC. The worker emits this generic event when its database/
+Recovery Authority tick throws; the event does not expose the underlying cause.
+Persistent token authentication also resolves the token from PostgreSQL on
+each request, so the timing suggests (but does not prove) a shared backend
+readiness fault. `/healthz` is process liveness only, not database readiness.
+At 23:17 UTC, the configured PostgreSQL port was confirmed as 54329 and
+`pg_isready -h 127.0.0.1 -p 54329` returned `accepting connections`. This is a
+current unauthenticated readiness probe; it does not verify database login,
+migrations, or Recovery Authority admission at the earlier failure time.
+No evidence implicates Smart App Control or DPAPI, and no Host data or service
+was modified during this read-only check.
 
 ## Next steps
 
-1. Build/install the diagnostic correction on TEST-01 without deleting the
+1. Install the `b3a5f585` diagnostic candidate on TEST-01 without deleting the
    clean Host database, then capture the safe Host response code from the
    session check. Keep Defender and Code Integrity protections enabled; no
    remote bypass is acceptable.
