@@ -1,6 +1,6 @@
 # Wave 2 A engineering handoff
 
-**WAVE_2_A â€” PARTIAL IMPLEMENTATION / BLOCKED**
+**WAVE_2_A â€" PARTIAL IMPLEMENTATION / BLOCKED**
 
 Date: 2026-11-13 (Asia/Beirut). Repository: `abedkilany/Ventio-Framework`.
 Branch: `feature/wave-2-a`. Base: `7d74a706ef4bb7f9994d151af486eaa38066e633`.
@@ -108,10 +108,10 @@ do not expose platform routes; existing functionality remains available.
 No migration, backup or restore was executed in this assignment.
 
 - PostgreSQL **037** adds four forced-RLS private tables and a claim index.
-  Versions 001â€“036 and their hashes are unchanged. `schema_profile.sql` adds the
+  Versions 001â€"036 and their hashes are unchanged. `schema_profile.sql` adds the
   canonical checksum. Fresh bootstrap establishes owner-only ACLs/policies;
   installed upgrades apply `wave2_upgrade.sql` through the existing trusted bridge.
-- SQLite queue **1 â†’ 2** adds `project_local_records INTEGER NOT NULL DEFAULT 1`
+- SQLite queue **1 â†' 2** adds `project_local_records INTEGER NOT NULL DEFAULT 1`
   with a 0/1 constraint. Old entries retain behavior/receipts; workspace entries
   use 0. No queue rows are discarded. Binary downgrade after this schema change
   is unproven and needs a B rollback fixture/policy.

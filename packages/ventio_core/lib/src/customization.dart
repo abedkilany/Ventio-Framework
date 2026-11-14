@@ -168,9 +168,8 @@ class MetadataCustomization {
     final fields = requireList(target, 'fields');
     final baseFields = List<dynamic>.of(fields);
     final catalog = requireMap(source['englishCatalog'], 'englishCatalog');
-    final names = fields
-        .map((item) => requireMap(item, 'field')['name'])
-        .toSet();
+    final names =
+        fields.map((item) => requireMap(item, 'field')['name']).toSet();
     final permissions = requireMap(target['permissions'], 'permissions');
     final customFields = requireList(json, 'fields');
     if (permissions['read'] == null || permissions['update'] == null) {
@@ -201,9 +200,9 @@ class MetadataCustomization {
             .toList();
         const presentation = {'label', 'labelKey'};
         Map<String, dynamic> structural(Map<String, dynamic> value) => {
-          for (final entry in value.entries)
-            if (!presentation.contains(entry.key)) entry.key: entry.value,
-        };
+              for (final entry in value.entries)
+                if (!presentation.contains(entry.key)) entry.key: entry.value,
+            };
         if (next.length != 1 ||
             canonicalJson(structural(next.single)) !=
                 canonicalJson(structural(oldField))) {
@@ -225,12 +224,10 @@ class MetadataCustomization {
                 .take(4)
                 .map((field) => (field as Map)['name'])
                 .toList(),
-            'formFields': baseFields
-                .map((field) => (field as Map)['name'])
-                .toList(),
-            'detailFields': baseFields
-                .map((field) => (field as Map)['name'])
-                .toList(),
+            'formFields':
+                baseFields.map((field) => (field as Map)['name']).toList(),
+            'detailFields':
+                baseFields.map((field) => (field as Map)['name']).toList(),
           },
     );
     ui.addAll(requireMap(json['ui'], 'ui'));
@@ -255,10 +252,10 @@ void wave2Keys(Map<String, dynamic> json, Set<String> allowed) {
 }
 
 Object? _freeze(Object? value) => switch (value) {
-  Map() => Map<String, dynamic>.unmodifiable({
-    for (final entry in value.entries)
-      entry.key as String: _freeze(entry.value),
-  }),
-  List() => List<dynamic>.unmodifiable(value.map(_freeze)),
-  _ => value,
-};
+      Map() => Map<String, dynamic>.unmodifiable({
+          for (final entry in value.entries)
+            entry.key as String: _freeze(entry.value),
+        }),
+      List() => List<dynamic>.unmodifiable(value.map(_freeze)),
+      _ => value,
+    };

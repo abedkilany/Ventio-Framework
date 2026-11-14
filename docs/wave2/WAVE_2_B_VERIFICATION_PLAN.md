@@ -1,4 +1,4 @@
-# Wave 2 B verification plan — NOT EXECUTED
+# Wave 2 B verification plan  -  NOT EXECUTED
 
 This is a specification for a future explicit Wave_2_B assignment. No commands
 or scenarios below were executed during Wave_2_A. A remains partial; missing
@@ -54,7 +54,7 @@ Do not infer acceptance from source presence, formatter output or automatic CI.
 - Fresh PostgreSQL 16 installation through all migrations/bootstrap; inspect four
   new table owners, forced RLS, owner-only policies, sequence/function ACLs and
   runtime/Identity API capability assertions. Test direct SQL under every role.
-- Upgrade representative 001–036 databases through the existing witness-aware
+- Upgrade representative 001-036 databases through the existing witness-aware
   bridge. Preserve records, audit/journal/outbox, users, credentials, roles/grants,
   branch scope, packages, numbering and pending recovery state. Reapply contracts
   idempotently; reject modified/unknown ledgers and incomplete security contracts.
@@ -63,7 +63,7 @@ Do not infer acceptance from source presence, formatter output or automatic CI.
   read/command/customization/release races and lock ordering with time bounds.
 - Crash definition mutation before/after witness pending, SQL write, commit and
   witness finalize. Verify no unsafe witness adoption or unauthorized replay.
-- SQLite queue v1→v2 with pending/retry/accepted/rejected/conflict/fixture entries:
+- SQLite queue v1->v2 with pending/retry/accepted/rejected/conflict/fixture entries:
   exact envelope/receipt/ID preservation and projection default 1. New workspace
   entries use 0 and must not falsely update base caches. Verify fresh DB, WAL/FULL
   crash durability, interrupted upgrade, reopen and documented binary rollback.
@@ -77,7 +77,7 @@ Do not infer acceptance from source presence, formatter output or automatic CI.
 
 ## Native/platform gates
 
-Exercise real Windows and Android native UI at desktop/tablet/320–400 px widths,
+Exercise real Windows and Android native UI at desktop/tablet/320-400 px widths,
 large text scaling, long English labels, keyboard/focus/scroll behavior and display
 rotation. Cover workspace rail/bottom navigation, dense module actions, dialogs,
 CSV mapping, layout ordering, custom fields and child grids, current-authorized

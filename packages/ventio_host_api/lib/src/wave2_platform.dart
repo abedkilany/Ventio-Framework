@@ -542,7 +542,7 @@ class Wave2JobWorker {
         'status': receipt.status,
         if (receipt.reasonCode != null) 'reasonCode': receipt.reasonCode,
       };
-      retry = receipt.retryable;
+      retry = receipt.status == 'RETRY_LATER';
     } catch (_) {
       outcome = {
         'commandId': command.commandId,

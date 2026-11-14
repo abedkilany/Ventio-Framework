@@ -115,8 +115,8 @@ class StructuredCsv {
       var text = value == null
           ? ''
           : value is Map || value is List
-          ? jsonEncode(value)
-          : '$value';
+              ? jsonEncode(value)
+              : '$value';
       if (value is String &&
           (RegExp(r'^[\s]*[=+@-]').hasMatch(text) || text.startsWith('\t')))
         text = "'$text";
@@ -139,11 +139,11 @@ class ImportPreviewRow {
   final Map<String, dynamic> values;
   final List<String> errors;
   Map<String, dynamic> toJson() => {
-    'rowNumber': rowNumber,
-    'recordId': recordId,
-    'values': values,
-    'errors': errors,
-  };
+        'rowNumber': rowNumber,
+        'recordId': recordId,
+        'values': values,
+        'errors': errors,
+      };
 }
 
 /// Mapping is header -> metadata field. Record identity is explicit, making
@@ -209,17 +209,16 @@ List<ImportPreviewRow> previewCsvImport({
           value = null;
         } else {
           value = switch (field.type) {
-            'integer' =>
-              RegExp(r'^[+-]?[0-9]+$').hasMatch(text)
-                  ? int.tryParse(text)
-                  : null,
+            'integer' => RegExp(r'^[+-]?[0-9]+$').hasMatch(text)
+                ? int.tryParse(text)
+                : null,
             'decimal' => _decimalCell(text, field.precision),
             'table' => _tableCell(text),
             'boolean' => switch (text) {
-              'true' => true,
-              'false' => false,
-              _ => null,
-            },
+                'true' => true,
+                'false' => false,
+                _ => null,
+              },
             _ => text,
           };
           if (value == null)

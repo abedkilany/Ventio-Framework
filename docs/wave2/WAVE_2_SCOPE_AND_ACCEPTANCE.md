@@ -54,7 +54,7 @@ Dart. Metadata extension packages contain no executable code. All shared writes
 must revalidate current identity, exact tenant/company/branch scope, operation and
 field grants within the authoritative transaction. No compatibility claim may be
 inferred from code inspection. Safe additive migrations must preserve versions
-001–036 and their historical checksums. Newly introduced private tables require
+001-036 and their historical checksums. Newly introduced private tables require
 forced RLS and owner-only policies; callers receive fixed vetted functions only.
 
 ## Implementation order and remaining scope
