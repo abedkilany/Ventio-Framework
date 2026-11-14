@@ -1,85 +1,40 @@
 # Wave 2 A implementation ledger
 
-**WAVE_2_A ??" PARTIAL IMPLEMENTATION / BLOCKED**
+**WAVE_2_A - IMPLEMENTATION COMPLETE / UNVERIFIED**
 
-Branch: `feature/wave-2-a`. Baseline: `7d74a706ef4bb7f9994d151af486eaa38066e633`.
-Code checkpoint: `059541a0354dba54983880a4e0243bb8ea27efd8`.
-Date: 2026-11-13 (Asia/Beirut). All new functionality is unverified.
+Branch: `feature/wave-2-a`. Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6).
+Base: `7d74a706ef4bb7f9994d151af486eaa38066e633`.
+Source checkpoint: `a46307f9b15a3d38d469dce642d3f38b985eb4dd`.
+Date: 2026-11-14. Earlier partial checkpoint superseded after continuation.
 
-The mission is unfinished. Blockers below are remaining engineering, not a need
-for permission or an unavailable credential. The original dirty Wave 1 checkout
-was preserved; implementation uses the separate `wave-two-a` managed worktree.
+| Workstream | Implemented | In progress | Blocked | Deferred / bounded with reason | Known integration risks | Commit references |
+|---|---|---|---|---|---|---|
+| A: A12/A11/K09 | Immutable-package custom fields/property/layout overlays; deterministic merge; Host CAS/revisions; SQLite offline drafts; explicit compatible cross-release preview/preparation and atomic activation; label collision protection | None in A | None in feasible implementation | Destructive field conversions/removal refused to preserve data and ACLs | Core/SQL equivalence, release/edit/revocation races, old clients unverified | 638dd36, 3f89820, 8b3fd7d, 295f367, 340d736, 8e37a71, 34a166c |
+| B: D08/J01/J03/K08 | Bounded structured CSV/mapping/preview/errors/duplicates; exact values; governed batches and stable IDs; original import/source-row correlation through durable outcomes and cancellation; permission-aware paged export; existing extension metadata transfer | None in A | None | UI import creates records; governed API jobs also support updates; no unsafe bulk SQL | Preview staleness, field revocation, retries/leases and export concurrency unverified | 638dd36, 3f89820, 8b3fd7d, 295f367, 340d736, 8e37a71 |
+| C: M01/M02/M05/M09 | Organization/company/branch management; archived-scope authorization; effective settings; Host policy/requests; native administration/operations; private local approval; fixed scheduling, retries, integrity/retention/pins; controlled restore and independent journals; delivery health | None in A | None | New tenants and credential/Recovery Authority changes retain existing trusted provisioning; physical execution requires local Windows elevation | OS ACL/mutex/SCM behavior, backup/restore/recovery and schema upgrade unverified | 50ffdfb, 340d736, 91c54ac, 8e37a71, db83db5 |
+| D: B09/C08/C09/C12/F05/H04 | Native views/filters/sort/columns/workspaces; user preferences; report dashboards; all current source/target/amendment activity, legacy source seed, chronological pages/deleted lookup; explicit write-only replacement; offline draft recovery with exact-owner queue lineage | None in A | No missing current capture path known | Old target events were never stored by Wave 1 and cannot be reconstructed; never infer authority from cached metadata | Real Windows/Android layout, old SQLite upgrades, redaction and conflict UX unverified | 295f367, 059541a, 340d736, 91c54ac, 8e37a71 |
+| E: B02/K10/L01 | v1 contracts and fixed routes; reused lifecycle/business operations; durable Host jobs; current execution authority; fenced retry/cancel/outcome correlation; terminal payload retention; operational events/diagnostics | None in A | None | No uploaded handlers, dependency jobs or delete batches; accepted receipts/identity metadata are retained | Crash/cancel/commit ambiguity, worker ACL expansion and recovery proof behavior unverified | 3f89820, 8b3fd7d, 340d736, 91c54ac, 8e37a71 |
+| F: D09/J04 | Bounded evaluation and concrete authenticated extension/transfer/job/operations APIs; existing opaque identity, ceilings, pairing/reissue and TLS reused | None in A | None | General federation, webhooks, SQL connectors and arbitrary integration runtime have no defined bounded requirement | Negative-security/runtime evidence remains for B | 8b3fd7d, 91c54ac, db83db5; PLATFORM_CONTRACTS_V1.md |
 
-| Workstream | Implemented in source | In progress / blocked | Deferred with reason | Known integration risks | Commits |
-|---|---|---|---|---|---|
-| A: A12/A11/K09 | Governed optional scalar fields; immutable-package overlays; versioned Host definitions; Core/SQL effective metadata and inherited ACLs; native layout/page/field editor; owner-isolated drafts; Host CAS sync and explicit conflict rebase; reused native form | Cross-release custom-field migration/rebase | Destructive field changes and approvals that strand custom fields are refused until migration support exists | Core/SQL merge/proof equivalence, old clients, catalog keys and upgrade races unverified | 638dd36, 3f89820, 8b3fd7d, 295f367, 059541a |
-| B: D08/J01/J03/K08 | Bounded CSV/mapping/Host preview; row errors, file/readable-Host duplicate detection; exact decimals; stable staged IDs; governed jobs; field-safe paged export; existing metadata transfer reused | Persistent CSV source-line mapping after execution | Results currently correlate by command ID; UI imports create records, while API jobs also support updates | Preview can become stale; export pages observe current Host state; crash window depends on durable receipts | 638dd36, 3f89820, 8b3fd7d, 295f367 |
-| C: M01/M02/M05/M09 | Scoped display name/notice and recovery-aware revisioning; existing branch/identity/readiness/diagnostics reused; trusted upgrade backup source/copy hashes; private v2 manifest; staged restore hash/trust checks; packaging | Organization/company administration and full native scope CRUD; broader operational settings; backup scheduling/policy application and retention | No runtime-privilege backup shortcut, new superuser, HTTP live restore or automatic witness reset | Windows ACL/path/hash/service recovery and legacy opt-in unverified; no backup/restore executed | 3f89820, 295f367, 50ffdfb, 059541a |
-| D: B09/C08/C09/C12/F05/H04 | Native workspaces/views/filters/sort/columns; module order and preferences; approved report cards; responsive layout branches; loading/empty/denied/offline handling; source activity; SQLite queue v1-to-v2 migration and separate workspace DB | Full historical/cross-effect activity coverage; dedicated native write-only edit interaction | History starts with new source commands, latest 100. Workspace edits exclude redacted write-only fields to preserve unseen values | No native/widget/platform execution; preference effects apply to workspace; cached metadata grants no business-read authority | 295f367, 059541a |
-| E: B02/K10/L01 | Published v1 contracts/schema; existing declarative effects reused; durable Host jobs, fenced claims, current per-effect auth, retry/cancel, redacted progress/events and protected diagnostics; shared command admission | Operational archival policy and source-line correlation | Initial job executor admits create/update/approved operations; dependencies/delete refused | Trusted Identity API worker role expansion, recovery admission and crash/cancel/revocation races require B review | 3f89820, 8b3fd7d, 295f367, 50ffdfb |
-| F: D09/J04 | Bounded evaluation; reused opaque identity, pairing/reissue, ceilings, TLS and governed transfer/extension APIs | Negative integration/security evidence remains for B | General third-party auth, webhooks, SQL connectors and uploaded handlers deferred without a concrete bounded requirement | No new auth bypass intended; runtime behavior unverified | 8b3fd7d; PLATFORM_CONTRACTS_V1.md |
+## Review and execution record
 
-## Source review and phase boundary
+All mandatory feasible implementation paths are integrated across their responsible
+layers. Current capture includes cross-record effects; pre-capture historical
+cross-target data is an explicit availability limitation, not fabricated history.
+Details, evidence, decisions and limitations are in `WAVE_2_A_HANDOFF.md`.
 
-Reviewed layer boundaries, effective metadata, migrations/RLS/ACLs, recovery,
-command/job identities, old-client projection, native forms/queue integration,
-private backup manifests and failure paths. Corrected shared wire admission,
-exact CSV decimals, immutable-base digests, label catalog collisions, scoped
-notice ownership and effective-metadata queue projection into base caches.
+Source review corrected receipt status access, language-version formatting,
+English-only text, RLS policy expectations, reserved SQL naming, catalog use,
+protected inputs/calculations, historical ordering, row/cancellation correlation,
+retired overlays, offline reconciliation and terminal payload archival.
+Migrations 037-040 and both additive SQLite upgrades are source only.
 
-Only source inspection/editing/formatting and Git diff hygiene were performed.
-The formatter warned about missing local Flutter lint resolution in this fresh
-worktree; dependencies were not installed and analysis was not run. No tests,
-builds, migrations, backup/restore, deployments, workflow dispatches or self-hosted
-runner use occurred. Automatic PR checks are separate from B acceptance.
+No local tests/analyzer/builds/dependency installation/migrations/backup/restore,
+production actions, workflow dispatches or self-hosted execution occurred.
+Dart formatting and non-executing PowerShell parser inspection were used.
+Automatic CI is reported as a snapshot, never formal B acceptance. Neither
+protections nor required checks changed; main was not merged. PR #6 stays Draft.
 
-Capability Audit v2 / the detailed 39-capability audit were not found in tracked
-main. The mission scope remains authoritative. Wave 1 closure was read from
-`docs/wave1/final-acceptance-report.md`; historical percentages were not reused as
-current status. See the handoff for exact evidence/limitations and the B plan for
-future gates. No merge into main; stop at this partial A checkpoint.
-
-Draft PR #6 exists: https://github.com/abedkilany/Ventio-Framework/pull/6.
-Initial automatic CI snapshot at documentation head `3466020`: 8 workflows in
-progress, no conclusions. Draft/unmerged state confirmed; no manual dispatch.
-
-## Continuation - 2026-11-14
-
-Owner requested completion of all mandatory gaps on existing branch/PR #6.
-Implementation continues; the previous partial handoff is superseded as a stop point.
-Recorded CI source defects are being corrected without local test/build execution.
-
-
-Continuation source checkpoint (implementation ongoing): organization/company/branch
-administration, archive-aware current identity resolution, scoped maintenance and
-job-pause controls, import row labels in durable job outcomes, explicit protected
-field replacement, prepared release overlays and paginated mutation history are
-integrated in source. Migration 038 is additive. Historical source commands are
-recovered from retained outbox metadata; pre-capture cross-target events were never
-stored and cannot be reconstructed. Scheduling/retention/operational management
-remains in progress. No tests, analysis, builds or database operations executed.
-
-
-Operational execution checkpoint: source now includes bounded policy validation,
-recovery-admitted Host operation requests and private delivery, independent UAC
-approval, fixed SYSTEM scheduler, fresh scoped offers, local policy pinning and
-daily retry limits, quiesced BackupOnly execution, verified retention, protected
-restore plans, explicit restore confirmation and external-witness preservation.
-SQLite v3 stages operation request IDs before dispatch. No operation was executed.
-Automatic CI at 340d736 reported three workflows successful and five failed;
-source inspection identified stale RLS policy expectations and uncatalogued native
-labels. The exact policy set and catalog integration are corrected in source.
-Full runtime, OS/service, ACL and platform verification remains reserved for B.
-
-
-Source review integration checkpoint: release activation retires active old overlays
-while preserving immutable revisions; terminal job payloads/digest references now
-expire under a bounded scoped retention setting. History includes non-mutating
-source operations and affected targets, chronologically paginates seeded legacy
-sources, and supports deleted-ID lookup. Native governed edits preserve untouched
-fields, avoid client calculation from redacted dependencies, and reconcile terminal
-record drafts through new exact-owner commands with durable queue lineage.
-The logical-restore fixture orders overloaded functions by their full identity;
-its prior name-only ordering produced a false manifest difference. This fixture
-source correction was not executed locally. Windows development-host shutdown
-CI timeouts remain a B investigation item, without a confirmed A source cause.
+The source checkpoint is exact; a documentation-only handoff commit follows.
+The final branch head and automatic-CI snapshot are recorded in the final response
+and PR. Wave_2_B and Wave_2_C require a new explicit assignment.

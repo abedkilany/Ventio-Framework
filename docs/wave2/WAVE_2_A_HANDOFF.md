@@ -1,181 +1,202 @@
 # Wave 2 A engineering handoff
 
-**WAVE_2_A ??" PARTIAL IMPLEMENTATION / BLOCKED**
+**WAVE_2_A - IMPLEMENTATION COMPLETE / UNVERIFIED**
 
-Date: 2026-11-13 (Asia/Beirut). Repository: `abedkilany/Ventio-Framework`.
-Branch: `feature/wave-2-a`. Base: `7d74a706ef4bb7f9994d151af486eaa38066e633`.
-Implementation checkpoint: `059541a0354dba54983880a4e0243bb8ea27efd8`.
-The documentation commit follows this code checkpoint; the final branch head and
-Draft PR URL are reported in the handoff message / GitHub PR.
+Date: 2026-11-14. Repository: `abedkilany/Ventio-Framework`.
+Branch: `feature/wave-2-a`. Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), targeting `main`.
+Base: `7d74a706ef4bb7f9994d151af486eaa38066e633`.
+Source checkpoint: `a46307f9b15a3d38d469dce642d3f38b985eb4dd`.
+Documentation-only commits may follow this checkpoint; the final PR head is recorded in the final handoff response.
 
-## Decision and implementation blockers
+All feasible mandatory implementation paths have source evidence. This replaces
+and supersedes the earlier partial engineering checkpoint. It is a source
+handoff for independent owner review, not compilation, runtime, security, test,
+or platform acceptance. Wave_2_B and Wave_2_C have not begun.
 
-The complete assignment is unfinished. This checkpoint contains real integration
-across Core, PostgreSQL, Host, SQLite and native Flutter, but is not a complete
-Wave_2_A submission. No compilation, runtime correctness or test result is claimed.
+## Closure of the requested implementation gaps
 
-Remaining in-scope engineering prevents completion:
-
-1. **M01/M02:** Full organization/company/branch entity administration and native
-   CRUD are absent. Existing trusted branch registration and identity management
-   remain available. New scoped configuration supports a display name and notice;
-   it cannot create identity scopes or change database/credential configuration.
-2. **M05/M09:** Backup scheduling/policy application, retention and full native
-   operational management are absent. The existing elevated, quiesced upgrade
-   backup/controlled restore path now verifies hashes; this is not a general
-   scheduled backup service. A reviewed maintenance lifecycle is still needed.
-   No runtime-login backup shortcut, new superuser, automatic witness reset or
-   HTTP live-restore endpoint was substituted.
-3. **A12/K09:** Cross-release custom-field rebase/migration is absent. SQL refuses
-   package approvals that would strand custom fields from another release.
-   Optional additive scalar fields are supported; field removal/type/constraint
-   changes require additional migration engineering. Safety refusal preserves data.
-4. **J03/H04:** Host outcomes correlate by command ID; original CSV line numbers
-   exist only in preview. Activity covers new source-document commands, latest
-   100 events; legacy backfill, complete pagination and every cross-record effect
-   target are not integrated.
-5. **Native field boundary:** Workspace edits exclude redacted write-only fields,
-   preventing untouched blank controls from clearing unseen values. A dedicated
-   native write-only editing interaction remains outstanding. Host/API field
-   authorization remains active.
-
-These are engineering gaps, not requests for permission. They must be addressed
-before a complete Wave_2_A submission. The B plan retains their acceptance gates;
-documentation and interfaces do not replace the missing implementation.
-
-## Implementation evidence
-
-| Area | Relevant files and actual behavior |
+| Requirement | Implementation and integration evidence |
 |---|---|
-| Customization | Core `src/customization.dart`, `contracts/wave2_customization.schema.json`: immutable overlay, optional scalar fields, label/layout/page overrides, inherited field ACLs, full bundle validation, structural-change refusal |
-| Transfer | Core `src/data_transfer.dart`: bounded CSV, mapping, per-source-row validation/errors/duplicates, exact decimal conversion, existing metadata/default/child validation, formula-safe string export |
-| Workspace contracts | Core `src/workspace.dart`: saved view, preference, dashboard and bounded configuration validation; v1 contract and named permissions |
-| Persistence/SQL | `migrations/postgres/037_wave2_platform.sql`, `security/postgres/wave2.sql`: definitions, immutable revisions, durable jobs/events, effective package merge, scoped CAS/idempotency, fenced job lifecycle, upgrade guard and redacted activity |
-| Security installation | `bootstrap.sql`, `wave2_upgrade.sql`, `runtime_check.sql`, `schema_profile.sql`; installed `bin/trusted_windows_host_upgrade.dart` applies the vetted contract, with owner-only private tables and recovery admission |
-| Host integration | Host API `src/wave2_platform.dart`, `host_api.dart`, `command_validation.dart`: bounded authenticated routes, existing query/export and command admission reuse, preview, job worker and protected diagnostics |
-| Authority | Host API `identity_store.dart`, `persistent_identity.dart`, Host `src/durable_command_host.dart`: immutable base digest verification; effective Dart metadata and signed SQL policy; job authorization inside the effect transaction; atomic activity/effect/receipt/audit/outbox |
-| Host lifecycle | Host API `bin/local_host.dart`: platform gateway requires the trusted Identity API connection; starts/drains worker; binds existing report gateway to persistent listeners |
-| SQLite | Native `src/workspace_store.dart`: exact owner/Host/scope isolation, WAL/FULL durability, drafts, CAS request identities, conflict retention/rebase, cached metadata and stable pending job submissions |
-| Native UI | Native `src/workspace_page.dart`: module navigation/order, saved searches/views, preferences, approved report cards, CSV mapping/Host preview, job progress/cancel/retry, field/layout/page editor, scoped settings and source activity details |
-| Form and queue reuse | Native `extension_studio_page.dart`, `local_command_queue.dart`, `queued_record_reconciliation.dart`: optional governed persistence/reference adapters reuse existing form/child controls; queue v2 preserves old entries and separates effective-metadata edits from immutable-base record caches |
-| Transport/catalog | Native `host_extension_packages.dart`, `app_localization.dart`: existing credential vault/pinned TLS/redirect refusal; versioned platform requests; custom fallback labels versioned without replacing base catalogs |
-| Backup/restore | Windows `HostBackupIntegrity.psm1`, `upgrade-host-database.ps1`, `restore-host-upgrade-backup.ps1`: source/copied-file SHA-256 comparison, restricted v2 manifest, manifest trust/path checks, staged-copy verification, explicit legacy opt-in and unchanged external witness separation |
-| Packaging | Windows `build-host-payload.ps1`: includes integrity helper in the existing verified payload and ships the new vetted SQL contracts |
+| M01 organization/company/branch administration | Core `platform_administration.dart`; SQL `wave2_administration.sql`, `wave2_identity_base.sql`; Host `wave2_platform.dart`; native `platform_administration_page.dart`. Versioned creation/rename/archive/reactivation, fixed parents, scoped current authority, credential ceilings, idempotent requests, CAS and audit. Archiving retains data/grants and removes effective access; it never silently provisions users or grants. |
+| M02 operational settings | Core configuration validation; versioned shared definitions; native settings editor. Maintenance blocks new business effects after receipt replay; job pause prevents new claims and is rechecked inside execution; import row bounds, default record/export page sizes and terminal job payload retention have real consumers. |
+| M05 scheduling/execution/retention | Core `BackupPolicy`; `wave2_operations.sql`; `windows_operations_delivery.dart`; native `host_operations_page.dart` and `host_operations_windows.dart`; installed `manage-host-operations.ps1`, `HostOperationStorage.psm1`. Host offers require current direct authority; UAC independently approves a policy. A fixed SYSTEM task checks exact local policy/revision, UTC due time, daily limits and fresh offers. Quiesced BackupOnly execution reuses the existing backup engine. Retention verifies eligible copies, keeps minimum copies/age/pins, and never selects upgrade/recovery/partial/foreign backups. |
+| M09 controlled recovery | Protected one-hour restore plans pin backup hashes, machine and schema profile. Explicit native confirmation plus local elevation is required. Existing staged restore preserves and hashes the current cluster, verifies incoming copies, and retains the external witness. The Host stays stopped for existing Recovery Authority-coordinated recovery. Independent local journals survive the restore; admitted results can be reconciled into the restored Host without recreating credentials or grants. |
+| A12/K09 cross-release migration | Core `MetadataCustomization.rebase`; SQL `wave2_customization_rebase.sql`; preview/prepare routes and native review. Preserve every custom field, constraint, ACL and stored value; use target layouts plus custom fields. Preparation pins source revision and target digest. Package approval atomically rechecks every affected scope, credential and overlay before activation. Existing base-field migration DSL remains responsible for base fields. Retired overlays remain in immutable revisions. |
+| CSV source correlation | Workspace SQLite v2/v3 and Host jobs preserve `importId` plus original preview `sourceRows` alongside stable command IDs. Mixed invalid/skipped rows and batch boundaries do not renumber them. Outcomes, retries and in-flight cancellation results carry the source row. Labels remain after terminal payload archival. |
+| Authorized history | `wave2_activity.sql` captures actual source/target/amendment mutations and schema migrations; source operations without a source mutation are also recorded transactionally. Retained legacy source history is seeded idempotently from outbox/journal metadata. History uses chronological keyset pages under current exact-scope DocType read authorization and returns no field values. Native `document_activity_page.dart` includes deleted-ID lookup. |
+| Write-only editing | Native shared form has explicit per-field protected replacement, omitted untouched values, and dirty-field patches for governed updates. It never initializes a protected control from a Host value. Governed calculations use the Host's stored inputs. Current permissions are rechecked at Host acceptance. |
+| Offline reconciliation | The durable command queue v3 retains original receipts and exact-owner replacement lineage. Customized terminal drafts can be reviewed against a fresh Host revision and requeued under a new command ID, without projecting through base-package caches. Cached metadata supports offline customization drafts; user preferences and pending imports/operations persist separately. |
 
-Paths abbreviated above are under `packages/ventio_core/lib`,
-`packages/ventio_host_api/lib`, `packages/ventio_host/lib`,
-`packages/ventio_native_client/lib`, `security/postgres`, and `scripts/windows`
-as indicated. The full API and supported boundaries are in
-`PLATFORM_CONTRACTS_V1.md`; capability-by-capability baseline/ownership/dependencies/
-security/future gates are in `WAVE_2_SCOPE_AND_ACCEPTANCE.md`.
+Abbreviated paths above are under `packages/ventio_core/lib/src`,
+`packages/ventio_host_api/lib/src`, `packages/ventio_native_client/lib/src`,
+`security/postgres`, and `scripts/windows`. Host source activity is integrated in
+`packages/ventio_host/lib/src/durable_command_host.dart`. The detailed fixed-scope
+mapping is in `WAVE_2_SCOPE_AND_ACCEPTANCE.md`.
 
-## Architecture and compatibility
+## Architecture and authorization decisions
 
-Approved package bytes/digests remain immutable. Customization is separately
-owned by one exact tenant/company/branch, pinned to a release digest. SQL signs
-effective authorization metadata; Dart validates that effective bundle while
-checking the separate original package digest. Wave 1 query routes project base
-fields; the new platform query explicitly includes custom fields. Existing
-commands, packages and lifecycle/business-operation engines retain their contracts.
+PostgreSQL remains authoritative. SQLite metadata, interface preferences and
+pending commands are provisional until genuine Host acknowledgement. Workspace
+business reads require current Host authorization; cached metadata is not a grant.
+Local profile checks include endpoint, tenant, actor, device, company and branch.
 
-Definition mutations reuse the separate scoped Identity API connection and
-`RecoveryAuthority.change`. Worker claim/result routines use that trusted
-connection under recovery admission. **This role expansion requires independent
-B security review**, including proof that no HTTP route exposes digests/leases.
-Every effect re-resolves current identity, exact scope, operation and field grants
-and `platform.jobs.run` inside its authoritative command transaction.
+Approved package bytes and digests remain immutable. Shared customizations are
+separately owned, versioned overlays. Core validates merged metadata; SQL binds
+and signs the effective authorization policy. Label collisions with base or other
+customizations are rejected. Native label keys include their fallback digest.
+Wave 1 query routes retain base-field projection, and old writes preserve custom
+values through the existing authoritative merge. Definition/rebase/entity changes
+participate in the existing Recovery Authority mutation protocol.
 
-Host jobs remain separate from the offline SQLite command queue. Stable UUIDs and
-the existing journal bridge the command-commit/progress-commit crash window.
-Claims have fenced leases and at most five attempts per row. Cancellation does
-not roll back an already claimed effect. Revocation may prevent replay of an
-already committed receipt: `FAILED` is not proof that no effect committed.
+Platform organization, customization, configuration and operational management
+permissions require direct trusted grants plus the credential ceiling. Business
+role administration cannot manufacture these privileges. Ordinary workspace/job
+and business permissions continue to support the existing scoped roles. Creating
+a company/branch grants nobody access. Branch parents and tenant identity remain
+immutable; the active source scope cannot be archived, and tenant archival cannot
+strand existing users. Tenant creation/deletion and identity recovery remain in
+the existing trusted provisioning boundary.
 
-Native metadata/preferences/drafts/import submissions are keyed by endpoint,
-tenant/company/branch/actor. Cached metadata supports offline draft editing;
-workspace business data requires fresh Host reads. Native form intents use the
-existing command queue and genuine Host receipts. Their projection flag prevents
-customized values from being interpreted through base-package record metadata.
+Host jobs use fenced leases and the existing durable command executor, separate
+from the SQLite queue. Each effect reauthorizes current identity, scope, operation,
+fields and `platform.jobs.run`. Maintenance does not prevent an identical accepted
+receipt replay. Cancellation prevents future claims but cannot undo an accepted
+in-flight effect. A cancelled ambiguous attempt reports `CANCELLED_OUTCOME_UNKNOWN`;
+it does not claim rejection or rollback. Terminal payload/digest references are
+scrubbed after the configured retention period; identities, hashes, source labels,
+outcomes and immutable command receipts remain available.
 
-New privileges are **not automatically granted** to old roles, administrators or
-credential ceilings. Future fixtures/operators must use existing trusted identity
-administration to provision the named v1 permissions and an appropriate credential.
-Old tokens are not widened. Hosts without the trusted scoped Identity API connection
-do not expose platform routes; existing functionality remains available.
+Physical backups contain the entire PostgreSQL cluster. A scoped HTTP permission
+alone therefore cannot stop services, read physical backups, restore data or
+install a scheduler. A fixed local elevated operator consumes a private Host
+offer; remote/Android clients can prepare/review requests, and local Windows
+administrators execute them. Offers are bounded two-minute accepted capabilities;
+revocation prevents subsequent offers, while an already issued valid offer can
+be claimed within its lease. No database authorization lock is held across a
+PostgreSQL stop. Exact policy revisions, an admin-only active-policy pin, UTC time,
+daily retry journals and a shared maintenance mutex also constrain automation.
+No credential, database URL, executable, script, SQL or arbitrary path enters this
+protocol. Lease identities are omitted from public operation results.
 
-## Migrations and operations
+## Persistence and migration inventory
 
-No migration, backup or restore was executed in this assignment.
+No migration was executed during A. Source migrations are additive and historical
+checksums are unchanged:
 
-- PostgreSQL **037** adds four forced-RLS private tables and a claim index.
-  Versions 001??"036 and their hashes are unchanged. `schema_profile.sql` adds the
-  canonical checksum. Fresh bootstrap establishes owner-only ACLs/policies;
-  installed upgrades apply `wave2_upgrade.sql` through the existing trusted bridge.
-- SQLite queue **1 ??' 2** adds `project_local_records INTEGER NOT NULL DEFAULT 1`
-  with a 0/1 constraint. Old entries retain behavior/receipts; workspace entries
-  use 0. No queue rows are discarded. Binary downgrade after this schema change
-  is unproven and needs a B rollback fixture/policy.
-- Separate workspace SQLite schema **1** stores metadata, preferences, drafts and
-  submissions. Existing extension-store schema/package metadata is unchanged.
-- Backup manifest **2** adds SHA-256 file entries and excludes the external
-  Recovery Authority. Legacy manifest **1** restores require explicit
-  `-AllowLegacyInventoryOnly`, acknowledging missing hash evidence. Restore still
-  requires elevation, `-ConfirmRestore`, exact service identity and a stopped Host;
-  subsequent Recovery Authority-coordinated recovery remains necessary.
+- `037_wave2_platform.sql`: private definitions/revisions/jobs/events and RLS.
+- `038_wave2_administration.sql`: organization/company/branch mirrors, administrative
+  request receipts, operations and prepared rebases; durable CSV labels; legacy
+  branch backfill without changing a grant or credential.
+- `039_wave2_operation_execution.sql`: private operational authority references,
+  offers, schedule/attempt metadata and indexes.
+- `040_wave2_job_archival.sql`: preserved job totals, archival metadata and the
+  chronological history index.
 
-## Source review and unverified assumptions
+`schema_profile.sql` includes all four canonical checksums. Bootstrap and the
+trusted `wave2_upgrade.sql` install owner-only private tables, precise function
+ACLs and the exact supported RLS policy set. The accepted schema migration
+validator is reused with a narrow owner context for scoped approval. The common
+`administration_change.sql` is installed by both bootstrap and the upgrade path.
+The installed payload includes all vetted SQL and the new Windows helpers.
 
-Reviewed architecture, missing integrations, contracts, migrations/RLS, offline
-intent and receipts, authorization, failure handling, recovery and Wave 1 reuse.
-Confirmed issues corrected during source review:
+SQLite command queue 1 -> 2 adds the default-1 projection flag; 2 -> 3 adds an
+optional unique reconciliation reference, preserving old envelopes and receipts.
+Workspace database 1 -> 2 adds CSV labels; 2 -> 3 adds pending operational request
+identities. Both retain WAL/FULL durability. New customized form entries use
+projection 0. Binary downgrade after these migrations is not established.
 
-- Job admission now shares the existing HTTP command wire validator.
-- CSV decimal conversion uses exact-scale arithmetic and safe JSON bounds.
-- Base digests remain distinct from effective package metadata and old-client reads.
-- Changed custom labels no longer collide in the immutable process-wide catalog.
-- Scoped notices belong to workspace state; current field redaction is respected.
-- Native form reference data is authorized by Host; customized queue entries do
-  not mutate base-package record caches or fabricate local acceptance.
-- Backup content and staged restore copies are hashed; manifest trust and explicit
-  legacy/restore choices preserve the independent witness boundary.
+## Operational handoff and recovery safeguards
 
-SQL/Dart merge equivalence, grants/RLS/proofs, recovery triggers, SQLite migration
-preservation, lease/crash races, actual Windows ACL/path/hash behavior and native
-Windows/Android layouts remain unverified. Source review does not establish
-compilation, runtime security, or absence of defects. CSV reference/permission
-validity can change after preview; export pages observe current Host state and
-may reflect concurrent updates.
+Use the current trusted Setup/upgrade path to install the schema, security
+contracts and protected `Ventio/Host/Operations` directory. No installed service
+or customer database was changed by this assignment. New management grants must
+be provisioned explicitly through existing trusted identity administration; old
+credentials do not gain new scopes or permissions automatically.
 
-Only inspection, source editing/formatting and Git diff hygiene were performed.
-No analyzer, dependency resolution, tests, builds, database migration, backup/
-restore, deployment, workflow dispatch or self-hosted runner execution occurred.
-The formatter warned that local `flutter_lints` resolution was unavailable in
-the fresh worktree; dependencies were not installed. Automatic PR checks are
-reported separately and cannot count as Wave_2_B acceptance.
+On the Windows Host, the native backup/recovery page supports policy drafts,
+Host publication, operation requests, local approval, results and delivery health.
+The fixed installed operator is `host-payload/setup/manage-host-operations.ps1`.
+Its scheduler is `\Ventio\VentioHostBackups`, running as SYSTEM. Local policy,
+daily execution, restore plan and operation journals live in the admin-only
+`ProgramData/Ventio/Installer/Operations` directory. They are independent of the
+database and Recovery Authority witness. Never delete an uncertain RUNNING claim
+to force replay; inspect its protected journal and actual services/backups first.
 
-## Commits and stop point
+BackupOnly does not read the migrator credential or run migrations. A new backup
+must verify before retention runs. Retention supports at most 2,000 eligible
+inventory entries per execution and a bounded 128 MiB manifest; exceeding a bound
+fails safely. The Host result includes the deletion count and at most 100 names;
+the complete local journal retains the full deletion list. Restore plans expire
+after one hour and pin their backup against retention. The native workflow
+requires the same machine/PostgreSQL/schema profile; legacy backups remain in the
+existing explicit elevated restore path, including its legacy-integrity opt-in.
 
-| Commit | Contents |
+Restore preserves the current data and quarantine and leaves the Host stopped
+with service recovery suppression recorded. Complete the existing trusted Setup
+Recovery Authority-coordinated recovery before reopening it. Do not reset/adopt
+a witness automatically, resurrect grants/credentials, or start the Host merely
+because PostgreSQL starts. A restored scope missing from the old snapshot requires
+trusted identity administration before its result can be reconciled; private
+journals remain intact and delivery reports reconciliation required.
+
+## Inherited limits, risks and unverified assumptions
+
+- Wave 1 did not record target-document events for historical cross-record
+  effects. Its audit/outbox contain source aggregate/command metadata; its journal
+  stores a fingerprint/receipt, not the original target inputs or prior values.
+  Therefore old cross-target events cannot be reconstructed authoritatively.
+  Available legacy sources are imported; all new effects are captured. The API
+  explicitly reports this historical coverage boundary. No inferred events or
+  invented field-value history are presented.
+- Destructive custom-field type/removal/constraint changes are refused. Compatible
+  release rebasing is implemented; arbitrary data conversion is not introduced.
+- General third-party authentication, outbound webhooks, uploaded handlers, SQL
+  connectors and unrestricted integration runtimes are intentionally outside the
+  bounded D09/J04 requirement. The delivered bounded APIs are real implementations.
+- Source review cannot establish SQL/Core merge equivalence, lock/race behavior,
+  grants/proofs, ACL semantics, service recovery, filesystem atomicity, backup
+  completeness, platform compilation or responsive UI correctness. These need B.
+- Export pages observe current Host state and can reflect concurrent updates.
+  Permission/reference validity can change after import preview. Untouched
+  protected values are preserved; explicit replacement/clear remains provisional.
+- Automatic CI reported Windows development-host shutdown timeouts with no
+  confirmed A source cause. B must investigate. The logical-restore fixture's
+  prior name-only ordering was corrected to use full overloaded function identity;
+  that source correction was not executed locally.
+
+## Source review findings and phase boundary
+
+Reviewed Core/Host/native boundaries, missing integrations, effective/base metadata,
+current scope/field permissions, forced RLS and grants, migration preservation,
+retry/receipt/cancellation/crash windows, label collisions, archived scopes,
+private physical execution, restore compatibility and old-client behavior.
+Corrected confirmed source issues, including the undefined receipt getter,
+package-language formatting, non-ASCII handoff text, stale RLS policy expectations,
+reserved SQL parameter naming, native localization, source-row correlation,
+protected-field patches, non-mutating source activity and cancelled row outcomes.
+
+Only source inspection/editing, Dart source formatting, PowerShell parser
+inspection, Git diff hygiene and read-only automatic-CI inspection were performed.
+No local analyzer, dependency resolution, unit/integration/regression suite,
+Flutter/Android/Windows build, database migration, backup, restore, deployment,
+workflow dispatch or self-hosted runner execution occurred. Automatic checks from
+pushes are reported separately and do not constitute formal B acceptance.
+No branch protection/required check was changed. PR #6 remains Draft and unmerged;
+no changes were merged into main. Stop after this A handoff.
+
+## Continuation commits
+
+| Commit | Source purpose |
 |---|---|
-| `638dd36234fb887b94d34bf434c633809e3ab87f` | Core contracts and fixed scope baseline |
-| `3f89820e54335b39240a5d0587ff8858de728645` | PostgreSQL/Host overlays and durable jobs |
-| `8b3fd7dc8d0d91df7f7e6db1b93ef27152dd8fc5` | Admission/customization/schema corrections |
-| `295f3670ec93988a16be24674637e149091287fc` | Native workspace, transfer, forms and SQLite migration |
-| `50ffdfb2824a0d2b60052de3da353f30de5fe381` | Backup integrity and restore safeguards |
-| `059541a0354dba54983880a4e0243bb8ea27efd8` | Scoped notice/redacted-field adapter correction |
+| `1cf8e35` | Recorded receipt/format/English-only source defects |
+| `340d73672b629b7c70172a47616e8b7003d323f7` | Scoped administration, prepared release overlays, durable correlation and history |
+| `91c54ac60c558cdd4683c261955c086899e1e250` | Locally approved backup policy/scheduling/retention/restore, native operations and exact security profile |
+| `8e37a71ac0cefd0e68af9903bc66e57b26c109cf` | Offline record reconciliation, complete current history, label safety, job retention and integration fixes |
+| `db83db541c324b999dc4bac3a067295a4828652d` | Original authority binding for operational results and catalog cleanup |
+| `34a166c3d8844c38a36c0b84865f42d3bf88a996` | Reserved SQL parameter correction |
+| `a8e7e5d642f5b42e0adb3e9c84c152f70b4a9020` | Native braces/null-aware source style corrections from automatic CI |
+| `a46307f9b15a3d38d469dce642d3f38b985eb4dd` | Locale-independent UTC backup policy parsing and daily journals |
 
-All source commits were pushed without force. No protection, required check or
-workflow configuration changed; nothing was merged into `main`. The original
-dirty checkout was preserved. Stop at the Wave_2_A partial handoff. B/C require a
-new explicit assignment after owner review; neither phase has begun.
-
-## GitHub handoff checkpoint
-
-Draft PR: https://github.com/abedkilany/Ventio-Framework/pull/6 (target `main`).
-GitHub returned `draft: true`, `merged: false`; no merge was performed.
-At the first PR inspection, all eight automatically triggered workflow runs on
-`3466020a95ce12ed053a96b674e9c6cc77ece4ba` were `in_progress`, with no conclusions
-and no combined commit-status entries. This is a time-specific automatic-CI
-snapshot, not acceptance evidence. A documentation-only handoff follow-up comes
-after that snapshot; consult the PR for later automatic status. No workflow was
-dispatched or rerun by the agent.
+Earlier implementation commits remain in the PR history. The original dirty
+checkout was preserved. See `WAVE_2_B_VERIFICATION_PLAN.md` for the independent
+verification and negative-security gates; none were executed locally in A.

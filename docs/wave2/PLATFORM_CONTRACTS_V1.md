@@ -1,157 +1,181 @@
 # Wave 2 platform contracts v1
 
-Status: implemented source / unverified. This supplements existing Wave 1
-manifest, command, query, report and lifecycle contracts; it does not replace them.
-The platform HTTP API remains `/api/v1`; the new namespace additionally requires
-`contractVersion: 1`. Unknown properties and unsupported contract versions are
-refused. Extension packages still cannot declare executable handlers, SQL or scripts.
+Status: implemented source / unverified. Existing Wave 1 command, manifest,
+query, report, identity and lifecycle contracts remain supported. New operations
+use `POST /api/v1/platform/<action>` with `contractVersion: 1`, `companyId`,
+`branchId` and the existing Bearer credential. Tenant/actor/device come from
+current Host authentication. Unknown properties/versions are refused. Native
+transport reuses the credential vault, TLS pinning and redirect/body limits.
 
-Every operation is `POST /api/v1/platform/<action>` with the existing Bearer
-credential and the selected `companyId` / `branchId`. Tenant, actor and device
-come from current Host authentication. The native client reuses the existing
-credential vault, pinned certificate validation, redirect refusal and bounded
-JSON transport. No generic outbound integration or third-party identity runtime
-is introduced.
+## Routes
 
 | Action | Additional request fields | Result |
 |---|---|---|
-| `definitions/list` | `kind` | `DEFINITIONS`, definitions with id/revision/body/updatedBy/time |
-| `definitions/save` | `kind`, `id`, `expectedRevision`, `requestId` (UUID), `body` | `SAVED` with revision, or conflict; same request/body is idempotent |
-| `metadata/effective` | `moduleId`, `moduleVersion`, `docType` | Validated effective package and immutable `baseSha256` |
-| `imports/preview` | metadata identifiers, `csv`, `mapping` (header to field), `recordIdHeader` | Row number, record ID, values, errors, schema version and valid-row count |
-| `records/query` | metadata identifiers, `columns`, optional `recordId`, search/filters/sortField/descending/cursor, `limit` | Existing record-query result and current field grant sets, with custom fields enabled |
-| `exports/page` | Same query fields except `recordId` | Header plus CSV for one authorized query page, hasMore/nextCursor/baseSha256 |
-| `jobs/submit` | `jobId` (UUID), `commands` (existing command envelopes) | Durable job identity and current state, not business acceptance |
-| `jobs/list` | None | Latest 100 visible jobs with bounded progress and redacted per-command outcomes |
-| `jobs/cancel` | `jobId` | Current state; cancellation fences progress for future rows |
-| `history/list` | metadata identifiers and `recordId` | Latest 100 source-document activity events, without field values |
+| `definitions/list` | `kind` | Versioned definitions visible to the current owner/scope |
+| `definitions/save` | `kind`, `id`, `expectedRevision`, UUID `requestId`, `body` | CAS/idempotent `SAVED`, conflict or denial |
+| `metadata/effective` | `moduleId`, `moduleVersion`, `docType` | Effective package plus immutable `baseSha256` |
+| `imports/preview` | Metadata identifiers, `csv`, header-to-field `mapping`, `recordIdHeader` | Original logical CSV row numbers, IDs, values, errors and schema version |
+| `records/query` | Metadata identifiers, `columns`, optional `recordId`, search/filters/sortField/descending/cursor/limit | Existing field-redacted records and current field grant sets, with custom fields enabled |
+| `exports/page` | Same query fields except `recordId`; nonempty readable `columns` | CSV page and existing cursor/hash metadata |
+| `jobs/submit` | UUID `jobId`, existing `commands`, optional UUID `importId` and aligned integer `sourceRows` | Durable job identity/state, not business acceptance |
+| `jobs/list` | None | Latest 100 visible jobs, totals/archival metadata and redacted outcomes |
+| `jobs/cancel` | `jobId` | Stop future claims; an in-flight effect can still finish |
+| `history/list` | Metadata identifiers, `recordId`, optional `cursor` and `limit` 1-100 | Chronological metadata-only events, hasMore/nextCursor and coverage boundary |
+| `organization/list` | None | Manageable organization/company/branch entities and revisions |
+| `organization/change` | `change` | Governed versioned entity mutation and request receipt |
+| `settings/read` | None | Current scope's nonsecret operational settings/defaults |
+| `customizations/rebase/preview` | `moduleId`, `sourceVersion`, `targetVersion`, `docType` | Current source/revision, submitted target/digest and deterministic candidate body |
+| `customizations/rebase/prepare` | Same binding, `sourceRevision`, reviewed `body` | Prepared compatible rebase; package approval is separate |
+| `operations/prepare` | UUID `operationId`, fixed `operation`, bounded `body` | Durable request awaiting independent local approval |
+| `operations/list` | None | Current-scope requests/results and local delivery availability/status |
 
-Response envelope: `apiVersion`, `contractVersion`, correlation ID and `result`.
-The body uses the existing JSON/time/concurrency safeguards. CSV preview has a
-separate bounded upload allowance for JSON escaping; decoded CSV is capped at
-512 KiB, 500 data rows, 100 columns and 65,535 characters per cell. Normal job
-submissions remain within the existing request limit, with a 48 KiB canonical
-command-array limit and at most 25 independent commands per job. Dependencies and
-delete commands are intentionally not admitted to this initial job executor.
-Governed business-operation commands continue to use their existing approved
-operation ID/version, input validation, permissions and effect allowlist.
+Responses contain `apiVersion`, `contractVersion`, `correlationId` and `result`.
+Denials/conflicts use existing transport handling. Empty `columns` on record
+queries can obtain redacted records/grant masks; they never bypass field ACLs.
+Filters and sort fields always pass the existing query authorization. Omitted
+page limits use the bounded scoped default. Each export page reauthorizes;
+pages observe current Host state and may reflect concurrent changes.
 
-## Definition kinds and authorization
+## Definition ownership and settings
 
-`saved_view`, `preferences` and `dashboard` are user-owned within the exact Host,
-tenant/company/branch context and require `platform.workspace.use`. Stored views
-never grant business permissions: execution revalidates current DocType and field
-ACLs. Dashboard cards reference approved report metadata, never query SQL.
+`saved_view`, `preferences`, `dashboard` are user-owned and require
+`platform.workspace.use`. Stored views and dashboard report cards confer no
+business permissions. `customization`, `configuration`, `backup_policy` are
+shared within one exact tenant/company/branch. Shared management requires the
+corresponding direct trusted grant and current credential ceiling; role-only
+management cannot expand platform authority. Definition writes use the separate
+Identity API connection and existing Recovery Authority change protocol.
 
-`customization` is shared within one exact tenant/company/branch and requires
-`platform.customizations.manage`; package inspection additionally requires the
-existing `extension.package.read`. Its ID is `moduleId:moduleVersion:docType`.
-`configuration` is shared within the selected scope, requires
-`platform.configuration.manage` to edit and `host.status.read` to read. Its
-supported settings are a scope display name and operational notice; these affect
-the workspace header/notice, not identity routing or database configuration.
+Customization IDs are `moduleId:moduleVersion:DocType`; current configuration and
+backup policy use `scope`. Definitions have bounded bodies/counts, optimistic
+revision checks, stable request identities and immutable revision history.
+Offline edits remain private drafts. An unchanged retry preserves request/body;
+a new edit generates a new request ID. Refresh preserves dirty/conflicted drafts
+and removes retired synced metadata without discarding local intent.
 
-Definition bodies are at most 32 KiB canonical JSON, with 100 definitions per
-kind/owner/scope. Saving uses optimistic revision checks, a stable request ID and
-an immutable revision log. The Host performs these mutations through the existing
-separate scoped Identity API connection and Recovery Authority change protocol.
-Offline drafts are user-owned SQLite entries. Editing generates a new request ID;
-an unchanged retry preserves it. Host refresh retains dirty drafts, marks a stale
-revision as a conflict, and supports explicit user-directed rebase with another
-Host compare-and-swap on publication.
+Configuration supports `displayName`, `maintenanceNotice`, `maintenanceMode`,
+`jobsPaused`, `defaultPageSize` 1-100, `maxImportRows` 1-500 and
+`completedJobRetentionDays` 1-3650. Defaults are false/false/50/500/30. New business
+effects honor maintenance after accepted-receipt replay; job claims/execution honor
+pause. No credentials, SQL, arbitrary URLs, paths or service identities are settings.
 
-## Customization and package compatibility
+Backup policy is `{contractVersion:1, enabled, utcTime, retainDays, retainCopies,
+maximumAttempts, retryMinutes}`. UTC time is HH:mm; bounds are respectively
+1-3650 days, 2-1000 minimum copies, 1-5 attempts and 5-1440 retry minutes.
+A policy write is not local scheduler approval.
 
-The source schema is `contracts/wave2_customization.schema.json`; the executable
-validator is `MetadataCustomization`. Version 1 adds optional `custom_` scalar
-fields and label/list/form/detail/page presentation overrides. Custom fields
-inherit the DocType's read/update permissions. Required fields, references,
-child tables, calculations, operations, permissions, naming and migrations cannot
-be injected through this overlay. Total effective fields remain within the
-existing package limit. Custom label keys use the extension's `.custom.` namespace;
-the native localization adapter versions those fallback renderings by text digest
-to preserve immutable base catalogs during an in-session label change.
+## Customization and release migration
 
-The published package row and digest never change. SQL resolves and signs an
-effective authorization policy; Dart validates the effective bundle and verifies
-the separate immutable base package digest. The Wave 1 record-query route keeps
-projecting base fields so older clients do not receive unknown customization fields.
-The new record-query route explicitly opts into effective fields. Old writes
-continue through the same generic engine and preserve optional custom data.
+`contracts/wave2_customization.schema.json` and Core `MetadataCustomization`
+define the overlay. V1 supports up to 20 optional scalar `custom_*` fields with
+inherited DocType read/update ACLs, supported labels and list/form/detail/page
+presentation. Required/reference/table/calculation/security/operation injections
+are refused. Full package validation remains active. Package bytes/digests never
+change; SQL signs effective metadata while Dart checks the original base digest.
+Old query routes retain base-field projection and old writes preserve custom data.
 
-Field deletion/type/constraint changes are refused. A package approval that would
-strand custom fields from another release is blocked by a database trigger.
-This is a safety refusal, **not** a completed cross-release rebase/migration tool.
-Presentation-only overlays are pinned to their release and do not block upgrades.
-The explicit cross-release migration workflow remains an implementation gap.
+Labels use separate customization keys; collisions with another metadata label
+are refused. Native keys include the fallback digest. Structural custom-field
+removal/type/constraint changes are refused; presentation changes remain supported.
 
-## Data transfer and durable jobs
+Compatible cross-release migration is explicit. Preview reads a submitted target
+under current review/customization authority. Core and SQL produce the same body:
+all custom fields/constraints/ACLs remain intact, target layouts adopt custom
+fields, and label/page overrides survive. Preparation pins source revision and
+both package digests. Every affected scope must prepare. Independent package
+approval rechecks preparation credentials and metadata and atomically activates
+all overlays with the existing base-field migration DSL. Missing/stale/incompatible
+preparations roll back approval. Retired overlays remain in immutable revisions;
+no business values are silently converted or dropped.
 
-CSV parsing supports quoted delimiters, escaped quotes, CRLF/LF, embedded newlines
-and an optional BOM. Headers must be unique and nonempty. Mapping is declarative;
-the record ID is explicit and never guessed from a display field. Preview detects
-duplicates within the file and readable existing Host IDs. Integer, exact scaled
-decimal, boolean, date/datetime, enum/reference strings and bounded child-table
-JSON use existing metadata validation. Reference existence and the final current
-permissions are authoritative at command execution. No financial posting bypass
-is introduced. Decimal conversion rejects values that cannot round-trip through
-the existing safe JSON number representation at the declared scale.
+## Transfer, jobs and local commands
 
-Export reuses the existing field-aware filters, sort and cursor gateway. Requested
-columns must all be readable; hidden fields cannot be used to filter or sort.
-Each page reauthorizes independently. String cells that could be spreadsheet
-formulas are prefixed with an apostrophe. Numeric negative values remain numeric.
-That protective string transformation is intentional and is not silently undone
-by import. Extension metadata import/export remains the existing approved builder
-and package registry workflow.
+CSV supports quotes, delimiters, escaped quotes, multiline records, CRLF/LF and
+BOM. Header/mapping/duplicate/type/default/child validation reuse approved metadata.
+Decoded source is bounded to 512 KiB, 500 data rows, 100 columns and 65,535
+characters per cell, with a tighter scoped row bound when configured. Decimal
+conversion uses existing exact-scale/safe JSON limits. Reference existence and
+current write permissions are rechecked at command execution. Extension metadata
+transfer reuses the existing builder and approved package registry.
 
-SQLite durably stages stable Host job and command IDs before submission. HTTP
-acceptance acknowledges only that a Host job exists. The Host worker claims one
-row under a two-minute fenced lease, reauthorizes current identity and
-`platform.jobs.run` inside the command transaction, and invokes the existing
-durable command executor. It supports record create/update and approved business
-operations. `platform.jobs.manage` permits exact-scope job visibility/cancellation;
-ordinary submitters can see/cancel their own jobs. No plaintext token is stored;
-the credential digest is private and never returned by user-facing list APIs.
+Jobs contain 1-25 independent create/update/approved-operation envelopes within
+48 KiB canonical command JSON. Deletes and command dependencies are refused.
+Wire validation is shared with the existing command route. Stable IDs plus the
+existing journal prevent duplicate effects across submit/commit/progress crashes.
+`importId` requires unique aligned source row integers; these preserve the original
+logical preview row numbers, including gaps from skipped invalid rows. Reusing a
+job ID with altered commands or labels conflicts.
 
-States: `QUEUED`, `RUNNING`, `RETRY_WAIT`, `SUCCEEDED`,
-`COMPLETED_WITH_ERRORS`, `FAILED`, `CANCELLED`. Retries keep the original command
-identity, with at most five attempts per row and bounded backoff. A crash after a
-command commits but before job progress commits replays the durable command
-receipt. Cancellation can race an already claimed operation; it never promises
-to roll back accepted effects. Revocation may prevent receipt replay, so a failed
-job is not evidence that no effect committed. Error details expose stable codes,
-not payloads or exception strings. Worker infrastructure failures go to the
-existing protected Diagnostics Center. This queue is distinct from the offline
-SQLite command queue; native form edits continue using that existing queue.
+States: QUEUED, RUNNING, RETRY_WAIT, SUCCEEDED, COMPLETED_WITH_ERRORS, FAILED,
+CANCELLED. Claims use fenced two-minute leases and at most five attempts per row.
+Current `platform.jobs.run` is required at claim and inside the authoritative
+command transaction; management grants scope visibility/cancellation. Public
+outcomes contain IDs/status/codes/source labels, not payloads/digests/leases.
+Cancellation preserves a known in-flight result; ambiguous cancellation reports
+CANCELLED_OUTCOME_UNKNOWN and never asserts rollback. Current revocation can
+prevent replay, so a failed job does not prove that no effect committed.
 
-## Bounded D09 / J04 disposition
+Terminal archival removes full commands and executable credential references,
+retaining IDs, request hashes, source labels, totals, redacted outcomes and audit.
+The immutable command journal remains authoritative. The Host worker/operations
+protocol is separate from the offline SQLite queue.
 
-Accepted: existing opaque-token identity, credential ceilings, exact-scope grants,
-pairing/reissue, current per-request authentication, TLS pinning, versioned
-declarative extension APIs and bounded transfer/job requests. These have concrete
-uses in the delivered scope. Existing approved lifecycle effects remain reused.
+Native governed updates submit dirty patches. Protected fields are not initialized
+from Host data and are omitted unless replacement is explicitly selected; optional
+clears are deliberate. Host computes against stored protected dependencies. The
+queue preserves original receipts; terminal customized drafts can be reviewed
+against a fresh authorized revision, then linked to one new exact-owner command.
+Hidden/removed fields are not re-exposed during recovery. Local profile changes
+cannot redirect a saved draft to another actor/device/endpoint/scope.
 
-Partially implemented: native/Host data-transfer and operational visibility are
-source-integrated but have no Wave 2 runtime evidence. Historical document
-activity is not backfilled; source-command activity does not yet cover every
-cross-record effect target.
+## Organization, history and physical operations
 
-Intentionally deferred: third-party authentication federation, arbitrary webhook
-destinations, uploaded integration handlers, SQL connectors, executable scripts,
-unrestricted service credentials and a general integration runtime. No defined
-requirement justifies expanding those trust boundaries in this wave.
+Organization change includes kind/id/parentId/displayName/archived/expectedRevision/
+UUID requestId. Tenant identity and branch parents are immutable. Company/branch
+creation grants nobody access; archive retains data/permissions but filters effective
+access. Reactivation requires current target authority from an active source.
+Current-scope/last-user safeguards preserve existing identity trust boundaries.
 
-## SQLite compatibility note
+Activity captures all new affected records, amendments, schema changes and source
+commands, including operations with no source mutation. Seeded legacy sources use
+retained outbox/journal metadata. Pages authorize the current DocType and scope,
+contain no field values and sort by original occurrence time plus event identity.
+Deleted-ID lookup uses the same authorization. `historicalCoverage` declares that
+Wave 1 did not record old cross-target effects; no inferred history is fabricated.
 
-The existing command queue migrates from schema 1 to 2 by adding a default-1
-projection flag, preserving prior pending commands and receipts. Effective-schema
-workspace form commands use flag 0, so ordinary record reconciliation does not
-project custom values through base-package metadata. Their receipts still persist
-in the same durable command queue. The workspace database is separate (schema 1,
-WAL/FULL). Binary downgrade after queue migration remains unproven.
+Fixed physical operations are APPLY_POLICY/BACKUP_NOW with an empty client body,
+RESTORE_PLAN with `backupName`, and RESTORE with `backupName`, `planOperationId`,
+`planSha256`. IDs/names/fields are strictly bounded. Host preparation never starts
+services, a scheduler or a restore. A private two-minute accepted offer and an
+independent local Windows elevated approval are required. A fixed SYSTEM task
+consumes only current offers matching the locally pinned exact policy/revision,
+active policy, UTC due time and durable daily retry limit. No uploaded executable
+or arbitrary command/path enters this channel.
 
-The workspace form adapter restricts edits to currently readable and writable
-fields so an untouched redacted field cannot be implicitly cleared. Dedicated
-native write-only editing remains an implementation gap. Multi-page exports
-observe current Host state and may reflect concurrent updates.
+BackupOnly reuses trusted quiesced physical backup and avoids migration credentials
+and migrations. Private SHA-256 manifests, fixed roots, reparse/ACL checks, a shared
+maintenance mutex and service recovery journals guard execution. Retention follows
+a verified new backup, preserves minimum verified copies/age/restore pins and never
+selects upgrade/recovery/partial/foreign backups. Restore plans pin compatibility
+and integrity for one hour; explicit confirmation preserves the current cluster,
+verifies staging and leaves Host stopped for existing Recovery Authority recovery.
+The external witness is never copied/reset/adopted. Private local journals survive
+rollback of database request history. Scoped admitted reconciliation can restore
+an operational audit result without resurrecting identity state.
+
+## Compatibility and D09/J04 disposition
+
+Command queue SQLite schemas 1->2->3 add projection and reconciliation references;
+workspace schemas 1->2->3 add source correlation and operational retry identities.
+Old envelopes/receipts remain unchanged. WAL/FULL and owner/Host/scope isolation
+remain active. Binary downgrade is not established. Workspace business reads do
+not infer permissions from cached metadata; offline metadata/preferences/intent
+remain provisional.
+
+Accepted bounded integration: existing opaque credentials, pairing/reissue,
+current scope/role/field checks, credential ceilings, TLS pinning, approved
+metadata/lifecycle APIs and the concrete transfer/jobs/operations above.
+Intentional non-requirements: general third-party identity federation, arbitrary
+outbound webhooks, executable handlers, SQL connectors and an unrestricted
+integration runtime. Source integration remains unverified; all runtime, security,
+OS and platform gates belong to the separate Wave_2_B assignment.
