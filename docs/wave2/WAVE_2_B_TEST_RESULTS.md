@@ -5,7 +5,7 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-14
-Last updated: 2026-11-14 17:48 UTC
+Last updated: 2026-11-14 17:56 UTC
 
 The exact candidate product commit was used by GitHub-hosted CI and the
 acceptance-package workflow. All nine candidate workflows completed
@@ -36,9 +36,16 @@ SSH succeeded for all four named accounts during initial preflight. At the
 current checkpoint, SSH identifies the intended machine/account pair on each
 host and `quser` previously showed active RDP sessions `codex-1` and `codex-3`.
 No restart was performed, so post-reboot SSH/RDP continuity is not established.
-The RDP screens can be captured and clicked. Long `type_text` calls were
-unreliable, but focused key-by-key input populated and visibly verified all
-three TEST-01 scope IDs; no owner intervention was required for that entry.
+On the latest check, SSH again returned VENTIO-TEST-01 for Codex-1 and
+VENTIO-TEST-02 for Codex-3; `query user` reported RDP session ID 4 as Active on
+both. A Computer Use inspection found the local TEST-01 RDP window minimized,
+and activation failed after refreshing the selected window once. No UI input
+or interactive uninstall was performed. TEST-02's previously observed lock
+screen was not touched.
+Earlier in this run, RDP screens could be captured and clicked. Long
+`type_text` calls were unreliable, but focused key-by-key input populated and
+visibly verified all three TEST-01 scope IDs; no owner intervention was
+required for that entry.
 
 The exact starting-source archive on TEST-01 is
 `C:\VentioTest\downloads\Ventio-Framework-9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61.zip`,

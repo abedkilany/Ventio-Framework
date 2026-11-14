@@ -5,7 +5,7 @@ Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
-Last updated: 2026-11-14 17:48 UTC
+Last updated: 2026-11-14 17:56 UTC
 
 Wave_2_C and merge into `main` are out of scope. The current product candidate
 has no application-source changes after the package correction in
@@ -70,6 +70,11 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
   succeeded, but TEST-01's Setup Broker was blocked as described above. No
   security setting, account, network configuration, non-Ventio service or
   preserved data was changed.
+- Latest read-only SSH check reconfirmed both machine hostnames and that
+  `Codex-1`/`Codex-3` RDP sessions report Active. Both machines still have no
+  `VentioHost` or `VentioPostgres` service and no `C:\ProgramData\Ventio`.
+  Computer Use found the local TEST-01 RDP window minimized; activation failed
+  twice, so no interactive uninstall or other UI operation was performed.
 
 ## Completed work
 
@@ -106,6 +111,11 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
     `50832447b8445849692787977f31865883868b6d`, including Host API run
     `43619047598`. Product verification remains tied to
     `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`.
+12. Rechecked machine identities, active RDP session state and absence of Host
+    services/data over SSH. Attempted to restore the minimized TEST-01 RDP
+    window through Computer Use; the helper refused activation on both the
+    initial and refreshed selection, so the interactive uninstall retest
+    remains unexecuted.
 
 ## Next steps
 

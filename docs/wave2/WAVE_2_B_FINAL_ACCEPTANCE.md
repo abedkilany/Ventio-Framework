@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-14 17:48 UTC
+Last updated: 2026-11-14 17:56 UTC
 
 This candidate is not submitted as verified or production-ready. All nine
 candidate CI workflows have passed, and the exact artifact was verified,
@@ -34,6 +34,11 @@ currently available for producing a compatible Windows candidate.
   `quser` confirms both designated RDP sessions Active. All four accounts were
   previously verified as local Administrators at High Integrity. No reboot has
   been run, so post-restart continuity is unverified.
+- The latest SSH recheck confirmed both Host/PostgreSQL services and
+  `C:\ProgramData\Ventio` remain absent. The local TEST-01 RDP window was
+  minimized and Computer Use could not activate it after a refreshed selection;
+  no interactive uninstall retest was performed. TEST-02's lock screen was not
+  accessed.
 - Candidate build evidence: workflow-installed Dart 3.13.7 and .NET SDK 8.0.428
   were used for Host compilation; Flutter 3.44.1, PostgreSQL 16.15, Inno Setup
   6.7.4 and VC++ runtime 14.51.36247.0 are recorded. The packaged evidence
