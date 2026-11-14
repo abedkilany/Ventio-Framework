@@ -5,6 +5,8 @@ param(
  [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPlanSha256
 )
 $ErrorActionPreference='Stop'
+$invariantCulture=[Globalization.CultureInfo]::InvariantCulture
+$roundtripStyle=[Globalization.DateTimeStyles]::RoundtripKind
 Set-StrictMode -Version Latest
 $principal=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
 if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'HOST_OPERATION_LOCAL_ELEVATION_REQUIRED'}
@@ -62,7 +64,7 @@ function Get-Pins {
  $pins=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
  foreach($file in Get-ChildItem -LiteralPath $state -Filter '*.plan.json' -File){
   $plan=Read-VentioOperationJson $file.FullName $adminSid
-  if([DateTime]::Parse($plan.expiresAtUtc).ToUniversalTime() -gt [DateTime]::UtcNow){[void]$pins.Add([string]$plan.backupName)}
+  if([DateTime]::Parse([string]$plan.expiresAtUtc,$invariantCulture,$roundtripStyle).ToUniversalTime() -gt [DateTime]::UtcNow){[void]$pins.Add([string]$plan.backupName)}
  }
  return ,$pins
 }
@@ -80,7 +82,7 @@ function Invoke-Retention([object]$Policy,[string]$Newest){
     $manifest.machineId -ceq $machine -and $manifest.schemaProfileSha256 -ceq $schemaHash){
     [void](Get-Backup $entry.Name)
     if($candidates.Count -ge 2000){throw 'HOST_OPERATION_RETENTION_INVENTORY_LIMIT'}
-    $candidates+= [pscustomobject]@{Name=$entry.Name;Path=$entry.FullName;Date=[DateTime]::Parse($manifest.createdAtUtc).ToUniversalTime()}
+    $candidates+= [pscustomobject]@{Name=$entry.Name;Path=$entry.FullName;Date=[DateTime]::Parse([string]$manifest.createdAtUtc,$invariantCulture,$roundtripStyle).ToUniversalTime()}
   }
  }
  $ordered=@($candidates|Sort-Object Date -Descending)
@@ -119,7 +121,7 @@ function Invoke-Operation([string]$Id,[switch]$Scheduled){
  $expected=@('formatVersion','operationId','offerId','operation','tenantId','companyId','branchId','requestedBy','body','requestHash','validUntilUtc','scheduled')|Sort-Object
  if((@($request.PSObject.Properties.Name|Sort-Object)-join ',') -cne ($expected-join ',') -or $request.formatVersion -ne 1 -or $request.operationId -cne $Id -or
    $request.offerId -notmatch '^[0-9a-f-]{36}$' -or $request.operation -notin @('APPLY_POLICY','BACKUP_NOW','RESTORE_PLAN','RESTORE') -or
-   [DateTime]::Parse($request.validUntilUtc).ToUniversalTime() -le [DateTime]::UtcNow){throw 'HOST_OPERATION_OFFER_INVALID_OR_EXPIRED'}
+   [DateTime]::Parse([string]$request.validUntilUtc,$invariantCulture,$roundtripStyle).ToUniversalTime() -le [DateTime]::UtcNow){throw 'HOST_OPERATION_OFFER_INVALID_OR_EXPIRED'}
  if($Scheduled){
   if($request.scheduled -ne $true -or $request.operation -cne 'BACKUP_NOW'){return}
   $policyId=[string]$request.body.policyOperationId
@@ -135,12 +137,12 @@ function Invoke-Operation([string]$Id,[switch]$Scheduled){
   try{$scopeKey=[BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($scopeText))).Replace('-','').ToLowerInvariant()}finally{$hash.Dispose()}
   $active=Read-VentioOperationJson (Join-Path $state ('active-'+$scopeKey+'.json')) $adminSid
   if($active.operationId -cne $policyId -or $active.enabled -ne $true){throw 'HOST_OPERATION_LOCAL_POLICY_SUPERSEDED'}
-  if([string]$request.body.scheduledFor -cne [DateTime]::UtcNow.ToString('yyyy-MM-dd') -or [DateTime]::UtcNow.TimeOfDay -lt [TimeSpan]::Parse([string]$approved.policy.utcTime)){throw 'HOST_OPERATION_SCHEDULE_NOT_DUE'}
-  $dailyPath=Join-Path $state ($policyId+'-'+[DateTime]::UtcNow.ToString('yyyyMMdd')+'.daily.json')
+  if([string]$request.body.scheduledFor -cne [DateTime]::UtcNow.ToString('yyyy-MM-dd',$invariantCulture) -or [DateTime]::UtcNow.TimeOfDay -lt [TimeSpan]::Parse([string]$approved.policy.utcTime,$invariantCulture)){throw 'HOST_OPERATION_SCHEDULE_NOT_DUE'}
+  $dailyPath=Join-Path $state ($policyId+'-'+[DateTime]::UtcNow.ToString('yyyyMMdd',$invariantCulture)+'.daily.json')
   $daily=$null
   if(Test-Path -LiteralPath $dailyPath){$daily=Read-VentioOperationJson $dailyPath $adminSid}
   if($null -ne $daily -and ($daily.state -ne 'FAILED' -or $daily.attempts -ge $approved.policy.maximumAttempts -or
-    [DateTime]::Parse($daily.updatedAtUtc).ToUniversalTime().AddMinutes([int]$approved.policy.retryMinutes) -gt [DateTime]::UtcNow)){throw 'HOST_OPERATION_DAILY_EXECUTION_LIMIT'}
+    [DateTime]::Parse([string]$daily.updatedAtUtc,$invariantCulture,$roundtripStyle).ToUniversalTime().AddMinutes([int]$approved.policy.retryMinutes) -gt [DateTime]::UtcNow)){throw 'HOST_OPERATION_DAILY_EXECUTION_LIMIT'}
  }
  if($request.operation -eq 'RESTORE' -and (-not $ConfirmRestore -or $ExpectedPlanSha256 -cne $request.body.planSha256)){throw 'HOST_OPERATION_RESTORE_CONFIRMATION_REQUIRED'}
  $journal=Join-Path $state ($Id+'.journal.json')
@@ -199,7 +201,7 @@ function Invoke-Operation([string]$Id,[switch]$Scheduled){
     if($planId -notmatch '^[0-9a-f-]{36}$'){throw 'HOST_OPERATION_PLAN_INVALID'}
     $planPath=Join-Path $state ($planId+'.plan.json');$plan=Read-VentioOperationJson $planPath $adminSid
     if((Get-FileHash -LiteralPath $planPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedPlanSha256 -or
-      [DateTime]::Parse($plan.expiresAtUtc).ToUniversalTime() -le [DateTime]::UtcNow -or $plan.backupName -cne $request.body.backupName -or
+      [DateTime]::Parse([string]$plan.expiresAtUtc,$invariantCulture,$roundtripStyle).ToUniversalTime() -le [DateTime]::UtcNow -or $plan.backupName -cne $request.body.backupName -or
       $plan.machineId -cne $machine -or $plan.schemaProfileSha256 -cne $schemaHash -or $plan.tenantId -cne $request.tenantId -or
       $plan.companyId -cne $request.companyId -or $plan.branchId -cne $request.branchId){throw 'HOST_OPERATION_RESTORE_PLAN_CHANGED'}
     $backup=Get-Backup ([string]$plan.backupName)
