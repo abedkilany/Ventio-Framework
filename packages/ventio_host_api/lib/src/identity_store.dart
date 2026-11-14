@@ -9,11 +9,15 @@ class ResolvedExtensionCommand {
     required this.principal,
     this.bundle,
     this.failureReasonCode,
+    this.basePackageSha256,
+    this.baseBundle,
   });
 
   final Principal principal;
   final ExtensionBundle? bundle;
   final String? failureReasonCode;
+  final String? basePackageSha256;
+  final ExtensionBundle? baseBundle;
 }
 
 /// The runtime cannot read or lock identity tables directly. The vetted database
@@ -109,7 +113,11 @@ class PostgresIdentityStore {
     final bundle = ExtensionBundle.fromJson(
       Map<String, dynamic>.from(rawPackage),
     );
-    final source = canonicalJson(bundle.toJson());
+    final rawBase = result['basePackage'];
+    final base = rawBase == null
+        ? bundle
+        : ExtensionBundle.fromJson(requireMap(rawBase, 'basePackage'));
+    final source = canonicalJson(base.toJson());
     final hash = sha256.convert(utf8.encode(source)).toString();
     if (bundle.moduleId != moduleId ||
         bundle.version != envelope.moduleVersion ||
@@ -120,6 +128,8 @@ class PostgresIdentityStore {
     return ResolvedExtensionCommand(
       principal: principal,
       bundle: bundle,
+      basePackageSha256: result['packageSha256'] as String,
+      baseBundle: base,
       failureReasonCode: reason is String ? reason : null,
     );
   }
@@ -164,14 +174,23 @@ class PostgresIdentityStore {
     final bundle = ExtensionBundle.fromJson(
       Map<String, dynamic>.from(rawPackage),
     );
-    final source = canonicalJson(bundle.toJson());
+    final rawBase = result['basePackage'];
+    final base = rawBase == null
+        ? bundle
+        : ExtensionBundle.fromJson(requireMap(rawBase, 'basePackage'));
+    final source = canonicalJson(base.toJson());
     final hash = sha256.convert(utf8.encode(source)).toString();
     if (bundle.moduleId != moduleId ||
         bundle.version != version ||
         result['packageSha256'] != hash) {
       throw StateError('Approved extension integrity check failed.');
     }
-    return ResolvedExtensionCommand(principal: principal, bundle: bundle);
+    return ResolvedExtensionCommand(
+      principal: principal,
+      bundle: bundle,
+      basePackageSha256: result['packageSha256'] as String,
+      baseBundle: base,
+    );
   }
 
   Principal _principalFrom(Map<String, dynamic> identity) {

@@ -264,6 +264,48 @@ class HostExtensionPackageClient {
   final Duration timeout;
   final int maxResponseBytes;
 
+  /// Versioned, bounded platform operations use the same pinned-TLS transport
+  /// and credential vault as existing record/package APIs.
+  Future<Map<String, dynamic>> platformRequest(
+    String action,
+    Map<String, Object?> body,
+  ) async {
+    const actions = {
+      'operations/list',
+      'operations/prepare',
+      'customizations/rebase/preview',
+      'customizations/rebase/prepare',
+      'settings/read',
+      'organization/list',
+      'organization/change',
+      'definitions/list',
+      'definitions/save',
+      'metadata/effective',
+      'imports/preview',
+      'exports/page',
+      'records/query',
+      'jobs/submit',
+      'jobs/list',
+      'jobs/cancel',
+      'history/list',
+    };
+    if (!actions.contains(action)) {
+      throw const HostPackageTransportException('UNSUPPORTED_OPERATION');
+    }
+    final response = await _request('POST', '/api/v1/platform/$action', {
+      ...body,
+      'contractVersion': wave2ContractVersion,
+    });
+    final raw = response.body['result'];
+    if (response.body['contractVersion'] != wave2ContractVersion ||
+        raw is! Map) {
+      throw _responseError(response);
+    }
+    final result = Map<String, dynamic>.from(raw);
+    if (response.statusCode != 200) throw _packageError(response, result);
+    return result;
+  }
+
   Future<HostSessionIdentity> session() async {
     final response = await _request('GET', '/api/v1/session');
     if (response.statusCode != HttpStatus.ok) {

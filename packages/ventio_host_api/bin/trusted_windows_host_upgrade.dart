@@ -211,6 +211,7 @@ Future<void> _applyContracts(Uri database, Directory security) async {
   for (final contract in [
     'pairing.sql',
     'credential_reissues.sql',
+    'wave2_upgrade.sql',
     'schema_profile.sql',
   ]) {
     final path = File('${security.path}${Platform.pathSeparator}$contract');

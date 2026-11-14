@@ -2,16 +2,21 @@
 param(
   [Parameter(Mandatory = $true)] [string] $BackupDirectory,
   [switch] $ConfirmRestore,
+  [switch] $AllowLegacyInventoryOnly,
   [string] $PostgresRoot = (Join-Path $env:ProgramFiles 'Ventio\host-payload\postgresql')
 )
 
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'HostBackupIntegrity.psm1') -Force -ErrorAction Stop
 if (-not $ConfirmRestore) { throw 'HOST_UPGRADE_RESTORE_CONFIRMATION_REQUIRED' }
 $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   throw 'HOST_UPGRADE_RESTORE_ADMIN_ELEVATION_REQUIRED'
 }
 
+Import-Module (Join-Path $PSScriptRoot 'HostOperationStorage.psm1') -Force
+$maintenanceLock=Enter-VentioMaintenanceLock
+try {
 $programData = [IO.Path]::GetFullPath([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData))
 $backupRoot = [IO.Path]::GetFullPath($BackupDirectory)
 $expectedBackupRoot = [IO.Path]::GetFullPath((Join-Path $programData 'Ventio\Backups')).TrimEnd('\') + '\'
@@ -108,8 +113,9 @@ function Copy-Data([string] $Source, [string] $Destination) {
   } finally { $process.Dispose() }
 }
 
+if (((Get-Item -LiteralPath (Join-Path $backupRoot 'backup-manifest.json') -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'HOST_UPGRADE_RESTORE_REPARSE_POINT' }
 $manifest = Get-Content -LiteralPath (Join-Path $backupRoot 'backup-manifest.json') -Raw | ConvertFrom-Json
-if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
+if ($manifest.formatVersion -notin @(1, 2) -or $manifest.postgresVersion -ne '16.15' -or
     $manifest.dataDirectory -cne 'data' -or
     (Get-Content -LiteralPath (Join-Path $backupRoot 'data\PG_VERSION') -Raw).Trim() -cne '16') {
   throw 'HOST_UPGRADE_RESTORE_BACKUP_MANIFEST_INVALID'
@@ -118,6 +124,28 @@ $backupInventory = Get-DataInventory (Join-Path $backupRoot 'data')
 if ($backupInventory.fileCount -ne [long]$manifest.fileCount -or
     $backupInventory.bytes -ne [long]$manifest.bytes) {
   throw 'HOST_UPGRADE_RESTORE_BACKUP_VERIFICATION_FAILED'
+}
+
+if ($manifest.formatVersion -eq 1 -and -not $AllowLegacyInventoryOnly) {
+  throw 'HOST_UPGRADE_RESTORE_LEGACY_INTEGRITY_OPT_IN_REQUIRED'
+}
+if ($manifest.formatVersion -eq 2) {
+  if ($manifest.integrityAlgorithm -cne 'SHA-256' -or $manifest.recoveryAuthorityIncluded -ne $false) {
+    throw 'HOST_UPGRADE_RESTORE_INTEGRITY_PROFILE_INVALID'
+  }
+  # Hashes detect content damage; private manifest ownership provides trust.
+  # Never treat an uploaded or broadly writable manifest as restore authority.
+  $manifestAcl = Get-Acl -LiteralPath (Join-Path $backupRoot 'backup-manifest.json')
+  $allowedSids = @('S-1-5-32-544', 'S-1-5-18')
+  if (-not $manifestAcl.AreAccessRulesProtected -or
+      $manifestAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -cne 'S-1-5-32-544') {
+    throw 'HOST_UPGRADE_RESTORE_MANIFEST_TRUST_INVALID'
+  }
+  foreach ($rule in $manifestAcl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+    if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+        $allowedSids -notcontains $rule.IdentityReference.Value) { throw 'HOST_UPGRADE_RESTORE_MANIFEST_TRUST_INVALID' }
+  }
+  Assert-HostBackupIntegrity (Join-Path $backupRoot 'data') @($manifest.files)
 }
 
 $serviceSid = ([Security.Principal.NTAccount]::new('NT SERVICE', $serviceName)).Translate(
@@ -140,13 +168,20 @@ $restored = $false
 try {
   [void][IO.Directory]::CreateDirectory($preservedCurrent)
   Set-PostgresDataAcl $preservedCurrent @()
+  $currentIntegrity=@(Get-HostBackupIntegrity $dataDirectory)
   Copy-Data $dataDirectory (Join-Path $preservedCurrent 'data')
+  Assert-HostBackupIntegrity (Join-Path $preservedCurrent 'data') $currentIntegrity
+  Assert-HostBackupIntegrity $dataDirectory $currentIntegrity
   $currentInventory = Get-DataInventory (Join-Path $preservedCurrent 'data')
   $sourceInventory = Get-DataInventory $dataDirectory
   if ($currentInventory.fileCount -ne $sourceInventory.fileCount -or
       $currentInventory.bytes -ne $sourceInventory.bytes) { throw 'HOST_UPGRADE_RESTORE_CURRENT_BACKUP_FAILED' }
   $preservedManifest = [ordered]@{
-    formatVersion = 1
+    formatVersion = 2
+    backupKind = 'recovery'
+    integrityAlgorithm = 'SHA-256'
+    files = $currentIntegrity
+    recoveryAuthorityIncluded = $false
     createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
     postgresVersion = '16.15'
     dataDirectory = 'data'
@@ -154,7 +189,7 @@ try {
     bytes = $currentInventory.bytes
   }
   $manifestPath = Join-Path $preservedCurrent 'backup-manifest.json'
-  [IO.File]::WriteAllText($manifestPath, ($preservedManifest | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+  Write-VentioOperationJson $manifestPath $preservedManifest 'S-1-5-32-544'
 
   [void][IO.Directory]::CreateDirectory($restoreTemp)
   Set-PostgresDataAcl $restoreTemp @($serviceSid)
@@ -162,6 +197,7 @@ try {
   $restoredInventory = Get-DataInventory $restoreTemp
   if ($restoredInventory.fileCount -ne $backupInventory.fileCount -or
       $restoredInventory.bytes -ne $backupInventory.bytes) { throw 'HOST_UPGRADE_RESTORE_COPY_VERIFICATION_FAILED' }
+  if ($manifest.formatVersion -eq 2) { Assert-HostBackupIntegrity $restoreTemp @($manifest.files) }
   Set-PostgresDataAcl $restoreTemp @($serviceSid)
 
   [IO.Directory]::Move($dataDirectory, $quarantine)
@@ -184,7 +220,11 @@ try {
   Write-Output 'VentioHost remains stopped. Retry the versioned Ventio Setup installer to perform the Recovery Authority-coordinated upgrade.'
 } catch {
   if (-not $restored -and (Test-Path -LiteralPath $restoreTemp)) {
-    Remove-Item -LiteralPath $restoreTemp -Recurse -Force -ErrorAction SilentlyContinue
+    $cleanupTarget=[IO.Path]::GetFullPath($restoreTemp)
+    if([IO.Path]::GetDirectoryName($cleanupTarget) -ne [IO.Path]::GetDirectoryName($dataDirectory) -or (Split-Path -Leaf $cleanupTarget) -notmatch '^\.data-restore-[0-9a-f]{32}$' -or ((Get-Item -LiteralPath $cleanupTarget -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'HOST_UPGRADE_RESTORE_CLEANUP_PATH_INVALID'}
+    Remove-Item -LiteralPath $cleanupTarget -Recurse -Force -ErrorAction SilentlyContinue
   }
   throw
 }
+
+} finally {$maintenanceLock.ReleaseMutex();$maintenanceLock.Dispose()}

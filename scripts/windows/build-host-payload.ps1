@@ -141,7 +141,7 @@ try {
   foreach ($scriptName in @(
     'provision-host-installation.ps1', 'provision-postgres-service.ps1',
     'initialize-host-database.ps1', 'register-host-service.ps1',
-    'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1', 'HostServiceRecoveryPolicy.psm1',
+    'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1', 'HostServiceRecoveryPolicy.psm1', 'HostBackupIntegrity.psm1','HostOperationStorage.psm1','manage-host-operations.ps1',
     'enable-host-lan-listener.ps1',
     'recover-host-database-credentials.ps1',
     'upgrade-host-database.ps1', 'stop-host-services.ps1',

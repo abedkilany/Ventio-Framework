@@ -33,6 +33,7 @@ import 'print_format_renderer.dart';
 import 'queued_record_reconciliation.dart';
 import 'role_administration_page.dart';
 import 'synchronization_page.dart';
+import 'workspace_page.dart';
 import 'transport_fixture.dart';
 import 'users_permissions_page.dart';
 
@@ -358,6 +359,32 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           companyId: profile.companyId,
           branchId: profile.branchId,
           actorId: identity.actorId,
+        ),
+      ),
+    );
+    await _refreshHostIdentity();
+  }
+
+  Future<void> _openWorkspace() async {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    if (profile == null ||
+        vault == null ||
+        profile.actorId == null ||
+        profile.deviceId == null) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'native-workspace'),
+        builder: (_) => WorkspacePage(
+          profile: profile,
+          extensions: widget.store,
+          queue: widget.queue,
+          client: _hostPackageClient(
+            endpoint: Uri.parse(profile.endpoint),
+            vault: vault,
+          ),
         ),
       ),
     );
@@ -1138,6 +1165,19 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       appBar: AppBar(
         title: const VentioText('native.ui.ventio_extension_builder'),
         actions: [
+          IconButton(
+            onPressed:
+                _hostProfile?.actorId != null &&
+                    _hostProfile?.deviceId != null &&
+                    widget.credentialVault != null
+                ? _openWorkspace
+                : null,
+            tooltip: context.extensionMetadataText(
+              'native.wave2.title',
+              'Workspace',
+            ),
+            icon: const Icon(Icons.space_dashboard_outlined),
+          ),
           if (width >= 600 &&
               (_canManageUsers ||
                   _canManageRoles ||
@@ -3949,7 +3989,12 @@ class _MigrationStepDialogState extends State<_MigrationStepDialog> {
       DocTypeMigrationStep.fromJson(step);
       Navigator.pop(context, step);
     } catch (error) {
-      setState(() => _error = 'Invalid migration step: $error');
+      setState(
+        () => _error = context.ventioText(
+          'native.wave2.invalid_migration_step_8bed6ee4',
+          params: {'v0': (error)},
+        ),
+      );
     }
   }
 
@@ -5991,10 +6036,14 @@ class DynamicRecordFormPage extends StatefulWidget {
     this.hostPackageClientFactory,
     this.record,
     this.initialValues,
+    this.initialChangedFields = const {},
+    this.initialRecordId,
     this.readableFields,
     this.writableFields,
     this.creatableFields,
     this.previewOnly = false,
+    this.submitGovernedDraft,
+    this.referenceLoader,
     super.key,
   });
 
@@ -6009,10 +6058,19 @@ class DynamicRecordFormPage extends StatefulWidget {
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final LocalExtensionRecord? record;
   final Map<String, dynamic>? initialValues;
+  final Set<String> initialChangedFields;
+  final String? initialRecordId;
   final Set<String>? readableFields;
   final Set<String>? writableFields;
   final Set<String>? creatableFields;
   final bool previewOnly;
+
+  /// Optional persistence adapter for separately governed effective metadata.
+  /// The default Wave 1 local-record and command behavior remains unchanged.
+  final Future<void> Function(String recordId, Map<String, dynamic> values)?
+  submitGovernedDraft;
+  final Future<List<LocalExtensionRecord>> Function(String docType)?
+  referenceLoader;
 
   @override
   State<DynamicRecordFormPage> createState() => _DynamicRecordFormPageState();
@@ -6022,6 +6080,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   final _formKey = GlobalKey<FormState>();
   String? _newRecordId;
   final Map<String, TextEditingController> _controllers = {};
+  // A missing protected value is unknown, never an empty value. Replacement
+  // requires explicit intent for every field, including booleans and tables.
+  final Set<String> _replaceProtected = {};
+  Map<String, dynamic> _initialControlValues = {};
   final Map<String, bool> _booleans = {};
   final Map<String, String?> _selections = {};
   final Map<String, List<LocalExtensionRecord>> _references = {};
@@ -6097,8 +6159,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   @override
   void initState() {
     super.initState();
+    _newRecordId = widget.initialRecordId;
     if (widget.record == null && widget.definition.namingSeries != null) {
-      _newRecordId = createCommandId();
+      _newRecordId ??= createCommandId();
     }
     for (final field in _formFields) {
       final initialValues = widget.initialValues;
@@ -6147,6 +6210,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         );
       }
     }
+    _initialControlValues = requireMap(
+      jsonDecode(canonicalJson(_values(changedOnly: false))),
+      'initial controls',
+    );
     _loadReferences();
   }
 
@@ -6180,12 +6247,14 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     setState(() => _loadingReferences = true);
     try {
       for (final reference in references) {
-        _references[reference.key] = await widget.store.listRecords(
-          moduleId: widget.moduleId,
-          docTypeName: reference.docType,
-          scope: widget.scope,
-          limit: 500,
-        );
+        _references[reference.key] = widget.referenceLoader != null
+            ? await widget.referenceLoader!(reference.docType)
+            : await widget.store.listRecords(
+                moduleId: widget.moduleId,
+                docTypeName: reference.docType,
+                scope: widget.scope,
+                limit: 500,
+              );
       }
     } catch (_) {
       // A reference list can be empty in a preview; saving still validates it.
@@ -6194,10 +6263,15 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
   }
 
-  Map<String, dynamic> _values() {
+  Map<String, dynamic> _values({bool changedOnly = true}) {
     final values = <String, dynamic>{};
     for (final field in _formFields) {
       if (!_isEditable(field)) continue;
+      if (widget.record != null &&
+          !_effectiveReadableFields.contains(field.name) &&
+          !_replaceProtected.contains(field.name)) {
+        continue;
+      }
       if (field.type == 'table' && field.childDocType != null) {
         values[field.name] = [
           for (final row in _childRows[field.name] ?? const [])
@@ -6228,6 +6302,16 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         }
       }
     }
+    if (changedOnly &&
+        widget.record != null &&
+        widget.submitGovernedDraft != null) {
+      values.removeWhere(
+        (name, value) =>
+            _effectiveReadableFields.contains(name) &&
+            !widget.initialChangedFields.contains(name) &&
+            canonicalJson(value) == canonicalJson(_initialControlValues[name]),
+      );
+    }
     return values;
   }
 
@@ -6239,10 +6323,26 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
-    final values = widget.definition.calculateValues(_values());
+    // A governed patch may omit protected dependencies. Only the Host can
+    // calculate against their stored values; the client never guesses them.
+    Map<String, dynamic> values;
+    try {
+      values = widget.submitGovernedDraft != null
+          ? _values()
+          : widget.definition.calculateValues(_values());
+    } on ContractError {
+      _message('native.ui.correct_form_errors_before_saving');
+      return;
+    }
+    if (widget.submitGovernedDraft != null &&
+        widget.record != null &&
+        values.isEmpty) {
+      _message('native.ui.no_record_changes');
+      return;
+    }
     final issues = widget.definition.validatePayload(
       values,
-      partial: widget.record != null,
+      partial: widget.record != null || widget.submitGovernedDraft != null,
     );
     if (issues.isNotEmpty) {
       _message('native.ui.correct_form_errors_before_saving');
@@ -6250,6 +6350,14 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
     setState(() => _saving = true);
     try {
+      if (widget.submitGovernedDraft != null) {
+        await widget.submitGovernedDraft!(
+          widget.record?.recordId ?? _newRecordId ?? createCommandId(),
+          values,
+        );
+        if (mounted) Navigator.pop(context, true);
+        return;
+      }
       late final LocalExtensionRecord saved;
       if (widget.record == null) {
         final recordId = _newRecordId ?? createCommandId();
@@ -6367,7 +6475,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
                 ),
                 const SizedBox(height: 20),
                 for (final field in _formFields) ...[
-                  _fieldInput(field, editable: _isEditable(field)),
+                  _protectedFieldInput(field),
                   const SizedBox(height: 14),
                 ],
                 if (_loadingReferences) const LinearProgressIndicator(),
@@ -6406,6 +6514,45 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     FieldDefinition tableField,
     FieldDefinition field,
   ) => '${tableField.name}.${field.name}';
+
+  Widget _protectedFieldInput(FieldDefinition field) {
+    if (widget.record == null ||
+        _effectiveReadableFields.contains(field.name) ||
+        widget.previewOnly) {
+      return _fieldInput(field, editable: _isEditable(field));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CheckboxListTile(
+          title: VentioText(
+            'native.wave2.replace_protected_c247301c',
+            params: {
+              'v0': (context.extensionMetadataText(
+                field.labelKey,
+                field.label,
+              )),
+            },
+          ),
+          subtitle: const VentioText(
+            'native.wave2.the_current_value_is_hidden_leave_unchecked_to_p_7a471b1e',
+          ),
+          value: _replaceProtected.contains(field.name),
+          onChanged: _isEditable(field) && !_saving
+              ? (value) => setState(() {
+                  if (value == true) {
+                    _replaceProtected.add(field.name);
+                  } else {
+                    _replaceProtected.remove(field.name);
+                  }
+                })
+              : null,
+        ),
+        if (_replaceProtected.contains(field.name))
+          _fieldInput(field, editable: true),
+      ],
+    );
+  }
 
   void _addChildRow(FieldDefinition tableField) {
     final child = tableField.childDocType!;
@@ -6475,6 +6622,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         }
       }
     }
+    if (widget.submitGovernedDraft != null) return;
     try {
       final calculated = widget.definition.calculateValues(_values());
       for (final field in widget.definition.fields.where(
@@ -6710,6 +6858,11 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
               value: null,
               child: VentioText('native.ui.not_set'),
             ),
+          if (widget.referenceLoader != null &&
+              field.type == 'reference' &&
+              value is String &&
+              !options.contains(value))
+            DropdownMenuItem<String?>(value: value, child: Text(value)),
           for (final option in options)
             DropdownMenuItem<String?>(
               value: option,
@@ -6831,6 +6984,15 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
             const DropdownMenuItem<String?>(
               value: null,
               child: VentioText('native.ui.not_set'),
+            ),
+          if (widget.referenceLoader != null &&
+              _selections[field.name] != null &&
+              !records.any(
+                (record) => record.recordId == _selections[field.name],
+              ))
+            DropdownMenuItem<String?>(
+              value: _selections[field.name],
+              child: Text(_selections[field.name]!),
             ),
           for (final record in records)
             DropdownMenuItem<String?>(

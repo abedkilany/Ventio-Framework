@@ -24,3 +24,7 @@ export 'src/persistent_identity.dart';
 
 export 'src/private_files.dart';
 export 'src/recovery_authority.dart';
+export 'src/wave2_platform.dart';
+export 'src/command_validation.dart';
+
+export 'src/windows_operations_delivery.dart';
