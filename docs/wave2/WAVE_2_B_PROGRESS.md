@@ -1,11 +1,12 @@
 # Wave 2 B verification progress
 
-**Current status: PARTIAL VERIFICATION / BLOCKED ON SIGNING PATH AND REMAINING ACCEPTANCE GATES**
+**Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
+Current blocker: local first-administrator bootstrap and remaining mandatory acceptance gates.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
-Last updated: 2026-11-14 18:43 UTC
+Last updated: 2026-11-14 20:41 UTC
 
 Wave_2_C and merge into `main` are out of scope. The current product candidate
 has no application-source changes after the package correction in
@@ -17,12 +18,12 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
 
 | Gate | Status | Evidence / remaining work |
 |---|---|---|
-| B0 — Environment and tooling | **PARTIAL** | SSH is currently working as Codex-1 on VENTIO-TEST-01 and Codex-3 on VENTIO-TEST-02; both designated RDP sessions are Active. Both Windows 11 Pro 26300 / PowerShell 5.1.26100.9711 identities and candidate ZIPs were checked. The ZIP is 103,796,488 bytes with SHA-256 `0c83cd20…13114ae` on each machine. No reboot/SSH-continuity check has been run. |
-| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine workflows passed on product commit `fb341a78…` (Host API `43605015106`; package `43605015043`) and on latest observed report-only PR head `1d78ca5…` (Host API `43623933317`; package `43623933314`; Native `43623933340`). Report commits contain no product-source changes. All eight pre-existing workflows passed on starting commit `9bd0e9e…`. This automated evidence does not close physical gates. |
-| B2 — PostgreSQL, identity and security | **PARTIAL** | Candidate CI exercised PostgreSQL 16, the checked-in migrations, bootstrap/security profile, direct SQL, least privilege, RLS, identity/revocation, scoped roles, pairing and recovery. Fresh migration and compatibility tests were not run on either physical test machine; there is no physical upgrade fixture. |
-| B3 — Host operations and data processing | **PARTIAL** | Candidate CI covered Host API, persistence, durable commands, credential lifecycle, extension package approval and crash/restore test suites. Full scenario-by-scenario Wave 2 capability acceptance and physical Host operations remain open. The Wave 2 A handoff's Windows Host shutdown-timeout risk has not been reproduced or assessed. |
-| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | The candidate Windows Client was installed and launched on both computers. TEST-01's scope was entered and setup invoked through Ventio; after UAC approval, Code Integrity blocked the unsigned Setup Broker. The owner unlocked TEST-02's Codex-3 RDP session, but Computer Use could not control its desktop; the interactive uninstall retest remains pending and SSH still sees the install. No Host connection, two-computer synchronization, offline/conflict scenario or Android device UI test has run. |
-| B5 — Backup, restore and Windows operations | **NOT EXECUTED PHYSICALLY** | No Host service or PostgreSQL deployment was installed on either test computer. No physical scheduler, local approval, backup, corruption, retention, restore or Recovery Authority reconciliation test ran. CI logical database recovery tests are separate evidence. |
+| B0 — Environment and tooling | **PARTIAL** | SSH-only access reverified Codex-1/TEST-01 and Codex-3/TEST-02. Both are Windows 11 Pro 26H2, build 26300.9974, PowerShell 5.1.26100.9818. Artifact hashes remain verified. No computer reboot was performed. |
+| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine workflows passed on product commit `fb341a78…` and report-only PR head `96c6573c…` (all nine run IDs recorded in test results). CI is not physical acceptance evidence. |
+| B2 — PostgreSQL, identity and security | **PARTIAL — physical DB/security profile passed** | TEST-01 physical PostgreSQL 16.15 initialized fresh migrations 001–040 (40 files, no checksum mismatch). Forced RLS and least-privilege smoke checks passed. Wave 1 upgrade, cross-scope authorization matrix, identity API and Recovery Authority tests remain blocked or unexecuted until first-admin bootstrap. |
+| B3 — Host operations and data processing | **PARTIAL** | Host/PostgreSQL services were installed and an orderly service restart passed. First-admin bootstrap failed through SSH by design because the remote Windows token is denied by the local-only named-pipe ACL. Host API and remaining processing/operations scenarios did not run. |
+| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | Client packages remain installed on both computers. No GUI was used in this resumed run. Real Host connection, two-computer synchronization, offline edits, conflicts, receipts and Android/UI cases remain unexecuted; GUI cases are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B5 — Backup, restore and Windows operations | **PARTIAL** | Physical VentioPostgres/VentioHost services run on TEST-01 and orderly restart persistence passed. Scheduling, approval, product backup integrity/retention, interruption, disposable restore and reconciliation remain unexecuted. |
 | B6 — Full regression and final acceptance audit | **NOT COMPLETE** | Physical gates, capability audit and final rerun on a delivered package remain open. |
 
 ## Lab state and boundary
@@ -30,8 +31,10 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
 - Work was performed from the clean `feature/wave-2-a` worktree and through
   SSH to VENTIO-TEST-01 (`192.168.1.106`) and VENTIO-TEST-02
   (`192.168.1.107`). The original checkout was not used for builds or tests.
-- Both machines were verified as Windows 11 Pro build 26300, PowerShell
-  5.1.26100.9711. Initial free space was 63.5 GB and 147.3 GB respectively.
+- Both machines were verified as Windows 11 Pro 26H2 build 26300.9974,
+  PowerShell 5.1.26100.9818. Initial free space was 63.5 GB and 147.3 GB
+  respectively. The latest OS registry `ProductName` string says Windows 10 Pro,
+  but `DisplayVersion=26H2` and build 26300 identify the Windows 11 release.
 - All four SSH identities (`Codex-1` through `Codex-4`) were previously
   verified as local Administrators at High Integrity. The current SSH
   connections identify VENTIO-TEST-01/Codex-1 and VENTIO-TEST-02/Codex-3;
@@ -124,20 +127,100 @@ change the tested product/package commit `fb341a78` or its recorded CI results.
     latest observed report-only PR head `1d78ca5e80284e8040320544701589063756fd48`.
     Product verification remains tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`.
 
+## SSH-only continuation — 2026-11-14 20:31 UTC
+
+This section supersedes earlier statements that TEST-01 had no Host or
+PostgreSQL installation; those described the initial pre-resume checkpoint.
+The resumed work used SSH and command-line automation only. No Computer Use,
+RDP interaction, screenshots, mouse automation or GUI control was used.
+
+- TEST-01 identifies as `VENTIO-TEST-01`; TEST-02 identifies as
+  `VENTIO-TEST-02`. `Codex-1` and `Codex-3` SSH sessions are elevated
+  Administrators. Both machines report Windows 11 Pro 26H2 build 26300.9974
+  and PowerShell 5.1.26100.9818.
+- After the owner disabled Smart App Control on TEST-01, the registry reported
+  `VerifiedAndReputablePolicyState=0`. `CiTool.exe -r` completed successfully;
+  `CiTool -lp -json` then reported the matching
+  `VerifiedAndReputableDesktop` policy as not enforced. Other Code Integrity
+  policies remain active. Microsoft Defender reported antivirus, real-time
+  protection and antimalware service enabled. No Defender or UAC setting was
+  changed.
+- A preflight verified TEST-01 hostname, elevated identity, policy state,
+  Defender state, broker path and hash against the package manifest, and the
+  absence of prior Ventio services/data before provisioning.
+- Ran the packaged Setup Broker's supported `--setup-new-host` operation using
+  the previously owner-approved scope: Tenant `wave2b-20261114-ventio01`,
+  Company `company-test01`, Branch `branch-test01`. It validated the payload,
+  provisioned PostgreSQL, initialized the database, registered Host, and
+  configured LAN settings. It stopped at `FIRST_ADMINISTRATOR_BOOTSTRAP` with
+  `HOST_FIRST_ADMIN_PIPE_CONNECT_FAILED` (exit 7). The SSH token carries
+  `NT AUTHORITY\NETWORK` (`S-1-5-2`); source inspection confirms the initial
+  administrator pipe denies that SID and requires a local caller. A remote
+  resume attempt failed for the same reason. This is an intentional security
+  boundary; no alternate token, scheduled task or policy bypass was attempted.
+- TEST-01 now has `VentioPostgres` and `VentioHost` registered as Automatic and
+  Running, under `NT SERVICE\VentioPostgres` and `NT SERVICE\VentioHost`.
+  PostgreSQL 16.15 on `127.0.0.1:54329` accepts connections. Host waits for the
+  first administrator before binding its API, so `http://127.0.0.1:8080/healthz`
+  was unavailable as expected.
+- On fresh `ventio_host`, migrations 001–040 were verified against the
+  installed package: 40/40 filenames and normalized SHA-256 checksums matched,
+  with zero mismatches. Checked application and identity tables are owned by
+  `ventio_owner` and have both RLS and FORCE RLS enabled. The
+  `ventio_runtime_app` role passed `ventio_security.assert_runtime()`; direct
+  migration-ledger reads, owner role elevation, and unauthorized delete plans
+  were denied. Runtime and identity API roles are not superusers, do not bypass
+  RLS, and cannot create roles/databases. The identity API role has no direct
+  SELECT on identity secrets, records or migration ledger. These are physical
+  fresh-install/profile checks, not the full tenant/branch or identity API
+  acceptance matrix.
+- `HostMigrationCredential.psm1` could not be loaded because Windows PowerShell
+  policy rejected the unsigned module. No execution-policy bypass was used;
+  equivalent checks were performed in memory using machine DPAPI and ACLs.
+- An orderly service restart was exercised: stop Host and PostgreSQL, start
+  PostgreSQL and wait for readiness, then start Host. Both services returned to
+  Running and `pg_isready` accepted connections. This is not a forced-crash or
+  computer reboot test. No reboot was performed.
+- TEST-02 was not altered in this SSH-only continuation. Its independent client
+  remains installed, but no real Host connection or two-device synchronization
+  can proceed until first-admin bootstrap is completed locally.
+
+### Current gate disposition
+
+- **Passed physically:** TEST-01 Host/PostgreSQL provisioning through database
+  initialization; fresh migrations 001–040/checksums; checked RLS and
+  least-privilege profile; normal service restart persistence; SSH identity and
+  security-state checks.
+- **Blocked:** first administrator, Host API readiness and dependent physical
+  identity/authorization and real synchronization tests. Local UI completion is
+  required under the product's current local-only first-admin security design.
+- **Not executed — manual owner validation required:** Ventio UI first-admin
+  completion, interactive Windows Client flows, Android device UI, uninstall
+  cleanup, and any test requiring GUI-only local approval. Use the exact status
+  `NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED` in the detailed results.
+- **Not executed:** representative Wave 1 upgrade fixture; full cross-tenant,
+  company and branch authorization matrix; Host operations/data processing;
+  Task Scheduler; product backup verification/corruption/retention; interrupted
+  backup; disposable product restore and Recovery Authority reconciliation;
+  crash/reboot recovery; complete 22-capability matrix and B6 audit.
+
+No application-source defect was confirmed or fixed in this continuation. The
+recorded database and service checks do not close Wave_2_B. The required final
+disposition remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
 ## Next steps
 
-1. Establish an organization-approved signing path and supply a release
-   candidate whose Setup Broker satisfies the existing Enterprise signing
-   policy; the owner reports no such path is currently available. Then repeat
-   the exact supported Host setup on TEST-01 with Code Integrity enabled. Do not
-   retry by weakening policy.
-2. Repeat the uninstall from TEST-02's Codex-3 interactive session when the UI
-   can be controlled, then verify complete cleanup. The desktop was unlocked,
-   but this run's Computer Use could not operate it.
-3. After Host provisioning succeeds, verify service identities, ACLs, fresh
-   migrations and readiness; continue B2/B3 on that isolated Host and run real two-machine client scenarios
-   and the physical backup/scheduler/restore cases only against this test
-   installation.
+1. Complete first-administrator bootstrap through Ventio's local supported
+   interface on TEST-01. Keep Defender and Code Integrity protections enabled;
+   no remote bypass is acceptable. After the local step, SSH can continue with
+   API and non-GUI verification.
+2. Repeat the uninstall from TEST-02's Codex-3 interactive session and verify
+   cleanup; under the SSH-only rule classify it as
+   `NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED`.
+3. After first-admin bootstrap, verify API readiness and run identity,
+   authorization, two-device offline synchronization, Host operations,
+   scheduling, backup and disposable restore/reconciliation against the
+   isolated test installation.
 4. Close the capability matrix only with scenario evidence and update the final
    acceptance report. Any unexecuted mandatory gate keeps
-   the disposition **PARTIAL VERIFICATION / BLOCKED**.
+   the disposition **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
