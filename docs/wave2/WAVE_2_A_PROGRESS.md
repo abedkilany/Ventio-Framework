@@ -70,3 +70,16 @@ Automatic CI at 340d736 reported three workflows successful and five failed;
 source inspection identified stale RLS policy expectations and uncatalogued native
 labels. The exact policy set and catalog integration are corrected in source.
 Full runtime, OS/service, ACL and platform verification remains reserved for B.
+
+
+Source review integration checkpoint: release activation retires active old overlays
+while preserving immutable revisions; terminal job payloads/digest references now
+expire under a bounded scoped retention setting. History includes non-mutating
+source operations and affected targets, chronologically paginates seeded legacy
+sources, and supports deleted-ID lookup. Native governed edits preserve untouched
+fields, avoid client calculation from redacted dependencies, and reconcile terminal
+record drafts through new exact-owner commands with durable queue lineage.
+The logical-restore fixture orders overloaded functions by their full identity;
+its prior name-only ordering produced a false manifest difference. This fixture
+source correction was not executed locally. Windows development-host shutdown
+CI timeouts remain a B investigation item, without a confirmed A source cause.

@@ -1365,6 +1365,28 @@ class DurableCommandHost {
             },
           );
           await testFaultInjector?.call('after_audit');
+          if (command.type.startsWith('extension.')) {
+            // Some approved operations create an amendment without updating
+            // their source. Capture that source command as well as the actual
+            // affected targets captured by the record trigger.
+            await tx.execute(
+              pg.Sql.named('''
+              SELECT ventio_security.wave2_record_activity(@tenant,@company,@branch,@actor,@command,@module,@doc,@record,@revision,@type)
+            '''),
+              parameters: {
+                'tenant': command.tenantId,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'actor': command.actorId,
+                'command': command.commandId,
+                'module': moduleId,
+                'doc': docType.name,
+                'record': command.aggregateId,
+                'revision': recordRevision,
+                'type': command.type,
+              },
+            );
+          }
           final event = <String, dynamic>{
             'tenantId': command.tenantId,
             'companyId': command.companyId,

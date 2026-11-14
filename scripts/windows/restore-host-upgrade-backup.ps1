@@ -168,13 +168,20 @@ $restored = $false
 try {
   [void][IO.Directory]::CreateDirectory($preservedCurrent)
   Set-PostgresDataAcl $preservedCurrent @()
+  $currentIntegrity=@(Get-HostBackupIntegrity $dataDirectory)
   Copy-Data $dataDirectory (Join-Path $preservedCurrent 'data')
+  Assert-HostBackupIntegrity (Join-Path $preservedCurrent 'data') $currentIntegrity
+  Assert-HostBackupIntegrity $dataDirectory $currentIntegrity
   $currentInventory = Get-DataInventory (Join-Path $preservedCurrent 'data')
   $sourceInventory = Get-DataInventory $dataDirectory
   if ($currentInventory.fileCount -ne $sourceInventory.fileCount -or
       $currentInventory.bytes -ne $sourceInventory.bytes) { throw 'HOST_UPGRADE_RESTORE_CURRENT_BACKUP_FAILED' }
   $preservedManifest = [ordered]@{
-    formatVersion = 1
+    formatVersion = 2
+    backupKind = 'recovery'
+    integrityAlgorithm = 'SHA-256'
+    files = $currentIntegrity
+    recoveryAuthorityIncluded = $false
     createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
     postgresVersion = '16.15'
     dataDirectory = 'data'
@@ -182,7 +189,7 @@ try {
     bytes = $currentInventory.bytes
   }
   $manifestPath = Join-Path $preservedCurrent 'backup-manifest.json'
-  [IO.File]::WriteAllText($manifestPath, ($preservedManifest | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+  Write-VentioOperationJson $manifestPath $preservedManifest 'S-1-5-32-544'
 
   [void][IO.Directory]::CreateDirectory($restoreTemp)
   Set-PostgresDataAcl $restoreTemp @($serviceSid)
@@ -213,7 +220,9 @@ try {
   Write-Output 'VentioHost remains stopped. Retry the versioned Ventio Setup installer to perform the Recovery Authority-coordinated upgrade.'
 } catch {
   if (-not $restored -and (Test-Path -LiteralPath $restoreTemp)) {
-    Remove-Item -LiteralPath $restoreTemp -Recurse -Force -ErrorAction SilentlyContinue
+    $cleanupTarget=[IO.Path]::GetFullPath($restoreTemp)
+    if([IO.Path]::GetDirectoryName($cleanupTarget) -ne [IO.Path]::GetDirectoryName($dataDirectory) -or (Split-Path -Leaf $cleanupTarget) -notmatch '^\.data-restore-[0-9a-f]{32}$' -or ((Get-Item -LiteralPath $cleanupTarget -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'HOST_UPGRADE_RESTORE_CLEANUP_PATH_INVALID'}
+    Remove-Item -LiteralPath $cleanupTarget -Recurse -Force -ErrorAction SilentlyContinue
   }
   throw
 }

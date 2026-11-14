@@ -6035,6 +6035,8 @@ class DynamicRecordFormPage extends StatefulWidget {
     this.hostPackageClientFactory,
     this.record,
     this.initialValues,
+    this.initialChangedFields = const {},
+    this.initialRecordId,
     this.readableFields,
     this.writableFields,
     this.creatableFields,
@@ -6055,6 +6057,8 @@ class DynamicRecordFormPage extends StatefulWidget {
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final LocalExtensionRecord? record;
   final Map<String, dynamic>? initialValues;
+  final Set<String> initialChangedFields;
+  final String? initialRecordId;
   final Set<String>? readableFields;
   final Set<String>? writableFields;
   final Set<String>? creatableFields;
@@ -6078,6 +6082,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   // A missing protected value is unknown, never an empty value. Replacement
   // requires explicit intent for every field, including booleans and tables.
   final Set<String> _replaceProtected = {};
+  Map<String, dynamic> _initialControlValues = {};
   final Map<String, bool> _booleans = {};
   final Map<String, String?> _selections = {};
   final Map<String, List<LocalExtensionRecord>> _references = {};
@@ -6153,8 +6158,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   @override
   void initState() {
     super.initState();
+    _newRecordId = widget.initialRecordId;
     if (widget.record == null && widget.definition.namingSeries != null) {
-      _newRecordId = createCommandId();
+      _newRecordId ??= createCommandId();
     }
     for (final field in _formFields) {
       final initialValues = widget.initialValues;
@@ -6203,6 +6209,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         );
       }
     }
+    _initialControlValues = requireMap(
+      jsonDecode(canonicalJson(_values(changedOnly: false))),
+      'initial controls',
+    );
     _loadReferences();
   }
 
@@ -6252,7 +6262,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     }
   }
 
-  Map<String, dynamic> _values() {
+  Map<String, dynamic> _values({bool changedOnly = true}) {
     final values = <String, dynamic>{};
     for (final field in _formFields) {
       if (!_isEditable(field)) continue;
@@ -6290,6 +6300,16 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         }
       }
     }
+    if (changedOnly &&
+        widget.record != null &&
+        widget.submitGovernedDraft != null) {
+      values.removeWhere(
+        (name, value) =>
+            _effectiveReadableFields.contains(name) &&
+            !widget.initialChangedFields.contains(name) &&
+            canonicalJson(value) == canonicalJson(_initialControlValues[name]),
+      );
+    }
     return values;
   }
 
@@ -6301,10 +6321,26 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
-    final values = widget.definition.calculateValues(_values());
+    // A governed patch may omit protected dependencies. Only the Host can
+    // calculate against their stored values; the client never guesses them.
+    Map<String, dynamic> values;
+    try {
+      values = widget.submitGovernedDraft != null
+          ? _values()
+          : widget.definition.calculateValues(_values());
+    } on ContractError {
+      _message('native.ui.correct_form_errors_before_saving');
+      return;
+    }
+    if (widget.submitGovernedDraft != null &&
+        widget.record != null &&
+        values.isEmpty) {
+      _message('native.ui.no_record_changes');
+      return;
+    }
     final issues = widget.definition.validatePayload(
       values,
-      partial: widget.record != null,
+      partial: widget.record != null || widget.submitGovernedDraft != null,
     );
     if (issues.isNotEmpty) {
       _message('native.ui.correct_form_errors_before_saving');
@@ -6584,6 +6620,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
         }
       }
     }
+    if (widget.submitGovernedDraft != null) return;
     try {
       final calculated = widget.definition.calculateValues(_values());
       for (final field in widget.definition.fields.where(

@@ -54,7 +54,7 @@ BEGIN
  IF NOT ventio_security.wave2_allowed(identity,p_company,p_branch,'platform.operations.manage') THEN RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED'); END IF;
  SELECT coalesce(jsonb_agg(item ORDER BY created_at DESC),'[]') INTO entries FROM (
   SELECT created_at,jsonb_build_object('operationId',operation_id,'operation',operation,'state',state,'actorId',actor_id,
-   'body',body,'result',result,'scheduledFor',scheduled_for,'attempt',attempt,'createdAtUtc',created_at,'updatedAtUtc',updated_at) item
+   'body',body,'result',result-'offerId','scheduledFor',scheduled_for,'attempt',attempt,'createdAtUtc',created_at,'updatedAtUtc',updated_at) item
   FROM public.ventio_wave2_operations WHERE tenant_id=identity->>'tenantId' AND company_id=p_company AND branch_id=p_branch ORDER BY created_at DESC LIMIT 100) page;
  RETURN jsonb_build_object('status','OPERATIONS','operations',entries);
 END $fn$;
@@ -62,7 +62,7 @@ END $fn$;
 CREATE OR REPLACE FUNCTION ventio_security.wave2_operation_offers()
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
 DECLARE approved public.ventio_wave2_operations%ROWTYPE; pending public.ventio_wave2_operations%ROWTYPE;
- identity jsonb; definition jsonb; day date:=timezone('UTC',clock_timestamp())::date; latest public.ventio_wave2_operations%ROWTYPE;
+ identity jsonb; definition jsonb; definition_revision bigint; day date:=timezone('UTC',clock_timestamp())::date; latest public.ventio_wave2_operations%ROWTYPE;
  entries jsonb:='[]'; next_attempt integer;
 BEGIN
  IF NOT ventio_security.recovery_guard() OR NOT pg_try_advisory_xact_lock(86744322) THEN RETURN '[]'; END IF;
@@ -72,9 +72,9 @@ BEGIN
   WHERE operation='APPLY_POLICY' AND state='SUCCEEDED' ORDER BY tenant_id,company_id,branch_id,created_at DESC LOOP
   identity:=ventio_security.identity_snapshot(approved.credential_digest,approved.company_id,approved.branch_id);
   IF NOT ventio_security.wave2_allowed(identity,approved.company_id,approved.branch_id,'platform.operations.manage') THEN CONTINUE; END IF;
-  SELECT body INTO definition FROM public.ventio_wave2_definitions WHERE tenant_id=approved.tenant_id AND company_id=approved.company_id AND branch_id=approved.branch_id
+  SELECT body,revision INTO definition,definition_revision FROM public.ventio_wave2_definitions WHERE tenant_id=approved.tenant_id AND company_id=approved.company_id AND branch_id=approved.branch_id
    AND owner_id='' AND kind='backup_policy' AND definition_id='scope';
-  IF definition IS DISTINCT FROM approved.body->'policy' OR NOT coalesce((definition->>'enabled')::boolean,false) OR
+  IF definition IS DISTINCT FROM approved.body->'policy' OR definition_revision IS DISTINCT FROM (approved.body->>'policyRevision')::bigint OR NOT coalesce((definition->>'enabled')::boolean,false) OR
     (timezone('UTC',clock_timestamp())::time)<(definition->>'utcTime')::time THEN CONTINUE; END IF;
   SELECT * INTO latest FROM public.ventio_wave2_operations WHERE policy_operation_id=approved.operation_id AND scheduled_for=day ORDER BY attempt DESC LIMIT 1;
   next_attempt:=1;
@@ -89,7 +89,9 @@ BEGIN
  END LOOP;
  FOR pending IN SELECT * FROM public.ventio_wave2_operations WHERE state='AWAITING_LOCAL_APPROVAL' ORDER BY coalesce(offer_until,'-infinity'::timestamptz),created_at LIMIT 100 FOR UPDATE SKIP LOCKED LOOP
   identity:=ventio_security.identity_snapshot(pending.credential_digest,pending.company_id,pending.branch_id);
-  IF (pending.body ? 'policy' AND pending.body->'policy' IS DISTINCT FROM (SELECT body FROM public.ventio_wave2_definitions WHERE tenant_id=pending.tenant_id AND company_id=pending.company_id AND branch_id=pending.branch_id AND kind='backup_policy' AND owner_id='' AND definition_id='scope')) OR
+  IF (pending.scheduled_for IS NOT NULL AND pending.policy_operation_id IS DISTINCT FROM (SELECT operation_id FROM public.ventio_wave2_operations a WHERE a.tenant_id=pending.tenant_id AND a.company_id=pending.company_id AND a.branch_id=pending.branch_id AND a.operation='APPLY_POLICY' AND a.state='SUCCEEDED' ORDER BY a.created_at DESC LIMIT 1)) OR
+   (pending.body ? 'policyRevision' AND (pending.body->>'policyRevision')::bigint IS DISTINCT FROM (SELECT revision FROM public.ventio_wave2_definitions WHERE tenant_id=pending.tenant_id AND company_id=pending.company_id AND branch_id=pending.branch_id AND kind='backup_policy' AND owner_id='' AND definition_id='scope')) OR
+   (pending.body ? 'policy' AND pending.body->'policy' IS DISTINCT FROM (SELECT body FROM public.ventio_wave2_definitions WHERE tenant_id=pending.tenant_id AND company_id=pending.company_id AND branch_id=pending.branch_id AND kind='backup_policy' AND owner_id='' AND definition_id='scope')) OR
    NOT ventio_security.wave2_allowed(identity,pending.company_id,pending.branch_id,'platform.operations.manage') OR pending.created_at<clock_timestamp()-interval '1 day' THEN
    UPDATE public.ventio_wave2_operations SET state='EXPIRED',updated_at=clock_timestamp(),result=jsonb_build_object('code','AUTHORIZATION_OR_REQUEST_EXPIRED') WHERE operation_id=pending.operation_id;
    CONTINUE; END IF;
@@ -108,7 +110,7 @@ DECLARE saved public.ventio_wave2_operations%ROWTYPE;
 BEGIN
  IF NOT ventio_security.recovery_guard() THEN RAISE EXCEPTION 'Recovery admission required' USING ERRCODE='28000'; END IF;
  IF jsonb_typeof(p_result) IS DISTINCT FROM 'object' OR octet_length(p_result::text)>32768 OR
-  (p_result-ARRAY['operationId','offerId','state','code','backupName','manifestSha256','planSha256','restoreRequiresRecovery','deletedBackups','retryable','completedAtUtc','operation','tenantId','companyId','branchId','actorId'])<>'{}'::jsonb OR
+  (p_result-ARRAY['operationId','offerId','state','code','backupName','manifestSha256','planSha256','restoreRequiresRecovery','deletedBackups','deletedBackupCount','retryable','completedAtUtc','operation','tenantId','companyId','branchId','actorId'])<>'{}'::jsonb OR
   p_result->>'state' IS NULL OR p_result->>'state' NOT IN ('RUNNING','SUCCEEDED','FAILED') OR
   p_result->>'operationId' IS DISTINCT FROM p_id OR p_result->>'offerId' IS DISTINCT FROM p_offer THEN RAISE EXCEPTION 'Invalid operation outcome' USING ERRCODE='22023'; END IF;
  SELECT * INTO saved FROM public.ventio_wave2_operations WHERE operation_id=p_id AND offer_id=p_offer FOR UPDATE;

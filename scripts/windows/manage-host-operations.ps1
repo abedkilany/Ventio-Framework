@@ -125,7 +125,7 @@ function Invoke-Operation([string]$Id,[switch]$Scheduled){
   $policyId=[string]$request.body.policyOperationId
   if($policyId -notmatch '^[0-9a-f-]{36}$'){throw 'HOST_OPERATION_POLICY_ID_INVALID'}
   $approved=Read-VentioOperationJson (Join-Path $state ($policyId+'.policy.json')) $adminSid
-  if($approved.policySha256 -cne $request.body.policySha256 -or $approved.tenantId -cne $request.tenantId -or
+  if($approved.policyRevision -ne $request.body.policyRevision -or $approved.policySha256 -cne $request.body.policySha256 -or $approved.tenantId -cne $request.tenantId -or
     $approved.companyId -cne $request.companyId -or $approved.branchId -cne $request.branchId -or $approved.enabled -ne $true){throw 'HOST_OPERATION_LOCAL_POLICY_NOT_APPROVED'}
   Assert-Policy $request.body.policy
   Assert-Policy $approved.policy
@@ -164,7 +164,7 @@ function Invoke-Operation([string]$Id,[switch]$Scheduled){
    'APPLY_POLICY'{
     Assert-Policy $request.body.policy
     if($request.body.policySha256 -notmatch '^[0-9a-f]{64}$'){throw 'HOST_OPERATION_POLICY_INVALID'}
-    Write-VentioOperationJson (Join-Path $state ($Id+'.policy.json')) @{tenantId=$request.tenantId;companyId=$request.companyId;branchId=$request.branchId;policySha256=$request.body.policySha256;policy=$request.body.policy;enabled=$request.body.policy.enabled} $adminSid
+    Write-VentioOperationJson (Join-Path $state ($Id+'.policy.json')) @{tenantId=$request.tenantId;companyId=$request.companyId;branchId=$request.branchId;policyRevision=$request.body.policyRevision;policySha256=$request.body.policySha256;policy=$request.body.policy;enabled=$request.body.policy.enabled} $adminSid
     $scopeText=[string]$request.tenantId+[char]0+[string]$request.companyId+[char]0+[string]$request.branchId
     $hash=[Security.Cryptography.SHA256]::Create()
     try{$scopeKey=[BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($scopeText))).Replace('-','').ToLowerInvariant()}finally{$hash.Dispose()}
@@ -228,7 +228,9 @@ function Invoke-Operation([string]$Id,[switch]$Scheduled){
    }
   }catch{$result.state='FAILED';$result.code='HOST_OPERATION_SERVICE_RECOVERY_REQUIRED';$result.retryable=$false}
   $result.completedAtUtc=[DateTime]::UtcNow.ToString('o')
-  Write-VentioOperationJson $resultPath $result $serviceSid
+  $publicResult=$result.Clone()
+  if($result.ContainsKey('deletedBackups')){$publicResult.deletedBackupCount=@($result.deletedBackups).Count;$publicResult.deletedBackups=@($result.deletedBackups|Select-Object -First 100)}
+  Write-VentioOperationJson $resultPath $publicResult $serviceSid
   Write-VentioOperationJson $journal $result $adminSid
   if($Scheduled){Write-VentioOperationJson $dailyPath @{state=$result.state;attempts=$attempts;updatedAtUtc=$result.completedAtUtc} $adminSid}
  }

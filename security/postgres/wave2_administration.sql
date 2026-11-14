@@ -186,7 +186,7 @@ END $triggers$;
 
 CREATE OR REPLACE FUNCTION ventio_security.wave2_settings(p_tenant text,p_company text,p_branch text)
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
- SELECT jsonb_build_object('maintenanceMode',false,'jobsPaused',false,'defaultPageSize',50,'maxImportRows',500) ||
+ SELECT jsonb_build_object('maintenanceMode',false,'jobsPaused',false,'defaultPageSize',50,'maxImportRows',500,'completedJobRetentionDays',30) ||
   coalesce((SELECT body FROM public.ventio_wave2_definitions WHERE tenant_id=p_tenant AND company_id=p_company
    AND branch_id=p_branch AND kind='configuration' AND owner_id='' ORDER BY definition_id LIMIT 1),'{}')
 $fn$;

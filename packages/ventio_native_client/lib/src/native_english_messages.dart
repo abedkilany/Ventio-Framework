@@ -1386,4 +1386,31 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.wave2.uac_approval_grants_machine_wide_operational_aut_1d42b752':
       'UAC approval grants machine-wide operational authority. Backups quiesce the Host and PostgreSQL. Restores replace the database for all tenants and leave the Host stopped. Review this exact request before continuing.',
   'native.wave2.validate_with_host_30c3751c': 'Validate with Host',
+  'native.wave2.completed_job_retention_days':
+      'Completed job payload retention days (1-3650)',
+  'native.wave2.enter_retention_days': 'Enter 1 to 3650 days',
+  'native.wave2.lookup_document_history': 'Look up document history',
+  'native.wave2.record_id_including_deleted':
+      'Exact record ID, including deleted records',
+  'native.wave2.activity_identity':
+      '{actor} | {time}\n{command}{target}{historical}',
+  'native.wave2.effect_target': ' | effect target',
+  'native.wave2.historical_source': ' | historical source',
+  'native.wave2.source_command': 'Source command',
+  'native.wave2.operation_delivery_status': 'Local operation delivery: {state}',
+  'native.wave2.discard_local_retry': 'Discard local retry intent',
+  'native.wave2.discard_local_retry_explanation':
+      'This removes only the saved retry request on this device. A request already received by the Host remains visible there and expires if it is not approved. This does not cancel or undo a physical operation.',
+  'native.wave2.review_record_draft': 'Review provisional record changes',
+  'native.wave2.review_record_draft_explanation':
+      'Load the current authorized Host revision and review your preserved readable changes. Protected replacements must be entered explicitly again. Fields removed from current metadata are omitted. Saving creates a new provisional command and retains the original receipt; it does not overwrite Host data until accepted.',
+  'native.wave2.record_drafts_requiring_review':
+      'Record drafts requiring reconciliation',
+  'native.wave2.replacement_draft_queued': 'Replacement draft queued',
+  'native.wave2.cached_metadata_draft_only':
+      'Cached metadata for offline draft editing only. Host publication is required.',
+  'native.ui.no_record_changes':
+      'No record changes to save. Untouched protected values are preserved.',
+  'native.wave2.edit_custom_field_label': 'Edit custom field label',
+  'native.wave2.save_reviewed_label': 'Save label in draft',
 };

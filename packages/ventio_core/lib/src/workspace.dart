@@ -142,6 +142,7 @@ void validateWave2Definition(String kind, Map<String, dynamic> body) {
         'jobsPaused',
         'defaultPageSize',
         'maxImportRows',
+        'completedJobRetentionDays',
       });
       validateOperationalSettings(body);
       if (body['contractVersion'] != 1 ||

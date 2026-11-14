@@ -21,6 +21,9 @@ class WindowsOperationsDelivery {
   final RecoveryAuthority admission;
   final Directory directory;
   final void Function() reportFailure;
+  String status = 'STARTING';
+  bool _requiresReconciliation = false;
+  DateTime? lastDeliveredAtUtc;
   Timer? _timer;
   Future<void>? _active;
   DateTime? _lastFailure;
@@ -33,7 +36,14 @@ class WindowsOperationsDelivery {
   void _tick() {
     if (_closed || _active != null) return;
     _active = _deliver()
+        .then((_) {
+          status = _requiresReconciliation
+              ? 'RECONCILIATION_REQUIRED'
+              : 'READY';
+          lastDeliveredAtUtc = DateTime.now().toUtc();
+        })
         .catchError((Object _) {
+          status = 'DELIVERY_UNAVAILABLE';
           final now = DateTime.now();
           if (_lastFailure == null ||
               now.difference(_lastFailure!) > const Duration(minutes: 1)) {
@@ -51,6 +61,7 @@ class WindowsOperationsDelivery {
   }
 
   Future<void> _deliver() async {
+    _requiresReconciliation = false;
     final marker = File(
       '${directory.path}${Platform.pathSeparator}delivery.json',
     );
@@ -93,6 +104,7 @@ class WindowsOperationsDelivery {
           );
           return rows.single[0] == true;
         });
+        if (!acknowledged) _requiresReconciliation = true;
         if (acknowledged && result['state'] != 'RUNNING') {
           // The admin-only runner journal retains the physical claim. SQL
           // retains the public audit outcome. Delete only this exact spool ID.

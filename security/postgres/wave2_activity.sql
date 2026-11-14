@@ -73,20 +73,26 @@ SELECT ventio_security.wave2_seed_record_history();
 
 CREATE OR REPLACE FUNCTION ventio_security.wave2_history(p_digest text,p_company text,p_branch text,p_module text,p_version text,p_doc text,p_record text,p_before bigint,p_limit integer)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
-DECLARE resolved jsonb; entries jsonb; next_id bigint; has_more boolean;
+DECLARE resolved jsonb; entries jsonb; next_id bigint; has_more boolean; before_time timestamptz; next_time timestamptz;
 BEGIN
  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 OR (p_before IS NOT NULL AND p_before<1) THEN RAISE EXCEPTION 'Invalid activity cursor' USING ERRCODE='22023'; END IF;
  resolved:=ventio_security.resolve_extension_read_identity(p_digest,p_company,p_branch,p_module,p_version,p_doc);
  IF resolved->'package' IS NULL OR resolved->'package'='null'::jsonb THEN RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED'); END IF;
- SELECT coalesce(jsonb_agg(item ORDER BY event_id DESC),'[]'),min(event_id) INTO entries,next_id FROM (
-  SELECT event_id,jsonb_build_object('eventId',event_id::text,'actorId',actor_id,'occurredAtUtc',created_at,
+ IF p_before IS NOT NULL THEN
+  SELECT created_at INTO before_time FROM public.ventio_wave2_events WHERE event_id=p_before AND tenant_id=resolved #>> '{identity,tenantId}'
+   AND company_id=p_company AND branch_id=p_branch AND subject_id=p_record AND event_type='RECORD_ACTIVITY' AND detail->>'moduleId'=p_module AND detail->>'docType'=p_doc;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Invalid activity cursor' USING ERRCODE='22023'; END IF;
+ END IF;
+ SELECT coalesce(jsonb_agg(item ORDER BY created_at DESC,event_id DESC),'[]'),(array_agg(event_id ORDER BY created_at,event_id))[1] INTO entries,next_id FROM (
+  SELECT event_id,created_at,jsonb_build_object('eventId',event_id::text,'actorId',actor_id,'occurredAtUtc',created_at,
    'revision',detail->'revision','commandId',detail->'commandId','operation',detail->'operation',
-   'effectTarget',detail->'effectTarget','historicalSource',detail->'historicalSource','documentStatus',detail->'documentStatus','deleted',detail->'deleted') item
+   'effectTarget',detail->'effectTarget','historicalSource',detail->'historicalSource','documentStatus',detail->'documentStatus','deleted',detail->'deleted','operationKey',detail->'operationKey','sourceCommand',detail->'sourceCommand') item
   FROM public.ventio_wave2_events WHERE tenant_id=resolved #>> '{identity,tenantId}' AND company_id=p_company AND branch_id=p_branch
    AND event_type='RECORD_ACTIVITY' AND subject_id=p_record AND detail->>'moduleId'=p_module AND detail->>'docType'=p_doc
-   AND (p_before IS NULL OR event_id<p_before) ORDER BY event_id DESC LIMIT p_limit) page;
+   AND (p_before IS NULL OR (created_at,event_id)<(before_time,p_before)) ORDER BY created_at DESC,event_id DESC LIMIT p_limit) page;
+ SELECT created_at INTO next_time FROM public.ventio_wave2_events WHERE event_id=next_id;
  SELECT EXISTS(SELECT FROM public.ventio_wave2_events WHERE tenant_id=resolved #>> '{identity,tenantId}' AND company_id=p_company AND branch_id=p_branch
-   AND event_type='RECORD_ACTIVITY' AND subject_id=p_record AND detail->>'moduleId'=p_module AND detail->>'docType'=p_doc AND event_id<next_id) INTO has_more;
+   AND event_type='RECORD_ACTIVITY' AND subject_id=p_record AND detail->>'moduleId'=p_module AND detail->>'docType'=p_doc AND (created_at,event_id)<(next_time,next_id)) INTO has_more;
  RETURN jsonb_build_object('status','HISTORY','entries',entries,'hasMore',has_more,'nextCursor',CASE WHEN has_more THEN next_id::text ELSE NULL END,
   'historicalCoverage','SOURCE_COMMANDS_BEFORE_WAVE2_CAPTURE');
 END $fn$;

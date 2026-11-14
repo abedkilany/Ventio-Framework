@@ -96,12 +96,27 @@ class _DocumentActivityPageState extends State<DocumentActivityPage> {
                 title: VentioText(
                   'native.wave2.revision_22fc7179',
                   params: {
-                    'v0': (row['operation'] ?? 'Source command'),
+                    'v0':
+                        (row['operation'] ??
+                        context.ventioText('native.wave2.source_command')),
                     'v1': (row['revision'] ?? '?'),
                   },
                 ),
                 subtitle: SelectableText(
-                  '${row['actorId']} | ${row['occurredAtUtc']}\n${row['commandId']}${row['effectTarget'] == true ? ' | effect target' : ''}${row['historicalSource'] == true ? ' | historical source' : ''}',
+                  context.ventioText(
+                    'native.wave2.activity_identity',
+                    params: {
+                      'actor': row['actorId'],
+                      'time': row['occurredAtUtc'],
+                      'command': row['commandId'],
+                      'target': row['effectTarget'] == true
+                          ? context.ventioText('native.wave2.effect_target')
+                          : '',
+                      'historical': row['historicalSource'] == true
+                          ? context.ventioText('native.wave2.historical_source')
+                          : '',
+                    },
+                  ),
                 ),
               );
             },

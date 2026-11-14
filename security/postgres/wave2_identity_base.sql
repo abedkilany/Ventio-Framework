@@ -41,6 +41,7 @@ BEGIN
           USING (tenant_id,role_id)
         WHERE a.tenant_id=c.tenant_id AND a.actor_id=c.actor_id
           AND rp.permission !~ '^(identity|host|system|security|recovery|authorization)\.'
+          AND rp.permission NOT IN ('platform.organizations.manage','platform.configuration.manage','platform.customizations.manage','platform.operations.manage')
     ) effective
     WHERE (p_company IS NULL OR effective.company_id=p_company)
       AND (p_branch IS NULL OR effective.branch_id=p_branch)

@@ -119,6 +119,9 @@ class WorkspaceStore {
       )
       .then((_) {});
 
+  /// Discards only this device's retry intent, never a received Host request.
+  Future<void> discardOperationRetry(String id) => acknowledgeOperation(id);
+
   Future<void> cacheBundle(ExtensionBundle bundle) => _database
       .insert('workspace_metadata', {
         'owner': _owner,
@@ -215,9 +218,11 @@ class WorkspaceStore {
   /// intent with a newer shared definition. Reads contain no business data.
   Future<void> receive(String kind, List<dynamic> definitions) =>
       _database.transaction((tx) async {
+        final receivedIds = <String>{};
         for (final raw in definitions) {
           final definition = requireMap(raw, 'definition');
           final id = requireString(definition, 'id');
+          receivedIds.add(id);
           final revision = requireInt(definition, 'revision', min: 1);
           final body = requireMap(definition['body'], 'body');
           validateWave2Definition(kind, body);
@@ -253,6 +258,22 @@ class WorkspaceStore {
             'request_id': createCommandId(),
             'state': 'SYNCED',
           }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        // A full authoritative list can retire synced metadata; never discard
+        // an offline draft or conflict when the Host release changes.
+        final previous = await tx.query(
+          'workspace_definitions',
+          columns: ['id'],
+          where: 'owner=? AND kind=? AND state=?',
+          whereArgs: [_owner, kind, 'SYNCED'],
+        );
+        for (final row in previous) {
+          if (!receivedIds.contains(row['id']))
+            await tx.delete(
+              'workspace_definitions',
+              where: 'owner=? AND kind=? AND id=? AND state=?',
+              whereArgs: [_owner, kind, row['id'], 'SYNCED'],
+            );
         }
       });
 

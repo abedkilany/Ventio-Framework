@@ -69,7 +69,11 @@ void validateOperationalSettings(Map<String, dynamic> body) {
           'INVALID_CONFIGURATION', 'Operational switches must be boolean.');
     }
   }
-  for (final entry in {'defaultPageSize': 100, 'maxImportRows': 500}.entries) {
+  for (final entry in {
+    'defaultPageSize': 100,
+    'maxImportRows': 500,
+    'completedJobRetentionDays': 3650
+  }.entries) {
     if (body.containsKey(entry.key) &&
         requireInt(body, entry.key, min: 1) > entry.value) {
       throw const ContractError('INVALID_CONFIGURATION',

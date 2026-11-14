@@ -26,6 +26,7 @@ END $protection$;
 REVOKE ALL ON FUNCTION
   ventio_security.wave2_capture_record_activity(),
   ventio_security.wave2_seed_record_history(),
+  ventio_security.wave2_custom_labels(jsonb),
   ventio_security.wave2_rebase_body(jsonb,jsonb,text),
   ventio_security.wave2_settings(text,text,text),
   ventio_security.wave2_identity_snapshot_base(text,text,text),

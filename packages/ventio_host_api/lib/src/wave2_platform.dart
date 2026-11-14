@@ -32,8 +32,10 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
     required this.packages,
     required this.records,
     this.operationsAvailable = false,
+    this.operationsStatus,
   });
   final bool operationsAvailable;
+  final String Function()? operationsStatus;
   final pg.Pool<dynamic> runtimePool;
   final pg.Pool<dynamic> administrationPool;
   final RecoveryAuthority admission;
@@ -70,7 +72,11 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           'SELECT ventio_security.wave2_operations_list(@digest,@company,@branch)::text',
           parameters,
         );
-        return {...result, 'localDeliveryAvailable': operationsAvailable};
+        return {
+          ...result,
+          'localDeliveryAvailable': operationsAvailable,
+          'deliveryStatus': operationsStatus?.call() ?? 'NOT_PROVISIONED',
+        };
       case 'operations/prepare':
         wave2Keys(request, {...common, 'operationId', 'operation', 'body'});
         validateHostOperation(
@@ -367,7 +373,7 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           if (action == 'records/query') 'recordId',
         });
         final columns = strings(requireList(request, 'columns'), 'columns');
-        if (columns.isEmpty ||
+        if ((action == 'exports/page' && columns.isEmpty) ||
             columns.length > 100 ||
             columns.toSet().length != columns.length) {
           throw const ContractError(

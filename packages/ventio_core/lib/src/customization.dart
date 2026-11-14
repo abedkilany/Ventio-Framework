@@ -200,6 +200,14 @@ class MetadataCustomization {
     final fields = requireList(target, 'fields');
     final baseFields = List<dynamic>.of(fields);
     final catalog = requireMap(source['englishCatalog'], 'englishCatalog');
+    void label(String key, String value) {
+      if (catalog.containsKey(key) && catalog[key] != value) {
+        throw const ContractError('CUSTOMIZATION_LABEL_COLLISION',
+            'A customization cannot replace another metadata label.');
+      }
+      catalog[key] = value;
+    }
+
     final names =
         fields.map((item) => requireMap(item, 'field')['name']).toSet();
     final permissions = requireMap(target['permissions'], 'permissions');
@@ -221,7 +229,7 @@ class MetadataCustomization {
         );
       }
       fields.add(field);
-      catalog[field['labelKey'] as String] = field['label'];
+      label(field['labelKey'] as String, field['label'] as String);
     }
     if (previous != null) {
       for (final old in requireList(previous.json, 'fields')) {
@@ -248,7 +256,7 @@ class MetadataCustomization {
     final properties = requireMap(json['properties'], 'properties');
     target.addAll(properties);
     if (properties.isNotEmpty)
-      catalog[properties['labelKey'] as String] = properties['label'];
+      label(properties['labelKey'] as String, properties['label'] as String);
     final ui = Map<String, dynamic>.from(
       target['ui'] as Map? ??
           {
@@ -265,7 +273,7 @@ class MetadataCustomization {
     ui.addAll(requireMap(json['ui'], 'ui'));
     target['ui'] = ui;
     if (ui['pageTitleKey'] is String && ui['pageTitle'] is String) {
-      catalog[ui['pageTitleKey'] as String] = ui['pageTitle'];
+      label(ui['pageTitleKey'] as String, ui['pageTitle'] as String);
     }
     source['englishCatalog'] = catalog;
     // Full existing package validation is retained, including namespace,

@@ -18,9 +18,13 @@ class HostOperationsPage extends StatefulWidget {
     required this.localPolicy,
     required this.prepareOperation,
     required this.retryOperations,
+    required this.pendingRequests,
+    required this.discardRetry,
   });
   final Future<void> Function(String, Map<String, dynamic>) prepareOperation;
   final Future<void> Function() retryOperations;
+  final Future<List<Map<String, dynamic>>> Function() pendingRequests;
+  final Future<void> Function(String) discardRetry;
   final HostConnectionProfile profile;
   final PlatformAdministrationRequest request;
   final Future<void> Function(Map<String, dynamic>) savePolicy;
@@ -31,9 +35,11 @@ class HostOperationsPage extends StatefulWidget {
 
 class _HostOperationsPageState extends State<HostOperationsPage> {
   List<dynamic> _operations = [];
+  List<Map<String, dynamic>> _pending = [];
   Map<String, dynamic>? _policy;
   bool _busy = true, _available = false;
   String? _error;
+  String _deliveryStatus = 'UNKNOWN';
   bool get _local =>
       Platform.isWindows &&
       const {
@@ -54,6 +60,7 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
       _operations = [];
     });
     try {
+      _pending = await widget.pendingRequests();
       final definitions = await widget.request('definitions/list', {
         'kind': 'backup_policy',
       });
@@ -73,6 +80,8 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
                 );
           _operations = requireList(operations, 'operations');
           _available = operations['localDeliveryAvailable'] == true;
+          _deliveryStatus =
+              operations['deliveryStatus'] as String? ?? 'UNKNOWN';
           _busy = false;
         });
     } catch (_) {
@@ -391,7 +400,54 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
         const VentioText(
           'native.wave2.shared_policies_require_host_acceptance_physical_fd11ebef',
         ),
+        VentioText(
+          'native.wave2.operation_delivery_status',
+          params: {'state': _deliveryStatus},
+        ),
         if (_busy) const LinearProgressIndicator(),
+        for (final pending in _pending)
+          ListTile(
+            title: Text('${pending['operation']}'),
+            subtitle: Text('${pending['operationId']}'),
+            trailing: TextButton(
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final discard = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const VentioText(
+                            'native.wave2.discard_local_retry',
+                          ),
+                          content: const VentioText(
+                            'native.wave2.discard_local_retry_explanation',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const VentioText(
+                                'native.wave2.cancel_19766ed6',
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const VentioText(
+                                'native.wave2.discard_local_retry',
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (discard == true) {
+                        await widget.discardRetry(
+                          requireString(pending, 'operationId'),
+                        );
+                        await _load();
+                      }
+                    },
+              child: const VentioText('native.wave2.discard_local_retry'),
+            ),
+          ),
         if (_error != null) Text(_error!),
         if (!_available && !_busy)
           const VentioText(

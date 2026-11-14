@@ -10,6 +10,19 @@ SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
       AND item->>'permission'=permission)
 $fn$;
 
+CREATE OR REPLACE FUNCTION ventio_security.wave2_custom_labels(overlay jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
+DECLARE labels jsonb:='{}'; item record;
+BEGIN
+ FOR item IN SELECT f->>'labelKey' key,f->'label' value FROM jsonb_array_elements(coalesce(overlay->'fields','[]')) f
+  UNION ALL SELECT overlay #>> '{properties,labelKey}',overlay #> '{properties,label}' WHERE overlay->'properties' ? 'labelKey'
+  UNION ALL SELECT overlay #>> '{ui,pageTitleKey}',overlay #> '{ui,pageTitle}' WHERE overlay->'ui' ? 'pageTitleKey' LOOP
+  IF labels ? item.key AND labels->item.key IS DISTINCT FROM item.value THEN RAISE EXCEPTION 'Conflicting customization labels' USING ERRCODE='23514'; END IF;
+  labels:=labels||jsonb_build_object(item.key,item.value);
+ END LOOP;
+ RETURN labels;
+END $fn$;
+
 CREATE OR REPLACE FUNCTION ventio_security.wave2_definitions(
     p_digest text, p_company text, p_branch text, p_kind text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
@@ -39,7 +52,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE identity jsonb; permission text; owner text; actual bigint; request_hash text;
   previous public.ventio_wave2_revisions%ROWTYPE; old_body jsonb;
-  base public.ventio_extension_packages%ROWTYPE; doc jsonb; field jsonb; old_field jsonb;
+  base public.ventio_extension_packages%ROWTYPE; labels jsonb; doc jsonb; field jsonb; old_field jsonb;
 BEGIN
   IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
   identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
@@ -82,15 +95,16 @@ BEGIN
   IF p_kind IN ('configuration','backup_policy') AND p_id<>'scope' THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_DEFINITION_ID'); END IF;
   IF p_kind='configuration' THEN
-    IF (p_body-ARRAY['contractVersion','displayName','maintenanceNotice','maintenanceMode','jobsPaused','defaultPageSize','maxImportRows'])<>'{}'::jsonb OR
+    IF (p_body-ARRAY['contractVersion','displayName','maintenanceNotice','maintenanceMode','jobsPaused','defaultPageSize','maxImportRows','completedJobRetentionDays'])<>'{}'::jsonb OR
       jsonb_typeof(p_body->'displayName') IS DISTINCT FROM 'string' OR length(p_body->>'displayName') NOT BETWEEN 1 AND 120 OR
       jsonb_typeof(p_body->'maintenanceNotice') IS DISTINCT FROM 'string' OR length(p_body->>'maintenanceNotice')>1000 OR
       (p_body ? 'maintenanceMode' AND jsonb_typeof(p_body->'maintenanceMode')<>'boolean') OR
       (p_body ? 'jobsPaused' AND jsonb_typeof(p_body->'jobsPaused')<>'boolean') OR
-      (p_body ? 'defaultPageSize' AND (p_body->>'defaultPageSize') !~ '^[0-9]{1,3}$') OR
-      (p_body ? 'maxImportRows' AND (p_body->>'maxImportRows') !~ '^[0-9]{1,3}$') THEN
+      (p_body ? 'defaultPageSize' AND (jsonb_typeof(p_body->'defaultPageSize') IS DISTINCT FROM 'number' OR (p_body->>'defaultPageSize') !~ '^[0-9]{1,3}$')) OR
+      (p_body ? 'maxImportRows' AND (jsonb_typeof(p_body->'maxImportRows') IS DISTINCT FROM 'number' OR (p_body->>'maxImportRows') !~ '^[0-9]{1,3}$')) OR
+      (p_body ? 'completedJobRetentionDays' AND (jsonb_typeof(p_body->'completedJobRetentionDays') IS DISTINCT FROM 'number' OR (p_body->>'completedJobRetentionDays') !~ '^[0-9]{1,4}$')) THEN
       RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_CONFIGURATION'); END IF;
-    IF coalesce((p_body->>'defaultPageSize')::int,50) NOT BETWEEN 1 AND 100 OR coalesce((p_body->>'maxImportRows')::int,500) NOT BETWEEN 1 AND 500 THEN
+    IF coalesce((p_body->>'defaultPageSize')::int,50) NOT BETWEEN 1 AND 100 OR coalesce((p_body->>'maxImportRows')::int,500) NOT BETWEEN 1 AND 500 OR coalesce((p_body->>'completedJobRetentionDays')::int,30) NOT BETWEEN 1 AND 3650 THEN
       RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_CONFIGURATION'); END IF;
   ELSIF p_kind='backup_policy' THEN
     IF (p_body-ARRAY['contractVersion','enabled','utcTime','retainDays','retainCopies','maximumAttempts','retryMinutes'])<>'{}'::jsonb OR
@@ -129,6 +143,13 @@ BEGIN
         jsonb_array_length(doc->'fields')+jsonb_array_length(p_body->'fields')>100 THEN
       RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_CUSTOMIZATION');
     END IF;
+    labels:=ventio_security.wave2_custom_labels(p_body);
+    IF EXISTS(SELECT FROM jsonb_each(labels) l WHERE base.package_json->'englishCatalog' ? l.key AND base.package_json->'englishCatalog'->l.key IS DISTINCT FROM l.value) OR
+      EXISTS(SELECT FROM public.ventio_wave2_definitions d CROSS JOIN LATERAL jsonb_each(ventio_security.wave2_custom_labels(d.body)) l
+        WHERE d.tenant_id=identity->>'tenantId' AND d.company_id=p_company AND d.branch_id=p_branch AND d.owner_id='' AND d.kind='customization'
+         AND d.definition_id<>p_id AND d.body->>'moduleId'=base.module_id AND d.body->>'moduleVersion'=base.version
+         AND labels ? l.key AND labels->l.key IS DISTINCT FROM l.value) THEN
+      RETURN jsonb_build_object('status','REJECTED','reasonCode','CUSTOMIZATION_LABEL_COLLISION'); END IF;
     FOR field IN SELECT value FROM jsonb_array_elements(p_body->'fields') LOOP
       IF (field - ARRAY['name','type','required','label','labelKey','maxLength','precision','readPermission','writePermission'])<>'{}'::jsonb OR
           field->>'name' IS NULL OR field->>'name' !~ '^custom_[A-Za-z0-9_]{1,73}$' OR
@@ -256,8 +277,8 @@ BEGIN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','JOB_LIMIT');
   END IF;
   INSERT INTO public.ventio_wave2_jobs(tenant_id,company_id,branch_id,job_id,actor_id,device_id,
-    credential_digest,request_hash,commands,import_id,source_rows)
-    VALUES(identity->>'tenantId',p_company,p_branch,p_job,identity->>'actorId',identity->>'deviceId',p_digest,hashed,p_commands,p_import,p_source_rows);
+    credential_digest,request_hash,commands,import_id,source_rows,total_count)
+    VALUES(identity->>'tenantId',p_company,p_branch,p_job,identity->>'actorId',identity->>'deviceId',p_digest,hashed,p_commands,p_import,p_source_rows,jsonb_array_length(p_commands));
   INSERT INTO public.ventio_wave2_events(tenant_id,company_id,branch_id,actor_id,event_type,subject_id)
     VALUES(identity->>'tenantId',p_company,p_branch,identity->>'actorId','JOB_QUEUED',p_job);
   RETURN jsonb_build_object('status','JOB','jobId',p_job,'state','QUEUED');
@@ -275,7 +296,7 @@ BEGIN
   END IF;
   SELECT coalesce(jsonb_agg(item ORDER BY created_at DESC),'[]') INTO entries FROM (
     SELECT created_at,jsonb_build_object('jobId',job_id,'actorId',actor_id,'state',state,
-      'importId',import_id,'sourceRows',source_rows,'processed',next_index,'total',jsonb_array_length(commands),'attempts',attempts,
+      'importId',import_id,'sourceRows',source_rows,'processed',next_index,'total',total_count,'archivedAtUtc',archived_at,'attempts',attempts,
       'outcomes',outcomes,'updatedAtUtc',updated_at,
       'errorCode',(SELECT e.detail->>'code' FROM public.ventio_wave2_events e WHERE e.tenant_id=j.tenant_id
         AND e.company_id=j.company_id AND e.branch_id=j.branch_id AND e.subject_id=j.job_id AND e.event_type='JOB_FAILED'
@@ -303,7 +324,7 @@ BEGIN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED');
   END IF;
   IF saved.state IN ('QUEUED','RUNNING','RETRY_WAIT') THEN
-    UPDATE public.ventio_wave2_jobs SET state='CANCELLED',lease_id=NULL,lease_until=NULL,updated_at=clock_timestamp()
+    UPDATE public.ventio_wave2_jobs SET state='CANCELLED',lease_id=CASE WHEN state='RUNNING' THEN lease_id ELSE NULL END,lease_until=CASE WHEN state='RUNNING' THEN lease_until ELSE NULL END,updated_at=clock_timestamp()
       WHERE tenant_id=saved.tenant_id AND job_id=p_job;
     INSERT INTO public.ventio_wave2_events(tenant_id,company_id,branch_id,actor_id,event_type,subject_id)
       VALUES(saved.tenant_id,p_company,p_branch,identity->>'actorId','JOB_CANCELLED',p_job);
@@ -320,6 +341,20 @@ SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE saved public.ventio_wave2_jobs%ROWTYPE; identity jsonb;
 BEGIN
   IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
+  -- Terminal jobs retain identities, source-row labels, redacted outcomes and
+  -- request hashes. Full commands and executable credential references expire.
+  -- Stable journal receipts remain authoritative for any later command retry.
+  WITH archived AS (
+   UPDATE public.ventio_wave2_jobs j SET archived_at=clock_timestamp(),
+    commands=(SELECT jsonb_agg(jsonb_build_object('commandId',item->'commandId','archived',true)) FROM jsonb_array_elements(j.commands) c(item)),
+    credential_digest=repeat('0',64),lease_id=NULL,lease_until=NULL
+   WHERE (tenant_id,job_id) IN (SELECT tenant_id,job_id FROM public.ventio_wave2_jobs
+     WHERE archived_at IS NULL AND state IN ('SUCCEEDED','COMPLETED_WITH_ERRORS','FAILED','CANCELLED') AND
+       updated_at<clock_timestamp()-make_interval(days=>coalesce((ventio_security.wave2_settings(tenant_id,company_id,branch_id)->>'completedJobRetentionDays')::int,30))
+     ORDER BY updated_at LIMIT 50 FOR UPDATE SKIP LOCKED)
+   RETURNING tenant_id,company_id,branch_id,job_id,total_count)
+  INSERT INTO public.ventio_wave2_events(tenant_id,company_id,branch_id,actor_id,event_type,subject_id,detail)
+   SELECT tenant_id,company_id,branch_id,'host-job-retention','JOB_ARCHIVED',job_id,jsonb_build_object('total',total_count) FROM archived;
   SELECT * INTO saved FROM public.ventio_wave2_jobs
     WHERE ((state IN ('QUEUED','RETRY_WAIT') AND available_at<=clock_timestamp()) OR
       (state='RUNNING' AND lease_until<clock_timestamp()))
@@ -357,10 +392,20 @@ DECLARE saved public.ventio_wave2_jobs%ROWTYPE; next_state text;
 BEGIN
   IF NOT ventio_security.recovery_guard() THEN RAISE EXCEPTION 'Recovery admission denied' USING ERRCODE='28000'; END IF;
   SELECT * INTO saved FROM public.ventio_wave2_jobs WHERE tenant_id=p_tenant AND job_id=p_job FOR UPDATE;
-  IF NOT FOUND OR saved.state<>'RUNNING' OR saved.lease_id IS DISTINCT FROM p_lease THEN RETURN; END IF;
+  IF NOT FOUND OR saved.archived_at IS NOT NULL OR saved.state NOT IN ('RUNNING','CANCELLED') OR saved.lease_id IS DISTINCT FROM p_lease THEN RETURN; END IF;
   IF jsonb_typeof(p_outcome) IS DISTINCT FROM 'object' OR octet_length(p_outcome::text)>1024 OR
-      (p_outcome - ARRAY['commandId','status','reasonCode'])<>'{}'::jsonb THEN
+      (p_outcome - ARRAY['commandId','status','reasonCode'])<>'{}'::jsonb OR p_outcome->>'commandId' IS DISTINCT FROM saved.commands->saved.next_index->>'commandId' THEN
     RAISE EXCEPTION 'Invalid job outcome' USING ERRCODE='22023';
+  END IF;
+  IF saved.state='CANCELLED' THEN
+    IF p_retry THEN p_outcome:=p_outcome || jsonb_build_object('reasonCode','CANCELLED_OUTCOME_UNKNOWN'); END IF;
+    IF saved.import_id IS NOT NULL THEN p_outcome:=p_outcome || jsonb_build_object('importId',saved.import_id,'sourceRow',saved.source_rows->saved.next_index); END IF;
+    UPDATE public.ventio_wave2_jobs SET outcomes=outcomes || jsonb_build_array(p_outcome),
+     next_index=next_index+CASE WHEN p_retry THEN 0 ELSE 1 END,lease_id=NULL,lease_until=NULL,updated_at=clock_timestamp()
+     WHERE tenant_id=p_tenant AND job_id=p_job;
+    INSERT INTO public.ventio_wave2_events(tenant_id,company_id,branch_id,actor_id,event_type,subject_id,detail)
+     VALUES(saved.tenant_id,saved.company_id,saved.branch_id,saved.actor_id,'JOB_CANCELLED_ROW_RESULT',p_job,p_outcome);
+    RETURN;
   END IF;
   IF p_retry AND saved.attempts<5 THEN
     next_state := 'RETRY_WAIT';
@@ -398,7 +443,9 @@ BEGIN
   END IF;
   INSERT INTO public.ventio_wave2_events(tenant_id,company_id,branch_id,actor_id,event_type,subject_id,detail)
     VALUES(p_tenant,p_company,p_branch,p_actor,'RECORD_ACTIVITY',p_record,
-      jsonb_build_object('moduleId',p_module,'docType',p_doc,'revision',p_revision,'commandId',p_command,'operation',p_type));
+      jsonb_build_object('moduleId',p_module,'docType',p_doc,'revision',p_revision,'commandId',p_command,'operation',p_type,'sourceCommand',true,'operationKey',nullif(current_setting('ventio.operation',true),'')))
+    ON CONFLICT(tenant_id,company_id,branch_id,subject_id,(detail->>'moduleId'),(detail->>'docType'),(detail->>'commandId')) WHERE event_type='RECORD_ACTIVITY'
+    DO UPDATE SET detail=public.ventio_wave2_events.detail || EXCLUDED.detail;
 END $fn$;
 
 -- Preserve the Wave 2 v1 command-only submission contract.

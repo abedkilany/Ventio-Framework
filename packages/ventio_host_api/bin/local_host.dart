@@ -223,6 +223,8 @@ Future<void> runLocalHost({
             packages: extensionPackages,
             records: extensionRecordQueries,
             operationsAvailable: operationsAvailable,
+            operationsStatus: () =>
+                operationsDelivery?.status ?? 'NOT_PROVISIONED',
           );
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),

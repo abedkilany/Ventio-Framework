@@ -46,6 +46,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
       _customizations = [];
   List<Map<String, Object?>> _pendingJobs = [];
   List<dynamic> _jobs = [];
+  List<QueueEntry> _recordDrafts = [];
+  Set<String> _reconciledIds = {};
   Map<String, dynamic>? _configuration;
   Map<String, dynamic> _preferences = {
     'contractVersion': 1,
@@ -114,6 +116,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
     final preferences = await store.list('preferences');
     final pending = await store.pendingJobs();
     final cached = await store.cachedBundles();
+    final queued = await widget.queue.list(limit: 1000);
     if (!mounted) return;
     setState(() {
       _cachedBundles
@@ -123,24 +126,49 @@ class _WorkspacePageState extends State<WorkspacePage> {
       _dashboards = dashboards;
       _customizations = customizations;
       _pendingJobs = pending;
+      _reconciledIds = queued
+          .map((e) => e.reconcilesCommandId)
+          .whereType<String>()
+          .toSet();
+      _recordDrafts = queued
+          .where(
+            (e) =>
+                !e.projectToLocalRecords &&
+                e.envelope.tenantId == widget.profile.tenantId &&
+                e.envelope.companyId == widget.profile.companyId &&
+                e.envelope.branchId == widget.profile.branchId &&
+                e.envelope.actorId == widget.profile.actorId &&
+                e.envelope.deviceId == widget.profile.deviceId &&
+                const {
+                  HostCommandStatus.conflict,
+                  HostCommandStatus.rejected,
+                }.contains(e.hostStatus),
+          )
+          .toList();
       if (preferences.isNotEmpty)
         _preferences = requireMap(preferences.first['body'], 'preferences');
     });
   }
 
-  Future<void> _checkIdentity() async {
+  Future<void> _checkLocalProfile() async {
     final current = await widget.extensions.getHostProfile();
     final expected = widget.profile;
     if (current == null ||
         current.endpoint != expected.endpoint ||
         current.tenantId != expected.tenantId ||
         current.actorId != expected.actorId ||
+        current.deviceId != expected.deviceId ||
         current.companyId != expected.companyId ||
         current.branchId != expected.branchId) {
       throw const HostSessionIdentityException(
         'HOST_SESSION_IDENTITY_MISMATCH',
       );
     }
+  }
+
+  Future<void> _checkIdentity() async {
+    await _checkLocalProfile();
+    final expected = widget.profile;
     final identity = await widget.client.session();
     bindHostProfileToIdentity(profile: expected, identity: identity);
     if (mounted) setState(() => _identity = identity);
@@ -350,6 +378,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
       text: '${body['defaultPageSize'] ?? 50}',
     );
     final rows = TextEditingController(text: '${body['maxImportRows'] ?? 500}');
+    final retention = TextEditingController(
+      text: '${body['completedJobRetentionDays'] ?? 30}',
+    );
     var maintenance = body['maintenanceMode'] == true;
     var paused = body['jobsPaused'] == true;
     final key = GlobalKey<FormState>();
@@ -434,6 +465,22 @@ class _WorkspacePageState extends State<WorkspacePage> {
                             ? 'Enter 1 to 500'
                             : null,
                       ),
+                      TextFormField(
+                        controller: retention,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.wave2.completed_job_retention_days',
+                          ),
+                        ),
+                        validator: (v) =>
+                            (int.tryParse(v ?? '') ?? 0) < 1 ||
+                                (int.tryParse(v ?? '') ?? 3651) > 3650
+                            ? context.ventioText(
+                                'native.wave2.enter_retention_days',
+                              )
+                            : null,
+                      ),
                     ],
                   ),
                 ),
@@ -455,6 +502,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       'jobsPaused': paused,
                       'defaultPageSize': int.parse(page.text),
                       'maxImportRows': int.parse(rows.text),
+                      'completedJobRetentionDays': int.parse(retention.text),
                     });
                 },
                 child: const VentioText('native.wave2.save_draft_3de10010'),
@@ -477,6 +525,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
       notice.dispose();
       page.dispose();
       rows.dispose();
+      retention.dispose();
     }
   }
 
@@ -538,13 +587,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
         requireMap(effective['package'], 'package'),
       );
     } else {
-      for (final entry in _customizations.where(
-        (entry) => (entry['body'] as Map)['moduleId'] == bundle.moduleId,
-      )) {
-        effectiveBundle = MetadataCustomization.fromJson(
-          requireMap(entry['body'], 'body'),
-        ).merge(effectiveBundle);
-      }
+      effectiveBundle = _displayBundle(bundle);
     }
     final definition = effectiveBundle.docTypes.singleWhere(
       (item) => item.name == body['docType'],
@@ -603,8 +646,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
 
   Future<void> _form(
     Map<String, dynamic> view,
-    Map<String, dynamic>? record,
-  ) async {
+    Map<String, dynamic>? record, {
+    QueueEntry? recovering,
+  }) async {
     try {
       final metadata = await _request('metadata/effective', {
         'moduleId': view['moduleId'],
@@ -669,6 +713,33 @@ class _WorkspacePageState extends State<WorkspacePage> {
               values: requireMap(latest['values'], 'values'),
               updatedAtUtc: DateTime.parse(latest['updatedAtUtc'] as String),
             );
+      final readable = strings(
+        requireList(current, 'readableFields'),
+        'fields',
+      ).toSet();
+      final allowed = strings(
+        requireList(
+          current,
+          localRecord == null ? 'creatableFields' : 'writableFields',
+        ),
+        'fields',
+      ).toSet();
+      final patch = recovering == null
+          ? <String, dynamic>{}
+          : {
+              for (final item in ExtensionRecordCommand.fromEnvelope(
+                recovering.envelope,
+              ).values.entries)
+                if (readable.contains(item.key) &&
+                    allowed.contains(item.key) &&
+                    definition.fields.any(
+                      (f) =>
+                          f.name == item.key &&
+                          !f.readOnly &&
+                          f.calculation == null,
+                    ))
+                  item.key: item.value,
+            };
       if (!mounted) return;
       await Navigator.of(context).push<bool>(
         MaterialPageRoute(
@@ -680,6 +751,11 @@ class _WorkspacePageState extends State<WorkspacePage> {
             moduleVersion: effective.version,
             hostProfile: widget.profile,
             record: localRecord,
+            initialRecordId: recovering?.envelope.aggregateId,
+            initialValues: recovering == null
+                ? null
+                : {...?localRecord?.values, ...patch},
+            initialChangedFields: patch.keys.toSet(),
             readableFields: strings(
               requireList(current, 'readableFields'),
               'fields',
@@ -719,6 +795,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
               ];
             },
             submitGovernedDraft: (recordId, values) async {
+              await _checkLocalProfile();
               final command = localRecord == null
                   ? ExtensionRecordCommand.create(
                       commandId: createCommandId(),
@@ -752,11 +829,64 @@ class _WorkspacePageState extends State<WorkspacePage> {
               await widget.queue.enqueue(
                 command.envelope,
                 projectToLocalRecords: false,
+                reconcilesCommandId: recovering?.envelope.commandId,
               );
             },
           ),
         ),
       );
+    } catch (error) {
+      _failed(error);
+    }
+  }
+
+  Future<void> _recoverRecordDraft(QueueEntry entry) async {
+    try {
+      final original = ExtensionRecordCommand.fromEnvelope(entry.envelope);
+      final bundle = _bundles[original.moduleId];
+      if (bundle == null)
+        throw const HostPackageTransportException('CURRENT_PACKAGE_REQUIRED');
+      final binding = <String, dynamic>{
+        'moduleId': bundle.moduleId,
+        'moduleVersion': bundle.version,
+        'docType': original.docType,
+      };
+      final page = await _request('records/query', {
+        ...binding,
+        'columns': <String>[],
+        'recordId': entry.envelope.aggregateId,
+        'limit': 1,
+      });
+      final rows = requireList(page, 'records');
+      if (!mounted) return;
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const VentioText('native.wave2.review_record_draft'),
+          content: const VentioText(
+            'native.wave2.review_record_draft_explanation',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const VentioText('native.wave2.cancel_19766ed6'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const VentioText('native.wave2.review_record_draft'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true) return;
+      if (rows.isEmpty && original.operation != 'create')
+        throw const HostPackageTransportException('RECORD_UNAVAILABLE');
+      await _form(
+        binding,
+        rows.isEmpty ? null : requireMap(rows.single, 'record'),
+        recovering: entry,
+      );
+      await _local();
     } catch (error) {
       _failed(error);
     }
@@ -1362,6 +1492,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
               builder: (_) => HostOperationsPage(
                 profile: widget.profile,
                 request: _request,
+                pendingRequests: () => _store!.pendingOperations(),
+                discardRetry: (id) => _store!.discardOperationRetry(id),
                 localPolicy: () async {
                   final rows = await _store!.list('backup_policy');
                   return rows.isEmpty
@@ -1471,6 +1603,37 @@ class _WorkspacePageState extends State<WorkspacePage> {
         ),
       ),
       const Divider(),
+      if (_recordDrafts.isNotEmpty)
+        const VentioText('native.wave2.record_drafts_requiring_review'),
+      for (final entry in _recordDrafts)
+        ListTile(
+          title: Text(entry.envelope.aggregateId),
+          subtitle: Text(
+            '${entry.hostStatus.databaseValue} | ${entry.hostReceipt?.reasonCode ?? ''}',
+          ),
+          trailing: _reconciledIds.contains(entry.envelope.commandId)
+              ? const VentioText('native.wave2.replacement_draft_queued')
+              : TextButton(
+                  onPressed: () => _recoverRecordDraft(entry),
+                  child: const VentioText('native.wave2.review_record_draft'),
+                ),
+        ),
+      if (_identity == null)
+        for (final bundle in _cachedBundles.values)
+          for (final doc in bundle.docTypes)
+            ListTile(
+              title: Text('${bundle.moduleId} / ${doc.name}'),
+              subtitle: const VentioText(
+                'native.wave2.cached_metadata_draft_only',
+              ),
+              onTap: () async {
+                try {
+                  await _customize(bundle, doc);
+                } catch (error) {
+                  _failed(error);
+                }
+              },
+            ),
       Text(t('customization_drafts', 'Customization definitions')),
       for (final entry in _customizations)
         _draftTile(
@@ -1829,6 +1992,18 @@ class _RecordViewPageState extends State<_RecordViewPage> {
     _load();
   }
 
+  List<String> get _visibleColumns {
+    if (_result == null) return const [];
+    final readable = strings(
+      requireList(_result!, 'readableFields'),
+      'readableFields',
+    ).toSet();
+    return strings(
+      requireList(widget.view.json, 'columns'),
+      'columns',
+    ).where(readable.contains).toList();
+  }
+
   Map<String, Object?> get _query => {...widget.view.json}
     ..remove('title')
     ..remove('contractVersion');
@@ -1842,6 +2017,7 @@ class _RecordViewPageState extends State<_RecordViewPage> {
     try {
       final result = await widget.request('records/query', {
         ..._query,
+        'columns': <String>[],
         'cursor': _cursor,
       });
       if (mounted)
@@ -1861,6 +2037,8 @@ class _RecordViewPageState extends State<_RecordViewPage> {
   }
 
   Future<void> _export() async {
+    final columns = _visibleColumns;
+    if (columns.isEmpty) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -1869,6 +2047,7 @@ class _RecordViewPageState extends State<_RecordViewPage> {
     try {
       final result = await widget.request('exports/page', {
         ..._query,
+        'columns': columns,
         'cursor': _cursor,
       });
       if (!mounted) return;
@@ -1909,12 +2088,59 @@ class _RecordViewPageState extends State<_RecordViewPage> {
     }
   }
 
+  Future<void> _lookupHistory() async {
+    final id = TextEditingController();
+    try {
+      final record = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const VentioText('native.wave2.lookup_document_history'),
+          content: TextField(
+            controller: id,
+            decoration: InputDecoration(
+              labelText: context.ventioText(
+                'native.wave2.record_id_including_deleted',
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const VentioText('native.wave2.cancel_19766ed6'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, id.text.trim()),
+              child: const VentioText('native.wave2.lookup_document_history'),
+            ),
+          ],
+        ),
+      );
+      if (record == null || record.isEmpty || !mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => DocumentActivityPage(
+            request: widget.request,
+            binding: {
+              'moduleId': widget.view.json['moduleId'],
+              'moduleVersion': widget.view.json['moduleVersion'],
+              'docType': widget.view.json['docType'],
+              'recordId': record,
+            },
+          ),
+        ),
+      );
+    } finally {
+      id.dispose();
+    }
+  }
+
   Future<void> _detail(Map<String, dynamic> record) async {
     try {
       // Re-read the visible record immediately before opening detail so a
       // revoked field grant cannot leave an older list snapshot in the dialog.
       final current = await widget.request('records/query', {
         ..._query,
+        'columns': <String>[],
         'search': '',
         'sortField': null,
         'filters': <String, dynamic>{},
@@ -2017,11 +2243,16 @@ class _RecordViewPageState extends State<_RecordViewPage> {
     final records = _result == null
         ? <dynamic>[]
         : requireList(_result!, 'records');
-    final columns = List<String>.from(widget.view.json['columns'] as List);
+    final columns = _visibleColumns;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.view.json['title'] as String),
         actions: [
+          IconButton(
+            onPressed: _busy ? null : _lookupHistory,
+            tooltip: context.ventioText('native.wave2.lookup_document_history'),
+            icon: const Icon(Icons.history),
+          ),
           IconButton(
             onPressed: _busy
                 ? null
@@ -2039,7 +2270,7 @@ class _RecordViewPageState extends State<_RecordViewPage> {
             icon: const Icon(Icons.add),
           ),
           IconButton(
-            onPressed: _busy ? null : _export,
+            onPressed: _busy || _visibleColumns.isEmpty ? null : _export,
             tooltip: context.ventioText(
               'native.wave2.export_current_page_as_csv_b45b4c10',
             ),
@@ -2199,19 +2430,52 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
     'fields': _fields,
     'properties': {
       'label': _label.text,
-      'labelKey':
-          '${widget.namespace}.custom.${widget.definition.name.toLowerCase()}.label',
+      'labelKey': _labelKey('label', _label.text),
     },
     'ui': {
       ...requireMap(widget.body['ui'], 'ui'),
       ..._layouts,
       'pageTitle': _pageTitle.text,
-      'pageTitleKey':
-          '${widget.namespace}.custom.${widget.definition.name.toLowerCase()}.page_title',
+      'pageTitleKey': _labelKey('page_title', _pageTitle.text),
       'pageIcon': _pageIcon,
       'pageOrder': int.tryParse(_pageOrder.text) ?? -1,
     },
   };
+  String _labelKey(String part, String value) =>
+      '${widget.namespace}.custom.${widget.definition.name.toLowerCase()}.$part.v_${sha256.convert(utf8.encode(value))}';
+  Future<void> _editCustomLabel(Map<String, dynamic> field) async {
+    final controller = TextEditingController(text: field['label'] as String);
+    try {
+      final value = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const VentioText('native.wave2.edit_custom_field_label'),
+          content: TextField(controller: controller, maxLength: 120),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const VentioText('native.wave2.cancel_19766ed6'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const VentioText('native.wave2.save_reviewed_label'),
+            ),
+          ],
+        ),
+      );
+      if (value == null || value.isEmpty || !mounted) return;
+      setState(() {
+        field['label'] = value;
+        field['labelKey'] = _labelKey(
+          (field['name'] as String).toLowerCase(),
+          value,
+        );
+      });
+    } finally {
+      controller.dispose();
+    }
+  }
+
   void _addField() {
     try {
       final candidate = <String, dynamic>{
@@ -2219,8 +2483,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
         'type': _type,
         'required': false,
         'label': _fieldLabel.text,
-        'labelKey':
-            '${widget.namespace}.custom.${widget.definition.name.toLowerCase()}.${_fieldName.text.toLowerCase()}',
+        'labelKey': _labelKey(_fieldName.text.toLowerCase(), _fieldLabel.text),
         if (_type == 'text' || _type == 'long_text')
           'maxLength': _type == 'text' ? 255 : 4000,
         if (_type == 'decimal') 'precision': 2,
@@ -2361,6 +2624,15 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
                 'native.wave2.add_optional_field_ecf829c3',
               ),
             ),
+            for (final field in _fields)
+              ListTile(
+                title: Text(field['label'] as String),
+                subtitle: Text('${field['name']} / ${field['type']}'),
+                trailing: IconButton(
+                  onPressed: () => _editCustomLabel(field),
+                  icon: const Icon(Icons.edit),
+                ),
+              ),
             for (final layout in _layouts.entries) ...[
               Padding(
                 padding: const EdgeInsets.only(top: 12),

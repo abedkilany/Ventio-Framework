@@ -4,6 +4,8 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,venti
 DECLARE doc jsonb; names jsonb; ui jsonb; key text; layout jsonb;
 BEGIN
  SELECT item INTO doc FROM jsonb_array_elements(p_target->'docTypes') d(item) WHERE item->>'name'=p_old->>'docType';
+ IF EXISTS(SELECT FROM jsonb_each(ventio_security.wave2_custom_labels(p_old)) l WHERE p_target->'englishCatalog' ? l.key AND p_target->'englishCatalog'->l.key IS DISTINCT FROM l.value) THEN
+  RAISE EXCEPTION 'Customization label collides with target release' USING ERRCODE='23514'; END IF;
  IF doc IS NULL OR doc->'permissions'->>'read' IS NULL OR doc->'permissions'->>'update' IS NULL OR
    EXISTS(SELECT FROM jsonb_array_elements(p_old->'fields') f(item) WHERE
     item->>'readPermission' IS DISTINCT FROM doc->'permissions'->>'read' OR
@@ -103,6 +105,10 @@ BEGIN
   INSERT INTO public.ventio_wave2_events(tenant_id,company_id,branch_id,actor_id,event_type,subject_id,detail)
    VALUES(source.tenant_id,source.company_id,source.branch_id,prepared.prepared_by,'CUSTOMIZATION_REBASED',target_id,
     jsonb_build_object('sourceVersion',previous_version,'sourceRevision',source.revision,'targetSha256',NEW.package_sha256));
+  -- Immutable revision history retains the old overlay. Only the active
+  -- definition moves forward, so repeated upgrades remain within the bound.
+  DELETE FROM public.ventio_wave2_definitions WHERE tenant_id=source.tenant_id AND company_id=source.company_id
+   AND branch_id=source.branch_id AND owner_id='' AND kind='customization' AND definition_id=source.definition_id AND revision=source.revision;
  END LOOP;
  RETURN NEW;
 END $fn$;

@@ -54,6 +54,7 @@ class QueueEntry {
     this.hostReceipt,
     this.fixtureReceipt,
     this.projectToLocalRecords = true,
+    this.reconcilesCommandId,
   });
 
   final CommandEnvelope envelope;
@@ -70,6 +71,7 @@ class QueueEntry {
   /// Effective-metadata forms retain receipts here without changing the
   /// immutable base-package record cache.
   final bool projectToLocalRecords;
+  final String? reconcilesCommandId;
 
   bool get isHostConfirmed =>
       hostStatus == HostCommandStatus.accepted && hostReceipt?.accepted == true;
@@ -125,6 +127,7 @@ class QueueEntry {
           : date(row['last_attempt_at_utc']),
       hostReceipt: hostReceipt,
       projectToLocalRecords: (row['project_local_records'] ?? 1) == 1,
+      reconcilesCommandId: row['reconciles_command_id'] as String?,
       fixtureReceipt: parseReceipt(
         row['fixture_receipt_json'],
         'fixtureReceipt',
@@ -148,7 +151,7 @@ class LocalCommandQueue {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
@@ -169,6 +172,7 @@ class LocalCommandQueue {
               updated_at_utc TEXT NOT NULL,
               last_attempt_at_utc TEXT,
               project_local_records INTEGER NOT NULL DEFAULT 1 CHECK (project_local_records IN (0,1)),
+              reconciles_command_id TEXT UNIQUE REFERENCES local_commands(command_id),
               CHECK (
                 (host_status = 'PENDING' AND host_receipt_json IS NULL) OR
                 (host_status <> 'PENDING' AND host_receipt_json IS NOT NULL)
@@ -186,6 +190,14 @@ class LocalCommandQueue {
               'ALTER TABLE $_table ADD COLUMN project_local_records INTEGER NOT NULL DEFAULT 1 CHECK (project_local_records IN (0,1))',
             );
           }
+          if (oldVersion < 3) {
+            await database.execute(
+              'ALTER TABLE $_table ADD COLUMN reconciles_command_id TEXT REFERENCES local_commands(command_id)',
+            );
+            await database.execute(
+              'CREATE UNIQUE INDEX local_commands_reconciles ON $_table(reconciles_command_id)',
+            );
+          }
         },
       ),
     );
@@ -195,6 +207,7 @@ class LocalCommandQueue {
   Future<void> enqueue(
     CommandEnvelope envelope, {
     bool projectToLocalRecords = true,
+    String? reconcilesCommandId,
   }) async {
     _ensureOpen();
     // Validate and persist Core's immutable original envelope, not a second
@@ -207,6 +220,43 @@ class LocalCommandQueue {
     }
     final now = _clock().toUtc().toIso8601String();
     await _database.transaction((transaction) async {
+      if (reconcilesCommandId != null) {
+        final rows = await transaction.query(
+          _table,
+          where: 'command_id=?',
+          whereArgs: [reconcilesCommandId],
+        );
+        if (rows.length != 1)
+          throw StateError('Original command is unavailable');
+        final original = QueueEntry.fromRow(rows.single);
+        final prior = original.envelope;
+        if (projectToLocalRecords ||
+            original.projectToLocalRecords ||
+            !const {
+              ExtensionRecordCommand.createType,
+              ExtensionRecordCommand.updateType,
+            }.contains(prior.type) ||
+            !const {
+              ExtensionRecordCommand.createType,
+              ExtensionRecordCommand.updateType,
+            }.contains(envelope.type) ||
+            !const {
+              HostCommandStatus.conflict,
+              HostCommandStatus.rejected,
+            }.contains(original.hostStatus) ||
+            prior.tenantId != envelope.tenantId ||
+            prior.companyId != envelope.companyId ||
+            prior.branchId != envelope.branchId ||
+            prior.actorId != envelope.actorId ||
+            prior.deviceId != envelope.deviceId ||
+            prior.aggregateId != envelope.aggregateId ||
+            prior.payload['moduleId'] != envelope.payload['moduleId'] ||
+            prior.payload['docType'] != envelope.payload['docType']) {
+          throw StateError(
+            'Only an exact-owner terminal record draft can be reconciled',
+          );
+        }
+      }
       final existing = await transaction.query(
         _table,
         columns: const ['command_id'],
@@ -222,6 +272,7 @@ class LocalCommandQueue {
         'type': envelope.type,
         'envelope_json': canonicalJson(envelope.original),
         'project_local_records': projectToLocalRecords ? 1 : 0,
+        'reconciles_command_id': reconcilesCommandId,
         'host_status': HostCommandStatus.pending.databaseValue,
         'host_receipt_json': null,
         'fixture_receipt_json': null,
