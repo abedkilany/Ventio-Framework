@@ -54,7 +54,8 @@ BEGIN
       'ventio_identity_audit','ventio_identity_pairings','ventio_identity_device_activity',
       'ventio_extension_packages',
       'ventio_extension_package_events','ventio_wave2_definitions','ventio_wave2_revisions',
-      'ventio_wave2_jobs','ventio_wave2_events','ventio_schema_migrations'] LOOP
+      'ventio_wave2_jobs','ventio_wave2_events','ventio_wave2_organizations','ventio_wave2_companies',
+      'ventio_wave2_branches','ventio_wave2_admin_requests','ventio_wave2_operations','ventio_wave2_customization_rebases','ventio_schema_migrations'] LOOP
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_class pc JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pn.nspname = 'public' AND pc.relname = t AND pc.relrowsecurity AND pc.relforcerowsecurity) THEN
       RAISE EXCEPTION 'Missing protection on private state';

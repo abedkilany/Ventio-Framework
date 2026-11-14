@@ -12,6 +12,8 @@ import 'command_id.dart';
 import 'extension_store.dart';
 import 'host_extension_packages.dart';
 import 'workspace_store.dart';
+import 'platform_administration_page.dart';
+import 'document_activity_page.dart';
 import 'extension_studio_page.dart' show DynamicRecordFormPage;
 import 'local_command_queue.dart';
 
@@ -343,48 +345,109 @@ class _WorkspacePageState extends State<WorkspacePage> {
     final notice = TextEditingController(
       text: body['maintenanceNotice'] as String,
     );
+    final page = TextEditingController(
+      text: '${body['defaultPageSize'] ?? 50}',
+    );
+    final rows = TextEditingController(text: '${body['maxImportRows'] ?? 500}');
+    var maintenance = body['maintenanceMode'] == true;
+    var paused = body['jobsPaused'] == true;
+    final key = GlobalKey<FormState>();
     try {
       final result = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (_) => AlertDialog(
-          title: Text(t('configuration', 'Scoped configuration')),
-          content: SizedBox(
-            width: 500,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  maxLength: 120,
-                  decoration: InputDecoration(
-                    labelText: t('scope_name', 'Scope display name'),
+        builder: (_) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+            title: Text(t('configuration', 'Scoped configuration')),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Form(
+                  key: key,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: name,
+                        maxLength: 120,
+                        decoration: const InputDecoration(
+                          labelText: 'Scope display name',
+                        ),
+                        validator: (v) => v == null || v.trim().isEmpty
+                            ? 'Enter a name'
+                            : null,
+                      ),
+                      TextFormField(
+                        controller: notice,
+                        maxLength: 1000,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Operational notice',
+                        ),
+                      ),
+                      SwitchListTile(
+                        title: const Text('Maintenance mode'),
+                        subtitle: const Text(
+                          'Pause new business writes in this scope. Saved command receipts remain available.',
+                        ),
+                        value: maintenance,
+                        onChanged: (v) => update(() => maintenance = v),
+                      ),
+                      SwitchListTile(
+                        title: const Text('Pause background jobs'),
+                        value: paused,
+                        onChanged: (v) => update(() => paused = v),
+                      ),
+                      TextFormField(
+                        controller: page,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Default page size (1-100)',
+                        ),
+                        validator: (v) =>
+                            (int.tryParse(v ?? '') ?? 0) < 1 ||
+                                (int.tryParse(v ?? '') ?? 101) > 100
+                            ? 'Enter 1 to 100'
+                            : null,
+                      ),
+                      TextFormField(
+                        controller: rows,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Maximum CSV data rows (1-500)',
+                        ),
+                        validator: (v) =>
+                            (int.tryParse(v ?? '') ?? 0) < 1 ||
+                                (int.tryParse(v ?? '') ?? 501) > 500
+                            ? 'Enter 1 to 500'
+                            : null,
+                      ),
+                    ],
                   ),
                 ),
-                TextField(
-                  controller: notice,
-                  maxLength: 1000,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: t('notice', 'Operational notice'),
-                  ),
-                ),
-              ],
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (key.currentState!.validate())
+                    Navigator.pop(context, {
+                      ...body,
+                      'displayName': name.text.trim(),
+                      'maintenanceNotice': notice.text,
+                      'maintenanceMode': maintenance,
+                      'jobsPaused': paused,
+                      'defaultPageSize': int.parse(page.text),
+                      'maxImportRows': int.parse(rows.text),
+                    });
+                },
+                child: const Text('Save draft'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(t('cancel', 'Cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, {
-                ...body,
-                'displayName': name.text,
-                'maintenanceNotice': notice.text,
-              }),
-              child: Text(t('save', 'Save draft')),
-            ),
-          ],
         ),
       );
       if (result == null) return;
@@ -399,6 +462,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
     } finally {
       name.dispose();
       notice.dispose();
+      page.dispose();
+      rows.dispose();
     }
   }
 
@@ -408,6 +473,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
         final result = await _request('jobs/submit', {
           'jobId': row['job_id'],
           'commands': jsonDecode(row['commands'] as String),
+          if (row['import_id'] != null) 'importId': row['import_id'],
+          'sourceRows': jsonDecode(row['source_rows'] as String),
         });
         if (result['status'] != 'JOB' || result['jobId'] != row['job_id']) {
           throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
@@ -604,16 +671,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
               requireList(current, 'readableFields'),
               'fields',
             ).toSet(),
-            writableFields:
-                strings(
-                  requireList(current, 'writableFields'),
-                  'fields',
-                ).toSet().intersection(
-                  strings(
-                    requireList(current, 'readableFields'),
-                    'fields',
-                  ).toSet(),
-                ),
+            writableFields: strings(
+              requireList(current, 'writableFields'),
+              'fields',
+            ).toSet(),
             creatableFields: strings(
               requireList(current, 'creatableFields'),
               'fields',
@@ -685,6 +746,102 @@ class _WorkspacePageState extends State<WorkspacePage> {
       );
     } catch (error) {
       _failed(error);
+    }
+  }
+
+  Future<void> _prepareReleaseRebase(Map<String, dynamic> entry) async {
+    final version = TextEditingController();
+    try {
+      final target = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Rebase customization to submitted release'),
+          content: TextField(
+            controller: version,
+            decoration: const InputDecoration(
+              labelText: 'Target module version (for example 2.0.0)',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, version.text.trim()),
+              child: const Text('Preview'),
+            ),
+          ],
+        ),
+      );
+      if (target == null) return;
+      final body = requireMap(entry['body'], 'body');
+      final binding = <String, dynamic>{
+        'moduleId': body['moduleId'],
+        'sourceVersion': body['moduleVersion'],
+        'targetVersion': target,
+        'docType': body['docType'],
+      };
+      final preview = await _request('customizations/rebase/preview', binding);
+      if (preview['status'] != 'REBASE_CANDIDATE')
+        throw HostPackageTransportException(
+          preview['reasonCode'] as String? ?? 'REBASE_UNAVAILABLE',
+        );
+      if (!mounted) return;
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Review release rebase'),
+          content: SizedBox(
+            width: 640,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Every custom field, value, constraint and permission is preserved. Layouts adopt the target release and append custom fields. Preparation does not approve the package. All affected scopes must prepare before independent package approval can activate the release.',
+                  ),
+                  SelectableText(
+                    const JsonEncoder.withIndent('  ').convert(preview['body']),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Prepare atomic activation'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true) return;
+      final result = await _request('customizations/rebase/prepare', {
+        ...binding,
+        'sourceRevision': preview['sourceRevision'],
+        'body': preview['body'],
+      });
+      if (result['status'] != 'REBASE_PREPARED')
+        throw HostPackageTransportException(
+          result['reasonCode'] as String? ?? 'REBASE_CHANGED',
+        );
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Rebase prepared. Independent package approval rechecks permissions, source revision and target digest.',
+            ),
+          ),
+        );
+    } catch (error) {
+      _failed(error);
+    } finally {
+      version.dispose();
     }
   }
 
@@ -1159,7 +1316,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                     title: Text(
                       '${(outcome as Map)['status']} · ${outcome['reasonCode'] ?? ''}',
                     ),
-                    subtitle: Text('${outcome['commandId']}'),
+                    subtitle: Text(
+                      '${outcome['sourceRow'] == null ? '' : 'CSV row ${outcome['sourceRow']} | '}${outcome['commandId']}',
+                    ),
                   ),
               ],
             );
@@ -1171,6 +1330,19 @@ class _WorkspacePageState extends State<WorkspacePage> {
   Widget _settings() => ListView(
     padding: const EdgeInsets.all(20),
     children: [
+      if (_permissions.contains(organizationAdministrationPermission))
+        ListTile(
+          title: const Text('Organization, companies and branches'),
+          leading: const Icon(Icons.account_tree),
+          onTap: () => Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => PlatformAdministrationPage(
+                request: _request,
+                profile: widget.profile,
+              ),
+            ),
+          ),
+        ),
       if (_permissions.contains(wave2ConfigurationPermission))
         ListTile(
           title: Text(t('configuration', 'Scoped configuration')),
@@ -1238,6 +1410,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
             }
           },
         ),
+      if (_permissions.contains(wave2CustomizationManagePermission) &&
+          _permissions.contains('extension.package.review'))
+        for (final entry in _customizations.where(
+          (item) => item['state'] == 'SYNCED',
+        ))
+          ListTile(
+            title: Text('Prepare release rebase: ${entry['id']}'),
+            leading: const Icon(Icons.upgrade),
+            onTap: () => _prepareReleaseRebase(entry),
+          ),
       if (_customizations.any((item) => item['state'] == 'CONFLICT') ||
           _views.any((item) => item['state'] == 'CONFLICT'))
         Text(
@@ -1629,12 +1811,6 @@ class _RecordViewPageState extends State<_RecordViewPage> {
 
   Future<void> _detail(Map<String, dynamic> record) async {
     try {
-      final history = await widget.request('history/list', {
-        'moduleId': widget.view.json['moduleId'],
-        'moduleVersion': widget.view.json['moduleVersion'],
-        'docType': widget.view.json['docType'],
-        'recordId': record['recordId'],
-      });
       // Re-read the visible record immediately before opening detail so a
       // revoked field grant cannot leave an older list snapshot in the dialog.
       final current = await widget.request('records/query', {
@@ -1681,18 +1857,27 @@ class _RecordViewPageState extends State<_RecordViewPage> {
                       subtitle: SelectableText('${values[name] ?? ''}'),
                     ),
                   const Divider(),
-                  const Text('Document activity'),
-                  for (final raw in requireList(history, 'entries'))
-                    ListTile(
-                      title: Text(
-                        '${(raw as Map)['operation']} · ${raw['revision']}',
-                      ),
-                      subtitle: Text(
-                        '${raw['actorId']} · ${raw['occurredAtUtc']}',
-                      ),
-                    ),
-                  if (requireList(history, 'entries').isEmpty)
-                    const Text('No Wave 2 activity has been recorded.'),
+                  TextButton.icon(
+                    icon: const Icon(Icons.history),
+                    label: const Text('Open authorized document activity'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.of(this.context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => DocumentActivityPage(
+                            request: widget.request,
+                            binding: {
+                              'moduleId': widget.view.json['moduleId'],
+                              'moduleVersion':
+                                  widget.view.json['moduleVersion'],
+                              'docType': widget.view.json['docType'],
+                              'recordId': record['recordId'],
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -2227,6 +2412,7 @@ class _ImportPageState extends State<_ImportPage> {
     setState(() => _busy = true);
     try {
       final batches = <List<Map<String, dynamic>>>[];
+      final sourceRows = <String, int>{};
       var batch = <Map<String, dynamic>>[];
       for (final raw in _preview!) {
         final row = requireMap(raw, 'row');
@@ -2260,6 +2446,11 @@ class _ImportPageState extends State<_ImportPage> {
           batches.add(batch);
           batch = [];
         }
+        sourceRows[command.envelope.commandId] = requireInt(
+          row,
+          'rowNumber',
+          min: 2,
+        );
         batch.add(command.envelope.original);
       }
       if (batch.isNotEmpty) batches.add(batch);
@@ -2268,7 +2459,11 @@ class _ImportPageState extends State<_ImportPage> {
           'EMPTY_IMPORT',
           'No valid rows are available.',
         );
-      await widget.store.stageJobs(batches);
+      await widget.store.stageJobs(
+        batches,
+        importId: createCommandId(),
+        sourceRows: sourceRows,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       _fail(error);

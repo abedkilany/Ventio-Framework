@@ -248,6 +248,8 @@ Future<void> verifyIdentityAdministrationConnection(
         WHERE n.nspname IN ('ventio_security','public','ventio_crypto')
           AND has_function_privilege(session_user,p.oid,'EXECUTE')
           AND p.oid NOT IN (
+            'ventio_security.wave2_prepare_rebase(text,text,text,text,text,text,text,bigint,jsonb)'::regprocedure,
+            'ventio_security.wave2_organization_change(text,text,text,jsonb)'::regprocedure,
             'ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)'::regprocedure,
             'ventio_security.wave2_claim_job()'::regprocedure,
             'ventio_security.wave2_finish_job(text,text,text,jsonb,boolean)'::regprocedure,

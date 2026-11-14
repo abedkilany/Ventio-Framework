@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'contracts.dart';
 import 'customization.dart';
+import 'platform_administration.dart';
 
 const wave2ContractVersion = 1;
 const wave2CustomizationManagePermission = 'platform.customizations.manage';
@@ -137,7 +138,12 @@ void validateWave2Definition(String kind, Map<String, dynamic> body) {
         'contractVersion',
         'displayName',
         'maintenanceNotice',
+        'maintenanceMode',
+        'jobsPaused',
+        'defaultPageSize',
+        'maxImportRows',
       });
+      validateOperationalSettings(body);
       if (body['contractVersion'] != 1 ||
           requireString(body, 'displayName').length > 120 ||
           requireString(body, 'maintenanceNotice', nonEmpty: false).length >
@@ -147,6 +153,8 @@ void validateWave2Definition(String kind, Map<String, dynamic> body) {
           'Invalid scoped configuration.',
         );
       }
+    case 'backup_policy':
+      BackupPolicy.fromJson(body);
     default:
       throw const ContractError(
         'UNSUPPORTED_DEFINITION',

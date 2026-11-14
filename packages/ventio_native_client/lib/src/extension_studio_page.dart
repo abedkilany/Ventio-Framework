@@ -6070,6 +6070,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
   final _formKey = GlobalKey<FormState>();
   String? _newRecordId;
   final Map<String, TextEditingController> _controllers = {};
+  // A missing protected value is unknown, never an empty value. Replacement
+  // requires explicit intent for every field, including booleans and tables.
+  final Set<String> _replaceProtected = {};
   final Map<String, bool> _booleans = {};
   final Map<String, String?> _selections = {};
   final Map<String, List<LocalExtensionRecord>> _references = {};
@@ -6248,6 +6251,10 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     final values = <String, dynamic>{};
     for (final field in _formFields) {
       if (!_isEditable(field)) continue;
+      if (widget.record != null &&
+          !_effectiveReadableFields.contains(field.name) &&
+          !_replaceProtected.contains(field.name))
+        continue;
       if (field.type == 'table' && field.childDocType != null) {
         values[field.name] = [
           for (final row in _childRows[field.name] ?? const [])
@@ -6425,7 +6432,7 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
                 ),
                 const SizedBox(height: 20),
                 for (final field in _formFields) ...[
-                  _fieldInput(field, editable: _isEditable(field)),
+                  _protectedFieldInput(field),
                   const SizedBox(height: 14),
                 ],
                 if (_loadingReferences) const LinearProgressIndicator(),
@@ -6464,6 +6471,39 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
     FieldDefinition tableField,
     FieldDefinition field,
   ) => '${tableField.name}.${field.name}';
+
+  Widget _protectedFieldInput(FieldDefinition field) {
+    if (widget.record == null ||
+        _effectiveReadableFields.contains(field.name) ||
+        widget.previewOnly) {
+      return _fieldInput(field, editable: _isEditable(field));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CheckboxListTile(
+          title: Text(
+            'Replace protected ${context.extensionMetadataText(field.labelKey, field.label)}',
+          ),
+          subtitle: const Text(
+            'The current value is hidden. Leave unchecked to preserve it. Checking this box submits a replacement; an empty optional value clears it.',
+          ),
+          value: _replaceProtected.contains(field.name),
+          onChanged: _isEditable(field) && !_saving
+              ? (value) => setState(() {
+                  if (value == true) {
+                    _replaceProtected.add(field.name);
+                  } else {
+                    _replaceProtected.remove(field.name);
+                  }
+                })
+              : null,
+        ),
+        if (_replaceProtected.contains(field.name))
+          _fieldInput(field, editable: true),
+      ],
+    );
+  }
 
   void _addChildRow(FieldDefinition tableField) {
     final child = tableField.childDocType!;

@@ -1,6 +1,6 @@
 # Wave 2 A implementation ledger
 
-**WAVE_2_A â€" PARTIAL IMPLEMENTATION / BLOCKED**
+**WAVE_2_A ??" PARTIAL IMPLEMENTATION / BLOCKED**
 
 Branch: `feature/wave-2-a`. Baseline: `7d74a706ef4bb7f9994d151af486eaa38066e633`.
 Code checkpoint: `059541a0354dba54983880a4e0243bb8ea27efd8`.
@@ -48,3 +48,13 @@ progress, no conclusions. Draft/unmerged state confirmed; no manual dispatch.
 Owner requested completion of all mandatory gaps on existing branch/PR #6.
 Implementation continues; the previous partial handoff is superseded as a stop point.
 Recorded CI source defects are being corrected without local test/build execution.
+
+
+Continuation source checkpoint (implementation ongoing): organization/company/branch
+administration, archive-aware current identity resolution, scoped maintenance and
+job-pause controls, import row labels in durable job outcomes, explicit protected
+field replacement, prepared release overlays and paginated mutation history are
+integrated in source. Migration 038 is additive. Historical source commands are
+recovered from retained outbox metadata; pre-capture cross-target events were never
+stored and cannot be reconstructed. Scheduling/retention/operational management
+remains in progress. No tests, analysis, builds or database operations executed.

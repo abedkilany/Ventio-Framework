@@ -247,6 +247,20 @@ class PersistentCommandExecutor implements AuthoritativeCommandExecutor {
               const ExtensionBundleAuthorization.denied(
                 'EXTENSION_NOT_APPROVED',
               ),
+          admissionGuard: (tx, _) async {
+            final result = await tx.execute(
+              pg.Sql.named('''
+              SELECT ventio_security.wave2_command_admission(@digest,@company,@branch,@job)
+            '''),
+              parameters: {
+                'digest': digest,
+                'company': command.companyId,
+                'branch': command.branchId,
+                'job': requireJobAuthorization,
+              },
+            );
+            return result.single[0] as String?;
+          },
         );
       },
     );

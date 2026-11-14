@@ -271,6 +271,11 @@ class HostExtensionPackageClient {
     Map<String, Object?> body,
   ) async {
     const actions = {
+      'customizations/rebase/preview',
+      'customizations/rebase/prepare',
+      'settings/read',
+      'organization/list',
+      'organization/change',
       'definitions/list',
       'definitions/save',
       'metadata/effective',

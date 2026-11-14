@@ -18,13 +18,13 @@ DECLARE identity jsonb; permission text; owner text; entries jsonb;
 BEGIN
   identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
   permission := CASE p_kind WHEN 'customization' THEN 'extension.package.read'
-    WHEN 'configuration' THEN 'host.status.read'
+    WHEN 'configuration' THEN 'host.status.read' WHEN 'backup_policy' THEN 'platform.operations.manage'
     WHEN 'saved_view' THEN 'platform.workspace.use' WHEN 'preferences' THEN 'platform.workspace.use'
     WHEN 'dashboard' THEN 'platform.workspace.use' ELSE NULL END;
   IF permission IS NULL OR NOT ventio_security.wave2_allowed(identity,p_company,p_branch,permission) THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED');
   END IF;
-  owner := CASE WHEN p_kind IN ('customization','configuration') THEN '' ELSE identity->>'actorId' END;
+  owner := CASE WHEN p_kind IN ('customization','configuration','backup_policy') THEN '' ELSE identity->>'actorId' END;
   SELECT coalesce(jsonb_agg(jsonb_build_object('id',definition_id,'revision',revision,
       'body',body,'updatedBy',updated_by,'updatedAtUtc',updated_at) ORDER BY definition_id),'[]') INTO entries
     FROM public.ventio_wave2_definitions WHERE tenant_id=identity->>'tenantId'
@@ -44,7 +44,7 @@ BEGIN
   IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
   identity := ventio_security.identity_snapshot(p_digest,p_company,p_branch);
   permission := CASE p_kind WHEN 'customization' THEN 'platform.customizations.manage'
-    WHEN 'configuration' THEN 'platform.configuration.manage'
+    WHEN 'configuration' THEN 'platform.configuration.manage' WHEN 'backup_policy' THEN 'platform.operations.manage'
     WHEN 'saved_view' THEN 'platform.workspace.use' WHEN 'preferences' THEN 'platform.workspace.use'
     WHEN 'dashboard' THEN 'platform.workspace.use' ELSE NULL END;
   IF permission IS NULL OR NOT ventio_security.wave2_allowed(identity,p_company,p_branch,permission) THEN
@@ -56,7 +56,7 @@ BEGIN
       p_body->>'contractVersion' IS DISTINCT FROM '1' THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_DEFINITION');
   END IF;
-  owner := CASE WHEN p_kind IN ('customization','configuration') THEN '' ELSE identity->>'actorId' END;
+  owner := CASE WHEN p_kind IN ('customization','configuration','backup_policy') THEN '' ELSE identity->>'actorId' END;
   PERFORM pg_advisory_xact_lock(hashtextextended(jsonb_build_array('wave2-definition',
     identity->>'tenantId',p_company,p_branch,owner)::text,0));
   request_hash := encode(sha256(convert_to(jsonb_build_array(p_kind,p_id,p_expected,p_body)::text,'UTF8')),'hex');
@@ -78,6 +78,30 @@ BEGIN
       WHERE tenant_id=identity->>'tenantId' AND company_id=p_company AND branch_id=p_branch
         AND owner_id=owner AND kind=p_kind)>=100 THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','DEFINITION_LIMIT');
+  END IF;
+  IF p_kind IN ('configuration','backup_policy') AND p_id<>'scope' THEN
+    RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_DEFINITION_ID'); END IF;
+  IF p_kind='configuration' THEN
+    IF (p_body-ARRAY['contractVersion','displayName','maintenanceNotice','maintenanceMode','jobsPaused','defaultPageSize','maxImportRows'])<>'{}'::jsonb OR
+      jsonb_typeof(p_body->'displayName') IS DISTINCT FROM 'string' OR length(p_body->>'displayName') NOT BETWEEN 1 AND 120 OR
+      jsonb_typeof(p_body->'maintenanceNotice') IS DISTINCT FROM 'string' OR length(p_body->>'maintenanceNotice')>1000 OR
+      (p_body ? 'maintenanceMode' AND jsonb_typeof(p_body->'maintenanceMode')<>'boolean') OR
+      (p_body ? 'jobsPaused' AND jsonb_typeof(p_body->'jobsPaused')<>'boolean') OR
+      (p_body ? 'defaultPageSize' AND (p_body->>'defaultPageSize') !~ '^[0-9]{1,3}$') OR
+      (p_body ? 'maxImportRows' AND (p_body->>'maxImportRows') !~ '^[0-9]{1,3}$') THEN
+      RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_CONFIGURATION'); END IF;
+    IF coalesce((p_body->>'defaultPageSize')::int,50) NOT BETWEEN 1 AND 100 OR coalesce((p_body->>'maxImportRows')::int,500) NOT BETWEEN 1 AND 500 THEN
+      RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_CONFIGURATION'); END IF;
+  ELSIF p_kind='backup_policy' THEN
+    IF (p_body-ARRAY['contractVersion','enabled','utcTime','retainDays','retainCopies','maximumAttempts','retryMinutes'])<>'{}'::jsonb OR
+      jsonb_typeof(p_body->'enabled') IS DISTINCT FROM 'boolean' OR (p_body->>'utcTime') IS NULL OR
+      (p_body->>'utcTime') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' OR
+      coalesce(p_body->>'retainDays','') !~ '^[0-9]{1,4}$' OR coalesce(p_body->>'retainCopies','') !~ '^[0-9]{1,4}$' OR
+      coalesce(p_body->>'maximumAttempts','') !~ '^[0-9]$' OR coalesce(p_body->>'retryMinutes','') !~ '^[0-9]{1,4}$' THEN
+      RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_BACKUP_POLICY'); END IF;
+    IF (p_body->>'retainDays')::int NOT BETWEEN 1 AND 3650 OR (p_body->>'retainCopies')::int NOT BETWEEN 2 AND 1000 OR
+      (p_body->>'maximumAttempts')::int NOT BETWEEN 1 AND 5 OR (p_body->>'retryMinutes')::int NOT BETWEEN 5 AND 1440 THEN
+      RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_BACKUP_POLICY'); END IF;
   END IF;
   IF p_kind='customization' THEN
     IF (p_body - ARRAY['contractVersion','moduleId','moduleVersion','docType','baseSha256','fields','properties','ui'])<>'{}'::jsonb OR
@@ -179,29 +203,8 @@ DROP TRIGGER IF EXISTS wave2_definition_mark ON public.ventio_wave2_definitions;
 CREATE TRIGGER wave2_definition_mark AFTER INSERT OR UPDATE OR DELETE ON public.ventio_wave2_definitions
   FOR EACH STATEMENT EXECUTE FUNCTION ventio_security.mark_recovery_mutation();
 
--- Custom fields are physical JSON data even though their definitions are
--- overlays. Do not silently upgrade to a release that drops that schema.
--- A future reviewed rebase migration is required; presentation-only overlays
--- do not prevent ordinary Wave 1 release upgrades.
-CREATE OR REPLACE FUNCTION ventio_security.wave2_guard_customization_upgrade()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
-BEGIN
-  IF NEW.status='APPROVED' AND EXISTS (
-      SELECT FROM public.ventio_wave2_definitions d WHERE d.tenant_id=NEW.tenant_id
-        AND d.kind='customization' AND d.owner_id='' AND d.body->>'moduleId'=NEW.module_id
-        AND d.body->>'moduleVersion'<>NEW.version AND jsonb_array_length(d.body->'fields')>0) THEN
-    RAISE EXCEPTION 'Custom fields require an explicit compatible rebase before package upgrade'
-      USING ERRCODE='23514', CONSTRAINT='wave2_customization_upgrade_guard';
-  END IF;
-  RETURN NEW;
-END $fn$;
-DROP TRIGGER IF EXISTS wave2_customization_upgrade_guard ON public.ventio_extension_packages;
-CREATE TRIGGER wave2_customization_upgrade_guard BEFORE INSERT OR UPDATE OF status ON public.ventio_extension_packages
-  FOR EACH ROW EXECUTE FUNCTION ventio_security.wave2_guard_customization_upgrade();
-
 CREATE OR REPLACE FUNCTION ventio_security.wave2_submit_job(
-    p_digest text,p_company text,p_branch text,p_job text,p_commands jsonb)
+    p_digest text,p_company text,p_branch text,p_job text,p_commands jsonb,p_import text,p_source_rows jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE identity jsonb; command jsonb; hashed text; saved public.ventio_wave2_jobs%ROWTYPE;
@@ -226,7 +229,18 @@ BEGIN
   IF (SELECT count(DISTINCT value->>'commandId') FROM jsonb_array_elements(p_commands))<>jsonb_array_length(p_commands) THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','DUPLICATE_COMMAND_ID');
   END IF;
-  hashed := encode(sha256(convert_to(p_commands::text,'UTF8')),'hex');
+  IF p_import IS NULL THEN
+    IF p_source_rows IS DISTINCT FROM '[]'::jsonb THEN RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_IMPORT_CORRELATION'); END IF;
+  ELSE
+    IF p_import !~ '^[0-9a-f-]{36}$' OR jsonb_typeof(p_source_rows) IS DISTINCT FROM 'array' OR
+      jsonb_array_length(p_source_rows)<>jsonb_array_length(p_commands) OR EXISTS(
+        SELECT FROM jsonb_array_elements(p_source_rows) r(item) WHERE jsonb_typeof(item)<>'number' OR item::text !~ '^[0-9]{1,6}$') THEN
+      RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_IMPORT_CORRELATION'); END IF;
+    IF EXISTS(SELECT FROM jsonb_array_elements(p_source_rows) r(item) WHERE (item::text)::int<2) OR
+      (SELECT count(DISTINCT item) FROM jsonb_array_elements(p_source_rows) r(item))<>jsonb_array_length(p_source_rows) THEN
+      RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_IMPORT_CORRELATION'); END IF;
+  END IF;
+  hashed := encode(sha256(convert_to(CASE WHEN p_import IS NULL THEN p_commands::text ELSE jsonb_build_array(p_commands,p_import,p_source_rows)::text END,'UTF8')),'hex');
   PERFORM pg_advisory_xact_lock(hashtextextended(jsonb_build_array('wave2-actor-jobs',identity->>'tenantId',identity->>'actorId')::text,0));
   PERFORM pg_advisory_xact_lock(hashtextextended(jsonb_build_array('wave2-job',identity->>'tenantId',p_job)::text,0));
   SELECT * INTO saved FROM public.ventio_wave2_jobs WHERE tenant_id=identity->>'tenantId' AND job_id=p_job;
@@ -242,8 +256,8 @@ BEGIN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','JOB_LIMIT');
   END IF;
   INSERT INTO public.ventio_wave2_jobs(tenant_id,company_id,branch_id,job_id,actor_id,device_id,
-    credential_digest,request_hash,commands)
-    VALUES(identity->>'tenantId',p_company,p_branch,p_job,identity->>'actorId',identity->>'deviceId',p_digest,hashed,p_commands);
+    credential_digest,request_hash,commands,import_id,source_rows)
+    VALUES(identity->>'tenantId',p_company,p_branch,p_job,identity->>'actorId',identity->>'deviceId',p_digest,hashed,p_commands,p_import,p_source_rows);
   INSERT INTO public.ventio_wave2_events(tenant_id,company_id,branch_id,actor_id,event_type,subject_id)
     VALUES(identity->>'tenantId',p_company,p_branch,identity->>'actorId','JOB_QUEUED',p_job);
   RETURN jsonb_build_object('status','JOB','jobId',p_job,'state','QUEUED');
@@ -261,7 +275,7 @@ BEGIN
   END IF;
   SELECT coalesce(jsonb_agg(item ORDER BY created_at DESC),'[]') INTO entries FROM (
     SELECT created_at,jsonb_build_object('jobId',job_id,'actorId',actor_id,'state',state,
-      'processed',next_index,'total',jsonb_array_length(commands),'attempts',attempts,
+      'importId',import_id,'sourceRows',source_rows,'processed',next_index,'total',jsonb_array_length(commands),'attempts',attempts,
       'outcomes',outcomes,'updatedAtUtc',updated_at,
       'errorCode',(SELECT e.detail->>'code' FROM public.ventio_wave2_events e WHERE e.tenant_id=j.tenant_id
         AND e.company_id=j.company_id AND e.branch_id=j.branch_id AND e.subject_id=j.job_id AND e.event_type='JOB_FAILED'
@@ -307,8 +321,10 @@ DECLARE saved public.ventio_wave2_jobs%ROWTYPE; identity jsonb;
 BEGIN
   IF NOT ventio_security.recovery_guard() THEN RETURN NULL; END IF;
   SELECT * INTO saved FROM public.ventio_wave2_jobs
-    WHERE (state IN ('QUEUED','RETRY_WAIT') AND available_at<=clock_timestamp()) OR
-      (state='RUNNING' AND lease_until<clock_timestamp())
+    WHERE ((state IN ('QUEUED','RETRY_WAIT') AND available_at<=clock_timestamp()) OR
+      (state='RUNNING' AND lease_until<clock_timestamp()))
+      AND NOT (ventio_security.wave2_settings(tenant_id,company_id,branch_id)->>'jobsPaused')::boolean
+      AND NOT (ventio_security.wave2_settings(tenant_id,company_id,branch_id)->>'maintenanceMode')::boolean
     ORDER BY available_at,created_at FOR UPDATE SKIP LOCKED LIMIT 1;
   IF NOT FOUND THEN RETURN NULL; END IF;
   identity := ventio_security.identity_snapshot(saved.credential_digest,saved.company_id,saved.branch_id);
@@ -350,6 +366,7 @@ BEGIN
     next_state := 'RETRY_WAIT';
   ELSE
     IF p_retry THEN p_outcome := jsonb_build_object('commandId',p_outcome->>'commandId','status','REJECTED','reasonCode','RETRY_LIMIT'); END IF;
+    IF saved.import_id IS NOT NULL THEN p_outcome:=p_outcome || jsonb_build_object('importId',saved.import_id,'sourceRow',saved.source_rows->saved.next_index); END IF;
     saved.outcomes := saved.outcomes || jsonb_build_array(p_outcome);
     saved.next_index := saved.next_index+1;
     next_state := CASE WHEN saved.next_index<jsonb_array_length(saved.commands) THEN 'QUEUED'
@@ -384,22 +401,8 @@ BEGIN
       jsonb_build_object('moduleId',p_module,'docType',p_doc,'revision',p_revision,'commandId',p_command,'operation',p_type));
 END $fn$;
 
-CREATE OR REPLACE FUNCTION ventio_security.wave2_history(
-    p_digest text,p_company text,p_branch text,p_module text,p_version text,p_doc text,p_record text)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
-DECLARE resolved jsonb; entries jsonb;
-BEGIN
-  resolved := ventio_security.resolve_extension_read_identity(p_digest,p_company,p_branch,p_module,p_version,p_doc);
-  IF resolved->'package' IS NULL OR resolved->'package'='null'::jsonb THEN
-    RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED');
-  END IF;
-  SELECT coalesce(jsonb_agg(item ORDER BY event_id DESC),'[]') INTO entries FROM (
-    SELECT event_id,jsonb_build_object('actorId',actor_id,'occurredAtUtc',created_at,
-      'revision',detail->'revision','commandId',detail->'commandId','operation',detail->'operation') item
-    FROM public.ventio_wave2_events WHERE tenant_id=resolved #>> '{identity,tenantId}'
-      AND company_id=p_company AND branch_id=p_branch AND event_type='RECORD_ACTIVITY'
-      AND subject_id=p_record AND detail->>'moduleId'=p_module AND detail->>'docType'=p_doc
-    ORDER BY event_id DESC LIMIT 100) page;
-  RETURN jsonb_build_object('status','HISTORY','entries',entries);
-END $fn$;
+-- Preserve the Wave 2 v1 command-only submission contract.
+CREATE OR REPLACE FUNCTION ventio_security.wave2_submit_job(p_digest text,p_company text,p_branch text,p_job text,p_commands jsonb)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
+ SELECT ventio_security.wave2_submit_job(p_digest,p_company,p_branch,p_job,p_commands,NULL,'[]'::jsonb)
+$fn$;

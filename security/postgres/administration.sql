@@ -155,8 +155,10 @@ BEGIN
       IF package_row.status <> 'SUBMITTED' THEN
         RAISE EXCEPTION 'Only a submitted extension package can be approved';
       END IF;
+      PERFORM set_config('ventio.wave2_schema_actor',label,true);
       PERFORM public.ventio_validate_extension_schema_upgrade(
         tenant, package_module, package_version);
+      PERFORM set_config('ventio.wave2_schema_actor','',true);
       IF EXISTS (SELECT FROM public.ventio_extension_packages prior
           WHERE prior.tenant_id=tenant AND prior.module_id=package_module
             AND prior.status IN ('APPROVED','REVOKED')

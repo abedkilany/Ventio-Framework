@@ -31,11 +31,21 @@ class WorkspaceStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys=ON');
           await db.rawQuery('PRAGMA journal_mode=WAL');
           await db.execute('PRAGMA synchronous=FULL');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute(
+              'ALTER TABLE workspace_job_submissions ADD COLUMN import_id TEXT',
+            );
+            await db.execute(
+              "ALTER TABLE workspace_job_submissions ADD COLUMN source_rows TEXT NOT NULL DEFAULT '[]'",
+            );
+          }
         },
         onCreate: (db, version) async {
           await db.execute('''CREATE TABLE workspace_metadata (
@@ -50,6 +60,7 @@ class WorkspaceStore {
         )''');
           await db.execute('''CREATE TABLE workspace_job_submissions (
           owner TEXT NOT NULL, job_id TEXT NOT NULL, commands TEXT NOT NULL,
+          import_id TEXT, source_rows TEXT NOT NULL DEFAULT '[]',
           state TEXT NOT NULL DEFAULT 'PENDING', PRIMARY KEY(owner,job_id),
           CHECK(state IN ('PENDING','HOST_RECEIVED'))
         )''');
@@ -214,25 +225,34 @@ class WorkspaceStore {
 
   /// Stores complete stable command IDs before dispatch. A lost HTTP response
   /// retries the same Host job ID; the Host job is distinct from client queue entries.
-  Future<void> stageJobs(List<List<Map<String, dynamic>>> batches) =>
-      _database.transaction((tx) async {
-        for (final commands in batches) {
-          if (commands.isEmpty ||
-              commands.length > 25 ||
-              utf8.encode(canonicalJson(commands)).length > 49152) {
-            throw const ContractError(
-              'INVALID_JOB',
-              'Import batch exceeds the job bound.',
-            );
-          }
-          await tx.insert('workspace_job_submissions', {
-            'owner': _owner,
-            'job_id': createCommandId(),
-            'commands': canonicalJson(commands),
-            'state': 'PENDING',
-          });
-        }
+  Future<void> stageJobs(
+    List<List<Map<String, dynamic>>> batches, {
+    required String importId,
+    required Map<String, int> sourceRows,
+  }) => _database.transaction((tx) async {
+    for (final commands in batches) {
+      if (commands.isEmpty ||
+          commands.length > 25 ||
+          utf8.encode(canonicalJson(commands)).length > 49152) {
+        throw const ContractError(
+          'INVALID_JOB',
+          'Import batch exceeds the job bound.',
+        );
+      }
+      await tx.insert('workspace_job_submissions', {
+        'owner': _owner,
+        'job_id': createCommandId(),
+        'commands': canonicalJson(commands),
+        'import_id': importId,
+        'source_rows': canonicalJson([
+          for (final command in commands)
+            sourceRows[command['commandId']] ??
+                (throw StateError('Missing CSV source row')),
+        ]),
+        'state': 'PENDING',
       });
+    }
+  });
 
   Future<List<Map<String, Object?>>> pendingJobs() => _database.query(
     'workspace_job_submissions',

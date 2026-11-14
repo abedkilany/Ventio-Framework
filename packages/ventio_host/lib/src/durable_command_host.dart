@@ -185,6 +185,8 @@ class DurableCommandHost {
       CommandEnvelope command,
     )?
     resolveExtensionBundle,
+    Future<String?> Function(pg.TxSession tx, Principal principal)?
+    admissionGuard,
   }) async {
     ExtensionRecordCommand? extensionCommand;
     ExtensionBusinessOperationCommand? businessOperationCommand;
@@ -419,6 +421,15 @@ class DurableCommandHost {
           // Return a saved accepted receipt for an identical retry even after
           // a package upgrade. A fresh command from a superseded release must
           // not proceed to its effects.
+          final admissionFailure = await admissionGuard?.call(
+            tx,
+            authenticatedPrincipal,
+          );
+          if (admissionFailure != null) {
+            throw _RejectedCommand(
+              _failure(command, 'RETRY_LATER', admissionFailure),
+            );
+          }
           if (releaseFailureReasonCode != null) {
             throw _RejectedCommand(
               _failure(command, 'REJECTED', releaseFailureReasonCode),
@@ -1353,26 +1364,6 @@ class DurableCommandHost {
               'details': jsonEncode(audit),
             },
           );
-          if (command.type.startsWith('extension.')) {
-            await tx.execute(
-              pg.Sql.named('''
-              SELECT ventio_security.wave2_record_activity(@tenant,@company,@branch,@actor,@command,
-                @module,@doc,@record,@revision,@type)
-            '''),
-              parameters: {
-                'tenant': command.tenantId,
-                'company': command.companyId,
-                'branch': command.branchId,
-                'actor': command.actorId,
-                'command': command.commandId,
-                'module': moduleId,
-                'doc': docType.name,
-                'record': command.aggregateId,
-                'revision': recordRevision,
-                'type': command.type,
-              },
-            );
-          }
           await testFaultInjector?.call('after_audit');
           final event = <String, dynamic>{
             'tenantId': command.tenantId,

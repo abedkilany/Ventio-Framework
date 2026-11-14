@@ -62,6 +62,77 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
       'branch': branch,
     };
     switch (action) {
+      case 'customizations/rebase/preview':
+      case 'customizations/rebase/prepare':
+        wave2Keys(request, {
+          ...common,
+          'moduleId',
+          'sourceVersion',
+          'targetVersion',
+          'docType',
+          if (action == 'customizations/rebase/prepare') ...{
+            'sourceRevision',
+            'body',
+          },
+        });
+        parameters.addAll({
+          'module': requireString(request, 'moduleId'),
+          'source': requireString(request, 'sourceVersion'),
+          'target': requireString(request, 'targetVersion'),
+          'doc': requireString(request, 'docType'),
+        });
+        semverParts(parameters['source'] as String);
+        semverParts(parameters['target'] as String);
+        final candidate = await _runtime(
+          'SELECT ventio_security.wave2_rebase_candidate(@digest,@company,@branch,@module,@source,@target,@doc)::text',
+          parameters,
+        );
+        if (candidate['status'] != 'REBASE_CANDIDATE') return candidate;
+        final source = MetadataCustomization.fromJson(
+          requireMap(candidate['source'], 'source'),
+        );
+        final target = ExtensionBundle.fromJson(
+          requireMap(candidate['package'], 'package'),
+        );
+        final expected = source.rebase(
+          target,
+          requireString(candidate, 'packageSha256'),
+        );
+        if (canonicalJson(expected.json) != canonicalJson(candidate['body']))
+          throw StateError('Customization rebase contract mismatch');
+        if (action == 'customizations/rebase/preview') return candidate;
+        final body = requireMap(request['body'], 'body');
+        if (canonicalJson(body) != canonicalJson(expected.json))
+          return const {'status': 'CONFLICT', 'reasonCode': 'REBASE_CHANGED'};
+        parameters.addAll({
+          'revision': requireInt(request, 'sourceRevision', min: 1),
+          'body': canonicalJson(body),
+        });
+        return _administrative(
+          'SELECT ventio_security.wave2_prepare_rebase(@digest,@company,@branch,@module,@source,@target,@doc,@revision,CAST(@body AS jsonb))::text',
+          parameters,
+        );
+      case 'settings/read':
+        wave2Keys(request, common);
+        return _runtime(
+          'SELECT ventio_security.wave2_settings_for_scope(@digest,@company,@branch)::text',
+          parameters,
+        );
+      case 'organization/list':
+        wave2Keys(request, common);
+        return _runtime(
+          'SELECT ventio_security.wave2_organization_snapshot(@digest,@company,@branch)::text',
+          parameters,
+        );
+      case 'organization/change':
+        wave2Keys(request, {...common, 'change'});
+        final change = requireMap(request['change'], 'change');
+        validateOrganizationChange(change);
+        return _administrative(
+          'SELECT ventio_security.wave2_organization_change(@digest,@company,@branch,CAST(@change AS jsonb))::text',
+          {...parameters, 'change': canonicalJson(change)},
+        );
+
       case 'definitions/list':
         wave2Keys(request, {...common, 'kind'});
         parameters['kind'] = requireString(request, 'kind');
@@ -195,6 +266,23 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
               recordIdHeader: requireString(request, 'recordIdHeader'),
               writableFields: allowed,
             );
+            final settings = await _function(
+              tx,
+              'SELECT ventio_security.wave2_settings_for_scope(@digest,@company,@branch)::text',
+              parameters,
+            );
+            if (settings['status'] != 'SETTINGS') return _denied;
+            if (rows.length >
+                requireInt(
+                  requireMap(settings['settings'], 'settings'),
+                  'maxImportRows',
+                  min: 1,
+                )) {
+              throw const ContractError(
+                'IMPORT_ROW_LIMIT',
+                'Import exceeds the configured scope bound.',
+              );
+            }
             final existingRows = rows.isEmpty
                 ? <String>{}
                 : (await tx.execute(
@@ -257,6 +345,11 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
             'Export columns must be unique and bounded.',
           );
         }
+        final settings = await _runtime(
+          'SELECT ventio_security.wave2_settings_for_scope(@digest,@company,@branch)::text',
+          parameters,
+        );
+        if (settings['status'] != 'SETTINGS') return _denied;
         final result = await records.query(
           session: session,
           companyId: company,
@@ -273,7 +366,13 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           descending: request['descending'] == true,
           cursor: optionalString(request, 'cursor'),
           offset: 0,
-          limit: requireInt(request, 'limit', min: 1),
+          limit: request['limit'] == null
+              ? requireInt(
+                  requireMap(settings['settings'], 'settings'),
+                  'defaultPageSize',
+                  min: 1,
+                )
+              : requireInt(request, 'limit', min: 1),
           includeCustomizations: true,
         );
         if (result['status'] != 'RECORDS') return result;
@@ -304,7 +403,13 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           'baseSha256': result['packageSha256'],
         };
       case 'jobs/submit':
-        wave2Keys(request, {...common, 'jobId', 'commands'});
+        wave2Keys(request, {
+          ...common,
+          'jobId',
+          'commands',
+          'importId',
+          'sourceRows',
+        });
         final rawCommands = requireList(request, 'commands');
         if (rawCommands.isEmpty ||
             rawCommands.length > 25 ||
@@ -336,12 +441,29 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
             if (parsed.operation == 'delete') return _denied;
           }
         }
+        final importId = optionalString(request, 'importId');
+        final sourceRows = request['sourceRows'] == null
+            ? <dynamic>[]
+            : requireList(request, 'sourceRows');
+        if ((importId == null && sourceRows.isNotEmpty) ||
+            (importId != null &&
+                (!RegExp(r'^[0-9a-f-]{36}$').hasMatch(importId) ||
+                    sourceRows.length != rawCommands.length ||
+                    sourceRows.toSet().length != sourceRows.length ||
+                    sourceRows.any((v) => v is! int || v < 2 || v > 999999)))) {
+          throw const ContractError(
+            'INVALID_IMPORT_CORRELATION',
+            'Import row labels must match the commands.',
+          );
+        }
         parameters.addAll({
+          'import': importId,
+          'sourceRows': canonicalJson(sourceRows),
           'job': requireString(request, 'jobId'),
           'commands': canonicalJson(rawCommands),
         });
         return _runtime(
-          'SELECT ventio_security.wave2_submit_job(@digest,@company,@branch,@job,CAST(@commands AS jsonb))::text',
+          'SELECT ventio_security.wave2_submit_job(@digest,@company,@branch,@job,CAST(@commands AS jsonb),@import,CAST(@sourceRows AS jsonb))::text',
           parameters,
         );
       case 'jobs/list':
@@ -364,15 +486,33 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           'moduleVersion',
           'docType',
           'recordId',
+          'cursor',
+          'limit',
         });
+        final cursor = optionalString(request, 'cursor');
+        if (cursor != null && !RegExp(r'^[1-9][0-9]{0,17}$').hasMatch(cursor))
+          throw const ContractError(
+            'INVALID_CURSOR',
+            'Invalid activity cursor.',
+          );
+        final limit = request['limit'] == null
+            ? 50
+            : requireInt(request, 'limit', min: 1);
+        if (limit > 100)
+          throw const ContractError(
+            'INVALID_PAGE',
+            'Activity pages contain at most 100 entries.',
+          );
         parameters.addAll({
           'module': requireString(request, 'moduleId'),
           'version': requireString(request, 'moduleVersion'),
           'doc': requireString(request, 'docType'),
           'record': requireString(request, 'recordId'),
+          'before': cursor == null ? null : int.parse(cursor),
+          'limit': limit,
         });
         return _runtime(
-          'SELECT ventio_security.wave2_history(@digest,@company,@branch,@module,@version,@doc,@record)::text',
+          'SELECT ventio_security.wave2_history(@digest,@company,@branch,@module,@version,@doc,@record,@before,@limit)::text',
           parameters,
         );
       default:
@@ -381,6 +521,22 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           'Unsupported Wave 2 operation.',
         );
     }
+  }
+
+  Future<Map<String, dynamic>> _administrative(
+    String sql,
+    Map<String, dynamic> parameters,
+  ) async {
+    Map<String, dynamic>? result;
+    await administrationPool.withConnection((connection) async {
+      await verifyIdentityAdministrationConnection(connection);
+      await connection.execute("SET statement_timeout = '15s'");
+      await connection.execute("SET lock_timeout = '5s'");
+      await admission.change(connection, (tx) async {
+        result = await _function(tx, sql, parameters);
+      }, requireAdmissionProof: true);
+    });
+    return result!;
   }
 
   Future<Map<String, dynamic>> _runtime(

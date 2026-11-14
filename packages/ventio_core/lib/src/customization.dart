@@ -16,6 +16,38 @@ class MetadataCustomization {
   String get docType => json['docType'] as String;
   String get baseSha256 => json['baseSha256'] as String;
 
+  /// A release rebase preserves every custom field and its constraints/ACL.
+  /// Layouts adopt the target release and append custom fields. No business
+  /// values are rewritten; the existing base-package migration remains owner
+  /// of its own fields. Activation is atomic with package approval on Host.
+  MetadataCustomization rebase(ExtensionBundle target, String targetSha256) {
+    if (target.moduleId != moduleId ||
+        compareSemver(target.version, moduleVersion) <= 0) {
+      throw const ContractError('INVALID_CUSTOMIZATION_REBASE',
+          'A rebase requires a newer release of the same module.');
+    }
+    final doc = target.docTypes.where((item) => item.name == docType).toList();
+    if (doc.length != 1)
+      throw const ContractError(
+          'INVALID_CUSTOMIZATION_REBASE', 'Target DocType is unavailable.');
+    final names = requireList(json, 'fields')
+        .map((raw) => requireString(requireMap(raw, 'field'), 'name'))
+        .toList();
+    final next = MetadataCustomization.fromJson({
+      ...json,
+      'moduleVersion': target.version,
+      'baseSha256': targetSha256,
+      'ui': {
+        ...requireMap(json['ui'], 'ui'),
+        'listColumns': [...doc.single.listColumns, ...names],
+        'formFields': [...doc.single.formFields, ...names],
+        'detailFields': [...doc.single.detailFields, ...names]
+      }
+    });
+    next.merge(target, previous: this);
+    return next;
+  }
+
   factory MetadataCustomization.fromJson(Map<String, dynamic> source) {
     wave2Keys(source, const {
       'contractVersion',
