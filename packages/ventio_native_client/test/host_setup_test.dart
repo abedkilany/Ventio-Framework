@@ -230,6 +230,51 @@ void main() {
         ),
       );
     });
+
+    test(
+      'preserves the Host response when bootstrap session validation fails',
+      () async {
+        final store = await LocalExtensionStore.open(
+          factory: databaseFactoryFfi,
+          path: ':memory:',
+        );
+        addTearDown(store.close);
+        final backend = _MemoryHostCredentialBackend();
+        final vault = HostCredentialVault(backend);
+        final endpoint = Uri.parse(hostSetupEndpoint);
+        final profile = HostConnectionProfile(
+          endpoint: hostSetupEndpoint,
+          tenantId: 'tenant-one',
+          companyId: 'company-one',
+          branchId: 'branch-one',
+          actorId: _actorId,
+        );
+        final credentials = LocalHostSetupCredentialStore(
+          credentials: vault,
+          store: store,
+          sessionLoader: (_) async => throw const HostPackageTransportException(
+            'HOST_CREDENTIAL_EXPIRED',
+            statusCode: 401,
+          ),
+        );
+
+        await expectLater(
+          credentials.saveCredentialAndProfile(
+            endpoint: endpoint,
+            token: _token,
+            profile: profile,
+          ),
+          throwsA(
+            isA<HostSetupException>().having(
+              (error) => error.code,
+              'code',
+              'HOST_CREDENTIAL_EXPIRED',
+            ),
+          ),
+        );
+        expect(await vault.read(endpoint), isNull);
+      },
+    );
   });
 
   group('HostSetupCoordinator', () {

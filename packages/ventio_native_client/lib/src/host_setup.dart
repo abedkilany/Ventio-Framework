@@ -252,7 +252,10 @@ class LocalHostSetupCredentialStore implements HostSetupCredentialStore {
       }
       if (error is HostSetupException) rethrow;
       if (error is HostPackageTransportException) {
-        throw const HostSetupException('HOST_SESSION_AUTHENTICATION_FAILED');
+        // The transport exception contains a validated Host error code and
+        // status. Preserve the safe code so bootstrap diagnostics distinguish
+        // authentication, protocol, and reachability failures.
+        throw HostSetupException(error.code);
       }
       throw const HostSetupException('HOST_CREDENTIAL_STORAGE_FAILED');
     }
