@@ -113,11 +113,12 @@ BEGIN
   RETURN jsonb_build_object('status','REJECTED','reasonCode','PERMISSION_DENIED'); END IF;
  IF jsonb_typeof(p_change) IS DISTINCT FROM 'object' OR
     (p_change-ARRAY['kind','id','parentId','displayName','archived','expectedRevision','requestId'])<>'{}'::jsonb OR
-    kind IS NULL OR kind NOT IN ('organization','company','branch') OR id IS NULL OR id !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$' OR
+    kind IS NULL OR kind NOT IN ('organization','company','branch') OR id IS NULL OR length(id) NOT BETWEEN 1 AND 256 OR id ~ '[[:cntrl:]]' OR
     title IS NULL OR length(trim(title)) NOT BETWEEN 1 AND 120 OR jsonb_typeof(p_change->'archived') IS DISTINCT FROM 'boolean' OR
     (p_change->>'expectedRevision') IS NULL OR (p_change->>'expectedRevision') !~ '^[0-9]{1,18}$' OR
     (p_change->>'requestId') IS NULL OR (p_change->>'requestId') !~ '^[0-9a-f-]{36}$' THEN
   RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_ORGANIZATION_CHANGE'); END IF;
+ PERFORM pg_advisory_xact_lock(hashtextextended('wave2-organization:'||(identity->>'tenantId'),0));
  expected:=(p_change->>'expectedRevision')::bigint; archived_value:=(p_change->>'archived')::boolean;
  request_hash:=encode(sha256(convert_to(p_change::text,'UTF8')),'hex');
  SELECT * INTO saved FROM public.ventio_wave2_admin_requests WHERE tenant_id=identity->>'tenantId'
@@ -151,6 +152,7 @@ BEGIN
   SELECT revision INTO actual FROM public.ventio_wave2_branches WHERE tenant_id=identity->>'tenantId' AND company_id=parent AND branch_id=id FOR UPDATE;
  END IF;
  IF coalesce(actual,0)<>expected THEN RETURN jsonb_build_object('status','CONFLICT','reasonCode','ENTITY_CHANGED','revision',coalesce(actual,0)); END IF;
+ IF actual IS NULL AND (id !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$' OR kind='organization') THEN RETURN jsonb_build_object('status','REJECTED','reasonCode','INVALID_NEW_ENTITY'); END IF;
  actual:=coalesce(actual,0)+1;
  IF kind='organization' THEN
   INSERT INTO public.ventio_wave2_organizations VALUES(id,title,actual,archived_value)

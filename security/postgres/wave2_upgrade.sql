@@ -13,12 +13,14 @@ BEGIN
     EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC,ventio_runtime,ventio_identity_admin,ventio_identity_api',table_name);
   END LOOP;
 END $protection$;
+\ir administration_change.sql
 \ir wave2.sql
 \ir wave2_identity_base.sql
 \ir wave2_administration.sql
 \ir wave2_customization_rebase.sql
 \ir wave2_activity.sql
 \ir wave2_schema_migration.sql
+\ir wave2_operations.sql
 \ir extensions.sql
 \ir runtime_check.sql
 REVOKE ALL ON FUNCTION
@@ -33,7 +35,11 @@ REVOKE ALL ON FUNCTION
   ventio_security.wave2_rebase_candidate(text,text,text,text,text,text,text),
   ventio_security.wave2_settings_for_scope(text,text,text),
   ventio_security.wave2_command_admission(text,text,text,boolean),
+  ventio_security.wave2_operations_list(text,text,text),
   ventio_security.wave2_organization_snapshot(text,text,text),
+  ventio_security.wave2_prepare_operation(text,text,text,text,text,jsonb),
+  ventio_security.wave2_operation_offers(),
+  ventio_security.wave2_operation_result(text,text,jsonb),
   ventio_security.wave2_prepare_rebase(text,text,text,text,text,text,text,bigint,jsonb),
   ventio_security.wave2_organization_change(text,text,text,jsonb),
   ventio_security.wave2_allowed(jsonb,text,text,text),
@@ -56,6 +62,7 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.wave2_rebase_candidate(text,text,text,text,text,text,text),
   ventio_security.wave2_settings_for_scope(text,text,text),
   ventio_security.wave2_command_admission(text,text,text,boolean),
+  ventio_security.wave2_operations_list(text,text,text),
   ventio_security.wave2_organization_snapshot(text,text,text),
   ventio_security.wave2_definitions(text,text,text,text),
   ventio_security.wave2_submit_job(text,text,text,text,jsonb,text,jsonb),
@@ -67,6 +74,9 @@ GRANT EXECUTE ON FUNCTION
   ventio_security.wave2_history(text,text,text,text,text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION
+  ventio_security.wave2_prepare_operation(text,text,text,text,text,jsonb),
+  ventio_security.wave2_operation_offers(),
+  ventio_security.wave2_operation_result(text,text,jsonb),
   ventio_security.wave2_prepare_rebase(text,text,text,text,text,text,text,bigint,jsonb),
   ventio_security.wave2_organization_change(text,text,text,jsonb),
   ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb),

@@ -42,7 +42,13 @@ BEGIN
         'public.ventio_validate_extension_schema_upgrade(text,text,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected runtime DDL or identity capability';
   END IF;
-  IF has_function_privilege(current_user,'ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)','EXECUTE') OR
+  IF has_function_privilege(current_user,'ventio_security.wave2_operation_offers()','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_prepare_operation(text,text,text,text,text,jsonb)','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_operation_result(text,text,jsonb)','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_identity_snapshot_base(text,text,text)','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_prepare_rebase(text,text,text,text,text,text,text,bigint,jsonb)','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_organization_change(text,text,text,jsonb)','EXECUTE') OR
+      has_function_privilege(current_user,'ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)','EXECUTE') OR
       has_function_privilege(current_user,'ventio_security.wave2_claim_job()','EXECUTE') OR
       has_function_privilege(current_user,'ventio_security.wave2_finish_job(text,text,text,jsonb,boolean)','EXECUTE') OR
       has_function_privilege(current_user,'ventio_security.wave2_effective_package(text,text,text,jsonb,text)','EXECUTE') THEN
@@ -93,10 +99,35 @@ BEGIN
       END IF;
     END LOOP;
   END LOOP;
-  IF (SELECT count(*) FROM pg_catalog.pg_policy pol JOIN pg_catalog.pg_class pc ON pc.oid = pol.polrelid
-      JOIN pg_catalog.pg_namespace pn ON pn.oid = pc.relnamespace WHERE pn.nspname = 'public'
-      AND pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox',
-        'ventio_document_number_series')) <> 16 THEN
+  IF EXISTS(WITH expected(table_name,policy_name,role_name,command) AS (VALUES
+      ('ventio_records','runtime_select','ventio_runtime','r'),
+      ('ventio_records','runtime_insert','ventio_runtime','a'),
+      ('ventio_records','runtime_update','ventio_runtime','w'),
+      ('ventio_command_journal','runtime_select','ventio_runtime','r'),
+      ('ventio_command_journal','runtime_insert','ventio_runtime','a'),
+      ('ventio_command_journal','runtime_update','ventio_runtime','w'),
+      ('ventio_audit_entries','runtime_select','ventio_runtime','r'),
+      ('ventio_audit_entries','runtime_insert','ventio_runtime','a'),
+      ('ventio_outbox','runtime_select','ventio_runtime','r'),
+      ('ventio_outbox','runtime_insert','ventio_runtime','a'),
+      ('ventio_document_number_series','runtime_series_select','ventio_runtime','r'),
+      ('ventio_document_number_series','runtime_series_insert','ventio_runtime','a'),
+      ('ventio_document_number_series','runtime_series_update','ventio_runtime','w'),
+      ('ventio_document_number_series','owner_access','ventio_owner','*'),
+      ('ventio_records','extension_migration_select','ventio_owner','r'),
+      ('ventio_records','extension_migration_update','ventio_owner','w'),
+      ('ventio_records','wave2_scoped_migration_select','ventio_owner','r'),
+      ('ventio_records','wave2_scoped_migration_update','ventio_owner','w'),
+      ('ventio_outbox','wave2_history_seed_read','ventio_owner','r'),
+      ('ventio_command_journal','wave2_history_seed_journal','ventio_owner','r'),
+      ('ventio_audit_entries','wave2_history_seed_audit','ventio_owner','r')), actual AS (
+    SELECT pc.relname table_name,pol.polname policy_name,pol.polroles,pol.polcmd,pol.polpermissive
+    FROM pg_catalog.pg_policy pol JOIN pg_catalog.pg_class pc ON pc.oid=pol.polrelid
+    JOIN pg_catalog.pg_namespace pn ON pn.oid=pc.relnamespace WHERE pn.nspname='public' AND
+     pc.relname IN ('ventio_records','ventio_command_journal','ventio_audit_entries','ventio_outbox','ventio_document_number_series'))
+    SELECT FROM expected e FULL JOIN actual a USING(table_name,policy_name)
+    WHERE e.role_name IS NULL OR a.polroles IS DISTINCT FROM ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname=e.role_name)] OR
+      a.polcmd::text IS DISTINCT FROM e.command OR a.polpermissive IS DISTINCT FROM true) THEN
     RAISE EXCEPTION 'Unexpected row security policy set';
   END IF;
 END $fn$;

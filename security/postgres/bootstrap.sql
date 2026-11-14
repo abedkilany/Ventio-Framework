@@ -382,6 +382,7 @@ END $fn$;
 \ir wave2_customization_rebase.sql
 \ir wave2_activity.sql
 \ir wave2_schema_migration.sql
+\ir wave2_operations.sql
 \ir extensions.sql
 
 -- Legacy command bindings re-read identity in policy evaluation. Extension
@@ -803,6 +804,7 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.wave2_rebase_candidate(text,text,text,text,text,text,text),
   ventio_security.wave2_settings_for_scope(text,text,text),
   ventio_security.wave2_command_admission(text,text,text,boolean),
+  ventio_security.wave2_operations_list(text,text,text),
   ventio_security.wave2_organization_snapshot(text,text,text),
   ventio_security.wave2_definitions(text,text,text,text),
   ventio_security.wave2_jobs_list(text,text,text),
@@ -818,6 +820,9 @@ GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
   public.ventio_validate_extension_schema_upgrade(text,text,text),
   ventio_security.assert_schema() TO ventio_identity_admin;
 GRANT EXECUTE ON FUNCTION
+  ventio_security.wave2_prepare_operation(text,text,text,text,text,jsonb),
+  ventio_security.wave2_operation_offers(),
+  ventio_security.wave2_operation_result(text,text,jsonb),
   ventio_security.wave2_prepare_rebase(text,text,text,text,text,text,text,bigint,jsonb),
   ventio_security.wave2_organization_change(text,text,text,jsonb),
   ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb),

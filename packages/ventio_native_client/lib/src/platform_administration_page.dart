@@ -1,3 +1,4 @@
+import 'app_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:ventio_core/ventio_core.dart';
 
@@ -104,22 +105,30 @@ class _PlatformAdministrationPageState
                       controller: id,
                       readOnly: entity != null,
                       maxLength: 128,
-                      decoration: const InputDecoration(
-                        labelText: 'Identifier',
+                      decoration: InputDecoration(
+                        labelText: context.ventioText(
+                          'native.wave2.identifier_9b10587f',
+                        ),
                       ),
                     ),
                     TextField(
                       controller: title,
                       maxLength: 120,
-                      decoration: const InputDecoration(
-                        labelText: 'Display name',
+                      decoration: InputDecoration(
+                        labelText: context.ventioText(
+                          'native.wave2.display_name_2b7f6a84',
+                        ),
                       ),
                     ),
                     if (kind == 'branch')
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         initialValue: parent,
-                        decoration: const InputDecoration(labelText: 'Company'),
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.wave2.company_de4743c8',
+                          ),
+                        ),
                         items: [
                           for (final company in companies)
                             DropdownMenuItem(
@@ -132,7 +141,7 @@ class _PlatformAdministrationPageState
                             : (value) => update(() => parent = value),
                       ),
                     SwitchListTile(
-                      title: const Text('Archived'),
+                      title: const VentioText('native.wave2.archived_bdb86505'),
                       subtitle: Text(
                         currentScope
                             ? 'The current scope and tenant identity must remain active.'
@@ -144,8 +153,8 @@ class _PlatformAdministrationPageState
                           : (value) => update(() => archived = value),
                     ),
                     if (entity == null)
-                      const Text(
-                        'Creating a scope does not create users, permissions or credential access. Provision access through trusted identity administration.',
+                      const VentioText(
+                        'native.wave2.creating_a_scope_does_not_create_users_permissio_f3b1c038',
                       ),
                     if (validation != null) Text(validation!),
                   ],
@@ -155,7 +164,7 @@ class _PlatformAdministrationPageState
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
+                child: const VentioText('native.wave2.cancel_19766ed6'),
               ),
               FilledButton(
                 onPressed: () {
@@ -175,7 +184,7 @@ class _PlatformAdministrationPageState
                     update(() => validation = error.details);
                   }
                 },
-                child: const Text('Save with Host'),
+                child: const VentioText('native.wave2.save_with_host_fbe98751'),
               ),
             ],
           ),
@@ -196,11 +205,13 @@ class _PlatformAdministrationPageState
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Organization administration'),
+      title: const VentioText(
+        'native.wave2.organization_administration_02c74fa5',
+      ),
       actions: [
         IconButton(
           onPressed: _busy ? null : _load,
-          tooltip: 'Refresh',
+          tooltip: context.ventioText('native.wave2.refresh_0e916101'),
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -211,7 +222,10 @@ class _PlatformAdministrationPageState
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(20),
-            child: Text('Administration unavailable or denied: $_error'),
+            child: VentioText(
+              'native.wave2.administration_unavailable_or_denied_98d6b952',
+              params: {'v0': (_error)},
+            ),
           ),
         Padding(
           padding: const EdgeInsets.all(16),
@@ -223,7 +237,7 @@ class _PlatformAdministrationPageState
                 FilledButton.icon(
                   onPressed: _busy ? null : () => _edit('company'),
                   icon: const Icon(Icons.add_business),
-                  label: const Text('New company'),
+                  label: const VentioText('native.wave2.new_company_8bc7f6e6'),
                 ),
               FilledButton.icon(
                 onPressed:
@@ -232,7 +246,7 @@ class _PlatformAdministrationPageState
                     ? null
                     : () => _edit('branch'),
                 icon: const Icon(Icons.add_location_alt_outlined),
-                label: const Text('New branch'),
+                label: const VentioText('native.wave2.new_branch_7f445154'),
               ),
             ],
           ),
@@ -248,8 +262,15 @@ class _PlatformAdministrationPageState
                     _ => Icons.location_on_outlined,
                   }),
                   title: Text(entity['displayName'] as String),
-                  subtitle: Text(
-                    '${entity['kind']} / ${entity['parentId'] ?? widget.profile.tenantId} / ${entity['id']} - revision ${entity['revision']}${entity['archived'] == true ? ' - archived' : ''}',
+                  subtitle: VentioText(
+                    'native.wave2.revision_8f4ec9c5',
+                    params: {
+                      'v0': (entity['kind']),
+                      'v1': (entity['parentId'] ?? widget.profile.tenantId),
+                      'v2': (entity['id']),
+                      'v3': (entity['revision']),
+                      'v4': (entity['archived'] == true ? ' - archived' : ''),
+                    },
                   ),
                   onTap: _busy
                       ? null
@@ -257,7 +278,9 @@ class _PlatformAdministrationPageState
                 ),
               if (!_busy && _error == null && _entities.isEmpty)
                 const ListTile(
-                  title: Text('No manageable organization entities.'),
+                  title: VentioText(
+                    'native.wave2.no_manageable_organization_entities_1f26b28a',
+                  ),
                 ),
             ],
           ),

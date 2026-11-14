@@ -58,3 +58,15 @@ integrated in source. Migration 038 is additive. Historical source commands are
 recovered from retained outbox metadata; pre-capture cross-target events were never
 stored and cannot be reconstructed. Scheduling/retention/operational management
 remains in progress. No tests, analysis, builds or database operations executed.
+
+
+Operational execution checkpoint: source now includes bounded policy validation,
+recovery-admitted Host operation requests and private delivery, independent UAC
+approval, fixed SYSTEM scheduler, fresh scoped offers, local policy pinning and
+daily retry limits, quiesced BackupOnly execution, verified retention, protected
+restore plans, explicit restore confirmation and external-witness preservation.
+SQLite v3 stages operation request IDs before dispatch. No operation was executed.
+Automatic CI at 340d736 reported three workflows successful and five failed;
+source inspection identified stale RLS policy expectations and uncatalogued native
+labels. The exact policy set and catalog integration are corrected in source.
+Full runtime, OS/service, ACL and platform verification remains reserved for B.

@@ -31,7 +31,7 @@ class WorkspaceStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys=ON');
           await db.rawQuery('PRAGMA journal_mode=WAL');
@@ -46,8 +46,10 @@ class WorkspaceStore {
               "ALTER TABLE workspace_job_submissions ADD COLUMN source_rows TEXT NOT NULL DEFAULT '[]'",
             );
           }
+          if (oldVersion < 3) await _createOperations(db);
         },
         onCreate: (db, version) async {
+          await _createOperations(db);
           await db.execute('''CREATE TABLE workspace_metadata (
             owner TEXT NOT NULL, module_id TEXT NOT NULL, body TEXT NOT NULL,
             PRIMARY KEY(owner,module_id)
@@ -71,6 +73,51 @@ class WorkspaceStore {
   }
 
   Future<void> close() => _database.close();
+
+  static Future<void> _createOperations(Database db) =>
+      db.execute('''CREATE TABLE workspace_operation_submissions(
+    owner TEXT NOT NULL, operation_id TEXT NOT NULL, operation TEXT NOT NULL, body TEXT NOT NULL,
+    PRIMARY KEY(owner,operation_id))''');
+
+  Future<Map<String, dynamic>> stageOperation(
+    String operation,
+    Map<String, dynamic> body,
+  ) async {
+    if ((await pendingOperations()).length >= 20)
+      throw const ContractError(
+        'OPERATION_LIMIT',
+        'Resolve or discard pending operation requests first.',
+      );
+    final id = createCommandId();
+    validateHostOperation(id, operation, body);
+    await _database.insert('workspace_operation_submissions', {
+      'owner': _owner,
+      'operation_id': id,
+      'operation': operation,
+      'body': canonicalJson(body),
+    });
+    return {'operationId': id, 'operation': operation, 'body': body};
+  }
+
+  Future<List<Map<String, dynamic>>> pendingOperations() async => [
+    for (final row in await _database.query(
+      'workspace_operation_submissions',
+      where: 'owner=?',
+      whereArgs: [_owner],
+    ))
+      {
+        'operationId': row['operation_id'],
+        'operation': row['operation'],
+        'body': jsonDecode(row['body'] as String),
+      },
+  ];
+  Future<void> acknowledgeOperation(String id) => _database
+      .delete(
+        'workspace_operation_submissions',
+        where: 'owner=? AND operation_id=?',
+        whereArgs: [_owner, id],
+      )
+      .then((_) {});
 
   Future<void> cacheBundle(ExtensionBundle bundle) => _database
       .insert('workspace_metadata', {

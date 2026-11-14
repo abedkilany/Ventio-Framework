@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ventio_core/ventio_core.dart';
 
+import 'app_localization.dart';
+
 /// Metadata-only activity. Every page reauthorizes current Host scope and
 /// DocType read permission; field values are never stored or displayed here.
 class DocumentActivityPage extends StatefulWidget {
@@ -52,8 +54,9 @@ class _DocumentActivityPageState extends State<DocumentActivityPage> {
         setState(() {
           _entries = [];
           _cursor = null;
-          _error =
-              'Activity unavailable, offline, or access denied. Reconnect and refresh.';
+          _error = context.ventioText(
+            'native.wave2.activity_unavailable_offline_or_access_denied_re_91c72b91',
+          );
           _busy = false;
         });
     }
@@ -62,7 +65,10 @@ class _DocumentActivityPageState extends State<DocumentActivityPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text('Activity: ${widget.binding['recordId']}'),
+      title: VentioText(
+        'native.wave2.activity_4de06f3f',
+        params: {'v0': (widget.binding['recordId'])},
+      ),
       actions: [
         IconButton(
           onPressed: _busy ? null : () => _load(),
@@ -73,20 +79,26 @@ class _DocumentActivityPageState extends State<DocumentActivityPage> {
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          'Activity contains command identity, revision and operation only. Historical source commands are recovered from retained Host metadata. Cross-record effects before Wave 2 capture were not recorded.',
+        const VentioText(
+          'native.wave2.activity_contains_command_identity_revision_and_344d5f9c',
         ),
         if (_busy) const LinearProgressIndicator(),
         if (_error != null) Text(_error!),
         if (!_busy && _error == null && _entries.isEmpty)
-          const Text('No retained activity for this document.'),
+          const VentioText(
+            'native.wave2.no_retained_activity_for_this_document_d0203467',
+          ),
         for (final raw in _entries)
           Builder(
             builder: (_) {
               final row = requireMap(raw, 'activity');
               return ListTile(
-                title: Text(
-                  '${row['operation'] ?? 'Source command'} | revision ${row['revision'] ?? '?'}',
+                title: VentioText(
+                  'native.wave2.revision_22fc7179',
+                  params: {
+                    'v0': (row['operation'] ?? 'Source command'),
+                    'v1': (row['revision'] ?? '?'),
+                  },
                 ),
                 subtitle: SelectableText(
                   '${row['actorId']} | ${row['occurredAtUtc']}\n${row['commandId']}${row['effectTarget'] == true ? ' | effect target' : ''}${row['historicalSource'] == true ? ' | historical source' : ''}',
@@ -97,7 +109,7 @@ class _DocumentActivityPageState extends State<DocumentActivityPage> {
         if (_cursor != null)
           FilledButton(
             onPressed: _busy ? null : () => _load(next: true),
-            child: const Text('Older activity'),
+            child: const VentioText('native.wave2.older_activity_0eed19ab'),
           ),
       ],
     ),

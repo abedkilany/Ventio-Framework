@@ -31,7 +31,9 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
     required this.admission,
     required this.packages,
     required this.records,
+    this.operationsAvailable = false,
   });
+  final bool operationsAvailable;
   final pg.Pool<dynamic> runtimePool;
   final pg.Pool<dynamic> administrationPool;
   final RecoveryAuthority admission;
@@ -62,6 +64,34 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
       'branch': branch,
     };
     switch (action) {
+      case 'operations/list':
+        wave2Keys(request, common);
+        final result = await _runtime(
+          'SELECT ventio_security.wave2_operations_list(@digest,@company,@branch)::text',
+          parameters,
+        );
+        return {...result, 'localDeliveryAvailable': operationsAvailable};
+      case 'operations/prepare':
+        wave2Keys(request, {...common, 'operationId', 'operation', 'body'});
+        validateHostOperation(
+          requireString(request, 'operationId'),
+          requireString(request, 'operation'),
+          requireMap(request['body'], 'body'),
+        );
+        if (!operationsAvailable)
+          return const {
+            'status': 'REJECTED',
+            'reasonCode': 'LOCAL_OPERATIONS_NOT_PROVISIONED',
+          };
+        parameters.addAll({
+          'id': request['operationId'],
+          'operation': request['operation'],
+          'body': canonicalJson(request['body']),
+        });
+        return _administrative(
+          'SELECT ventio_security.wave2_prepare_operation(@digest,@company,@branch,@id,@operation,CAST(@body AS jsonb))::text',
+          parameters,
+        );
       case 'customizations/rebase/preview':
       case 'customizations/rebase/prepare':
         wave2Keys(request, {

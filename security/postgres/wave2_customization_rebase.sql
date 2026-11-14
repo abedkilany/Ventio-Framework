@@ -88,7 +88,7 @@ BEGIN
   SELECT * INTO prepared FROM public.ventio_wave2_customization_rebases WHERE tenant_id=source.tenant_id AND company_id=source.company_id
    AND branch_id=source.branch_id AND module_id=NEW.module_id AND target_version=NEW.version AND doc_type=source.body->>'docType' FOR UPDATE;
   identity:=ventio_security.identity_snapshot(prepared.credential_digest,source.company_id,source.branch_id);
-  IF prepared.body IS NULL OR prepared.source_revision<>source.revision OR prepared.source_sha256<>source.body->>'baseSha256' OR
+  IF prepared.body IS NULL OR prepared.source_version IS DISTINCT FROM previous_version OR prepared.source_revision<>source.revision OR prepared.source_sha256<>source.body->>'baseSha256' OR
     prepared.target_sha256<>NEW.package_sha256 OR prepared.body IS DISTINCT FROM ventio_security.wave2_rebase_body(source.body,NEW.package_json,NEW.package_sha256) OR
     identity->>'actorId' IS DISTINCT FROM prepared.prepared_by OR NOT ventio_security.wave2_allowed(identity,source.company_id,source.branch_id,'platform.customizations.manage') THEN
    RAISE EXCEPTION 'Every affected customization requires a current compatible release rebase' USING ERRCODE='23514',CONSTRAINT='wave2_customization_upgrade_guard'; END IF;

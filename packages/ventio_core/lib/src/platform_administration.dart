@@ -17,8 +17,8 @@ void validateOrganizationChange(Map<String, dynamic> change) {
     'requestId'
   });
   if (!const {'organization', 'company', 'branch'}.contains(change['kind']) ||
-      !RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$')
-          .hasMatch(requireString(change, 'id')) ||
+      requireString(change, 'id').length > 256 ||
+      RegExp(r'[\x00-\x1f\x7f]').hasMatch(requireString(change, 'id')) ||
       requireString(change, 'displayName').length > 120 ||
       change['archived'] is! bool ||
       !RegExp(r'^[0-9a-f-]{36}$')
@@ -75,5 +75,35 @@ void validateOperationalSettings(Map<String, dynamic> body) {
       throw const ContractError('INVALID_CONFIGURATION',
           'Operational bound exceeds the platform limit.');
     }
+  }
+}
+
+void validateHostOperation(
+    String id, String operation, Map<String, dynamic> body) {
+  if (!RegExp(r'^[0-9a-f-]{36}$').hasMatch(id) ||
+      !const {'APPLY_POLICY', 'BACKUP_NOW', 'RESTORE_PLAN', 'RESTORE'}
+          .contains(operation)) {
+    throw const ContractError(
+        'INVALID_OPERATION', 'Unsupported Host operation.');
+  }
+  wave2Keys(
+      body,
+      operation == 'RESTORE'
+          ? const {'backupName', 'planOperationId', 'planSha256'}
+          : operation == 'RESTORE_PLAN'
+              ? const {'backupName'}
+              : const {});
+  if (operation.startsWith('RESTORE') &&
+      !RegExp(r'^ventio-postgresql-before-upgrade-[0-9]{8}T[0-9]{9}Z-[0-9a-f]{32}$')
+          .hasMatch(requireString(body, 'backupName'))) {
+    throw const ContractError('INVALID_OPERATION', 'Invalid backup identity.');
+  }
+  if (operation == 'RESTORE' &&
+      (!RegExp(r'^[0-9a-f-]{36}$')
+              .hasMatch(requireString(body, 'planOperationId')) ||
+          !RegExp(r'^[0-9a-f]{64}$')
+              .hasMatch(requireString(body, 'planSha256')))) {
+    throw const ContractError(
+        'INVALID_OPERATION', 'A current protected restore plan is required.');
   }
 }

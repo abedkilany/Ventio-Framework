@@ -3988,7 +3988,12 @@ class _MigrationStepDialogState extends State<_MigrationStepDialog> {
       DocTypeMigrationStep.fromJson(step);
       Navigator.pop(context, step);
     } catch (error) {
-      setState(() => _error = 'Invalid migration step: $error');
+      setState(
+        () => _error = context.ventioText(
+          'native.wave2.invalid_migration_step_8bed6ee4',
+          params: {'v0': (error)},
+        ),
+      );
     }
   }
 
@@ -6482,11 +6487,17 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CheckboxListTile(
-          title: Text(
-            'Replace protected ${context.extensionMetadataText(field.labelKey, field.label)}',
+          title: VentioText(
+            'native.wave2.replace_protected_c247301c',
+            params: {
+              'v0': (context.extensionMetadataText(
+                field.labelKey,
+                field.label,
+              )),
+            },
           ),
-          subtitle: const Text(
-            'The current value is hidden. Leave unchecked to preserve it. Checking this box submits a replacement; an empty optional value clears it.',
+          subtitle: const VentioText(
+            'native.wave2.the_current_value_is_hidden_leave_unchecked_to_p_7a471b1e',
           ),
           value: _replaceProtected.contains(field.name),
           onChanged: _isEditable(field) && !_saving

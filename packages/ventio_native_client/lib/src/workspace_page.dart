@@ -14,6 +14,7 @@ import 'host_extension_packages.dart';
 import 'workspace_store.dart';
 import 'platform_administration_page.dart';
 import 'document_activity_page.dart';
+import 'host_operations_page.dart';
 import 'extension_studio_page.dart' show DynamicRecordFormPage;
 import 'local_command_queue.dart';
 
@@ -369,8 +370,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       TextFormField(
                         controller: name,
                         maxLength: 120,
-                        decoration: const InputDecoration(
-                          labelText: 'Scope display name',
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.wave2.scope_display_name_2c4cbe78',
+                          ),
                         ),
                         validator: (v) => v == null || v.trim().isEmpty
                             ? 'Enter a name'
@@ -380,28 +383,36 @@ class _WorkspacePageState extends State<WorkspacePage> {
                         controller: notice,
                         maxLength: 1000,
                         maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Operational notice',
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.wave2.operational_notice_cbdc54d3',
+                          ),
                         ),
                       ),
                       SwitchListTile(
-                        title: const Text('Maintenance mode'),
-                        subtitle: const Text(
-                          'Pause new business writes in this scope. Saved command receipts remain available.',
+                        title: const VentioText(
+                          'native.wave2.maintenance_mode_1e322b6f',
+                        ),
+                        subtitle: const VentioText(
+                          'native.wave2.pause_new_business_writes_in_this_scope_saved_co_04f166d6',
                         ),
                         value: maintenance,
                         onChanged: (v) => update(() => maintenance = v),
                       ),
                       SwitchListTile(
-                        title: const Text('Pause background jobs'),
+                        title: const VentioText(
+                          'native.wave2.pause_background_jobs_1cc36002',
+                        ),
                         value: paused,
                         onChanged: (v) => update(() => paused = v),
                       ),
                       TextFormField(
                         controller: page,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Default page size (1-100)',
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.wave2.default_page_size_1_100_a02b2226',
+                          ),
                         ),
                         validator: (v) =>
                             (int.tryParse(v ?? '') ?? 0) < 1 ||
@@ -412,8 +423,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       TextFormField(
                         controller: rows,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Maximum CSV data rows (1-500)',
+                        decoration: InputDecoration(
+                          labelText: context.ventioText(
+                            'native.wave2.maximum_csv_data_rows_1_500_82fe4361',
+                          ),
                         ),
                         validator: (v) =>
                             (int.tryParse(v ?? '') ?? 0) < 1 ||
@@ -429,7 +442,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: const VentioText('native.wave2.cancel_19766ed6'),
               ),
               FilledButton(
                 onPressed: () {
@@ -444,7 +457,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       'maxImportRows': int.parse(rows.text),
                     });
                 },
-                child: const Text('Save draft'),
+                child: const VentioText('native.wave2.save_draft_3de10010'),
               ),
             ],
           ),
@@ -755,21 +768,25 @@ class _WorkspacePageState extends State<WorkspacePage> {
       final target = await showDialog<String>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Rebase customization to submitted release'),
+          title: const VentioText(
+            'native.wave2.rebase_customization_to_submitted_release_d15da783',
+          ),
           content: TextField(
             controller: version,
-            decoration: const InputDecoration(
-              labelText: 'Target module version (for example 2.0.0)',
+            decoration: InputDecoration(
+              labelText: context.ventioText(
+                'native.wave2.target_module_version_for_example_2_0_0_2534fb19',
+              ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: const VentioText('native.wave2.cancel_19766ed6'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, version.text.trim()),
-              child: const Text('Preview'),
+              child: const VentioText('native.wave2.preview_324b134f'),
             ),
           ],
         ),
@@ -791,15 +808,17 @@ class _WorkspacePageState extends State<WorkspacePage> {
       final approved = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Review release rebase'),
+          title: const VentioText(
+            'native.wave2.review_release_rebase_47aa1031',
+          ),
           content: SizedBox(
             width: 640,
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Every custom field, value, constraint and permission is preserved. Layouts adopt the target release and append custom fields. Preparation does not approve the package. All affected scopes must prepare before independent package approval can activate the release.',
+                  const VentioText(
+                    'native.wave2.every_custom_field_value_constraint_and_permissi_fc9efb40',
                   ),
                   SelectableText(
                     const JsonEncoder.withIndent('  ').convert(preview['body']),
@@ -811,11 +830,13 @@ class _WorkspacePageState extends State<WorkspacePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: const VentioText('native.wave2.cancel_19766ed6'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Prepare atomic activation'),
+              child: const VentioText(
+                'native.wave2.prepare_atomic_activation_6fb36cd5',
+              ),
             ),
           ],
         ),
@@ -833,8 +854,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Rebase prepared. Independent package approval rechecks permissions, source revision and target digest.',
+            content: VentioText(
+              'native.wave2.rebase_prepared_independent_package_approval_rec_055cb04c',
             ),
           ),
         );
@@ -1330,9 +1351,71 @@ class _WorkspacePageState extends State<WorkspacePage> {
   Widget _settings() => ListView(
     padding: const EdgeInsets.all(20),
     children: [
+      if (_permissions.contains(hostOperationsManagePermission))
+        ListTile(
+          title: const VentioText(
+            'native.wave2.host_backup_scheduling_and_recovery_c5ebf39c',
+          ),
+          leading: const Icon(Icons.backup),
+          onTap: () => Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => HostOperationsPage(
+                profile: widget.profile,
+                request: _request,
+                localPolicy: () async {
+                  final rows = await _store!.list('backup_policy');
+                  return rows.isEmpty
+                      ? null
+                      : requireMap(rows.first['body'], 'body');
+                },
+                savePolicy: (body) async {
+                  try {
+                    final remote = await _request('definitions/list', {
+                      'kind': 'backup_policy',
+                    });
+                    if (remote['status'] == 'DEFINITIONS')
+                      await _store!.receive(
+                        'backup_policy',
+                        requireList(remote, 'definitions'),
+                      );
+                  } catch (_) {
+                    /* Preserve an offline draft. */
+                  }
+                  final draft = await _store!.saveDraft(
+                    'backup_policy',
+                    'scope',
+                    body,
+                  );
+                  await _publish(draft);
+                },
+                prepareOperation: (operation, body) async {
+                  final request = await _store!.stageOperation(operation, body);
+                  final reply = await _request('operations/prepare', request);
+                  if (reply['status'] != 'OPERATION')
+                    throw StateError('Operation denied');
+                  await _store!.acknowledgeOperation(
+                    request['operationId'] as String,
+                  );
+                },
+                retryOperations: () async {
+                  for (final request in await _store!.pendingOperations()) {
+                    final reply = await _request('operations/prepare', request);
+                    if (reply['status'] != 'OPERATION')
+                      throw StateError('Operation denied');
+                    await _store!.acknowledgeOperation(
+                      request['operationId'] as String,
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
       if (_permissions.contains(organizationAdministrationPermission))
         ListTile(
-          title: const Text('Organization, companies and branches'),
+          title: const VentioText(
+            'native.wave2.organization_companies_and_branches_741bdfb2',
+          ),
           leading: const Icon(Icons.account_tree),
           onTap: () => Navigator.of(context).push<void>(
             MaterialPageRoute(
@@ -1416,7 +1499,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
           (item) => item['state'] == 'SYNCED',
         ))
           ListTile(
-            title: Text('Prepare release rebase: ${entry['id']}'),
+            title: VentioText(
+              'native.wave2.prepare_release_rebase_d4bbd000',
+              params: {'v0': (entry['id'])},
+            ),
             leading: const Icon(Icons.upgrade),
             onTap: () => _prepareReleaseRebase(entry),
           ),
@@ -1603,7 +1689,7 @@ class _ViewEditorState extends State<_ViewEditor> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Saved record view'),
+    title: const VentioText('native.wave2.saved_record_view_e2c68077'),
     content: SizedBox(
       width: 600,
       child: SingleChildScrollView(
@@ -1612,16 +1698,24 @@ class _ViewEditorState extends State<_ViewEditor> {
           children: [
             TextField(
               controller: _title,
-              decoration: const InputDecoration(labelText: 'Title'),
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.wave2.title_7e8cd205'),
+              ),
             ),
             TextField(
               controller: _search,
-              decoration: const InputDecoration(labelText: 'Search'),
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.wave2.search_49c266ba'),
+              ),
             ),
             DropdownButtonFormField<String>(
               isExpanded: true,
               initialValue: _sort,
-              decoration: const InputDecoration(labelText: 'Sort field'),
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.sort_field_e6d34452',
+                ),
+              ),
               items: [
                 for (final field in widget.definition.fields)
                   DropdownMenuItem(value: field.name, child: Text(field.label)),
@@ -1629,14 +1723,16 @@ class _ViewEditorState extends State<_ViewEditor> {
               onChanged: (value) => setState(() => _sort = value),
             ),
             SwitchListTile(
-              title: const Text('Descending order'),
+              title: const VentioText('native.wave2.descending_order_d1439cc4'),
               value: _descending,
               onChanged: (value) => setState(() => _descending = value),
             ),
             DropdownButtonFormField<String>(
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Add an exact filter',
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.add_an_exact_filter_c8bc2ef3',
+                ),
               ),
               items: [
                 for (final field in widget.definition.fields.where(
@@ -1648,7 +1744,11 @@ class _ViewEditorState extends State<_ViewEditor> {
             ),
             TextField(
               controller: _filter,
-              decoration: const InputDecoration(labelText: 'Filter value'),
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.filter_value_d9542a27',
+                ),
+              ),
             ),
             Wrap(
               spacing: 8,
@@ -1673,7 +1773,7 @@ class _ViewEditorState extends State<_ViewEditor> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const VentioText('native.wave2.cancel_19766ed6'),
       ),
       FilledButton(
         onPressed: () {
@@ -1696,7 +1796,7 @@ class _ViewEditorState extends State<_ViewEditor> {
             setState(() => _error = error.details);
           }
         },
-        child: const Text('Save local draft'),
+        child: const VentioText('native.wave2.save_local_draft_960fc7ca'),
       ),
     ],
   );
@@ -1742,7 +1842,6 @@ class _RecordViewPageState extends State<_RecordViewPage> {
     try {
       final result = await widget.request('records/query', {
         ..._query,
-        'limit': 50,
         'cursor': _cursor,
       });
       if (mounted)
@@ -1770,14 +1869,15 @@ class _RecordViewPageState extends State<_RecordViewPage> {
     try {
       final result = await widget.request('exports/page', {
         ..._query,
-        'limit': 50,
         'cursor': _cursor,
       });
       if (!mounted) return;
       final copy = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('CSV export: current page'),
+          title: const VentioText(
+            'native.wave2.csv_export_current_page_1e618968',
+          ),
           content: SingleChildScrollView(
             child: SelectableText(
               requireString(result, 'csv', nonEmpty: false),
@@ -1786,11 +1886,11 @@ class _RecordViewPageState extends State<_RecordViewPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Close'),
+              child: const VentioText('native.wave2.close_7d9eb7ac'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Copy CSV'),
+              child: const VentioText('native.wave2.copy_csv_e64fbdd5'),
             ),
           ],
         ),
@@ -1859,7 +1959,9 @@ class _RecordViewPageState extends State<_RecordViewPage> {
                   const Divider(),
                   TextButton.icon(
                     icon: const Icon(Icons.history),
-                    label: const Text('Open authorized document activity'),
+                    label: const VentioText(
+                      'native.wave2.open_authorized_document_activity_75b54388',
+                    ),
                     onPressed: () {
                       Navigator.pop(context);
                       Navigator.of(this.context).push<void>(
@@ -1888,11 +1990,13 @@ class _RecordViewPageState extends State<_RecordViewPage> {
                 Navigator.pop(context);
                 await widget.editRecord(widget.view.json, matches.single);
               },
-              child: const Text('Edit provisional draft'),
+              child: const VentioText(
+                'native.wave2.edit_provisional_draft_dc2fefe0',
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
+              child: const VentioText('native.wave2.close_7d9eb7ac'),
             ),
           ],
         ),
@@ -1929,17 +2033,21 @@ class _RecordViewPageState extends State<_RecordViewPage> {
                     await widget.editRecord(widget.view.json, null);
                     if (mounted) await _load();
                   },
-            tooltip: 'New provisional record',
+            tooltip: context.ventioText(
+              'native.wave2.new_provisional_record_f47a13fc',
+            ),
             icon: const Icon(Icons.add),
           ),
           IconButton(
             onPressed: _busy ? null : _export,
-            tooltip: 'Export current page as CSV',
+            tooltip: context.ventioText(
+              'native.wave2.export_current_page_as_csv_b45b4c10',
+            ),
             icon: const Icon(Icons.download),
           ),
           IconButton(
             onPressed: _busy ? null : () => _load(),
-            tooltip: 'Refresh',
+            tooltip: context.ventioText('native.wave2.refresh_0e916101'),
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -1950,12 +2058,17 @@ class _RecordViewPageState extends State<_RecordViewPage> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Data unavailable or access denied: $_error'),
+              child: VentioText(
+                'native.wave2.data_unavailable_or_access_denied_291bc5c5',
+                params: {'v0': (_error)},
+              ),
             ),
           if (!_busy && _error == null && records.isEmpty)
             const Padding(
               padding: EdgeInsets.all(24),
-              child: Text('No records match this view.'),
+              child: VentioText(
+                'native.wave2.no_records_match_this_view_3bec7146',
+              ),
             ),
           Expanded(
             child: LayoutBuilder(
@@ -1982,7 +2095,9 @@ class _RecordViewPageState extends State<_RecordViewPage> {
                       child: SingleChildScrollView(
                         child: DataTable(
                           columns: [
-                            const DataColumn(label: Text('Record')),
+                            const DataColumn(
+                              label: VentioText('native.wave2.record_bfdd5106'),
+                            ),
                             for (final field in columns)
                               DataColumn(label: Text(field)),
                           ],
@@ -2017,7 +2132,7 @@ class _RecordViewPageState extends State<_RecordViewPage> {
                       _cursor = _result!['nextCursor'] as String;
                       _load(next: true);
                     },
-              child: const Text('Next page'),
+              child: const VentioText('native.wave2.next_page_c08ac736'),
             ),
         ],
       ),
@@ -2132,7 +2247,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Customize metadata'),
+    title: const VentioText('native.wave2.customize_metadata_4327cfc6'),
     content: SizedBox(
       width: 680,
       child: SingleChildScrollView(
@@ -2140,28 +2255,42 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Saved changes remain a local draft until the Host accepts publication. Existing custom fields cannot be removed or changed structurally.',
+            const VentioText(
+              'native.wave2.saved_changes_remain_a_local_draft_until_the_hos_d77e3ea8',
             ),
             TextField(
               controller: _label,
-              decoration: const InputDecoration(labelText: 'DocType label'),
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.doctype_label_ad7cd347',
+                ),
+              ),
             ),
             TextField(
               controller: _pageTitle,
               maxLength: 120,
-              decoration: const InputDecoration(labelText: 'Navigation title'),
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.navigation_title_16e6d160',
+                ),
+              ),
             ),
             TextField(
               controller: _pageOrder,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Navigation order (0 to 10000)',
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.navigation_order_0_to_10000_cbbe3acf',
+                ),
               ),
             ),
             DropdownButtonFormField<String>(
               initialValue: _pageIcon,
-              decoration: const InputDecoration(labelText: 'Navigation icon'),
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.navigation_icon_0f9ef86b',
+                ),
+              ),
               items: [
                 for (final icon in [
                   'list',
@@ -2186,20 +2315,28 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
               ),
             TextField(
               controller: _fieldName,
-              decoration: const InputDecoration(
-                labelText: 'Custom field identifier',
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.custom_field_identifier_b1bffb4f',
+                ),
               ),
             ),
             TextField(
               controller: _fieldLabel,
-              decoration: const InputDecoration(
-                labelText: 'Custom field label',
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.custom_field_label_aac7f6f5',
+                ),
               ),
             ),
             DropdownButtonFormField<String>(
               isExpanded: true,
               initialValue: _type,
-              decoration: const InputDecoration(labelText: 'Field type'),
+              decoration: InputDecoration(
+                labelText: context.ventioText(
+                  'native.wave2.field_type_01f04ff7',
+                ),
+              ),
               items:
                   [
                         'text',
@@ -2220,7 +2357,9 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
             TextButton.icon(
               onPressed: _addField,
               icon: const Icon(Icons.add),
-              label: const Text('Add optional field'),
+              label: const VentioText(
+                'native.wave2.add_optional_field_ecf829c3',
+              ),
             ),
             for (final layout in _layouts.entries) ...[
               Padding(
@@ -2275,7 +2414,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const VentioText('native.wave2.cancel_19766ed6'),
       ),
       FilledButton(
         onPressed: () {
@@ -2286,7 +2425,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
             setState(() => _error = error.details);
           }
         },
-        child: const Text('Save local draft'),
+        child: const VentioText('native.wave2.save_local_draft_960fc7ca'),
       ),
     ],
   );
@@ -2472,17 +2611,24 @@ class _ImportPageState extends State<_ImportPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('Import CSV · ${widget.definition.label}')),
+    appBar: AppBar(
+      title: VentioText(
+        'native.wave2.import_csv_b996b0f7',
+        params: {'v0': (widget.definition.label)},
+      ),
+    ),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          'Create records from UTF-8 CSV. Maximum 500 rows; Host jobs contain at most 25 commands. Existing IDs are never overwritten. Invalid rows are skipped only when you submit the valid preview rows.',
+        const VentioText(
+          'native.wave2.create_records_from_utf_8_csv_maximum_500_rows_h_2a840a66',
         ),
         TextField(
           controller: _csv,
           maxLines: 8,
-          decoration: const InputDecoration(labelText: 'CSV content'),
+          decoration: InputDecoration(
+            labelText: context.ventioText('native.wave2.csv_content_af497e28'),
+          ),
           onChanged: (_) => setState(() {
             _preview = null;
             _headers = [];
@@ -2493,14 +2639,18 @@ class _ImportPageState extends State<_ImportPage> {
           alignment: Alignment.centerLeft,
           child: OutlinedButton(
             onPressed: _busy ? null : _readHeaders,
-            child: const Text('Read headers'),
+            child: const VentioText('native.wave2.read_headers_cad53df4'),
           ),
         ),
         if (_headers.isNotEmpty) ...[
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _idHeader,
-            decoration: const InputDecoration(labelText: 'Record ID column'),
+            decoration: InputDecoration(
+              labelText: context.ventioText(
+                'native.wave2.record_id_column_286e88e6',
+              ),
+            ),
             items: [
               for (final header in _headers)
                 DropdownMenuItem(value: header, child: Text(header)),
@@ -2516,7 +2666,10 @@ class _ImportPageState extends State<_ImportPage> {
               isExpanded: true,
               decoration: InputDecoration(labelText: header),
               items: [
-                const DropdownMenuItem(value: '', child: Text('Ignore column')),
+                const DropdownMenuItem(
+                  value: '',
+                  child: VentioText('native.wave2.ignore_column_5151f9e5'),
+                ),
                 for (final field in _fields)
                   DropdownMenuItem(value: field.name, child: Text(field.label)),
               ],
@@ -2533,7 +2686,9 @@ class _ImportPageState extends State<_ImportPage> {
             alignment: Alignment.centerLeft,
             child: FilledButton(
               onPressed: _busy || _mapping.isEmpty ? null : _validate,
-              child: const Text('Validate with Host'),
+              child: const VentioText(
+                'native.wave2.validate_with_host_30c3751c',
+              ),
             ),
           ),
         ],
@@ -2542,8 +2697,12 @@ class _ImportPageState extends State<_ImportPage> {
         if (_preview != null) ...[
           for (final raw in _preview!)
             ListTile(
-              title: Text(
-                'Row ${(raw as Map)['rowNumber']} · ${raw['recordId']}',
+              title: VentioText(
+                'native.wave2.row_15d860a1',
+                params: {
+                  'v0': ((raw as Map)['rowNumber']),
+                  'v1': (raw['recordId']),
+                },
               ),
               subtitle: Text(
                 (raw['errors'] as List).isEmpty
@@ -2553,7 +2712,9 @@ class _ImportPageState extends State<_ImportPage> {
             ),
           FilledButton(
             onPressed: _busy ? null : _stage,
-            child: const Text('Submit valid rows as Host jobs'),
+            child: const VentioText(
+              'native.wave2.submit_valid_rows_as_host_jobs_e266c3b4',
+            ),
           ),
         ],
       ],

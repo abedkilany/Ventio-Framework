@@ -1228,4 +1228,162 @@ const ventioNativeEnglishMessages = <String, String>{
       'You submitted this candidate. A different authorized administrator must review it.',
   'native.ui.disable_on_device': 'Disable on device',
   'native.ui.activate_on_device': 'Activate on device',
+
+  // Wave 2 native workspace and governed operations.
+  'native.wave2.activity_4de06f3f': 'Activity: {v0}',
+  'native.wave2.activity_contains_command_identity_revision_and_344d5f9c':
+      'Activity contains command identity, revision and operation only. Historical source commands are recovered from retained Host metadata. Cross-record effects before Wave 2 capture were not recorded.',
+  'native.wave2.activity_unavailable_offline_or_access_denied_re_91c72b91':
+      'Activity unavailable, offline, or access denied. Reconnect and refresh.',
+  'native.wave2.add_an_exact_filter_c8bc2ef3': 'Add an exact filter',
+  'native.wave2.add_optional_field_ecf829c3': 'Add optional field',
+  'native.wave2.administration_unavailable_or_denied_98d6b952':
+      'Administration unavailable or denied: {v0}',
+  'native.wave2.approve_on_this_windows_host_9fcdd12a':
+      'Approve on this Windows Host',
+  'native.wave2.archived_bdb86505': 'Archived',
+  'native.wave2.backup_policy_draft_d2e5eff3': 'Backup policy draft',
+  'native.wave2.cancel_19766ed6': 'Cancel',
+  'native.wave2.close_7d9eb7ac': 'Close',
+  'native.wave2.company_de4743c8': 'Company',
+  'native.wave2.continue_to_local_administrator_approval_9ee72994':
+      'Continue to local administrator approval',
+  'native.wave2.controlled_database_restore_f25ea9ab':
+      'Controlled database restore',
+  'native.wave2.copy_csv_e64fbdd5': 'Copy CSV',
+  'native.wave2.create_controlled_restore_request_196e4cad':
+      'Create controlled restore request',
+  'native.wave2.create_records_from_utf_8_csv_maximum_500_rows_h_2a840a66':
+      'Create records from UTF-8 CSV. Maximum 500 rows; Host jobs contain at most 25 commands. Existing IDs are never overwritten. Invalid rows are skipped only when you submit the valid preview rows.',
+  'native.wave2.create_restore_request_625a0969': 'Create restore request',
+  'native.wave2.creating_a_scope_does_not_create_users_permissio_f3b1c038':
+      'Creating a scope does not create users, permissions or credential access. Provision access through trusted identity administration.',
+  'native.wave2.csv_content_af497e28': 'CSV content',
+  'native.wave2.csv_export_current_page_1e618968': 'CSV export: current page',
+  'native.wave2.custom_field_identifier_b1bffb4f': 'Custom field identifier',
+  'native.wave2.custom_field_label_aac7f6f5': 'Custom field label',
+  'native.wave2.customize_metadata_4327cfc6': 'Customize metadata',
+  'native.wave2.daily_backup_policy_a4b1fd14': 'Daily backup policy',
+  'native.wave2.data_unavailable_or_access_denied_291bc5c5':
+      'Data unavailable or access denied: {v0}',
+  'native.wave2.default_page_size_1_100_a02b2226': 'Default page size (1-100)',
+  'native.wave2.descending_order_d1439cc4': 'Descending order',
+  'native.wave2.display_name_2b7f6a84': 'Display name',
+  'native.wave2.doctype_label_ad7cd347': 'DocType label',
+  'native.wave2.edit_provisional_draft_dc2fefe0': 'Edit provisional draft',
+  'native.wave2.enable_daily_backup_e09ac9f1': 'Enable daily backup',
+  'native.wave2.every_custom_field_value_constraint_and_permissi_fc9efb40':
+      'Every custom field, value, constraint and permission is preserved. Layouts adopt the target release and append custom fields. Preparation does not approve the package. All affected scopes must prepare before independent package approval can activate the release.',
+  'native.wave2.exact_retained_backup_name_11163a25':
+      'Exact retained backup name',
+  'native.wave2.export_current_page_as_csv_b45b4c10':
+      'Export current page as CSV',
+  'native.wave2.field_type_01f04ff7': 'Field type',
+  'native.wave2.filter_value_d9542a27': 'Filter value',
+  'native.wave2.host_backup_and_recovery_f9a73bdc': 'Host backup and recovery',
+  'native.wave2.host_backup_scheduling_and_recovery_c5ebf39c':
+      'Host backup, scheduling and recovery',
+  'native.wave2.host_operations_unavailable_offline_or_denied_on_66fad509':
+      'Host operations unavailable, offline, or denied. Only a provisional policy draft can be edited.',
+  'native.wave2.identifier_9b10587f': 'Identifier',
+  'native.wave2.ignore_column_5151f9e5': 'Ignore column',
+  'native.wave2.import_csv_b996b0f7': 'Import CSV · {v0}',
+  'native.wave2.invalid_migration_step_8bed6ee4':
+      'Invalid migration step: {v0}',
+  'native.wave2.local_approval_could_not_launch_use_the_installe_6f734747':
+      'Local approval could not launch. Use the installed Host operations tool on this Windows Host and inspect its protected journal.',
+  'native.wave2.local_delivery_is_unavailable_provision_the_prot_c5a2d565':
+      'Local delivery is unavailable. Provision the protected operations directory using the current trusted Host Setup payload.',
+  'native.wave2.maintenance_mode_1e322b6f': 'Maintenance mode',
+  'native.wave2.maximum_csv_data_rows_1_500_82fe4361':
+      'Maximum CSV data rows (1-500)',
+  'native.wave2.navigation_icon_0f9ef86b': 'Navigation icon',
+  'native.wave2.navigation_order_0_to_10000_cbbe3acf':
+      'Navigation order (0 to 10000)',
+  'native.wave2.navigation_title_16e6d160': 'Navigation title',
+  'native.wave2.new_branch_7f445154': 'New branch',
+  'native.wave2.new_company_8bc7f6e6': 'New company',
+  'native.wave2.new_provisional_record_f47a13fc': 'New provisional record',
+  'native.wave2.next_page_c08ac736': 'Next page',
+  'native.wave2.no_manageable_organization_entities_1f26b28a':
+      'No manageable organization entities.',
+  'native.wave2.no_records_match_this_view_3bec7146':
+      'No records match this view.',
+  'native.wave2.no_retained_activity_for_this_document_d0203467':
+      'No retained activity for this document.',
+  'native.wave2.no_retained_operational_requests_in_this_scope_6792bb92':
+      'No retained operational requests in this scope.',
+  'native.wave2.older_activity_0eed19ab': 'Older activity',
+  'native.wave2.open_authorized_document_activity_75b54388':
+      'Open authorized document activity',
+  'native.wave2.operation_was_not_acknowledged_refresh_before_cr_e3f83598':
+      'Operation was not acknowledged. Refresh before creating another request; Host operation IDs prevent duplicate execution.',
+  'native.wave2.operational_notice_cbdc54d3': 'Operational notice',
+  'native.wave2.organization_administration_02c74fa5':
+      'Organization administration',
+  'native.wave2.organization_companies_and_branches_741bdfb2':
+      'Organization, companies and branches',
+  'native.wave2.pause_background_jobs_1cc36002': 'Pause background jobs',
+  'native.wave2.pause_new_business_writes_in_this_scope_saved_co_04f166d6':
+      'Pause new business writes in this scope. Saved command receipts remain available.',
+  'native.wave2.pending_requests_remain_provisional_until_host_a_281c011c':
+      'Pending requests remain provisional until Host acknowledgement.',
+  'native.wave2.physical_backups_include_the_complete_host_datab_06ca3cd6':
+      'Physical backups include the complete Host database. A local administrator must approve this exact policy before scheduling is armed. Changing the policy pauses scheduled execution until approved again.',
+  'native.wave2.prepare_atomic_activation_6fb36cd5':
+      'Prepare atomic activation',
+  'native.wave2.prepare_integrity_and_compatibility_review_789189d3':
+      'Prepare integrity and compatibility review',
+  'native.wave2.prepare_release_rebase_d4bbd000':
+      'Prepare release rebase: {v0}',
+  'native.wave2.prepare_restore_plan_32c74e50': 'Prepare restore plan',
+  'native.wave2.preview_324b134f': 'Preview',
+  'native.wave2.read_headers_cad53df4': 'Read headers',
+  'native.wave2.rebase_customization_to_submitted_release_d15da783':
+      'Rebase customization to submitted release',
+  'native.wave2.rebase_prepared_independent_package_approval_rec_055cb04c':
+      'Rebase prepared. Independent package approval rechecks permissions, source revision and target digest.',
+  'native.wave2.record_bfdd5106': 'Record',
+  'native.wave2.record_id_column_286e88e6': 'Record ID column',
+  'native.wave2.refresh_0e916101': 'Refresh',
+  'native.wave2.replace_protected_c247301c': 'Replace protected {v0}',
+  'native.wave2.request_backup_now_1bdb860a': 'Request backup now',
+  'native.wave2.request_policy_activation_2dfc5e36':
+      'Request policy activation',
+  'native.wave2.restore_this_replaces_the_physical_host_database_fa68b2b9':
+      'Restore {v0}. This replaces the physical Host database for every tenant. Current data is preserved separately. The Host remains stopped and requires Recovery Authority reconciliation through trusted Setup. This action cannot be scheduled.',
+  'native.wave2.retry_pending_operation_requests_with_their_save_7abc9ef8':
+      'Retry pending operation requests with their saved IDs',
+  'native.wave2.review_and_approve_locally_5a8ad37c':
+      'Review and approve locally',
+  'native.wave2.review_release_rebase_47aa1031': 'Review release rebase',
+  'native.wave2.review_requests_here_execute_them_using_a_local_9e080352':
+      'Review requests here. Execute them using a local profile on the Windows Host computer.',
+  'native.wave2.revision_22fc7179': '{v0} | revision {v1}',
+  'native.wave2.revision_8f4ec9c5': '{v0} / {v1} / {v2} - revision {v3}{v4}',
+  'native.wave2.row_15d860a1': 'Row {v0} · {v1}',
+  'native.wave2.save_draft_3de10010': 'Save draft',
+  'native.wave2.save_local_draft_960fc7ca': 'Save local draft',
+  'native.wave2.save_provisional_policy_1e94e921': 'Save provisional policy',
+  'native.wave2.save_with_host_fbe98751': 'Save with Host',
+  'native.wave2.saved_changes_remain_a_local_draft_until_the_hos_d77e3ea8':
+      'Saved changes remain a local draft until the Host accepts publication. Existing custom fields cannot be removed or changed structurally.',
+  'native.wave2.saved_record_view_e2c68077': 'Saved record view',
+  'native.wave2.scope_display_name_2c4cbe78': 'Scope display name',
+  'native.wave2.search_49c266ba': 'Search',
+  'native.wave2.shared_policies_require_host_acceptance_physical_fd11ebef':
+      'Shared policies require Host acceptance. Physical operations require a fresh authorized Host offer and independent local Windows administrator approval. No backup, restore or scheduler starts from this page without that approval.',
+  'native.wave2.sort_field_e6d34452': 'Sort field',
+  'native.wave2.submit_valid_rows_as_host_jobs_e266c3b4':
+      'Submit valid rows as Host jobs',
+  'native.wave2.target_module_version_for_example_2_0_0_2534fb19':
+      'Target module version (for example 2.0.0)',
+  'native.wave2.the_current_value_is_hidden_leave_unchecked_to_p_7a471b1e':
+      'The current value is hidden. Leave unchecked to preserve it. Checking this box submits a replacement; an empty optional value clears it.',
+  'native.wave2.title_7e8cd205': 'Title',
+  'native.wave2.type_the_exact_backup_name_to_confirm_4d158aad':
+      'Type the exact backup name to confirm',
+  'native.wave2.uac_approval_grants_machine_wide_operational_aut_1d42b752':
+      'UAC approval grants machine-wide operational authority. Backups quiesce the Host and PostgreSQL. Restores replace the database for all tenants and leave the Host stopped. Review this exact request before continuing.',
+  'native.wave2.validate_with_host_30c3751c': 'Validate with Host',
 };

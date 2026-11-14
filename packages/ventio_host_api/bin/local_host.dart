@@ -25,6 +25,7 @@ Future<void> runLocalHost({
   HostApi? api;
   HostApi? lanApi;
   Wave2JobWorker? jobWorker;
+  WindowsOperationsDelivery? operationsDelivery;
   pg.Pool<dynamic>? runtimePool;
   pg.Pool<dynamic>? identityApiPool;
   ManagementDiagnosticSink diagnostics = ManagementDiagnosticBuffer();
@@ -208,6 +209,11 @@ Future<void> runLocalHost({
       docTypes: docTypes ?? DocTypeRegistry(),
       bindings: bindings,
     );
+    final operationDirectory = Directory(
+      '${Platform.environment['ProgramData'] ?? r'C:\ProgramData'}${Platform.pathSeparator}Ventio${Platform.pathSeparator}Host${Platform.pathSeparator}Operations',
+    );
+    final operationsAvailable =
+        Platform.isWindows && await operationDirectory.exists();
     final wave2 = identityApiPool == null
         ? null
         : PostgresWave2Gateway(
@@ -216,6 +222,7 @@ Future<void> runLocalHost({
             admission: admission,
             packages: extensionPackages,
             records: extensionRecordQueries,
+            operationsAvailable: operationsAvailable,
           );
     api = await HostApi.bind(
       port: int.parse(Platform.environment['VENTIO_HOST_PORT'] ?? '8080'),
@@ -281,6 +288,15 @@ Future<void> runLocalHost({
       );
     }
     if (identityApiPool != null) {
+      if (operationsAvailable) {
+        operationsDelivery = WindowsOperationsDelivery(
+          pool: identityApiPool,
+          admission: admission,
+          directory: operationDirectory,
+          reportFailure: () =>
+              stderr.writeln('HOST_OPERATIONS_DELIVERY_UNAVAILABLE'),
+        )..start();
+      }
       jobWorker = Wave2JobWorker(
         administrationPool: identityApiPool,
         admission: admission,
@@ -291,6 +307,7 @@ Future<void> runLocalHost({
     stdout.writeln('VENTIO_HOST_READY');
   } catch (error) {
     try {
+      await operationsDelivery?.close();
       await jobWorker?.close();
       await lanApi?.close();
       await api?.close();
@@ -358,6 +375,7 @@ Future<void> runLocalHost({
   }
   await shutdown.future;
   try {
+    await operationsDelivery?.close();
     await jobWorker?.close();
     await lanApi?.close();
     await api.close();

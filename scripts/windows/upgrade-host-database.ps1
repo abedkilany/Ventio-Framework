@@ -2,6 +2,7 @@ param(
   [string] $PostgresRoot = (Join-Path $env:ProgramFiles 'Ventio\host-payload\postgresql'),
   [int] $Port = 54329,
   [switch] $Apply,
+  [switch] $BackupOnly,
   [switch] $TestMode,
   [string] $TestDataDirectory,
   [switch] $TestBackupOnly,
@@ -286,6 +287,9 @@ function Complete-HostPostgresBackup(
   $manifest = [ordered]@{
     formatVersion = 2
     integrityAlgorithm = 'SHA-256'
+    backupKind = $(if($BackupOnly){'scheduled'}else{'upgrade'})
+    machineId = $(if($TestMode){'fixture'}else{(Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid})
+    schemaProfileSha256 = (Get-FileHash -LiteralPath $schemaProfileContract -Algorithm SHA256).Hash.ToLowerInvariant()
     files = $integrityFiles
     recoveryAuthorityIncluded = $false
     createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
@@ -549,7 +553,10 @@ function Invoke-HostSchemaUpgradeService([string] $DatabaseUrl, [string] $HostDi
   }
 }
 
+Import-Module (Join-Path $PSScriptRoot 'HostOperationStorage.psm1') -Force
+$maintenanceLock=$null
 try {
+if($Apply -and -not $TestMode){$maintenanceLock=Enter-VentioMaintenanceLock}
 if ($TestBackupOnly -and -not $TestMode) { throw 'HOST_DATABASE_TEST_BACKUP_MODE_REQUIRED' }
 if ($TestBackupFailureAt -and -not $TestMode) { throw 'HOST_DATABASE_TEST_BACKUP_MODE_REQUIRED' }
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'HOST_DATABASE_PORT_INVALID' }
@@ -674,10 +681,15 @@ $backupName = "ventio-postgresql-before-upgrade-$stamp-$([guid]::NewGuid().ToStr
 $partialBackupRoot = Join-Path $backupDirectory ($backupName + '.partial')
 $backupRoot = Join-Path $backupDirectory $backupName
 Assert-HostBackupPath $partialBackupRoot
-Import-Module $credentialModule -Force
-$credential = Read-HostMigrationCredential -TestMode:$TestMode -OutputDirectory $(if ($TestMode) { Join-Path (Split-Path -Parent $dataDirectory) 'protected-migration-credential' } else { Join-Path $programData 'Ventio\Installer' })
-$password = $credential.GetNetworkCredential().Password
-$envVars = @{ PGPASSWORD = $password }
+$credential=$null
+$password=$null
+$envVars=@{}
+if(-not $BackupOnly){
+  Import-Module $credentialModule -Force
+  $credential = Read-HostMigrationCredential -TestMode:$TestMode -OutputDirectory $(if ($TestMode) { Join-Path (Split-Path -Parent $dataDirectory) 'protected-migration-credential' } else { Join-Path $programData 'Ventio\Installer' })
+  $password=$credential.GetNetworkCredential().Password
+  $envVars.PGPASSWORD=$password
+}
 $migrationEnvironment = @{}
 $databaseUrl = $null
 try {
@@ -702,6 +714,7 @@ try {
   Set-HostBackupStage 'BACKUP_DISK_SPACE_RECHECK' 'HOST_DATABASE_BACKUP_DISK_SPACE_CHECK_FAILED'
   if ($backupDrive.AvailableFreeSpace -lt ($stableInventory.bytes + 67108864)) { throw 'HOST_DATABASE_BACKUP_DISK_SPACE_INSUFFICIENT' }
   $backupRoot = Complete-HostPostgresBackup $dataDirectory $stableInventory $partialBackupRoot $backupRoot $backupName
+  if($BackupOnly){Write-Output ('HOST_OPERATION_BACKUP_NAME='+$backupName);return}
   Set-HostBackupStage 'DATABASE_COORDINATED_MIGRATION' 'HOST_DATABASE_UPGRADE_FAILED'
   if (-not $TestMode) {
     Set-HostBackupStage 'DATABASE_POSTGRES_CONFIG_CHECK' 'HOST_DATABASE_POSTGRES_CONFIGURATION_MISSING'
@@ -855,3 +868,5 @@ SELECT jsonb_build_array(
   Write-HostUpgradeFailureCode $code $script:hostBackupStage $details
   throw $code
 }
+
+finally {if($null -ne $maintenanceLock){$maintenanceLock.ReleaseMutex();$maintenanceLock.Dispose()}}

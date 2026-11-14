@@ -14,6 +14,9 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
   throw 'HOST_UPGRADE_RESTORE_ADMIN_ELEVATION_REQUIRED'
 }
 
+Import-Module (Join-Path $PSScriptRoot 'HostOperationStorage.psm1') -Force
+$maintenanceLock=Enter-VentioMaintenanceLock
+try {
 $programData = [IO.Path]::GetFullPath([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData))
 $backupRoot = [IO.Path]::GetFullPath($BackupDirectory)
 $expectedBackupRoot = [IO.Path]::GetFullPath((Join-Path $programData 'Ventio\Backups')).TrimEnd('\') + '\'
@@ -214,3 +217,5 @@ try {
   }
   throw
 }
+
+} finally {$maintenanceLock.ReleaseMutex();$maintenanceLock.Dispose()}
