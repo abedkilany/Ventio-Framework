@@ -25,19 +25,22 @@ Future<bool> approveLocalHostOperation(
   return Isolate.run(() {
     final root = Platform.environment['ProgramFiles'];
     final system = Platform.environment['SystemRoot'];
-    if (root == null || system == null)
+    if (root == null || system == null) {
       throw StateError('Windows installation unavailable');
+    }
     final script = File(
       '$root\\Ventio\\host-payload\\setup\\manage-host-operations.ps1',
     );
     final powershell = File(
       '$system\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
     );
-    if (!script.existsSync() || !powershell.existsSync())
+    if (!script.existsSync() || !powershell.existsSync()) {
       throw StateError('Installed operations payload unavailable');
+    }
     // Double quotes cannot enter trusted installation roots; IDs are hex only.
-    if (script.path.contains('"') || powershell.path.contains('"'))
+    if (script.path.contains('"') || powershell.path.contains('"')) {
       throw StateError('Invalid installed path');
+    }
     final args =
         '-NoProfile -ExecutionPolicy Bypass -File "${script.path}" -OperationId $id${restorePlanSha256 == null ? '' : ' -ConfirmRestore -ExpectedPlanSha256 $restorePlanSha256'}'
             .toNativeUtf16();
@@ -54,8 +57,9 @@ Future<bool> approveLocalHostOperation(
         SW_SHOWNORMAL,
       );
       if (result.address == 1223) return false;
-      if (result.address <= 32)
+      if (result.address <= 32) {
         throw StateError('Elevated operation could not launch');
+      }
       return true;
     } finally {
       malloc.free(args);

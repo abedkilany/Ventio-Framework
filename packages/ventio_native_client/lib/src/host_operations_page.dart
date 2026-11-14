@@ -64,13 +64,15 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
       final definitions = await widget.request('definitions/list', {
         'kind': 'backup_policy',
       });
-      if (definitions['status'] != 'DEFINITIONS')
+      if (definitions['status'] != 'DEFINITIONS') {
         throw StateError('Backup policy access denied');
+      }
       final entries = requireList(definitions, 'definitions');
       final operations = await widget.request('operations/list', {});
-      if (operations['status'] != 'OPERATIONS')
+      if (operations['status'] != 'OPERATIONS') {
         throw StateError('Operations access denied');
-      if (mounted)
+      }
+      if (mounted) {
         setState(() {
           _policy = entries.isEmpty
               ? null
@@ -84,9 +86,10 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
               operations['deliveryStatus'] as String? ?? 'UNKNOWN';
           _busy = false;
         });
+      }
     } catch (_) {
       final draft = await widget.localPolicy();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _busy = false;
           _policy = draft;
@@ -95,6 +98,7 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
             'native.wave2.host_operations_unavailable_offline_or_denied_on_66fad509',
           );
         });
+      }
     }
   }
 
@@ -216,13 +220,14 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
       await widget.prepareOperation(operation, body);
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _busy = false;
           _error = context.ventioText(
             'native.wave2.operation_was_not_acknowledged_refresh_before_cr_e3f83598',
           );
         });
+      }
     }
   }
 
@@ -255,8 +260,9 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
           ],
         ),
       );
-      if (backup != null)
+      if (backup != null) {
         await _prepare('RESTORE_PLAN', body: {'backupName': backup});
+      }
     } finally {
       name.dispose();
     }
@@ -306,7 +312,7 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
           ],
         ),
       );
-      if (yes == true)
+      if (yes == true) {
         await _prepare(
           'RESTORE',
           body: {
@@ -315,6 +321,7 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
             'planSha256': result['planSha256'],
           },
         );
+      }
     } finally {
       typed.dispose();
     }
@@ -363,7 +370,7 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
             ? requireString(requireMap(operation['body'], 'body'), 'planSha256')
             : null,
       );
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -373,13 +380,15 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
             ),
           ),
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error = context.ventioText(
             'native.wave2.local_approval_could_not_launch_use_the_installe_6f734747',
           ),
         );
+      }
     }
   }
 
@@ -477,12 +486,13 @@ class _HostOperationsPageState extends State<HostOperationsPage> {
                     await widget.retryOperations();
                     await _load();
                   } catch (_) {
-                    if (mounted)
+                    if (mounted) {
                       setState(
                         () => _error = context.ventioText(
                           'native.wave2.pending_requests_remain_provisional_until_host_a_281c011c',
                         ),
                       );
+                    }
                   }
                 },
           child: const VentioText(

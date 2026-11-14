@@ -145,8 +145,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 }.contains(e.hostStatus),
           )
           .toList();
-      if (preferences.isNotEmpty)
+      if (preferences.isNotEmpty) {
         _preferences = requireMap(preferences.first['body'], 'preferences');
+      }
     });
   }
 
@@ -237,12 +238,13 @@ class _WorkspacePageState extends State<WorkspacePage> {
           'kind': 'configuration',
         });
         final definitions = requireList(result, 'definitions');
-        if (mounted)
+        if (mounted) {
           setState(
             () => _configuration = definitions.isEmpty
                 ? null
                 : requireMap(definitions.first, 'configuration'),
           );
+        }
       }
       if (_permissions.contains(wave2JobsRunPermission) ||
           _permissions.contains(wave2JobsManagePermission)) {
@@ -497,7 +499,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
               ),
               FilledButton(
                 onPressed: () {
-                  if (key.currentState!.validate())
+                  if (key.currentState!.validate()) {
                     Navigator.pop(context, {
                       ...body,
                       'displayName': name.text.trim(),
@@ -508,6 +510,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       'maxImportRows': int.parse(rows.text),
                       'completedJobRetentionDays': int.parse(retention.text),
                     });
+                  }
                 },
                 child: const VentioText('native.wave2.save_draft_3de10010'),
               ),
@@ -516,8 +519,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
         ),
       );
       if (result == null) return;
-      if (_configuration != null)
+      if (_configuration != null) {
         await _store!.receive('configuration', [_configuration!]);
+      }
       final draft = await _store!.saveDraft(
         'configuration',
         _configuration?['id'] as String? ?? 'scope',
@@ -696,8 +700,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
           : rows.isEmpty
           ? null
           : requireMap(rows.single, 'record');
-      if (record != null && latest == null)
+      if (record != null && latest == null) {
         throw const HostPackageTransportException('RECORD_UNAVAILABLE');
+      }
       final scope = RecordScope(
         organizationId: widget.profile.tenantId,
         companyId: widget.profile.companyId,
@@ -848,8 +853,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
     try {
       final original = ExtensionRecordCommand.fromEnvelope(entry.envelope);
       final bundle = _bundles[original.moduleId];
-      if (bundle == null)
+      if (bundle == null) {
         throw const HostPackageTransportException('CURRENT_PACKAGE_REQUIRED');
+      }
       final binding = <String, dynamic>{
         'moduleId': bundle.moduleId,
         'moduleVersion': bundle.version,
@@ -883,8 +889,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
         ),
       );
       if (approved != true) return;
-      if (rows.isEmpty && original.operation != 'create')
+      if (rows.isEmpty && original.operation != 'create') {
         throw const HostPackageTransportException('RECORD_UNAVAILABLE');
+      }
       await _form(
         binding,
         rows.isEmpty ? null : requireMap(rows.single, 'record'),
@@ -934,10 +941,11 @@ class _WorkspacePageState extends State<WorkspacePage> {
         'docType': body['docType'],
       };
       final preview = await _request('customizations/rebase/preview', binding);
-      if (preview['status'] != 'REBASE_CANDIDATE')
+      if (preview['status'] != 'REBASE_CANDIDATE') {
         throw HostPackageTransportException(
           preview['reasonCode'] as String? ?? 'REBASE_UNAVAILABLE',
         );
+      }
       if (!mounted) return;
       final approved = await showDialog<bool>(
         context: context,
@@ -981,11 +989,12 @@ class _WorkspacePageState extends State<WorkspacePage> {
         'sourceRevision': preview['sourceRevision'],
         'body': preview['body'],
       });
-      if (result['status'] != 'REBASE_PREPARED')
+      if (result['status'] != 'REBASE_PREPARED') {
         throw HostPackageTransportException(
           result['reasonCode'] as String? ?? 'REBASE_CHANGED',
         );
-      if (mounted)
+      }
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: VentioText(
@@ -993,6 +1002,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
             ),
           ),
         );
+      }
     } catch (error) {
       _failed(error);
     } finally {
@@ -1509,11 +1519,12 @@ class _WorkspacePageState extends State<WorkspacePage> {
                     final remote = await _request('definitions/list', {
                       'kind': 'backup_policy',
                     });
-                    if (remote['status'] == 'DEFINITIONS')
+                    if (remote['status'] == 'DEFINITIONS') {
                       await _store!.receive(
                         'backup_policy',
                         requireList(remote, 'definitions'),
                       );
+                    }
                   } catch (_) {
                     /* Preserve an offline draft. */
                   }
@@ -1527,8 +1538,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 prepareOperation: (operation, body) async {
                   final request = await _store!.stageOperation(operation, body);
                   final reply = await _request('operations/prepare', request);
-                  if (reply['status'] != 'OPERATION')
+                  if (reply['status'] != 'OPERATION') {
                     throw StateError('Operation denied');
+                  }
                   await _store!.acknowledgeOperation(
                     request['operationId'] as String,
                   );
@@ -1536,8 +1548,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 retryOperations: () async {
                   for (final request in await _store!.pendingOperations()) {
                     final reply = await _request('operations/prepare', request);
-                    if (reply['status'] != 'OPERATION')
+                    if (reply['status'] != 'OPERATION') {
                       throw StateError('Operation denied');
+                    }
                     await _store!.acknowledgeOperation(
                       request['operationId'] as String,
                     );
@@ -1648,13 +1661,14 @@ class _WorkspacePageState extends State<WorkspacePage> {
               final bundle =
                   _bundles[body['moduleId']] ??
                   _cachedBundles[body['moduleId']];
-              if (bundle != null)
+              if (bundle != null) {
                 await _customize(
                   bundle,
                   bundle.docTypes.singleWhere(
                     (item) => item.name == body['docType'],
                   ),
                 );
+              }
             } catch (error) {
               _failed(error);
             }
@@ -1954,7 +1968,7 @@ class _ViewEditorState extends State<_ViewEditor> {
               'columns': _columns.toList(),
               'filters': {
                 ...requireMap(widget.body['filters'], 'filters'),
-                if (_filterField != null) _filterField!: _filter.text,
+                ?_filterField: _filter.text,
               },
             };
             SavedRecordView.fromJson(result);
@@ -2024,19 +2038,21 @@ class _RecordViewPageState extends State<_RecordViewPage> {
         'columns': <String>[],
         'cursor': _cursor,
       });
-      if (mounted)
+      if (mounted) {
         setState(() {
           _result = result;
           _busy = false;
         });
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = error is HostPackageTransportException
               ? error.code
               : 'RECORDS_UNAVAILABLE';
           _busy = false;
         });
+      }
     }
   }
 
@@ -2078,17 +2094,19 @@ class _RecordViewPageState extends State<_RecordViewPage> {
           ],
         ),
       );
-      if (copy == true)
+      if (copy == true) {
         await Clipboard.setData(ClipboardData(text: result['csv'] as String));
+      }
       await _load(next: true);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _busy = false;
           _error = error is HostPackageTransportException
               ? error.code
               : 'EXPORT_UNAVAILABLE';
         });
+      }
     }
   }
 
@@ -2194,7 +2212,7 @@ class _RecordViewPageState extends State<_RecordViewPage> {
                     ),
                     onPressed: () {
                       Navigator.pop(context);
-                      Navigator.of(this.context).push<void>(
+                      Navigator.of(context).push<void>(
                         MaterialPageRoute(
                           builder: (_) => DocumentActivityPage(
                             request: widget.request,
@@ -2232,13 +2250,14 @@ class _RecordViewPageState extends State<_RecordViewPage> {
         ),
       );
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _result = null;
           _error = error is HostPackageTransportException
               ? error.code
               : 'HISTORY_UNAVAILABLE';
         });
+      }
     }
   }
 
@@ -2758,7 +2777,7 @@ class _ImportPageState extends State<_ImportPage> {
       final definition = ExtensionBundle.fromJson(
         requireMap(result['package'], 'package'),
       ).docTypes.singleWhere((item) => item.name == widget.definition.name);
-      if (mounted)
+      if (mounted) {
         setState(
           () => _fields = definition.fields
               .where(
@@ -2766,6 +2785,7 @@ class _ImportPageState extends State<_ImportPage> {
               )
               .toList(),
         );
+      }
     } catch (error) {
       _fail(error);
     }
@@ -2814,12 +2834,13 @@ class _ImportPageState extends State<_ImportPage> {
         'mapping': _mapping,
         'recordIdHeader': _idHeader,
       });
-      if (mounted)
+      if (mounted) {
         setState(() {
           _preview = requireList(result, 'rows');
           _schemaVersion = requireInt(result, 'schemaVersion', min: 1);
           _busy = false;
         });
+      }
     } catch (error) {
       _fail(error);
     }
@@ -2855,11 +2876,12 @@ class _ImportPageState extends State<_ImportPage> {
                     )
                     .length >
                 49152) {
-          if (batch.isEmpty)
+          if (batch.isEmpty) {
             throw const ContractError(
               'ROW_TOO_LARGE',
               'A row exceeds the import batch size.',
             );
+          }
           batches.add(batch);
           batch = [];
         }
@@ -2871,11 +2893,12 @@ class _ImportPageState extends State<_ImportPage> {
         batch.add(command.envelope.original);
       }
       if (batch.isNotEmpty) batches.add(batch);
-      if (batches.isEmpty)
+      if (batches.isEmpty) {
         throw const ContractError(
           'EMPTY_IMPORT',
           'No valid rows are available.',
         );
+      }
       await widget.store.stageJobs(
         batches,
         importId: createCommandId(),

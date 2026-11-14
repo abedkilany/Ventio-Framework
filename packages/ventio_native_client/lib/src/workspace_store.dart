@@ -19,8 +19,9 @@ class WorkspaceStore {
     required String path,
     required HostConnectionProfile profile,
   }) async {
-    if (profile.actorId == null || profile.deviceId == null)
+    if (profile.actorId == null || profile.deviceId == null) {
       throw StateError('A bound Host profile is required.');
+    }
     final owner = canonicalJson([
       profile.endpoint,
       profile.tenantId,
@@ -83,11 +84,12 @@ class WorkspaceStore {
     String operation,
     Map<String, dynamic> body,
   ) async {
-    if ((await pendingOperations()).length >= 20)
+    if ((await pendingOperations()).length >= 20) {
       throw const ContractError(
         'OPERATION_LIMIT',
         'Resolve or discard pending operation requests first.',
       );
+    }
     final id = createCommandId();
     validateHostOperation(id, operation, body);
     await _database.insert('workspace_operation_submissions', {
@@ -268,12 +270,13 @@ class WorkspaceStore {
           whereArgs: [_owner, kind, 'SYNCED'],
         );
         for (final row in previous) {
-          if (!receivedIds.contains(row['id']))
+          if (!receivedIds.contains(row['id'])) {
             await tx.delete(
               'workspace_definitions',
               where: 'owner=? AND kind=? AND id=? AND state=?',
               whereArgs: [_owner, kind, row['id'], 'SYNCED'],
             );
+          }
         }
       });
 

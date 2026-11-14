@@ -371,8 +371,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     if (profile == null ||
         vault == null ||
         profile.actorId == null ||
-        profile.deviceId == null)
+        profile.deviceId == null) {
       return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         settings: const RouteSettings(name: 'native-workspace'),
@@ -6268,8 +6269,9 @@ class _DynamicRecordFormPageState extends State<DynamicRecordFormPage> {
       if (!_isEditable(field)) continue;
       if (widget.record != null &&
           !_effectiveReadableFields.contains(field.name) &&
-          !_replaceProtected.contains(field.name))
+          !_replaceProtected.contains(field.name)) {
         continue;
+      }
       if (field.type == 'table' && field.childDocType != null) {
         values[field.name] = [
           for (final row in _childRows[field.name] ?? const [])

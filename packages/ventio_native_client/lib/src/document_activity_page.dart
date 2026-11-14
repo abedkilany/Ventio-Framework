@@ -41,16 +41,18 @@ class _DocumentActivityPageState extends State<DocumentActivityPage> {
         'limit': 50,
         'cursor': next ? _cursor : null,
       });
-      if (result['status'] != 'HISTORY')
+      if (result['status'] != 'HISTORY') {
         throw StateError('Activity access denied');
-      if (mounted)
+      }
+      if (mounted) {
         setState(() {
           _entries = requireList(result, 'entries');
           _cursor = result['nextCursor'] as String?;
           _busy = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _entries = [];
           _cursor = null;
@@ -59,6 +61,7 @@ class _DocumentActivityPageState extends State<DocumentActivityPage> {
           );
           _busy = false;
         });
+      }
     }
   }
 

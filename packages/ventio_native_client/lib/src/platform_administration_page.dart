@@ -81,8 +81,9 @@ class _PlatformAdministrationPageState
     final companies = _entities
         .where((item) => item['kind'] == 'company' && item['archived'] == false)
         .toList();
-    if (kind == 'branch' && parent == null && companies.isNotEmpty)
+    if (kind == 'branch' && parent == null && companies.isNotEmpty) {
       parent = companies.first['id'] as String;
+    }
     final currentScope =
         kind == 'organization' ||
         (kind == 'company' && entity?['id'] == widget.profile.companyId) ||

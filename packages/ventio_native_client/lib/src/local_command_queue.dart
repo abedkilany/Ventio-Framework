@@ -226,8 +226,9 @@ class LocalCommandQueue {
           where: 'command_id=?',
           whereArgs: [reconcilesCommandId],
         );
-        if (rows.length != 1)
+        if (rows.length != 1) {
           throw StateError('Original command is unavailable');
+        }
         final original = QueueEntry.fromRow(rows.single);
         final prior = original.envelope;
         if (projectToLocalRecords ||
