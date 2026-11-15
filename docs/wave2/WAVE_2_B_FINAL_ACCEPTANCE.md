@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 12:42 UTC
+Last updated: 2026-11-15 14:13 UTC
 
 This candidate is not submitted as verified or production-ready. The package
 installed on TEST-02 is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all
@@ -20,8 +20,9 @@ test, Defender quarantined TEST-02's `ventio_host.exe`; its Host service is
 currently Stopped while PostgreSQL remains Running. TEST-01 SSH has returned;
 its Host is healthy and its fresh migration/schema/RLS checks passed, but the
 payload manifest has no source commit field. TCP 8443 from TEST-02 to TEST-01
-is reachable, while default TLS validation fails. No authenticated Client/API
-session or real synchronization was verified. Backup scheduling, physical
+is reachable. TEST-01's self-signed LAN certificate matches its published
+fingerprint; the supported Client pinning and enrollment flow remains untested.
+No authenticated Client/API session or real synchronization was verified. Backup scheduling, physical
 backup/restore, runtime-role SQL, full authorization, Wave 1 upgrade, GUI
 acceptance and the capability audit remain open. Final status remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
@@ -38,7 +39,7 @@ acceptance and the capability audit remain open. Final status remains
 - Diagnostic package candidate: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
 - Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 - Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified by CI on `676c9896d3340a04d2dabb4157a9d96c837e3f61`)
-- Post-correction CI-tested source/report head: `676c9896d3340a04d2dabb4157a9d96c837e3f61`; all nine GitHub Actions workflows passed, including Host API run `43712289370` and Windows Acceptance Package run `43712289246`.
+- Post-correction CI-tested report head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82`; all nine GitHub Actions workflows passed, including Host API run `43715371756` and Windows Acceptance Package run `43715371820`.
 - Latest acceptance artifact ZIP SHA-256:
   `1c5a1076ab427cd132afc5efd1d7c2610e61376647441c00a628fb04b5f650eb`.
   Installed `Ventio-Setup-0.1.18.exe` SHA-256:
@@ -83,10 +84,10 @@ acceptance and the capability audit remain open. Final status remains
 | Gate | Status | Acceptance evidence |
 |---|---|---|
 | B0 | Partial | SSH is available to both machines. Defender antivirus/real-time protection remain enabled on both; TEST-01 `VerifiedAndReputablePolicyState=0`. No controlled Windows reboot test was run. |
-| B1 | PASS in candidate CI | All nine workflows passed on exact package commit `17b0141`; Windows Acceptance Package run `43653937272` produced the artifact. No full physical regression on the test computers. |
+| B1 | PASS in candidate CI | All nine workflows passed on exact package commit `17b0141`, post-correction code head `676c989`, and latest report-only head `0bd9ea9` (Host API run `43715371756`). Windows Acceptance Package run `43653937272` produced the installed artifact. No full physical regression on the test computers. |
 | B2 | Partial | On TEST-01 all 40 migration checksums match, `assert_schema()` passes, and 30 public `ventio_*` tables have owner/RLS/FORCE RLS with zero violations. Selected least-privilege checks and a rolled-back identity-API Recovery Authority/empty-queue claim probe pass. Runtime SQL, Wave 1 upgrade, full isolation and complete identity matrix remain open. Earlier fresh TEST-02 migration/RLS checks passed before the crash test. |
-| B3 | Partial | TEST-01 `/healthz` is 200 and anonymous `/api/v1/session` is 401. Intermittent safe `HOST_JOB_WORKER_UNAVAILABLE` diagnostics remain unexplained; a current rolled-back claim probe did not reproduce them. No authenticated operations or data-processing scenarios passed. |
-| B4 | Partial / blocked | TEST-02 reaches TEST-01 TCP 8443, but default TLS validation fails. No authenticated Client use, real two-device synchronization, offline edit or conflict/receipt recovery passed. GUI-dependent Client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B3 | Partial | TEST-01 `/healthz` is 200 and anonymous `/api/v1/session` is 401. Six safe `HOST_JOB_WORKER_UNAVAILABLE` diagnostics remain, latest 2026-11-15 13:09:53 UTC; no newer event was present at 14:09. The worker intentionally omits the underlying exception. No authenticated operations or data-processing scenarios passed. |
+| B4 | Partial / blocked | TEST-01 LAN TLS uses a self-signed certificate. Its SAN and SHA-256 fingerprint match Host-published info; the supported Client flow requires explicit fingerprint entry and forbids bypass. No authenticated Client use, real two-device synchronization, offline edit or conflict/receipt recovery passed. Pairing and GUI-dependent Client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
 | B5 | Failed — crash recovery; other operations not executed | An orderly Host/PostgreSQL stop/start passed earlier on TEST-02. A later controlled Host-engine crash was followed by Defender quarantining its executable; SCM and manual service start failed. PostgreSQL stayed Running. No scheduled task was found on TEST-01; approval, product backup integrity/retention and disposable restore were not run. |
 | B6 | Not complete | Physical gates, capability audit and final acceptance audit are open. |
 

@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current blockers: TEST-02's Host engine was quarantined by Microsoft Defender during a controlled crash-recovery test and its Host service remains stopped. TEST-01 is reachable and its Host is healthy, but default TLS trust from TEST-02 fails, no authenticated Client session or two-device synchronization has been verified, and backup/restore, scheduled operations and several database/security scenarios remain open.
+Current blockers: TEST-02's Host engine was quarantined by Microsoft Defender during a controlled crash-recovery test and its Host service remains stopped. TEST-01 is reachable and healthy; its LAN certificate is self-signed and the Client's supported explicit-pinning flow has not been completed. No authenticated Client session or two-device synchronization has been verified, and backup/restore, scheduled operations and several database/security scenarios remain open.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -9,8 +9,8 @@ Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
 Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
-Latest post-correction CI-tested head: `676c9896d3340a04d2dabb4157a9d96c837e3f61` (9/9 workflows passed)
-Last updated: 2026-11-15 12:42 UTC
+Latest post-correction CI-tested head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82` (9/9 workflows passed)
+Last updated: 2026-11-15 14:13 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -39,10 +39,10 @@ controlled crash test recorded below.
 | Gate | Status | Evidence / remaining work |
 |---|---|---|
 | B0 — Environment and tooling | **PARTIAL** | SSH now reaches both Windows 11 machines; Codex-1 identifies TEST-01 and Codex-3 TEST-02. Defender antivirus/real-time protection are enabled on both; TEST-01 `VerifiedAndReputablePolicyState=0`. TEST-01's RDP session is disconnected and no GUI was used. No controlled Windows reboot test was run. |
-| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine workflows passed on package commit `17b0141` and report-only head `7f08d43692980d8605aa6a9cd4eb8e48b11d3754`; Windows Acceptance Package run `43653937272` produced the TEST-02 artifact. CI is not physical acceptance evidence. |
+| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine workflows passed on package commit `17b0141`, report-only head `7f08d43`, post-correction code head `676c989`, and latest report-only head `0bd9ea9` (Host API run `43715371756`). Windows Acceptance Package run `43653937272` produced the TEST-02 artifact. CI is not physical acceptance evidence. |
 | B2 — PostgreSQL, identity and security | **PARTIAL — selected fresh checks PASS** | On TEST-01, all 40 installed migration checksums match the ledger, `assert_schema()` passes, and all 30 checked public `ventio_*` tables have the expected owner/RLS/FORCE RLS. Role flags and selected direct-read denials pass. An identity-API transaction admitted the current Recovery Authority witness and executed the job-claim path with an empty queue, then rolled back. Full runtime-role SQL, cross-scope authorization, Wave 1 upgrade and recovery reconciliation remain open. Earlier equivalent migration/RLS checks passed on TEST-02 before its Host engine was quarantined. |
-| B3 — Host operations and data processing | **PARTIAL** | TEST-01 Host `/healthz` returns 200 and unauthenticated `/api/v1/session` returns 401. Its safe diagnostics contain intermittent `HOST_JOB_WORKER_UNAVAILABLE` events through 09:38 UTC; the current identity/Recovery Authority/empty-queue claim probe passed in a rolled-back transaction, so the earlier cause is unresolved. No authenticated operations or data-processing scenarios passed. |
-| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | TCP 8443 from TEST-02 to TEST-01 is reachable, but default HTTPS certificate validation fails. Client-specific pinning/authentication was not exercised. No real two-computer sync, offline edits, conflict/receipt recovery, or GUI-dependent cases were run. |
+| B3 — Host operations and data processing | **PARTIAL** | TEST-01 Host `/healthz` returns 200 and unauthenticated `/api/v1/session` returns 401. Six safe `HOST_JOB_WORKER_UNAVAILABLE` events remain recorded, latest at 13:09:53 UTC; no newer event was present at 14:09. A rolled-back identity/Recovery Authority/empty-queue claim probe passed, but the cause remains unresolved. No authenticated operations or data-processing scenarios passed. |
+| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | TEST-01 publishes a self-signed LAN certificate whose SAN and SHA-256 match Host metadata. Client pairing requires explicit fingerprint entry; that manual path and authentication were not exercised. No real two-computer sync, offline edits, conflict/receipt recovery, or GUI-dependent cases were run. |
 | B5 — Backup, restore and Windows operations | **FAILED — crash recovery; remainder NOT EXECUTED** | The earlier orderly TEST-02 restart passed. A controlled Host-engine crash then caused Defender to quarantine `ventio_host.exe` (`Trojan:Win32/Bearfoos.A!ml`, threat 2147731250); SCM retries could not recover Host. PostgreSQL remained running and accepting connections. No Ventio scheduled task exists on TEST-01; backup approval, scheduling, integrity/retention and disposable restore were not executed. |
 | B6 — Full regression and final acceptance audit | **NOT COMPLETE** | Physical gates, capability audit and final rerun on a delivered package remain open. |
 
@@ -453,3 +453,33 @@ formatting, analysis, HTTP/PostgreSQL, identity, RLS/least-privilege, scoped
 roles, pairing, extension approval/recovery and trusted credential reissue.
 Native Flutter/Windows/Android run 43712289247 and Windows package run
 43712289246 also passed. No workflow was canceled.
+
+## TEST-01 TLS and diagnostics follow-up — 2026-11-15 14:09 UTC
+
+Read-only SSH inspection confirmed TEST-01 `VentioHost` and `VentioPostgres`
+are Running and `/healthz` returns 200. The Host publishes
+`https://VENTIO-TEST-01:8443` (alternate `https://192.168.1.106:8443`) and
+reports its LAN certificate as self-signed, requiring explicit client trust.
+The public certificate's Subject and Issuer are both `CN=VENTIO-TEST-01`, its
+SAN contains `VENTIO-TEST-01` and `192.168.1.106`, and its SHA-256
+`2c63e4ffaa97dd4ba06be9d55360ef7fc907d7b3a8db6a889de6356e6d4f6368` matches
+the published fingerprint. The Client pairing page requires that fingerprint
+and directs the user to enter it before enrollment; it forbids certificate
+bypass. No trust store or certificate was changed. B4 remains blocked pending
+authenticated pairing and real two-device sync; this TLS result explains the
+default trust failure and is not itself a confirmed product defect.
+
+TEST-01's sanitized diagnostic file contains six `HOST_JOB_WORKER_UNAVAILABLE`
+events, most recently at 2026-11-15 13:09:53 UTC. At 14:09 UTC no newer event
+was present. The Host worker deliberately omits the underlying exception, so
+the historical B3 cause remains unresolved; no authenticated operations were
+executed. TEST-02 still has `VentioHost` Stopped and its engine file absent,
+while Defender antivirus, real-time protection and antimalware service remain
+enabled. No file was restored or excluded.
+
+All nine workflows passed on report-only successor head
+0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82: Host API 43715371756, Windows
+Acceptance Package 43715371820, Native Flutter 43715371758, Core 43715371761,
+Credential Lifecycle 43715371766, Durable Commands 43715371754, Host Crash
+Recovery 43715371763, Host Engineering 43715371819 and Host Persistence
+43715371745. PR #6 remains open and Draft.

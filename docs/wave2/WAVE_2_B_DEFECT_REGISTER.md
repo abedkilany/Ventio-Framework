@@ -2,7 +2,7 @@
 
 Latest tested package: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 12:42 UTC
+Last updated: 2026-11-15 14:13 UTC
 Earlier physical installation evidence is tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`. The newer package at `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`, including correction `f11bf27e83dd6b206fc63289bbf325471a1ee026`, was installed on TEST-02; its Host executable is now quarantined by Defender. TEST-01's installed manifest has no source commit field.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
@@ -29,8 +29,8 @@ acceptance blockers.
 | WB-ACC-04 | High | **RESOLVED FOR TEST-01 LAB RUN; DISTRIBUTION LIMITATION OPEN** | The unsigned Host Setup Broker was blocked while Smart App Control was enforcing. The owner later disabled Smart App Control on TEST-01 for this authorized test. | The earlier 3033/3077 events and exact broker hash remain valid historical evidence. Before retry, registry showed `VerifiedAndReputablePolicyState=0`; after documented `CiTool.exe -r`, `CiTool -lp -json` showed the `VerifiedAndReputableDesktop` policy not enforced on TEST-01. Other Code Integrity policies and Defender remained enabled. The supported broker then completed PostgreSQL/Host provisioning through LAN configuration. Do not generalize this result to machines where SAC is enforced: unsigned distribution compatibility remains a deployment limitation. |
 | WB-ACC-05 | High | **OPEN — NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED** | A silent uninstall from SSH returned exit code 0 but left the Client process and six application files while removing the uninstall registration/helper files. | This was observed before the 2026-11-15 TEST-02 Host setup. The latest install now has Host/PostgreSQL data; do not repeat destructive uninstall without preserving required evidence and following the dedicated uninstall plan. Same-session interactive cleanup remains unverified. |
 | WB-ACC-06 | Critical | **OPEN — AUTHENTICATED SESSION NOT VERIFIED** | TEST-01 previously failed to establish its first-admin session; TEST-02 provisioning succeeded after retry, but no authenticated Client/API session has been verified. | TEST-01's earlier UI report was `HOST_SESSION_AUTHENTICATION_FAILED` after operation `0793a94d97f202699fbbff49b5db5cc8` reached `HOST_READINESS`. Current local `/api/v1/session` returns 401 without credentials, as expected; no successful Client token/session was exercised. TEST-02's owner-reported Set up Host retry completed at `HOST_READINESS`, but its Host engine is now quarantined and unavailable. |
-| WB-ACC-07 | High | **OPEN — TLS TRUST VALIDATION FAILED** | Windows default TLS validation rejects the TEST-01 Host HTTPS endpoint on port 8443. | From TEST-02, TCP `192.168.1.106:8443` succeeds, but `Invoke-WebRequest https://192.168.1.106:8443/healthz` fails with `Could not establish trust relationship for the SSL/TLS secure channel`. The Client-specific pinning path was not exercised; no certificate bypass or policy change was made. |
-| WB-ACC-08 | High | **OPEN — HISTORICAL HOST JOB WORKER ERRORS, CAUSE UNRESOLVED** | TEST-01 safe Host diagnostics record repeated `HOST_JOB_WORKER_UNAVAILABLE` events. | Events occurred at `2026-11-14T22:34:38.505Z` and `2026-11-15T09:28:20Z`, `09:31:47Z`, `09:32:59Z`, `09:38:14Z`. The event deliberately omits the exception. A later read-only identity-API probe passed current Recovery Authority admission and invoked the empty-queue claim path in a rolled-back transaction; this did not reproduce or explain the historical events. No product defect or correction is confirmed. |
+| WB-ACC-07 | High | **OPEN — CLIENT PINNING / ENROLLMENT NOT EXECUTED** | TEST-01 uses the intended self-signed LAN certificate, but no Client has explicitly pinned it or completed enrollment. | Read-only inspection confirmed Subject/Issuer `CN=VENTIO-TEST-01`, SAN `VENTIO-TEST-01` and `192.168.1.106`, and SHA-256 `2c63e4ffaa97dd4ba06be9d55360ef7fc907d7b3a8db6a889de6356e6d4f6368` matching Host metadata. The supported Client UI requires explicit fingerprint entry and forbids bypass. The default trust error is expected for this self-signed certificate; no trust store or security policy was modified. Pairing requires manual owner validation under the SSH-only limit. |
+| WB-ACC-08 | High | **OPEN — HOST JOB WORKER ERROR, CAUSE UNRESOLVED** | TEST-01 safe Host diagnostics record intermittent `HOST_JOB_WORKER_UNAVAILABLE` events. | Events occurred at `2026-11-14T22:34:38.505Z` and `2026-11-15T09:28:20Z`, `09:31:47Z`, `09:32:59Z`, `09:38:14Z`, and `13:09:53Z`. At 14:09 UTC there was no newer entry. The event deliberately omits the exception. A read-only identity-API probe passed current Recovery Authority admission and invoked the empty-queue claim path in a rolled-back transaction; this did not reproduce or explain the events. No product defect or correction is confirmed. |
 | WB-ACC-09 | Critical | **FAILED — DEFENDER QUARANTINED HOST ENGINE; RESTORE BLOCKED BY SECURITY BOUNDARY** | A controlled TEST-02 Host-engine crash was followed by Defender quarantine and unsuccessful SCM recovery. | At `2026-11-15T09:59:14Z`, the exact child `ventio_host.exe` PID 3208 was terminated after confirming its path and no active TCP clients. Defender events 1116/1117 then classified `C:\Program Files\Ventio\host-payload\ventio_host.exe` as `Trojan:Win32/Bearfoos.A!ml` (2147731250, Severe) and quarantined it. SCM retries failed at `HOST_ENGINE_PROCESS_START`; manual `Start-Service` also failed. PostgreSQL stayed Running on PID 4424. No file restore, exclusion or policy weakening was attempted. Obtain an approved signed build or security disposition before retrying Host recovery. |
 
 ## Inherited Wave 1 risk
@@ -132,13 +132,12 @@ An orderly Host/PostgreSQL service restart passed on TEST-02; PostgreSQL
 accepted connections and Host `/healthz` returned 200 afterward. No crash or
 reboot was injected.
 
-`WB-ACC-07` records a failed system-default TLS validation probe on HTTPS port
-8443 for the IP, machine hostname and localhost. This is not yet confirmed as
-a Client defect because the Client-specific certificate pinning path was not
-tested. Authenticated Client/API use, runtime-role execution, full scope
+`WB-ACC-07` records that Client fingerprint pinning and enrollment remain
+untested. TEST-01's default certificate-chain rejection is expected for its
+self-signed LAN certificate; its certificate fingerprint and SAN match Host
+metadata. Authenticated Client/API use, runtime-role execution, full scope
 isolation, Wave 1 upgrade, backup/restore and authenticated two-device sync
-remain open. TEST-01 SSH has since returned, but ordinary TLS validation fails
-and TEST-02 Host is unavailable after the Defender event.
+remain open. TEST-02 Host is unavailable after the Defender event.
 
 ## TEST-01 reconnection and TEST-02 recovery test — 2026-11-15 10:15 UTC
 
@@ -190,7 +189,18 @@ remains blocked.
 |---|---|---|---|---|
 | WB-CI-01 | Medium | FIX VERIFIED — CLOSED | The isolated Host API integration test intermittently timed out waiting for a child Host process to exit after graceful shutdown. | Host API run 43707135745 attempt 1 failed after 20 seconds at test/api_integration.dart:329. The same test passed on run 43704184519 and on attempt 2 of run 43707135745, confirming intermittency. Root cause was the Windows parent fixture leaving stdin open after sending the shutdown command; the child stdin subscription may not cancel promptly without EOF. The sibling identity fixture already closes stdin for this reason. Commit e3efc25075388d2ac92543238c99473313d85d79 closes stdin after writing the command. The process-restart integration passed on post-correction head 676c9896d3340a04d2dabb4157a9d96c837e3f61 in Host API run 43712289370; all nine workflows on that head passed. This is a CI/test-harness defect, not a confirmed production Host defect. |
 
-At 2026-11-15 12:42 UTC, all nine workflows on post-correction head
-676c9896d3340a04d2dabb4157a9d96c837e3f61 had completed successfully.
-Host API run 43712289370 passed the process restart regression and remaining
+At 2026-11-15 14:09 UTC, all nine workflows on post-correction head
+0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82 had completed successfully.
+Host API run 43715371756 passed the process restart regression and remaining
 extension approval/scope/recovery integration. No workflow was canceled.
+
+## TLS trust finding — expected trust model, acceptance still open
+
+Read-only TEST-01 inspection confirmed the LAN certificate is self-signed and
+the published SHA-256 fingerprint matches the certificate and SAN entries.
+The Host explicitly requires Clients to trust the certificate; the pairing UI
+requires manual fingerprint entry and prohibits bypassing certificate checks.
+The observed default TLS trust error is therefore expected until the supported
+pinning step is completed. No certificate trust was weakened and no Client
+enrollment or real synchronization was performed. This is not currently
+classified as a product defect; B4 remains blocked pending owner validation.

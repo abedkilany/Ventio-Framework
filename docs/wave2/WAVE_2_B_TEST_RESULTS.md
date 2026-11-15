@@ -4,10 +4,10 @@
 Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
-Post-correction CI-tested head: `676c9896d3340a04d2dabb4157a9d96c837e3f61`
+Post-correction CI-tested head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-15
-Last updated: 2026-11-15 12:42 UTC
+Last updated: 2026-11-15 14:13 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -318,8 +318,8 @@ TEST-02 was not modified during this continuation.
 | B0 environment | **PARTIAL** | SSH reaches both test machines. Defender antivirus, real-time protection and antimalware service are enabled on both; TEST-01 `VerifiedAndReputablePolicyState=0`. TEST-01's RDP session is disconnected and no GUI was used. No controlled Windows reboot test was performed. |
 | B1 static/core/contracts | **PASS in candidate CI** | All nine candidate workflows PASS. |
 | B2 PostgreSQL/identity/security | **PARTIAL — selected fresh checks PASS** | On TEST-01, all 40 installed migration checksums match the ledger, `assert_schema()` passes, and 30 checked `ventio_*` tables are owned by `ventio_owner` with RLS/FORCE RLS and zero violations. Role flags and selected direct-read denials pass. Identity-API Recovery Authority admission and empty-queue claim passed inside a rolled-back transaction. Runtime execution, cross-scope isolation, Wave 1 upgrade and full identity flows remain open. Earlier fresh TEST-02 checks also passed. |
-| B3 Host/data | **PARTIAL** | TEST-01 `/healthz` returns 200; unauthenticated `/api/v1/session` returns 401. Safe diagnostics recorded intermittent `HOST_JOB_WORKER_UNAVAILABLE` through 09:38 UTC. A current identity/Recovery Authority/empty-queue claim probe passed with rollback, but does not explain the earlier events. Authenticated operations and data processing remain unverified. |
-| B4 native/offline | **PARTIAL / BLOCKED** | TCP 8443 from TEST-02 to TEST-01 is reachable, but standard TLS validation fails. Client pinning and authenticated use are untested. No real two-computer synchronization, offline edit, conflict/receipt recovery, Android UI, protected-field, workspace/view/report, or UI permission/scaling test passed. Remaining GUI cases: **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B3 Host/data | **PARTIAL** | TEST-01 `/healthz` returns 200; unauthenticated `/api/v1/session` returns 401. Six safe `HOST_JOB_WORKER_UNAVAILABLE` events remain, latest 13:09:53 UTC; no newer entry was present at 14:09. A current identity/Recovery Authority/empty-queue claim probe passed with rollback, but does not explain the events. Authenticated operations and data processing remain unverified. |
+| B4 native/offline | **PARTIAL / BLOCKED** | TEST-01's self-signed certificate and published SHA-256 fingerprint were verified; the Client's supported explicit-pinning and enrollment flow was not run. No real two-computer synchronization, offline edit, conflict/receipt recovery, Android UI, protected-field, workspace/view/report, or UI permission/scaling test passed. Remaining GUI cases: **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
 | B5 backup/restore/operations | **FAILED — Host crash recovery; remaining acceptance NOT EXECUTED** | The earlier orderly restart passed on TEST-02. A controlled crash then led Defender to quarantine the Host executable; SCM retries could not recover Host. PostgreSQL remained Running and accepting connections. TEST-01 has no `\Ventio\` scheduled task. Product approval/scheduling, physical backup integrity/retention and disposable restore were not run. CI logical restore is separate evidence. |
 | B6 final audit | **NOT COMPLETE** | Physical gates, capability matrix, defect regression adjacency and exact-candidate final rerun remain open. |
 
@@ -643,3 +643,21 @@ MANUAL OWNER VALIDATION REQUIRED.
 Diagnosis: the test parent left stdin open while the child awaited stdin-subscription cancellation during shutdown. The sibling identity fixture explicitly closes stdin to deliver EOF on Windows. The same test's success before and on the second attempt shows the timeout was intermittent. No production Host defect was confirmed.
 
 Local dart format passed. A local dart analyzer invocation could not resolve package imports because dependencies were absent. Post-correction GitHub Actions on 676c989 passed formatting and analyzer plus all required jobs. Run IDs: Core 43712289305; Host Engineering 43712289253; Host API 43712289370; Credential Lifecycle 43712289323; Host Crash Recovery 43712289357; Host Persistence 43712289257; Durable Commands 43712289259; Native Flutter Client and Extension Builder 43712289247; Windows Acceptance Package 43712289246.
+
+## TLS trust and latest SSH diagnostic check — 2026-11-15 14:09 UTC
+
+| Check | Result | Evidence |
+|---|---|---|
+| TEST-01 service/liveness | PASS | `VentioHost` and `VentioPostgres` Running over SSH; `http://127.0.0.1:8080/healthz` returned 200. |
+| TEST-01 LAN certificate identity | PASS — published fingerprint matches | Host info reports self-signed certificate and requires explicit trust. Certificate Subject/Issuer `CN=VENTIO-TEST-01`, SAN `VENTIO-TEST-01` and `192.168.1.106`, valid through 2029-11-14; computed SHA-256 `2c63e4ffaa97dd4ba06be9d55360ef7fc907d7b3a8db6a889de6356e6d4f6368` matches the published value. No trust bypass or trust-store change. |
+| Client pairing / real synchronization | NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED | Pairing UI requires entering the Host SHA-256 fingerprint. No authenticated Client enrollment, second-device sync, offline edit or conflict/receipt recovery was performed. |
+| TEST-01 job worker diagnostics | BLOCKED — cause unresolved | Six safe `HOST_JOB_WORKER_UNAVAILABLE` events remain recorded; latest at 2026-11-15 13:09:53 UTC. At 14:09 UTC there was no newer diagnostic event. The log intentionally omits the underlying exception. |
+| TEST-02 current Host state | BLOCKED — SECURITY | SSH finds `VentioHost` Stopped and `ventio_host.exe` absent. Defender antivirus, real-time protection and antimalware service remain enabled. |
+| Latest post-correction CI | PASS — 9/9 | All workflows passed on report-only head `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82`; Host API `43715371756` passed. |
+
+The nine latest CI runs on `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82` were:
+Native Flutter `43715371758`, Core `43715371761`, Credential Lifecycle
+`43715371766`, Durable Commands `43715371754`, Host API `43715371756`, Host
+Crash Recovery `43715371763`, Host Engineering `43715371819`, Host Persistence
+`43715371745`, and Windows Acceptance Package `43715371820`; all concluded
+success.
