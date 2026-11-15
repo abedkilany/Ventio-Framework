@@ -119,11 +119,21 @@ jobs:
           $installer = Get-ChildItem -LiteralPath $output -Filter 'Ventio-Setup-*.exe' -File | Select-Object -First 1
           if ($null -eq $installer) { throw 'Unified Windows installer was not generated.' }
           $runtime = Get-Content installer/windows/prerequisites/vc-runtime-prerequisite.json -Raw | ConvertFrom-Json
+          $hostManifest = Get-Content packages/ventio_host_api/build/windows/host-payload/payload-manifest.json -Raw | ConvertFrom-Json
+          if ($hostManifest.sourceCommit -ne (git rev-parse HEAD) -or
+              $hostManifest.sourceHasTrackedChanges -ne $false -or
+              $hostManifest.hostCompilerVersion -notmatch '^Dart SDK version: 3\.13\.7 ') {
+            throw 'Host compiler/source provenance does not match the acceptance build.'
+          }
           $evidence = @(
             "testedCommit=$(git rev-parse HEAD)",
+            "hostSourceCommit=$($hostManifest.sourceCommit)",
+            "hostDart=$($hostManifest.hostCompilerVersion)",
+            "hostLockfileSha256=$($hostManifest.hostLockfileSha256)",
+            "hostExeSha256=$(($hostManifest.verifiedFiles | Where-Object path -eq 'ventio_host.exe').sha256)",
             "triggerCommit=$env:GITHUB_SHA",
             "runnerOS=$([Environment]::OSVersion.VersionString)",
-            "dart=$(dart --version 2>&1)",
+            "clientDart=$(dart --version 2>&1)",
             "flutter=$(flutter --version --machine | ConvertFrom-Json | Select-Object -ExpandProperty frameworkVersion)",
             "postgres=$( & "$env:VENTIO_TEST_POSTGRES_BIN_DIR\postgres.exe" --version )",
             "dotnet=$(dotnet --version)",

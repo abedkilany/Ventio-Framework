@@ -6,6 +6,15 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $hostRoot = Join-Path $repoRoot 'packages\ventio_host_api'
+# Capture the Host compiler before a later Flutter setup changes PATH.
+$hostCompilerVersion = (& dart --version 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Unable to identify the Host Dart compiler.' }
+$sourceCommit = (& git -C $repoRoot rev-parse HEAD | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $sourceCommit -notmatch '^[0-9a-f]{40}$') {
+  throw 'Unable to identify the Host source commit.'
+}
+$hostLockfileSha256 = (Get-FileHash -LiteralPath (Join-Path $hostRoot 'pubspec.lock') -Algorithm SHA256).Hash.ToLowerInvariant()
+$sourceHasTrackedChanges = -not [string]::IsNullOrWhiteSpace((& git -C $repoRoot status --porcelain --untracked-files=no | Out-String))
 $defaultOutput = Join-Path $hostRoot 'build\windows\host-payload'
 if (-not $OutputDirectory) { $OutputDirectory = $defaultOutput }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
@@ -189,6 +198,10 @@ try {
   }
   $manifest = [ordered]@{
     formatVersion = 1
+    sourceCommit = $sourceCommit
+    sourceHasTrackedChanges = $sourceHasTrackedChanges
+    hostCompilerVersion = $hostCompilerVersion
+    hostLockfileSha256 = $hostLockfileSha256
     hostExecutable = 'ventio_host.exe'
     migrationExecutable = 'ventio_migrate.exe'
     identityBootstrapExecutable = 'ventio_identity_bootstrap.exe'
