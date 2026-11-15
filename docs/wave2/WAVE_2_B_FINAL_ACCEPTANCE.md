@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 14:13 UTC
+Last updated: 2026-11-15 14:48 UTC
 
 This candidate is not submitted as verified or production-ready. The package
 installed on TEST-02 is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all
@@ -476,3 +476,33 @@ Wave_2_B remains PARTIAL VERIFICATION / BLOCKED because the physical Windows
 service/quarantine, TLS/authentication, two-device synchronization,
 backup/restore and other mandatory acceptance gates remain open. TEST-01's
 SSH-only Host restart passed. PR #6 remains Draft and unmerged.
+
+## Final SSH-only verification checkpoint — 2026-11-15 14:48 UTC
+
+**Disposition: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED.**
+
+The exact CI-tested PR head is ee167d6d219bdb655edae129441b7a12e15d9420;
+all nine GitHub Actions workflows passed. Run IDs and per-workflow results are
+in WAVE_2_B_TEST_RESULTS.md. The branch remains feature/wave-2-a; PR #6 remains
+open, Draft and unmerged.
+
+Latest SSH evidence confirms TEST-01 Host and PostgreSQL services are Running
+and Host /healthz returns 200. Its only current setup status is complete at
+HOST_READINESS; authenticated administrator login and Client access remain
+unproven. The latest safe Host diagnostic still reports
+HOST_JOB_WORKER_UNAVAILABLE, without enough detail to identify the cause.
+
+TEST-02 remains unavailable for Host operations after Defender quarantined its
+engine during controlled crash recovery: the Host service is Stopped, the
+engine file is absent, PostgreSQL is Running, and Defender protections are
+enabled. No quarantine restore or security exclusion was made.
+
+Mandatory physical acceptance is incomplete: B2 representative Wave 1 upgrade
+and full identity/scope matrix; B3 authenticated operations and durable data
+processing; B4 actual two-computer synchronization, offline recovery and
+manual UI scenarios; B5 local approval, scheduled backup, integrity/retention
+and disposable restore; and B6 final capability audit. Interactive scenarios
+remain NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED. CI success does not
+replace these tests. No Wave_2_C work or merge to main was started. Readiness
+recommendation for Wave_2_C: not ready until the listed blockers are resolved
+and accepted.

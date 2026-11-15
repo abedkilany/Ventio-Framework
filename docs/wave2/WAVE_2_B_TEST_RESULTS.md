@@ -7,7 +7,7 @@ Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d
 Post-correction CI-tested head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-15
-Last updated: 2026-11-15 14:13 UTC
+Last updated: 2026-11-15 14:48 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -661,3 +661,34 @@ Native Flutter `43715371758`, Core `43715371761`, Credential Lifecycle
 Crash Recovery `43715371763`, Host Engineering `43715371819`, Host Persistence
 `43715371745`, and Windows Acceptance Package `43715371820`; all concluded
 success.
+
+## SSH-only continuation and final CI checkpoint — 2026-11-15 14:48 UTC
+
+Exact PR head checked: ee167d6d219bdb655edae129441b7a12e15d9420. All nine
+workflows concluded success:
+
+| Workflow | Run | Result |
+|---|---:|---|
+| Host API | 43723289645 | PASS |
+| Host Crash Recovery | 43723289479 | PASS |
+| Native Flutter Client and Extension Builder | 43723289568 | PASS |
+| Credential Lifecycle | 43723289469 | PASS |
+| Host Persistence | 43723289505 | PASS |
+| Windows Acceptance Package | 43723289499 | PASS |
+| Host Engineering Gate | 43723289481 | PASS |
+| Core Foundation | 43723289578 | PASS |
+| Durable Commands | 43723289470 | PASS |
+
+Final read-only SSH check: TEST-01 Host and PostgreSQL services Running and
+/healthz HTTP 200. The recorded setup operation is complete at HOST_READINESS;
+it does not establish authenticated administrator login. The latest safe
+worker diagnostic is still HOST_JOB_WORKER_UNAVAILABLE at
+2026-11-15T13:09:53Z, with cause unresolved. TEST-02 Host is Stopped,
+PostgreSQL is Running, its Host engine is absent, and Defender protections
+remain enabled. No new product defect was confirmed and no source code changed
+during this continuation.
+
+All physical and GUI-dependent scenarios remain classified individually in
+the gate ledger. In particular, actual two-device sync, offline/conflict
+recovery, product backup scheduling and disposable restore were not executed.
+Disposition remains WAVE_2_B — PARTIAL VERIFICATION / BLOCKED.

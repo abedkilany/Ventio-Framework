@@ -10,7 +10,7 @@ Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-t
 Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
 Latest post-correction CI-tested head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82` (9/9 workflows passed)
-Last updated: 2026-11-15 14:13 UTC
+Last updated: 2026-11-15 14:48 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -483,3 +483,24 @@ Acceptance Package 43715371820, Native Flutter 43715371758, Core 43715371761,
 Credential Lifecycle 43715371766, Durable Commands 43715371754, Host Crash
 Recovery 43715371763, Host Engineering 43715371819 and Host Persistence
 43715371745. PR #6 remains open and Draft.
+
+## SSH-only continuation — 2026-11-15 14:48 UTC
+
+Latest read-only SSH checks confirm TEST-01 VentioHost and VentioPostgres are
+Running and /healthz returns 200. The only setup status file is complete at
+HOST_READINESS, updated 2026-11-14T22:31:08Z; this does not prove administrator
+login or Client authentication. The latest HOST_JOB_WORKER_UNAVAILABLE remains
+2026-11-15T13:09:53Z; its cause is unresolved.
+
+TEST-02 remains security-blocked: VentioHost is Stopped, PostgreSQL is Running,
+and ventio_host.exe is absent. Defender Antivirus, real-time protection and AM
+service are enabled. No quarantined file was restored and no exclusion was
+added.
+
+All nine GitHub Actions workflows passed on exact PR head
+ee167d6d219bdb655edae129441b7a12e15d9420: Host API 43723289645, Host Crash
+Recovery 43723289479, Native Flutter 43723289568, Credential Lifecycle
+43723289469, Host Persistence 43723289505, Windows Acceptance Package
+43723289499, Host Engineering 43723289481, Core Foundation 43723289578, and
+Durable Commands 43723289470. This CI pass does not replace physical
+acceptance. PR #6 is still open, Draft and unmerged.

@@ -2,7 +2,7 @@
 
 Latest tested package: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 14:13 UTC
+Last updated: 2026-11-15 14:48 UTC
 Earlier physical installation evidence is tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`. The newer package at `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`, including correction `f11bf27e83dd6b206fc63289bbf325471a1ee026`, was installed on TEST-02; its Host executable is now quarantined by Defender. TEST-01's installed manifest has no source commit field.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
@@ -204,3 +204,22 @@ The observed default TLS trust error is therefore expected until the supported
 pinning step is completed. No certificate trust was weakened and no Client
 enrollment or real synchronization was performed. This is not currently
 classified as a product defect; B4 remains blocked pending owner validation.
+
+## Final SSH-only continuation checkpoint — 2026-11-15 14:48 UTC
+
+No new product defect was confirmed and no code correction was made during
+this continuation. TEST-01 remains live (VentioHost and VentioPostgres
+Running; /healthz 200), but the latest HOST_JOB_WORKER_UNAVAILABLE diagnostic
+remains unresolved. Its setup record reached HOST_READINESS; authenticated
+administrator login is not evidenced.
+
+The TEST-02 crash-recovery blocker remains open. Defender's recorded action for
+threat 2147731250 succeeded, the Host executable remains absent, and the
+service is Stopped. Defender protections remain enabled; no restore, exclusion
+or policy change was attempted. Product backup/restore, real-client
+synchronization and manual-UI acceptance blockers also remain open.
+
+All nine CI workflows passed on
+ee167d6d219bdb655edae129441b7a12e15d9420; see the final test-results checkpoint
+for run IDs. CI success does not clear the physical Windows security or
+integration blockers.
