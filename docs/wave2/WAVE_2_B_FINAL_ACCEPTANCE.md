@@ -3,27 +3,23 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 21:59 UTC
+Last updated: 2026-11-15 23:41 UTC
 
-Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Independent rebuilding now recreates the reported expected hash exactly, and current static Defender scans on both test computers report no threats. The historical classification and runtime behavior remain unresolved; original quarantine and stopped services are preserved. See [the investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md).
+Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Independent rebuilding recreates the reported expected hash exactly; current static Defender scans on both test computers reported no threats, and the exact-hash candidate now runs on TEST-02 after controlled process-crash and reboot recovery. The historical classification and runtime behavior remain unresolved; original quarantine was not restored. See [the investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md).
 
-This candidate is not submitted as verified or production-ready. TEST-02's
-installed package is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb` and its
-owner-reported first-Host-admin retry completed, but its engine was later
-quarantined. The newer TEST-01 check confirms the same Defender threat
-(`Trojan:Win32/Bearfoos.A!ml`, 2147731250) successfully removed the required
-`ventio_host.exe` there as well. Both Host services are Stopped with exit code
-2; both PostgreSQL services remain Running, and both local Host health checks
-fail. Defender protections remain enabled. The detection's underlying nature
-(false positive versus genuine threat) is unresolved; no file was restored and
-no exclusion was added. The exact installed TEST-01 package commit cannot be
-established from its manifest. The currently CI-verified PR head before this
-report update is `02b8ecc3901527f0b635fd66e5c68c1734d7dff8` (10/10 checks pass);
-PR #6 remains open, Draft and unmerged. Real Client enrollment, authenticated
-sessions, two-device/offline synchronization, physical backup/restore,
-scheduled operations, and remaining database/security and GUI acceptance
-gates are incomplete. Final status remains **WAVE_2_B — PARTIAL VERIFICATION /
-BLOCKED**.
+This candidate is not submitted as verified or production-ready. The current
+physical Host artifact on TEST-02 was built from exact PR head
+`a7c85ef5617bca9345804106aa17457b2eaf858c`, matching the historically reported
+Host SHA-256. Host/PostgreSQL are Running after controlled process-crash
+recovery and a controlled Windows reboot; Defender protections remain enabled
+and no new detection was observed. This does not resolve the historical
+Defender classification (**ROOT CAUSE NOT CONFIRMED**). TEST-01 is currently
+unreachable from both the runner and TEST-02 on SSH/RDP/Host ports. All 11 CI
+checks pass on the tested code head; PR #6 remains open, Draft and unmerged.
+Real Client authentication/enrollment, two-device/offline synchronization,
+product backup/scheduling/restore, and remaining database/security and GUI
+acceptance gates are incomplete. Final status remains
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
 
 ## Candidate and environment
 
@@ -35,7 +31,8 @@ BLOCKED**.
 - Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 - Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026`
 - Diagnostic package candidate: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
-- Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
+- Latest installer package installed on TEST-02: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
+- Latest physical Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`; Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`
 - Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified by CI on `676c9896d3340a04d2dabb4157a9d96c837e3f61`)
 - Post-correction CI-tested report head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82`; all nine GitHub Actions workflows passed, including Host API run `43715371756` and Windows Acceptance Package run `43715371820`.
 - Latest acceptance artifact ZIP SHA-256:
@@ -63,10 +60,11 @@ BLOCKED**.
   5.1.26100.9818. Microsoft identifies build 26300 as Windows 11 26H2 in its
   [release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information);
   the lab registry's `ProductName` text was stale.
-- Current access: SSH to Codex-1 and Codex-3 identifies TEST-01 and TEST-02.
-  All four accounts were previously verified as local Administrators at High
-  Integrity. TEST-01's RDP session is disconnected; no GUI was used. The
-  earlier power interruption was not a controlled reboot-recovery test.
+- Current access: SSH to Codex-3 identifies TEST-02; TEST-01 is unreachable
+  from both the runner and TEST-02 on TCP 22, 3389, 8080 and 8443. All four
+  accounts were previously verified as local Administrators at High Integrity.
+  No GUI was used. The controlled reboot in the latest checkpoint is separate
+  from the earlier power interruption.
 - Earlier SSH-only provisioning installed Host/PostgreSQL on TEST-01; the
   owner later completed Host setup on TEST-02 from the package at `17b0141`.
   The TEST-02 setup and service evidence is recorded below. GUI acceptance and
@@ -81,12 +79,12 @@ BLOCKED**.
 
 | Gate | Status | Acceptance evidence |
 |---|---|---|
-| B0 | Partial | SSH is available to both machines. Defender antivirus/real-time protection remain enabled on both; TEST-01 `VerifiedAndReputablePolicyState=0`. No controlled Windows reboot test was run. |
-| B1 | PASS in candidate CI | All nine workflows passed on exact package commit `17b0141`, post-correction code head `676c989`, and latest report-only head `0bd9ea9` (Host API run `43715371756`). Windows Acceptance Package run `43653937272` produced the installed artifact. No full physical regression on the test computers. |
-| B2 | Partial | On TEST-01 all 40 migration checksums match, `assert_schema()` passes, and 30 public `ventio_*` tables have owner/RLS/FORCE RLS with zero violations. Selected least-privilege checks and a rolled-back identity-API Recovery Authority/empty-queue claim probe pass. Runtime SQL, Wave 1 upgrade, full isolation and complete identity matrix remain open. Earlier fresh TEST-02 migration/RLS checks passed before the crash test. |
-| B3 | Partial | TEST-01 `/healthz` is 200 and anonymous `/api/v1/session` is 401. Six safe `HOST_JOB_WORKER_UNAVAILABLE` diagnostics remain, latest 2026-11-15 13:09:53 UTC; no newer event was present at 14:09. The worker intentionally omits the underlying exception. No authenticated operations or data-processing scenarios passed. |
-| B4 | Partial / blocked | TEST-01 LAN TLS uses a self-signed certificate. Its SAN and SHA-256 fingerprint match Host-published info; the supported Client flow requires explicit fingerprint entry and forbids bypass. No authenticated Client use, real two-device synchronization, offline edit or conflict/receipt recovery passed. Pairing and GUI-dependent Client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
-| B5 | Failed — crash recovery; other operations not executed | An orderly Host/PostgreSQL stop/start passed earlier on TEST-02. A later controlled Host-engine crash was followed by Defender quarantining its executable; SCM and manual service start failed. PostgreSQL stayed Running. No scheduled task was found on TEST-01; approval, product backup integrity/retention and disposable restore were not run. |
+| B0 | Partial | TEST-02 SSH returned after controlled reboot. TEST-01 is unreachable from the runner and TEST-02 on ports 22/3389/8080/8443. Defender Antivirus/real-time protection are enabled on TEST-02. |
+| B1 | PASS in candidate CI | All 11 checks passed on exact tested code/Host artifact source head `a7c85ef5617bca9345804106aa17457b2eaf858c`; Reproduce run `43767153016` produced the exact-hash Host binary. CI is not physical acceptance evidence. |
+| B2 | Partial | TEST-02 fresh DB: 40/40 migrations and ledger checksums, `assert_schema()`, 30 public `ventio_*` tables owner/RLS/FORCE RLS, selected least-privilege checks, `assert_runtime()`, Recovery Authority admission and empty-queue claim probe passed before reboot. Cross-scope authorization, Wave 1 upgrade and restore reconciliation remain open. |
+| B3 | Partial | TEST-02 `/healthz` is 200 and unauthenticated `/api/v1/session` returns 401. No authenticated operations or populated durable-job/data-processing scenarios passed. Historical TEST-01 worker errors cannot be rechecked while TEST-01 is unreachable. |
+| B4 | Partial / blocked | No authenticated Client use, real two-device synchronization, offline edit or conflict/receipt recovery passed. TEST-01 is offline from both check locations. Client pairing, Android UI, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B5 | Partial | Current exact-hash TEST-02 Host recovered after a controlled process crash (108 seconds) and both Host/PostgreSQL returned after controlled reboot. No recent Defender detection; protections remained enabled. TEST-02 has no `\Ventio\` scheduled task or product backup directory. Approval, scheduled product backup, integrity/corruption/retention, interrupted backup and disposable restore were not run. |
 | B6 | Not complete | Physical gates, capability audit and final acceptance audit are open. |
 
 ## Earlier SSH-only physical evidence (before owner clean reinstall)
@@ -579,3 +577,55 @@ This includes exact-hash reconstruction/Defender evidence and the acceptance
 package's new provenance assertions. A later report-only successor does not
 change tested code. CI success does not resolve the historical classifier
 cause or authorize resuming the blocked physical acceptance gates.
+
+
+## Physical verification continuation — 2026-11-15 23:41 UTC
+
+Exact tested product artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`.
+The GitHub Actions Reproduce run `43767153016`, artifact ID `14182523609`, produced
+a Host binary whose SHA-256 is
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. The artifact
+ZIP digest was `sha256:91ab4704a099f58270e98722f0daedf0010fecdb276403cb379b19b6361aca8c`.
+On-demand Defender scan of the candidate
+on TEST-02 found no threats with signature `1.463.319.0`; Antivirus, AM service and
+real-time protection remained enabled. No recent detection was present. This result
+neither explains nor dismisses the historical Defender event (**ROOT CAUSE NOT
+CONFIRMED**); no quarantined copy was restored or excluded.
+
+TEST-02/Codex-3 (`192.168.1.107`) ran the exact-hash Host. PostgreSQL and Host were
+Running, `/healthz` returned HTTP 200 and unauthenticated `/api/v1/session` returned
+401. Before reboot, the fresh database passed: 40 packaged migration hashes matched
+all 40 ledger entries; `ventio_security.assert_schema()` succeeded; all 30 public
+Ventio tables had expected ownership plus RLS and FORCE RLS with zero violations;
+selected role/field least-privilege checks and `ventio_security.assert_runtime()`
+passed; Recovery Authority admission and an empty job-claim probe passed inside a
+rolled-back transaction.
+
+Controlled Host engine termination recovered the service in 108 seconds, with
+PostgreSQL Running and health 200. A controlled OS reboot followed; SSH returned and
+reported boot time `2026-11-15T23:27:37.500Z`. Both services were Running, the Host
+hash still matched, health returned 200, Defender remained enabled, and no recent
+threat was recorded. A second SSH check at `2026-11-15T23:41:06Z` confirmed both
+services Running, health 200, matching hash, Defender/real-time protection enabled
+and zero recent detections. This is current process-crash and reboot-persistence
+evidence for TEST-02, not full Wave_2_B acceptance.
+
+TEST-01 (`192.168.1.106`) was unreachable from both the runner and TEST-02 at
+2026-11-15 23:31 UTC: TCP ports 22, 3389, 8080 and 8443 failed; ping reported
+Destination host unreachable. Cause is unknown. Real two-device synchronization,
+offline edits and conflict recovery therefore remain blocked. Authenticated Client
+pairing/session, Windows/Android GUI acceptance, product-authorized backup, Task
+Scheduler, integrity/corruption/retention, interrupted backup and disposable
+restore were not executed. Backup local approval was not bypassed. No application
+defect was reproduced or corrected in this checkpoint.
+
+GitHub Actions current head `a7c85ef5617bca9345804106aa17457b2eaf858c`: 11/11 checks
+completed successfully — architecture-contracts, dart-core, durable-commands,
+host-api, host-engineering-gate, host-recovery, credential-lifecycle,
+postgres-adapter, native-client-windows-android, windows-acceptance-package and
+reproduce. PR #6 is open, Draft and unmerged.
+
+Current status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**. Wave_2_C
+readiness is **not recommended** until TEST-01 returns, real synchronization and
+all mandatory B2–B6 capability gates are evidenced, and remaining manual owner
+validation is complete.

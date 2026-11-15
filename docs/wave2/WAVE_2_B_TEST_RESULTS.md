@@ -4,10 +4,11 @@
 Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
-Latest CI-verified PR head before this report update: `e2c5fb1a592688bdcaf74e09f7a64e0781d4008a` (11/11 checks passed)
+Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`; installed Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`
+Latest CI-verified PR head: `a7c85ef5617bca9345804106aa17457b2eaf858c` (11/11 checks passed)
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-15
-Last updated: 2026-11-15 21:59 UTC
+Last updated: 2026-11-15 23:41 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -18,11 +19,14 @@ The artifact ZIP SHA-256 is
 `1c5a1076ab427cd132afc5efd1d7c2610e61376647441c00a628fb04b5f650eb`. The
 installer SHA-256 is
 `E117F4E762ECBDBBF2E0A3B6649FC6887101F5CF08907B293A1CBC929013B020` and
-Authenticode reports `NotSigned`. The exact tested package installed on
-TEST-02 is `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; this does not mean the
-physical acceptance gates passed. TEST-01's installed payload manifest has no
-source commit field, so physical results from that Host cannot be attributed
-to a repository commit with available evidence.
+Authenticode reports `NotSigned`. Installer package
+`17b014125b695e3242e2d9b50b3eb9732a8c5fcb` remains installed on TEST-02; for
+the current lab continuation, its Host engine was replaced with the exact-hash
+binary rebuilt from the GitHub artifact at `a7c85ef`. No quarantined file was
+restored. This does not mean the physical acceptance gates passed. TEST-01's
+installed payload manifest has no source commit field, so physical results
+from that Host cannot be attributed to a repository commit with available
+evidence.
 
 All nine GitHub Actions workflows completed successfully on report head
 `7f08d43692980d8605aa6a9cd4eb8e48b11d3754`: Core Foundation
@@ -65,8 +69,8 @@ will create a newer PR head and may start CI; no workflow was stopped.
 
 | Machine | Verified identity | OS / build | PowerShell | Initial free C: | Recorded state |
 |---|---|---|---|---:|---|
-| VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity (previously verified) | Windows 11 Pro 26H2, 10.0.26300.9974 (previously verified) | 5.1.26100.9818 | 63.5 GB initial | SSH to Codex-1 has returned. Host and PostgreSQL are Running; 40 migration/checksum and selected RLS checks passed. Installed payload manifest has no source commit field. |
-| VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity (previously verified) | Windows 11 Pro, build 26300 | 5.1.26100.9818 | 147.3 GB initial | Package commit `17b0141` was installed. After the controlled Host process crash, Defender quarantined `ventio_host.exe`; `VentioHost` is now Stopped while PostgreSQL remains Running. |
+| VENTIO-TEST-01 (`192.168.1.106`) | `Codex-1`, `Codex-2`; Administrators, High Integrity (previously verified) | Windows 11 Pro 26H2, 10.0.26300.9974 (previously verified) | 5.1.26100.9818 | 63.5 GB initial | Currently unreachable from the runner and TEST-02 on SSH/RDP/Host ports 22/3389/8080/8443; cause unknown. Its prior Host/B2 evidence remains historical and its installed payload cannot be tied to a source commit. |
+| VENTIO-TEST-02 (`192.168.1.107`) | `Codex-3`, `Codex-4`; Administrators, High Integrity (previously verified) | Windows 11 Pro 26H2, build 26300 | 5.1.26100.9818 | 147.3 GB initial | Host/PostgreSQL Running after controlled process-crash recovery and Windows reboot. Exact Host hash matches `5a18…e5f2`; Defender and real-time protection enabled, signature `1.463.319.0`. |
 
 SSH succeeded for all four named accounts during initial preflight. At the
 2026-11-15 07:35 UTC checkpoint, SSH identified TEST-02/Codex-3 but timed out
@@ -315,12 +319,12 @@ TEST-02 was not modified during this continuation.
 
 | Gate | Result | Executed evidence / outstanding scenarios |
 |---|---|---|
-| B0 environment | **PARTIAL** | SSH reaches both test machines. Defender antivirus, real-time protection and antimalware service are enabled on both; TEST-01 `VerifiedAndReputablePolicyState=0`. TEST-01's RDP session is disconnected and no GUI was used. No controlled Windows reboot test was performed. |
-| B1 static/core/contracts | **PASS in candidate CI** | All nine candidate workflows PASS. |
-| B2 PostgreSQL/identity/security | **PARTIAL — selected fresh checks PASS** | On TEST-01, all 40 installed migration checksums match the ledger, `assert_schema()` passes, and 30 checked `ventio_*` tables are owned by `ventio_owner` with RLS/FORCE RLS and zero violations. Role flags and selected direct-read denials pass. Identity-API Recovery Authority admission and empty-queue claim passed inside a rolled-back transaction. Runtime execution, cross-scope isolation, Wave 1 upgrade and full identity flows remain open. Earlier fresh TEST-02 checks also passed. |
-| B3 Host/data | **PARTIAL** | TEST-01 `/healthz` returns 200; unauthenticated `/api/v1/session` returns 401. Six safe `HOST_JOB_WORKER_UNAVAILABLE` events remain, latest 13:09:53 UTC; no newer entry was present at 14:09. A current identity/Recovery Authority/empty-queue claim probe passed with rollback, but does not explain the events. Authenticated operations and data processing remain unverified. |
-| B4 native/offline | **PARTIAL / BLOCKED** | TEST-01's self-signed certificate and published SHA-256 fingerprint were verified; the Client's supported explicit-pinning and enrollment flow was not run. No real two-computer synchronization, offline edit, conflict/receipt recovery, Android UI, protected-field, workspace/view/report, or UI permission/scaling test passed. Remaining GUI cases: **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
-| B5 backup/restore/operations | **FAILED — Host crash recovery; remaining acceptance NOT EXECUTED** | The earlier orderly restart passed on TEST-02. A controlled crash then led Defender to quarantine the Host executable; SCM retries could not recover Host. PostgreSQL remained Running and accepting connections. TEST-01 has no `\Ventio\` scheduled task. Product approval/scheduling, physical backup integrity/retention and disposable restore were not run. CI logical restore is separate evidence. |
+| B0 environment | **PARTIAL** | TEST-02 SSH returned after a controlled reboot; TEST-01 is unreachable from both the runner and TEST-02 on TCP 22/3389/8080/8443. Defender Antivirus and real-time protection were verified enabled on TEST-02; no GUI was used. |
+| B1 static/core/contracts | **PASS in candidate CI** | All 11 checks passed on exact PR head `a7c85ef5617bca9345804106aa17457b2eaf858c`, including Dart Core, architecture contracts, Host API/engineering/recovery, PostgreSQL adapter, durable commands, credential lifecycle, Windows/Android native build, acceptance package and reproducibility. This does not replace physical platform acceptance. |
+| B2 PostgreSQL/identity/security | **PARTIAL — selected fresh checks PASS** | On TEST-02, all 40 packaged migration checksums match all 40 ledger entries; `assert_schema()` passes; 30 public tables have `ventio_owner`, RLS/FORCE RLS and zero violations. Selected least-privilege checks, `assert_runtime()`, Recovery Authority admission and a rolled-back empty-queue job-claim probe pass. Cross-scope authorization, Wave 1 upgrade and recovery reconciliation remain open. |
+| B3 Host/data | **PARTIAL** | TEST-02 `/healthz` returns 200; unauthenticated `/api/v1/session` returns 401. No authenticated operations or populated durable-job/data-processing scenarios were exercised. Historical TEST-01 `HOST_JOB_WORKER_UNAVAILABLE` cause remains unresolved and cannot be rechecked while offline. |
+| B4 native/offline | **PARTIAL / BLOCKED** | No authenticated Client pairing/session, explicit pinning/enrollment, real two-computer synchronization, offline edit, conflict/receipt recovery, or Windows/Android UI scenarios passed. TEST-01 is unreachable. GUI acceptance cases are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B5 backup/restore/operations | **PARTIAL** | On the exact-hash rebuilt candidate, killing only the Host engine was followed by Host service recovery in 108 seconds; Host and PostgreSQL also returned after controlled reboot. No new Defender detection was recorded and protection remained enabled. Read-only inspection found no `\Ventio\` task or product backup directory on TEST-02. Locally approved backup, task scheduling, physical integrity/corruption/retention, interruption and disposable restore were not executed. |
 | B6 final audit | **NOT COMPLETE** | Physical gates, capability matrix, defect regression adjacency and exact-candidate final rerun remain open. |
 
 The fixed-scope capability IDs are
@@ -788,3 +792,57 @@ This includes exact-hash reconstruction/Defender evidence and the acceptance
 package's new provenance assertions. A later report-only successor does not
 change tested code. CI success does not resolve the historical classifier
 cause or authorize resuming the blocked physical acceptance gates.
+
+
+## Physical verification continuation — 2026-11-15 23:41 UTC
+
+Exact tested product artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`.
+The GitHub Actions Reproduce run `43767153016`, artifact ID `14182523609`, produced
+a Host binary whose SHA-256 is
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. The artifact
+ZIP digest was `sha256:91ab4704a099f58270e98722f0daedf0010fecdb276403cb379b19b6361aca8c`.
+On-demand Defender scan of the candidate
+on TEST-02 found no threats with signature `1.463.319.0`; Antivirus, AM service and
+real-time protection remained enabled. No recent detection was present. This result
+neither explains nor dismisses the historical Defender event (**ROOT CAUSE NOT
+CONFIRMED**); no quarantined copy was restored or excluded.
+
+TEST-02/Codex-3 (`192.168.1.107`) ran the exact-hash Host. PostgreSQL and Host were
+Running, `/healthz` returned HTTP 200 and unauthenticated `/api/v1/session` returned
+401. Before reboot, the fresh database passed: 40 packaged migration hashes matched
+all 40 ledger entries; `ventio_security.assert_schema()` succeeded; all 30 public
+Ventio tables had expected ownership plus RLS and FORCE RLS with zero violations;
+selected role/field least-privilege checks and `ventio_security.assert_runtime()`
+passed; Recovery Authority admission and an empty job-claim probe passed inside a
+rolled-back transaction.
+
+Controlled Host engine termination recovered the service in 108 seconds, with
+PostgreSQL Running and health 200. A controlled OS reboot followed; SSH returned and
+reported boot time `2026-11-15T23:27:37.500Z`. Both services were Running, the Host
+hash still matched, health returned 200, Defender remained enabled, and no recent
+threat was recorded. A second SSH check at `2026-11-15T23:41:06Z` confirmed both
+services Running, health 200, matching hash, Defender/real-time protection enabled
+and zero recent detections. This is current process-crash and reboot-persistence
+evidence for TEST-02, not full Wave_2_B acceptance.
+
+TEST-01 (`192.168.1.106`) was unreachable from both the runner and TEST-02 at
+2026-11-15 23:31 UTC: TCP ports 22, 3389, 8080 and 8443 failed; ping reported
+Destination host unreachable. Cause is unknown. Real two-device synchronization,
+offline edits and conflict recovery therefore remain blocked. Authenticated Client
+pairing/session, Windows/Android GUI acceptance, product-authorized backup, Task
+Scheduler, integrity/corruption/retention, interrupted backup and disposable
+restore were not executed. On TEST-02 there was no `\Ventio\VentioHostBackups`
+task, no `\Ventio\` task at all, no product backup directory and no backup set.
+Backup local approval was not bypassed. No application
+defect was reproduced or corrected in this checkpoint.
+
+GitHub Actions current head `a7c85ef5617bca9345804106aa17457b2eaf858c`: 11/11 checks
+completed successfully — architecture-contracts, dart-core, durable-commands,
+host-api, host-engineering-gate, host-recovery, credential-lifecycle,
+postgres-adapter, native-client-windows-android, windows-acceptance-package and
+reproduce. PR #6 is open, Draft and unmerged.
+
+Current status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**. Wave_2_C
+readiness is **not recommended** until TEST-01 returns, real synchronization and
+all mandatory B2–B6 capability gates are evidenced, and remaining manual owner
+validation is complete.

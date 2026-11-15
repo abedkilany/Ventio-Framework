@@ -1,9 +1,9 @@
 # Wave 2 B defect register
 
-Latest tested package: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
+Latest tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 21:59 UTC
-Earlier physical installation evidence is tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`. The newer package at `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`, including correction `f11bf27e83dd6b206fc63289bbf325471a1ee026`, was installed on TEST-02; its Host executable is now quarantined by Defender. TEST-01's installed manifest has no source commit field.
+Last updated: 2026-11-15 23:41 UTC
+Prior installation/quarantine observations remain historical. A newly rebuilt exact-hash Host artifact from `a7c85ef5617bca9345804106aa17457b2eaf858c` is currently running on TEST-02 after controlled process-crash recovery and Windows reboot; current Defender scans found no threat with signature `1.463.319.0`. This does not resolve the historical detection. TEST-01 is currently unreachable from both the runner and TEST-02.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
 acceptance blockers.
@@ -23,15 +23,16 @@ acceptance blockers.
 | WB-ENV-02 | Medium | **MITIGATED** | Downloading a local Flutter SDK on TEST-01 was impractical at the observed transfer rate. | GitHub-hosted CI produced the candidate package; no local SDK was needed on the test computers. |
 | WB-ENV-03 | High | **CLOSED — KEY-BY-KEY INPUT WORKED** | Long-text automation through the RDP clipboard path was unreliable. | With the correct Flutter fields focused, key-by-key input populated and visually verified the exact disposable Tenant/Company/Branch values on TEST-01. No owner intervention was needed; this was a test-control limitation, not an application defect. |
 | WB-ENV-04 | Critical | **CLOSED** | The candidate package was initially absent and direct download/relay paths failed. | Owner-staged ZIP verified on both test computers: 103,796,488 bytes and SHA-256 `0c83cd20dab447e6d024fe3d62dd5e9588499deb417a986820bf10d6a13114ae`. The exact installer was extracted and installed on each machine. Earlier partial transfers were hashed and removed; no local relay copy was saved. |
-| WB-ACC-01 | Critical | **BLOCKED — BOTH HOSTS UNAVAILABLE; CLIENT TLS/AUTHENTICATION UNVERIFIED** | Real two-computer synchronization, offline changes and reconciliation have not run. | At the 2026-11-15 20:29 UTC SSH check, both Host services were Stopped and both required `ventio_host.exe` files were absent after successful Defender remediation. TEST-01 had previously served Host traffic and its self-signed TLS certificate was verified, but it is no longer available. No authenticated Client session was established; TEST-02's Client certificate validation and enrollment remain untested. |
-| WB-ACC-02 | Critical | **OPEN — NOT EXECUTED** | Physical backup, scheduling, corruption and full restore/reconciliation have not run. | Read-only inspection found no tasks under `\Ventio\` on TEST-01. Product approval/scheduling needs its supported Host operation path; no task was created by bypassing that authorization. No physical backup integrity/retention or disposable restore evidence exists. |
+| WB-ENV-05 | Critical | **OPEN — TEST-01 NETWORK UNREACHABLE** | TEST-01 became inaccessible while TEST-02 remains reachable. | On 2026-11-15 23:31 UTC, TCP ports 22, 3389, 8080 and 8443 to `192.168.1.106` failed from both the runner and TEST-02; ping returned Destination host unreachable. No cause is established, and no machine/power/network change was initiated. Recover TEST-01 access before real two-device acceptance. |
+| WB-ACC-01 | Critical | **BLOCKED — TEST-01 UNREACHABLE; REAL TWO-DEVICE SYNC NOT EXECUTED** | Real two-computer synchronization, offline changes and reconciliation have not run. | At 2026-11-15 23:31 UTC, ports 22/3389/8080/8443 to TEST-01 were closed from both the runner and TEST-02. TEST-02 Host is now Running, but its Client has no verified authenticated session. No simulated two-client test is counted as physical sync evidence. |
+| WB-ACC-02 | Critical | **OPEN — NOT EXECUTED** | Physical backup, scheduling, corruption and full restore/reconciliation have not run. | Read-only inspection found no tasks under `\Ventio\` on TEST-01 or TEST-02; TEST-02 has no product backup directory or verified backup sets. Product approval/scheduling needs its supported Host-authorized operation path and local approval; no task or backup was created by bypassing that authorization. No physical integrity/retention or disposable-restore evidence exists. |
 | WB-ACC-03 | High | Open | The full fixed-scope capability matrix and B6 audit are incomplete. | CI provides subsets, not complete capability closure. Record each required positive, negative, recovery and platform scenario against the exact candidate. |
 | WB-ACC-04 | High | **RESOLVED FOR TEST-01 LAB RUN; DISTRIBUTION LIMITATION OPEN** | The unsigned Host Setup Broker was blocked while Smart App Control was enforcing. The owner later disabled Smart App Control on TEST-01 for this authorized test. | The earlier 3033/3077 events and exact broker hash remain valid historical evidence. Before retry, registry showed `VerifiedAndReputablePolicyState=0`; after documented `CiTool.exe -r`, `CiTool -lp -json` showed the `VerifiedAndReputableDesktop` policy not enforced on TEST-01. Other Code Integrity policies and Defender remained enabled. The supported broker then completed PostgreSQL/Host provisioning through LAN configuration. Do not generalize this result to machines where SAC is enforced: unsigned distribution compatibility remains a deployment limitation. |
 | WB-ACC-05 | High | **OPEN — NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED** | A silent uninstall from SSH returned exit code 0 but left the Client process and six application files while removing the uninstall registration/helper files. | This was observed before the 2026-11-15 TEST-02 Host setup. The latest install now has Host/PostgreSQL data; do not repeat destructive uninstall without preserving required evidence and following the dedicated uninstall plan. Same-session interactive cleanup remains unverified. |
-| WB-ACC-06 | Critical | **OPEN — AUTHENTICATED SESSION NOT VERIFIED** | TEST-01 previously failed to establish its first-admin session; TEST-02 provisioning succeeded after retry, but no authenticated Client/API session has been verified. | TEST-01's earlier UI report was `HOST_SESSION_AUTHENTICATION_FAILED` after operation `0793a94d97f202699fbbff49b5db5cc8` reached `HOST_READINESS`. Current local `/api/v1/session` returns 401 without credentials, as expected; no successful Client token/session was exercised. TEST-02's owner-reported Set up Host retry completed at `HOST_READINESS`, but its Host engine is now quarantined and unavailable. |
+| WB-ACC-06 | Critical | **OPEN — AUTHENTICATED SESSION NOT VERIFIED** | TEST-01 previously failed to establish its first-admin session; TEST-02 Host is now running, but no authenticated Client/API session has been verified. | TEST-01's earlier UI report was `HOST_SESSION_AUTHENTICATION_FAILED` after operation `0793a94d97f202699fbbff49b5db5cc8` reached `HOST_READINESS`. Current TEST-02 unauthenticated `/api/v1/session` returns 401 as expected; no successful Client token/session was exercised. |
 | WB-ACC-07 | High | **OPEN — CLIENT PINNING / ENROLLMENT NOT EXECUTED** | TEST-01 uses the intended self-signed LAN certificate, but no Client has explicitly pinned it or completed enrollment. | Read-only inspection confirmed Subject/Issuer `CN=VENTIO-TEST-01`, SAN `VENTIO-TEST-01` and `192.168.1.106`, and SHA-256 `2c63e4ffaa97dd4ba06be9d55360ef7fc907d7b3a8db6a889de6356e6d4f6368` matching Host metadata. The supported Client UI requires explicit fingerprint entry and forbids bypass. The default trust error is expected for this self-signed certificate; no trust store or security policy was modified. Pairing requires manual owner validation under the SSH-only limit. |
 | WB-ACC-08 | High | **OPEN — HOST JOB WORKER ERROR, CAUSE UNRESOLVED** | TEST-01 safe Host diagnostics record intermittent `HOST_JOB_WORKER_UNAVAILABLE` events. | Events occurred at `2026-11-14T22:34:38.505Z` and `2026-11-15T09:28:20Z`, `09:31:47Z`, `09:32:59Z`, `09:38:14Z`, and `13:09:53Z`. At 14:09 UTC there was no newer entry. The event deliberately omits the exception. A read-only identity-API probe passed current Recovery Authority admission and invoked the empty-queue claim path in a rolled-back transaction; this did not reproduce or explain the events. No product defect or correction is confirmed. |
-| WB-ACC-09 | Critical | **FAILED — BOTH HOST ENGINES QUARANTINED; RESTORE BLOCKED BY SECURITY BOUNDARY** | Defender quarantined the required Host engine on both dedicated machines, leaving both Host services unavailable. | TEST-02's earlier controlled crash was followed by Defender events 1116/1117 identifying `C:\Program Files\Ventio\host-payload\ventio_host.exe` as `Trojan:Win32/Bearfoos.A!ml` (2147731250, Severe); remediation succeeded at `2026-11-15T09:59:21Z`. On TEST-01, Defender recorded the same detection/path and successful remediation at `2026-11-15T20:10:00Z`. Its manifest enumerates 92 verified files and exactly one missing file, `ventio_host.exe`, whose expected size is 8,806,400 bytes and SHA-256 is `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. TEST-01's service record identifies `HOST_ENGINE_PROCESS_START`; SCM event 7023 reports system error 2. Both `VentioHost` services are Stopped with exit code 2; both PostgreSQL services remain Running. Defender protections remain enabled. The cause of the Defender classification (false positive versus genuine threat) is not established. No quarantine restore, exclusion, or security-policy weakening was attempted. A trusted signed candidate or formal Defender disposition is required before retrying Host recovery. |
+| WB-ACC-09 | Critical | **CURRENT TEST HOST RUNNING FROM REBUILT ARTIFACT; HISTORICAL DEFENDER ROOT CAUSE NOT CONFIRMED** | Defender previously quarantined the Host engine on both test machines, blocking physical acceptance. | Current exact-hash artifact from `a7c85ef5617bca9345804106aa17457b2eaf858c` was scanned as data and installed on TEST-02 after the previous quarantined copy remained untouched. Static scan found no threat under signature `1.463.319.0`; Defender/real-time protection stayed enabled. Host survived controlled process-crash recovery and OS reboot with zero recent detection events. The historical Bearfoos.A!ml detection's nature/cause remains unresolved; no quarantine restore, exclusion, or security-policy weakening was used. This issue no longer prevents continuing the current lab checks, but the unresolved security finding remains a release limitation. |
 
 ## Inherited Wave 1 risk
 
@@ -287,3 +288,39 @@ This includes exact-hash reconstruction/Defender evidence and the acceptance
 package's new provenance assertions. A later report-only successor does not
 change tested code. CI success does not resolve the historical classifier
 cause or authorize resuming the blocked physical acceptance gates.
+
+## Physical verification continuation — 2026-11-15 23:41 UTC
+
+Current test source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`.
+GitHub Actions Reproduce run `43767153016`, artifact ID `14182523609`, produced
+Host candidate SHA-256
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`; artifact
+ZIP digest `sha256:91ab4704a099f58270e98722f0daedf0010fecdb276403cb379b19b6361aca8c`.
+All 11 PR
+checks passed on this exact head. PR #6 remains open, Draft and unmerged.
+
+On TEST-02/Codex-3, Defender signature `1.463.319.0` and real-time protection
+were enabled. An on-demand scan of the candidate found no threats; no recent
+Defender event was present. Host and PostgreSQL were Running, `/healthz` was
+HTTP 200, and unauthenticated `/api/v1/session` returned 401. PostgreSQL's 40
+migrations matched the ledger, `assert_schema()` passed, 30 public Ventio
+tables had the expected owner/RLS/FORCE RLS with no violations, selected
+least-privilege checks and `assert_runtime()` passed, and Recovery Authority
+admission plus an empty job claim passed in a rolled-back transaction.
+
+A controlled Host-engine termination recovered to Running with health 200
+after 108 seconds. A subsequent controlled Windows reboot returned SSH; boot
+time was `2026-11-15T23:27:37.500Z`, both services were Running, the Host hash
+still matched, health was 200, Defender remained enabled, and no recent
+detection was present. A second SSH check at `2026-11-15T23:41:06Z` confirmed
+both services, hash, health and Defender state remain good. No product source
+defect was found or corrected in this continuation.
+
+TEST-01 remained unreachable from both the runner and TEST-02 on TCP 22, 3389,
+8080 and 8443. Therefore real two-device synchronization is blocked by
+environment availability. Product backup authorization, scheduling, physical
+backup integrity/corruption/retention, interrupted backup and disposable
+restore remain unexecuted; none was bypassed through direct local operation.
+Historical Defender **ROOT CAUSE NOT CONFIRMED** remains a release limitation,
+not a reason to stop these current tests. No quarantine copy was restored, no
+exception was added, and no security control was weakened.
