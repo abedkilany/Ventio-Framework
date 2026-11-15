@@ -1,0 +1,3 @@
+Scan starting...
+Scan finished.
+Scanning D:\a\_temp\ventio-host-security\host-conventional.exe found no threats.

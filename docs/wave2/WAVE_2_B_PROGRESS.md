@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current blockers: Microsoft Defender quarantined the required Host engine `ventio_host.exe` on both TEST-01 and TEST-02. Both `VentioHost` services are stopped (exit code 2), PostgreSQL remains running, and local Host health checks fail. Do not restore the quarantined file or create an exclusion; a trusted signed build or formal Defender disposition is required before Host recovery. Client pinning/enrollment, authenticated sessions, real synchronization, backup/restore, scheduling and remaining database/security scenarios remain open.
+Current blockers: ROOT CAUSE NOT CONFIRMED for the historical Defender detection. The reported expected Host hash is now reproducible from reviewed unchanged source and passes current static Defender scans on both machines. Original engines remain quarantined and Host services remain stopped. Static results do not clear runtime behavior or the earlier classifier decision. Physical acceptance remains blocked; see WAVE_2_B_HOST_SECURITY_INVESTIGATION.md.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -9,8 +9,8 @@ Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
 Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
-Latest CI-verified PR head before this report update: `02b8ecc3901527f0b635fd66e5c68c1734d7dff8` (10/10 checks passed)
-Last updated: 2026-11-15 20:29 UTC
+Latest CI-verified PR head before this report update: `e2c5fb1a592688bdcaf74e09f7a64e0781d4008a` (11/11 checks passed)
+Last updated: 2026-11-15 21:59 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -535,3 +535,48 @@ Continue only after a trusted signed candidate or formal Defender disposition
 is available. PR #6 was open, Draft and unmerged at exact head
 `02b8ecc3901527f0b635fd66e5c68c1734d7dff8`; all ten checks passed there. This
 checkpoint does not change the partial/blocked acceptance disposition.
+
+## Host security investigation continuation — 2026-11-15
+
+**ROOT CAUSE NOT CONFIRMED. WAVE_2_B — PARTIAL VERIFICATION / BLOCKED.**
+
+See [the Host security investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md)
+for sanitized event/quarantine evidence, artifact provenance, source and pipeline
+audit, clean rebuilds and exact-hash Defender scans. The original expected Host
+hash was independently reproduced from unchanged source and the original
+compiler when the original checkout path was used. A temporary worktree path
+produces a different but repeatable hash. This explains the build difference;
+it does not explain the historical Bearfoos classifier decision.
+
+A confirmed build-evidence defect (WB-SEC-01) was corrected: Host compiler
+version/source commit/dirty state/lockfile hash are now recorded before Flutter
+changes PATH, and acceptance packaging checks their consistency. This is a
+provenance correction, not a claimed antivirus remediation. Runtime source and
+compiler flags were not changed for this investigation.
+
+Both original engines remain quarantined and both Host services remain stopped.
+No Host provisioning, service recovery, real synchronization, backup/restore or
+Wave_2_C acceptance work resumed. No exclusion, allow rule, security-policy
+bypass or quarantine restore was used. Microsoft-only sample transmission was
+authorized by the owner, but there is no confirmed manual submission ID;
+automatic sample policy is not evidence of an upload. No vendor response was
+awaited. The investigation report records remaining uncertainty explicitly.
+
+The exact reported SHA-256 5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2
+was recreated in clean GitHub run 43764300013 on code head
+e2c5fb1a592688bdcaf74e09f7a64e0781d4008a. Its on-demand Defender scan passed
+in CI (intelligence 1.463.317.0) and on TEST-01 at 21:39:23 UTC and TEST-02 at
+21:41:50 UTC (1.463.319.0). Both physical machines retained Antivirus, AM
+service and real-time protection. Reproduction files were scanned as data and
+never executed; original quarantine and stopped Host services were preserved.
+The current static result does not reproduce the earlier detection, but its
+historical signature/cloud/runtime cause remains unconfirmed. No runtime
+security correction was justified or made; WB-SEC-01 fixes provenance only.
+
+Final code CI checkpoint: all 11 checks passed on exact head
+e2c5fb1a592688bdcaf74e09f7a64e0781d4008a at 2026-11-15 21:59 UTC.
+The complete snapshot is security-investigation-20261115/final-code-ci.json.
+This includes exact-hash reconstruction/Defender evidence and the acceptance
+package's new provenance assertions. A later report-only successor does not
+change tested code. CI success does not resolve the historical classifier
+cause or authorize resuming the blocked physical acceptance gates.

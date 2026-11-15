@@ -1,0 +1,20 @@
+[
+  {
+    "file": "host-1.exe",
+    "length": 8806400,
+    "sha256": "02F627259CC4C96B13E87D98912A0E5A09AB3E663786C6B7F94D56E08059824B",
+    "machine": 34404,
+    "peTimeDateStamp": 1792704537,
+    "sections": 10,
+    "authenticode": "NotSigned"
+  },
+  {
+    "file": "host-2.exe",
+    "length": 8806400,
+    "sha256": "02F627259CC4C96B13E87D98912A0E5A09AB3E663786C6B7F94D56E08059824B",
+    "machine": 34404,
+    "peTimeDateStamp": 1792704537,
+    "sections": 10,
+    "authenticode": "NotSigned"
+  }
+]

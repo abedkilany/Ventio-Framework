@@ -2,7 +2,7 @@
 
 Latest tested package: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 20:29 UTC
+Last updated: 2026-11-15 21:59 UTC
 Earlier physical installation evidence is tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`. The newer package at `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`, including correction `f11bf27e83dd6b206fc63289bbf325471a1ee026`, was installed on TEST-02; its Host executable is now quarantined by Defender. TEST-01's installed manifest has no source commit field.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
@@ -237,3 +237,53 @@ weakened. Current PR head `02b8ecc3901527f0b635fd66e5c68c1734d7dff8` has ten
 successful Actions checks. Host recovery and the dependent synchronization,
 backup and final physical acceptance gates stay blocked until an approved
 signed candidate or formal Defender disposition is available.
+
+## Host security investigation continuation — 2026-11-15
+
+| ID | Severity | Status | Finding / evidence |
+|---|---|---|---|
+| WB-SEC-01 | Medium | FIX VERIFIED — BUILD PROVENANCE | Original build evidence recorded Client Dart 3.12.1 after Flutter setup although Host compiled with 3.13.7. Payload lacked source/compiler provenance. `fd633bc` records Host compiler, source commit, tracked dirty state and lockfile digest before Flutter and verifies them in acceptance packaging. Package run 43764299936 passed on `e2c5fb1a592688bdcaf74e09f7a64e0781d4008a`. This does not remediate or explain the Bearfoos classification. |
+| WB-CI-02 | High | OPEN — INTERMITTENT ADMISSION TEST FAILURE | Engineering run 43764011034 failed `Changed migration manifest quarantines a running Host (http=null, error=null)` on `c47dc6a`. The same unchanged runtime/assertion passed in run 43764299948 on `e2c5fb1`; cause remains unconfirmed. No assertion was removed or relaxed. This refers to migration quarantine, not Defender quarantine. |
+
+**ROOT CAUSE NOT CONFIRMED. WAVE_2_B — PARTIAL VERIFICATION / BLOCKED.**
+
+See [the Host security investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md)
+for sanitized event/quarantine evidence, artifact provenance, source and pipeline
+audit, clean rebuilds and exact-hash Defender scans. The original expected Host
+hash was independently reproduced from unchanged source and the original
+compiler when the original checkout path was used. A temporary worktree path
+produces a different but repeatable hash. This explains the build difference;
+it does not explain the historical Bearfoos classifier decision.
+
+A confirmed build-evidence defect (WB-SEC-01) was corrected: Host compiler
+version/source commit/dirty state/lockfile hash are now recorded before Flutter
+changes PATH, and acceptance packaging checks their consistency. This is a
+provenance correction, not a claimed antivirus remediation. Runtime source and
+compiler flags were not changed for this investigation.
+
+Both original engines remain quarantined and both Host services remain stopped.
+No Host provisioning, service recovery, real synchronization, backup/restore or
+Wave_2_C acceptance work resumed. No exclusion, allow rule, security-policy
+bypass or quarantine restore was used. Microsoft-only sample transmission was
+authorized by the owner, but there is no confirmed manual submission ID;
+automatic sample policy is not evidence of an upload. No vendor response was
+awaited. The investigation report records remaining uncertainty explicitly.
+
+The exact reported SHA-256 5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2
+was recreated in clean GitHub run 43764300013 on code head
+e2c5fb1a592688bdcaf74e09f7a64e0781d4008a. Its on-demand Defender scan passed
+in CI (intelligence 1.463.317.0) and on TEST-01 at 21:39:23 UTC and TEST-02 at
+21:41:50 UTC (1.463.319.0). Both physical machines retained Antivirus, AM
+service and real-time protection. Reproduction files were scanned as data and
+never executed; original quarantine and stopped Host services were preserved.
+The current static result does not reproduce the earlier detection, but its
+historical signature/cloud/runtime cause remains unconfirmed. No runtime
+security correction was justified or made; WB-SEC-01 fixes provenance only.
+
+Final code CI checkpoint: all 11 checks passed on exact head
+e2c5fb1a592688bdcaf74e09f7a64e0781d4008a at 2026-11-15 21:59 UTC.
+The complete snapshot is security-investigation-20261115/final-code-ci.json.
+This includes exact-hash reconstruction/Defender evidence and the acceptance
+package's new provenance assertions. A later report-only successor does not
+change tested code. CI success does not resolve the historical classifier
+cause or authorize resuming the blocked physical acceptance gates.
