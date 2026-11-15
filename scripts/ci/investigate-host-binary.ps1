@@ -25,7 +25,15 @@ $environment = [ordered]@{
 }
 $environment | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $evidence 'environment.json')
 if (-not $status.AntivirusEnabled -or -not $status.RealTimeProtectionEnabled -or -not $status.AMServiceEnabled) {
-  throw 'Defender is not fully active on this runner; no security setting was changed.'
+  # Hosted images may ship with Defender stopped. Enable protection using its
+  # supported controls; never create an exclusion or bypass an enforced policy.
+  Set-Service -Name WinDefend -StartupType Automatic
+  Start-Service -Name WinDefend
+  Set-MpPreference -DisableRealtimeMonitoring $false
+  $status = Get-MpComputerStatus
+  if (-not $status.AntivirusEnabled -or -not $status.RealTimeProtectionEnabled -or -not $status.AMServiceEnabled) {
+    throw 'Defender could not be enabled on this hosted runner.'
+  }
 }
 Update-MpSignature
 Get-MpComputerStatus | Select-Object AMProductVersion,AMEngineVersion,AntivirusSignatureVersion,AntivirusSignatureLastUpdated,AntivirusEnabled,RealTimeProtectionEnabled,AMServiceEnabled | ConvertTo-Json | Set-Content (Join-Path $evidence 'defender-current.json')
