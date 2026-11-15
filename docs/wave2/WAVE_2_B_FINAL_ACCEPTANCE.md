@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 11:01 UTC
+Last updated: 2026-11-15 12:04 UTC
 
 This candidate is not submitted as verified or production-ready. The package
 installed on TEST-02 is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all
@@ -37,6 +37,7 @@ acceptance and the capability audit remain open. Final status remains
 - Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026`
 - Diagnostic package candidate: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
 - Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
+- Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (post-fix CI pending)
 - Latest acceptance artifact ZIP SHA-256:
   `1c5a1076ab427cd132afc5efd1d7c2610e61376647441c00a628fb04b5f650eb`.
   Installed `Ventio-Setup-0.1.18.exe` SHA-256:
@@ -450,3 +451,25 @@ real two-device sync, product backup/scheduling/restore, and remaining
 capability gates. Manual GUI cases remain NOT EXECUTED — MANUAL OWNER
 VALIDATION REQUIRED. PR #6 remains open, Draft and unmerged; no Wave_2_C
 work or merge was started.
+
+## CI timeout investigation and correction — 2026-11-15 12:01 UTC
+
+On report head 8929a966d9429cc0f74c075d9de74b06e2e97bd5, Host API attempt 1
+failed at the Windows child-process shutdown wait in
+packages/ventio_host_api/test/api_integration.dart:329 (20-second timeout).
+The test passed on the previous Host API run 43704184519 and passed again on
+attempt 2 of 43707135745. By 12:04 UTC the retry and all nine workflows had
+completed successfully on this pre-correction head.
+
+The failure was intermittent and isolated to the test fixture: it sent
+shutdown to the child Host but left stdin open, while the child cancels its
+stdin subscription during shutdown. A sibling fixture closes stdin to deliver
+EOF on Windows. Correction commit e3efc25075388d2ac92543238c99473313d85d79
+closes stdin after the shutdown command. The existing process-restart test
+covers the regression; full post-correction CI is pending. No production Host
+defect was confirmed.
+
+Wave_2_B remains PARTIAL VERIFICATION / BLOCKED because the physical Windows
+service/quarantine, TLS/authentication, two-device synchronization,
+backup/restore and other mandatory acceptance gates remain open. TEST-01's
+SSH-only Host restart passed. PR #6 remains Draft and unmerged.

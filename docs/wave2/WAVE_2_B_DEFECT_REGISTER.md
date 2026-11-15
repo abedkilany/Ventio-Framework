@@ -2,7 +2,7 @@
 
 Latest tested package: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 11:01 UTC
+Last updated: 2026-11-15 12:04 UTC
 Earlier physical installation evidence is tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`. The newer package at `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`, including correction `f11bf27e83dd6b206fc63289bbf325471a1ee026`, was installed on TEST-02; its Host executable is now quarantined by Defender. TEST-01's installed manifest has no source commit field.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
@@ -183,3 +183,14 @@ setup completion, not current service recovery. WB-ACC-09 remains a security
 and deployment blocker. No quarantined file was restored and no Defender
 exclusion was added. TEST-01 default HTTPS trust also still fails, so WB-ACC-01
 remains blocked.
+
+## WB-CI-01 — Windows integration fixture shutdown timeout
+
+| ID | Severity | Status | Summary | Reproduction, cause and correction |
+|---|---|---|---|---|
+| WB-CI-01 | Medium | FIX APPLIED — POST-FIX CI PENDING | The isolated Host API integration test intermittently timed out waiting for a child Host process to exit after graceful shutdown. | Host API run 43707135745 attempt 1 failed after 20 seconds at test/api_integration.dart:329. The same 34-assertion test passed on run 43704184519 and on attempt 2 of run 43707135745, confirming intermittency. Root cause was the Windows parent fixture leaving stdin open after sending the shutdown command; the child stdin subscription may not cancel promptly without EOF. The sibling identity fixture already closes stdin for this reason. Commit e3efc25075388d2ac92543238c99473313d85d79 closes stdin after writing the command. Existing process-restart integration is the regression; verify on the post-correction CI head before closing. This is a CI/test-harness defect, not a confirmed production Host defect. |
+
+At 2026-11-15 12:04 UTC, all nine workflows on report head
+8929a966d9429cc0f74c075d9de74b06e2e97bd5 had completed successfully.
+Host API attempt 2 passed the previously failing test and the remaining
+extension approval/scope/recovery integration. No workflow was canceled.

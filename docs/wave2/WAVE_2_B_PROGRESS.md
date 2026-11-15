@@ -8,7 +8,8 @@ Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
 Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
-Last updated: 2026-11-15 11:01 UTC
+Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (post-fix CI pending)
+Last updated: 2026-11-15 12:04 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -422,3 +423,29 @@ state. No restore, exclusion or security-policy change was attempted.
 Standard HTTPS validation to TEST-01 localhost:8443 still fails certificate
 trust; no bypass was used. Real Client authentication/synchronization remains
 blocked. On report head 1e2c5f8e06e15c8643e8202b0753212a2ae70c81, all nine PR workflows completed successfully. Host API run 43704184519 passed, including extension approval/scope/recovery integration and trusted credential reissue. This CI result does not replace physical acceptance evidence.
+
+## Windows API integration timeout — 2026-11-15 12:01 UTC
+
+On report head 8929a966d9429cc0f74c075d9de74b06e2e97bd5, Host API attempt 1
+(run 43707135745) failed in test/api_integration.dart at line 329 while waiting
+up to 20 seconds for a child Host process to exit after the shutdown command.
+The previous Host API run 43704184519 had passed the same 34-assertion test.
+The focused rerun of run 43707135745, attempt 2, completed successfully,
+including extension approval/scope/recovery. All nine PR workflows for 8929a96
+are now completed successfully; this is pre-correction CI evidence.
+
+Cause: the Windows test fixture wrote the shutdown command but kept the child's
+stdin pipe open. The child listens on stdin and cancels that subscription after
+Host shutdown; the sibling identity fixture documents that EOF is needed for
+reliable cancellation on Windows. The test helper now closes stdin after
+writing the command. Correction commit: e3efc25075388d2ac92543238c99473313d85d79.
+The existing process-restart integration test is the focused regression;
+post-correction CI is pending. This is a test-harness reliability fix, not a
+confirmed production Host defect.
+
+Local Dart formatting passed. A local analyzer attempt could not resolve the
+package imports because dependencies were not present in this worktree;
+GitHub Actions passed formatting/analyzer on the pre-correction report head.
+The correction commit's full CI will provide the post-change analyzer and test
+evidence. On 8929a96, all nine workflows completed successfully after the
+Host API retry. No workflow was canceled.
