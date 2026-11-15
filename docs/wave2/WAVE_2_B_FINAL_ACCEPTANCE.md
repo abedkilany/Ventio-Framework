@@ -3,29 +3,25 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 14:48 UTC
+Last updated: 2026-11-15 20:29 UTC
 
-This candidate is not submitted as verified or production-ready. The package
-installed on TEST-02 is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all
-nine GitHub Actions workflows passed on that package. Report head
-`7f08d43692980d8605aa6a9cd4eb8e48b11d3754` also passed all nine workflows.
-Windows Acceptance Package run `43653937272` produced the artifact installed
-on TEST-02. The owner confirms
-the initial first-administrator attempt failed and retrying **Set up Host**
-succeeded; the initial TEST-02 failure code and cause are unknown.
-SSH verified setup operation `8e5eace6076314dc95c1389f95c707d2` complete at
-`HOST_READINESS`, both services Running, PostgreSQL accepting local connections
-and Host `/healthz` returning 200. During a later controlled process-crash
-test, Defender quarantined TEST-02's `ventio_host.exe`; its Host service is
-currently Stopped while PostgreSQL remains Running. TEST-01 SSH has returned;
-its Host is healthy and its fresh migration/schema/RLS checks passed, but the
-payload manifest has no source commit field. TCP 8443 from TEST-02 to TEST-01
-is reachable. TEST-01's self-signed LAN certificate matches its published
-fingerprint; the supported Client pinning and enrollment flow remains untested.
-No authenticated Client/API session or real synchronization was verified. Backup scheduling, physical
-backup/restore, runtime-role SQL, full authorization, Wave 1 upgrade, GUI
-acceptance and the capability audit remain open. Final status remains
-**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+This candidate is not submitted as verified or production-ready. TEST-02's
+installed package is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb` and its
+owner-reported first-Host-admin retry completed, but its engine was later
+quarantined. The newer TEST-01 check confirms the same Defender threat
+(`Trojan:Win32/Bearfoos.A!ml`, 2147731250) successfully removed the required
+`ventio_host.exe` there as well. Both Host services are Stopped with exit code
+2; both PostgreSQL services remain Running, and both local Host health checks
+fail. Defender protections remain enabled. The detection's underlying nature
+(false positive versus genuine threat) is unresolved; no file was restored and
+no exclusion was added. The exact installed TEST-01 package commit cannot be
+established from its manifest. The currently CI-verified PR head before this
+report update is `02b8ecc3901527f0b635fd66e5c68c1734d7dff8` (10/10 checks pass);
+PR #6 remains open, Draft and unmerged. Real Client enrollment, authenticated
+sessions, two-device/offline synchronization, physical backup/restore,
+scheduled operations, and remaining database/security and GUI acceptance
+gates are incomplete. Final status remains **WAVE_2_B — PARTIAL VERIFICATION /
+BLOCKED**.
 
 ## Candidate and environment
 
@@ -506,3 +502,33 @@ remain NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED. CI success does not
 replace these tests. No Wave_2_C work or merge to main was started. Readiness
 recommendation for Wave_2_C: not ready until the listed blockers are resolved
 and accepted.
+
+## Dual-machine security checkpoint — 2026-11-15 20:29 UTC
+
+**Disposition: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED.**
+
+Exact physical Host evidence: TEST-01's bundled manifest lists 92 verified
+files and is missing the required engine `ventio_host.exe` (expected length
+8,806,400; SHA-256
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`).
+Microsoft Defender event 1116/1117 records the severe
+`Trojan:Win32/Bearfoos.A!ml` detection and successful remediation on TEST-01
+at `2026-11-15T20:10:00Z`; the same threat/path was remediated on TEST-02 at
+`2026-11-15T09:59:21Z`. Both `VentioHost` services are stopped (`ExitCode=2`),
+both PostgreSQL services remain running, and local `/healthz` connections fail.
+TEST-01's service record names `HOST_ENGINE_PROCESS_START`, and SCM logs report
+system error 2. Effective Code Integrity policy remains enforced on TEST-01;
+no CI event for the Host engine or Host service executable was present in the
+inspected period. The evidence establishes Defender quarantine as the
+immediate blocker, but does not prove whether the file is benign or malicious.
+No quarantined file was restored, no Defender exclusion was added, and no
+security feature was disabled.
+
+The latest pre-report PR head `02b8ecc3901527f0b635fd66e5c68c1734d7dff8`
+passed all ten GitHub Actions checks. The report-only checkpoint does not
+change the product package; physical evidence still applies to the installed
+package `17b014125b695e3242e2d9b50b3eb9732a8c5fcb` on TEST-02 and to the
+manifest/hash evidence on TEST-01. Readiness recommendation for Wave_2_C:
+**not ready**. Resume Host and dependent B3/B4/B5 verification only after a
+trusted signed candidate or formal Defender disposition exists for the exact
+engine hash. No Wave_2_C work or merge into `main` was started.

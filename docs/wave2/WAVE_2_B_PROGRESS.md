@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current blockers: TEST-02's Host engine was quarantined by Microsoft Defender during a controlled crash-recovery test and its Host service remains stopped. TEST-01 is reachable and healthy; its LAN certificate is self-signed and the Client's supported explicit-pinning flow has not been completed. No authenticated Client session or two-device synchronization has been verified, and backup/restore, scheduled operations and several database/security scenarios remain open.
+Current blockers: Microsoft Defender quarantined the required Host engine `ventio_host.exe` on both TEST-01 and TEST-02. Both `VentioHost` services are stopped (exit code 2), PostgreSQL remains running, and local Host health checks fail. Do not restore the quarantined file or create an exclusion; a trusted signed build or formal Defender disposition is required before Host recovery. Client pinning/enrollment, authenticated sessions, real synchronization, backup/restore, scheduling and remaining database/security scenarios remain open.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -9,8 +9,8 @@ Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
 Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
-Latest post-correction CI-tested head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82` (9/9 workflows passed)
-Last updated: 2026-11-15 14:48 UTC
+Latest CI-verified PR head before this report update: `02b8ecc3901527f0b635fd66e5c68c1734d7dff8` (10/10 checks passed)
+Last updated: 2026-11-15 20:29 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -492,10 +492,10 @@ HOST_READINESS, updated 2026-11-14T22:31:08Z; this does not prove administrator
 login or Client authentication. The latest HOST_JOB_WORKER_UNAVAILABLE remains
 2026-11-15T13:09:53Z; its cause is unresolved.
 
-TEST-02 remains security-blocked: VentioHost is Stopped, PostgreSQL is Running,
-and ventio_host.exe is absent. Defender Antivirus, real-time protection and AM
-service are enabled. No quarantined file was restored and no exclusion was
-added.
+Both test machines are now security-blocked: VentioHost is Stopped, PostgreSQL
+is Running, and `ventio_host.exe` is absent. Defender Antivirus, real-time
+protection and AM service are enabled on both. No file was restored or
+excluded.
 
 All nine GitHub Actions workflows passed on exact PR head
 ee167d6d219bdb655edae129441b7a12e15d9420: Host API 43723289645, Host Crash
@@ -504,3 +504,34 @@ Recovery 43723289479, Native Flutter 43723289568, Credential Lifecycle
 43723289499, Host Engineering 43723289481, Core Foundation 43723289578, and
 Durable Commands 43723289470. This CI pass does not replace physical
 acceptance. PR #6 is still open, Draft and unmerged.
+
+## Dual-machine Defender quarantine checkpoint — 2026-11-15 20:29 UTC
+
+SSH verified both hosts as `VENTIO-TEST-01` and `VENTIO-TEST-02`. At the
+checkpoint, both `VentioHost` services were Stopped with exit code 2, both
+`VentioPostgres` services were Running, and Host health at
+`http://127.0.0.1:8080/healthz` could not connect. TEST-01's service-startup
+record identifies `HOST_ENGINE_PROCESS_START`; its SCM events report system
+error 2. The bundled payload manifest lists 92 verified files and the only
+missing file is `ventio_host.exe` (8,806,400 bytes; expected SHA-256
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`).
+
+Microsoft Defender recorded threat 2147731250 (`Trojan:Win32/Bearfoos.A!ml`,
+Severe) and a successful remediation for that exact path on TEST-01 at
+2026-11-15T20:10:00Z. TEST-02 has the same threat/path and successful action
+at 2026-11-15T09:59:21Z. Defender Antivirus, real-time protection and AM
+service remain enabled on both. Current Code Integrity state on TEST-01 is
+enforced; no Code Integrity event for `VentioHostService.exe` or
+`ventio_host.exe` was found. Earlier CI events for the Setup Broker remain
+historical and separate. The evidence confirms quarantine as the immediate
+deployment blocker; it does not establish whether Defender's classification
+is a false positive or a real threat. No file was restored, no exclusion was
+added, and no security control was weakened.
+
+TEST-02's native Client remains installed, but neither machine can currently
+provide a Host pairing code. No enrollment, Host setup retry, data restore or
+physical B4 synchronization was attempted after confirming the quarantine.
+Continue only after a trusted signed candidate or formal Defender disposition
+is available. PR #6 was open, Draft and unmerged at exact head
+`02b8ecc3901527f0b635fd66e5c68c1734d7dff8`; all ten checks passed there. This
+checkpoint does not change the partial/blocked acceptance disposition.

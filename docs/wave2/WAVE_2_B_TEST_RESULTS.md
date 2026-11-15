@@ -4,10 +4,10 @@
 Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
-Post-correction CI-tested head: `0bd9ea9bd439dfd9e87a1ab2c7bd84681bfa4a82`
+Latest CI-verified PR head before this report update: `02b8ecc3901527f0b635fd66e5c68c1734d7dff8` (10/10 checks passed)
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-15
-Last updated: 2026-11-15 14:48 UTC
+Last updated: 2026-11-15 20:29 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -692,3 +692,54 @@ All physical and GUI-dependent scenarios remain classified individually in
 the gate ledger. In particular, actual two-device sync, offline/conflict
 recovery, product backup scheduling and disposable restore were not executed.
 Disposition remains WAVE_2_B — PARTIAL VERIFICATION / BLOCKED.
+
+## Dual-machine Host availability and Defender quarantine — 2026-11-15 20:29 UTC
+
+This read-only SSH checkpoint followed the previously successful Host setup on
+TEST-02 and the prior healthy TEST-01 check. It executed no new setup, service
+start, restore, exclusion or database mutation.
+
+| Check | TEST-01 | TEST-02 |
+|---|---|---|
+| Identity / Windows | `VENTIO-TEST-01`; Windows 11 lab machine | `VENTIO-TEST-02`; Windows 11 build 26300 |
+| `VentioHost` | Stopped; `ExitCode=2`; service executable exists | Stopped; `ExitCode=2` |
+| `VentioPostgres` | Running; `ExitCode=0` | Running; `ExitCode=0` |
+| Host engine | Missing from payload; manifest requires 8,806,400 bytes and SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2` | Missing from payload |
+| Local Host `/healthz` | Connection refused | Connection refused |
+| Defender | Antivirus, real-time and AM service enabled | Antivirus, real-time and AM service enabled |
+
+On TEST-01, the payload manifest lists 92 verified files; exactly one file is
+missing: `ventio_host.exe`. Defender event IDs 1116/1117 record
+`Trojan:Win32/Bearfoos.A!ml` (threat 2147731250, Severe), successful
+remediation and the exact engine path at 2026-11-15T20:10:00Z. TEST-02 has the
+same detection and successful remediation at 2026-11-15T09:59:21Z. TEST-01's
+sanitized service startup record names stage `HOST_ENGINE_PROCESS_START`; SCM
+event 7023 reports system error 2, with recovery attempts. This ties the
+current Host outage to the Defender quarantine. It does not independently
+determine whether the detection is false positive or malicious. The engine is
+unsigned; no file was restored, no Defender exclusion was created, and no
+security setting was changed. TEST-01's effective Code Integrity policy
+reports enforced; no Code Integrity events for the Host engine or Host service
+executable were found in the inspected period. Historical Setup Broker CI
+blocks are distinct.
+
+TEST-02's native Client executable remains installed, and its enrollment UI
+was previously confirmed to require a temporary Host-issued pairing code.
+Neither Host is currently available to generate it. No Client enrollment,
+real two-device synchronization, offline/reconnect, conflict recovery, backup
+scheduling or disposable restore was executed in this checkpoint.
+
+The PR head `02b8ecc3901527f0b635fd66e5c68c1734d7dff8` was checked after all ten
+GitHub Actions workflows completed successfully: `dart-core` (run
+43726724853), `host-recovery` (43726724893), `architecture-contracts`
+(43726724853), `host-api` (43726724902), `postgres-adapter` (43726724894),
+`host-engineering-gate` (43726724889), `credential-lifecycle` (43726724877),
+`durable-commands` (43726724846), `native-client-windows-android`
+(43726724870), and `windows-acceptance-package` (43726724861). This CI status
+does not clear the physical security blocker. PR #6 was open, Draft and
+unmerged at that head.
+
+Disposition remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**. The
+immediate prerequisite to retrying Host is a trusted signed candidate or
+formal Defender disposition for the exact engine hash. Do not restore the
+quarantined artifact or weaken Defender/Code Integrity.
