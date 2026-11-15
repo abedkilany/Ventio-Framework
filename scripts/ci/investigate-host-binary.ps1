@@ -57,6 +57,24 @@ try {
     if ($scanExit -ne 0) { throw 'Defender scan did not complete cleanly; see captured CLI evidence.' }
   }
   [ordered]@{identical=($outputs[0].sha256 -eq $outputs[1].sha256);matchesReported=($outputs[0].sha256.ToLowerInvariant() -eq '5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2')} | ConvertTo-Json | Set-Content (Join-Path $evidence 'comparison.json')
+  # Compare the conventional Actions checkout path with the isolated worktree.
+  # Dart snapshots may retain source URIs. Never modify the program to change
+  # an antivirus verdict; first prove the relevant source inputs are identical.
+  $sameInputs = @('packages/ventio_host_api/lib','packages/ventio_host_api/bin/local_host.dart','packages/ventio_host_api/pubspec.yaml','packages/ventio_host_api/pubspec.lock','packages/ventio_core','packages/ventio_host','packages/ventio_postgres')
+  & git -C $repo diff --exit-code $original HEAD -- @sameInputs
+  if ($LASTEXITCODE -ne 0) { throw 'Conventional-path comparison has different source inputs.' }
+  Push-Location (Join-Path $repo 'packages/ventio_host_api')
+  try {
+    & dart pub get --enforce-lockfile | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Conventional-path dependency verification failed.' }
+    $conventional = Join-Path $root 'host-conventional.exe'
+    & dart compile exe bin/local_host.dart -o $conventional
+    if ($LASTEXITCODE -ne 0) { throw 'Conventional-path compile failed.' }
+    $conventionalHash = (Get-FileHash $conventional -Algorithm SHA256).Hash.ToLowerInvariant()
+    [ordered]@{sha256=$conventionalHash;length=(Get-Item $conventional).Length;matchesReported=($conventionalHash -eq '5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2');sourceInputsMatch=$true;checkoutPath=$repo} | ConvertTo-Json | Set-Content (Join-Path $evidence 'conventional-comparison.json')
+    & $mp -Scan -ScanType 3 -File $conventional -DisableRemediation 2>&1 | Tee-Object (Join-Path $evidence 'scan-conventional.txt')
+    if ($LASTEXITCODE -ne 0) { throw 'Conventional-path Defender scan failed.' }
+  } finally { Pop-Location }
 } finally {
   Pop-Location
   Get-MpThreatDetection | Where-Object { ($_.Resources -join ';') -match 'ventio-host-security' } | Select-Object ThreatID,ActionSuccess,Resources,InitialDetectionTime | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'defender-detections.json')
