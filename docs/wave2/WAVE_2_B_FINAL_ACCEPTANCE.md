@@ -3,27 +3,24 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-14 23:32 UTC
+Last updated: 2026-11-15 08:12 UTC
 
-This candidate is not submitted as verified or production-ready. The previous
-package and its nine CI workflows passed on product commit `fb341a78…`. On
-diagnostic candidate `b3a5f585`, the Windows acceptance-package workflow
-succeeded and emitted an artifact; eight of nine candidate PR workflows had
-succeeded and Host API remained in progress at 23:32 UTC at its extension
-package approval/recovery integration test, without a reported failure. After
-the owner performed local setup on a clean TEST-01 install, the broker reached
-`complete`, both services ran and
-`/healthz` returned 200, but the Client could not establish the
-first-administrator session. SSH found a generic Host job-worker failure 77
-seconds before the Client session error. A PostgreSQL probe at 23:17 UTC
-accepted connections on configured port 54329, but this does not confirm the prior
-authenticated session or Recovery Authority path. The worker event is a
-plausible shared backend readiness signal, not a proven cause. Correction
-`f11bf27` preserves the safe Host response code and is included in the new
-package, which has not yet been physically installed. The actual Host response,
-two-device synchronization, security/operations matrix, backup/restore and GUI
-acceptance gates remain
-unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+This candidate is not submitted as verified or production-ready. The latest
+tested package is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all nine
+GitHub Actions workflows passed; Windows Acceptance Package run
+`43653937272` produced the artifact installed on TEST-02. The owner confirms
+the initial first-administrator attempt failed and retrying **Set up Host**
+succeeded; the initial TEST-02 failure code and cause are unknown.
+SSH verified setup operation `8e5eace6076314dc95c1389f95c707d2` complete at
+`HOST_READINESS`, both services Running, PostgreSQL accepting local connections
+and Host `/healthz` returning 200. Windows default TLS validation failed on the
+Host's HTTPS endpoint, and authenticated API/client use has not been verified.
+TEST-01 SSH timed out at 07:35 UTC, so real two-device synchronization is
+blocked. On TEST-02, selected fresh migration/schema/RLS checks passed; runtime
+role execution, full authorization and Recovery Authority scenarios remain
+open alongside Host operations, backup/restore, crash recovery, GUI acceptance
+and the capability audit. Final status remains
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
 
 ## Candidate and environment
 
@@ -35,12 +32,19 @@ unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
 - Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 - Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026`
 - Diagnostic package candidate: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
+- Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
+- Latest acceptance artifact ZIP SHA-256:
+  `1c5a1076ab427cd132afc5efd1d7c2610e61376647441c00a628fb04b5f650eb`.
+  Installed `Ventio-Setup-0.1.18.exe` SHA-256:
+  `E117F4E762ECBDBBF2E0A3B6649FC6887101F5CF08907B293A1CBC929013B020`;
+  Authenticode status `NotSigned`.
 - Windows Acceptance Package run `43650771423`: success; artifact
   `ventio-wave2-windows-acceptance-b3a5f585b8c641321fa3fc33503eb10ca00837f0`,
   SHA-256 `aea0a03f95589eec58bf70df6a1685ff66a4ba59ce464bda7f683472e2a89173`.
-- All prior CI/package and physical installation evidence remains tied to
-  `fb341a78…`. The correction in `f11bf27` preserves safe Host transport error
-  codes; it is packaged in `b3a5f585` but not physically verified.
+- All nine workflows on latest package commit `17b0141` passed. Windows
+  Acceptance Package run `43653937272` produced the artifact. The correction
+  in `f11bf27` is included and the package is
+  installed on TEST-02; its Client diagnostic path has not been exercised.
 - All nine PR workflows also passed on documentation-only head
   `50832447b8445849692787977f31865883868b6d`; Host API run `43619047598` and
   Windows acceptance-package run `43619047645` are included. No product source
@@ -54,16 +58,15 @@ unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
   5.1.26100.9818. Microsoft identifies build 26300 as Windows 11 26H2 in its
   [release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information);
   the lab registry's `ProductName` text was stale.
-- Current access: SSH identifies Codex-1 on TEST-01 and Codex-3 on TEST-02;
-  `query user` reports both RDP sessions Active. The owner unlocked the TEST-02
-  desktop during follow-up; all four accounts were previously verified as
-  local Administrators at High Integrity. An unplanned power interruption
-  occurred after the earlier session error; SSH reconnected afterward and
-  services were observed running. No controlled reboot-recovery test was run.
-- The SSH-only continuation installed `VentioPostgres` and `VentioHost` on
-  TEST-01; see the detailed result below. TEST-02's client install remains
-  available as the independent client. GUI acceptance and interactive
-  uninstall remain unexecuted under the current SSH-only instruction.
+- Current access: SSH to Codex-3 identifies TEST-02; the latest SSH attempt to
+  Codex-1 on TEST-01 timed out at 07:35 UTC. All four accounts were previously
+  verified as local Administrators at High Integrity. An unplanned power
+  interruption followed the earlier TEST-01 session error; it was not a
+  controlled reboot-recovery test.
+- Earlier SSH-only provisioning installed Host/PostgreSQL on TEST-01; the
+  owner later completed Host setup on TEST-02 from the package at `17b0141`.
+  The TEST-02 setup and service evidence is recorded below. GUI acceptance and
+  interactive uninstall remain unexecuted under the SSH-only instruction.
 - Candidate build evidence: workflow-installed Dart 3.13.7 and .NET SDK 8.0.428
   were used for Host compilation; Flutter 3.44.1, PostgreSQL 16.15, Inno Setup
   6.7.4 and VC++ runtime 14.51.36247.0 are recorded. The packaged evidence
@@ -74,12 +77,12 @@ unverified. Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
 
 | Gate | Status | Acceptance evidence |
 |---|---|---|
-| B0 | Partial | Machine identities, current OS/PowerShell versions, SSH, isolated roots, artifact hashes, Defender and effective TEST-01 policy state verified. An unplanned power interruption followed the earlier session error; SSH and services returned afterward, but this was not a controlled recovery test. |
-| B1 | Partial / CI in progress | Prior CI passed on `fb341a78…` and report-only heads. On diagnostic candidate `b3a5f585`, eight of nine workflows were successful at 23:32 UTC, including Windows Acceptance Package; Host API run `43650771447` remained active at its extension package approval/recovery integration test. Focused client test/analyzer passed on `f11bf27`. |
-| B2 | Partial | Migrations 001–040 and selected RLS/least-privilege checks passed on the earlier TEST-01 database, which the owner later deleted. The current clean database has not yet had checksum/RLS revalidation. Wave 1 upgrade, full isolation/identity matrix and Recovery Authority reconciliation remain open. |
-| B3 | Partial / blocked | On the current clean install, broker setup completed, services run and `/healthz` returns 200. Client session authentication fails; authenticated Host operations/data scenarios remain unverified. |
-| B4 | Partial / blocked | Owner ran local Host setup, but authenticated session validation failed. No authenticated Host use or two-computer synchronization passed. Remaining GUI-dependent Client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
-| B5 | Partial | An orderly restart passed on the earlier install; the current clean install has running services but no controlled restart retest. Scheduler, local approval, product backup integrity/retention, interrupted backup, disposable restore and recovery reconciliation not run. |
+| B0 | Partial | TEST-02 identity, environment and package hashes verified over SSH. TEST-01 SSH timed out at 07:35 UTC. Defender/real-time/Tamper Protection remain enabled; no controlled reboot recovery was run. |
+| B1 | PASS in candidate CI | All nine workflows passed on exact package commit `17b0141`; Windows Acceptance Package run `43653937272` produced the artifact. No full physical regression on the test computers. |
+| B2 | Partial | On TEST-02 all 40 migration checksums match installed SQL and `assert_schema()` passes. All 30 checked public `ventio_*` tables are owned by `ventio_owner` with RLS/FORCE RLS; selected least-privilege checks pass. Runtime-role execution, Wave 1 upgrade, full isolation/identity matrix and Recovery Authority reconciliation remain open. |
+| B3 | Partial | TEST-02 setup operation complete, services Running and `/healthz` returns 200. Default Windows TLS validation fails on HTTPS 8443; authenticated Client/API operations and data scenarios remain unverified. |
+| B4 | Partial / blocked | TEST-01 is unreachable over SSH; no authenticated Client use or two-computer synchronization passed. GUI-dependent Client, Android, permissions/scaling and uninstall tests are **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. |
+| B5 | Partial | An orderly Host/PostgreSQL stop/start passed on TEST-02; `pg_isready` accepted connections and Host `/healthz` returned 200 afterward. No forced crash/reboot, scheduling, product backup integrity/retention, interruption, disposable restore or recovery reconciliation was run. |
 | B6 | Not complete | Physical gates, capability audit and final acceptance audit are open. |
 
 ## Earlier SSH-only physical evidence (before owner clean reinstall)
@@ -139,16 +142,19 @@ installation.
   stop/start cycle completed and `pg_isready` passed afterward. This is not
   crash, power-loss or reboot recovery. At this historical checkpoint, Host
   API readiness awaited first-admin completion.
-- **TEST-02 and synchronization:** TEST-02 was not altered during the resumed
-  run. Its Client package is present, but no real connection, second identity,
-  offline operation, conflict or receipt was tested. Existing CI is not
-  physical two-device evidence.
+- **TEST-02 and synchronization at the earlier checkpoint:** TEST-02 was not
+  altered during the 2026-11-14 resumed run. Its Client package was present, but
+  no real connection, second identity, offline operation, conflict or receipt
+  was tested. Later Host setup is documented below; CI is not physical
+  two-device evidence.
 
 ### Manual and unexecuted tests
 
-The owner executed the local Host setup UI, but the Client failed to establish
-the authenticated first-administrator session (`HOST_SESSION_AUTHENTICATION_FAILED`).
-This is an attempted and failed scenario, not a passed acceptance gate.
+The owner executed the local Host setup UI on TEST-01, but the Client failed to
+establish the authenticated first-administrator session
+(`HOST_SESSION_AUTHENTICATION_FAILED`). TEST-02 setup later completed, but no
+authenticated Client session was verified there. The TEST-01 failure remains
+open because TEST-01 is now unreachable over SSH.
 
 The following remain **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**:
 
@@ -177,14 +183,16 @@ capability/regression closure.
 - WB-PKG-02 was a confirmed diagnostic defect: the first-admin session path
   replaced a safe Host transport code with `HOST_SESSION_AUTHENTICATION_FAILED`.
   Commit `f11bf27` preserves the validated code; its 28-test focused suite and
-  scoped analyzer passed. The Windows package CI on `b3a5f585` succeeded, but
-  the correction does not yet identify the underlying TEST-01 Host response
-  and has not been physically tested.
+  scoped analyzer passed. Package `17b0141`, which includes the correction, is
+  installed on TEST-02. The relevant Client diagnostic path has not been
+  exercised, and the underlying TEST-01 Host response remains unknown.
 - Initial Code Integrity events 3033/3077 blocked the unsigned broker while SAC
   was enforced; after the owner disabled SAC on TEST-01 and the effective state
   was verified, the broker completed provisioning and first-admin handoff.
-  The clean-install broker also completed, but Client session authentication
-  failed (WB-ACC-06). This does not establish that SAC caused the session error.
+  TEST-01's clean-install broker also completed, but Client session
+  authentication failed (WB-ACC-06). TEST-02 Host provisioning later completed
+  after an owner retry. This does not establish that SAC caused the TEST-01
+  session error.
 - CI's completed security suites cover direct SQL, least privilege, forced RLS,
   identity/revocation, scoped roles, credential reissue and recovery cases.
 - No credentials or production data were used. No password was entered into
@@ -217,8 +225,9 @@ capability/regression closure.
   signing, packaging-license closure and resolution of sole-owner Recovery
   Authority limits. Wave 2 B evidence does not remove those restrictions.
 - Physical Host/PostgreSQL provisioning and fresh migrations 001–040 completed
-  on TEST-01, with selected RLS/least-privilege checks. Product backup and
-  restore were not tested. Wave 1's historical activity coverage boundary
+  on the earlier TEST-01 installation, with selected RLS/least-privilege
+  checks. Those results do not certify the new TEST-02 database. Product
+  backup and restore were not tested. Wave 1's historical activity coverage boundary
   remains explicit; no events are inferred.
 - The Wave 2 A handoff's Windows development-Host shutdown-timeout risk has not
   been reproduced or assessed in this physical run.
@@ -239,8 +248,9 @@ The owner reports that power was lost after the earlier 21:59:20 UTC session
 error; SSH later recorded boot time `2026-11-14T22:02:07.500Z`. The clean-install
 error at 22:35:55 UTC occurred after that reboot, so the earlier outage is not
 attributed as its cause. Previous physical migration/RLS evidence predates the
-data clear and does not certify the new database. Fresh database/security
-checks remain pending.
+data clear and does not certify the new database. At this 2026-11-14 checkpoint,
+fresh database/security checks remained pending; selected checks on the new
+TEST-02 installation are recorded in the dated evidence below.
 
 ## Windows artifact and installation
 
@@ -283,17 +293,17 @@ copies passed the size/hash check.
 
 ## Required before Wave_2_B can be submitted for owner acceptance
 
-1. Install the diagnostic candidate on TEST-01 without clearing its
-   clean Host database. Capture the safe Host response from the session check,
-   resolve the authentication failure, and verify the authenticated profile.
+1. Restore TEST-01 SSH availability without deleting the TEST-02 Host data.
+2. Investigate TEST-02's HTTPS certificate validation and verify an
+   authenticated Client session using the supported certificate/pinning path.
    Preserve the existing pipe authorization and all Windows protections.
-2. Complete the TEST-02 interactive Client/uninstall checks. Record GUI cases as
+3. Complete the TEST-02 interactive Client/uninstall checks. Record GUI cases as
    **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED** until owner validation is
    performed.
-3. Execute the physical migration/upgrade, identity/authorization, Host
+4. Execute the physical migration/upgrade, identity/authorization, Host
    operations, client UI, two-computer offline/reconciliation, scheduling,
    backup integrity/retention and full disposable restore/recovery cases.
-4. Map all 22 fixed-scope capability IDs
+5. Map all 22 fixed-scope capability IDs
    to positive/negative evidence, document every unexecuted case and rerun
    affected regressions on the exact final product commit.
 
@@ -303,3 +313,44 @@ also remains a deployment limitation on machines enforcing code-signing
 policies. Keep PR #6 Draft and unmerged. Reassess only after every mandatory
 gate passes and owner acceptance is separately recorded. This report does not
 claim production readiness.
+
+## 2026-11-15 07:35 UTC — TEST-02 Host setup update
+
+The owner reports the first Host administrator attempt failed and a retry
+through **Set up Host** succeeded. SSH confirmed the latest TEST-02 setup
+operation `8e5eace6076314dc95c1389f95c707d2` complete at `HOST_READINESS`,
+services `VentioHost` and `VentioPostgres` Running/Automatic, PostgreSQL 16.15
+accepting local connections at `127.0.0.1:54329`, and
+`http://127.0.0.1:8080/healthz` returning HTTP 200. The installed payload
+manifest's hashes match the Setup Broker, Host service and PostgreSQL
+executable. The tested package commit is
+`17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all nine GitHub Actions
+workflows passed on that commit. Windows Acceptance Package run `43653937272`
+produced the artifact.
+
+Windows default TLS validation rejected the Host HTTPS `/healthz` requests on
+port 8443 for the IP address, machine hostname and localhost. This may differ
+from the Client's pinned-certificate path, which remains untested. No TLS
+validation or Windows protection was bypassed. TEST-01 SSH timed out at
+07:35 UTC, so real two-device synchronization is not possible at this
+checkpoint. Fresh database/security checks and backup/restore/recovery tests
+on TEST-02 remain outstanding. Disposition stays
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+At 07:50 UTC, the agent performed an orderly Host/PostgreSQL service restart
+over SSH after confirming the TEST-02 machine, service identities, automatic
+start mode and Ventio PostgreSQL data path. Both services stopped and started
+successfully; PostgreSQL accepted connections and Host `/healthz` returned 200.
+No database contents were deleted or rewritten. This does not test crash,
+power-loss or Windows reboot recovery.
+
+At 08:04 UTC, read-only checks on the fresh TEST-02 database compared all 40
+installed migration SQL files to the ledger: zero missing, extra or checksum
+mismatches. `ventio_security.assert_schema()` passed. All 30 checked public
+`ventio_*` tables are owned by `ventio_owner` and have RLS plus FORCE RLS.
+Runtime and identity API role flags and selected direct-SELECT denials matched
+the expected profile. The migration credential remained machine-DPAPI protected
+with restrictive ACLs and was never displayed; `assert_runtime()` was not run
+because the migration login cannot assume the runtime role. Full scope isolation,
+identity API behavior, Wave 1 upgrade, Recovery Authority and backup/restore
+remain unverified.

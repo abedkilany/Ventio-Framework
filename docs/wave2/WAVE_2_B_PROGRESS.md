@@ -1,35 +1,43 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current blocker: authenticated first-administrator session verification and remaining mandatory acceptance gates.
+Current blockers: TEST-01 is unreachable over SSH; TEST-02 Host setup completes after retry, but TLS trust, authenticated API use, remaining database/security scenarios, two-device synchronization and other mandatory gates are not verified.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
-Candidate package commit: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
-Last updated: 2026-11-14 23:32 UTC
+Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
+Last updated: 2026-11-15 08:12 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
 candidate `b3a5f585`; the Windows Acceptance Package workflow succeeded and
 created artifact `ventio-wave2-windows-acceptance-b3a5f585b8c641321fa3fc33503eb10ca00837f0`
 (103,810,454 bytes; SHA-256 `aea0a03f95589eec58bf70df6a1685ff66a4ba59ce464bda7f683472e2a89173`).
-It has not been installed on TEST-01. Eight of nine candidate workflows had
-completed successfully; Host API run `43650771447` remained in progress at
-`Run extension package approval, scope and recovery integration tests` at
-23:32 UTC, with no failure reported.
+That `b3a5f585` status is historical. The newer package from commit
+`17b014125b695e3242e2d9b50b3eb9732a8c5fcb` passed all nine GitHub Actions
+workflows; Windows Acceptance Package run `43653937272` produced the artifact
+installed on TEST-02. Its ZIP SHA-256 is
+`1c5a1076ab427cd132afc5efd1d7c2610e61376647441c00a628fb04b5f650eb`; the
+installer SHA-256 is
+`E117F4E762ECBDBBF2E0A3B6649FC6887101F5CF08907B293A1CBC929013B020`.
+Owner-reported Host setup then succeeded on TEST-02. SSH confirmed operation
+`8e5eace6076314dc95c1389f95c707d2` complete at `HOST_READINESS`, both services
+Running, PostgreSQL accepting local connections, and `/healthz` returning 200.
+The evidence does not establish authenticated API use, migration/RLS state, or
+client synchronization. TEST-01 SSH timed out at 2026-11-15 07:35 UTC.
 
 ## Gate ledger
 
 | Gate | Status | Evidence / remaining work |
 |---|---|---|
-| B0 — Environment and tooling | **PARTIAL** | SSH-only access reverified Codex-1/TEST-01 and Codex-3/TEST-02. Both are Windows 11 Pro 26H2, build 26300.9974, PowerShell 5.1.26100.9818. After the first session error, an owner-reported power interruption caused an unplanned reboot; SSH later observed the new boot time and running services. This is not a controlled recovery acceptance test. |
-| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine workflows passed on product commit `fb341a78…` and report-only PR head `96c6573c…` (all nine run IDs recorded in test results). CI is not physical acceptance evidence. |
-| B2 — PostgreSQL, identity and security | **PARTIAL — current clean DB not re-audited** | Earlier physical fresh migrations 001–040 and selected RLS/least-privilege checks passed before the owner cleared Ventio data. The new database was created successfully, but migration checksum/RLS checks have not been repeated on this clean install. Identity APIs and cross-scope authorization remain unverified. |
-| B3 — Host operations and data processing | **PARTIAL / BLOCKED** | On the owner's clean reinstall, broker operation `0793a94d97f202699fbbff49b5db5cc8` reached `complete`; services run and `/healthz` returns 200. Client session authentication still fails, so authenticated Host operations/data processing remain unverified. |
-| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | Owner ran local Host setup UI, but Client could not validate the first-administrator session. Real authenticated Host use, two-computer synchronization, offline edits, conflicts, receipts and Android/UI cases remain unexecuted or blocked. |
-| B5 — Backup, restore and Windows operations | **PARTIAL** | An orderly restart passed on the earlier installation. The new clean install has running services, but no controlled restart was repeated after the data clear. Scheduling, approval, product backup integrity/retention, interruption, disposable restore and reconciliation remain unexecuted. |
+| B0 — Environment and tooling | **PARTIAL** | TEST-02/Codex-3 SSH is active on Windows 11 Pro build 26300, PowerShell 5.1.26100.9818, PostgreSQL 16.15. TEST-01/Codex-1 SSH timed out at 07:35 UTC. Defender, real-time protection and Tamper Protection are enabled on TEST-02; `VerifiedAndReputablePolicyState=0`. No controlled reboot-recovery acceptance test was run. |
+| B1 — Static, core and contract verification | **PASS in candidate CI** | All nine workflows passed on latest package commit `17b0141`; Windows Acceptance Package run `43653937272` produced the installed artifact. Earlier product/report-only CI results are also recorded in test results. CI is not physical acceptance evidence. |
+| B2 — PostgreSQL, identity and security | **PARTIAL — selected fresh checks PASS** | On TEST-02, all 40 migration ledger entries/checksums match the installed package; `assert_schema()` passes and all 30 public `ventio_*` tables checked are owned by `ventio_owner` with RLS and FORCE RLS. Runtime/identity role flags and selected direct-read denials match the least-privilege profile. Full identity API, cross-scope authorization, Wave 1 upgrade and Recovery Authority behavior remain open. |
+| B3 — Host operations and data processing | **PARTIAL** | TEST-02 setup operation `8e5eace6076314dc95c1389f95c707d2` is `complete` at `HOST_READINESS`; both services run and `http://127.0.0.1:8080/healthz` returns 200. Windows default TLS validation failed for the 8443 endpoint. Authenticated API operations, authorization and data-processing scenarios remain unverified. |
+| B4 — Native Flutter and offline synchronization | **PARTIAL / BLOCKED** | TEST-01 SSH timed out and cannot act as the independent peer. No authenticated Client session, real two-computer synchronization, offline edits, conflict/receipt recovery, Android UI, or remaining interactive UI cases were verified. |
+| B5 — Backup, restore and Windows operations | **PARTIAL** | An orderly Host/PostgreSQL stop/start passed on TEST-02: PostgreSQL accepted connections and Host `/healthz` returned 200 afterward. No forced crash/reboot, scheduled backup, integrity/retention test or disposable restore was run on the new installation. |
 | B6 — Full regression and final acceptance audit | **NOT COMPLETE** | Physical gates, capability audit and final rerun on a delivered package remain open. |
 
 ## Lab state and boundary
@@ -42,24 +50,25 @@ completed successfully; Host API run `43650771447` remained in progress at
   respectively. The latest OS registry `ProductName` string says Windows 10 Pro,
   but `DisplayVersion=26H2` and build 26300 identify the Windows 11 release.
 - All four SSH identities (`Codex-1` through `Codex-4`) were previously
-  verified as local Administrators at High Integrity. The current SSH
-  connections identify VENTIO-TEST-01/Codex-1 and VENTIO-TEST-02/Codex-3;
-  `quser` shows both designated RDP sessions Active.
-- The candidate artifact is present on both machines at
+  verified as local Administrators at High Integrity. On 2026-11-15 07:35 UTC,
+  SSH identified VENTIO-TEST-02/Codex-3; Codex-1 on TEST-01 timed out. Earlier
+  `quser` checks showed both designated RDP sessions Active.
+- At the earlier 2026-11-14 checkpoint, the candidate artifact was present on both machines at
   `C:\VentioTest\downloads\ventio-wave2-windows-acceptance-fb341a78eca1bb897e2ce09f1271dae39bbd7d11-verified.zip`.
   Both copies are 103,796,488 bytes and SHA-256
   `0c83cd20dab447e6d024fe3d62dd5e9588499deb417a986820bf10d6a13114ae`.
   The installer inside the package hashes to
   `5413f65d86235633d40e1912767dd576303ecb0a7216d4a5e846c977f955977b` and
   Authenticode reports `NotSigned`.
-- The unified installer was run on both machines. TEST-01 is machine-wide under
+- At the earlier 2026-11-14 checkpoint, the unified installer was run on both machines. TEST-01 is machine-wide under
   `C:\Program Files\Ventio`; TEST-02's first launch reached Welcome. The
   TEST-02 package was restored through the verified installer after the
   inconclusive silent-uninstall probe (exit code 0). The owner later unlocked
-  its RDP desktop, but Computer Use could not operate Start/Settings. Latest
-  SSH confirms the install directory and uninstall registration remain, so no
+  its RDP desktop, but Computer Use could not operate Start/Settings. The
+  2026-11-14 SSH check confirmed the install directory and uninstall registration remained, so no
   interactive uninstall retest was completed. `VentioPostgres` and
-  `VentioHost` are absent on both machines.
+  `VentioHost` were absent on both machines. This pre-provision state was
+  superseded on 2026-11-15 when the owner completed Host setup on TEST-02.
 - On TEST-01 the exact disposable scope was entered and visually checked:
   Tenant `wave2b-20261114-ventio01`, Company `company-test01`, Branch
   `branch-test01`. Ventio launched `VentioSetupBroker.exe` and the authorized
@@ -81,13 +90,16 @@ completed successfully; Host API run `43650771447` remained in progress at
   succeeded, but TEST-01's Setup Broker was blocked as described above. No
   security setting, account, network configuration, non-Ventio service or
   preserved data was changed.
-- Latest read-only SSH check reconfirmed both machine hostnames and that
-  `Codex-1`/`Codex-3` RDP sessions report Active. Both machines still have no
-  `VentioHost` or `VentioPostgres` service and no `C:\ProgramData\Ventio`.
+- The 2026-11-14 read-only SSH check reconfirmed both machine hostnames and that
+  `Codex-1`/`Codex-3` RDP sessions report Active. At that checkpoint both
+  machines still had no `VentioHost` or `VentioPostgres` service and no
+  `C:\ProgramData\Ventio`.
   The owner unlocked TEST-02's RDP desktop, which was visible during the check;
   Computer Use could not activate Start/Settings and the window later minimized.
   TEST-02's Ventio install directory and uninstall registration remain present;
   `unins000.exe` was not running. No interactive uninstall was performed.
+  TEST-02's later Host provisioning and current TEST-01 SSH timeout are recorded
+  in the 2026-11-15 update below.
 
 ## Completed work
 
@@ -197,10 +209,13 @@ RDP interaction, screenshots, mouse automation or GUI control was used.
   provisioning through database initialization; fresh migrations
   001–040/checksums; checked RLS and least-privilege profile; normal service
   restart persistence; SSH identity and security-state checks. The owner later
-  cleared that database; repeat database checks on the current clean install.
-- **Blocked:** authenticated first-administrator session and dependent physical
-  identity/authorization and real synchronization tests. The owner completed
-  local setup, but the Client failed to validate the session.
+  cleared that database. The latest TEST-02 database has the selected fresh
+  migration/schema/RLS checks recorded below; remaining security and recovery
+  scenarios are still open.
+- **At the 2026-11-14 checkpoint, blocked:** authenticated first-administrator
+  session and dependent physical identity/authorization and real synchronization
+  tests. TEST-01 Client session validation failed. TEST-02 setup later completed,
+  but its authenticated Client session is still unverified.
 - **Not executed — manual owner validation required:** remaining interactive
   Windows Client flows, Android device UI, uninstall
   cleanup, and any test requiring GUI-only local approval. Use the exact status
@@ -211,15 +226,18 @@ RDP interaction, screenshots, mouse automation or GUI control was used.
   backup; disposable product restore and Recovery Authority reconciliation;
   crash/reboot recovery; complete 22-capability matrix and B6 audit.
 
-The owner-managed clean reinstall completed provisioning but reproduced a
-Client session failure. A confirmed diagnostic defect was corrected in
+At the 2026-11-14 23:32 UTC checkpoint, the owner-managed clean reinstall had
+completed provisioning but reproduced a Client session failure. A confirmed
+diagnostic defect was corrected in
 `f11bf27`: bootstrap session transport failures now retain their validated
 Host error code. Focused unit tests and analysis pass, and the candidate
 package built successfully. SSH inspection then found a Host job-worker
 diagnostic immediately before the Client session failure; this is a plausible
-shared PostgreSQL/Recovery Authority readiness issue, not a proven cause. The
-candidate has not been installed or retried physically. Final disposition
-remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+shared PostgreSQL/Recovery Authority readiness issue, not a proven cause. At
+that checkpoint the new candidate had not been installed or retried physically;
+it was subsequently installed on TEST-02 and Host setup succeeded after retry,
+as recorded below. Final disposition remains
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
 
 ### 2026-11-14 23:32 UTC — SSH-only diagnostic correlation
 
@@ -240,16 +258,84 @@ migrations, or Recovery Authority admission at the earlier failure time.
 No evidence implicates Smart App Control or DPAPI, and no Host data or service
 was modified during this read-only check.
 
+## 2026-11-15 07:35 UTC — TEST-02 Host setup and SSH verification
+
+The owner reported that the first Host setup attempt failed while creating the
+first Host administrator, then retried with **Set up Host** and succeeded. No
+GUI interaction was performed by the agent. SSH to `Codex-3@192.168.1.107`
+identified `VENTIO-TEST-02` and confirmed the latest operation file
+`8e5eace6076314dc95c1389f95c707d2.json`: state `complete`, phase
+`HOST_READINESS`, updated `2026-11-15T07:21:08.5243312Z`.
+
+The installed acceptance package is built from exact commit
+`17b014125b695e3242e2d9b50b3eb9732a8c5fcb`, which passed all nine GitHub
+Actions workflows. Windows Acceptance Package run `43653937272` produced the
+artifact. The package ZIP SHA-256 is
+`1c5a1076ab427cd132afc5efd1d7c2610e61376647441c00a628fb04b5f650eb`; the
+installer in the owner-provided TEST-02 Desktop folder has SHA-256
+`E117F4E762ECBDBBF2E0A3B6649FC6887101F5CF08907B293A1CBC929013B020` and is
+unsigned. The installed manifest reports 1,724 payload files, 310,613,952
+bytes and PostgreSQL 16.15. Installed `VentioSetupBroker.exe`,
+`VentioHostService.exe` and `postgres.exe` hashes match that manifest.
+
+On TEST-02, `VentioHost` and `VentioPostgres` are Running with Automatic start
+and separate virtual service identities (`NT SERVICE\VentioHost` and
+`NT SERVICE\VentioPostgres`). PostgreSQL is bound to `127.0.0.1:54329` and
+the bundled `pg_isready` returned `accepting connections`. Host `/healthz` at
+`http://127.0.0.1:8080/healthz` returned HTTP 200 with
+`{"apiVersion":1,"status":"alive"}`. Host listens on port 8443; requests
+to its HTTPS `/healthz` endpoint failed Windows default certificate
+validation for the IP, machine name and localhost. This probe does not test
+the Client's certificate-pinning path, so no bypass was attempted and the
+result remains an open compatibility/security finding. Both services are
+configured to restart after failures at 5, 30 and 60 seconds; no failure was
+injected. Defender, real-time protection and Tamper Protection are enabled;
+`VerifiedAndReputablePolicyState=0`. No policy was changed during these
+checks.
+
+At the initial 07:35 checkpoint, fresh migration/security checks had not yet
+been run. The subsequent 08:04 read-only B2 checks and orderly restart are
+recorded below. Authenticated API, backup/restore and forced crash/reboot tests
+remain open.
+At 07:35 UTC SSH to TEST-01/Codex-1 timed out, so TEST-01 cannot serve as an
+independent synchronization peer. Two-computer synchronization remains
+blocked; GUI-only Client acceptance is **NOT EXECUTED — MANUAL OWNER
+VALIDATION REQUIRED**.
+
+## 2026-11-15 08:04 UTC — TEST-02 fresh migration and schema checks
+
+The protected migration credential file was present at the supported
+ProgramData path, machine-DPAPI protected, and its file/directory ACLs were
+protected with only BUILTIN\Administrators and SYSTEM Full Control. The
+secret was decrypted in memory and passed to `psql` through the child process
+environment; it was not displayed, added to an argument, or written to disk.
+All checks below were read-only except session-scoped `SET ROLE`.
+
+The installed package contained migrations `001_records.sql` through
+`040_wave2_job_archival.sql`. Comparing canonical-LF SHA-256 values of all 40
+installed migration files with `public.ventio_schema_migrations` returned 40
+entries, zero missing, zero extra and zero checksum mismatches. As
+`ventio_owner`, `ventio_security.assert_schema()` returned successfully.
+All 30 public `ventio_*` tables returned by the catalog check were owned by
+`ventio_owner` and had both RLS and FORCE RLS enabled. The runtime and identity
+API roles were neither superuser, database/role creators nor BYPASSRLS. Direct
+SELECT checks for identity secrets, records and the migration ledger were false
+for the identity API role; runtime direct migration-ledger SELECT was also
+false. The migration login cannot `SET ROLE ventio_runtime_app`, so
+`assert_runtime()` and real runtime SQL execution were not run. No table data
+was modified.
+
 ## Next steps
 
-1. Install the `b3a5f585` diagnostic candidate on TEST-01 without deleting the
-   clean Host database, then capture the safe Host response code from the
-   session check. Keep Defender and Code Integrity protections enabled; no
-   remote bypass is acceptable.
+The orderly restart passed on TEST-02, but crash/reboot recovery remains open.
+
+1. Restore SSH availability to TEST-01 before another physical two-computer
+   test. Do not delete the verified TEST-02 Host data.
 2. Repeat the uninstall from TEST-02's Codex-3 interactive session and verify
    cleanup; under the SSH-only rule classify it as
    `NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED`.
-3. After first-admin bootstrap, verify API readiness and run identity,
+3. Investigate the TEST-02 HTTPS certificate trust result without weakening
+   TLS validation. Verify authenticated Client/API use, then run identity,
    authorization, two-device offline synchronization, Host operations,
    scheduling, backup and disposable restore/reconciliation against the
    isolated test installation.
