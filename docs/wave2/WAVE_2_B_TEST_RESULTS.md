@@ -5,7 +5,7 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-15
-Last updated: 2026-11-15 10:15 UTC
+Last updated: 2026-11-15 11:01 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -611,3 +611,20 @@ TEST-01. Product backup approval, scheduling, integrity/retention and
 disposable restoration remain **NOT EXECUTED**. GUI-dependent approval and
 interactive acceptance remain **NOT EXECUTED — MANUAL OWNER VALIDATION
 REQUIRED**.
+
+## Additional SSH-only results — 2026-11-15 10:56 UTC
+
+| Scenario | Result | Evidence |
+|---|---|---|
+| TEST-01 Host service restart | PASS | Preflight verified VENTIO-TEST-01, the VentioHost service identity/path and no established Host-port connections. Restart-Service VentioHost returned the service to Running in 18.4 seconds. Local http://127.0.0.1:8080/healthz returned HTTP 200 before and after. |
+| TEST-01 PostgreSQL continuity | PASS | PostgreSQL was not restarted or modified; service remained Running and bundled pg_isready returned accepting connections on 127.0.0.1:54329. |
+| TEST-01 engine continuity | PASS | ventio_host.exe remained present with SHA-256 5A18C389C5CCE563CAA8A5A5BA9222108B785680AEBED6878996385C3EA1E5F2. |
+| TEST-02 post-setup service availability | BLOCKED — SECURITY | At 10:51 UTC the service was Stopped and the engine file absent; Defender still recorded threat 2147731250 and events 1116/1117. Owner reports the setup retry succeeded, but the Host is not currently running. |
+| TEST-01 ordinary TLS trust | FAIL | Standard HTTPS validation to https://localhost:8443/healthz failed with a certificate trust error. No certificate-validation bypass was used. |
+| GitHub Actions on report head 1e2c5f8 | PASS | All nine workflows completed successfully, including Host API run 43704184519. Extension approval/scope/recovery and trusted credential reissue integration passed. |
+
+This continuation adds no confirmed product-code defect or source correction.
+Authenticated Client use, two-device sync, product backup scheduling,
+integrity/retention, disposable restore, remaining B2/B3 cases and GUI-dependent
+acceptance remain incomplete. Interactive scenarios are NOT EXECUTED —
+MANUAL OWNER VALIDATION REQUIRED.

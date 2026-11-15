@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 10:15 UTC
+Last updated: 2026-11-15 11:01 UTC
 
 This candidate is not submitted as verified or production-ready. The package
 installed on TEST-02 is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all
@@ -428,3 +428,25 @@ is unknown. The report head tested by CI was
 `7f08d43692980d8605aa6a9cd4eb8e48b11d3754`, on which all nine GitHub Actions
 workflows passed. PR #6 remains open, Draft and unmerged. Final disposition is
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+## Final continuation checkpoint — 2026-11-15 10:56 UTC
+
+TEST-01 is back on SSH and passed a controlled Host-service restart. Its Host
+returned to Running in 18.4 seconds; the local Host liveness endpoint returned
+200, while PostgreSQL stayed Running and pg_isready continued to accept
+connections. The installed engine hash remained unchanged. The ordinary HTTPS
+trust check to localhost:8443 still fails.
+
+The owner reports successful first-administrator setup on retry at TEST-02.
+Current SSH evidence nevertheless finds its Host service Stopped and its engine
+absent after Defender quarantine; Defender protections remain enabled. The
+crash-recovery gate remains failed, and no quarantine restore or security
+exception was attempted.
+
+On report head 1e2c5f8e06e15c8643e8202b0753212a2ae70c81, all nine PR workflows completed successfully. Host API run 43704184519 passed, including extension approval/scope/recovery integration and trusted credential reissue. This CI result does not replace physical acceptance evidence. The final Wave_2_B disposition remains
+WAVE_2_B — PARTIAL VERIFICATION / BLOCKED. Required blockers include
+TEST-02 Defender disposition or an approved signed package, Client TLS/auth,
+real two-device sync, product backup/scheduling/restore, and remaining
+capability gates. Manual GUI cases remain NOT EXECUTED — MANUAL OWNER
+VALIDATION REQUIRED. PR #6 remains open, Draft and unmerged; no Wave_2_C
+work or merge was started.

@@ -8,7 +8,7 @@ Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
 Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
-Last updated: 2026-11-15 10:15 UTC
+Last updated: 2026-11-15 11:01 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -394,3 +394,31 @@ The product backup scheduler, approval workflow, backup integrity/retention,
 and disposable restore were not executed. The owner-installed TEST-02 package
 is tied to commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; TEST-01's current
 Host payload commit is unverified, and both test machines have Defender enabled.
+
+## SSH-only continuation — 2026-11-15 10:56 UTC
+
+A fresh SSH probe again identified VENTIO-TEST-01. Its VentioHost and
+VentioPostgres services were Running/Automatic under their dedicated service
+identities. Defender antivirus, real-time protection and antimalware service
+were enabled. Win32_DeviceGuard.CodeIntegrityPolicyEnforcementStatus returned
+2; no Host provisioning retry was performed.
+
+A controlled VentioHost service restart passed after confirming the service
+path/identity and no established connections to Host ports 8080 or 8443.
+Local http://127.0.0.1:8080/healthz returned 200 before and after; the
+service returned to Running and the Host process/listeners recovered in 18.4
+seconds. PostgreSQL was not restarted or modified and remained Running;
+pg_isready reported 127.0.0.1:54329 - accepting connections. The engine
+remained present with the previously recorded SHA-256
+5A18C389C5CCE563CAA8A5A5BA9222108B785680AEBED6878996385C3EA1E5F2.
+
+At 10:51 UTC, TEST-02 SSH still found VentioHost Stopped and
+ventio_host.exe absent. Defender still recorded threat 2147731250 for that
+path and emitted events 1116/1117 while Defender and real-time protection
+were enabled. The owner reports that retrying first-administrator setup
+succeeded; this does not change the current stopped-service/quarantined-file
+state. No restore, exclusion or security-policy change was attempted.
+
+Standard HTTPS validation to TEST-01 localhost:8443 still fails certificate
+trust; no bypass was used. Real Client authentication/synchronization remains
+blocked. On report head 1e2c5f8e06e15c8643e8202b0753212a2ae70c81, all nine PR workflows completed successfully. Host API run 43704184519 passed, including extension approval/scope/recovery integration and trusted credential reissue. This CI result does not replace physical acceptance evidence.

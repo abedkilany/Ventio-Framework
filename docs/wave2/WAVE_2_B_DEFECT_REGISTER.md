@@ -2,7 +2,7 @@
 
 Latest tested package: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 10:15 UTC
+Last updated: 2026-11-15 11:01 UTC
 Earlier physical installation evidence is tied to `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`. The newer package at `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`, including correction `f11bf27e83dd6b206fc63289bbf325471a1ee026`, was installed on TEST-02; its Host executable is now quarantined by Defender. TEST-01's installed manifest has no source commit field.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
@@ -167,3 +167,19 @@ remained Running/accepting on PID 4424. Defender and real-time protection
 remain enabled. No quarantine restore or exclusion was attempted. There is no
 `\Ventio\` scheduled task on TEST-01; product backup approval, scheduling,
 retention, integrity and disposable restore remain open.
+
+## Latest SSH-only retest — 2026-11-15 10:56 UTC
+
+No new code defect was confirmed. TEST-01's orderly Host-service restart passed:
+the service returned to Running in 18.4 seconds, local /healthz returned 200,
+and PostgreSQL remained Running/accepting connections. This does not replace
+the failed TEST-02 process-crash recovery result in WB-ACC-09.
+
+At 10:51 UTC, TEST-02 still had VentioHost Stopped and no
+ventio_host.exe at the installed path; Defender recorded the prior Severe
+threat and 1116/1117 detection/remediation events with protection enabled.
+The owner's report that first-administrator setup succeeded on retry describes
+setup completion, not current service recovery. WB-ACC-09 remains a security
+and deployment blocker. No quarantined file was restored and no Defender
+exclusion was added. TEST-01 default HTTPS trust also still fails, so WB-ACC-01
+remains blocked.
