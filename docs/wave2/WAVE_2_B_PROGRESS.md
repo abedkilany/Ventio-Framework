@@ -8,8 +8,9 @@ Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-tested)
 Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
-Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (post-fix CI pending)
-Last updated: 2026-11-15 12:04 UTC
+Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
+Latest post-correction CI-tested head: `676c9896d3340a04d2dabb4157a9d96c837e3f61` (9/9 workflows passed)
+Last updated: 2026-11-15 12:42 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -439,13 +440,16 @@ stdin pipe open. The child listens on stdin and cancels that subscription after
 Host shutdown; the sibling identity fixture documents that EOF is needed for
 reliable cancellation on Windows. The test helper now closes stdin after
 writing the command. Correction commit: e3efc25075388d2ac92543238c99473313d85d79.
-The existing process-restart integration test is the focused regression;
-post-correction CI is pending. This is a test-harness reliability fix, not a
-confirmed production Host defect.
+The existing process-restart integration test is the focused regression and
+passed on post-correction head 676c9896d3340a04d2dabb4157a9d96c837e3f61.
+This is a test-harness reliability fix, not a confirmed production Host defect.
 
 Local Dart formatting passed. A local analyzer attempt could not resolve the
 package imports because dependencies were not present in this worktree;
 GitHub Actions passed formatting/analyzer on the pre-correction report head.
-The correction commit's full CI will provide the post-change analyzer and test
-evidence. On 8929a96, all nine workflows completed successfully after the
-Host API retry. No workflow was canceled.
+All nine GitHub Actions workflows passed on post-correction head
+676c9896d3340a04d2dabb4157a9d96c837e3f61. Host API run 43712289370 passed
+formatting, analysis, HTTP/PostgreSQL, identity, RLS/least-privilege, scoped
+roles, pairing, extension approval/recovery and trusted credential reissue.
+Native Flutter/Windows/Android run 43712289247 and Windows package run
+43712289246 also passed. No workflow was canceled.

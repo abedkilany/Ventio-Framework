@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-15 12:04 UTC
+Last updated: 2026-11-15 12:42 UTC
 
 This candidate is not submitted as verified or production-ready. The package
 installed on TEST-02 is commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`; all
@@ -37,7 +37,8 @@ acceptance and the capability audit remain open. Final status remains
 - Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026`
 - Diagnostic package candidate: `b3a5f585b8c641321fa3fc33503eb10ca00837f0`
 - Latest tested package commit: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
-- Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (post-fix CI pending)
+- Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified by CI on `676c9896d3340a04d2dabb4157a9d96c837e3f61`)
+- Post-correction CI-tested source/report head: `676c9896d3340a04d2dabb4157a9d96c837e3f61`; all nine GitHub Actions workflows passed, including Host API run `43712289370` and Windows Acceptance Package run `43712289246`.
 - Latest acceptance artifact ZIP SHA-256:
   `1c5a1076ab427cd132afc5efd1d7c2610e61376647441c00a628fb04b5f650eb`.
   Installed `Ventio-Setup-0.1.18.exe` SHA-256:
@@ -466,8 +467,9 @@ shutdown to the child Host but left stdin open, while the child cancels its
 stdin subscription during shutdown. A sibling fixture closes stdin to deliver
 EOF on Windows. Correction commit e3efc25075388d2ac92543238c99473313d85d79
 closes stdin after the shutdown command. The existing process-restart test
-covers the regression; full post-correction CI is pending. No production Host
-defect was confirmed.
+covers the regression and passed on head
+676c9896d3340a04d2dabb4157a9d96c837e3f61. All nine workflows passed there.
+No production Host defect was confirmed.
 
 Wave_2_B remains PARTIAL VERIFICATION / BLOCKED because the physical Windows
 service/quarantine, TLS/authentication, two-device synchronization,

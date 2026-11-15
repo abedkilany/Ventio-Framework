@@ -3,10 +3,11 @@
 **Status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
 Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
-Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (post-fix CI pending)
+Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
+Post-correction CI-tested head: `676c9896d3340a04d2dabb4157a9d96c837e3f61`
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-15
-Last updated: 2026-11-15 12:04 UTC
+Last updated: 2026-11-15 12:42 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -637,8 +638,8 @@ MANUAL OWNER VALIDATION REQUIRED.
 | Host API run 43707135745, attempt 1 | FAIL | test/api_integration.dart timed out after 20 seconds at line 329 awaiting the first child Host process to exit after graceful shutdown. |
 | Host API run 43704184519 | PASS | The same 34-assertion isolated HTTP/PostgreSQL process-restart test completed, including graceful process shutdown. |
 | Host API run 43707135745, attempt 2 | PASS | On the same pre-fix source head, the retry completed extension approval/scope/recovery integration. All nine workflows on 8929a96 are now successful; attempt 1's intermittent timeout remains recorded. |
-| Correction commit e3efc25 | POST-FIX CI PENDING | The Windows test helper now closes child stdin after sending the shutdown command, delivering EOF to the child's stdin listener. The existing graceful process-restart test is the focused regression. |
+| Correction commit e3efc25; CI head 676c989 | PASS | The Windows test helper closes child stdin after sending the shutdown command, delivering EOF to the child's stdin listener. Host API run 43712289370 passed the full job, including isolated HTTP/PostgreSQL process restart and all downstream identity/security integration tests. All nine workflows on 676c989 succeeded. |
 
 Diagnosis: the test parent left stdin open while the child awaited stdin-subscription cancellation during shutdown. The sibling identity fixture explicitly closes stdin to deliver EOF on Windows. The same test's success before and on the second attempt shows the timeout was intermittent. No production Host defect was confirmed.
 
-Local dart format passed. A local dart analyzer invocation was attempted but could not resolve package imports because dependencies were absent; the pre-correction GitHub workflow's format/analyzer steps passed. Post-correction CI on the candidate head is the authoritative analyzer and integration retest.
+Local dart format passed. A local dart analyzer invocation could not resolve package imports because dependencies were absent. Post-correction GitHub Actions on 676c989 passed formatting and analyzer plus all required jobs. Run IDs: Core 43712289305; Host Engineering 43712289253; Host API 43712289370; Credential Lifecycle 43712289323; Host Crash Recovery 43712289357; Host Persistence 43712289257; Durable Commands 43712289259; Native Flutter Client and Extension Builder 43712289247; Windows Acceptance Package 43712289246.
