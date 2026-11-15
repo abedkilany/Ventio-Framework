@@ -30,3 +30,10 @@ jobs:
           path: ${{ runner.temp }}/ventio-host-security/evidence/*
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: host-security-reproduction-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/ventio-host-security/host-*.exe
+          if-no-files-found: error
+          retention-days: 7

@@ -24,17 +24,12 @@ $environment = [ordered]@{
   sdkFiles = @(Get-ChildItem -LiteralPath (Join-Path $sdk 'bin') -File | Where-Object { $_.Name -in @('dart.exe','dartaotruntime.exe','gen_snapshot.exe') } | ForEach-Object { [ordered]@{name=$_.Name;length=$_.Length;sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash} })
 }
 $environment | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $evidence 'environment.json')
-if (-not $status.AntivirusEnabled -or -not $status.RealTimeProtectionEnabled -or -not $status.AMServiceEnabled) {
-  # Hosted images may ship with Defender stopped. Enable protection using its
-  # supported controls; never create an exclusion or bypass an enforced policy.
-  Set-Service -Name WinDefend -StartupType Automatic
-  Start-Service -Name WinDefend
-  Set-MpPreference -DisableRealtimeMonitoring $false
-  $status = Get-MpComputerStatus
-  if (-not $status.AntivirusEnabled -or -not $status.RealTimeProtectionEnabled -or -not $status.AMServiceEnabled) {
-    throw 'Defender could not be enabled on this hosted runner.'
-  }
+if (-not $status.AntivirusEnabled -or -not $status.AMServiceEnabled) {
+  throw 'The antivirus service required for an on-demand scan is unavailable.'
 }
+# Hosted images can have real-time monitoring disabled by their administrator.
+# Record that limitation and perform an on-demand scan without changing policy.
+# This evidence does not satisfy the physical lab real-time protection gate.
 Update-MpSignature
 Get-MpComputerStatus | Select-Object AMProductVersion,AMEngineVersion,AntivirusSignatureVersion,AntivirusSignatureLastUpdated,AntivirusEnabled,RealTimeProtectionEnabled,AMServiceEnabled | ConvertTo-Json | Set-Content (Join-Path $evidence 'defender-current.json')
 $mp = Get-ChildItem 'C:\ProgramData\Microsoft\Windows Defender\Platform' -Filter MpCmdRun.exe -Recurse | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
