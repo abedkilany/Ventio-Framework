@@ -3,45 +3,49 @@ name: Wave 2 B Windows Acceptance Package
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/wave2-b-windows-acceptance-package.yml'
-      - '.github/workflows/native-flutter-client.yml'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_host/**'
-      - 'packages/ventio_host_api/**'
-      - 'packages/ventio_postgres/**'
-      - 'packages/ventio_native_client/**'
-      - 'installer/windows/**'
-      - 'migrations/postgres/**'
-      - 'security/postgres/**'
-      - 'scripts/ci/**'
-      - 'scripts/windows/**'
   pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/wave2-b-windows-acceptance-package.yml'
-      - '.github/workflows/native-flutter-client.yml'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_host/**'
-      - 'packages/ventio_host_api/**'
-      - 'packages/ventio_postgres/**'
-      - 'packages/ventio_native_client/**'
-      - 'installer/windows/**'
-      - 'migrations/postgres/**'
-      - 'security/postgres/**'
-      - 'scripts/ci/**'
-      - 'scripts/windows/**'
+  workflow_call:
+    inputs:
+      ci_run_scope:
+        required: false
+        type: string
+        default: ''
+      ci_force_full:
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 
 jobs:
-  windows-acceptance-package:
+  select-changes:
+    uses: ./.github/workflows/ci-change-selector.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      event_name: ${{ github.event_name }}
+      event_action: ${{ github.event.action || '' }}
+      head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+      before_sha: ${{ github.event.before || '' }}
+      pr_number: ${{ github.event.pull_request.number || 0 }}
+      ref_name: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      ci_force_full: ${{ github.event_name == 'workflow_dispatch' || inputs.ci_force_full }}
+      ci_run_scope: ${{ inputs.ci_run_scope || '' }}
+  windows-acceptance-package-suite:
+    needs: select-changes
+    if: needs.select-changes.outputs.run_windows_acceptance_package == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -154,3 +158,23 @@ jobs:
             ${{ runner.temp }}/ventio-wave2-package-${{ github.run_id }}/wave2-build-evidence.txt
           if-no-files-found: error
           retention-days: 30
+  windows-acceptance-package:
+    needs: [select-changes, windows-acceptance-package-suite]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the required check context and report suite result
+        env:
+          SELECTOR_RESULT: ${{ needs.select-changes.result }}
+          SHOULD_RUN: ${{ needs.select-changes.outputs.run_windows_acceptance_package }}
+          SUITE_RESULT: ${{ needs.windows-acceptance-package-suite.result }}
+        run: |
+          if [[ "$SELECTOR_RESULT" != "success" ]]; then
+            echo "CI change selection or documentation validation failed." >&2
+            exit 1
+          fi
+          if [[ "$SHOULD_RUN" == "true" && "$SUITE_RESULT" != "success" ]]; then
+            echo "The selected verification suite did not succeed (result: $SUITE_RESULT)." >&2
+            exit 1
+          fi
+          echo "Required check passed; selected suite result: $SUITE_RESULT."

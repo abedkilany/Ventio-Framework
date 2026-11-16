@@ -1,0 +1,110 @@
+name: Ventio Full Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  core-foundation:
+    uses: ./.github/workflows/core-foundation.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-core-foundation
+
+  credential-lifecycle:
+    uses: ./.github/workflows/credential-lifecycle.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-credential-lifecycle
+
+  host-api:
+    uses: ./.github/workflows/host-api.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-host-api
+
+  durable-commands:
+    uses: ./.github/workflows/host-durable-commands.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-durable-commands
+
+  host-engineering-gate:
+    uses: ./.github/workflows/host-engineering-gate.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-host-engineering-gate
+
+  postgres-adapter:
+    uses: ./.github/workflows/host-persistence.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-postgres-adapter
+
+  host-recovery:
+    uses: ./.github/workflows/host-recovery.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-host-recovery
+
+  host-security-investigation:
+    uses: ./.github/workflows/host-security-investigation.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-host-security-investigation
+
+  native-client:
+    uses: ./.github/workflows/native-flutter-client.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-native-client
+
+  windows-acceptance-package:
+    uses: ./.github/workflows/wave2-b-windows-acceptance-package.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      ci_force_full: true
+      ci_run_scope: full-${{ github.run_id }}-windows-acceptance-package
