@@ -2,8 +2,8 @@
 
 Latest tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 14:03 UTC
-Fresh SSH checks confirm both machines run Host/PostgreSQL and the exact Host hash; local health is 200. Anonymous operation preparation and a fake bearer session are rejected with 401. Defender remains enabled with current intelligence `1.463.328.0` on both; the historical finding remains **ROOT CAUSE NOT CONFIRMED**. TCP connectivity to Host/RDP ports passes both directions, but Client authentication/sync and physical backup/restore remain unexecuted.
+Last updated: 2026-11-16 14:48 UTC
+Fresh SSH checks confirm both Windows 11 Pro build 26300 machines run Host/PostgreSQL 16.15 and the exact Host hash; local health is 200. Both services use their dedicated virtual service identities. Anonymous operation preparation and a fake bearer session are rejected with 401. Defender remains enabled with current intelligence `1.463.328.0` on both; the historical finding remains **ROOT CAUSE NOT CONFIRMED**. TCP 8443/3389 connect in both directions. A read-only manifest found five different Client payload files between machines despite the same file version; authenticated Client sync and physical backup/restore remain unexecuted.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
 acceptance blockers.
@@ -35,6 +35,7 @@ acceptance blockers.
 | WB-ACC-08 | High | **OPEN — HOST JOB WORKER ERROR, CAUSE UNRESOLVED** | TEST-01 safe Host diagnostics record intermittent `HOST_JOB_WORKER_UNAVAILABLE` events. | Events occurred at `2026-11-14T22:34:38.505Z` and `2026-11-15T09:28:20Z`, `09:31:47Z`, `09:32:59Z`, `09:38:14Z`, and `13:09:53Z`. At 14:09 UTC there was no newer entry. The event deliberately omits the exception. A read-only identity-API probe passed current Recovery Authority admission and invoked the empty-queue claim path in a rolled-back transaction; this did not reproduce or explain the events. No product defect or correction is confirmed. |
 | WB-ACC-09 | Critical | **OPEN — DEFENDER ROOT CAUSE NOT CONFIRMED; EVENT HISTORY RE-OBSERVED** | Defender history still records Bearfoos.A!ml for the exact Host hash on both physical hosts. | At the 2026-11-16 checkpoint, `Get-MpThreatDetection` showed Threat ID `2147731250` on TEST-01 (`2026-11-15T20:10:00.859Z`, last change `20:11:32.332Z`, status ID 3, file/process resources) and TEST-02 (`2026-11-15T09:59:21.939Z`, last change `09:59:45.177Z`, status ID 3, file resource). Both entries had `ActionSuccess=true`; `Get-MpThreat` reported `IsActive=false` and `DidThreatExecute=true`. The current files hash to `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`, and Defender/real-time protection remain enabled with signature `1.463.324.0`. These facts do not establish false-positive status or root cause. No quarantine item was restored, no exclusion added, and no new on-demand scan was run. |
 | WB-ACC-10 | High | **PARTIAL — CLIENT WINDOW NOT VERIFIED; CAUSE UNKNOWN** | Client startup reached its Dart first-screen-ready trace, but a native top-level window was not observed. | Recheck at 14:03 UTC: TEST-01 process 11020 remains in session 1 with handle 0 and empty title; TEST-02 has no Client process. No visible launch or authenticated Client action is established. No product defect is confirmed. |
+| WB-ACC-11 | Critical | **BLOCKED — CLIENT BUILD PROVENANCE DIFFERS** | The installed Clients cannot yet be treated as the same candidate for physical synchronization. | Read-only SHA-256 manifests of 16 client files show five differences: `ventio_native_client.exe`, `data\app.so`, `dartjni.dll`, `flutter_secure_storage_windows_plugin.dll`, and `printing_plugin.dll`. Both report file version `0.1.18+19`, but executable hashes differ: TEST-01 `CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`; TEST-02 `FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`. TEST-01's Client package/build provenance is unverified. No replacement was attempted because the current unified installation also contains the active Host; use a verified Client-only package or demonstrated safe deployment path before claiming sync evidence. This is an acceptance discrepancy, not a confirmed code defect. |
 | WB-ENV-07 | Medium | **RDP VISUAL CAPTURE BLOCKED** | RDP display capture remains unreliable during the current acceptance attempt. | The 11:53 TEST-01 capture failed with `IGraphicsCaptureItemInterop.CreateForMonitor` error `0x80070057`; at 14:03 its window capture was black and activation failed after a fresh app/window selection retry. No more GUI input was attempted. TEST-02's active `abedkilany` console session was not disconnected. SSH remains available. |
 
 ## Inherited Wave 1 risk
@@ -329,3 +330,43 @@ restore remain unexecuted; none was bypassed through direct local operation.
 Historical Defender **ROOT CAUSE NOT CONFIRMED** remains a release limitation,
 not a reason to stop these current tests. No quarantine copy was restored, no
 exception was added, and no security control was weakened.
+
+## Orderly service-restart continuation — 2026-11-16 14:18 UTC
+
+Network access has recovered since the earlier TEST-01 outage note above.
+Orderly `VentioHost` restart passed on both machines (6.8 seconds on TEST-01,
+5.8 seconds on TEST-02), with PostgreSQL Running and health 200 after each.
+TEST-02 PostgreSQL restart also passed in 5.5 seconds; Host health returned
+200 and fake-bearer session validation remained 401. The installed Host hash
+remained unchanged. This does not close WB-ACC-09: the previous controlled
+Host-process crash/recovery attempt remains a distinct failure associated with
+the unresolved Defender history.
+
+## Network recovery and Client payload comparison — 2026-11-16 14:44 UTC
+
+SSH again identifies TEST-01 and TEST-02 correctly. Both Host and PostgreSQL
+services are Running, local `/healthz` returns 200, Defender and real-time
+protection are enabled, and signature version `1.463.328.0` is present on
+both. Fresh mutual TCP checks to ports 8443 and 3389 pass in both directions.
+No Ventio scheduled task or `C:\ProgramData\Ventio\Backups` directory is
+present on either device.
+
+A read-only manifest of 16 installed Client files found five hash differences
+between the machines, including the main executable, Flutter AOT `data\app.so`,
+and three native/plugin DLLs. Both main executables report `0.1.18+19`, but
+TEST-01 hashes to `CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`
+and TEST-02 to `FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`.
+The exact Client package/build provenance on TEST-01 is not established. No
+file was replaced: the unified installation contains the active Host, and the
+standalone Client installer has the same Inno Setup AppId and previous-directory
+behavior, so running it against the current installation without a verified
+isolation plan could overwrite Host-directory files.
+
+GitHub Actions on report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f`
+currently shows 10 of 11 PR checks successful; `host-api` completed device
+pairing/enrollment and is running extension package approval/scope/recovery
+tests. Trusted credential reissue and cleanup steps are pending.
+This is not a complete CI pass. The physical Host binaries remain tied to
+source commit `a7c85ef5617bca9345804106aa17457b2eaf858c`. Real authenticated
+two-device sync, offline/reconnect/conflict recovery, and physical backup,
+scheduling, integrity, retention and restore remain unexecuted.

@@ -5,10 +5,10 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`; installed Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`
-Latest CI-verified report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 workflow runs passed; report-only continuation)
+Latest fully passed report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 checks); newer report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` currently has 10/11 checks successful and Host API running.
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-16
-Last updated: 2026-11-16 14:03 UTC
+Last updated: 2026-11-16 14:48 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -911,6 +911,7 @@ Exact physical Host artifact source commit:
 
 | Test | Result | Evidence |
 |---|---|---|
+| Machine/runtime versions | PASS — RECORDED | Both devices: Windows 11 Pro x64 build 26300; bundled PostgreSQL 16.15. Services run as `NT SERVICE\VentioHost` and `NT SERVICE\VentioPostgres`; PostgreSQL data directory is `C:\ProgramData\Ventio\PostgreSQL\data`. |
 | SSH identity / service health | PASS | Expected machine names; both `VentioHost` and `VentioPostgres` Running/Automatic; local `/healthz` returned 200. |
 | Installed Host integrity | MATCH | Exact expected Host SHA-256 on TEST-01 and TEST-02. |
 | Anonymous operation preparation | PASS — DENIED | `POST /api/v1/platform/operations/prepare` without a bearer returned 401 on both Hosts. |
@@ -926,3 +927,38 @@ Exact physical Host artifact source commit:
 No product code changed. The status remains **WAVE_2_B — PARTIAL VERIFICATION /
 BLOCKED**; transport reachability and anonymous-request rejection do not
 substitute for the mandatory authenticated two-device acceptance gates.
+
+## Host and PostgreSQL service recovery — 2026-11-16 14:18 UTC
+
+| Test | Result | Evidence |
+|---|---|---|
+| TEST-01 orderly Host service restart | PASS | `Restart-Service VentioHost` returned the service to Running in 6.8 seconds; PostgreSQL remained Running, `/healthz` returned 200, and Host SHA-256 still matched. |
+| TEST-02 orderly Host service restart | PASS | Host returned to Running in 5.8 seconds; PostgreSQL remained Running and `/healthz` returned 200. |
+| TEST-02 orderly PostgreSQL restart | PASS | PostgreSQL returned to Running in 5.5 seconds; Host remained Running, `/healthz` returned 200, and a fake-bearer session request returned the expected 401 after database reconnection. |
+| Host service failure policy | RECORDED | On both machines, Service Control Manager reports automatic restart actions after 5, 30, and 60 seconds. This configuration query does not prove crash recovery. |
+
+No Ventio database data or service configuration was changed. These orderly
+restart results do not replace the earlier failed controlled Host-process
+crash recovery or any physical backup/restore, authenticated Client, or full
+Wave 2 B acceptance gate.
+
+## Recovered-network SSH checkpoint — 2026-11-16 14:44 UTC
+
+| Test | Result | Evidence |
+|---|---|---|
+| SSH identity and Host/PostgreSQL liveness | PASS | Expected hostnames; both services are Running and local `/healthz` returns 200. Host hash remains `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`, built from `a7c85ef5617bca9345804106aa17457b2eaf858c`. |
+| Mutual machine network | PASS — TCP | TEST-01 → TEST-02 and TEST-02 → TEST-01 both connect to TCP 8443 and 3389. This does not prove TLS pin validation or Client synchronization. |
+| Defender | PASS — ENABLED | Antivirus and real-time protection are enabled on both; signature version `1.463.328.0`. No new on-demand scan was run and the historical root cause remains unconfirmed. |
+| Installed Client identity | BLOCKED — PROVENANCE DIFFERENCE | Both show `0.1.18+19`; executable hashes differ (TEST-01 `CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`, TEST-02 `FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`). A 16-file manifest found five mismatches: executable, `data\app.so`, `dartjni.dll`, `flutter_secure_storage_windows_plugin.dll`, and `printing_plugin.dll`. TEST-01 exact Client package provenance is unverified. |
+| Client process/UI | BLOCKED | TEST-01 process 11020 is responsive but has no main-window handle; TEST-02 has no Client process. No authenticated pairing or session was used. |
+| Backup/scheduler presence | NOT PRESENT | No Ventio scheduled task or `C:\ProgramData\Ventio\Backups` directory on either machine. No approval bypass or direct backup was attempted. |
+| GitHub Actions on report head | IN PROGRESS | `e6d30b218128d2551f44a9d325e8e1a5363fc93f`: 10 of 11 PR checks successful; Host API completed secure device pairing/enrollment and is running extension package approval/scope/recovery tests, with trusted credential reissue and cleanup pending. It is not yet an all-green head. |
+
+No Client or Host binary was replaced. The unified machine-wide installation
+contains the running Host, and the separate Client installer shares the same
+Inno Setup AppId/previous-directory behavior; using it without a validated
+isolated path could overwrite files in the Host installation. Authenticated
+two-device synchronization, offline changes/reconnection/conflict handling,
+backup scheduling, integrity, retention, corruption and restore remain
+unexecuted. Current status remains **WAVE_2_B — PARTIAL VERIFICATION /
+BLOCKED**.

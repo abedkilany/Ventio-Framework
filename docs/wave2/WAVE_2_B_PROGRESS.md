@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current checkpoint (2026-11-16 14:03 UTC): both test machines are reachable by SSH; Host and PostgreSQL are Running, local health is HTTP 200, and the Host SHA-256 matches on both (`5a18c389…e1e5f2`). Anonymous operation preparation and a fake bearer session return 401 on both. Defender and real-time protection are enabled with intelligence `1.463.328.0` on both. TCP connectivity on ports 8443 and 3389 passes between the two machines in both directions. CI workflow-run lookup shows 10/10 successful runs on report head `b33ccbc`; PR #6 remains Draft and unmerged. Client enrollment/sync, offline recovery, and backup/restore remain unverified. See the latest checkpoint below.
+Current checkpoint (2026-11-16 14:44 UTC): both machines are reachable by SSH; Host/PostgreSQL are Running, local health is HTTP 200, and Host SHA-256 matches on both (`5a18c389…e1e5f2`). Mutual TCP 8443/3389 passes. Defender remains enabled with signature `1.463.328.0`. A Client-file manifest found five differing files despite both reporting version `0.1.18+19`; provenance is not established and no files were changed. CI on report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` has 10/11 checks successful with Host API still running. PR #6 remains Draft/unmerged. Client enrollment/sync, offline recovery, and backup/restore remain unverified. See the latest checkpoint below.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -10,8 +10,8 @@ Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-t
 Latest installer package installed on TEST-02: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (exact Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
-Latest CI-verified report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 workflow runs passed; report-only continuation)
-Last updated: 2026-11-16 14:03 UTC
+Latest fully passed report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 checks); newer report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` currently has 10/11 checks successful and Host API running.
+Last updated: 2026-11-16 14:48 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -736,6 +736,9 @@ The owner restored both test machines to the network. SSH again identifies
 `http://127.0.0.1:8080/healthz` returns 200, and the installed Host executable
 matches SHA-256
 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`.
+Both are Windows 11 Pro x64 build 26300, with bundled PostgreSQL 16.15.
+Services run as `NT SERVICE\VentioHost` and `NT SERVICE\VentioPostgres`; the
+Ventio PostgreSQL data directory is `C:\ProgramData\Ventio\PostgreSQL\data`.
 Anonymous `POST /api/v1/platform/operations/prepare` and a non-issued fake
 bearer on `GET /api/v1/session` return 401 on both Hosts. Defender Antivirus
 and real-time protection are enabled on both; intelligence is `1.463.328.0`.
@@ -768,4 +771,51 @@ report head `b33ccbc2e79211ff6dd0a9894f07ca684e26c441`. PR #6 is open, Draft,
 unmerged, and still targets `main`. The physically installed Host is still
 from source commit `a7c85ef5617bca9345804106aa17457b2eaf858c`; this report
 checkpoint changes no product code. Final status remains
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+## Host and PostgreSQL service recovery — 2026-11-16 14:18 UTC
+
+After confirming elevated administrator tokens, service identities, executable
+paths, and the Ventio-only PostgreSQL data directory, I performed orderly
+service restarts one machine at a time. `VentioHost` restarted on TEST-01 in
+6.8 seconds and TEST-02 in 5.8 seconds; both returned to Running, PostgreSQL
+remained Running, and local `/healthz` returned 200. The TEST-01 Host hash
+still matched the candidate hash. On TEST-02, `VentioPostgres` restarted in
+5.5 seconds; Host remained Running, health was 200, and fake-bearer session
+validation returned 401 after reconnecting to the database. No database data,
+service identity, or security policy was modified. `sc qfailure` shows Host
+service recovery actions scheduled at 5, 30, and 60 seconds after failures.
+
+These results pass orderly Host/PostgreSQL restart recovery only. They do not
+close the previously recorded failed Host process-crash recovery, nor do they
+verify scheduled backups, restore, authenticated Client sync, or the remaining
+Wave 2 B matrix.
+
+## Recovered network and Client artifact comparison — 2026-11-16 14:44 UTC
+
+SSH confirms both expected Windows 11 Pro x64 build 26300 identities are back
+online. Host and PostgreSQL are Running on both; local Host health is 200 and
+the Host executable remains the exact `a7c85ef` candidate hash. Defender and
+real-time protection are enabled with signature `1.463.328.0`. Mutual
+machine-to-machine TCP checks pass on Host port 8443 and RDP port 3389.
+
+The Client processes remain unsuitable for a real sync run: TEST-01's existing
+process 11020 is responsive but has `MainWindowHandle=0`; TEST-02 has no Client
+process. A read-only manifest compared 16 installed Client files and found
+hash mismatches in five, including the executable and `data\app.so`; both
+executable file versions are `0.1.18+19`, but their hashes differ. TEST-01's
+Client package provenance is unknown. No binaries were changed because the
+current unified installation also contains the active Host. A verified,
+isolated Client-only installation and a visible authenticated Client session
+are still required before synchronization can be tested.
+
+Neither computer has a Ventio scheduled task or the documented backup
+directory. No Host-authorized backup or restore was attempted without the
+required authenticated approval path.
+
+On report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f`, 10 of 11 PR checks
+are successful; Host API completed device pairing/enrollment and is running
+extension package approval/scope/recovery tests, with credential reissue and
+cleanup pending. Physical evidence remains tied to Host source commit
+`a7c85ef5617bca9345804106aa17457b2eaf858c`. Final status remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.

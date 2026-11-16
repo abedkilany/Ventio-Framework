@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 14:03 UTC
+Last updated: 2026-11-16 14:48 UTC
 
 Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Independent rebuilding recreates the reported hash exactly, but current Defender history on both physical machines records Threat ID `2147731250` (`Trojan:Win32/Bearfoos.A!ml`) for the exact Host hash. Both entries report `DidThreatExecute=true`; neither the classifier cause nor false-positive status is established. Defender and real-time protection remain enabled. No quarantine item was restored or exclusion added. See [the investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md) and the latest physical checkpoint below.
 
@@ -14,9 +14,10 @@ Host SHA-256. Host/PostgreSQL are Running on both machines; their Host
 executables match the exact hash. TEST-01 SSH and cross-host pinned TLS are
 restored. Both machines return health HTTP 200; uncredentialed session requests
 return 401. Defender protections remain enabled, and the event history is
-recorded below. GitHub Actions returned ten completed successful workflow
-runs on exact report head `b33ccbc2e79211ff6dd0a9894f07ca684e26c441`; PR #6
-remains open, Draft and unmerged.
+recorded below. The latest fully successful report head is
+`b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 checks). Newer report head
+`e6d30b218128d2551f44a9d325e8e1a5363fc93f` has 10/11 PR checks successful,
+with Host API still running; PR #6 remains open, Draft and unmerged.
 Real Client authentication/enrollment, two-device/offline synchronization,
 product backup/scheduling/restore, and remaining database/security and GUI
 acceptance gates are incomplete. Final status remains
@@ -727,7 +728,10 @@ and unmerged.
 ## Latest physical continuation — 2026-11-16 14:03 UTC
 
 Both test machines are back on the network. SSH identifies the expected
-Windows hosts; both Host and PostgreSQL services are Running/Automatic, the
+Windows 11 Pro x64 build 26300 hosts, each bundling PostgreSQL 16.15. Host and
+PostgreSQL services run under `NT SERVICE\VentioHost` and
+`NT SERVICE\VentioPostgres`; the data directory is
+`C:\ProgramData\Ventio\PostgreSQL\data`. Both services are Running/Automatic, the
 local Host health endpoint returns 200, and both installed Host binaries match
 the exact expected SHA-256. Anonymous operation preparation and a fake bearer
 session are rejected with 401 on both. Defender and real-time protection are
@@ -749,3 +753,48 @@ GitHub reports ten successful workflow runs on report head
 and unmerged. The physically tested Host remains from source commit
 `a7c85ef5617bca9345804106aa17457b2eaf858c`. Final status remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**, with Wave_2_C not recommended.
+
+## Service lifecycle continuation — 2026-11-16 14:18 UTC
+
+Orderly Host service restarts passed on TEST-01 (6.8 seconds) and TEST-02
+(5.8 seconds); both returned to Running with PostgreSQL still Running and
+local health 200. The installed Host hash was unchanged. On TEST-02, an orderly
+PostgreSQL restart passed in 5.5 seconds; Host remained Running, health was
+200, and a fake-bearer session request returned 401 after reconnection. Both
+Hosts are configured to restart after service failures at 5, 30, and 60
+seconds. This configuration read and orderly service restart do not establish
+process-crash recovery; the prior controlled crash result remains recorded as
+a failure. Backup/restore and authenticated two-device synchronization remain
+unverified, so final status remains **WAVE_2_B — PARTIAL VERIFICATION /
+BLOCKED**.
+
+## Recovered network and Client provenance checkpoint — 2026-11-16 14:44 UTC
+
+SSH confirms both expected machines are online, both Host/PostgreSQL services
+are Running, local health is 200, and the installed Host hash still matches
+source commit `a7c85ef5617bca9345804106aa17457b2eaf858c`. Defender and
+real-time protection remain enabled with signature `1.463.328.0`; no
+protection control was changed. Mutual TCP 8443 and 3389 connections pass.
+
+Physical Client acceptance is now additionally blocked by an installed-image
+discrepancy. TEST-01 and TEST-02 both report Client version `0.1.18+19`, but a
+manifest comparison found five differing files among 16, including the app
+executable, Flutter AOT bundle and three native/plugin DLLs. The main
+executable hashes are TEST-01 `CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`
+and TEST-02 `FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`.
+TEST-01's exact Client build provenance is unknown. Its process remains
+responsive with no native window; TEST-02 has no Client process. No binary was
+replaced because the unified installation also contains the active Host and
+the Client installer has shared AppId/previous-install-directory behavior.
+
+No Ventio scheduled task or documented backup directory is present on either
+machine. The latest CI head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` has 10
+of 11 checks successful; Host API completed device pairing/enrollment and is
+running extension package approval/scope/recovery tests, with credential
+reissue and cleanup pending.
+Authenticated two-device sync, offline/conflict recovery, and physical backup
+approval, scheduling, integrity, corruption, retention and restore are not
+verified. The required manual visible Client and authorization flows remain
+**NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. The acceptance candidate
+remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**; Wave_2_C is not
+recommended.
