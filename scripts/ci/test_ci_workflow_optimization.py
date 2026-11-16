@@ -62,6 +62,11 @@ class WorkflowOptimizationTests(unittest.TestCase):
             self.assertIn(f"uses: ./.github/workflows/{filename}", text)
             self.assertIn("ci_force_full: true", text)
 
+    def test_change_selector_checkout_does_not_persist_or_duplicate_credentials(self):
+        text = (WORKFLOWS / "ci-change-selector.yml").read_text(encoding="utf-8")
+        self.assertEqual(text.count("persist-credentials:"), 1)
+        self.assertIn("persist-credentials: false", text)
+
 
 if __name__ == "__main__":
     unittest.main()

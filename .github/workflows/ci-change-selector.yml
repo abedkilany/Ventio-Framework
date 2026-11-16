@@ -87,7 +87,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-          persist-credentials: false
       - id: select
         name: Select affected suites and validate documentation-only updates
         env:
