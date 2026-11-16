@@ -2,8 +2,8 @@
 
 Latest tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 14:52 UTC
-Fresh SSH checks confirm both Windows 11 Pro build 26300 machines run Host/PostgreSQL 16.15 and the exact Host hash; local health is 200. Both services use their dedicated virtual service identities. Anonymous operation preparation and a fake bearer session are rejected with 401. Defender remains enabled with current intelligence `1.463.328.0` on both; the historical finding remains **ROOT CAUSE NOT CONFIRMED**. TCP 8443/3389 connect in both directions. A read-only manifest found five different Client payload files between machines despite the same file version; authenticated Client sync and physical backup/restore remain unexecuted.
+Last updated: 2026-11-16 17:43 UTC
+Latest checkpoint: both Windows 11 Pro build 26300 machines run Host/PostgreSQL 16.15 and the same Host SHA-256; Defender/real-time protection remain enabled at intelligence `1.463.329.0`. A non-remediating scan found no current threat but did not clear historical `DidThreatExecute=true` records. Client executable hashes still differ. No new product defect is confirmed; Host behavior, authenticated sync and product backup/restore remain blocked or unexecuted.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
 acceptance blockers.
@@ -33,7 +33,7 @@ acceptance blockers.
 | WB-ACC-06 | Critical | **OPEN — AUTHENTICATED SESSION NOT VERIFIED** | TEST-01 previously failed to establish its first-admin session; TEST-02 Host is now running, but no authenticated Client/API session has been verified. | TEST-01's earlier UI report was `HOST_SESSION_AUTHENTICATION_FAILED` after operation `0793a94d97f202699fbbff49b5db5cc8` reached `HOST_READINESS`. Current TEST-02 unauthenticated `/api/v1/session` returns 401 as expected; no successful Client token/session was exercised. |
 | WB-ACC-07 | High | **PARTIAL — HOST CERTIFICATES VERIFIED; CLIENT ENROLLMENT NOT EXECUTED** | Both Host certificates are reachable with exact pin, validity and SAN checks, but no Client has pinned/enrolled. | On 2026-11-16, each physical device reached the other over TLS 1.2. TEST-01 pin `2c63e4ffaa97dd4ba06be9d55360ef7fc907d7b3a8db6a889de6356e6d4f6368`; TEST-02 pin `b34d2c33650fb658a40266e6c474289d165938ff90bccadcdb4f9c4b1a99433f`. Both uncredentialed session endpoints returned 401. At the SSH-only checkpoint no GUI Client was launched. Later interactive-token launches reached the first-screen-ready trace but did not produce a verifiable top-level window; no Host enrollment or authenticated session occurred. |
 | WB-ACC-08 | High | **OPEN — HOST JOB WORKER ERROR, CAUSE UNRESOLVED** | TEST-01 safe Host diagnostics record intermittent `HOST_JOB_WORKER_UNAVAILABLE` events. | Events occurred at `2026-11-14T22:34:38.505Z` and `2026-11-15T09:28:20Z`, `09:31:47Z`, `09:32:59Z`, `09:38:14Z`, and `13:09:53Z`. At 14:09 UTC there was no newer entry. The event deliberately omits the exception. A read-only identity-API probe passed current Recovery Authority admission and invoked the empty-queue claim path in a rolled-back transaction; this did not reproduce or explain the events. No product defect or correction is confirmed. |
-| WB-ACC-09 | Critical | **OPEN — DEFENDER ROOT CAUSE NOT CONFIRMED; EVENT HISTORY RE-OBSERVED** | Defender history still records Bearfoos.A!ml for the exact Host hash on both physical hosts. | At the 2026-11-16 checkpoint, `Get-MpThreatDetection` showed Threat ID `2147731250` on TEST-01 (`2026-11-15T20:10:00.859Z`, last change `20:11:32.332Z`, status ID 3, file/process resources) and TEST-02 (`2026-11-15T09:59:21.939Z`, last change `09:59:45.177Z`, status ID 3, file resource). Both entries had `ActionSuccess=true`; `Get-MpThreat` reported `IsActive=false` and `DidThreatExecute=true`. The current files hash to `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`, and Defender/real-time protection remain enabled with signature `1.463.324.0`. These facts do not establish false-positive status or root cause. No quarantine item was restored, no exclusion added, and no new on-demand scan was run. |
+| WB-ACC-09 | Critical | **OPEN — DEFENDER ROOT CAUSE NOT CONFIRMED; CURRENT SCAN CLEAN** | Defender history still records Bearfoos.A!ml and `DidThreatExecute=true` for the exact Host hash on both physical hosts. | `Get-MpThreatDetection` showed Threat ID `2147731250` on TEST-01 (`2026-11-15T20:10:00.859Z`, last change `20:11:32.332Z`, status ID 3, file/process resources) and TEST-02 (`2026-11-15T09:59:21.939Z`, last change `09:59:45.177Z`, status ID 3, file resource); both had `ActionSuccess=true`. Current `Get-MpThreat` state reports `IsActive=false`, `DidThreatExecute=true`. The current files hash to `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. Under intelligence `1.463.329.0`, one custom `-DisableRemediation` scan per machine returned `found no threats`, exit 0, and unchanged file hash/presence. Defender/real-time protection remain enabled. The clean scan does not establish false-positive status or explain the historical event. No quarantine item was restored and no exclusion added. |
 | WB-ACC-10 | High | **PARTIAL — CLIENT WINDOW NOT VERIFIED; CAUSE UNKNOWN** | Client startup reached its Dart first-screen-ready trace, but a native top-level window was not observed. | Recheck at 14:03 UTC: TEST-01 process 11020 remains in session 1 with handle 0 and empty title; TEST-02 has no Client process. No visible launch or authenticated Client action is established. No product defect is confirmed. |
 | WB-ACC-11 | Critical | **BLOCKED — CLIENT BUILD PROVENANCE DIFFERS** | The installed Clients cannot yet be treated as the same candidate for physical synchronization. | Read-only SHA-256 manifests of 16 client files show five differences: `ventio_native_client.exe`, `data\app.so`, `dartjni.dll`, `flutter_secure_storage_windows_plugin.dll`, and `printing_plugin.dll`. Both report file version `0.1.18+19`, but executable hashes differ: TEST-01 `CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`; TEST-02 `FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`. TEST-01's Client package/build provenance is unverified. No replacement was attempted because the current unified installation also contains the active Host; use a verified Client-only package or demonstrated safe deployment path before claiming sync evidence. This is an acceptance discrepancy, not a confirmed code defect. |
 | WB-ENV-07 | Medium | **RDP VISUAL CAPTURE BLOCKED** | RDP display capture remains unreliable during the current acceptance attempt. | The 11:53 TEST-01 capture failed with `IGraphicsCaptureItemInterop.CreateForMonitor` error `0x80070057`; at 14:03 its window capture was black and activation failed after a fresh app/window selection retry. No more GUI input was attempted. TEST-02's active `abedkilany` console session was not disconnected. SSH remains available. |
@@ -369,3 +369,42 @@ credential reissue, and cleanup. This is CI evidence only. The physical Host bin
 source commit `a7c85ef5617bca9345804106aa17457b2eaf858c`. Real authenticated
 two-device sync, offline/reconnect/conflict recovery, and physical backup,
 scheduling, integrity, retention and restore remain unexecuted.
+
+## Candidate and Defender update — 2026-11-16 17:43 UTC
+
+**WB-ACC-09 — still critical / ROOT CAUSE NOT CONFIRMED.** Defender scan-only
+queries show signature `1.463.329.0`, AM/Antivirus/real-time protection true,
+MAPS `2` and sample consent `1` on both machines. Detection history still
+contains Threat ID `2147731250`: TEST-01 initial detection
+`2026-11-15T20:10:00.859Z`, TEST-02 `2026-11-15T09:59:21.939Z`; both show
+`ActionSuccess=true`. Existing status reports `IsActive=false` and
+`DidThreatExecute=true`. A custom `-DisableRemediation` scan of each current
+Host executable returned `found no threats`, exit 0, with exact hash
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2` unchanged.
+This adds current-signature evidence but does not explain the historical event
+or establish a false positive. No sample submission receipt or Microsoft
+disposition exists. No code was changed, no quarantined file was restored, and
+no exclusion or security bypass was added.
+
+**WB-ACC-11 — still blocked.** The installed Client executables remain
+different despite sharing version `0.1.18+19`: TEST-01
+`CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`, TEST-02
+`FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`. The
+latest unified acceptance artifact is source `e756dcbb3cb58d8feca7e022e337f13ed398d5a5`,
+artifact ID `14246616073`, ZIP SHA-256
+`0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64`. It was
+not installed because doing so would touch the active Host before the security
+decision. The artifact build verified its Host manifest source commit and
+clean tracked tree; its embedded hash file was not extracted in this session.
+
+**WB-CI-02 — open intermittent test finding.** The full Host Engineering
+workflow for `e756dcbb` passed the assertion with `http=503`,
+`HOST_UNAVAILABLE`, in a 79-assertion suite (run `43906507047`). The prior
+`http=null` failure remains unexplained; no focused rerun or test weakening
+was performed.
+
+**No new confirmed product defect.** The owner decision required before
+further Host behavior execution is either a Microsoft security disposition for
+the exact hash or explicit acceptance of isolated lab execution with Defender
+left enabled. PR #6 remains Draft/unmerged; no Wave_2_C or `main` change was
+made.

@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current checkpoint (2026-11-16 14:44 UTC): both machines are reachable by SSH; Host/PostgreSQL are Running, local health is HTTP 200, and Host SHA-256 matches on both (`5a18c389…e1e5f2`). Mutual TCP 8443/3389 passes. Defender remains enabled with signature `1.463.328.0`. A Client-file manifest found five differing files despite both reporting version `0.1.18+19`; provenance is not established and no files were changed. CI on report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` subsequently completed with 11/11 checks successful. PR #6 remains Draft/unmerged. Client enrollment/sync, offline recovery, and backup/restore remain unverified. See the latest checkpoint below.
+Current checkpoint (2026-11-16 17:43 UTC): both machines are reachable by SSH, and both Host/PostgreSQL services are Running. Both Host executables hash to `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. Full candidate CI passed on `e756dcbb3cb58d8feca7e022e337f13ed398d5a5`; its Windows acceptance artifact is identified below. Client binaries still differ, and Defender's historical detection remains unresolved despite a clean non-remediating scan under signature `1.463.329.0`. Host behavior tests, real synchronization and product backup/restore remain blocked or unexecuted. PR #6 remains Draft/unmerged.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -10,8 +10,8 @@ Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-t
 Latest installer package installed on TEST-02: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (exact Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
-Latest fully passed report head: `e6d30b218128d2551f44a9d325e8e1a5363fc93f` (11/11 PR checks successful; report-only continuation relative to the installed Host source candidate).
-Last updated: 2026-11-16 14:52 UTC
+Latest complete product CI candidate: `e756dcbb3cb58d8feca7e022e337f13ed398d5a5` (ten workflows passed). Latest report head before this checkpoint: `b49b0211a6d7bd49dc25b2edc8507732cc1f6d73`; its documentation-only selector run kept all 11 required contexts green without rerunning the product suites.
+Last updated: 2026-11-16 17:43 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -818,3 +818,56 @@ passed, including Host API pairing/enrollment, extension package approval and
 recovery, credential reissue, and cleanup. Physical evidence remains tied to Host source commit
 `a7c85ef5617bca9345804106aa17457b2eaf858c`. Final status remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+## Candidate and Defender checkpoint — 2026-11-16 17:43 UTC
+
+The last complete product CI candidate is source commit
+`e756dcbb3cb58d8feca7e022e337f13ed398d5a5`. All ten associated workflows
+completed successfully: Durable Commands `43906507044`, Host Persistence
+`43906507034`, Windows Acceptance Package `43906507227`, Host Crash Recovery
+`43906507293`, Native Flutter/Extension Builder `43906507153`, Credential
+Lifecycle `43906507194`, Host API `43906507207`, Core Foundation `43906507364`,
+Host Engineering `43906507047`, and Host Security Investigation `43906507344`.
+The acceptance artifact is
+`ventio-wave2-windows-acceptance-e756dcbb3cb58d8feca7e022e337f13ed398d5a5`
+(artifact ID `14246616073`, 103,808,079 bytes, ZIP SHA-256
+`0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64`). The
+package job verified a clean tracked tree and that the Host payload manifest
+source commit matched the checked-out commit. Build versions: Windows Server
+2025 runner, Host Dart 3.13.7, Flutter 3.44.1, PostgreSQL 16.15, Inno Setup
+6.7.4, and VC++ runtime 14.51.36247.0. The artifact's embedded executable
+hash evidence was not extracted during this checkpoint; the physical Host
+hash below is recorded independently and is not presented as a fresh install
+from this artifact.
+
+At 17:24 UTC, SSH confirmed both machines as `VENTIO-TEST-01` and
+`VENTIO-TEST-02`; both Host/PostgreSQL services were Running with Automatic
+start and the dedicated `NT SERVICE` identities. Host SHA-256 was identical
+on both: `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`.
+The installed Client executables remain different: TEST-01
+`CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`, TEST-02
+`FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`; both
+report `0.1.18+19`. No unified installer was run because it would touch the
+active Host installation while the Defender finding remains unresolved.
+
+Defender scan-only inspection recorded signature `1.463.329.0`, AM service,
+Antivirus and real-time protection enabled, `MAPSReporting=2` and
+`SubmitSamplesConsent=1`. `Get-MpThreatDetection` still has Threat ID
+`2147731250` on both machines, with `ActionSuccess=true`; prior status reports
+`IsActive=false` and `DidThreatExecute=true`. A custom scan of the existing
+Host executable on each machine used `MpCmdRun -Scan -ScanType 3 -File <path>
+-DisableRemediation`; each returned exit 0 / `found no threats`, and the file
+hash and presence were unchanged. This does not erase or explain the historical
+execution/detection event. Root cause remains **NOT CONFIRMED**; no sample
+submission receipt or Microsoft disposition is available.
+
+The intermittent `WB-CI-02` assertion passed in Host Engineering run
+`43906507047`: `http=503`, `error=HOST_UNAVAILABLE`; the suite reported 79
+assertions passed. The prior failure remains a test flake with no confirmed
+cause; no assertion was changed and no focused rerun was started.
+
+No new product defect was reproduced or fixed. Physical Host behavior,
+authenticated API operations, complete Wave 1 upgrade and isolation tests,
+real Client enrollment/offline sync, scheduled product backup and disposable
+restore remain blocked or incomplete. B6 and the 22-capability physical audit
+remain open. Stop Host execution until a security decision is recorded.

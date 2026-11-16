@@ -8,7 +8,9 @@ Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106a
 Latest fully passed report head: `e6d30b218128d2551f44a9d325e8e1a5363fc93f` (11/11 PR checks successful; report-only continuation relative to the installed Host source candidate).
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-16
-Last updated: 2026-11-16 14:52 UTC
+Last updated: 2026-11-16 17:43 UTC
+
+Latest complete product CI candidate: `e756dcbb3cb58d8feca7e022e337f13ed398d5a5` (ten workflows passed; Windows package artifact ID `14246616073`, ZIP SHA-256 `0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64`). Latest report head before this checkpoint was `b49b0211a6d7bd49dc25b2edc8507732cc1f6d73`; its documentation-only run kept all 11 required contexts green and did not rerun product suites.
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -962,3 +964,132 @@ two-device synchronization, offline changes/reconnection/conflict handling,
 backup scheduling, integrity, retention, corruption and restore remain
 unexecuted. Current status remains **WAVE_2_B — PARTIAL VERIFICATION /
 BLOCKED**.
+
+## Final candidate checkpoint — 2026-11-16 17:43 UTC
+
+### Candidate identity and CI
+
+The latest full product verification source commit is
+`e756dcbb3cb58d8feca7e022e337f13ed398d5a5`. Its ten workflow runs all
+completed successfully:
+
+| Workflow | Run ID | Result |
+|---|---:|---|
+| Durable Commands | `43906507044` | PASS |
+| Host Persistence | `43906507034` | PASS |
+| Windows Acceptance Package | `43906507227` | PASS |
+| Host Crash Recovery | `43906507293` | PASS |
+| Native Flutter Client and Extension Builder | `43906507153` | PASS |
+| Credential Lifecycle | `43906507194` | PASS |
+| Host API | `43906507207` | PASS |
+| Core Foundation | `43906507364` | PASS |
+| Host Engineering Gate | `43906507047` | PASS |
+| Host Security Investigation | `43906507344` | PASS |
+
+The Windows package artifact is
+`ventio-wave2-windows-acceptance-e756dcbb3cb58d8feca7e022e337f13ed398d5a5`
+(ID `14246616073`, 103,808,079 bytes, ZIP SHA-256
+`0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64`). The
+package workflow verified the Host payload manifest source commit against the
+checked-out commit and a clean tracked tree. Its runner used Windows Server
+2025, Host Dart 3.13.7, Flutter 3.44.1, PostgreSQL 16.15, Inno Setup 6.7.4
+and VC++ runtime 14.51.36247.0. The artifact's embedded executable-hash file
+was not extracted in this checkpoint; no claim is made that either physical
+unified installation was freshly installed from this artifact.
+
+At 17:24 UTC, both physical Hosts were Running as Automatic services under
+their dedicated `NT SERVICE` identities. Both installed Host executables
+hashed to
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. The
+installed Client executables were not equivalent: TEST-01
+`CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`; TEST-02
+`FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`. Both
+report version `0.1.18+19`; the earlier manifest comparison found five
+different files of 16. No unified package was reinstalled because it would
+stop/update the Host while the exact Host hash remains under unresolved
+Defender investigation.
+
+### Defender evidence
+
+Read-only status on both machines: Defender AM, Antivirus and real-time
+protection enabled; intelligence `1.463.329.0`; `MAPSReporting=2` and
+`SubmitSamplesConsent=1`. Threat `2147731250` remains in detection history on
+both. TEST-01's record is timestamped `2026-11-15T20:10:00.859Z` with
+`ActionSuccess=true`; TEST-02's is `2026-11-15T09:59:21.939Z`, also with
+`ActionSuccess=true`. Both prior `Get-MpThreat` results reported
+`IsActive=false` and `DidThreatExecute=true`. These records establish a past
+Defender event involving the same hash, not that the current file is benign.
+
+A custom, non-remediating scan of each installed Host executable under
+intelligence `1.463.329.0` returned exit 0 / `found no threats`. SHA-256 was
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2` before
+and after; each file remained present. Microsoft documents
+`-DisableRemediation` as preventing post-detection actions for a custom scan;
+this scan therefore did not restore or approve a quarantined item. The clean
+result does not explain the historical `DidThreatExecute=true` records. No
+submission receipt or vendor disposition is recorded; **ROOT CAUSE NOT
+CONFIRMED**.
+
+### Focused intermittent CI finding
+
+Host Engineering run `43906507047` executed the test containing WB-CI-02 and
+logged `PASS: Changed migration manifest quarantines a running Host
+(http=503, error=HOST_UNAVAILABLE)`. The job completed 79 engineering-audit
+assertions. A historical run failed the same assertion with `http=null`;
+current evidence does not establish why it was intermittent. No test was
+weakened and no separate rerun was started. WB-CI-02 remains open pending a
+focused reproduction under an isolated supported PostgreSQL runner.
+
+### 22-capability evidence map
+
+The workflow IDs below are successful candidate CI suite executions at
+`e756dcbb`. They show which automated suites ran, not a per-capability physical
+acceptance result. No capability below has its complete Wave 2 B positive and
+negative acceptance matrix verified on the two Windows machines. The third
+column records that physical gap; the detailed test cases remain in the
+existing capability matrix above.
+
+| Capability | Candidate CI suites completed successfully | Physical positive/negative evidence |
+|---|---|---|
+| A12 | Host API `43906507207`; Native Flutter `43906507153` | NOT EXECUTED — authenticated field/permission cases blocked |
+| A11 | Core `43906507364`; Native Flutter `43906507153` | NOT EXECUTED — layouts and invalid-input cases blocked/manual |
+| K09 | Host API `43906507207`; Native Flutter `43906507153` | NOT EXECUTED — cross-release publication/rebase cases blocked |
+| D08 | Host API `43906507207`; Credential Lifecycle `43906507194` | NOT EXECUTED — import/export scope and revocation cases blocked |
+| J01 | Host API `43906507207`; Native Flutter `43906507153` | NOT EXECUTED — physical CSV positive/negative cases blocked |
+| J03 | Durable Commands `43906507044`; Host Persistence `43906507034`; Host API `43906507207` | NOT EXECUTED — source-row correlation, retry/cancel/restart cases blocked |
+| K08 | Host API `43906507207`; Native Flutter `43906507153` | NOT EXECUTED — saved-view authorization/cursor cases blocked |
+| M01 | Host API `43906507207`; Credential Lifecycle `43906507194` | NOT EXECUTED — hierarchy, CAS and credential ceilings blocked |
+| M02 | Host API `43906507207` | NOT EXECUTED — persisted settings and unauthorized edits blocked |
+| M05 | Host Crash Recovery `43906507293`; Host Engineering `43906507047` | NOT EXECUTED — Windows approval, schedule, retention and interruption blocked |
+| M09 | Host Crash Recovery `43906507293`; Host Engineering `43906507047` | NOT EXECUTED — disposable physical restore and authority reconciliation blocked |
+| B09 | Native Flutter `43906507153` | NOT EXECUTED — cross-device saved-search behavior blocked/manual |
+| C08 | Native Flutter `43906507153` | NOT EXECUTED — role/scope workspace behavior blocked/manual |
+| C09 | Native Flutter `43906507153` | NOT EXECUTED — offline preferences/conflict/retry blocked/manual |
+| C12 | Core `43906507364`; Native Flutter `43906507153` | NOT EXECUTED — report-card UI and bounds blocked/manual |
+| F05 | Host API `43906507207`; Native Flutter `43906507153` | NOT EXECUTED — package revocation/digest/filter denials blocked |
+| H04 | Host API `43906507207`; Host Persistence `43906507034` | NOT EXECUTED — physical history/deleted-ID/redaction cases blocked |
+| B02 | Core `43906507364`; Host API `43906507207` | NOT EXECUTED — physical v1/legacy and unsupported-version matrix not run |
+| K10 | Durable Commands `43906507044`; Host API `43906507207` | NOT EXECUTED — physical lifecycle effects and invalid-input cases blocked |
+| L01 | Durable Commands `43906507044`; Host Persistence `43906507034`; Host Crash Recovery `43906507293` | NOT EXECUTED — physical worker fencing/lease/cancel cases blocked |
+| D09 | Credential Lifecycle `43906507194`; Host API `43906507207` | NOT EXECUTED — physical pairing, credential and revocation matrix blocked |
+| J04 | Host API `43906507207`; Host Security `43906507344` | PARTIAL NEGATIVE ONLY — unauthenticated `/api/v1/session` returned 401 historically; route/body/tenant/outbound-denial matrix not run |
+
+The latest report-only CI head was `b49b0211a6d7bd49dc25b2edc8507732cc1f6d73`;
+its documentation-only selection did not rerun product suites. No full CI
+cycle was initiated for this checkpoint.
+
+### Remaining acceptance disposition
+
+**BLOCKED:** Do not execute additional Host behavior tests using hash
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2` until
+the owner records either a Microsoft security disposition for the exact hash
+or explicit risk acceptance for isolated lab execution with Defender enabled.
+After that decision, the two Clients still need one approved package installed
+and file-manifest equality verified before a real sync test.
+
+**MANUAL OWNER VALIDATION REQUIRED:** Visible Windows Client first-run and
+certificate pin/pairing; independent user login on each machine; offline
+create/edit then reconnect and verify receipts/conflicts/no duplicates;
+protected-field masking; workspace/saved-view/report/history navigation and
+permissions/scaling; local backup approval/elevation. Product backup scheduling
+and full restore also remain unexecuted.

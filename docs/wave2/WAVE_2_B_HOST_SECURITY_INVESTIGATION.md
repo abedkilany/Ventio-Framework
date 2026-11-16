@@ -281,6 +281,50 @@ Defender/Code Integrity were not disabled, no exclusions or allow rules were add
 and no Wave 2 C or merge was performed. Signing can improve deployment provenance
 but by itself would not establish the original file's safety or clear this finding.
 
+## Current candidate and updated Defender scan — 2026-11-16 17:43 UTC
+
+The latest complete product CI candidate is `e756dcbb3cb58d8feca7e022e337f13ed398d5a5`.
+All ten associated workflows passed; Host Engineering run `43906507047`
+included the WB-CI-02 assertion and reported `http=503`,
+`HOST_UNAVAILABLE`. The Windows acceptance artifact is ID `14246616073`,
+103,808,079 bytes, ZIP SHA-256
+`0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64`. The
+package job checked that the Host payload manifest source commit matched the
+checked-out commit and the tracked tree was clean. Its embedded hash evidence
+was not extracted here. Both physical Host files independently hash to the
+reported `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`;
+this does not establish installation from the latest artifact.
+
+At 17:24 UTC, `Get-MpComputerStatus` reported Antivirus, AM service and
+real-time protection enabled on TEST-01 and TEST-02; intelligence was
+`1.463.329.0`. `Get-MpPreference` returned `MAPSReporting=2` and
+`SubmitSamplesConsent=1` (automatic safe-sample submission policy). This is a
+policy setting, not proof that either file was transmitted. `Get-MpThreatDetection`
+still returned Threat ID `2147731250` on both machines with `ActionSuccess=true`:
+TEST-01 initial detection `2026-11-15T20:10:00.859Z`, last status change
+`20:11:32.332Z`; TEST-02 initial detection `2026-11-15T09:59:21.939Z`, last
+status change `09:59:45.177Z`. Both resources identify the current Host path;
+TEST-01 also records a process resource. Existing `Get-MpThreat` status was
+`IsActive=false` and `DidThreatExecute=true`.
+
+One new custom scan per machine used the exact current Host executable with
+`MpCmdRun -Scan -ScanType 3 -File <path> -DisableRemediation`. Both returned
+exit 0 and `found no threats`; before/after hashes were identical, and both
+files remained present. Microsoft documents that `-DisableRemediation` applies
+no actions after detection and that custom-scan detections are shown in command
+output rather than the event log. The use here did not disable detection,
+change signatures or restore quarantined content. This current result still
+does not explain the historical Defender event or `DidThreatExecute=true`.
+
+The original security root cause remains **ROOT CAUSE NOT CONFIRMED**. No
+sample-submission receipt, Microsoft disposition, or proof that Defender sent
+a sample is available. The Host executable was not executed by these scans,
+and no additional Host API, database, migration, backup or sync behavior test
+was performed. Host physical acceptance remains blocked pending a Microsoft
+disposition for the exact hash or explicit owner risk acceptance for isolated
+testing with Defender left enabled. The current Client hashes also differ, so
+there is no common installed Client candidate for physical synchronization.
+
 ## Primary references
 
 - [Microsoft MpCmdRun commands and scan result semantics](https://learn.microsoft.com/en-us/defender-endpoint/command-line-arguments-microsoft-defender-antivirus)

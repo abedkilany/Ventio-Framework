@@ -3,9 +3,9 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 14:52 UTC
+Last updated: 2026-11-16 17:43 UTC
 
-Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Independent rebuilding recreates the reported hash exactly, but current Defender history on both physical machines records Threat ID `2147731250` (`Trojan:Win32/Bearfoos.A!ml`) for the exact Host hash. Both entries report `DidThreatExecute=true`; neither the classifier cause nor false-positive status is established. Defender and real-time protection remain enabled. No quarantine item was restored or exclusion added. See [the investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md) and the latest physical checkpoint below.
+Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Defender's current signature `1.463.329.0` cleanly scanned the exact Host executable on both machines using a non-remediating custom scan, but detection history still records Threat ID `2147731250` (`Trojan:Win32/Bearfoos.A!ml`) and `DidThreatExecute=true` on both. Neither the classifier cause nor false-positive status is established. Defender and real-time protection remain enabled. No quarantine item was restored or exclusion added. Further Host execution is blocked pending a Microsoft disposition for the exact hash or explicit owner risk acceptance for isolated testing with Defender enabled.
 
 This candidate is not submitted as verified or production-ready. The current
 physical Host artifact on TEST-02 was built from exact PR head
@@ -21,6 +21,12 @@ Real Client authentication/enrollment, two-device/offline synchronization,
 product backup/scheduling/restore, and remaining database/security and GUI
 acceptance gates are incomplete. Final status remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+The latest complete product CI candidate is source commit
+`e756dcbb3cb58d8feca7e022e337f13ed398d5a5`; its ten associated workflows
+passed. Windows acceptance artifact ID `14246616073` has ZIP SHA-256
+`0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64`. The
+physical Host hash on both machines is `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`, but this checkpoint did not install that artifact or extract its embedded hash file. The two installed Client executable hashes differ: TEST-01 `CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`; TEST-02 `FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`. Therefore there is not yet one common verified physical Client candidate.
 
 ## Candidate and environment
 
@@ -796,3 +802,69 @@ verified. The required manual visible Client and authorization flows remain
 **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. The acceptance candidate
 remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**; Wave_2_C is not
 recommended.
+
+## Final physical acceptance checkpoint — 2026-11-16 17:43 UTC
+
+### PASSED
+
+- Exact lab identity and service state were confirmed by SSH at 17:24 UTC:
+  TEST-01/Codex-1 and TEST-02/Codex-3; Windows 11 Pro x64 build 26300;
+  VentioHost and VentioPostgres Running/Automatic under their dedicated
+  `NT SERVICE` identities.
+- The last complete product candidate at `e756dcbb3cb58d8feca7e022e337f13ed398d5a5`
+  passed ten GitHub Actions workflows. The Windows package artifact is
+  `14246616073` (103,808,079 bytes; ZIP SHA-256
+  `0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64`).
+- Both installed Host executables had SHA-256
+  `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`.
+- A custom Defender scan on each exact Host file under signature `1.463.329.0`
+  returned exit 0 / `found no threats`; its non-remediating option left the
+  file hash and presence unchanged. This is a current static result only.
+- WB-CI-02 passed within the full Host Engineering run: `http=503`,
+  `HOST_UNAVAILABLE`, 79 audit assertions passed.
+- Selected earlier physical TEST-02 checks remain valid as historical
+  evidence: migrations 001–040 and checksums, selected RLS/FORCE RLS and
+  least-privilege checks, runtime and Recovery Authority admission checks,
+  orderly service restart and controlled reboot persistence. They do not
+  satisfy the full B2 matrix or upgrade/restore requirements.
+
+### FAILED
+
+- No new reproducible product defect was confirmed in this checkpoint. WB-CI-02
+  remains an intermittent test failure with cause unconfirmed, not a confirmed
+  product defect. Previously fixed package/diagnostic defects remain recorded
+  in the defect register.
+
+### BLOCKED
+
+- **Security decision:** historical Defender detection remains unexplained.
+  The owner must provide a Microsoft disposition for the exact Host hash or
+  explicitly accept isolated lab execution of this hash while Defender remains
+  enabled. No Host API, migration, backup, restore or synchronization behavior
+  test was run after the fresh detection review.
+- **Candidate equality:** the Client hashes differ despite equal file version;
+  no reinstall or file replacement was performed. The candidate installer
+  embeds Host and Client in one installation, so equality must be established
+  only after the Defender decision and a verified safe update path.
+- Full physical B2 cross-scope/RLS, Wave 1 upgrade and identity tests; B3
+  authenticated API/operations/data processing; B4 real offline-first
+  synchronization; B5 product backup schedule, integrity, retention,
+  interruption and full disposable restore; and B6 final audit remain open.
+- The 22-capability matrix and the CI run mapping are in
+  [test results](WAVE_2_B_TEST_RESULTS.md). CI suite success is not physical
+  capability acceptance.
+
+### MANUAL OWNER VALIDATION REQUIRED
+
+After the security decision and common Client candidate are established, the
+owner must visually validate: Client first-run and a visible main window on
+both devices; certificate fingerprint pinning and pairing with independent
+identities; offline create/edit and reconnect with receipts, conflicts and
+duplicate prevention; protected-field masking; workspace, saved-view, report,
+history and deleted-record navigation; permissions and display scaling; and
+any local backup approval/elevation screen. These GUI scenarios were not
+performed in this SSH-only checkpoint.
+
+PR #6 remains Draft and unmerged. No Wave_2_C work or `main` merge occurred.
+No full CI cycle was initiated for this report checkpoint. Final status remains
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
