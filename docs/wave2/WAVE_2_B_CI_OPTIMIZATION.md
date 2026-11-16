@@ -146,7 +146,11 @@ documentation-only workflow runs on the measured commit are:
 | Native Flutter Client | [43912812050](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812050) |
 | Windows Acceptance Package | [43912812255](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812255) |
 
-The final report-only commit is also being validated through the same
-documentation-only path. Final Wave 2 B acceptance must continue to use the
-manual full-verification workflow and cannot rely on suites skipped by this
-optimization.
+The report-and-results update at
+`b194bfc1d6a0f357113d117529d78c7a10628204` was also verified through the
+documentation-only path: all ten workflows and 11 existing required contexts
+passed, all eleven heavy suite jobs were skipped, and the run used 1.9
+runner-minutes over 0.3 wall-clock minutes. This confirms subsequent report
+updates stay on the lightweight path. Final Wave 2 B acceptance must continue
+to use the manual full-verification workflow and cannot rely on suites skipped
+by this optimization.
