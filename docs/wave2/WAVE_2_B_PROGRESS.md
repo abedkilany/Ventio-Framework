@@ -896,4 +896,4 @@ The last installed Client hashes remain different despite the same reported vers
 
 The e756dcbb3cb58d8feca7e022e337f13ed398d5a5 GitHub artifact (ZIP SHA-256 0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64) could not be fully retrieved to TEST-01: bounded HTTPS transfers timed out with incomplete data. Partial chunks were deleted after confirming no downloader remained. The ZIP hash was therefore not verified on either test computer, and no candidate installer was run. The physical installed Hosts/Clients are not mapped to one verified common source commit.
 
-No CI rerun or product-code change was made in this checkpoint. PR #6 remains Draft and unmerged.
+No full product CI rerun or product-code change was made. The documentation-only push at 8a8575c0622375c7f7162adb256e5c5cf2c2334c triggered lightweight CI: 11 gate jobs and 10 change selectors succeeded; all 11 expensive suite jobs were skipped. PR #6 remains Draft and unmerged.

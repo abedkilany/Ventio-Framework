@@ -1109,7 +1109,7 @@ and full restore also remain unexecuted.
 | Authenticated Host operations, migrations, RLS, tenant isolation | **NOT EXECUTED / BLOCKED** | No supported authorized credential was available through SSH-only flow. Protected credential stores were not read; no local-only security boundary was bypassed. |
 | Two-device sync, offline/conflict/recovery | **NOT EXECUTED / BLOCKED** | TEST-02 execution halted for the additional Defender detection; Client binaries also remain different. |
 | Backup scheduling, approval, integrity, retention, restore | **NOT EXECUTED / MANUAL OWNER VALIDATION REQUIRED** | TEST-01 had no VentioHostBackups task or backup set. The supported path requires a Host-authorized operation and independent local administrator approval; no approval was bypassed. |
-| CI | **NO NEW RUN** | The full e756dcbb product matrix remains the latest successful candidate CI evidence. No product changes were made. |
+| CI | **DOC-ONLY CHECKS PASSED** | Commit 8a8575c0622375c7f7162adb256e5c5cf2c2334c triggered lightweight workflows: 11 gate jobs and 10 selectors succeeded; all 11 expensive suite jobs were skipped. The full e756dcbb product matrix remains the latest successful candidate CI evidence; no product changes were made. |
 
 The current physical tests exercised existing installations, not a fresh installation from the e756dcbb artifact. The installed Host source commit is not established. The physical results above do not complete any of the 22 capability acceptance matrices.
 

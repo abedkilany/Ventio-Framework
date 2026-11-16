@@ -895,6 +895,6 @@ The owner has accepted the historical Bearfoos-classified Host hash for isolated
 2. Complete visible Client authentication/pairing with independent test identities, then validate offline edits, reconnect, conflicts, receipts, duplicate prevention, protected fields, workspaces, views and history.
 3. Use the visible Host operations flow to authorize backup policy and local Windows approval; then repeat scheduled backup, integrity/retention and disposable restore tests.
 
-No product defect was confirmed or fixed. No CI was rerun for this checkpoint. The latest complete product CI candidate remains e756dcbb3cb58d8feca7e022e337f13ed398d5a5, while the exact source commit of the running physical Host is not established. The 22-capability physical acceptance matrix remains incomplete. PR #6 stays Draft and unmerged; no Wave_2_C or main work has started.
+No product defect was confirmed or fixed. No full product CI was rerun. The documentation-only report commit 8a8575c0622375c7f7162adb256e5c5cf2c2334c triggered lightweight CI: 11 gate jobs and 10 selectors succeeded, while all 11 expensive suite jobs were skipped. The latest complete product CI candidate remains e756dcbb3cb58d8feca7e022e337f13ed398d5a5, while the exact source commit of the running physical Host is not established. The 22-capability physical acceptance matrix remains incomplete. PR #6 stays Draft and unmerged; no Wave_2_C or main work has started.
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
