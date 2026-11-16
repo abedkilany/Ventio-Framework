@@ -5,10 +5,10 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`; installed Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`
-Latest fully passed report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 checks); newer report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` currently has 10/11 checks successful and Host API running.
+Latest fully passed report head: `e6d30b218128d2551f44a9d325e8e1a5363fc93f` (11/11 PR checks successful; report-only continuation relative to the installed Host source candidate).
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-16
-Last updated: 2026-11-16 14:48 UTC
+Last updated: 2026-11-16 14:52 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -952,7 +952,7 @@ Wave 2 B acceptance gate.
 | Installed Client identity | BLOCKED — PROVENANCE DIFFERENCE | Both show `0.1.18+19`; executable hashes differ (TEST-01 `CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4`, TEST-02 `FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208`). A 16-file manifest found five mismatches: executable, `data\app.so`, `dartjni.dll`, `flutter_secure_storage_windows_plugin.dll`, and `printing_plugin.dll`. TEST-01 exact Client package provenance is unverified. |
 | Client process/UI | BLOCKED | TEST-01 process 11020 is responsive but has no main-window handle; TEST-02 has no Client process. No authenticated pairing or session was used. |
 | Backup/scheduler presence | NOT PRESENT | No Ventio scheduled task or `C:\ProgramData\Ventio\Backups` directory on either machine. No approval bypass or direct backup was attempted. |
-| GitHub Actions on report head | IN PROGRESS | `e6d30b218128d2551f44a9d325e8e1a5363fc93f`: 10 of 11 PR checks successful; Host API completed secure device pairing/enrollment and is running extension package approval/scope/recovery tests, with trusted credential reissue and cleanup pending. It is not yet an all-green head. |
+| GitHub Actions on report head | PASS — 11/11 | `e6d30b218128d2551f44a9d325e8e1a5363fc93f`; Host API pairing/enrollment, extension package approval/scope/recovery, credential reissue, and disposable PostgreSQL cleanup completed successfully. Windows Acceptance Package run `43883177693` uploaded artifact `14233342335` (103,803,473 bytes; ZIP SHA-256 `ccfe42f91b8dd653a0c92223e421ad92b2fa419f131b49c198b50929ba61b22e`). The artifact was not installed on the physical hosts. |
 
 No Client or Host binary was replaced. The unified machine-wide installation
 contains the running Host, and the separate Client installer shares the same

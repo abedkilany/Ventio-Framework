@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 14:48 UTC
+Last updated: 2026-11-16 14:52 UTC
 
 Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Independent rebuilding recreates the reported hash exactly, but current Defender history on both physical machines records Threat ID `2147731250` (`Trojan:Win32/Bearfoos.A!ml`) for the exact Host hash. Both entries report `DidThreatExecute=true`; neither the classifier cause nor false-positive status is established. Defender and real-time protection remain enabled. No quarantine item was restored or exclusion added. See [the investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md) and the latest physical checkpoint below.
 
@@ -14,10 +14,9 @@ Host SHA-256. Host/PostgreSQL are Running on both machines; their Host
 executables match the exact hash. TEST-01 SSH and cross-host pinned TLS are
 restored. Both machines return health HTTP 200; uncredentialed session requests
 return 401. Defender protections remain enabled, and the event history is
-recorded below. The latest fully successful report head is
-`b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 checks). Newer report head
-`e6d30b218128d2551f44a9d325e8e1a5363fc93f` has 10/11 PR checks successful,
-with Host API still running; PR #6 remains open, Draft and unmerged.
+recorded below. GitHub Actions completed with 11/11 PR checks successful on
+report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f`; PR #6 remains open,
+Draft and unmerged.
 Real Client authentication/enrollment, two-device/offline synchronization,
 product backup/scheduling/restore, and remaining database/security and GUI
 acceptance gates are incomplete. Final status remains
@@ -788,10 +787,9 @@ replaced because the unified installation also contains the active Host and
 the Client installer has shared AppId/previous-install-directory behavior.
 
 No Ventio scheduled task or documented backup directory is present on either
-machine. The latest CI head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` has 10
-of 11 checks successful; Host API completed device pairing/enrollment and is
-running extension package approval/scope/recovery tests, with credential
-reissue and cleanup pending.
+machine. All 11 PR checks passed on CI head
+`e6d30b218128d2551f44a9d325e8e1a5363fc93f`, including pairing/enrollment,
+extension package approval and recovery, credential reissue, and cleanup.
 Authenticated two-device sync, offline/conflict recovery, and physical backup
 approval, scheduling, integrity, corruption, retention and restore are not
 verified. The required manual visible Client and authorization flows remain

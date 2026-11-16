@@ -2,7 +2,7 @@
 
 Latest tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 14:48 UTC
+Last updated: 2026-11-16 14:52 UTC
 Fresh SSH checks confirm both Windows 11 Pro build 26300 machines run Host/PostgreSQL 16.15 and the exact Host hash; local health is 200. Both services use their dedicated virtual service identities. Anonymous operation preparation and a fake bearer session are rejected with 401. Defender remains enabled with current intelligence `1.463.328.0` on both; the historical finding remains **ROOT CAUSE NOT CONFIRMED**. TCP 8443/3389 connect in both directions. A read-only manifest found five different Client payload files between machines despite the same file version; authenticated Client sync and physical backup/restore remain unexecuted.
 Branch: `feature/wave-2-a`; Draft PR #6 remains open and unmerged.
 This register separates a confirmed package defect from environment and
@@ -363,10 +363,9 @@ behavior, so running it against the current installation without a verified
 isolation plan could overwrite Host-directory files.
 
 GitHub Actions on report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f`
-currently shows 10 of 11 PR checks successful; `host-api` completed device
-pairing/enrollment and is running extension package approval/scope/recovery
-tests. Trusted credential reissue and cleanup steps are pending.
-This is not a complete CI pass. The physical Host binaries remain tied to
+completed with all 11 of 11 PR checks successful, including device
+pairing/enrollment, extension package approval/scope/recovery, trusted
+credential reissue, and cleanup. This is CI evidence only. The physical Host binaries remain tied to
 source commit `a7c85ef5617bca9345804106aa17457b2eaf858c`. Real authenticated
 two-device sync, offline/reconnect/conflict recovery, and physical backup,
 scheduling, integrity, retention and restore remain unexecuted.

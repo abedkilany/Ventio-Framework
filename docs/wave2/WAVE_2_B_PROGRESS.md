@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current checkpoint (2026-11-16 14:44 UTC): both machines are reachable by SSH; Host/PostgreSQL are Running, local health is HTTP 200, and Host SHA-256 matches on both (`5a18c389…e1e5f2`). Mutual TCP 8443/3389 passes. Defender remains enabled with signature `1.463.328.0`. A Client-file manifest found five differing files despite both reporting version `0.1.18+19`; provenance is not established and no files were changed. CI on report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` has 10/11 checks successful with Host API still running. PR #6 remains Draft/unmerged. Client enrollment/sync, offline recovery, and backup/restore remain unverified. See the latest checkpoint below.
+Current checkpoint (2026-11-16 14:44 UTC): both machines are reachable by SSH; Host/PostgreSQL are Running, local health is HTTP 200, and Host SHA-256 matches on both (`5a18c389…e1e5f2`). Mutual TCP 8443/3389 passes. Defender remains enabled with signature `1.463.328.0`. A Client-file manifest found five differing files despite both reporting version `0.1.18+19`; provenance is not established and no files were changed. CI on report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` subsequently completed with 11/11 checks successful. PR #6 remains Draft/unmerged. Client enrollment/sync, offline recovery, and backup/restore remain unverified. See the latest checkpoint below.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -10,8 +10,8 @@ Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-t
 Latest installer package installed on TEST-02: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (exact Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
-Latest fully passed report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 checks); newer report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f` currently has 10/11 checks successful and Host API running.
-Last updated: 2026-11-16 14:48 UTC
+Latest fully passed report head: `e6d30b218128d2551f44a9d325e8e1a5363fc93f` (11/11 PR checks successful; report-only continuation relative to the installed Host source candidate).
+Last updated: 2026-11-16 14:52 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -813,9 +813,8 @@ Neither computer has a Ventio scheduled task or the documented backup
 directory. No Host-authorized backup or restore was attempted without the
 required authenticated approval path.
 
-On report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f`, 10 of 11 PR checks
-are successful; Host API completed device pairing/enrollment and is running
-extension package approval/scope/recovery tests, with credential reissue and
-cleanup pending. Physical evidence remains tied to Host source commit
+On report head `e6d30b218128d2551f44a9d325e8e1a5363fc93f`, all 11 PR checks
+passed, including Host API pairing/enrollment, extension package approval and
+recovery, credential reissue, and cleanup. Physical evidence remains tied to Host source commit
 `a7c85ef5617bca9345804106aa17457b2eaf858c`. Final status remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
