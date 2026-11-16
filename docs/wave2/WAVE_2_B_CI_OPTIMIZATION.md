@@ -106,10 +106,24 @@ Host, database/security, shared Core, broad CI/security changes, and forced full
 verification. All workflow YAML files are parsed locally and all existing
 required job IDs are checked against their new gate jobs.
 
-Actual GitHub Actions execution after this optimization is being recorded in
-the follow-up update to this report. A first run is expected to execute all
-suites because the workflow and selector configuration itself changed. A
-subsequent documentation-only update is used to verify that only the lightweight
-selector/gate jobs execute. Final Wave 2 B acceptance must continue to use the
-manual full-verification workflow and cannot rely on suites skipped by this
+The first valid configuration run completed on
+`e756dcbb3cb58d8feca7e022e337f13ed398d5a5`. Because this commit changed workflow
+and selector configuration, all ten suites were selected. All ten workflows
+and all 11 existing required check contexts succeeded. The run contained 32
+jobs, used 114.1 summed runner-minutes, and completed in 32.8 wall-clock
+minutes. [Host API run](https://github.com/abedkilany/Ventio-Framework/actions/runs/43906507207)
+and the other nine workflow runs are attached to this exact PR head.
+
+Two earlier workflow-configuration attempts failed before test jobs started:
+the first had a duplicate YAML key in the selector, and the second passed an
+empty string where GitHub required a boolean input. Both issues were corrected;
+the selector/workflow unit tests and YAML duplicate-key parse then passed. No
+product tests or security assertions were removed or changed.
+
+A documentation-only update is now being used to exercise the post-optimization
+path against the newly established green baseline. Its expected result is ten
+lightweight selectors, the preserved required-check gates, and skipped heavy
+suite jobs; the exact run totals and commit will be added after Actions reports
+completion. Final Wave 2 B acceptance must continue to use the manual
+full-verification workflow and cannot rely on suites skipped by this
 optimization.
