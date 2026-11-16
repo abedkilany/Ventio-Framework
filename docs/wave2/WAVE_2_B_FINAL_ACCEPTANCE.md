@@ -868,3 +868,33 @@ performed in this SSH-only checkpoint.
 PR #6 remains Draft and unmerged. No Wave_2_C work or `main` merge occurred.
 No full CI cycle was initiated for this report checkpoint. Final status remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+## Latest acceptance addendum — 2026-11-16
+
+The owner has accepted the historical Bearfoos-classified Host hash for isolated laboratory execution with Defender enabled. This is a limited lab decision only. **ROOT CAUSE NOT CONFIRMED** remains the security conclusion for that binary.
+
+### PASSED
+
+- TEST-01 Host liveness and physical negative authentication/authorization contract checks.
+- TEST-01 controlled Host service restart and actual Host child-process crash recovery.
+- TEST-01 PostgreSQL 16 service restart with dependent Host recovery; pg_isready and Host health both recovered.
+- TEST-01 Windows reboot persistence and SSH return in 45.2 seconds; Host and PostgreSQL returned as Automatic services under their expected service identities.
+- No new Defender alert on TEST-01 during these checks.
+
+### BLOCKED
+
+- **TEST-02:** a separate severe Defender real-time detection Trojan:Win64/ThemidaPacked!MTB (Threat ID 2147889282) was successfully quarantined. The affected executable, Startup link and scheduled task were absent in read-only follow-up. TEST-02 must not execute further test packages until owner-led security clearance. This is not the accepted Bearfoos lab risk.
+- **Candidate equality:** Client hashes differ. The only local installer inspected on TEST-02 identifies source commit 17b014..., not the latest e756dcbb candidate. Retrieval of the e756dcbb ZIP to TEST-01 timed out incomplete, so no candidate installer was executed and no common physical build is verified.
+- **Authenticated Host API, fresh migrations/upgrade, RLS/tenant isolation and positive data-operation tests:** not executed because the supported credential and authorization path is not available to SSH-only automation; protected credential stores were not read.
+- **Real two-device offline synchronization:** not executed while TEST-02 is security-blocked and the Clients are not equivalent.
+- **Product backup approval, scheduling, retention, integrity and disposable restore:** not executed. The required approved Host operation and local administrator approval were not created or bypassed.
+
+### MANUAL OWNER VALIDATION REQUIRED
+
+1. Clear TEST-02 through the owner's approved security process and confirm it is eligible for testing; do not restore Defender-quarantined files.
+2. Complete visible Client authentication/pairing with independent test identities, then validate offline edits, reconnect, conflicts, receipts, duplicate prevention, protected fields, workspaces, views and history.
+3. Use the visible Host operations flow to authorize backup policy and local Windows approval; then repeat scheduled backup, integrity/retention and disposable restore tests.
+
+No product defect was confirmed or fixed. No CI was rerun for this checkpoint. The latest complete product CI candidate remains e756dcbb3cb58d8feca7e022e337f13ed398d5a5, while the exact source commit of the running physical Host is not established. The 22-capability physical acceptance matrix remains incomplete. PR #6 stays Draft and unmerged; no Wave_2_C or main work has started.
+
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**

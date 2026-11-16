@@ -871,3 +871,29 @@ authenticated API operations, complete Wave 1 upgrade and isolation tests,
 real Client enrollment/offline sync, scheduled product backup and disposable
 restore remain blocked or incomplete. B6 and the 22-capability physical audit
 remain open. Stop Host execution until a security decision is recorded.
+
+## Owner risk acceptance and resumed physical checks — 2026-11-16
+
+The owner explicitly accepted the historical Trojan:Win32/Bearfoos.A!ml lab risk for Host SHA-256 5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2, with Defender left enabled. This authorizes isolated lab execution only; the historical root cause remains **NOT CONFIRMED**, and this is not a false-positive or production-safety determination. No Defender setting was changed and no quarantined file was restored.
+
+### Passed on TEST-01 via SSH
+
+- Defender real-time protection remained enabled; no new Defender event was recorded during the service, crash, PostgreSQL, or OS restart checks.
+- The existing Host executable remained at SHA-256 5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2. Host and PostgreSQL ran automatically as NT SERVICE\VentioHost and NT SERVICE\VentioPostgres.
+- /healthz returned HTTP 200 with {"apiVersion":1,"status":"alive"}. Physical negative API checks returned 401 for missing/invalid bearer credentials and readiness, 400 for a query-string credential, and 405 for wrong methods.
+- A controlled Host service restart passed. A controlled crash of the actual ventio_host.exe child (PID 1992) was recovered by the Windows service manager: Host child PID changed to 2188, the service remained Running, PostgreSQL remained Running, and /healthz returned 200.
+- A PostgreSQL service restart also restarted its dependent Host service. PostgreSQL 16 returned to pg_isready success on 127.0.0.1:54329; Host returned to HTTP 200; both service processes were replaced; no new Defender event appeared.
+- After an authorized TEST-01 reboot, SSH returned in 45.2 seconds. Both services were Running/Automatic under their expected service identities; PostgreSQL accepted connections, Host health returned 200, unauthenticated session discovery remained 401, and the Host hash was unchanged.
+- Full authenticated operations, migration ledger, RLS, tenant isolation, and data processing were not attempted: they require the supported credential and client authorization path. No credentials were read or recovered.
+
+### TEST-02 security blocker
+
+Read-only Defender evidence on TEST-02 shows a separate Severe, concrete real-time detection: Threat ID 2147889282, Trojan:Win64/ThemidaPacked!MTB. Event 1116 was recorded at 2026-11-16T13:16:22.644Z; event 1117 at 13:17:18.156Z reports successful Quarantine with error code 0. The event resources include IntelRapid.exe, its Startup link, a scheduled task, and TaskCache registry entries. Read-only follow-up found the executable, Startup link, and task absent. No file was restored and no cleanup was attempted. This is separate from the owner-accepted Ventio hash; TEST-02 is **BLOCKED for further execution** pending owner-led security clearance. No causation or false-positive conclusion is made.
+
+### Candidate mismatch and artifact transfer
+
+The last installed Client hashes remain different despite the same reported version 0.1.18+19: TEST-01 CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4; TEST-02 FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208. The installer present on TEST-02's Desktop is hash e117f4e762ecbdbbf2e0a3b6649fc6887101f5cf08907b293a1cbc929013b020, build evidence source commit 17b014125b695e3242e2d9b50b3eb9732a8c5fcb, Dart 3.12.1. It is not the e756dcbb acceptance artifact and was not run.
+
+The e756dcbb3cb58d8feca7e022e337f13ed398d5a5 GitHub artifact (ZIP SHA-256 0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64) could not be fully retrieved to TEST-01: bounded HTTPS transfers timed out with incomplete data. Partial chunks were deleted after confirming no downloader remained. The ZIP hash was therefore not verified on either test computer, and no candidate installer was run. The physical installed Hosts/Clients are not mapped to one verified common source commit.
+
+No CI rerun or product-code change was made in this checkpoint. PR #6 remains Draft and unmerged.

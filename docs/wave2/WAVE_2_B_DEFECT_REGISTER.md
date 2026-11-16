@@ -408,3 +408,25 @@ further Host behavior execution is either a Microsoft security disposition for
 the exact hash or explicit acceptance of isolated lab execution with Defender
 left enabled. PR #6 remains Draft/unmerged; no Wave_2_C or `main` change was
 made.
+
+## Resumed physical verification checkpoint — 2026-11-16
+
+The owner's lab-only risk acceptance permits TEST-01 use of the historical Host hash with Defender enabled. WB-ACC-09 remains **ROOT CAUSE NOT CONFIRMED** and is not a production clearance. This supersedes the earlier instruction to pause all use of that exact hash, only within this isolated lab scope.
+
+### WB-ACC-11 — Client candidate equality remains blocked
+
+TEST-01 and TEST-02 still report version 0.1.18+19 but have different Client executable hashes (CD9DFA98CD03A76C2CFC7F8CAD4C570FB963E141B91FD5D19124A4C3206D6BD4 and FED4BBAE863E9A6DC150D6DEFCAEE3460938C5103E188CD6A663A78194DE8208). TEST-02's local installer hash e117f4e762ecbdbbf2e0a3b6649fc6887101f5cf08907b293a1cbc929013b020 has build evidence for commit 17b014125b695e3242e2d9b50b3eb9732a8c5fcb, not the latest e756dcbb candidate. Do not treat these artifacts as equivalent.
+
+### WB-ACC-12 — TEST-02 additional severe Defender detection
+
+**OPEN — ENVIRONMENT SECURITY BLOCKER; NOT A VENTIO DEFECT.** Defender event 1116 at 2026-11-16T13:16:22.644Z records Threat ID 2147889282, Trojan:Win64/ThemidaPacked!MTB, Severity Severe, concrete real-time detection. Event 1117 at 13:17:18.156Z reports Quarantine succeeded with error code 0. Recorded resources include IntelRapid.exe, its Startup link, a scheduled task, and TaskCache registry entries. Read-only checks found the executable, link and task absent after Defender's action. No files were restored or system components altered. Because this is separate from the accepted Ventio hash and indicates persistence-related resources, do not execute Ventio packages or Clients on TEST-02 until the owner clears the machine through an approved security process and confirms it is suitable for the lab.
+
+### WB-ACC-13 — Common candidate not verified on physical hosts
+
+**OPEN — BLOCKED.** The e756dcbb acceptance artifact is known from successful GitHub Actions (14246616073; expected ZIP SHA-256 0f085fdae0fc9ea05484524c9640a294fa01f467e475d85aab707f5b81aa3d64) but its full bytes were not retrieved to TEST-01 because bounded HTTPS transfers timed out. Partial chunks were removed; no installer was run. Existing Client hashes remain different, and the installed Host source commit is not proven. Do not claim one physically verified candidate.
+
+### Physical results and remaining gates
+
+TEST-01 passed local Host health/authentication-denial checks, Host child-process crash recovery, PostgreSQL restart with dependent Host recovery, and OS reboot/SSH continuity. No new Defender event occurred there. These are operational results only; they do not establish authenticated authorization, migrations 001–040, physical RLS/tenant isolation, or database consistency.
+
+The supported backup scheduler is absent on TEST-01; policy setup requires a Host-authorized operation and independent local administrator approval. B4 real two-device synchronization, B5 scheduling/restore, and B6 final audit remain open. No product-code defect was reproduced or fixed in this checkpoint.

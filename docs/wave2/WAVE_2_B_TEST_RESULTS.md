@@ -1093,3 +1093,31 @@ create/edit then reconnect and verify receipts/conflicts/no duplicates;
 protected-field masking; workspace/saved-view/report/history navigation and
 permissions/scaling; local backup approval/elevation. Product backup scheduling
 and full restore also remain unexecuted.
+
+## Physical verification after owner risk acceptance — 2026-11-16
+
+| Test | Status | Evidence |
+|---|---|---|
+| Defender controls on TEST-01 | **PASSED** | AM/Antivirus/real-time protection remained enabled; no new Defender event through service restarts, process-crash recovery, PostgreSQL restart, or OS reboot. Host SHA-256 remained 5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2. |
+| Host liveness and unauthenticated API negatives, TEST-01 | **PASSED — partial security coverage** | /healthz 200; /api/v1/session missing/invalid bearer 401; readiness without auth 401; query credential 400; wrong HTTP methods 405. These do not cover authenticated or cross-scope authorization. |
+| Host service restart | **PASSED** | Host service returned to Running; subsequent verified /healthz was 200 and PostgreSQL remained Running. The first post-restart probe needed a PowerShell System.Net.Http assembly load correction; the corrected verification passed. |
+| Host child-process crash recovery | **PASSED** | Terminated the positively identified ventio_host.exe child only. Windows service recovery produced a new child PID; Host and PostgreSQL remained Running and health returned 200. No new Defender event. |
+| PostgreSQL restart and dependent Host recovery | **PASSED — process recovery only** | VentioPostgres restarted with its dependent Host. PostgreSQL 16 accepted local connections on 54329; Host health returned 200; both service processes changed. No schema/data integrity assertions were run. |
+| TEST-01 OS reboot and SSH continuity | **PASSED** | SSH port returned after 45.2 seconds; services returned Running/Automatic under expected NT SERVICE identities; PostgreSQL accepted connections; Host health 200; unauthenticated session 401; no new Defender event. |
+| TEST-02 Defender | **BLOCKED** | Additional Threat ID 2147889282, Trojan:Win64/ThemidaPacked!MTB, Severe concrete real-time event; successful Quarantine. The affected executable/startup link/task were absent afterward. No execution or cleanup attempted after discovery. |
+| One common Client build | **BLOCKED** | Existing Client hashes differ. TEST-02's local installer is from commit 17b014..., not the e756dcbb candidate. The exact e756dcbb artifact transfer timed out incomplete; no install was performed. |
+| Authenticated Host operations, migrations, RLS, tenant isolation | **NOT EXECUTED / BLOCKED** | No supported authorized credential was available through SSH-only flow. Protected credential stores were not read; no local-only security boundary was bypassed. |
+| Two-device sync, offline/conflict/recovery | **NOT EXECUTED / BLOCKED** | TEST-02 execution halted for the additional Defender detection; Client binaries also remain different. |
+| Backup scheduling, approval, integrity, retention, restore | **NOT EXECUTED / MANUAL OWNER VALIDATION REQUIRED** | TEST-01 had no VentioHostBackups task or backup set. The supported path requires a Host-authorized operation and independent local administrator approval; no approval was bypassed. |
+| CI | **NO NEW RUN** | The full e756dcbb product matrix remains the latest successful candidate CI evidence. No product changes were made. |
+
+The current physical tests exercised existing installations, not a fresh installation from the e756dcbb artifact. The installed Host source commit is not established. The physical results above do not complete any of the 22 capability acceptance matrices.
+
+### Current dispositions
+
+- **PASSED:** TEST-01 Host/Database process recovery and reboot persistence; physical unauthenticated API denial checks.
+- **FAILED:** No new reproducible Ventio product defect confirmed.
+- **BLOCKED:** TEST-02 security clearance; common Client candidate; authenticated API/security/data scenarios; true two-device synchronization; full backup/restore and final acceptance.
+- **MANUAL:** Owner-visible Client authentication/pairing/offline scenarios and local backup policy approval/elevation after TEST-02 is cleared.
+
+Final status remains **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
