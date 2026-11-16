@@ -120,10 +120,33 @@ empty string where GitHub required a boolean input. Both issues were corrected;
 the selector/workflow unit tests and YAML duplicate-key parse then passed. No
 product tests or security assertions were removed or changed.
 
-A documentation-only update is now being used to exercise the post-optimization
-path against the newly established green baseline. Its expected result is ten
-lightweight selectors, the preserved required-check gates, and skipped heavy
-suite jobs; the exact run totals and commit will be added after Actions reports
-completion. Final Wave 2 B acceptance must continue to use the manual
-full-verification workflow and cannot rely on suites skipped by this
+The documentation-only path completed on
+`153a76b5b2181e0e1126b8f26d15fddaf68c3dc2`, which changed one report file after
+the green baseline. All ten workflow runs succeeded. Their 32 jobs comprised
+ten selectors, eleven skipped heavy suite jobs, and eleven successful required
+gate jobs. The run used 2.3 summed runner-minutes and 0.4 wall-clock minutes.
+All eleven existing required check contexts completed successfully. The
+selector log confirmed `Validated 1 documentation-only changed path(s).`
+
+Compared with the historical documentation-only average of 116.7 runner-minutes,
+this is a 98.0% reduction. The suite-configuration verification itself used
+114.1 runner-minutes and selected every suite as intended. The ten
+documentation-only workflow runs on the measured commit are:
+
+| Workflow | Run |
+| --- | --- |
+| Core Foundation | [43912812233](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812233) |
+| Credential Lifecycle | [43912812473](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812473) |
+| Host API | [43912812148](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812148) |
+| Durable Commands | [43912812477](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812477) |
+| Host Engineering Gate | [43912812380](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812380) |
+| Host Persistence | [43912812423](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812423) |
+| Host Crash Recovery | [43912812470](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812470) |
+| Host Security Investigation | [43912812282](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812282) |
+| Native Flutter Client | [43912812050](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812050) |
+| Windows Acceptance Package | [43912812255](https://github.com/abedkilany/Ventio-Framework/actions/runs/43912812255) |
+
+The final report-only commit is also being validated through the same
+documentation-only path. Final Wave 2 B acceptance must continue to use the
+manual full-verification workflow and cannot rely on suites skipped by this
 optimization.
