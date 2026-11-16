@@ -11,10 +11,6 @@ on:
         required: false
         type: string
         default: ''
-      ci_force_full:
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
@@ -39,7 +35,7 @@ jobs:
       before_sha: ${{ github.event.before || '' }}
       pr_number: ${{ github.event.pull_request.number || 0 }}
       ref_name: ${{ github.event.pull_request.head.ref || github.ref_name }}
-      ci_force_full: ${{ github.event_name == 'workflow_dispatch' || inputs.ci_force_full }}
+      ci_force_full: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
       ci_run_scope: ${{ inputs.ci_run_scope || '' }}
   reproduce-suite:
     needs: select-changes

@@ -16,7 +16,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-core-foundation
 
   credential-lifecycle:
@@ -26,7 +25,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-credential-lifecycle
 
   host-api:
@@ -36,7 +34,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-host-api
 
   durable-commands:
@@ -46,7 +43,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-durable-commands
 
   host-engineering-gate:
@@ -56,7 +52,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-host-engineering-gate
 
   postgres-adapter:
@@ -66,7 +61,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-postgres-adapter
 
   host-recovery:
@@ -76,7 +70,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-host-recovery
 
   host-security-investigation:
@@ -86,7 +79,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-host-security-investigation
 
   native-client:
@@ -96,7 +88,6 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-native-client
 
   windows-acceptance-package:
@@ -106,5 +97,4 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      ci_force_full: true
       ci_run_scope: full-${{ github.run_id }}-windows-acceptance-package

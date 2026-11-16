@@ -48,6 +48,10 @@ class WorkflowOptimizationTests(unittest.TestCase):
             self.assertIn("  workflow_dispatch:\n", text)
             self.assertIn("  workflow_call:\n", text)
             self.assertRegex(text, rf"(?m)^name: {re.escape(WORKFLOW_NAMES[filename])}$")
+            self.assertIn(
+                "ci_force_full: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}",
+                text,
+            )
             for context in contexts:
                 suite = context + "-suite"
                 self.assertRegex(text, rf"(?m)^  {re.escape(suite)}:\n    needs: select-changes\n    if: needs\.select-changes\.outputs\.run_[a-z_]+ == 'true'$")
@@ -60,7 +64,7 @@ class WorkflowOptimizationTests(unittest.TestCase):
         self.assertNotIn("concurrency:", text)
         for filename in REQUIRED_CONTEXTS:
             self.assertIn(f"uses: ./.github/workflows/{filename}", text)
-            self.assertIn("ci_force_full: true", text)
+            self.assertIn("ci_run_scope: full-${{ github.run_id }}", text)
 
     def test_change_selector_checkout_does_not_persist_or_duplicate_credentials(self):
         text = (WORKFLOWS / "ci-change-selector.yml").read_text(encoding="utf-8")
