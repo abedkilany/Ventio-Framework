@@ -5,10 +5,10 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`; installed Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`
-Latest CI-verified PR head: `a7c85ef5617bca9345804106aa17457b2eaf858c` (11/11 checks passed)
+Latest CI-verified PR head: `8738c92c7c9d19ae9e962f7bc1366412a019c32e` (11/11 checks passed; report-only continuation)
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-16
-Last updated: 2026-11-16 08:15 UTC
+Last updated: 2026-11-16 11:53 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -883,3 +883,22 @@ Host TCP/TLS reachability. This does not change the acceptance status: client
 authentication/synchronization, offline recovery, cross-scope authorization,
 Wave 1 upgrade, backup scheduling/integrity/retention/restore and final B6 audit
 remain outstanding. No product defect was reproduced or corrected here.
+
+## Physical recheck — 2026-11-16 11:53 UTC
+
+| Test | Result | Evidence |
+|---|---|---|
+| SSH machine identity | PASS | Codex-1 identifies `VENTIO-TEST-01`; Codex-3 identifies `VENTIO-TEST-02`. |
+| Host/PostgreSQL services and local health | PASS | Both services are Running on both hosts; local `/healthz` returned 200. |
+| Installed Host integrity | MATCH | Both `C:\Program Files\Ventio\host-payload\ventio_host.exe` files hash to `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. |
+| Anonymous operation-prepare rejection | PASS | `POST /api/v1/platform/operations/prepare` with `{}` and no bearer returned 401 on both Hosts. |
+| Unknown credential rejection | PASS | `GET /api/v1/session` with an unissued syntactically shaped fake bearer returned 401 on both Hosts. This does not verify a valid credential or tenant/scope authorization. |
+| Defender state | PASS — ENABLED | Antivirus and real-time protection are enabled. Intelligence: TEST-01 `1.463.326.0`; TEST-02 `1.463.324.0`. Historical detection is still unresolved; no bypass was applied. |
+| CI for PR head | PASS — 11/11 | Head `8738c92c7c9d19ae9e962f7bc1366412a019c32e`; all 11 PR checks completed successfully. This report-only head is not the physical Host artifact source. |
+| Windows Client visible launch | PARTIAL / INCONCLUSIVE | Interactive-token launches reached `startup.first_screen.ready`; both processes had no main-window handle/title after 12 seconds. RDP capture failed on TEST-01 (`0x80070057`) and TEST-02 returned a black frame. Temporary launch tasks/processes were cleaned up. |
+| Authenticated Client session and sync | NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED | No successful login/enrollment or valid token was used; no records, offline queue, conflict, receipt, or recovery flow was exercised. |
+| Physical backup and restore | NOT EXECUTED | No Ventio backup task or product backup data was present. No direct/bypass backup was attempted. |
+| Android physical UI and GUI-only acceptance | NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED | No Android device/emulator was available; visible Client permissions, scaling, navigation, and record workflows remain unverified. |
+
+No product defect was confirmed or fixed in this recheck. The cause of the
+Client's missing native window and RDP capture failure remains unknown.

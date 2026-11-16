@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 08:15 UTC
+Last updated: 2026-11-16 11:53 UTC
 
 Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Independent rebuilding recreates the reported hash exactly, but current Defender history on both physical machines records Threat ID `2147731250` (`Trojan:Win32/Bearfoos.A!ml`) for the exact Host hash. Both entries report `DidThreatExecute=true`; neither the classifier cause nor false-positive status is established. Defender and real-time protection remain enabled. No quarantine item was restored or exclusion added. See [the investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md) and the latest physical checkpoint below.
 
@@ -14,8 +14,9 @@ Host SHA-256. Host/PostgreSQL are Running on both machines; their Host
 executables match the exact hash. TEST-01 SSH and cross-host pinned TLS are
 restored. Both machines return health HTTP 200; uncredentialed session requests
 return 401. Defender protections remain enabled, and the event history is
-recorded below. All 11 CI checks passed on the last tested code head; PR #6
-remains open, Draft and unmerged.
+recorded below. All 11 CI checks passed on PR report head
+`8738c92c7c9d19ae9e962f7bc1366412a019c32e`; PR #6 remains open, Draft and
+unmerged.
 Real Client authentication/enrollment, two-device/offline synchronization,
 product backup/scheduling/restore, and remaining database/security and GUI
 acceptance gates are incomplete. Final status remains
@@ -681,3 +682,44 @@ No product code changed in this checkpoint. The report-only change does not
 alter the tested artifact. PR #6 remains Draft and unmerged; Wave_2_C and merge
 to `main` were not started. Final disposition remains
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.
+
+## Live physical recheck — 2026-11-16 11:53 UTC
+
+Fresh SSH command-line evidence confirms both machines are reachable by their
+expected Windows identities. On TEST-01 and TEST-02, `VentioHost` and
+`VentioPostgres` are Running, local Host `/healthz` returns 200, and
+`ventio_host.exe` matches SHA-256
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`.
+Unauthenticated operation preparation and a fake bearer session both return
+401 on both Hosts. This validates rejection of missing/unknown credentials
+only, not successful identity, role, tenant, company, or branch authorization.
+
+Defender Antivirus and real-time protection are enabled on both. Security
+intelligence versions were `1.463.326.0` on TEST-01 and `1.463.324.0` on
+TEST-02. The historical Bearfoos detection remains unresolved; this report
+does not declare it a false positive or evidence of infection. No Defender
+setting was weakened.
+
+All 11 PR checks completed successfully for report head
+`8738c92c7c9d19ae9e962f7bc1366412a019c32e`. This is a documentation-only
+continuation from the Host artifact source commit and does not expand physical
+test evidence. CI success does not close the remaining acceptance gates.
+
+Interactive Client attempts reached the Dart `startup.first_screen.ready`
+trace, but neither process had a native window handle or title after 12
+seconds. TEST-01 RDP capture failed with `0x80070057`; TEST-02 produced a black
+frame. This prevents verification of visible Client behavior and leaves the
+cause unknown. The temporary scheduled launch tasks and Client processes were
+removed. Authenticated Client login/enrollment, real two-device sync, offline
+recovery, conflict/receipt handling, and visible UI permission/navigation
+checks remain **NOT EXECUTED — MANUAL OWNER VALIDATION REQUIRED**. No Android
+device/emulator was available.
+
+No Ventio backup task or backup data was present on either host. Product
+approval, scheduled backup execution, verification/corruption detection,
+retention, interruption, disposable restore and Recovery Authority
+reconciliation remain unexecuted. A fresh protected TEST-01 DB credential
+recheck remains blocked by the existing script policy; no bypass was used.
+The unresolved Defender root cause and all outstanding mandatory gates keep
+the readiness recommendation **NOT READY FOR WAVE_2_C**. PR #6 remains Draft
+and unmerged.

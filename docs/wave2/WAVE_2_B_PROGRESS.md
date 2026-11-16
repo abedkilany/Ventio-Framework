@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current checkpoint (2026-11-16 08:15 UTC): SSH identifies both test machines; Host and PostgreSQL are Running on both, local health is HTTP 200, and the exact Host SHA-256 is present on both. Mutual pinned TLS 1.2 probes between the machines passed certificate fingerprint, validity and SAN checks; unauthenticated `/api/v1/session` returned 401 from each direction. Defender remains enabled, but read-only threat history now confirms the Bearfoos event on both hosts (including `DidThreatExecute=true`); its root cause remains unconfirmed. No Client process is running, no Ventio backup task/set is present, and real synchronization/backup remain unexecuted. See the latest checkpoint below.
+Current checkpoint (2026-11-16 11:53 UTC): SSH identifies both test machines; Host and PostgreSQL are Running, local health is HTTP 200, and the Host SHA-256 matches on both (`5a18c389…e1e5f2`). Unauthenticated Host operation preparation and a fake bearer session both return 401 on each device. Defender and real-time protection are enabled (intelligence 1.463.326.0 on TEST-01 and 1.463.324.0 on TEST-02). CI passed 11/11 on report head `8738c92`; physical auth/sync, offline recovery and backup/restore remain unverified. See the latest checkpoint below.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -10,8 +10,8 @@ Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-t
 Latest installer package installed on TEST-02: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (exact Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
-Latest CI-verified PR head: `a7c85ef5617bca9345804106aa17457b2eaf858c` (11/11 checks passed)
-Last updated: 2026-11-16 08:15 UTC
+Latest CI-verified PR head: `8738c92c7c9d19ae9e962f7bc1366412a019c32e` (11/11 checks passed; report-only continuation)
+Last updated: 2026-11-16 11:53 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -682,3 +682,47 @@ checks remain historical evidence, not a fresh re-run in this checkpoint.
 
 No product code changed. PR #6 remains Draft and unmerged; no Wave_2_C work or
 merge to `main` was started.
+
+## Physical verification continuation — 2026-11-16 11:53 UTC
+
+Fresh SSH checks to `Codex-1@192.168.1.106` and `Codex-3@192.168.1.107`
+identified `VENTIO-TEST-01` and `VENTIO-TEST-02`. On both devices,
+`VentioHost` and `VentioPostgres` report Running, `http://127.0.0.1:8080/healthz`
+returns 200, and
+`C:\Program Files\Ventio\host-payload\ventio_host.exe` hashes to
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`.
+The anonymous `POST /api/v1/platform/operations/prepare` and a
+`GET /api/v1/session` with a non-issued fake bearer both returned 401 on both
+Hosts. This is negative authentication evidence only; no valid account token,
+scope authorization, or business operation was exercised.
+
+`Get-MpComputerStatus` reports Defender Antivirus and real-time protection
+enabled on both computers. Current intelligence versions were `1.463.326.0`
+on TEST-01 and `1.463.324.0` on TEST-02. The previously recorded Bearfoos event
+and its unresolved root cause remain documented; the alarm was not treated as
+proof of infection or false positive. No detection was disabled or bypassed.
+
+The 11 CI checks on PR head `8738c92c7c9d19ae9e962f7bc1366412a019c32e` are
+all completed successfully, including Host API, PostgreSQL, recovery,
+credential lifecycle, Flutter/Windows/Android, security investigation, and
+Windows packaging gates. This head contains documentation only relative to
+the physically tested Host candidate; CI is not physical acceptance evidence.
+
+Earlier in this continuation, scheduled interactive-token launches on both
+RDP sessions produced Client startup traces through `startup.first_screen.ready`
+but after 12 seconds each process had no main-window handle or title. No
+matching Windows Application event was found. The traces do not establish a
+successful visible Client session. RDP capture then failed on TEST-01 with
+`IGraphicsCaptureItemInterop.CreateForMonitor` error `0x80070057`; TEST-02
+showed a black frame. The temporary scheduled tasks and launched Client
+processes were removed/stopped and verified absent. This is an environment/UI
+verification blocker with an unresolved cause, not a confirmed product defect.
+
+No authenticated enrollment, two-device sync, offline edits/reconnect,
+conflict recovery, or receipt/pending-queue durability was performed. No
+Ventio backup task or backup data was present, so approval, scheduling,
+integrity/corruption, retention, interruption, and disposable restore remain
+unexecuted. Android physical UI testing, manual GUI permission/navigation
+checks, and tests that need a visible Client are **NOT EXECUTED — MANUAL OWNER
+VALIDATION REQUIRED**. Final status remains **WAVE_2_B — PARTIAL VERIFICATION /
+BLOCKED**.
