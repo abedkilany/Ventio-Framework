@@ -3,7 +3,7 @@
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Last updated: 2026-11-16 11:53 UTC
+Last updated: 2026-11-16 14:03 UTC
 
 Current security investigation: **ROOT CAUSE NOT CONFIRMED**. Independent rebuilding recreates the reported hash exactly, but current Defender history on both physical machines records Threat ID `2147731250` (`Trojan:Win32/Bearfoos.A!ml`) for the exact Host hash. Both entries report `DidThreatExecute=true`; neither the classifier cause nor false-positive status is established. Defender and real-time protection remain enabled. No quarantine item was restored or exclusion added. See [the investigation](WAVE_2_B_HOST_SECURITY_INVESTIGATION.md) and the latest physical checkpoint below.
 
@@ -14,9 +14,9 @@ Host SHA-256. Host/PostgreSQL are Running on both machines; their Host
 executables match the exact hash. TEST-01 SSH and cross-host pinned TLS are
 restored. Both machines return health HTTP 200; uncredentialed session requests
 return 401. Defender protections remain enabled, and the event history is
-recorded below. All 11 CI checks passed on PR report head
-`8738c92c7c9d19ae9e962f7bc1366412a019c32e`; PR #6 remains open, Draft and
-unmerged.
+recorded below. GitHub Actions returned ten completed successful workflow
+runs on exact report head `b33ccbc2e79211ff6dd0a9894f07ca684e26c441`; PR #6
+remains open, Draft and unmerged.
 Real Client authentication/enrollment, two-device/offline synchronization,
 product backup/scheduling/restore, and remaining database/security and GUI
 acceptance gates are incomplete. Final status remains
@@ -723,3 +723,29 @@ recheck remains blocked by the existing script policy; no bypass was used.
 The unresolved Defender root cause and all outstanding mandatory gates keep
 the readiness recommendation **NOT READY FOR WAVE_2_C**. PR #6 remains Draft
 and unmerged.
+
+## Latest physical continuation — 2026-11-16 14:03 UTC
+
+Both test machines are back on the network. SSH identifies the expected
+Windows hosts; both Host and PostgreSQL services are Running/Automatic, the
+local Host health endpoint returns 200, and both installed Host binaries match
+the exact expected SHA-256. Anonymous operation preparation and a fake bearer
+session are rejected with 401 on both. Defender and real-time protection are
+enabled with current intelligence `1.463.328.0` on both. Cross-host TCP
+connectivity on 8443 and 3389 passes in both directions. Exact-pin TLS was not
+retested in this checkpoint; the temporary in-memory probe harness failed
+during .NET assembly/delegate setup before network access, so 08:15 UTC remains
+the latest pinned TLS evidence.
+
+RDP capture on TEST-01 is black and its activation retry failed. SSH shows the
+Client process has no native window; TEST-02 has no Client process, and its
+active console session was left connected. No authenticated pairing or sync
+occurred. Both machines still have no Ventio backup tasks or backup/installer
+operations directories. The current TEST-01 database credential recheck is
+blocked by the existing script policy. These gates remain incomplete.
+
+GitHub reports ten successful workflow runs on report head
+`b33ccbc2e79211ff6dd0a9894f07ca684e26c441`; PR #6 is confirmed open, Draft,
+and unmerged. The physically tested Host remains from source commit
+`a7c85ef5617bca9345804106aa17457b2eaf858c`. Final status remains
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**, with Wave_2_C not recommended.

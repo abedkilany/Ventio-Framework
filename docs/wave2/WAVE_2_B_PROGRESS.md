@@ -1,7 +1,7 @@
 # Wave 2 B verification progress
 
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
-Current checkpoint (2026-11-16 11:53 UTC): SSH identifies both test machines; Host and PostgreSQL are Running, local health is HTTP 200, and the Host SHA-256 matches on both (`5a18c389…e1e5f2`). Unauthenticated Host operation preparation and a fake bearer session both return 401 on each device. Defender and real-time protection are enabled (intelligence 1.463.326.0 on TEST-01 and 1.463.324.0 on TEST-02). CI passed 11/11 on report head `8738c92`; physical auth/sync, offline recovery and backup/restore remain unverified. See the latest checkpoint below.
+Current checkpoint (2026-11-16 14:03 UTC): both test machines are reachable by SSH; Host and PostgreSQL are Running, local health is HTTP 200, and the Host SHA-256 matches on both (`5a18c389…e1e5f2`). Anonymous operation preparation and a fake bearer session return 401 on both. Defender and real-time protection are enabled with intelligence `1.463.328.0` on both. TCP connectivity on ports 8443 and 3389 passes between the two machines in both directions. CI workflow-run lookup shows 10/10 successful runs on report head `b33ccbc`; PR #6 remains Draft and unmerged. Client enrollment/sync, offline recovery, and backup/restore remain unverified. See the latest checkpoint below.
 Branch: `feature/wave-2-a`
 Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6), open and unmerged
 Starting source commit: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
@@ -10,8 +10,8 @@ Diagnostic correction commit: `f11bf27e83dd6b206fc63289bbf325471a1ee026` (unit-t
 Latest installer package installed on TEST-02: `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79` (verified in CI)
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (exact Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
-Latest CI-verified PR head: `8738c92c7c9d19ae9e962f7bc1366412a019c32e` (11/11 checks passed; report-only continuation)
-Last updated: 2026-11-16 11:53 UTC
+Latest CI-verified report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 workflow runs passed; report-only continuation)
+Last updated: 2026-11-16 14:03 UTC
 
 Wave_2_C and merge into `main` are out of scope. Prior physical installation
 evidence remains tied to `fb341a78`. The diagnostic correction is included in
@@ -726,3 +726,46 @@ unexecuted. Android physical UI testing, manual GUI permission/navigation
 checks, and tests that need a visible Client are **NOT EXECUTED — MANUAL OWNER
 VALIDATION REQUIRED**. Final status remains **WAVE_2_B — PARTIAL VERIFICATION /
 BLOCKED**.
+
+## Live network and RDP recheck — 2026-11-16 14:03 UTC
+
+The owner restored both test machines to the network. SSH again identifies
+`Codex-1@192.168.1.106` as `VENTIO-TEST-01` and
+`Codex-3@192.168.1.107` as `VENTIO-TEST-02`. On both, `VentioHost` and
+`VentioPostgres` are Running with Automatic start, local
+`http://127.0.0.1:8080/healthz` returns 200, and the installed Host executable
+matches SHA-256
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`.
+Anonymous `POST /api/v1/platform/operations/prepare` and a non-issued fake
+bearer on `GET /api/v1/session` return 401 on both Hosts. Defender Antivirus
+and real-time protection are enabled on both; intelligence is `1.463.328.0`.
+
+From TEST-01 to TEST-02 and TEST-02 to TEST-01, TCP ports 8443 and 3389 both
+connect. This is transport reachability only. An exact certificate-pin TLS
+probe was not completed in this checkpoint: the temporary in-memory probe
+harness failed during .NET assembly/delegate setup before making a request.
+The last verified
+pinned TLS health probes remain the 08:15 UTC evidence above.
+
+RDP to TEST-01 is connected, but its captured display is black. One fresh
+window-selection/activation retry failed with `failed to activate captured
+window`. SSH reports `ventio_native_client.exe` process 11020 in session 1
+with `MainWindowHandle=0` and an empty title. TEST-02 has no Client process;
+its `abedkilany` console session is Active. No attempt was made to disconnect
+that session. Therefore no visible Client launch, authenticated enrollment,
+pairing, synchronization, offline edit, conflict recovery, or receipt/queue
+test passed in this checkpoint.
+
+Read-only checks on both machines found no Ventio scheduled tasks and neither
+`C:\ProgramData\Ventio\Backups` nor
+`C:\ProgramData\Ventio\Installer\Operations` exists. No product backup was
+started and local approval was not bypassed. The fresh TEST-01 protected
+database credential module recheck remains blocked by the existing script
+policy; the prior TEST-02 migration/RLS evidence remains historical.
+
+GitHub Actions reports 10 completed workflow runs, all successful, on exact
+report head `b33ccbc2e79211ff6dd0a9894f07ca684e26c441`. PR #6 is open, Draft,
+unmerged, and still targets `main`. The physically installed Host is still
+from source commit `a7c85ef5617bca9345804106aa17457b2eaf858c`; this report
+checkpoint changes no product code. Final status remains
+**WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**.

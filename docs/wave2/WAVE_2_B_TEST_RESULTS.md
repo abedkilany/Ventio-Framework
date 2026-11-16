@@ -5,10 +5,10 @@ Starting source: `9bd0e9e756dc1c6dd414794b1e67f0d8c7db8f61`
 Product/package verification commit: `fb341a78eca1bb897e2ce09f1271dae39bbd7d11`
 Host API test-harness correction commit: `e3efc25075388d2ac92543238c99473313d85d79`
 Latest physically tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c`; installed Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`
-Latest CI-verified PR head: `8738c92c7c9d19ae9e962f7bc1366412a019c32e` (11/11 checks passed; report-only continuation)
+Latest CI-verified report head: `b33ccbc2e79211ff6dd0a9894f07ca684e26c441` (10/10 workflow runs passed; report-only continuation)
 Branch: `feature/wave-2-a`; Draft PR: [#6](https://github.com/abedkilany/Ventio-Framework/pull/6)
 Report date: 2026-11-16
-Last updated: 2026-11-16 11:53 UTC
+Last updated: 2026-11-16 14:03 UTC
 
 The previously reported `b3a5f585` workflow snapshot is historical and was
 superseded by package commit `17b014125b695e3242e2d9b50b3eb9732a8c5fcb`.
@@ -902,3 +902,27 @@ remain outstanding. No product defect was reproduced or corrected here.
 
 No product defect was confirmed or fixed in this recheck. The cause of the
 Client's missing native window and RDP capture failure remains unknown.
+
+## Live network and RDP recheck — 2026-11-16 14:03 UTC
+
+Exact physical Host artifact source commit:
+`a7c85ef5617bca9345804106aa17457b2eaf858c`. Both installed Hosts match SHA-256
+`5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`.
+
+| Test | Result | Evidence |
+|---|---|---|
+| SSH identity / service health | PASS | Expected machine names; both `VentioHost` and `VentioPostgres` Running/Automatic; local `/healthz` returned 200. |
+| Installed Host integrity | MATCH | Exact expected Host SHA-256 on TEST-01 and TEST-02. |
+| Anonymous operation preparation | PASS — DENIED | `POST /api/v1/platform/operations/prepare` without a bearer returned 401 on both Hosts. |
+| Unknown bearer rejection | PASS — DENIED | A syntactically shaped, non-issued fake bearer on `GET /api/v1/session` returned 401 on both Hosts. No real credential or scope authorization was exercised. |
+| Defender | PASS — ENABLED | Antivirus and real-time protection enabled on both; security intelligence `1.463.328.0`. Historical Threat ID `2147731250` remains unresolved. |
+| Host-to-Host network | PASS — TCP ONLY | Both directions connect on TCP 8443 and 3389. This does not verify certificate identity or Client sync. The exact-pin TLS probe was not completed because the temporary inline harness failed during .NET assembly/delegate setup before making a request. Pinned TLS evidence from 08:15 UTC remains historical. |
+| Client process/window | BLOCKED / INCONCLUSIVE | TEST-01 process 11020 is in session 1 but has no main-window handle or title; RDP capture is black and activation failed after one fresh selection retry. TEST-02 has no Client process. |
+| Authenticated Client pairing/sync | NOT EXECUTED | No valid pairing code or Client credential was issued or used. No records, offline queue, conflict, receipt, or recovery path was exercised. |
+| Backup/scheduling/restore | NOT EXECUTED | No Ventio tasks, backup directory, or installer operations directory on either machine. No backup was created and local approval was not bypassed. |
+| Fresh TEST-01 database credential check | BLOCKED | Installed protected PowerShell module remains rejected by existing script policy. No policy change or bypass was applied. |
+| GitHub Actions | PASS — 10/10 RUNS | Workflow-run API returned ten completed successful runs on exact report head `b33ccbc2e79211ff6dd0a9894f07ca684e26c441`. PR #6 remains open, Draft, and unmerged. |
+
+No product code changed. The status remains **WAVE_2_B — PARTIAL VERIFICATION /
+BLOCKED**; transport reachability and anonymous-request rejection do not
+substitute for the mandatory authenticated two-device acceptance gates.
