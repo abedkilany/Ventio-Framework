@@ -17,6 +17,11 @@ on:
         description: Only the isolated Wave 2 B acceptance build and prepared suites
         type: boolean
         default: false
+      wave2_scope:
+        description: Targeted rerun scope
+        type: choice
+        options: [all, linux, windows]
+        default: all
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
@@ -145,5 +150,7 @@ jobs:
   wave2-resume:
     if: github.event_name == 'workflow_dispatch' && inputs.wave2_resume
     uses: ./.github/workflows/wave2-b-hosted-resume.yml
+    with:
+      scope: ${{ inputs.wave2_scope || 'all' }}
     permissions:
       contents: read
