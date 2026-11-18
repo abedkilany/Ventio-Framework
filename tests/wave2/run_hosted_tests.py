@@ -151,6 +151,18 @@ elif MODE in ('linux','gateway-jobs','core'):
         env.update(VENTIO_AUDIT_HOST_BINARY=str(binary),VENTIO_AUDIT_HOST_WORKDIR=str(assembly/'packages/ventio_host_api'),VENTIO_AUDIT_PRIVILEGE_HELPER='/usr/local/libexec/ventio-ci-drop-to-nobody',VENTIO_AUDIT_RESULTS_FILE=str(OUT/'host-audit-results.json'))
         return cleanup
     if MODE=='linux': suite('R',['dart','--packages=.dart_tool/package_config.json','test/engineering_audit.dart'],host,setup=audit_setup)
+    if MODE=='core':
+        # Isolated SQL control for H013, independent of its unchanged 200 assertion.
+        env=dict(os.environ,VENTIO_WAVE2_PREPARED_TESTS='yes')
+        cleanup=docker_fixture(env)
+        try:
+            prefix=['docker','exec',env['VENTIO_TEST_POSTGRES_CONTAINER_ID'],'psql','-X','-U','ventio','-d','ventio_host_test','-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose','-tAc']
+            original="SELECT ('{\"properties\":{}}'::jsonb->'properties' - ARRAY['label','labelKey'])='{}'::jsonb"
+            corrected="SELECT (('{\"properties\":{}}'::jsonb->'properties') - ARRAY['label','labelKey'])='{}'::jsonb"
+            bad=subprocess.run([*prefix,original],capture_output=True,text=True)
+            good=subprocess.run([*prefix,corrected],capture_output=True,text=True)
+            (OUT/'customization-operator-reproduction.json').write_text(json.dumps({'originalExpression':original,'originalExitCode':bad.returncode,'originalDiagnostic':bad.stderr,'parenthesizedExpression':corrected,'parenthesizedExitCode':good.returncode,'parenthesizedResult':good.stdout.strip(),'rootCauseReproduced':bad.returncode!=0 and '22P02' in bad.stderr and good.returncode==0 and good.stdout.strip()=='t','productionCodeChanged':False},indent=2))
+        finally: cleanup()
 elif MODE=='offline':
     suite('E',['flutter','test','--no-pub','--machine','test/wave2_offline_integration.dart'],native,setup=docker_fixture)
 elif MODE.startswith('verify-'):

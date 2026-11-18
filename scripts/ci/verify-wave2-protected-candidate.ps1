@@ -7,7 +7,7 @@ try {
   $report.protectionBefore = Get-MpComputerStatus | Select-Object AMRunningMode,AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled,BehaviorMonitorEnabled,IoavProtectionEnabled,IsTamperProtected,AntivirusSignatureVersion,DefenderSignaturesOutOfDate
   # Strengthen only this disposable runner through normal Defender APIs. Never
   # override a denying policy, alter exclusions, disable or restore anything.
-  Set-MpPreference -DisableRealtimeMonitoring $false -DisableBehaviorMonitoring $false -DisableIOAVProtection $false -ErrorAction Stop
+  Set-MpPreference -DisableRealtimeMonitoring $false -DisableBehaviorMonitoring $false -DisableIOAVProtection $false -DisableArchiveScanning $false -ErrorAction Stop
   Update-MpSignature -ErrorAction Stop
   for($attempt=0;$attempt -lt 30;$attempt++) {
     $protected = Get-MpComputerStatus

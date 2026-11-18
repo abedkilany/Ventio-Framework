@@ -87,16 +87,16 @@ jobs:
       - name: Prepare actual private Windows fixture storage
         working-directory: packages/ventio_host_api
         run: |
-          & "$env:VENTIO_HOST_DART_BIN/dart.exe" --packages=.dart_tool/package_config.json test/prepare_private_test_storage.dart
+          & ../../scripts/ci/run-windows-dart-test.ps1 --packages=.dart_tool/package_config.json test/prepare_private_test_storage.dart
           if ($LASTEXITCODE) { throw 'Private fixture storage failed production ACL verification' }
       - name: Execute Core, SQLite and Windows integrity cases
         continue-on-error: true
-        run: python tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'windows-tests' && 'windows-recovery' || 'windows' }}
+        run: ./scripts/ci/run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart ${{ inputs.scope == 'windows-tests' && 'windows-recovery' || 'windows' }}
       - name: Prepare separate disposable PostgreSQL for desktop integration
         run: ./scripts/ci/start-postgres-test-instance.ps1
       - name: Execute native desktop cases against the real fixture
         continue-on-error: true
-        run: python tests/wave2/run_hosted_tests.py desktop
+        run: ./scripts/ci/run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart desktop
       - name: Stop only this runner's disposable PostgreSQL
         if: always()
         run: |

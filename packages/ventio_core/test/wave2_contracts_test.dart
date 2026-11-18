@@ -14,7 +14,7 @@ DocTypeDefinition _csvDefinition() {
     'type': type,
     'required': true,
     'label': name,
-    'labelKey': '$w2Label.$name',
+    'labelKey': '$w2Label.${name.toLowerCase()}',
   };
   (doc['fields'] as List).addAll([
     field('due', 'date'),
