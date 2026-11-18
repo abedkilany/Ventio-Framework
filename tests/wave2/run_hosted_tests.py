@@ -18,11 +18,12 @@ def call(args, cwd=ROOT, env=None):
     args[0]=shutil.which(args[0]) or args[0]
     return subprocess.check_output(args, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stderr=subprocess.STDOUT).strip()
 
-def suite(letter, args, cwd, env=None, setup=None):
+def suite(letter, args, cwd, env=None, setup=None, variant=None):
     ids = [c['id'] for c in CASES if c['id'].startswith('W2-'+letter)]
     records = {i: {'id':i, 'status':'UNEXECUTED', 'suite':letter} for i in ids}
     case_names = {}
-    log = OUT/f'{MODE}-{letter}.log'
+    suffix='-'+variant if variant else ''
+    log = OUT/f'{MODE}-{letter}{suffix}.log'
     resource = None
     code = None
     error = None
@@ -66,7 +67,7 @@ def suite(letter, args, cwd, env=None, setup=None):
         print('Suite '+letter+' blocked: '+error,flush=True)
     finally:
         if callable(resource): resource()
-    RESULTS.append({'suite':letter,'command':[str(a) for a in args],'exitCode':code,'setupError':error,'cases':list(records.values())})
+    RESULTS.append({'suite':letter,'variant':variant,'log':log.name,'command':[str(a) for a in args],'exitCode':code,'setupError':error,'cases':list(records.values())})
     save()
 
 def save():
@@ -139,6 +140,8 @@ elif MODE in ('linux','gateway-jobs','core'):
     if MODE=='core': selected=[]
     for letter,name in selected:
         suite(letter,['dart','--packages=.dart_tool/package_config.json',f'test/wave2_{name}_integration.dart'],host,setup=docker_fixture)
+        if letter=='U':
+            suite('U',['dart','--packages=.dart_tool/package_config.json','test/wave2_upgrade_integration.dart'],host,setup=docker_fixture,env={'VENTIO_W2_UPGRADE_BASELINE':'7218c1c9994acc31cfa86008b92d2950367c6fac'},variant='040-to-041')
     def audit_setup(env):
         cleanup=docker_fixture(env)
         binary=pathlib.Path('/tmp/ventio-audit-host')

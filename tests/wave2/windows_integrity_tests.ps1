@@ -97,6 +97,21 @@ try {
     Assert-Failure { Assert-HostBackupIntegrity $stage $inventory } 'HOST_BACKUP_INTEGRITY_CONTENT_MISMATCH'
   }
   Test-Case 'W2-W008' 'M05,M09' 'Protected operation JSON is replaced atomically with no temporary residue' {
+    # An inherit-only ACE grants no right on the ancestor itself; a protected
+    # child must remain usable. The same ACE applied to the ancestor is unsafe.
+    $ancestor = Join-Path $root 'inherit-only-parent'
+    $child = Join-Path $ancestor 'private-child'
+    [void][IO.Directory]::CreateDirectory($child)
+    Set-PrivateDirectory $ancestor
+    Set-PrivateDirectory $child
+    $acl = Get-Acl -LiteralPath $ancestor
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-1-0'),'FullControl','ContainerInherit,ObjectInherit','InheritOnly','Allow'))
+    Set-Acl -LiteralPath $ancestor -AclObject $acl
+    Assert-True ((Assert-VentioOperationPath $child $sid -Directory) -ceq $child) 'Inherit-only ancestor rule was treated as an effective grant'
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-1-0'),'Delete','Allow'))
+    Set-Acl -LiteralPath $ancestor -AclObject $acl
+    Assert-Failure { Assert-VentioOperationPath $child $sid -Directory } 'HOST_OPERATION_UNTRUSTED_ANCESTOR'
+    Set-PrivateDirectory $ancestor
     $file = Join-Path $root 'operation.json'
     Write-VentioOperationJson $file @{formatVersion=1;state='RUNNING'} $sid
     Write-VentioOperationJson $file @{formatVersion=1;state='SUCCEEDED'} $sid

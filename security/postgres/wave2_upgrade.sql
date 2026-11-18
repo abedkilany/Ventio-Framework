@@ -15,6 +15,7 @@ BEGIN
 END $protection$;
 \ir administration_change.sql
 \ir wave2.sql
+\ir wave2_customization_041.sql
 \ir wave2_identity_base.sql
 \ir wave2_administration.sql
 \ir wave2_customization_rebase.sql

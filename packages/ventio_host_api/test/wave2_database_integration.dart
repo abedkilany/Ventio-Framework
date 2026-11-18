@@ -35,7 +35,7 @@ Future<void> main() async {
     await cases.run(
       'W2-D001',
       'B02,M01,M02,L01',
-      'All forty migration identities match canonical repository sources',
+      'All forty-one migration identities match canonical repository sources',
       () async {
         final rows = await ledger();
         final files = await migrationRoot
@@ -44,7 +44,7 @@ Future<void> main() async {
             .cast<File>()
             .toList();
         w2Expect(
-          rows.length == 40 && files.length == 40,
+          rows.length == 41 && files.length == 41,
           'Incomplete or unknown migration ledger',
         );
         final expected = {

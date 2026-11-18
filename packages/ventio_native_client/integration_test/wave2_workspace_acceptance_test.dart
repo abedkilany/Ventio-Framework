@@ -117,6 +117,14 @@ void main() {
       EnginePhase.sendSemanticsUpdate,
       const Duration(seconds: 20),
     );
+    final banners = find.byType(MaterialBanner).evaluate();
+    for (final banner in banners) {
+      final content = (banner.widget as MaterialBanner).content;
+      if (content is Text) debugPrint('WAVE2_UI_BANNER: ${content.data}');
+    }
+    if (banners.isNotEmpty) {
+      debugPrint('WAVE2_HOST_DIAGNOSTICS: ${f.diagnostics.recent().map((e) => e.toJson()).toList()}');
+    }
   }
 
   Future<void> unmount(WidgetTester tester) async {

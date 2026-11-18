@@ -31,7 +31,7 @@ function Assert-VentioOperationPath([string]$Path,[string]$OwnerSid,[switch]$Dir
       if($rule.AccessControlType -ne 'Allow'){continue}
       if($cursor.FullName -eq $full){
         if($trusted[0..2] -notcontains $rule.IdentityReference.Value -or [int]$rule.FileSystemRights -ne [int][Security.AccessControl.FileSystemRights]::FullControl){throw 'HOST_OPERATION_UNTRUSTED_ACL'}
-      }elseif($trusted -notcontains $rule.IdentityReference.Value){
+      }elseif(($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -eq 0 -and $trusted -notcontains $rule.IdentityReference.Value){
         $destructive=[Security.AccessControl.FileSystemRights]::Delete -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
         if($rule.FileSystemRights -band $destructive){throw 'HOST_OPERATION_UNTRUSTED_ANCESTOR'}
       }
