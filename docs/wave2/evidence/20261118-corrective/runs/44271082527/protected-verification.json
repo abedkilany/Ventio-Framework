@@ -1,0 +1,130 @@
+{
+  "identity": "Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1",
+  "candidateCommit": "50d4d2bb41891d8d598d9e6f2408773411dc97b1",
+  "verificationCommit": "8488602fea73e3c0e9d885f042d8a74d1fc4e5e4",
+  "securityStatus": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+  "installerSmoke": "PASSED_FRESH_CLIENT_INSTALL_AND_UNINSTALL_NO_LAUNCH_OR_HOST_PROVISIONING",
+  "noExclusionsAdded": true,
+  "protectionNeverDisabled": true,
+  "physicalMachinesTouched": false,
+  "protectionBefore": {
+    "AMRunningMode": "Normal",
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": false,
+    "BehaviorMonitorEnabled": false,
+    "IoavProtectionEnabled": false,
+    "IsTamperProtected": false,
+    "AntivirusSignatureVersion": "1.463.353.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "protectionForScan": {
+    "AMRunningMode": "Normal",
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "BehaviorMonitorEnabled": true,
+    "IoavProtectionEnabled": true,
+    "IsTamperProtected": false,
+    "AntivirusSignatureVersion": "1.463.353.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "exclusions": {
+    "ExclusionPath": null,
+    "ExclusionExtension": null,
+    "ExclusionProcess": null,
+    "DisableArchiveScanning": false
+  },
+  "scanEvents": [
+    {
+      "id": 1001,
+      "recordId": 625,
+      "scanId": "{028C7AB8-72FF-4A23-9419-6F663773E8CA}",
+      "resource": null,
+      "message": "Microsoft Defender Antivirus scan has finished.\r\n \tScan ID: {028C7AB8-72FF-4A23-9419-6F663773E8CA}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Time: 0:01:12",
+      "utc": "2026-11-18T08:59:54.9428609Z"
+    },
+    {
+      "id": 1000,
+      "recordId": 623,
+      "scanId": "{028C7AB8-72FF-4A23-9419-6F663773E8CA}",
+      "resource": "folder:_C:\\VentioWave2Verify-44271082527-1\\Payload",
+      "message": "Microsoft Defender Antivirus scan has started.\r\n \tScan ID: {028C7AB8-72FF-4A23-9419-6F663773E8CA}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tScan Resources: folder:_C:\\VentioWave2Verify-44271082527-1\\Payload\r\n  \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Trigger: On demand\r\n \tScan Only If Idle: Enabled\r\n \tLow CPU Priority for Scans: Disabled\r\n \tThread Priority: 7",
+      "utc": "2026-11-18T08:58:42.9426156Z"
+    },
+    {
+      "id": 1001,
+      "recordId": 622,
+      "scanId": "{665F266A-F351-4E8B-81B7-2E1631504034}",
+      "resource": null,
+      "message": "Microsoft Defender Antivirus scan has finished.\r\n \tScan ID: {665F266A-F351-4E8B-81B7-2E1631504034}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Time: 0:03:05",
+      "utc": "2026-11-18T08:58:42.9095701Z"
+    },
+    {
+      "id": 1000,
+      "recordId": 621,
+      "scanId": "{665F266A-F351-4E8B-81B7-2E1631504034}",
+      "resource": "file:_C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip",
+      "message": "Microsoft Defender Antivirus scan has started.\r\n \tScan ID: {665F266A-F351-4E8B-81B7-2E1631504034}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tScan Resources: file:_C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip\r\n  \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Trigger: On demand\r\n \tScan Only If Idle: Enabled\r\n \tLow CPU Priority for Scans: Disabled\r\n \tThread Priority: 7",
+      "utc": "2026-11-18T08:55:37.3340756Z"
+    }
+  ],
+  "threats": [],
+  "detections": [],
+  "protectionAfter": {
+    "AMRunningMode": "Normal",
+    "RealTimeProtectionEnabled": true,
+    "BehaviorMonitorEnabled": true,
+    "IoavProtectionEnabled": true,
+    "AntivirusEnabled": true,
+    "AntivirusSignatureVersion": "1.463.353.0",
+    "IsTamperProtected": false
+  },
+  "executionPoliciesBefore": [
+    {
+      "Scope": 4,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 3,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 0,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 1,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 2,
+      "ExecutionPolicy": 1
+    }
+  ],
+  "installerExitCode": 0,
+  "installedPayloadFilesMatched": 1744,
+  "uninstallerExitCode": 0,
+  "executionPoliciesAfter": [
+    {
+      "Scope": 4,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 3,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 0,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 1,
+      "ExecutionPolicy": 5
+    },
+    {
+      "Scope": 2,
+      "ExecutionPolicy": 1
+    }
+  ]
+}

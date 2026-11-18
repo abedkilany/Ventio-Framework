@@ -1,5 +1,9 @@
 # Wave 2 B hosted case results — partial verification
 
+Historical candidate ledger. The current outcomes and source revisions are in
+[WAVE_2_B_CORRECTIVE_RESULTS.md](WAVE_2_B_CORRECTIVE_RESULTS.md). The raw outcomes
+below remain preserved; they are not the latest candidate's result totals.
+
 Candidate commit: `7218c1c9994acc31cfa86008b92d2950367c6fac`; final Windows run: [44239309334](https://github.com/abedkilany/Ventio-Framework/actions/runs/44239309334).
 
 Recorded case outcomes at listed exact revisions, not a claim that all cases ran on the final candidate. Earlier results are explicitly identified. Mapped path equality is limited dependency evidence, not an exhaustive dependency closure. Shared mutable-JSON/test-input corrections and CI fixture hardening occurred between early and final runs; historical artifacts remain preserved.

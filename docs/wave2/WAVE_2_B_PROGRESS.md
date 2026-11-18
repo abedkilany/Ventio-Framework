@@ -1,5 +1,12 @@
 # Wave 2 B verification progress
 
+2026-11-18 corrective checkpoint: see
+[the current review](WAVE_2_B_CORRECTIVE_REVIEW.md) and
+[case ledger](WAVE_2_B_CORRECTIVE_RESULTS.md). The corrected hosted Windows
+candidate and stated regressions passed; installed credential recovery,
+P001–P006 and six physical/manual cases remain open. TEST-02 installation stays
+deferred. Physical-machine and older candidate checkpoints below are historical.
+
 **Current status: WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
 Current checkpoint (2026-11-16 17:43 UTC): both machines are reachable by SSH, and both Host/PostgreSQL services are Running. Both Host executables hash to `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`. Full candidate CI passed on `e756dcbb3cb58d8feca7e022e337f13ed398d5a5`; its Windows acceptance artifact is identified below. Client binaries still differ, and Defender's historical detection remains unresolved despite a clean non-remediating scan under signature `1.463.329.0`. Host behavior tests, real synchronization and product backup/restore remain blocked or unexecuted. PR #6 remains Draft/unmerged.
 Branch: `feature/wave-2-a`
