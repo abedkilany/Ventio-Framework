@@ -20,6 +20,8 @@ jobs:
           fetch-depth: 0
       - name: Stage fresh SHA-256-pinned tools; capture hosted provenance
         run: ./scripts/ci/stage-wave2-acceptance.ps1
+      - name: Initialize unexecuted case ledger
+        run: python tests/wave2/run_hosted_tests.py initialize
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '8.0.421'
@@ -90,6 +92,8 @@ jobs:
       - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1
         with:
           sdk: '3.13.7'
+      - name: Initialize unexecuted case ledger
+        run: python3 tests/wave2/run_hosted_tests.py initialize
       - name: Resolve locked Host dependencies and prepare restricted audit helper
         run: |
           set -euo pipefail

@@ -4,7 +4,7 @@ param([string]$PrivateFixtureParent = $env:TEMP)
 # PREPARED / NOT EXECUTED. No Pester install, service, scheduler or Host needed.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-if ($env:VENTIO_WAVE2_PREPARED_TESTS -cne 'yes' -or $env:COMPUTERNAME -in @('VENTIO-TEST-01','VENTIO-TEST-02')) {
+if ($env:VENTIO_WAVE2_PREPARED_TESTS -cne 'yes' -or $env:COMPUTERNAME -in @('VENTIO-TEST-01','VENTIO-TEST-02','TEST-01','TEST-02','BAHAA')) {
   throw 'Explicit disposable test opt-in required; TEST-01/TEST-02 prohibited.'
 }
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -34,8 +34,13 @@ function Assert-Failure([scriptblock]$Action,[string]$Code) {
   Assert-True ($null -ne $failure -and $failure -ceq $Code) "Expected exact failure $Code"
 }
 function Test-Case([string]$Id,[string]$Capabilities,[string]$Requirement,[scriptblock]$Body) {
-  & $Body
-  Write-Output "PASS $Id [$Capabilities] $Requirement"
+  try {
+    & $Body
+    Write-Output "PASS $Id [$Capabilities] $Requirement"
+  } catch {
+    Write-Output "FAIL $Id [$Capabilities] $Requirement"
+    throw
+  }
 }
 $data = Join-Path $root 'data'
 [void][IO.Directory]::CreateDirectory((Join-Path $data 'base'))

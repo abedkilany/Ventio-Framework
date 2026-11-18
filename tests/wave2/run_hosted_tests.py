@@ -55,6 +55,8 @@ def suite(letter, args, cwd, env=None, setup=None):
                 if record['status']=='UNEXECUTED': record['status']='UNEXECUTED_AFTER_SUITE_FAILURE'
     except Exception as exc:
         error=str(exc)
+        if isinstance(exc, subprocess.CalledProcessError) and exc.output:
+            error+='\n'+'\n'.join(str(exc.output).splitlines()[-50:])
         # Setup failure is never promoted to an executed case failure or a pass.
         for record in records.values():
             if record['status']=='UNEXECUTED': record.update(status='BLOCKED_PREREQUISITE',reason=error)
@@ -116,7 +118,9 @@ def docker_fixture(env):
 
 host=ROOT/'packages/ventio_host_api'
 native=ROOT/'packages/ventio_native_client'
-if MODE=='windows':
+if MODE=='initialize':
+    (OUT/'initial-case-ledger.json').write_text(json.dumps({'commit':call(['git','rev-parse','HEAD']),'cases':[dict(c,status='UNEXECUTED') for c in CASES]},indent=2))
+elif MODE=='windows':
     suite('C',['dart','--packages=../ventio_native_client/.dart_tool/package_config.json','test/wave2_contracts_test.dart'],ROOT/'packages/ventio_core')
     suite('S',['flutter','test','--no-pub','--machine','test/wave2_workspace_store_test.dart'],native)
     suite('W',['pwsh','-NoLogo','-NoProfile','-File','tests/wave2/windows_integrity_tests.ps1','-PrivateFixtureParent',os.environ['RUNNER_TEMP']],ROOT)

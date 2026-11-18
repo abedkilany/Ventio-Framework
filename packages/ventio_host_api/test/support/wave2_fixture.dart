@@ -75,6 +75,9 @@ class W2Fixture {
         {
           'VENTIO-TEST-01',
           'VENTIO-TEST-02',
+          'TEST-01',
+          'TEST-02',
+          'BAHAA',
         }.contains(Platform.localHostname.toUpperCase())) {
       throw StateError(
         'Explicit Wave 2 disposable-fixture opt-in required; physical lab hosts prohibited',

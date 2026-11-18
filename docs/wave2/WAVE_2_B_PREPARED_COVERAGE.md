@@ -183,17 +183,17 @@ Every row below has status **PREPARED_NOT_EXECUTED**. Fixture/command groups are
 | W2-G005 | A11,A12,K09 | repeated Host customization labels refresh in the same app session | [wave2_workspace_acceptance_test.dart:207](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L207) |
 | W2-G006 | C12,F05 | a saved dashboard card opens a real current-authorized Host report | [wave2_workspace_acceptance_test.dart:244](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L244) |
 | W2-G007 | H04,D08 | native document activity renders real command identity without protected values | [wave2_workspace_acceptance_test.dart:277](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L277) |
-| W2-W001 | M05 | Real nested backup inventory contains sorted per-file lengths and SHA-256 | [windows_integrity_tests.ps1:46](../../tests/wave2/windows_integrity_tests.ps1#L46) |
-| W2-W002 | M05,M09 | Same-size one-byte corruption is detected | [windows_integrity_tests.ps1:52](../../tests/wave2/windows_integrity_tests.ps1#L52) |
-| W2-W003 | M05,M09 | Missing files cannot pass inventory verification | [windows_integrity_tests.ps1:58](../../tests/wave2/windows_integrity_tests.ps1#L58) |
-| W2-W004 | M05,M09 | Unexpected files cannot pass inventory verification | [windows_integrity_tests.ps1:65](../../tests/wave2/windows_integrity_tests.ps1#L65) |
-| W2-W005 | M05,M09 | Manifest path traversal absolute paths duplicate names invalid hashes and negative lengths fail | [windows_integrity_tests.ps1:71](../../tests/wave2/windows_integrity_tests.ps1#L71) |
-| W2-W006 | M05,M09 | Junction ancestors are rejected and their target remains intact | [windows_integrity_tests.ps1:80](../../tests/wave2/windows_integrity_tests.ps1#L80) |
-| W2-W007 | M05,M09 | Staged backup copies must match original content before acceptance | [windows_integrity_tests.ps1:86](../../tests/wave2/windows_integrity_tests.ps1#L86) |
-| W2-W008 | M05,M09 | Protected operation JSON is replaced atomically with no temporary residue | [windows_integrity_tests.ps1:94](../../tests/wave2/windows_integrity_tests.ps1#L94) |
-| W2-W009 | M05,M09 | Protected operation JSON enforces byte bounds before decoding | [windows_integrity_tests.ps1:104](../../tests/wave2/windows_integrity_tests.ps1#L104) |
-| W2-W010 | M05,M09 | An untrusted read ACL on a fixture file is rejected | [windows_integrity_tests.ps1:109](../../tests/wave2/windows_integrity_tests.ps1#L109) |
-| W2-W011 | M09 | The real restore entry point refuses missing confirmation before touching services | [windows_integrity_tests.ps1:118](../../tests/wave2/windows_integrity_tests.ps1#L118) |
+| W2-W001 | M05 | Real nested backup inventory contains sorted per-file lengths and SHA-256 | [windows_integrity_tests.ps1:51](../../tests/wave2/windows_integrity_tests.ps1#L51) |
+| W2-W002 | M05,M09 | Same-size one-byte corruption is detected | [windows_integrity_tests.ps1:57](../../tests/wave2/windows_integrity_tests.ps1#L57) |
+| W2-W003 | M05,M09 | Missing files cannot pass inventory verification | [windows_integrity_tests.ps1:63](../../tests/wave2/windows_integrity_tests.ps1#L63) |
+| W2-W004 | M05,M09 | Unexpected files cannot pass inventory verification | [windows_integrity_tests.ps1:70](../../tests/wave2/windows_integrity_tests.ps1#L70) |
+| W2-W005 | M05,M09 | Manifest path traversal absolute paths duplicate names invalid hashes and negative lengths fail | [windows_integrity_tests.ps1:76](../../tests/wave2/windows_integrity_tests.ps1#L76) |
+| W2-W006 | M05,M09 | Junction ancestors are rejected and their target remains intact | [windows_integrity_tests.ps1:85](../../tests/wave2/windows_integrity_tests.ps1#L85) |
+| W2-W007 | M05,M09 | Staged backup copies must match original content before acceptance | [windows_integrity_tests.ps1:91](../../tests/wave2/windows_integrity_tests.ps1#L91) |
+| W2-W008 | M05,M09 | Protected operation JSON is replaced atomically with no temporary residue | [windows_integrity_tests.ps1:99](../../tests/wave2/windows_integrity_tests.ps1#L99) |
+| W2-W009 | M05,M09 | Protected operation JSON enforces byte bounds before decoding | [windows_integrity_tests.ps1:109](../../tests/wave2/windows_integrity_tests.ps1#L109) |
+| W2-W010 | M05,M09 | An untrusted read ACL on a fixture file is rejected | [windows_integrity_tests.ps1:114](../../tests/wave2/windows_integrity_tests.ps1#L114) |
+| W2-W011 | M09 | The real restore entry point refuses missing confirmation before touching services | [windows_integrity_tests.ps1:123](../../tests/wave2/windows_integrity_tests.ps1#L123) |
 | W2-P001 | D09,M05,M09 | Real disposable installed Host authenticates the approved fixture identity | [windows_operations_acceptance.ps1:116](../../tests/wave2/windows_operations_acceptance.ps1#L116) |
 | W2-P002 | M05 | Supported Host authorization and elevated local approval arm the fixed SYSTEM schedule | [windows_operations_acceptance.ps1:123](../../tests/wave2/windows_operations_acceptance.ps1#L123) |
 | W2-P003 | M05 | Real scheduled backup verifies content and does not repeat a completed daily offer | [windows_operations_acceptance.ps1:133](../../tests/wave2/windows_operations_acceptance.ps1#L133) |
