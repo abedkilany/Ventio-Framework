@@ -43,7 +43,7 @@ function Get-Backup([string]$Name){
  $manifestPath=Join-Path $root 'backup-manifest.json'
  $manifest=Read-VentioOperationJson $manifestPath $adminSid 134217728
  if($manifest.formatVersion -ne 2 -or $manifest.integrityAlgorithm -cne 'SHA-256' -or $manifest.recoveryAuthorityIncluded -ne $false -or
-   $manifest.postgresVersion -cne '16.15' -or $manifest.dataDirectory -cne 'data'){throw 'HOST_OPERATION_BACKUP_PROFILE_INVALID'}
+   $manifest.postgresVersion -cnotin @('16.15','16.16') -or $manifest.dataDirectory -cne 'data'){throw 'HOST_OPERATION_BACKUP_PROFILE_INVALID'}
  if(-not ($manifest.PSObject.Properties.Name -contains 'machineId') -or $manifest.machineId -cne $machine -or
    -not ($manifest.PSObject.Properties.Name -contains 'schemaProfileSha256') -or $manifest.schemaProfileSha256 -cne $schemaHash){throw 'HOST_OPERATION_RESTORE_COMPATIBILITY_DENIED'}
  Assert-HostBackupIntegrity (Join-Path $root 'data') @($manifest.files)

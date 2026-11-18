@@ -115,7 +115,7 @@ function Copy-Data([string] $Source, [string] $Destination) {
 
 if (((Get-Item -LiteralPath (Join-Path $backupRoot 'backup-manifest.json') -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'HOST_UPGRADE_RESTORE_REPARSE_POINT' }
 $manifest = Get-Content -LiteralPath (Join-Path $backupRoot 'backup-manifest.json') -Raw | ConvertFrom-Json
-if ($manifest.formatVersion -notin @(1, 2) -or $manifest.postgresVersion -ne '16.15' -or
+if ($manifest.formatVersion -notin @(1, 2) -or $manifest.postgresVersion -cnotin @('16.15','16.16') -or
     $manifest.dataDirectory -cne 'data' -or
     (Get-Content -LiteralPath (Join-Path $backupRoot 'data\PG_VERSION') -Raw).Trim() -cne '16') {
   throw 'HOST_UPGRADE_RESTORE_BACKUP_MANIFEST_INVALID'
@@ -183,7 +183,7 @@ try {
     files = $currentIntegrity
     recoveryAuthorityIncluded = $false
     createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
-    postgresVersion = '16.15'
+    postgresVersion = '16.16'
     dataDirectory = 'data'
     fileCount = $currentInventory.fileCount
     bytes = $currentInventory.bytes

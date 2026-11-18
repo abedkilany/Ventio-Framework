@@ -80,7 +80,7 @@ try {
       throw 'Unified installer is missing a required Host runtime component.'
     }
   }
-  if ($manifest.postgresVersion -ne '16.15' -or $manifest.credentialsIncluded -ne $false -or
+  if ($manifest.postgresVersion -ne '16.16' -or $manifest.credentialsIncluded -ne $false -or
       $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
       $manifest.trustedHostUpgradeExecutable -ne 'ventio_trusted_host_upgrade.exe' -or
       $manifest.databaseIncluded -ne $false -or

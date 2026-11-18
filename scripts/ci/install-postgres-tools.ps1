@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
-$version = '16.15-5'
-$expectedSha256 = '43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281'
-$expectedLength = 373254386
+$version = '16.16-1'
+$expectedSha256 = '5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f'
+$expectedLength = 378078504
 $archiveName = "postgresql-$version-windows-x64-binaries.zip"
 $archiveUrl = "https://get.enterprisedb.com/postgresql/$archiveName"
 $checksumUrl = "$archiveUrl.sha256"

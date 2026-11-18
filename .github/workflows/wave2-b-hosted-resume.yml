@@ -12,6 +12,36 @@ permissions:
   contents: read
   actions: read
 jobs:
+  windows-runtime-regressions:
+    if: inputs.scope == 'windows-runtime'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Enable normal protection on the disposable VM
+        shell: pwsh
+        run: ./scripts/ci/enable-wave2-defender.ps1
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.404'
+      - name: Stage reviewed PostgreSQL 16.16 archive
+        shell: pwsh
+        run: ./scripts/ci/install-postgres-tools.ps1
+      - name: Execute service broker and PostgreSQL recovery regressions
+        shell: pwsh
+        run: ./scripts/ci/run-wave2-runtime-regressions.ps1
+      - name: Retain targeted runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-runtime-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/wave2-runtime/*
+            ${{ runner.temp }}/wave2-defender-enablement.json
+          if-no-files-found: error
+          retention-days: 30
   windows-candidate:
     if: inputs.scope == 'all' || inputs.scope == 'windows' || inputs.scope == 'windows-tests'
     runs-on: windows-2025
@@ -41,7 +71,7 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         if: inputs.scope != 'windows-tests'
         with:
-          dotnet-version: '8.0.421'
+          dotnet-version: '10.0.404'
       - name: Build Host before Flutter changes Dart PATH
         if: inputs.scope != 'windows-tests'
         run: |
@@ -54,7 +84,7 @@ jobs:
           if ($LASTEXITCODE) { throw 'Migration dependency resolution failed' }
           Pop-Location
           ./scripts/ci/install-postgres-tools.ps1
-          $pg = Join-Path $env:RUNNER_TOOL_CACHE 'ventio-postgresql-16.15-5-x64/pgsql/bin'
+          $pg = Join-Path $env:RUNNER_TOOL_CACHE 'ventio-postgresql-16.16-1-x64/pgsql/bin'
           ./scripts/windows/build-host-payload.ps1 -PostgresBinDirectory $pg
       - uses: subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885 # v2.15.0
         with:
@@ -147,8 +177,8 @@ jobs:
           dart pub get --enforce-lockfile
           cd ../..
           bash scripts/ci/install-ventio-ci-drop-helper.sh
-          docker pull postgres:16.15-bookworm
-          docker tag postgres:16.15-bookworm postgres:16
+          docker pull postgres:16.16-bookworm
+          docker tag postgres:16.16-bookworm postgres:16
       - name: Execute real PostgreSQL, gateway, jobs, upgrade and WB-CI-02 cases
         continue-on-error: true
         run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'core' && 'core' || (inputs.scope == 'gateway-jobs' && 'gateway-jobs' || 'linux') }}

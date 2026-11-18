@@ -42,7 +42,7 @@ try {
     throw 'HOST_RETAINED_PAYLOAD_MISMATCH'
   }
   $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-  if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -cne '16.15' -or
+  if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -cne '16.16' -or
       $manifest.credentialsIncluded -ne $false -or $manifest.databaseIncluded -ne $false) {
     throw 'HOST_RETAINED_PAYLOAD_INVALID'
   }

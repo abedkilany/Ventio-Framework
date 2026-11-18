@@ -138,7 +138,7 @@ foreach ($path in @($psql, $createdb, $postgres, $migrationExe, $migrations, $bo
   if (-not (Test-Path -LiteralPath $path)) { throw 'HOST_DATABASE_PAYLOAD_INCOMPLETE' }
 }
 $version = (& $postgres --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') { throw 'HOST_DATABASE_VERSION_UNSUPPORTED' }
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') { throw 'HOST_DATABASE_VERSION_UNSUPPORTED' }
 $data = [IO.Path]::GetFullPath($DataDirectory)
 if ($TestMode) {
   $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\ventio-pg-initdb-test-'

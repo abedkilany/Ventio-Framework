@@ -1230,7 +1230,7 @@ internal static class Program
         var root = manifest.RootElement;
         if (!root.TryGetProperty("formatVersion", out var formatVersion) || formatVersion.GetInt32() != 1 ||
             !root.TryGetProperty("setupBrokerExecutable", out var brokerName) || brokerName.GetString() != "VentioSetupBroker.exe" ||
-            !root.TryGetProperty("postgresVersion", out var postgresVersion) || postgresVersion.GetString() != "16.15" ||
+            !root.TryGetProperty("postgresVersion", out var postgresVersion) || postgresVersion.GetString() != "16.16" ||
             !root.TryGetProperty("credentialsIncluded", out var credentialsIncluded) || credentialsIncluded.GetBoolean() ||
             !root.TryGetProperty("databaseIncluded", out var databaseIncluded) || databaseIncluded.GetBoolean() ||
             !root.TryGetProperty("verifiedFiles", out var files) || files.ValueKind != JsonValueKind.Array)

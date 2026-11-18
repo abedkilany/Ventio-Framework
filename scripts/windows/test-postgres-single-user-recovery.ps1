@@ -26,7 +26,7 @@ foreach ($file in @($postgres, $initdb)) {
   if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'POSTGRES_SINGLE_USER_TEST_PAYLOAD_INCOMPLETE' }
 }
 $version = (& $postgres --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') {
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') {
   throw 'POSTGRES_SINGLE_USER_TEST_VERSION_INVALID'
 }
 if (Test-Path -LiteralPath $testRoot) { throw 'POSTGRES_SINGLE_USER_TEST_PATH_ALREADY_EXISTS' }

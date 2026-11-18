@@ -355,7 +355,7 @@ foreach ($file in @($postgres, $pgCtl, $pgIsReady, $psql)) {
 }
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'HOST_DATABASE_RECOVERY_PORT_INVALID' }
 $version = (& $postgres --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') { throw 'HOST_DATABASE_RECOVERY_VERSION_INVALID' }
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') { throw 'HOST_DATABASE_RECOVERY_VERSION_INVALID' }
 $runtimePassword = Get-HostCredentialPassword $RuntimeCredential 'ventio_runtime_app'
 $identityPassword = Get-HostCredentialPassword $IdentityApiCredential 'ventio_identity_api_app'
 
@@ -503,7 +503,7 @@ RESET ROLE;
   $manifest = [ordered]@{
     formatVersion = 1
     createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
-    postgresVersion = '16.15'
+    postgresVersion = '16.16'
     dataDirectory = 'data'
     fileCount = $backupInventory.fileCount
     bytes = $backupInventory.bytes

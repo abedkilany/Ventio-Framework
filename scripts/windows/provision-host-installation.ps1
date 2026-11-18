@@ -298,7 +298,7 @@ foreach ($file in @(
   if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'HOST_PAYLOAD_INCOMPLETE' }
 }
 $manifest = Get-Content -LiteralPath (Join-Path $payload 'payload-manifest.json') -Raw | ConvertFrom-Json
-if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
+if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.16' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or

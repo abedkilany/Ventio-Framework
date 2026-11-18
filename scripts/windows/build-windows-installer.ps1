@@ -54,7 +54,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $hostPayload 'payload-manifest.json'
 }
 
 $manifest = Get-Content -LiteralPath (Join-Path $hostPayload 'payload-manifest.json') -Raw | ConvertFrom-Json
-if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
+if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.16' -or
     $manifest.hostExecutable -ne 'ventio_host.exe' -or
     $manifest.migrationExecutable -ne 'ventio_migrate.exe' -or
     $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or

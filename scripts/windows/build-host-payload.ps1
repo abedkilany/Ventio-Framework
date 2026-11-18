@@ -1,5 +1,5 @@
 param(
-  [string] $PostgresBinDirectory = (Join-Path $env:LOCALAPPDATA 'VentioFramework\postgresql-16.15-tools\pgsql\bin'),
+  [string] $PostgresBinDirectory = (Join-Path $env:LOCALAPPDATA 'VentioFramework\postgresql-16.16-tools\pgsql\bin'),
   [string] $OutputDirectory
 )
 
@@ -35,8 +35,8 @@ foreach ($name in $requiredPostgres) {
   }
 }
 $versionOutput = (& (Join-Path $postgresBin 'postgres.exe') --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $versionOutput -ne 'postgres (PostgreSQL) 16.15') {
-  throw 'Host payload requires the verified PostgreSQL 16.15 Windows tools.'
+if ($LASTEXITCODE -ne 0 -or $versionOutput -ne 'postgres (PostgreSQL) 16.16') {
+  throw 'Host payload requires the verified PostgreSQL 16.16 Windows tools.'
 }
 
 $migrationDirectory = Join-Path $repoRoot 'migrations\postgres'
@@ -210,11 +210,11 @@ try {
     trustedHostUpgradeExecutable = 'ventio_trusted_host_upgrade.exe'
     serviceExecutable = 'VentioHostService.exe'
     setupBrokerExecutable = 'VentioSetupBroker.exe'
-    postgresVersion = '16.15'
+    postgresVersion = '16.16'
     postgresIncludedComponents = @('bin', 'lib', 'share', '*.txt')
     postgresExcludedComponents = @('doc', 'include', 'pgAdmin 4', 'StackBuilder')
-    postgresSourceArchiveSha256 = '43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281'
-    postgresSourceArchiveLength = 373254386
+    postgresSourceArchiveSha256 = '5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f'
+    postgresSourceArchiveLength = 378078504
     migrationsDirectory = 'migrations'
     securityDirectory = 'security'
     credentialsIncluded = $false

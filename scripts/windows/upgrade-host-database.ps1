@@ -293,7 +293,7 @@ function Complete-HostPostgresBackup(
     files = $integrityFiles
     recoveryAuthorityIncluded = $false
     createdAtUtc = [DateTime]::UtcNow.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
-    postgresVersion = '16.15'
+    postgresVersion = '16.16'
     dataDirectory = 'data'
     fileCount = $backupInventory.fileCount
     bytes = $backupInventory.bytes
@@ -695,7 +695,7 @@ $databaseUrl = $null
 try {
   Set-HostBackupStage 'BACKUP_POSTGRES_VERSION' 'HOST_DATABASE_UPGRADE_VERSION_UNSUPPORTED'
   $version = (& (Join-Path $bin 'postgres.exe') --version 2>&1 | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') { throw 'HOST_DATABASE_UPGRADE_VERSION_UNSUPPORTED' }
+  if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') { throw 'HOST_DATABASE_UPGRADE_VERSION_UNSUPPORTED' }
   Set-HostBackupStage 'BACKUP_SOURCE_INVENTORY' 'HOST_DATABASE_BACKUP_SOURCE_INVENTORY_FAILED'
   $pgVersionFile = Join-Path $dataDirectory 'PG_VERSION'
   if ((Get-Content -LiteralPath $pgVersionFile -Raw).Trim() -ne '16') { throw 'HOST_DATABASE_UPGRADE_CLUSTER_VERSION_INVALID' }

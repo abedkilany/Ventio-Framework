@@ -547,10 +547,19 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           'before': cursor == null ? null : int.parse(cursor),
           'limit': limit,
         });
-        return _runtime(
-          'SELECT ventio_security.wave2_history(@digest,@company,@branch,@module,@version,@doc,@record,@before,@limit)::text',
-          parameters,
-        );
+        try {
+          return await _runtime(
+            'SELECT ventio_security.wave2_history(@digest,@company,@branch,@module,@version,@doc,@record,@before,@limit)::text',
+            parameters,
+          );
+        } on pg.ServerException catch (error) {
+          // The SQL contract validates the cursor's tenant/scope/record binding.
+          // Report that bounded input rejection without exposing SQL diagnostics.
+          if (error.code == '22023') {
+            throw const ContractError('INVALID_CURSOR', 'Invalid activity cursor.');
+          }
+          rethrow;
+        }
       default:
         throw const ContractError(
           'UNSUPPORTED_OPERATION',

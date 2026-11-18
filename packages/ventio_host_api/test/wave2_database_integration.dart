@@ -304,10 +304,10 @@ Future<void> main() async {
             await file.copy('${directory.path}/${file.uri.pathSegments.last}');
           }
         }
-        await File('${directory.path}/041_prepared_fixture.sql').writeAsString(
+        await File('${directory.path}/042_prepared_fixture.sql').writeAsString(
           'CREATE TABLE public.ventio_wave2_rollback_probe(id integer)',
         );
-        await File('${directory.path}/042_prepared_failure.sql').writeAsString(
+        await File('${directory.path}/043_prepared_failure.sql').writeAsString(
           "DO \$probe\$ BEGIN RAISE EXCEPTION 'prepared deterministic failure' USING ERRCODE='23514'; END \$probe\$",
         );
         final before = await ledger();

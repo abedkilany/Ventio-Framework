@@ -20,13 +20,20 @@
     "revision": "924134a44c189315be2148659913dda1671cbe99"
   },
   "dotnet": {
-    "version": "8.0.421"
+    "version": "10.0.404",
+    "runtimeVersion": "10.0.15",
+    "metadataUrl": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",
+    "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.404/dotnet-sdk-10.0.404-win-x64.zip",
+    "sha512": "330ddd2665b43cd2e428216a0d8ea1ac7bb19b5434fdc530e62010dc3b52823a620bf95489d628e1ed6f5122401793ee4887cca4a019122361a1231497f632ee"
   },
   "msvc": {
     "toolset": "14.51.36231"
   },
   "postgres": {
-    "version": "16.15-5",
-    "sha256": "43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281"
+    "version": "16.16-1",
+    "sha256": "5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f",
+    "bytes": 378078504,
+    "url": "https://get.enterprisedb.com/postgresql/postgresql-16.16-1-windows-x64-binaries.zip",
+    "checksumUrl": "https://get.enterprisedb.com/postgresql/postgresql-16.16-1-windows-x64-binaries.zip.sha256"
   }
 }
