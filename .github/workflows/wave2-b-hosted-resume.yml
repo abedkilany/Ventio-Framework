@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   windows-candidate:
-    if: inputs.scope == 'all' || inputs.scope == 'windows'
+    if: inputs.scope == 'all' || inputs.scope == 'windows' || inputs.scope == 'windows-tests'
     runs-on: windows-2025
     timeout-minutes: 90
     env:
@@ -24,13 +24,16 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Stage fresh SHA-256-pinned tools; capture hosted provenance
+        if: inputs.scope != 'windows-tests'
         run: ./scripts/ci/stage-wave2-acceptance.ps1
       - name: Initialize unexecuted case ledger
         run: python tests/wave2/run_hosted_tests.py initialize
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        if: inputs.scope != 'windows-tests'
         with:
           dotnet-version: '8.0.421'
       - name: Build Host before Flutter changes Dart PATH
+        if: inputs.scope != 'windows-tests'
         run: |
           Push-Location packages/ventio_host_api
           dart pub get --enforce-lockfile
@@ -49,6 +52,7 @@ jobs:
           channel: stable
           cache: false
       - name: Build Client and unified installer from this checkout only
+        if: inputs.scope != 'windows-tests'
         run: |
           ./scripts/prepare_native_client_platforms.ps1
           Push-Location packages/ventio_native_client
@@ -59,10 +63,31 @@ jobs:
           Pop-Location
           ./scripts/windows/build-windows-installer.ps1 -SkipFlutterBuild -VCRedistPath "$env:RUNNER_TEMP/wave2-inputs/vc_redist.x64.exe" -InstallerOutputDirectory "$env:RUNNER_TEMP/wave2-installer"
       - name: Package complete candidate, manifests, source and security evidence
+        if: inputs.scope != 'windows-tests'
         run: ./scripts/ci/package-wave2-acceptance.ps1
+      - name: Resolve only prerequisites for selected Windows test reruns
+        if: inputs.scope == 'windows-tests'
+        run: |
+          ./scripts/prepare_native_client_platforms.ps1
+          Push-Location packages/ventio_native_client
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Flutter test dependencies failed' }
+          Pop-Location
+          Push-Location packages/ventio_host_api
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Host fixture dependencies failed' }
+          Pop-Location
+          ./scripts/ci/install-postgres-tools.ps1
+          $flutterRoot = Split-Path -Parent (Split-Path -Parent (Get-Command flutter).Source)
+          "VENTIO_HOST_DART_BIN=$flutterRoot/bin/cache/dart-sdk/bin" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Prepare actual private Windows fixture storage
+        working-directory: packages/ventio_host_api
+        run: |
+          & "$env:VENTIO_HOST_DART_BIN/dart.exe" --packages=.dart_tool/package_config.json test/prepare_private_test_storage.dart
+          if ($LASTEXITCODE) { throw 'Private fixture storage failed production ACL verification' }
       - name: Execute Core, SQLite and Windows integrity cases
         continue-on-error: true
-        run: python tests/wave2/run_hosted_tests.py windows
+        run: python tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'windows-tests' && 'windows-recovery' || 'windows' }}
       - name: Prepare separate disposable PostgreSQL for desktop integration
         run: ./scripts/ci/start-postgres-test-instance.ps1
       - name: Execute native desktop cases against the real fixture
@@ -84,9 +109,9 @@ jobs:
           retention-days: 30
       - name: Enforce applicable Windows results
         if: always()
-        run: python tests/wave2/run_hosted_tests.py verify-windows
+        run: python tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'windows-tests' && 'verify-windows-recovery' || 'verify-windows' }}
   linux-integration:
-    if: inputs.scope != 'windows'
+    if: inputs.scope != 'windows' && inputs.scope != 'windows-tests'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -112,19 +137,19 @@ jobs:
           docker tag postgres:16.15-bookworm postgres:16
       - name: Execute real PostgreSQL, gateway, jobs, upgrade and WB-CI-02 cases
         continue-on-error: true
-        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'gateway-jobs' && 'gateway-jobs' || 'linux' }}
+        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'core' && 'core' || (inputs.scope == 'gateway-jobs' && 'gateway-jobs' || 'linux') }}
       - uses: subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885 # v2.15.0
-        if: inputs.scope != 'gateway-jobs'
+        if: inputs.scope != 'gateway-jobs' && inputs.scope != 'core'
         with:
           flutter-version: '3.44.1'
           channel: stable
           cache: false
       - name: Resolve locked Flutter dependencies
-        if: inputs.scope != 'gateway-jobs'
+        if: inputs.scope != 'gateway-jobs' && inputs.scope != 'core'
         working-directory: packages/ventio_native_client
         run: flutter pub get --enforce-lockfile
       - name: Execute two-queue offline integration with real PostgreSQL and HTTP
-        if: inputs.scope != 'gateway-jobs'
+        if: inputs.scope != 'gateway-jobs' && inputs.scope != 'core'
         continue-on-error: true
         run: python3 tests/wave2/run_hosted_tests.py offline
       - name: Retain case-level integration evidence
@@ -137,4 +162,4 @@ jobs:
           retention-days: 30
       - name: Enforce applicable Linux results
         if: always()
-        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'gateway-jobs' && 'verify-gateway-jobs' || 'verify-linux' }}
+        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'core' && 'verify-core' || (inputs.scope == 'gateway-jobs' && 'verify-gateway-jobs' || 'verify-linux') }}

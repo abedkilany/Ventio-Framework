@@ -3,6 +3,8 @@ from __future__ import annotations
 import json, os, pathlib, re, shutil, subprocess, sys, tempfile, time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, 'reconfigure'): stream.reconfigure(encoding='utf-8', errors='backslashreplace')
 OUT = ROOT / 'test-results/wave2'
 MODE = sys.argv[1]
 if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted':
@@ -14,7 +16,7 @@ RESULTS = []
 def call(args, cwd=ROOT, env=None):
     args=[str(a) for a in args]
     args[0]=shutil.which(args[0]) or args[0]
-    return subprocess.check_output(args, cwd=cwd, env=env, text=True, stderr=subprocess.STDOUT).strip()
+    return subprocess.check_output(args, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stderr=subprocess.STDOUT).strip()
 
 def suite(letter, args, cwd, env=None, setup=None):
     ids = [c['id'] for c in CASES if c['id'].startswith('W2-'+letter)]
@@ -60,7 +62,7 @@ def suite(letter, args, cwd, env=None, setup=None):
         # Setup failure is never promoted to an executed case failure or a pass.
         for record in records.values():
             if record['status']=='UNEXECUTED': record.update(status='BLOCKED_PREREQUISITE',reason=error)
-        log.write_text((log.read_text() if log.exists() else '')+'\nSETUP/LAUNCH ERROR: '+error+'\n')
+        log.write_text((log.read_text(encoding='utf-8') if log.exists() else '')+'\nSETUP/LAUNCH ERROR: '+error+'\n',encoding='utf-8')
         print('Suite '+letter+' blocked: '+error,flush=True)
     finally:
         if callable(resource): resource()
@@ -120,17 +122,21 @@ host=ROOT/'packages/ventio_host_api'
 native=ROOT/'packages/ventio_native_client'
 if MODE=='initialize':
     (OUT/'initial-case-ledger.json').write_text(json.dumps({'commit':call(['git','rev-parse','HEAD']),'cases':[dict(c,status='UNEXECUTED') for c in CASES]},indent=2))
-elif MODE=='windows':
-    suite('C',['dart','--packages=../ventio_native_client/.dart_tool/package_config.json','test/wave2_contracts_test.dart'],ROOT/'packages/ventio_core')
-    suite('S',['flutter','test','--no-pub','--machine','test/wave2_workspace_store_test.dart'],native)
-    suite('W',['pwsh','-NoLogo','-NoProfile','-File','tests/wave2/windows_integrity_tests.ps1','-PrivateFixtureParent',os.environ['RUNNER_TEMP']],ROOT)
+elif MODE in ('windows','windows-recovery'):
+    if MODE=='windows':
+        suite('C',['dart','--packages=../ventio_native_client/.dart_tool/package_config.json','test/wave2_contracts_test.dart'],ROOT/'packages/ventio_core')
+        suite('S',['flutter','test','--no-pub','--machine','test/wave2_workspace_store_test.dart'],native)
+    suite('W',['pwsh','-NoLogo','-NoProfile','-File','tests/wave2/windows_integrity_tests.ps1','-PrivateFixtureParent',os.environ['USERPROFILE']],ROOT)
 elif MODE=='desktop':
     def desktop_setup(env):
         bootstrap(env)
         env['VENTIO_APP_SUPPORT_DIRECTORY']=str(pathlib.Path(os.environ['RUNNER_TEMP'])/('ventio-wave2-ui-'+os.environ['GITHUB_RUN_ID']))
     suite('G',['flutter','test','--no-pub','--machine','integration_test/wave2_workspace_acceptance_test.dart','-d','windows'],native,setup=desktop_setup)
-elif MODE in ('linux','gateway-jobs'):
+elif MODE in ('linux','gateway-jobs','core'):
+    if MODE in ('gateway-jobs','core'):
+        suite('C',['dart','--packages=../ventio_host_api/.dart_tool/package_config.json','test/wave2_contracts_test.dart'],ROOT/'packages/ventio_core')
     selected=[('H','gateway'),('J','jobs')] if MODE=='gateway-jobs' else [('H','gateway'),('J','jobs'),('D','database'),('O','operations'),('U','upgrade')]
+    if MODE=='core': selected=[]
     for letter,name in selected:
         suite(letter,['dart','--packages=.dart_tool/package_config.json',f'test/wave2_{name}_integration.dart'],host,setup=docker_fixture)
     def audit_setup(env):
@@ -148,7 +154,7 @@ elif MODE in ('linux','gateway-jobs'):
 elif MODE=='offline':
     suite('E',['flutter','test','--no-pub','--machine','test/wave2_offline_integration.dart'],native,setup=docker_fixture)
 elif MODE.startswith('verify-'):
-    modes=['gateway-jobs'] if MODE=='verify-gateway-jobs' else (['windows','desktop'] if MODE=='verify-windows' else ['linux','offline'])
+    modes=['core'] if MODE=='verify-core' else (['windows-recovery','desktop'] if MODE=='verify-windows-recovery' else (['gateway-jobs'] if MODE=='verify-gateway-jobs' else (['windows','desktop'] if MODE=='verify-windows' else ['linux','offline'])))
     files=[OUT/(m+'-results.json') for m in modes]
     if not all(p.is_file() for p in files): raise SystemExit('Required suite evidence missing')
     runs=[json.loads(p.read_text()) for p in files]

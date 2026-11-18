@@ -13,7 +13,8 @@ String w2Id(int value) =>
 Map<String, dynamic> w2Copy(Map<String, dynamic> value) =>
     jsonDecode(jsonEncode(value)) as Map<String, dynamic>;
 
-Map<String, dynamic> w2BundleJson({String version = '1.0.0'}) => {
+// Match decoded wire JSON's mutable collection types, including nested lists.
+Map<String, dynamic> w2BundleJson({String version = '1.0.0'}) => w2Copy({
   'manifest': {
     'manifestVersion': 0,
     'moduleId': w2Module,
@@ -99,7 +100,7 @@ Map<String, dynamic> w2BundleJson({String version = '1.0.0'}) => {
     '$w2Label.report.count': 'Asset count',
     '$w2Label.report.count.value': 'Count',
   },
-};
+});
 
 Map<String, dynamic> w2Overlay({String hash = ''}) => {
   'contractVersion': 1,
