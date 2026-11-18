@@ -214,7 +214,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
         (item) => item.state == ExtensionState.active,
       )) {
         try {
-          final local = await widget.extensions.exportBundle(
+          final local = await widget.extensions.readInstalledBundle(
             extension.moduleId,
           );
           final digest = sha256

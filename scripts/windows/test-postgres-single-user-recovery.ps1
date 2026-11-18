@@ -185,6 +185,11 @@ try {
     "CREATE DATABASE ventio_host;`n" $null 30000
   if ($databaseResult.ExitCode -ne 0 -or $databaseResult.StandardOutput -match '(?m)^ERROR:' -or
       $databaseResult.StandardError -match '(?m)^ERROR:') {
+    # This statement contains no credentials or user data. Retain its actual
+    # diagnostic to distinguish token/setup failures from PostgreSQL regressions.
+    Write-Output ('POSTGRES_SINGLE_USER_CREATE_EXIT=' + $databaseResult.ExitCode)
+    Write-Output ($databaseResult.StandardError.Substring(0,[Math]::Min(1500,$databaseResult.StandardError.Length)))
+    Write-Output ($databaseResult.StandardOutput.Substring(0,[Math]::Min(1500,$databaseResult.StandardOutput.Length)))
     throw 'POSTGRES_SINGLE_USER_TEST_DATABASE_CREATION_FAILED'
   }
 

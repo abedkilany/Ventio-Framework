@@ -2,7 +2,7 @@
   "status": "PREPARED_NOT_EXECUTED",
   "baselineRevision": "87f8a5c388233f203920aaaec6acbc7bf544a6bc",
   "executionProhibited": true,
-  "automatedCaseCount": 161,
+  "automatedCaseCount": 164,
   "cases": [
     {
       "id": "W2-C001",
@@ -962,6 +962,69 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/workspace_page.dart",
+        "packages/ventio_native_client/lib/src/workspace_store.dart"
+      ],
+      "status": "PREPARED_NOT_EXECUTED"
+    },
+    {
+      "id": "W2-S021",
+      "capabilities": [
+        "C08",
+        "F05",
+        "B09"
+      ],
+      "requirement": "imported package identity survives reopen without draft catalog normalization",
+      "source": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+      "line": 464,
+      "suiteKind": "sqlite-component",
+      "command": "flutter test --no-pub test/wave2_workspace_store_test.dart",
+      "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
+      "productionContracts": [
+        "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/workspace_page.dart",
+        "packages/ventio_native_client/lib/src/workspace_store.dart"
+      ],
+      "status": "PREPARED_NOT_EXECUTED"
+    },
+    {
+      "id": "W2-S022",
+      "capabilities": [
+        "C08",
+        "F05",
+        "B09"
+      ],
+      "requirement": "same-version catalog substitution is rejected and preserves installed identity",
+      "source": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+      "line": 482,
+      "suiteKind": "sqlite-component",
+      "command": "flutter test --no-pub test/wave2_workspace_store_test.dart",
+      "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
+      "productionContracts": [
+        "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/workspace_page.dart",
+        "packages/ventio_native_client/lib/src/workspace_store.dart"
+      ],
+      "status": "PREPARED_NOT_EXECUTED"
+    },
+    {
+      "id": "W2-S023",
+      "capabilities": [
+        "C08",
+        "F05",
+        "B09"
+      ],
+      "requirement": "additive v12 upgrade preserves metadata and projected tampering fails closed",
+      "source": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+      "line": 496,
+      "suiteKind": "sqlite-component",
+      "command": "flutter test --no-pub test/wave2_workspace_store_test.dart",
+      "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
+      "productionContracts": [
+        "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
@@ -2758,7 +2821,7 @@
       ],
       "requirement": "narrow large-text workspace navigation has no overflow or uncaught rendering error",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 197,
+      "line": 202,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
@@ -2778,7 +2841,7 @@
       ],
       "requirement": "repeated Host customization labels refresh in the same app session",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 215,
+      "line": 220,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
@@ -2800,7 +2863,7 @@
       ],
       "requirement": "a saved dashboard card opens a real current-authorized Host report",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 252,
+      "line": 257,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
@@ -2819,7 +2882,7 @@
       ],
       "requirement": "native document activity renders real command identity without protected values",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 285,
+      "line": 290,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",

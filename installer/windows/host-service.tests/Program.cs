@@ -250,9 +250,21 @@ static void TestLanCertificateServiceOwnerProvisioning()
     var applyProtectedSecurity = type.GetMethod("ApplyProtectedSecurity", BindingFlags.NonPublic | BindingFlags.Static)
         ?? throw new InvalidOperationException("Protected ACL writer was not found.");
     var directory = Path.Combine(Path.GetTempPath(), "ventio-lan-service-owner-test-" + Guid.NewGuid().ToString("N"));
-    var serviceSid = new NTAccount("NT SERVICE", "VentioHost")
-        .Translate(typeof(SecurityIdentifier)) as SecurityIdentifier
-        ?? throw new InvalidOperationException("VentioHost service SID could not be resolved.");
+    // Ask SCM for the real name-derived SID even on a fresh runner where the
+    // product service is not registered. This creates no service or fake account.
+    var start = new System.Diagnostics.ProcessStartInfo(
+        Path.Combine(Environment.SystemDirectory, "sc.exe"))
+    { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+    start.ArgumentList.Add("showsid");
+    start.ArgumentList.Add("VentioHost");
+    using var query = System.Diagnostics.Process.Start(start)
+        ?? throw new InvalidOperationException("SCM SID query did not start.");
+    var sidOutput = query.StandardOutput.ReadToEnd();
+    _ = query.StandardError.ReadToEnd();
+    if (!query.WaitForExit(10000) || query.ExitCode != 0) throw new InvalidOperationException("SCM SID query failed.");
+    var match = System.Text.RegularExpressions.Regex.Match(sidOutput, @"S-1-5-80-(?:[0-9]+-){4}[0-9]+\b");
+    if (!match.Success) throw new InvalidOperationException("SCM returned no VentioHost service SID.");
+    var serviceSid = new SecurityIdentifier(match.Value);
     Directory.CreateDirectory(directory);
     try
     {

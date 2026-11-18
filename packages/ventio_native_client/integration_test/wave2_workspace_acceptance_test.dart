@@ -178,6 +178,11 @@ void main() {
       final tampered = w2BundleJson();
       (tampered['englishCatalog'] as Map)['$w2Label.name'] =
           'Changed local label';
+      // A fresh local installation can contain an unapproved package. Existing
+      // installed releases now correctly refuse same-version content changes.
+      await extensions.close();
+      extensions = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi, path: '${root.path}/unapproved.sqlite');
       await extensions.installBundle(ExtensionBundle.fromJson(tampered));
       await extensions.activate(w2Module);
       try {
