@@ -1,0 +1,11 @@
+PASS W2-D001 [B02,M01,M02,L01] All forty-one migration identities match canonical repository sources
+PASS W2-D002 [B02] Applying the same migration directory is idempotent
+PASS W2-D003 [M01,A12,L01,M05,M09] Every new private Wave 2 table has owner RLS FORCE RLS and no public grants
+PASS W2-D004 [D08,M01,L01] Operational roles cannot directly read or mutate private Wave 2 storage
+PASS W2-D005 [L01,M05,M09] Runtime cannot claim finish or manufacture trusted local-operation outcomes
+PASS W2-D006 [D08,D09,H04] Forged tenant and actor GUCs do not create an RLS proof
+PASS W2-D007 [B09,C09,D08] SQL-level saved definitions derive tenant from real digest and remain actor isolated
+PASS W2-D008 [M01,M02,A12] Platform administration permission cannot be manufactured through a business role
+PASS W2-D009 [B02] A later failed migration rolls back earlier new DDL and ledger entries
+PASS W2-D010 [B02,D09] Modified applied checksum is rejected before additional migrations execute
+PASS W2-D011 [M09,J03,L01,D09] Logical restore retains Wave 2 data and receipts but cannot resurrect revoked authority

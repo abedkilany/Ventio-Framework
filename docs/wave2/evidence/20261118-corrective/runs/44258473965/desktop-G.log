@@ -1,0 +1,171 @@
+{"protocolVersion":"0.1.1","runnerVersion":null,"pid":1028,"type":"start","time":0}
+{"suite":{"id":0,"platform":"vm","path":"D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"suite","time":0}
+{"test":{"id":1,"name":"loading D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart","suiteID":0,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":1}
+{"count":1,"time":7,"type":"allSuites"}
+√ Built build\windows\x64\runner\Debug\ventio_native_client.exe
+
+[{"event":"test.startedProcess","params":{"vmServiceUri":"http://127.0.0.1:58239/V3ByuYANbWg=/"}}]
+{"testID":1,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":83900}
+{"group":{"id":2,"suiteID":0,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":7,"line":null,"column":null,"url":null},"type":"group","time":83902}
+{"test":{"id":3,"name":"(setUpAll)","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":38,"column":3,"url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":83903}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":88203}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":91598}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":95089}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":98538}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":101915}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":105286}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":108653}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":112006}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":115368}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":118773}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":122146}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":125498}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":128867}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":132188}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":135542}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":138912}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":142260}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":145603}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":149003}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":152443}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":155808}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":159189}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":162561}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":165935}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":169314}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":172699}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":176061}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":179466}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":183718}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":187373}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":190730}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":194063}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":197438}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":200759}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":204122}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":207478}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":210927}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":214335}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":218524}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":222712}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":226227}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":229766}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":233304}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":236800}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":240359}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":243861}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":248132}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":252893}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":256436}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":259968}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":263488}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":266983}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":270532}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":274142}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":277898}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":281486}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":285138}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":288865}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":292599}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":296381}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":300165}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":303900}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":307693}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":311455}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":315160}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":318772}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":322354}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":326629}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":332658}
+{"testID":3,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":335521}
+{"test":{"id":4,"name":"W2-G001 [C08,F05,B09] workspace exposes only current approved installed modules and native navigation","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":137,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":335522}
+{"testID":4,"messageType":"print","message":"══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════","type":"print","time":352927}
+{"testID":4,"messageType":"print","message":"The following TestFailure was thrown running a test:","type":"print","time":352928}
+{"testID":4,"messageType":"print","message":"Expected: exactly one matching candidate","type":"print","time":352928}
+{"testID":4,"messageType":"print","message":"  Actual: _TextWidgetFinder:<Found 0 widgets with text \"Wave 2 fixture\": []>","type":"print","time":352929}
+{"testID":4,"messageType":"print","message":"   Which: means none were found but one was expected","type":"print","time":352930}
+{"testID":4,"messageType":"print","message":"","type":"print","time":352932}
+{"testID":4,"messageType":"print","message":"When the exception was thrown, this was the stack:","type":"print","time":352933}
+{"testID":4,"messageType":"print","message":"#4      main.<anonymous closure> (file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart:142:9)","type":"print","time":352933}
+{"testID":4,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":352934}
+{"testID":4,"messageType":"print","message":"#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)","type":"print","time":352935}
+{"testID":4,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":352935}
+{"testID":4,"messageType":"print","message":"#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)","type":"print","time":352936}
+{"testID":4,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":352936}
+{"testID":4,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":352937}
+{"testID":4,"messageType":"print","message":"(elided one frame from package:stack_trace)","type":"print","time":352938}
+{"testID":4,"messageType":"print","message":"","type":"print","time":352938}
+{"testID":4,"messageType":"print","message":"This was caught by the test expectation on the following line:","type":"print","time":352938}
+{"testID":4,"messageType":"print","message":"  file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart line 142","type":"print","time":352939}
+{"testID":4,"messageType":"print","message":"The test description was:","type":"print","time":352939}
+{"testID":4,"messageType":"print","message":"  W2-G001 [C08,F05,B09] workspace exposes only current approved installed modules and native","type":"print","time":352939}
+{"testID":4,"messageType":"print","message":"  navigation","type":"print","time":352940}
+{"testID":4,"messageType":"print","message":"════════════════════════════════════════════════════════════════════════════════════════════════════","type":"print","time":352940}
+{"testID":4,"error":"Test failed. See exception logs above.\nThe test description was: W2-G001 [C08,F05,B09] workspace exposes only current approved installed modules and native navigation","stackTrace":"","isFailure":false,"type":"error","time":352943}
+{"testID":4,"result":"error","skipped":false,"hidden":false,"type":"testDone","time":352977}
+{"test":{"id":5,"name":"W2-G002 [C08,D09] locally installed metadata grants no navigation without current package authority","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":153,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":352977}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":353744}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":357185}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":360690}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":364128}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":368305}
+{"testID":5,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":379974}
+{"test":{"id":6,"name":"W2-G003 [C08,F05] a local package digest mismatch contributes no authorized workspace links","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":175,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":379975}
+{"testID":6,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":395347}
+{"test":{"id":7,"name":"W2-G004 [C08,C09,C12] narrow large-text workspace navigation has no overflow or uncaught rendering error","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":197,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":395348}
+{"testID":7,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":409939}
+{"test":{"id":8,"name":"W2-G005 [A11,A12,K09] repeated Host customization labels refresh in the same app session","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":215,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":409939}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":412265}
+{"testID":8,"messageType":"print","message":"══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════","type":"print","time":430851}
+{"testID":8,"messageType":"print","message":"The following assertion was thrown running a test:","type":"print","time":430851}
+{"testID":8,"messageType":"print","message":"The finder \"Found 0 widgets with text \"Wave 2 fixture\": []\" (used in a call to \"tap()\") could not","type":"print","time":430852}
+{"testID":8,"messageType":"print","message":"find any matching widgets.","type":"print","time":430852}
+{"testID":8,"messageType":"print","message":"","type":"print","time":430852}
+{"testID":8,"messageType":"print","message":"When the exception was thrown, this was the stack:","type":"print","time":430853}
+{"testID":8,"messageType":"print","message":"#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)","type":"print","time":430853}
+{"testID":8,"messageType":"print","message":"#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)","type":"print","time":430854}
+{"testID":8,"messageType":"print","message":"#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)","type":"print","time":430854}
+{"testID":8,"messageType":"print","message":"#3      main.<anonymous closure> (file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart:233:22)","type":"print","time":430855}
+{"testID":8,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":430855}
+{"testID":8,"messageType":"print","message":"#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)","type":"print","time":430856}
+{"testID":8,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":430856}
+{"testID":8,"messageType":"print","message":"#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)","type":"print","time":430856}
+{"testID":8,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":430857}
+{"testID":8,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":430857}
+{"testID":8,"messageType":"print","message":"(elided one frame from package:stack_trace)","type":"print","time":430858}
+{"testID":8,"messageType":"print","message":"","type":"print","time":430858}
+{"testID":8,"messageType":"print","message":"The test description was:","type":"print","time":430859}
+{"testID":8,"messageType":"print","message":"  W2-G005 [A11,A12,K09] repeated Host customization labels refresh in the same app session","type":"print","time":430859}
+{"testID":8,"messageType":"print","message":"════════════════════════════════════════════════════════════════════════════════════════════════════","type":"print","time":430860}
+{"testID":8,"error":"Test failed. See exception logs above.\nThe test description was: W2-G005 [A11,A12,K09] repeated Host customization labels refresh in the same app session","stackTrace":"","isFailure":false,"type":"error","time":430861}
+{"testID":8,"result":"error","skipped":false,"hidden":false,"type":"testDone","time":430894}
+{"test":{"id":9,"name":"W2-G006 [C12,F05] a saved dashboard card opens a real current-authorized Host report","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":252,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":430895}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":433835}
+{"testID":9,"messageType":"print","message":"══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════","type":"print","time":453130}
+{"testID":9,"messageType":"print","message":"The following TestFailure was thrown running a test:","type":"print","time":453131}
+{"testID":9,"messageType":"print","message":"Expected: exactly one matching candidate","type":"print","time":453132}
+{"testID":9,"messageType":"print","message":"  Actual: _TypeWidgetFinder:<Found 0 widgets with type \"AlertDialog\": []>","type":"print","time":453133}
+{"testID":9,"messageType":"print","message":"   Which: means none were found but one was expected","type":"print","time":453133}
+{"testID":9,"messageType":"print","message":"","type":"print","time":453134}
+{"testID":9,"messageType":"print","message":"When the exception was thrown, this was the stack:","type":"print","time":453135}
+{"testID":9,"messageType":"print","message":"#4      main.<anonymous closure> (file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart:277:9)","type":"print","time":453140}
+{"testID":9,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":453140}
+{"testID":9,"messageType":"print","message":"#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)","type":"print","time":453140}
+{"testID":9,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":453140}
+{"testID":9,"messageType":"print","message":"#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)","type":"print","time":453140}
+{"testID":9,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":453140}
+{"testID":9,"messageType":"print","message":"<asynchronous suspension>","type":"print","time":453140}
+{"testID":9,"messageType":"print","message":"(elided one frame from package:stack_trace)","type":"print","time":453141}
+{"testID":9,"messageType":"print","message":"","type":"print","time":453141}
+{"testID":9,"messageType":"print","message":"This was caught by the test expectation on the following line:","type":"print","time":453141}
+{"testID":9,"messageType":"print","message":"  file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart line 277","type":"print","time":453141}
+{"testID":9,"messageType":"print","message":"The test description was:","type":"print","time":453141}
+{"testID":9,"messageType":"print","message":"  W2-G006 [C12,F05] a saved dashboard card opens a real current-authorized Host report","type":"print","time":453141}
+{"testID":9,"messageType":"print","message":"════════════════════════════════════════════════════════════════════════════════════════════════════","type":"print","time":453141}
+{"testID":9,"error":"Test failed. See exception logs above.\nThe test description was: W2-G006 [C12,F05] a saved dashboard card opens a real current-authorized Host report","stackTrace":"","isFailure":false,"type":"error","time":453142}
+{"testID":9,"result":"error","skipped":false,"hidden":false,"type":"testDone","time":453171}
+{"test":{"id":10,"name":"W2-G007 [H04,D08] native document activity renders real command identity without protected values","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":285,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":453172}
+{"testID":10,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":456629}
+{"test":{"id":11,"name":"(tearDownAll)","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":50,"column":5,"url":"package:integration_test/integration_test.dart"},"type":"testStart","time":456629}
+{"testID":11,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":456648}
+{"success":false,"type":"done","time":456670}

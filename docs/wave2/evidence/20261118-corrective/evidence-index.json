@@ -2,6 +2,7 @@
   "status": "RETAINED_EXACT_BYTES_NOT_SECURITY_CLEARANCE",
   "files": {
     ".gitattributes": "8b9c3028d6467ff3be7c793141927841d70f47f52d0590677438f488ca154992",
+    ".gitignore": "e027cf8ebf80d6dcdacced8a4dbd1c440e2436fb1868ec851db4061cb67bb787",
     "runs/44258469173/artifacts.json": "eece896e9aa0c8475a8b1eaa3df5f989d1dcb8144b903c12581dd74cb95b4257",
     "runs/44258469173/host-audit-results.json": "e33143b8b648e403cea1dfcc18befbb3e85f41b89b18dc2c6a4113929510003d",
     "runs/44258469173/jobs.json": "037720e546802497e25ce1e74fc59dec0fd7a15140843e4d63b17eb30ea69260",

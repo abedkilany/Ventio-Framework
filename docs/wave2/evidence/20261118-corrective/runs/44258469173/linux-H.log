@@ -1,0 +1,32 @@
+PASS W2-H001 [D09,J04] Platform routes reject missing and invalid bearer credentials
+PASS W2-H002 [D09,B02] Real session discovery resolves current authoritative actor and scope
+PASS W2-H003 [J04,B02] Platform methods content type versions and unknown properties fail strictly
+PASS W2-H004 [J04] Malformed UTF-8 oversized bodies and excessive nesting fail before gateway execution
+PASS W2-H005 [M02,D09] A stale authenticated snapshot cannot retain revoked configuration authority
+PASS W2-H006 [M02,D09] Later user grants cannot widen a credential ceiling
+PASS W2-H007 [C09,K09] Definition publication retries are idempotent and request reuse with different content conflicts
+PASS W2-H008 [B09,C09,K09] Concurrent same-revision saves yield exactly one winner
+PASS W2-H009 [B09,C08,C09] User-owned definitions stay separate for actors and tenants
+PASS W2-H010 [C09,M02] Company branch pairs are checked exactly and shared settings remain scoped
+PASS W2-H011 [B09,C09] Hundred-definition owner bound refuses the next save without dropping content
+PASS W2-H012 [M02] Configuration persists through HTTP reassembly and denied writes have no effect
+PASS W2-H013 [A11,A12] SQL and Core effective overlays agree while approved package bytes stay immutable
+PASS W2-H014 [A12,K09] Wrong base digest and destructive field conversion fail without advancing revision
+PASS W2-H015 [A12,D08] Authoritative record writes use effective custom fields and preserve old records
+PASS W2-H016 [D08,J01] Import preview requires current create and field-write grants
+PASS W2-H017 [J01,J03] Preview preserves sparse source rows and detects readable existing IDs
+PASS W2-H018 [M02,J01] Configured import row bound is consumed by the real gateway
+PASS W2-H019 [K08,D08] Export projection matches query and safely escapes formula strings
+PASS W2-H020 [K08,B09,D08] Hidden fields cannot be used to filter or sort visible exports
+PASS W2-H021 [K08,B09] Query cursors bind pagination to filter sort limit release and scope
+PASS W2-H022 [H04] History is ordered metadata-only activity and command replay creates no duplicate event
+FAIL W2-H023 [H04] History cursor and deleted-ID lookup stay record and tenant bound
+Unhandled exception:
+Bad state: Cursor crossed record
+#0      w2Expect (file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_core/test/support/wave2_cases.dart:28:19)
+#1      main.<anonymous closure> (file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_host_api/test/wave2_gateway_integration.dart:782:9)
+<asynchronous suspension>
+#2      W2Cases.run (file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_core/test/support/wave2_cases.dart:16:7)
+<asynchronous suspension>
+#3      main (file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_host_api/test/wave2_gateway_integration.dart:768:5)
+<asynchronous suspension>
