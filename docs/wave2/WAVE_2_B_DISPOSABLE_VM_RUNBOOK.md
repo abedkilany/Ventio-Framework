@@ -63,6 +63,11 @@ restore. Set `VENTIO_WAVE2_PREPARED_TESTS=yes` only in the dedicated VM session.
 From the exact reviewed test checkout, in a normally elevated Windows PowerShell
 session, run the following with the actual independent expected values:
 
+Record the test-source commit separately from the candidate's production-source
+commit. Later fixture-only corrections do not rebuild or change candidate bytes.
+ExpectedCommit below refers to the installed payload's independently verified
+production-source commit, not a different test/report checkout.
+
 ```powershell
 & .\tests\wave2\prepare_installed_vm_fixture.ps1 `
   -CandidateZip 'C:\Acceptance\APPROVED-CANDIDATE.zip' `
@@ -113,3 +118,9 @@ witness, resurrect credentials or repeat the suite on its mutated fixture. Prese
 evidence and dispose/recreate the entire VM for another run. VM snapshots are only
 for disposable-environment reset, not a supported production Recovery Authority
 rollback. M001–M006 owner/device acceptance remains separate.
+
+The prepared scheduler assertions wait for a new LastRunTime, Ready state and
+successful LastTaskResult after each explicit invocation, rather than accepting
+the old Ready state immediately after queueing a task. This prevents a scheduling
+race from masquerading as a deduplication pass. This fixture correction has been
+parsed and reviewed only; it remains unexecuted with P001–P006.

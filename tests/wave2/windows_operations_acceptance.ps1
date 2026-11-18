@@ -63,6 +63,23 @@ function Wait-Until([scriptblock]$Probe,[string]$Failure,[int]$Seconds=180){
   while($watch.Elapsed.TotalSeconds -lt $Seconds){$value=& $Probe;if($value){return $value};Start-Sleep -Milliseconds 250}
   throw $Failure
 }
+function Invoke-ScheduledFixture {
+  [void](Wait-Until {(Get-ScheduledTask -TaskPath '\Ventio\' -TaskName 'VentioHostBackups').State -eq 'Ready'} 'Previous scheduled invocation did not finish.')
+  $previousRun=(Get-ScheduledTaskInfo -TaskPath '\Ventio\' -TaskName 'VentioHostBackups').LastRunTime
+  # LastRunTime can have coarse resolution. Cross that boundary before firing,
+  # then require a NEW completed invocation rather than observing the old Ready
+  # state immediately after Start-ScheduledTask returns.
+  [void](Wait-Until {[DateTime]::UtcNow -gt $previousRun.ToUniversalTime().AddSeconds(2)} 'Scheduler run timestamp did not advance.')
+  Start-ScheduledTask -TaskPath '\Ventio\' -TaskName 'VentioHostBackups'
+  return Wait-Until {
+    $info=Get-ScheduledTaskInfo -TaskPath '\Ventio\' -TaskName 'VentioHostBackups'
+    $task=Get-ScheduledTask -TaskPath '\Ventio\' -TaskName 'VentioHostBackups'
+    if($info.LastRunTime -gt $previousRun -and $task.State -eq 'Ready'){
+      Assert-True ($info.LastTaskResult -eq 0) 'New scheduled invocation did not complete successfully.'
+      return $info
+    }
+  } 'No new completed scheduled invocation was observed.'
+}
 function Prepare([string]$Operation,[hashtable]$Body=@{}){
   $id=[guid]::NewGuid().ToString()
   $reply=Api 'operations/prepare' @{operationId=$id;operation=$Operation;body=$Body}
@@ -133,15 +150,14 @@ Test-Case 'W2-P002' 'M05' 'Supported Host authorization and elevated local appro
 }
 Test-Case 'W2-P003' 'M05' 'Real scheduled backup verifies content and does not repeat a completed daily offer' {
   $scheduled=Wait-Until {@((Api 'operations/list').operations|Where-Object {$null -ne $_.scheduledFor -and $_.state -in @('AWAITING_LOCAL_APPROVAL','SUCCEEDED')})|Select-Object -First 1} 'No due scheduled offer.'
-  Start-ScheduledTask -TaskPath '\Ventio\' -TaskName 'VentioHostBackups'
+  [void](Invoke-ScheduledFixture)
   $id=$scheduled.operationId
   $result=Wait-Until {$row=@((Api 'operations/list').operations|Where-Object operationId -CEQ $id);if($row.Count -eq 1 -and $row[0].state -in @('SUCCEEDED','FAILED')){$row[0]}} 'Scheduled backup did not finish.'
   Assert-True ($result.state -ceq 'SUCCEEDED' -and $result.result.code -ceq 'BACKUP_COMPLETE') 'Scheduled backup failed.'
   $script:backupName=[string]$result.result.backupName
   [void](Verify-Backup $backupName)
   $before=@(Get-ChildItem -LiteralPath $backups -Directory).Count
-  Start-ScheduledTask -TaskPath '\Ventio\' -TaskName 'VentioHostBackups'
-  [void](Wait-Until {(Get-ScheduledTask -TaskPath '\Ventio\' -TaskName 'VentioHostBackups').State -eq 'Ready'} 'Scheduler did not finish repeated invocation.')
+  [void](Invoke-ScheduledFixture)
   Assert-True (@(Get-ChildItem -LiteralPath $backups -Directory).Count -eq $before) 'Completed daily backup repeated.'
 }
 Test-Case 'W2-P004' 'M05' 'Actual retention removes only eligible old copies and preserves pins foreign kinds and newest backup' {
@@ -163,7 +179,7 @@ Test-Case 'W2-P004' 'M05' 'Actual retention removes only eligible old copies and
   $applied=Invoke-Local (Prepare 'APPLY_POLICY')
   Assert-True ($applied.state -ceq 'SUCCEEDED') 'Fresh local policy approval failed.'
   $scheduled=Wait-Until {@((Api 'operations/list').operations|Where-Object {$null -ne $_.scheduledFor -and $_.state -eq 'AWAITING_LOCAL_APPROVAL'})|Select-Object -First 1} 'No retention offer.'
-  Start-ScheduledTask -TaskPath '\Ventio\' -TaskName 'VentioHostBackups'
+  [void](Invoke-ScheduledFixture)
   $id=$scheduled.operationId
   $result=Wait-Until {$row=@((Api 'operations/list').operations|Where-Object operationId -CEQ $id);if($row.Count -eq 1 -and $row[0].state -in @('SUCCEEDED','FAILED')){$row[0]}} 'Retention did not finish.'
   Assert-True ($result.state -ceq 'SUCCEEDED') 'Retention backup failed.'

@@ -197,12 +197,12 @@ Every row below has status **SOURCE_INVENTORY_ONLY**. The original 161 case IDs 
 | W2-W009 | M05,M09 | Protected operation JSON enforces byte bounds before decoding | [windows_integrity_tests.ps1:124](../../tests/wave2/windows_integrity_tests.ps1#L124) |
 | W2-W010 | M05,M09 | An untrusted read ACL on a fixture file is rejected | [windows_integrity_tests.ps1:129](../../tests/wave2/windows_integrity_tests.ps1#L129) |
 | W2-W011 | M09 | The real restore entry point refuses missing confirmation before touching services | [windows_integrity_tests.ps1:138](../../tests/wave2/windows_integrity_tests.ps1#L138) |
-| W2-P001 | D09,M05,M09 | Real disposable installed Host authenticates the approved fixture identity | [windows_operations_acceptance.ps1:117](../../tests/wave2/windows_operations_acceptance.ps1#L117) |
-| W2-P002 | M05 | Supported Host authorization and elevated local approval arm the fixed SYSTEM schedule | [windows_operations_acceptance.ps1:124](../../tests/wave2/windows_operations_acceptance.ps1#L124) |
-| W2-P003 | M05 | Real scheduled backup verifies content and does not repeat a completed daily offer | [windows_operations_acceptance.ps1:134](../../tests/wave2/windows_operations_acceptance.ps1#L134) |
-| W2-P004 | M05 | Actual retention removes only eligible old copies and preserves pins foreign kinds and newest backup | [windows_operations_acceptance.ps1:147](../../tests/wave2/windows_operations_acceptance.ps1#L147) |
-| W2-P005 | M05,M09 | Real restore planning detects same-size corruption before stopping Host | [windows_operations_acceptance.ps1:174](../../tests/wave2/windows_operations_acceptance.ps1#L174) |
-| W2-P006 | M09,M05,J03 | Disposable restoration preserves current cluster external witness and original record/receipt while leaving Host stopped | [windows_operations_acceptance.ps1:186](../../tests/wave2/windows_operations_acceptance.ps1#L186) |
+| W2-P001 | D09,M05,M09 | Real disposable installed Host authenticates the approved fixture identity | [windows_operations_acceptance.ps1:134](../../tests/wave2/windows_operations_acceptance.ps1#L134) |
+| W2-P002 | M05 | Supported Host authorization and elevated local approval arm the fixed SYSTEM schedule | [windows_operations_acceptance.ps1:141](../../tests/wave2/windows_operations_acceptance.ps1#L141) |
+| W2-P003 | M05 | Real scheduled backup verifies content and does not repeat a completed daily offer | [windows_operations_acceptance.ps1:151](../../tests/wave2/windows_operations_acceptance.ps1#L151) |
+| W2-P004 | M05 | Actual retention removes only eligible old copies and preserves pins foreign kinds and newest backup | [windows_operations_acceptance.ps1:163](../../tests/wave2/windows_operations_acceptance.ps1#L163) |
+| W2-P005 | M05,M09 | Real restore planning detects same-size corruption before stopping Host | [windows_operations_acceptance.ps1:190](../../tests/wave2/windows_operations_acceptance.ps1#L190) |
+| W2-P006 | M09,M05,J03 | Disposable restoration preserves current cluster external witness and original record/receipt while leaving Host stopped | [windows_operations_acceptance.ps1:202](../../tests/wave2/windows_operations_acceptance.ps1#L202) |
 
 ## Genuine owner/device acceptance
 
