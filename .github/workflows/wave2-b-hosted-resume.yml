@@ -233,6 +233,10 @@ jobs:
         if: inputs.scope == 'candidate-evidence'
         shell: pwsh
         run: python tests/wave2/export_candidate_evidence.py
+      - name: Inspect all PE headers including differently named application payloads
+        if: inputs.scope == 'candidate-evidence'
+        shell: pwsh
+        run: ./scripts/ci/review-wave2-pe-content.ps1
       - name: Enable protection normally, scan, and test fresh Client-only installer rollback
         if: inputs.scope == 'verify-candidate'
         shell: pwsh
