@@ -5,8 +5,12 @@ on:
       scope:
         type: string
         default: all
+      candidate_run_id:
+        type: string
+        default: ''
 permissions:
   contents: read
+  actions: read
 jobs:
   windows-candidate:
     if: inputs.scope == 'all' || inputs.scope == 'windows' || inputs.scope == 'windows-tests'
@@ -111,7 +115,7 @@ jobs:
         if: always()
         run: python tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'windows-tests' && 'verify-windows-recovery' || 'verify-windows' }}
   linux-integration:
-    if: inputs.scope != 'windows' && inputs.scope != 'windows-tests'
+    if: inputs.scope == 'all' || inputs.scope == 'linux' || inputs.scope == 'gateway-jobs' || inputs.scope == 'core'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -163,3 +167,28 @@ jobs:
       - name: Enforce applicable Linux results
         if: always()
         run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'core' && 'verify-core' || (inputs.scope == 'gateway-jobs' && 'verify-gateway-jobs' || 'verify-linux') }}
+  protected-candidate-verification:
+    if: inputs.scope == 'verify-candidate'
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Fetch the hosted artifact and verify all package bytes
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: python tests/wave2/download_hosted_candidate.py $env:CANDIDATE_RUN_ID
+      - name: Enable protection normally, scan, and test fresh Client-only installer rollback
+        shell: pwsh
+        run: ./scripts/ci/verify-wave2-protected-candidate.ps1
+      - name: Retain independent protection and installer evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wave2-protected-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wave2-protected-evidence/*
+          if-no-files-found: error
+          retention-days: 30
