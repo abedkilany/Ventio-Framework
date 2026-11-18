@@ -12,6 +12,11 @@ on:
         type: string
         default: ''
   workflow_dispatch:
+    inputs:
+      wave2_resume:
+        description: Only the isolated Wave 2 B acceptance build and prepared suites
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
@@ -24,6 +29,7 @@ permissions:
 
 jobs:
   select-changes:
+    if: ${{ !inputs.wave2_resume }}
     uses: ./.github/workflows/ci-change-selector.yml
     permissions:
       actions: read
@@ -117,7 +123,7 @@ jobs:
         run: flutter build apk --release
   native-client-windows-android:
     needs: [select-changes, native-client-windows-android-suite]
-    if: always()
+    if: ${{ always() && !inputs.wave2_resume }}
     runs-on: ubuntu-latest
     steps:
       - name: Preserve the required check context and report suite result
@@ -135,3 +141,9 @@ jobs:
             exit 1
           fi
           echo "Required check passed; selected suite result: $SUITE_RESULT."
+
+  wave2-resume:
+    if: github.event_name == 'workflow_dispatch' && inputs.wave2_resume
+    uses: ./.github/workflows/wave2-b-hosted-resume.yml
+    permissions:
+      contents: read

@@ -47,7 +47,7 @@ Assert-Contract ($installerSource.Contains('Check: IsVentioRuntimeReady')) 'VENT
 $runtimePrecheckIndex = $installerSource.IndexOf('Result := EnsureVCRuntime();', [StringComparison]::Ordinal)
 $serviceDetectionIndex = $installerSource.IndexOf("HasHostService := RegKeyExists", $runtimePrecheckIndex, [StringComparison]::Ordinal)
 Assert-Contract ($runtimePrecheckIndex -ge 0 -and $serviceDetectionIndex -gt $runtimePrecheckIndex) 'VC_RUNTIME_MUST_BE_READY_BEFORE_HOST_UPGRADE_SERVICE_CHANGES'
-Assert-Contract ($installerSource.Contains('No Ventio application files or Host services were changed.')) 'VC_RUNTIME_FAILURE_MUST_ABORT_BEFORE_PRODUCT_MUTATION'
+Assert-Contract ($installerSource.Contains('Setup stopped before changing Ventio files or services.')) 'VC_RUNTIME_FAILURE_MUST_ABORT_BEFORE_PRODUCT_MUTATION'
 Assert-Contract ($runtimePrerequisite.Contains('RegistryView]::Registry64') -and $runtimePrerequisite.Contains('Runtimes\x64')) 'VC_RUNTIME_DETECTION_MUST_USE_THE_NATIVE_X64_REGISTRY_VIEW'
 Assert-Contract ($runtimePrerequisite.Contains('/install /quiet /norestart')) 'VC_RUNTIME_INSTALL_MUST_BE_SILENT_AND_SUPPRESS_AUTOMATIC_REBOOT'
 Assert-Contract ($runtimeHelper.Contains('exit 3010') -and $runtimePrerequisite.Contains("'RestartRequired'")) 'VC_RUNTIME_REBOOT_REQUIRED_STATE_MUST_PROPAGATE_TO_SETUP'
@@ -264,3 +264,9 @@ if (-not $postgresRoot.StartsWith($programFiles.TrimEnd('\') + '\', [StringCompa
 Write-Output 'UNIFIED_INSTALLER_HOST_PROGRAM_FILES_PATH_CONTRACT_PASS'
 Write-Output 'UNIFIED_INSTALLER_SHARED_FLUTTER_FIRST_RUN_HOST_CLIENT_CHOICES_PASS'
 Write-Output 'UNIFIED_INSTALLER_HOST_PROVISIONING_DEFERRED_TO_FLUTTER_PASS'
+
+Assert-Contract ($installerSource -notmatch '(?i)-ExecutionPolicy') 'INSTALLER_MUST_RESPECT_EFFECTIVE_SCRIPT_POLICY'
+Assert-Contract ($installerSource.Contains('HKLM64') -and $installerSource.Contains('ComparePackedVersion')) 'NATIVE_VC_RUNTIME_MUST_VERIFY_X64_VERSION_WITHOUT_POWERSHELL'
+Assert-Contract ($installerSource.Contains('GetSHA256OfFile(RuntimeInstaller)') -and $installerSource.Contains('{#VCRuntimeSha256}')) 'NATIVE_VC_RUNTIME_MUST_PIN_EXTRACTED_PACKAGE_HASH'
+Assert-Contract ($installerSource.Contains("Exec(RuntimeInstaller, '/install /quiet /norestart'") -and $installerSource.Contains('IsVCRuntimeSufficient()')) 'NATIVE_VC_RUNTIME_MUST_RECHECK_INSTALLED_VERSION'
+Assert-Contract ($installerSource.Contains('ResultCode = 1638') -and $installerSource.Contains('ResultCode = 3010') -and $installerSource.Contains('ResultCode = 1641')) 'NATIVE_VC_RUNTIME_MUST_HANDLE_NEWER_PACKAGE_AND_REBOOT'

@@ -104,7 +104,7 @@ function Invoke-Retention([object]$Policy,[string]$Newest){
 function Set-Schedule {
  $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
  $scriptPath=Join-Path $payload 'setup\manage-host-operations.ps1'
- $action=New-ScheduledTaskAction -Execute $powershell -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$scriptPath+'" -RunScheduled')
+ $action=New-ScheduledTaskAction -Execute $powershell -Argument ('-NoProfile -NonInteractive -File "'+$scriptPath+'" -RunScheduled')
  $trigger=New-ScheduledTaskTrigger -Once -At ([DateTime]::Now.AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 1)
  $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 6)
  $principal=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest

@@ -42,7 +42,7 @@ Future<bool> approveLocalHostOperation(
       throw StateError('Invalid installed path');
     }
     final args =
-        '-NoProfile -ExecutionPolicy Bypass -File "${script.path}" -OperationId $id${restorePlanSha256 == null ? '' : ' -ConfirmRestore -ExpectedPlanSha256 $restorePlanSha256'}'
+        '-NoProfile -File "${script.path}" -OperationId $id${restorePlanSha256 == null ? '' : ' -ConfirmRestore -ExpectedPlanSha256 $restorePlanSha256'}'
             .toNativeUtf16();
     final exe = powershell.path.toNativeUtf16();
     final verb = 'runas'.toNativeUtf16();

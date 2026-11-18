@@ -129,7 +129,7 @@ if ((Test-Path -LiteralPath $artifact) -or (Test-Path -LiteralPath $manifestPath
   throw 'Installer output already exists; choose a new isolated output directory to preserve existing artifacts.'
 }
 [void](New-Item -ItemType Directory -Force -Path $installerOutput)
-& $iscc "/DAppVersion=$version" "/DBuildOutput=$releaseDir" "/DHostPayload=$hostPayload" "/DInstallerOutput=$installerOutput" "/DVCRedistPath=$VCRedistPath" "/DVCRuntimeHelperPath=$vcRuntimeHelper" "/DVCRuntimeModulePath=$vcRuntimeModule" "/DVCRuntimeMinimumVersion=$vcRuntimeMinimumVersion" $installerSource
+& $iscc "/DAppVersion=$version" "/DBuildOutput=$releaseDir" "/DHostPayload=$hostPayload" "/DInstallerOutput=$installerOutput" "/DVCRedistPath=$VCRedistPath" "/DVCRuntimeHelperPath=$vcRuntimeHelper" "/DVCRuntimeModulePath=$vcRuntimeModule" "/DVCRuntimeMinimumVersion=$vcRuntimeMinimumVersion" "/DVCRuntimeSha256=$($vcRuntimeManifest.sha256)" $installerSource
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed with exit code $LASTEXITCODE." }
 
 if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { throw 'Unified installer artifact was not created.' }
