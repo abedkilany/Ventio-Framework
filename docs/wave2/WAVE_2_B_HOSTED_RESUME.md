@@ -1,5 +1,10 @@
 # Wave 2 B hosted acceptance and TEST-02 deployment gate
 
+Historical initial hosted-resume plan. The owner subsequently deferred physical
+installation pending corrective engineering. Use
+[the corrective review](WAVE_2_B_CORRECTIVE_REVIEW.md) for current pins, evidence
+and installation status; the earlier candidate/runtime pins below are superseded.
+
 Owner authorization dated 2026-11-18 permits committing the preserved preparation,
 targeted hosted CI tests/builds and deployment preparation. It does not accept
 Wave_2_B, authorize installation on either physical test computer, or open Wave_2_C.

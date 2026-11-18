@@ -1,5 +1,10 @@
 # Wave 2 B final acceptance
 
+2026-11-18 update: this physical checkpoint remains historical. Current corrective
+engineering and hosted candidate evidence is in
+[WAVE_2_B_CORRECTIVE_REVIEW.md](WAVE_2_B_CORRECTIVE_REVIEW.md). There is no new
+physical installation, full Wave_2_B acceptance or authorization to start Wave_2_C.
+
 ## Disposition
 
 **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**

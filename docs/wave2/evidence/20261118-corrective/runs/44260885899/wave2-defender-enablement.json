@@ -1,0 +1,46 @@
+{
+  "protectionDisabledByThisScript": false,
+  "exclusionsAdded": [],
+  "removedHostedImageExclusions": [
+    "C:\\",
+    "D:\\"
+  ],
+  "utc": "2026-11-18T07:42:00.0963109Z",
+  "before": {
+    "AMRunningMode": "Normal",
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": false,
+    "BehaviorMonitorEnabled": false,
+    "IoavProtectionEnabled": false,
+    "IsTamperProtected": false,
+    "AntivirusSignatureVersion": "1.463.353.0"
+  },
+  "exclusionsBefore": {
+    "ExclusionPath": [
+      "C:\\",
+      "D:\\"
+    ],
+    "ExclusionExtension": null,
+    "ExclusionProcess": null,
+    "DisableArchiveScanning": true
+  },
+  "after": {
+    "AMRunningMode": "Normal",
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "BehaviorMonitorEnabled": true,
+    "IoavProtectionEnabled": true,
+    "IsTamperProtected": false,
+    "AntivirusSignatureVersion": "1.463.353.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "exclusionsAfter": {
+    "ExclusionPath": null,
+    "ExclusionExtension": null,
+    "ExclusionProcess": null,
+    "DisableArchiveScanning": false
+  },
+  "status": "ENABLED_WITHOUT_EXCLUSIONS"
+}

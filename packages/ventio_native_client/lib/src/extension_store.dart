@@ -611,7 +611,9 @@ class LocalExtensionStore {
               [_extensionsTable],
             );
             if (table.isNotEmpty) {
-              await database.execute('ALTER TABLE $_extensionsTable ADD COLUMN installed_bundle_json TEXT');
+              await database.execute(
+                'ALTER TABLE $_extensionsTable ADD COLUMN installed_bundle_json TEXT',
+              );
             }
           }
           if (oldVersion < 12) {
@@ -865,28 +867,55 @@ class LocalExtensionStore {
   Future<ExtensionBundle> readInstalledBundle(String moduleId) async {
     _ensureOpen();
     final stored = await _database.transaction((tx) async {
-      final rows = await tx.query(_extensionsTable,
-          where: 'module_id = ?', whereArgs: [moduleId], limit: 1);
-      if (rows.isEmpty) throw const ExtensionStoreException('UNKNOWN_MODULE', 'The local module is unavailable.');
+      final rows = await tx.query(
+        _extensionsTable,
+        where: 'module_id = ?',
+        whereArgs: [moduleId],
+        limit: 1,
+      );
+      if (rows.isEmpty)
+        throw const ExtensionStoreException(
+          'UNKNOWN_MODULE',
+          'The local module is unavailable.',
+        );
       final raw = rows.single['installed_bundle_json'] as String?;
-      if (raw == null) return null; // Legacy/draft: current Host digest still required.
+      if (raw == null)
+        return null; // Legacy/draft: current Host digest still required.
       final bundle = ExtensionBundle.fromJson(_decodeMap(raw));
       final local = LocalExtension.fromRow(rows.single);
-      final types = await tx.query(_docTypesTable,
-          where: 'module_id = ?', whereArgs: [moduleId]);
-      final expected = {for (final type in bundle.docTypeJson) type['name'] as String: type};
-      final valid = bundle.moduleId == moduleId && bundle.version == local.version &&
+      final types = await tx.query(
+        _docTypesTable,
+        where: 'module_id = ?',
+        whereArgs: [moduleId],
+      );
+      final expected = {
+        for (final type in bundle.docTypeJson) type['name'] as String: type,
+      };
+      final valid =
+          bundle.moduleId == moduleId &&
+          bundle.version == local.version &&
           bundle.manifest.displayName == local.displayName &&
-          (bundle.manifestJson['description'] as String? ?? '') == local.description &&
-          canonicalJson(bundle.dependencyVersions) == canonicalJson(local.dependencies) &&
-          canonicalJson(bundle.reportJson) == canonicalJson(local.reportDefinitions) &&
-          canonicalJson(bundle.printFormatJson) == canonicalJson(local.printFormatDefinitions) &&
-          types.length == expected.length && types.every((row) {
+          (bundle.manifestJson['description'] as String? ?? '') ==
+              local.description &&
+          canonicalJson(bundle.dependencyVersions) ==
+              canonicalJson(local.dependencies) &&
+          canonicalJson(bundle.reportJson) ==
+              canonicalJson(local.reportDefinitions) &&
+          canonicalJson(bundle.printFormatJson) ==
+              canonicalJson(local.printFormatDefinitions) &&
+          types.length == expected.length &&
+          types.every((row) {
             final type = expected[row['doctype_name']];
-            return type != null && row['schema_version'] == type['schemaVersion'] &&
-                canonicalJson(_decodeMap(row['metadata_json'])) == canonicalJson(type);
+            return type != null &&
+                row['schema_version'] == type['schemaVersion'] &&
+                canonicalJson(_decodeMap(row['metadata_json'])) ==
+                    canonicalJson(type);
           });
-      if (!valid) throw const ExtensionStoreException('LOCAL_PACKAGE_INTEGRITY_FAILED', 'Installed metadata differs from its package.');
+      if (!valid)
+        throw const ExtensionStoreException(
+          'LOCAL_PACKAGE_INTEGRITY_FAILED',
+          'Installed metadata differs from its package.',
+        );
       return bundle;
     });
     return stored ?? await exportBundle(moduleId);
@@ -1278,13 +1307,21 @@ class LocalExtensionStore {
               );
           if (unchanged) {
             final original = modules.single['installed_bundle_json'] as String?;
-            if (original != null && canonicalJson(_decodeMap(original)) != canonicalJson(bundle.toJson())) {
-              throw const ExtensionStoreException('VERSION_CONFLICT', 'Package contents changed without increasing the extension version.');
+            if (original != null &&
+                canonicalJson(_decodeMap(original)) !=
+                    canonicalJson(bundle.toJson())) {
+              throw const ExtensionStoreException(
+                'VERSION_CONFLICT',
+                'Package contents changed without increasing the extension version.',
+              );
             }
             if (original == null) {
-              await transaction.update(_extensionsTable,
+              await transaction.update(
+                _extensionsTable,
                 {'installed_bundle_json': canonicalJson(bundle.toJson())},
-                where: 'module_id = ?', whereArgs: [moduleId]);
+                where: 'module_id = ?',
+                whereArgs: [moduleId],
+              );
             }
             return;
           }
@@ -1328,7 +1365,7 @@ class LocalExtensionStore {
           'dependencies_json': canonicalJson(dependencies),
           'reports_json': incomingReports,
           'print_formats_json': incomingPrintFormats,
-            'installed_bundle_json': canonicalJson(bundle.toJson()),
+          'installed_bundle_json': canonicalJson(bundle.toJson()),
           'state': ExtensionState.draft.databaseValue,
           'created_at_utc': now,
           'updated_at_utc': now,

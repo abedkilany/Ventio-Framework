@@ -1,5 +1,13 @@
 # Wave 2 B defect register
 
+2026-11-18 corrective checkpoint: the physical-machine checkpoints below are
+historical and are not a current assessment of the reinstalled TEST-02. See
+[the corrective review](WAVE_2_B_CORRECTIVE_REVIEW.md) and its exact-revision
+evidence for the new customization SQL, Windows ACL/atomic replacement, Client
+package identity, GUI and runtime findings. Wave_2_B remains PARTIAL VERIFICATION /
+BLOCKED; physical installation is deferred. No TEST-01/02 changes occurred in this
+corrective phase. The original entries and their evidence are preserved below.
+
 Latest tested Host artifact source commit: `a7c85ef5617bca9345804106aa17457b2eaf858c` (Host SHA-256 `5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2`)
 Current disposition: **WAVE_2_B — PARTIAL VERIFICATION / BLOCKED**
 Last updated: 2026-11-16 17:43 UTC

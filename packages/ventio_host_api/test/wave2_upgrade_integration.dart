@@ -15,7 +15,9 @@ Future<void> main() async {
     '7d74a706ef4bb7f9994d151af486eaa38066e633': 36,
     '7218c1c9994acc31cfa86008b92d2950367c6fac': 40,
   };
-  final revision = Platform.environment['VENTIO_W2_UPGRADE_BASELINE'] ?? baselines.keys.first;
+  final revision =
+      Platform.environment['VENTIO_W2_UPGRADE_BASELINE'] ??
+      baselines.keys.first;
   final count = baselines[revision];
   if (count == null) throw StateError('Reviewed upgrade baseline required');
   await runBaseline(revision, count);
@@ -47,7 +49,8 @@ Future<void> runBaseline(String baselineRevision, int baselineCount) async {
   final authority = RecoveryAuthority(
     '${f.directory.path}/upgrade.witness',
     testBarrier: (stage) {
-      if (interruptBeforeCommit && stage == 'schema_upgrade_before_commit_attempt') {
+      if (interruptBeforeCommit &&
+          stage == 'schema_upgrade_before_commit_attempt') {
         throw StateError('Disposable pre-commit interruption');
       }
     },
@@ -144,7 +147,10 @@ Future<void> runBaseline(String baselineRevision, int baselineCount) async {
             .list()
             .where((e) => e is File && e.path.endsWith('.sql'))
             .length;
-        w2Expect(count == baselineCount, 'Pinned baseline migration count differs');
+        w2Expect(
+          count == baselineCount,
+          'Pinned baseline migration count differs',
+        );
         w2Expect(
           (await f.observer.execute(
                 pg.Sql.named(
@@ -161,7 +167,8 @@ Future<void> runBaseline(String baselineRevision, int baselineCount) async {
           source.replace(path: '/$databaseName').toString(),
         );
         w2Expect(
-          (await PostgresMigrationRunner(owner!, legacy).apply()).length == baselineCount,
+          (await PostgresMigrationRunner(owner!, legacy).apply()).length ==
+              baselineCount,
           'Legacy migrations incomplete',
         );
         await bootstrap(Directory('${directory.path}/security/postgres'));
@@ -233,26 +240,58 @@ Future<void> runBaseline(String baselineRevision, int baselineCount) async {
         );
         await migrator!.execute('SET ROLE ventio_owner');
         if (baselineCount == 40) {
-          final before = await owner!.execute("SELECT pg_get_functiondef('ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)'::regprocedure)");
-          final witnessBefore = jsonDecode(await File(authority.path).readAsString()) as Map;
+          final before = await owner!.execute(
+            "SELECT pg_get_functiondef('ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)'::regprocedure)",
+          );
+          final witnessBefore =
+              jsonDecode(await File(authority.path).readAsString()) as Map;
           interruptBeforeCommit = true;
           var refused = false;
           try {
             await authority.applySchemaUpgrade(
-              migrator!, operationId: operation, migrationManifestSha256: manifest!,
-              applyAndValidate: (tx) async { await PostgresMigrationRunner(migrator!, migrations).applyInTransaction(tx); },
+              migrator!,
+              operationId: operation,
+              migrationManifestSha256: manifest!,
+              applyAndValidate: (tx) async {
+                await PostgresMigrationRunner(
+                  migrator!,
+                  migrations,
+                ).applyInTransaction(tx);
+              },
             );
           } on RecoveryAdmissionUnavailable {
             refused = true;
           } finally {
             interruptBeforeCommit = false;
           }
-          final after = await owner!.execute("SELECT pg_get_functiondef('ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)'::regprocedure)");
-          w2Equal(after.single, before.single, 'Interrupted correction changed the installed function');
-          w2Expect(refused && (await owner!.execute('SELECT count(*) FROM public.ventio_schema_migrations')).single[0] == 40, 'Interrupted correction committed its ledger');
-          final witnessAfter = jsonDecode(await File(authority.path).readAsString()) as Map;
-          w2Expect(witnessAfter['pending'] == false && witnessAfter['fingerprint'] == witnessBefore['fingerprint'], 'Interrupted correction changed ready witness fingerprint');
-          w2Equal(await identitySnapshot(owner!), identityBefore, 'Interrupted correction changed identities');
+          final after = await owner!.execute(
+            "SELECT pg_get_functiondef('ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)'::regprocedure)",
+          );
+          w2Equal(
+            after.single,
+            before.single,
+            'Interrupted correction changed the installed function',
+          );
+          w2Expect(
+            refused &&
+                (await owner!.execute(
+                      'SELECT count(*) FROM public.ventio_schema_migrations',
+                    )).single[0] ==
+                    40,
+            'Interrupted correction committed its ledger',
+          );
+          final witnessAfter =
+              jsonDecode(await File(authority.path).readAsString()) as Map;
+          w2Expect(
+            witnessAfter['pending'] == false &&
+                witnessAfter['fingerprint'] == witnessBefore['fingerprint'],
+            'Interrupted correction changed ready witness fingerprint',
+          );
+          w2Equal(
+            await identitySnapshot(owner!),
+            identityBefore,
+            'Interrupted correction changed identities',
+          );
         }
         await authority.applySchemaUpgrade(
           migrator!,
@@ -265,18 +304,26 @@ Future<void> runBaseline(String baselineRevision, int baselineCount) async {
             ).applyInTransaction(tx);
             w2Equal(applied, [
               if (baselineCount == 36) ...[
-              '037_wave2_platform.sql',
-              '038_wave2_administration.sql',
-              '039_wave2_operation_execution.sql',
-              '040_wave2_job_archival.sql',
+                '037_wave2_platform.sql',
+                '038_wave2_administration.sql',
+                '039_wave2_operation_execution.sql',
+                '040_wave2_job_archival.sql',
               ],
               '041_wave2_customization_validation.sql',
             ], 'Wrong upgrade delta');
           },
         );
         await bootstrap(Directory('../../security/postgres'));
-        final definition = (await owner!.execute("SELECT pg_get_functiondef('ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)'::regprocedure)")).single[0] as String;
-        w2Expect(definition.contains("((p_body->'properties') - ARRAY") && definition.contains("((p_body->'ui') - ARRAY"), 'Security reapplication restored the broken customization expression');
+        final definition =
+            (await owner!.execute(
+                  "SELECT pg_get_functiondef('ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb)'::regprocedure)",
+                )).single[0]
+                as String;
+        w2Expect(
+          definition.contains("((p_body->'properties') - ARRAY") &&
+              definition.contains("((p_body->'ui') - ARRAY"),
+          'Security reapplication restored the broken customization expression',
+        );
         await owner!.execute('SELECT ventio_security.assert_schema()');
         w2Equal(
           await identitySnapshot(owner!),

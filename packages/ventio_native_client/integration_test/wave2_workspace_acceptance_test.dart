@@ -123,7 +123,9 @@ void main() {
       if (content is Text) debugPrint('WAVE2_UI_BANNER: ${content.data}');
     }
     if (banners.isNotEmpty) {
-      debugPrint('WAVE2_HOST_DIAGNOSTICS: ${f.diagnostics.recent().map((e) => e.toJson()).toList()}');
+      debugPrint(
+        'WAVE2_HOST_DIAGNOSTICS: ${f.diagnostics.recent().map((e) => e.toJson()).toList()}',
+      );
     }
   }
 
@@ -139,7 +141,9 @@ void main() {
       final content = (element.widget as MaterialBanner).content;
       if (content is Text) debugPrint('WAVE2_UI_BANNER: ${content.data}');
     }
-    debugPrint('WAVE2_HOST_DIAGNOSTICS: ${f.diagnostics.recent().map((e) => e.toJson()).toList()}');
+    debugPrint(
+      'WAVE2_HOST_DIAGNOSTICS: ${f.diagnostics.recent().map((e) => e.toJson()).toList()}',
+    );
   }
 
   Future<void> awaitReport(WidgetTester tester) async {
@@ -203,7 +207,9 @@ void main() {
       // installed releases now correctly refuse same-version content changes.
       await extensions.close();
       extensions = await LocalExtensionStore.open(
-        factory: databaseFactoryFfi, path: '${root.path}/unapproved.sqlite');
+        factory: databaseFactoryFfi,
+        path: '${root.path}/unapproved.sqlite',
+      );
       await extensions.installBundle(ExtensionBundle.fromJson(tampered));
       await extensions.activate(w2Module);
       try {

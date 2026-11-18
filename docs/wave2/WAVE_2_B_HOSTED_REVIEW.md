@@ -1,5 +1,10 @@
 # Wave 2 B hosted acceptance review — 2026-11-18
 
+SUPERSEDED candidate checkpoint: installation was subsequently deferred by the
+owner. Use [the corrective review](WAVE_2_B_CORRECTIVE_REVIEW.md) for the current
+source, runtime, candidate and deployment disposition. All evidence below remains
+historical; its Client-only WARNING is not a current installation recommendation.
+
 Status: PARTIAL VERIFICATION / BLOCKED. No physical installation is authorized by
 this report. Wave_2_B still needs explicit owner acceptance; Wave_2_C remains closed.
 

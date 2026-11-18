@@ -466,31 +466,66 @@ void main() {
     () async {
       final file = '${root.path}/installed.sqlite';
       final original = ExtensionBundle.fromJson(w2BundleJson());
-      var local = await LocalExtensionStore.open(factory: databaseFactoryFfi, path: file);
+      var local = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: file,
+      );
       try {
         await local.installBundle(original);
         await local.activate(w2Module);
-        expect(canonicalJson((await local.readInstalledBundle(w2Module)).toJson()), canonicalJson(original.toJson()));
+        expect(
+          canonicalJson((await local.readInstalledBundle(w2Module)).toJson()),
+          canonicalJson(original.toJson()),
+        );
         // This is the concrete former bug, rather than a mock digest mismatch.
-        expect(canonicalJson((await local.exportBundle(w2Module)).toJson()), isNot(canonicalJson(original.toJson())));
+        expect(
+          canonicalJson((await local.exportBundle(w2Module)).toJson()),
+          isNot(canonicalJson(original.toJson())),
+        );
         await local.close();
-        local = await LocalExtensionStore.open(factory: databaseFactoryFfi, path: file);
-        expect(canonicalJson((await local.readInstalledBundle(w2Module)).toJson()), canonicalJson(original.toJson()));
-      } finally { await local.close(); }
+        local = await LocalExtensionStore.open(
+          factory: databaseFactoryFfi,
+          path: file,
+        );
+        expect(
+          canonicalJson((await local.readInstalledBundle(w2Module)).toJson()),
+          canonicalJson(original.toJson()),
+        );
+      } finally {
+        await local.close();
+      }
     },
   );
   test(
     'W2-S022 [C08,F05,B09] same-version catalog substitution is rejected and preserves installed identity',
     () async {
-      final local = await LocalExtensionStore.open(factory: databaseFactoryFfi, path: '${root.path}/immutable.sqlite');
+      final local = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: '${root.path}/immutable.sqlite',
+      );
       final original = ExtensionBundle.fromJson(w2BundleJson());
       try {
         await local.installBundle(original);
         final changed = w2BundleJson();
-        (changed['englishCatalog'] as Map)['$w2Label.name'] = 'Unapproved label';
-        await expectLater(local.installBundle(ExtensionBundle.fromJson(changed)), throwsA(isA<ExtensionStoreException>().having((e) => e.code, 'code', 'VERSION_CONFLICT')));
-        expect(canonicalJson((await local.readInstalledBundle(w2Module)).toJson()), canonicalJson(original.toJson()));
-      } finally { await local.close(); }
+        (changed['englishCatalog'] as Map)['$w2Label.name'] =
+            'Unapproved label';
+        await expectLater(
+          local.installBundle(ExtensionBundle.fromJson(changed)),
+          throwsA(
+            isA<ExtensionStoreException>().having(
+              (e) => e.code,
+              'code',
+              'VERSION_CONFLICT',
+            ),
+          ),
+        );
+        expect(
+          canonicalJson((await local.readInstalledBundle(w2Module)).toJson()),
+          canonicalJson(original.toJson()),
+        );
+      } finally {
+        await local.close();
+      }
     },
   );
   test(
@@ -498,29 +533,64 @@ void main() {
     () async {
       final file = '${root.path}/legacy-installed.sqlite';
       final original = ExtensionBundle.fromJson(w2BundleJson());
-      var local = await LocalExtensionStore.open(factory: databaseFactoryFfi, path: file);
+      var local = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: file,
+      );
       await local.installBundle(original);
       await local.activate(w2Module);
       await local.close();
       var db = await databaseFactoryFfi.openDatabase(file);
       // The complete v12 layout is the current schema minus this one new column.
-      await db.execute('ALTER TABLE local_extensions DROP COLUMN installed_bundle_json');
+      await db.execute(
+        'ALTER TABLE local_extensions DROP COLUMN installed_bundle_json',
+      );
       await db.execute('PRAGMA user_version=12');
       final before = await db.query('local_extension_doctypes');
       await db.close();
-      local = await LocalExtensionStore.open(factory: databaseFactoryFfi, path: file);
-      expect((await local.getExtension(w2Module))!.state, ExtensionState.active);
-      await local.installBundle(original); // Explicitly replenish a legacy snapshot.
-      expect(canonicalJson((await local.readInstalledBundle(w2Module)).toJson()), canonicalJson(original.toJson()));
+      local = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: file,
+      );
+      expect(
+        (await local.getExtension(w2Module))!.state,
+        ExtensionState.active,
+      );
+      await local.installBundle(
+        original,
+      ); // Explicitly replenish a legacy snapshot.
+      expect(
+        canonicalJson((await local.readInstalledBundle(w2Module)).toJson()),
+        canonicalJson(original.toJson()),
+      );
       await local.close();
       db = await databaseFactoryFfi.openDatabase(file);
       expect(await db.query('local_extension_doctypes'), before);
-      await db.update('local_extensions', {'display_name': 'Unapproved projected label'}, where: 'module_id=?', whereArgs: [w2Module]);
+      await db.update(
+        'local_extensions',
+        {'display_name': 'Unapproved projected label'},
+        where: 'module_id=?',
+        whereArgs: [w2Module],
+      );
       await db.close();
-      local = await LocalExtensionStore.open(factory: databaseFactoryFfi, path: file);
+      local = await LocalExtensionStore.open(
+        factory: databaseFactoryFfi,
+        path: file,
+      );
       try {
-        await expectLater(local.readInstalledBundle(w2Module), throwsA(isA<ExtensionStoreException>().having((e) => e.code, 'code', 'LOCAL_PACKAGE_INTEGRITY_FAILED')));
-      } finally { await local.close(); }
+        await expectLater(
+          local.readInstalledBundle(w2Module),
+          throwsA(
+            isA<ExtensionStoreException>().having(
+              (e) => e.code,
+              'code',
+              'LOCAL_PACKAGE_INTEGRITY_FAILED',
+            ),
+          ),
+        );
+      } finally {
+        await local.close();
+      }
     },
   );
 }

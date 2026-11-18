@@ -69,7 +69,7 @@ $signatures=@(Get-ChildItem $package -Recurse -File | Where-Object {$_.Extension
   [pscustomobject]@{path=[IO.Path]::GetRelativePath($package,$_.FullName).Replace('\','/');status=$sig.Status.ToString();publisher=$sig.SignerCertificate.Subject;fileVersion=$_.VersionInfo.FileVersion;sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
 })
 $signatures | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'executable-signatures.json')
-Copy-Item docs/wave2/WAVE_2_B_HOSTED_RESUME.md (Join-Path $package 'READ-BEFORE-INSTALL.md')
+Copy-Item docs/wave2/WAVE_2_B_CANDIDATE_DEPLOYMENT.md (Join-Path $package 'READ-BEFORE-INSTALL.md')
 python tests/wave2/package_manifest.py create $package $delivery $identity
 if ($LASTEXITCODE) { throw 'Package manifest/ZIP creation failed' }
 $zip = Join-Path $delivery "$identity.zip"

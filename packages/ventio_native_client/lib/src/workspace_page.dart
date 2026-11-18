@@ -1115,7 +1115,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
         );
       }
       final report = bundle.reports.singleWhere(
-        (definition) => definition.id == card['reportId'] && definition.docType == card['docType'],
+        (definition) =>
+            definition.id == card['reportId'] &&
+            definition.docType == card['docType'],
       );
       final result = await widget.client.queryReport(
         companyId: widget.profile.companyId,
@@ -1144,8 +1146,13 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       subtitle: Text(
                         group.aggregates.entries
                             .map((entry) {
-                              final aggregate = report.aggregates.singleWhere((definition) => definition.id == entry.key);
-                              final label = context.extensionMetadataText(aggregate.labelKey, aggregate.label);
+                              final aggregate = report.aggregates.singleWhere(
+                                (definition) => definition.id == entry.key,
+                              );
+                              final label = context.extensionMetadataText(
+                                aggregate.labelKey,
+                                aggregate.label,
+                              );
                               return '$label: ${entry.value}';
                             })
                             .join('  '),
@@ -1235,13 +1242,19 @@ class _WorkspacePageState extends State<WorkspacePage> {
           // Authorization refresh temporarily removes approved modules. Keep
           // expansion state for this exact profile/release without caching any
           // authorization decision or retaining links while authority is absent.
-          key: PageStorageKey<String>(canonicalJson({
-            'profile': {..._scope, 'endpoint': widget.profile.endpoint,
-              'tenantId': widget.profile.tenantId, 'actorId': widget.profile.actorId,
-              'deviceId': widget.profile.deviceId},
-            'moduleId': bundle.moduleId,
-            'version': bundle.version,
-          })),
+          key: PageStorageKey<String>(
+            canonicalJson({
+              'profile': {
+                ..._scope,
+                'endpoint': widget.profile.endpoint,
+                'tenantId': widget.profile.tenantId,
+                'actorId': widget.profile.actorId,
+                'deviceId': widget.profile.deviceId,
+              },
+              'moduleId': bundle.moduleId,
+              'version': bundle.version,
+            }),
+          ),
           title: Text(bundle.manifest.displayName),
           trailing: IconButton(
             icon: const Icon(Icons.vertical_align_top),

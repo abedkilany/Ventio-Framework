@@ -556,7 +556,10 @@ class PostgresWave2Gateway implements AuthoritativeWave2Gateway {
           // The SQL contract validates the cursor's tenant/scope/record binding.
           // Report that bounded input rejection without exposing SQL diagnostics.
           if (error.code == '22023') {
-            throw const ContractError('INVALID_CURSOR', 'Invalid activity cursor.');
+            throw const ContractError(
+              'INVALID_CURSOR',
+              'Invalid activity cursor.',
+            );
           }
           rethrow;
         }

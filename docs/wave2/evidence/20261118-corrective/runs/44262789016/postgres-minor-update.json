@@ -1,0 +1,14 @@
+{
+    "id":  "PG-PHYSICAL-MINOR-UPDATE",
+    "commit":  "3bf00486e94a7e5c69d74cc909d00486cec964ea",
+    "runId":  "44262789016",
+    "status":  "PASSED",
+    "oldVersion":  "16.15",
+    "newVersion":  "16.16",
+    "freshUpstreamOnly":  true,
+    "physicalMachinesTouched":  false,
+    "recoveryAuthorityClaim":  "NOT_ESTABLISHED_BY_THIS_STORAGE_LAYER_TEST",
+    "oldArchiveSha256":  "43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281",
+    "actualNewVersion":  "16.16",
+    "storageAndRlsPreserved":  true
+}

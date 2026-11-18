@@ -1,0 +1,65 @@
+{
+  "commit": "842905c56f8febb9fcb26957ca0ff6c24ba15452",
+  "runId": "44265006802",
+  "attempt": "1",
+  "mode": "desktop",
+  "suites": [
+    {
+      "suite": "G",
+      "variant": null,
+      "log": "desktop-G.log",
+      "command": [
+        "flutter",
+        "test",
+        "--no-pub",
+        "--machine",
+        "integration_test/wave2_workspace_acceptance_test.dart",
+        "-d",
+        "windows"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-G001",
+          "status": "PASSED",
+          "suite": "G"
+        },
+        {
+          "id": "W2-G002",
+          "status": "PASSED",
+          "suite": "G"
+        },
+        {
+          "id": "W2-G003",
+          "status": "PASSED",
+          "suite": "G"
+        },
+        {
+          "id": "W2-G004",
+          "status": "PASSED",
+          "suite": "G"
+        },
+        {
+          "id": "W2-G005",
+          "status": "PASSED",
+          "suite": "G"
+        },
+        {
+          "id": "W2-G006",
+          "status": "PASSED",
+          "suite": "G"
+        },
+        {
+          "id": "W2-G007",
+          "status": "PASSED",
+          "suite": "G"
+        }
+      ]
+    }
+  ],
+  "expectedUnexecuted": {
+    "P": "BLOCKED_PREREQUISITE: separately provisioned installed Windows VM and normal local approval required"
+  },
+  "manualAcceptance": "W2-M001..M006 remain unexecuted; CI does not establish physical two-device or owner acceptance"
+}
