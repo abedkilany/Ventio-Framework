@@ -178,27 +178,33 @@ jobs:
         if: always()
         run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'core' && 'verify-core' || (inputs.scope == 'gateway-jobs' && 'verify-gateway-jobs' || 'verify-linux') }}
   protected-candidate-verification:
-    if: inputs.scope == 'verify-candidate'
+    if: inputs.scope == 'verify-candidate' || inputs.scope == 'candidate-evidence'
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Fetch the hosted artifact and verify all package bytes
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: python tests/wave2/download_hosted_candidate.py $env:CANDIDATE_RUN_ID
+      - name: Export complete manifests and verify archived source against Git objects
+        if: inputs.scope == 'candidate-evidence'
+        shell: pwsh
+        run: python tests/wave2/export_candidate_evidence.py
       - name: Enable protection normally, scan, and test fresh Client-only installer rollback
+        if: inputs.scope == 'verify-candidate'
         shell: pwsh
         run: ./scripts/ci/verify-wave2-protected-candidate.ps1
       - name: Retain independent protection and installer evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: wave2-protected-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          name: wave2-${{ inputs.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/wave2-protected-evidence/*
           if-no-files-found: error
           retention-days: 30
