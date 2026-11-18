@@ -43,7 +43,17 @@ for path in [payload/'SHA256SUMS.txt', payload/'payload-files.json', payload/'Ho
     assert path.is_file() and not (out/path.name).exists(), 'Evidence name collision'
     shutil.copyfile(path, out/path.name)
 reports = []
-for path in sorted((pathlib.Path(context['root'])/'transport').rglob('*-results.json')):
+transport = pathlib.Path(context['root'])/'transport'
+# These sidecars are deliberately outside the immutable inner ZIP (a scan/ZIP
+# digest cannot be embedded in the same ZIP it describes). Preserve them from
+# the already SHA-256-verified outer Actions artifact as well as inner evidence.
+for name in ('artifact-integrity.json', 'security-scan-evidence.json',
+             'effective-exclusion-checks.json', context['identity']+'.zip.sha256'):
+    matches = [p for p in transport.rglob(name) if p.is_file()]
+    assert len(matches) == 1, 'Required unique external evidence missing: '+name
+    assert not (out/name).exists(), 'External evidence name collision'
+    shutil.copyfile(matches[0], out/name)
+for path in sorted(transport.rglob('*-results.json')):
     data = json.loads(path.read_text(encoding='utf-8-sig'))
     if 'suites' not in data or data.get('runId') != context['candidateRunId']:
         continue
