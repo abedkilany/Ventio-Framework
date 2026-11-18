@@ -13,7 +13,7 @@ permissions:
   actions: read
 jobs:
   windows-runtime-regressions:
-    if: inputs.scope == 'windows-runtime'
+    if: inputs.scope == 'windows-runtime' || inputs.scope == 'windows-pg-minor'
     runs-on: windows-2025
     timeout-minutes: 40
     steps:
@@ -24,14 +24,20 @@ jobs:
         shell: pwsh
         run: ./scripts/ci/enable-wave2-defender.ps1
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: inputs.scope == 'windows-runtime'
         with:
           dotnet-version: '10.0.404'
       - name: Stage reviewed PostgreSQL 16.16 archive
         shell: pwsh
         run: ./scripts/ci/install-postgres-tools.ps1
       - name: Execute service broker and PostgreSQL recovery regressions
+        if: inputs.scope == 'windows-runtime'
         shell: pwsh
         run: ./scripts/ci/run-wave2-runtime-regressions.ps1
+      - name: Open a real PostgreSQL 16.15 cluster with the pinned 16.16 engine
+        if: inputs.scope == 'windows-pg-minor'
+        shell: powershell
+        run: ./scripts/ci/test-wave2-postgres-minor-update.ps1
       - name: Retain targeted runtime evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
