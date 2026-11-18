@@ -280,7 +280,7 @@ void main() {
         await tester.tap(find.text('Open current Host report'));
         await tester.pumpAndSettle();
         expect(find.byType(AlertDialog), findsOneWidget);
-        expect(find.text('Count'), findsWidgets);
+        expect(find.text('Count: 1'), findsOneWidget);
         expect(tester.takeException(), isNull);
       } finally {
         await unmount(tester);

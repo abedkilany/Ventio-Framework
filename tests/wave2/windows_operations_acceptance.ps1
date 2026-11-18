@@ -23,6 +23,7 @@ $programData=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApp
 $markerPath=Join-Path $programData 'Ventio-W2-Disposable\fixture.json'
 $marker=Get-Content -LiteralPath $markerPath -Raw|ConvertFrom-Json
 Assert-True ($fixture.fixtureOnly -eq $true -and $marker.fixtureOnly -eq $true -and $fixture.fixtureNonce -ceq $marker.fixtureNonce -and $fixture.machineName -ceq $env:COMPUTERNAME -and $marker.machineName -ceq $env:COMPUTERNAME) 'Disposable VM marker/manifest mismatch.'
+Assert-True ($fixture.machineGuid -ceq $marker.machineGuid -and $marker.machineGuid -ceq (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid) 'Disposable marker belongs to another Windows installation.'
 $markerAcl=Get-Acl -LiteralPath $markerPath
 Assert-True ($markerAcl.AreAccessRulesProtected -and $markerAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ceq 'S-1-5-32-544') 'Fixture marker must be administrator-owned and private.'
 foreach($id in @($fixture.tenantId,$fixture.companyId,$fixture.branchId,$fixture.actorId,$fixture.deviceId)){

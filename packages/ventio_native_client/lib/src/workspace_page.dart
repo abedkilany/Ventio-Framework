@@ -1114,6 +1114,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
           'HOST_PACKAGE_INTEGRITY_FAILED',
         );
       }
+      final report = bundle.reports.singleWhere(
+        (definition) => definition.id == card['reportId'] && definition.docType == card['docType'],
+      );
       final result = await widget.client.queryReport(
         companyId: widget.profile.companyId,
         branchId: widget.profile.branchId,
@@ -1140,7 +1143,11 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       title: Text('${group.key ?? t('all', 'All records')}'),
                       subtitle: Text(
                         group.aggregates.entries
-                            .map((entry) => '${entry.key}: ${entry.value}')
+                            .map((entry) {
+                              final aggregate = report.aggregates.singleWhere((definition) => definition.id == entry.key);
+                              final label = context.extensionMetadataText(aggregate.labelKey, aggregate.label);
+                              return '$label: ${entry.value}';
+                            })
                             .join('  '),
                       ),
                     ),

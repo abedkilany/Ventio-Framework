@@ -3,10 +3,13 @@
   "machineName": "VENTIO-W2-VM01",
   "fixtureNonce": "REPLACE-WITH-OWNER-PROVISIONED-VM-NONCE",
   "tenantId": "w2-physical-disposable",
-  "companyId": "company-a",
-  "branchId": "branch-a",
+  "companyId": "w2-company",
+  "branchId": "w2-branch",
   "actorId": "author",
   "deviceId": "device-author",
   "payloadManifestSha256": "REPLACE-WITH-APPROVED-CANDIDATE-MANIFEST-SHA256",
-  "recoveryWitnessPath": "REPLACE-WITH-INSTALLED-FIXTURE-WITNESS-ABSOLUTE-PATH"
+  "recoveryWitnessPath": "REPLACE-WITH-INSTALLED-FIXTURE-WITNESS-ABSOLUTE-PATH",
+  "machineGuid": "REPLACE-WITH-ACTUAL-DISPOSABLE-WINDOWS-MACHINEGUID",
+  "sourceCommit": "REPLACE-WITH-REVIEWED-CANDIDATE-COMMIT",
+  "candidateZipSha256": "REPLACE-WITH-APPROVED-CANDIDATE-ZIP-SHA256"
 }
