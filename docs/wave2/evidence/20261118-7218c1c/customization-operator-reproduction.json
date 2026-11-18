@@ -1,0 +1,10 @@
+{
+  "originalExpression": "SELECT ('{\"properties\":{}}'::jsonb->'properties' - ARRAY['label','labelKey'])='{}'::jsonb",
+  "originalExitCode": 1,
+  "originalDiagnostic": "ERROR:  22P02: invalid input syntax for type json\nLINE 1: SELECT ('{\"properties\":{}}'::jsonb->'properties' - ARRAY['la...\n                                            ^\nDETAIL:  Token \"properties\" is invalid.\nCONTEXT:  JSON data, line 1: properties\nLOCATION:  json_errsave_error, jsonfuncs.c:646\n",
+  "parenthesizedExpression": "SELECT (('{\"properties\":{}}'::jsonb->'properties') - ARRAY['label','labelKey'])='{}'::jsonb",
+  "parenthesizedExitCode": 0,
+  "parenthesizedResult": "t",
+  "rootCauseReproduced": true,
+  "productionCodeChanged": false
+}

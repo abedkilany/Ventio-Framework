@@ -62,8 +62,14 @@ Ventio ProgramData, Host or PostgreSQL service. Existing Host safeguards remain.
 
 Before approving TEST-02 installation, require the exact CI commit/run/artifact
 identity, a complete verified ZIP/member manifest, reviewed case results, and
-acceptable independent security-scan evidence. Resolve any material failed or
-blocked gate first. Preserve all current artifacts and reports for comparison.
+acceptable independent security-scan evidence. The exact candidate's fresh
+Client-only install/uninstall smoke passed on a second hosted runner. A physical
+Client-only installation with no launch or Host provisioning is reviewable with
+a WARNING verdict, subject to current TEST-02 prerequisites and owner approval.
+Known product failures, installed-VM gaps and Host dependency support findings
+still block full acceptance and Host deployment; they are not silently accepted
+by copying application files. See WAVE_2_B_HOSTED_REVIEW.md for the exact evidence.
+Preserve all current artifacts and reports for comparison.
 
 After a separate explicit owner authorization, the TEST-02-only procedure is:
 
@@ -90,6 +96,9 @@ After a separate explicit owner authorization, the TEST-02-only procedure is:
    clear Launch Ventio. Record exit status and installed payload hashes. Stop after
    installation: do not select Host setup, launch, pair, synchronize or run tests
    until separately authorized. Do not copy TEST-01 credentials or witness data.
+   Stop if Defender, application control or another Windows security control
+   blocks the candidate; owner installation approval is not an instruction to
+   override that block. The Ventio executables have no publisher signature.
 6. A later approved Client launch must use a fresh TEST-02 profile/app-support
    directory and the Client role. Pairing or synchronization can write to TEST-01's
    Host and therefore needs a separately approved acceptance step.
