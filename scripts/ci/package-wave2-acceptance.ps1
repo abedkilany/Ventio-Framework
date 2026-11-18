@@ -8,8 +8,8 @@ $flutter = flutter --version --machine | ConvertFrom-Json
 if ($flutter.frameworkVersion -cne $pins.flutter.version -or $flutter.frameworkRevision -cne $pins.flutter.revision) { throw 'Flutter release revision mismatch' }
 $client = Join-Path $repo 'packages/ventio_native_client/build/windows/x64/runner/Release'
 $hostPayload = Join-Path $repo 'packages/ventio_host_api/build/windows/host-payload'
-$host = Get-Content (Join-Path $hostPayload 'payload-manifest.json') -Raw | ConvertFrom-Json
-if ($host.sourceCommit -cne $commit -or $host.sourceHasTrackedChanges -ne $false -or $host.hostCompilerVersion -notmatch '^Dart SDK version: 3\.13\.7 ') { throw 'Host provenance mismatch' }
+$hostManifest = Get-Content (Join-Path $hostPayload 'payload-manifest.json') -Raw | ConvertFrom-Json
+if ($hostManifest.sourceCommit -cne $commit -or $hostManifest.sourceHasTrackedChanges -ne $false -or $hostManifest.hostCompilerVersion -notmatch '^Dart SDK version: 3\.13\.7 ') { throw 'Host provenance mismatch' }
 if ((Get-FileHash (Join-Path $client 'pdfium.dll') -Algorithm SHA256).Hash.ToLowerInvariant() -cne $pins.pdfium.dllSha256) { throw 'Unpinned PDFium DLL' }
 git diff --ignore-space-at-eol --exit-code -- .
 if ($LASTEXITCODE) { throw 'Build changed tracked source semantics' }
@@ -57,7 +57,7 @@ $compilerFiles = @(foreach ($name in $compilerCommands.Keys) {
 $dependencies = @(Get-ChildItem packages -Filter pubspec.lock -Recurse -File | ForEach-Object {
   [pscustomobject]@{path=[IO.Path]::GetRelativePath($repo,$_.FullName).Replace('\','/');sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
 })
-$tools=[ordered]@{identity=$identity;commit=$commit;sourceTree=(git rev-parse 'HEAD^{tree}');hostDart=$host.hostCompilerVersion;flutter=$flutter;dotnet=(& dotnet --version);dotnetInfo=(& dotnet --info | Out-String);compilerFiles=$compilerFiles;dependencyLockfiles=$dependencies;inno='6.7.4';postgres='16.15-5';imageOS=$env:ImageOS;imageVersion=$env:ImageVersion;runnerEnvironment=$env:RUNNER_ENVIRONMENT;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;bitIdenticalRebuild='NOT_ESTABLISHED';productionSourceChanges='Only recorded generated line-ending overlay allowed'}
+$tools=[ordered]@{identity=$identity;commit=$commit;sourceTree=(git rev-parse 'HEAD^{tree}');hostDart=$hostManifest.hostCompilerVersion;flutter=$flutter;dotnet=(& dotnet --version);dotnetInfo=(& dotnet --info | Out-String);compilerFiles=$compilerFiles;dependencyLockfiles=$dependencies;inno='6.7.4';postgres='16.15-5';imageOS=$env:ImageOS;imageVersion=$env:ImageVersion;runnerEnvironment=$env:RUNNER_ENVIRONMENT;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;bitIdenticalRebuild='NOT_ESTABLISHED';productionSourceChanges='Only recorded generated line-ending overlay allowed'}
 $tools | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $evidence 'build-metadata.json')
 Get-ChildItem packages -Filter package_config.json -Recurse -Force -File | Where-Object {$_.FullName -match '\.dart_tool[\\/]package_config.json$'} | ForEach-Object { Copy-Item $_.FullName (Join-Path $evidence (($_.FullName.Replace($repo,'').TrimStart('\','/').Replace('\','_').Replace('/','_')))) }
 Get-ChildItem installer/windows -Filter project.assets.json -Recurse -File | ForEach-Object { Copy-Item $_.FullName (Join-Path $evidence ($_.Directory.Parent.Name+'-project.assets.json')) }

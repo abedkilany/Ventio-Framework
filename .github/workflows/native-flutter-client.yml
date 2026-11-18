@@ -24,7 +24,7 @@ on:
         default: all
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}-${{ inputs.wave2_scope || 'default' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

@@ -48,7 +48,6 @@ jobs:
           flutter-version: '3.44.1'
           channel: stable
           cache: false
-          pub-cache: false
       - name: Build Client and unified installer from this checkout only
         run: |
           ./scripts/prepare_native_client_platforms.ps1
@@ -119,7 +118,6 @@ jobs:
           flutter-version: '3.44.1'
           channel: stable
           cache: false
-          pub-cache: false
       - name: Resolve locked Flutter dependencies
         working-directory: packages/ventio_native_client
         run: flutter pub get --enforce-lockfile
