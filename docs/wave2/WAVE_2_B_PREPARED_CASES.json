@@ -1,7 +1,8 @@
 {
-  "status": "PREPARED_NOT_EXECUTED",
+  "status": "SOURCE_INVENTORY_ONLY",
   "baselineRevision": "87f8a5c388233f203920aaaec6acbc7bf544a6bc",
-  "executionProhibited": true,
+  "originalPreparedCaseCount": 161,
+  "executionEvidence": "Recorded separately with exact CI run and revision; this static inventory executes no cases",
   "automatedCaseCount": 164,
   "cases": [
     {
@@ -16,10 +17,12 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
-        "security/postgres/wave2.sql"
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C002",
@@ -33,10 +36,12 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
-        "security/postgres/wave2.sql"
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C003",
@@ -50,10 +55,12 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
-        "security/postgres/wave2.sql"
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C004",
@@ -67,10 +74,12 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
-        "security/postgres/wave2.sql"
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C005",
@@ -85,13 +94,15 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C006",
@@ -108,7 +119,7 @@
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C007",
@@ -125,7 +136,7 @@
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C008",
@@ -140,11 +151,13 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
-        "security/postgres/wave2.sql"
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C009",
@@ -159,13 +172,15 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C010",
@@ -180,13 +195,15 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C011",
@@ -203,7 +220,7 @@
         "packages/ventio_core/lib/src/data_transfer.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C012",
@@ -220,7 +237,7 @@
         "packages/ventio_core/lib/src/data_transfer.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C013",
@@ -237,7 +254,7 @@
         "packages/ventio_core/lib/src/data_transfer.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C014",
@@ -257,7 +274,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C015",
@@ -276,7 +293,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C016",
@@ -293,7 +310,7 @@
         "packages/ventio_core/lib/src/data_transfer.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C017",
@@ -312,7 +329,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C018",
@@ -327,9 +344,10 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C019",
@@ -347,9 +365,10 @@
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/command_validation.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C020",
@@ -366,7 +385,7 @@
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C021",
@@ -385,7 +404,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C022",
@@ -402,7 +421,7 @@
         "packages/ventio_core/lib/src/platform_administration.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C023",
@@ -419,7 +438,7 @@
         "packages/ventio_core/lib/src/platform_administration.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C024",
@@ -437,7 +456,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C025",
@@ -454,11 +473,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C026",
@@ -475,9 +495,11 @@
       "productionContracts": [
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/command_validation.dart",
-        "packages/ventio_host_api/lib/src/host_api.dart"
+        "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C027",
@@ -494,9 +516,11 @@
       "productionContracts": [
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host/lib/src/durable_command_host.dart",
-        "packages/ventio_host_api/lib/src/host_api.dart"
+        "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C028",
@@ -512,13 +536,17 @@
       "command": "dart --packages=../ventio_native_client/.dart_tool/package_config.json test/wave2_contracts_test.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/command_validation.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
-        "security/postgres/wave2.sql"
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql",
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C029",
@@ -538,7 +566,7 @@
         "packages/ventio_host/lib/src/durable_command_host.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C030",
@@ -555,7 +583,7 @@
         "packages/ventio_core/lib/src/data_transfer.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-C031",
@@ -577,7 +605,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S001",
@@ -597,7 +625,7 @@
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S002",
@@ -617,7 +645,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S003",
@@ -637,7 +665,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S004",
@@ -655,7 +683,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S005",
@@ -673,7 +701,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S006",
@@ -691,7 +719,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S007",
@@ -709,7 +737,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S008",
@@ -726,12 +754,13 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S009",
@@ -748,10 +777,11 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S010",
@@ -767,9 +797,10 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S011",
@@ -789,7 +820,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S012",
@@ -806,7 +837,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S013",
@@ -823,7 +854,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S014",
@@ -842,7 +873,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S015",
@@ -859,11 +890,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S016",
@@ -880,11 +912,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S017",
@@ -906,7 +939,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S018",
@@ -925,7 +958,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S019",
@@ -945,7 +978,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S020",
@@ -962,10 +995,11 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S021",
@@ -983,10 +1017,11 @@
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S022",
@@ -1004,10 +1039,11 @@
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-S023",
@@ -1025,10 +1061,11 @@
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H001",
@@ -1048,7 +1085,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/recovery_authority.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H002",
@@ -1066,9 +1103,11 @@
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
-        "packages/ventio_host_api/lib/src/recovery_authority.dart"
+        "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H003",
@@ -1085,9 +1124,11 @@
       "productionContracts": [
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/command_validation.dart",
-        "packages/ventio_host_api/lib/src/host_api.dart"
+        "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H004",
@@ -1104,7 +1145,7 @@
         "packages/ventio_host_api/lib/src/command_validation.dart",
         "packages/ventio_host_api/lib/src/host_api.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H005",
@@ -1124,7 +1165,7 @@
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H006",
@@ -1144,7 +1185,7 @@
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H007",
@@ -1164,7 +1205,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H008",
@@ -1181,11 +1222,12 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H009",
@@ -1202,10 +1244,11 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H010",
@@ -1225,7 +1268,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H011",
@@ -1241,9 +1284,10 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H012",
@@ -1260,7 +1304,7 @@
         "packages/ventio_core/lib/src/platform_administration.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H013",
@@ -1275,11 +1319,13 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_gateway_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
-        "security/postgres/wave2.sql"
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H014",
@@ -1294,13 +1340,15 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_gateway_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H015",
@@ -1315,12 +1363,14 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_gateway_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
-        "security/postgres/wave2.sql"
+        "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H016",
@@ -1339,7 +1389,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H017",
@@ -1359,7 +1409,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H018",
@@ -1379,7 +1429,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H019",
@@ -1397,7 +1447,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H020",
@@ -1416,9 +1466,10 @@
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H021",
@@ -1436,9 +1487,10 @@
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H022",
@@ -1452,10 +1504,11 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_gateway_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "packages/ventio_native_client/lib/src/document_activity_page.dart",
         "security/postgres/wave2_activity.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H023",
@@ -1469,10 +1522,11 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_gateway_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "packages/ventio_native_client/lib/src/document_activity_page.dart",
         "security/postgres/wave2_activity.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H024",
@@ -1489,7 +1543,7 @@
         "packages/ventio_core/lib/src/platform_administration.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H025",
@@ -1509,7 +1563,7 @@
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H026",
@@ -1528,7 +1582,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H027",
@@ -1545,11 +1599,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H028",
@@ -1564,13 +1619,15 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_gateway_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-H029",
@@ -1588,9 +1645,10 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J001",
@@ -1609,7 +1667,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J002",
@@ -1629,7 +1687,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J003",
@@ -1648,7 +1706,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J004",
@@ -1665,9 +1723,11 @@
       "productionContracts": [
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/command_validation.dart",
-        "packages/ventio_host_api/lib/src/host_api.dart"
+        "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J005",
@@ -1689,7 +1749,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J006",
@@ -1708,7 +1768,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J007",
@@ -1725,7 +1785,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J008",
@@ -1744,7 +1804,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J009",
@@ -1761,7 +1821,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J010",
@@ -1780,7 +1840,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J011",
@@ -1799,7 +1859,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J012",
@@ -1816,7 +1876,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J013",
@@ -1835,7 +1895,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J014",
@@ -1854,7 +1914,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J015",
@@ -1873,7 +1933,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J016",
@@ -1893,7 +1953,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J017",
@@ -1914,7 +1974,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J018",
@@ -1934,7 +1994,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J019",
@@ -1956,7 +2016,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J020",
@@ -1975,7 +2035,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J021",
@@ -1994,7 +2054,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J022",
@@ -2013,7 +2073,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J023",
@@ -2033,7 +2093,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J024",
@@ -2052,7 +2112,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J025",
@@ -2069,7 +2129,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J026",
@@ -2092,7 +2152,7 @@
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-J027",
@@ -2111,7 +2171,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D001",
@@ -2132,10 +2192,12 @@
         "packages/ventio_core/lib/src/platform_administration.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql",
         "security/postgres/wave2.sql",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D002",
@@ -2150,9 +2212,11 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/extension_commands.dart",
-        "packages/ventio_host_api/lib/src/host_api.dart"
+        "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D003",
@@ -2170,18 +2234,21 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_database_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_core/lib/src/platform_administration.dart",
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2.sql",
         "security/postgres/wave2_administration.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D004",
@@ -2203,7 +2270,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D005",
@@ -2222,12 +2289,13 @@
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2.sql",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D006",
@@ -2249,7 +2317,7 @@
         "packages/ventio_native_client/lib/src/document_activity_page.dart",
         "security/postgres/wave2_activity.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D007",
@@ -2268,9 +2336,10 @@
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D008",
@@ -2286,12 +2355,14 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_database_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_core/lib/src/platform_administration.dart",
         "security/postgres/wave2.sql",
-        "security/postgres/wave2_administration.sql"
+        "security/postgres/wave2_administration.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D009",
@@ -2306,9 +2377,11 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/extension_commands.dart",
-        "packages/ventio_host_api/lib/src/host_api.dart"
+        "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D010",
@@ -2326,9 +2399,11 @@
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
-        "packages/ventio_host_api/lib/src/recovery_authority.dart"
+        "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-D011",
@@ -2349,11 +2424,12 @@
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2.sql",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O001",
@@ -2371,7 +2447,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O002",
@@ -2390,11 +2466,12 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O003",
@@ -2412,7 +2489,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O004",
@@ -2430,7 +2507,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O005",
@@ -2451,7 +2528,7 @@
         "security/postgres/wave2_administration.sql",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O006",
@@ -2468,11 +2545,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O007",
@@ -2487,10 +2565,11 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-O008",
@@ -2511,7 +2590,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-U001",
@@ -2529,9 +2608,11 @@
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_core/lib/src/platform_administration.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql",
         "security/postgres/wave2_administration.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-U002",
@@ -2549,15 +2630,19 @@
       "command": "dart --packages=.dart_tool/package_config.json test/wave2_upgrade_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_core/lib/src/platform_administration.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
         "packages/ventio_host_api/lib/src/wave2_platform.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql",
         "security/postgres/wave2.sql",
-        "security/postgres/wave2_administration.sql"
+        "security/postgres/wave2_administration.sql",
+        "security/postgres/wave2_customization_041.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-U003",
@@ -2575,10 +2660,13 @@
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
+        "security/postgres/schema_profile.sql",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-R001",
@@ -2598,9 +2686,11 @@
         "packages/ventio_host_api/lib/src/command_validation.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
-        "packages/ventio_host_api/lib/src/recovery_authority.dart"
+        "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-R002",
@@ -2618,9 +2708,11 @@
         "packages/ventio_core/lib/src/extension_commands.dart",
         "packages/ventio_host_api/lib/src/host_api.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
-        "packages/ventio_host_api/lib/src/recovery_authority.dart"
+        "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "packages/ventio_postgres/lib/src/migration_runner.dart",
+        "security/postgres/schema_profile.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-E001",
@@ -2642,7 +2734,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-E002",
@@ -2664,7 +2756,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-E003",
@@ -2687,7 +2779,7 @@
         "security/postgres/wave2.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-E004",
@@ -2708,7 +2800,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-E005",
@@ -2723,13 +2815,15 @@
       "command": "flutter test --no-pub test/wave2_offline_integration.dart",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-E006",
@@ -2752,7 +2846,7 @@
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-G001",
@@ -2763,17 +2857,18 @@
       ],
       "requirement": "workspace exposes only current approved installed modules and native navigation",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 137,
+      "line": 158,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-G002",
@@ -2783,16 +2878,17 @@
       ],
       "requirement": "locally installed metadata grants no navigation without current package authority",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 153,
+      "line": 174,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-G003",
@@ -2802,15 +2898,16 @@
       ],
       "requirement": "a local package digest mismatch contributes no authorized workspace links",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 175,
+      "line": 196,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-G004",
@@ -2821,16 +2918,17 @@
       ],
       "requirement": "narrow large-text workspace navigation has no overflow or uncaught rendering error",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 202,
+      "line": 223,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_core/lib/src/workspace.dart",
+        "packages/ventio_native_client/lib/src/extension_store.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-G005",
@@ -2841,19 +2939,21 @@
       ],
       "requirement": "repeated Host customization labels refresh in the same app session",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 220,
+      "line": 241,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
+        "migrations/postgres/041_wave2_customization_validation.sql",
         "packages/ventio_core/lib/src/customization.dart",
         "packages/ventio_native_client/lib/src/local_command_queue.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "security/postgres/wave2.sql",
+        "security/postgres/wave2_customization_041.sql",
         "security/postgres/wave2_customization_rebase.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-G006",
@@ -2863,7 +2963,7 @@
       ],
       "requirement": "a saved dashboard card opens a real current-authorized Host report",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 257,
+      "line": 281,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
@@ -2872,7 +2972,7 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_native_client/lib/src/workspace_page.dart"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-G007",
@@ -2882,7 +2982,7 @@
       ],
       "requirement": "native document activity renders real command identity without protected values",
       "source": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
-      "line": 290,
+      "line": 314,
       "suiteKind": "native-desktop-integration",
       "command": "flutter test --no-pub integration_test/wave2_workspace_acceptance_test.dart -d windows",
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
@@ -2892,7 +2992,7 @@
         "packages/ventio_native_client/lib/src/document_activity_page.dart",
         "security/postgres/wave2_activity.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W001",
@@ -2910,7 +3010,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W002",
@@ -2927,11 +3027,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W003",
@@ -2948,11 +3049,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W004",
@@ -2969,11 +3071,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W005",
@@ -2990,11 +3093,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W006",
@@ -3011,11 +3115,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W007",
@@ -3032,11 +3137,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W008",
@@ -3053,11 +3159,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W009",
@@ -3074,11 +3181,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W010",
@@ -3095,11 +3203,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-W011",
@@ -3114,10 +3223,11 @@
       "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-P001",
@@ -3136,11 +3246,12 @@
         "packages/ventio_host_api/lib/src/persistent_identity.dart",
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-P002",
@@ -3158,7 +3269,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-P003",
@@ -3176,7 +3287,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-P004",
@@ -3194,7 +3305,7 @@
         "scripts/windows/manage-host-operations.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-P005",
@@ -3211,11 +3322,12 @@
       "productionContracts": [
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     },
     {
       "id": "W2-P006",
@@ -3234,12 +3346,13 @@
         "packages/ventio_host_api/lib/src/recovery_authority.dart",
         "packages/ventio_native_client/lib/src/workspace_store.dart",
         "scripts/windows/HostBackupIntegrity.psm1",
+        "scripts/windows/HostOperationStorage.psm1",
         "scripts/windows/manage-host-operations.ps1",
         "scripts/windows/restore-host-upgrade-backup.ps1",
         "security/postgres/wave2.sql",
         "security/postgres/wave2_operations.sql"
       ],
-      "status": "PREPARED_NOT_EXECUTED"
+      "status": "SOURCE_INVENTORY_ONLY"
     }
   ],
   "manualCases": [

@@ -134,6 +134,27 @@ void main() {
     tester.view.resetDevicePixelRatio();
   }
 
+  void reportDiagnostics(WidgetTester tester) {
+    for (final element in find.byType(MaterialBanner).evaluate()) {
+      final content = (element.widget as MaterialBanner).content;
+      if (content is Text) debugPrint('WAVE2_UI_BANNER: ${content.data}');
+    }
+    debugPrint('WAVE2_HOST_DIAGNOSTICS: ${f.diagnostics.recent().map((e) => e.toJson()).toList()}');
+  }
+
+  Future<void> awaitReport(WidgetTester tester) async {
+    // pumpAndSettle only waits for scheduled frames. An actual HTTP/database
+    // request can be pending with no animation, so wait for its visible outcome.
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    while (find.byType(AlertDialog).evaluate().isEmpty &&
+        find.byType(MaterialBanner).evaluate().isEmpty &&
+        DateTime.now().isBefore(deadline)) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pumpAndSettle();
+    if (find.byType(AlertDialog).evaluate().isEmpty) reportDiagnostics(tester);
+  }
+
   testWidgets(
     'W2-G001 [C08,F05,B09] workspace exposes only current approved installed modules and native navigation',
     (tester) async {
@@ -247,6 +268,9 @@ void main() {
         );
         await tester.tap(find.byTooltip('Refresh authorization and data'));
         await tester.pumpAndSettle();
+        if (find.text('Second customized asset').evaluate().isEmpty) {
+          reportDiagnostics(tester);
+        }
         expect(find.text('Second customized asset'), findsWidgets);
         expect(find.text('First customized asset'), findsNothing);
       } finally {
@@ -278,7 +302,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Current assets'), findsOneWidget);
         await tester.tap(find.text('Open current Host report'));
-        await tester.pumpAndSettle();
+        await awaitReport(tester);
         expect(find.byType(AlertDialog), findsOneWidget);
         expect(find.text('Count: 1'), findsOneWidget);
         expect(tester.takeException(), isNull);

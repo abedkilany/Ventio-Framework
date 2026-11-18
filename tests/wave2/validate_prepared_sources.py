@@ -30,7 +30,7 @@ SUITES = {
     "P": ("disposable-installed-windows", "tests/wave2/windows_operations_acceptance.ps1", "& ./tests/wave2/windows_operations_acceptance.ps1 -FixtureManifest $fixtureManifest -ApproveLocalOperations -AllowDisposableRestore"),
 }
 CONTRACTS = {
-    "A12": ["packages/ventio_core/lib/src/customization.dart", "security/postgres/wave2.sql"],
+    "A12": ["packages/ventio_core/lib/src/customization.dart", "security/postgres/wave2.sql", "security/postgres/wave2_customization_041.sql", "migrations/postgres/041_wave2_customization_validation.sql"],
     "A11": ["packages/ventio_core/lib/src/customization.dart", "packages/ventio_native_client/lib/src/workspace_page.dart"],
     "K09": ["packages/ventio_native_client/lib/src/workspace_store.dart", "security/postgres/wave2_customization_rebase.sql", "packages/ventio_native_client/lib/src/local_command_queue.dart"],
     "D08": ["packages/ventio_host_api/lib/src/wave2_platform.dart", "packages/ventio_host_api/lib/src/persistent_identity.dart"],
@@ -40,14 +40,14 @@ CONTRACTS = {
     "M01": ["security/postgres/wave2_administration.sql", "packages/ventio_core/lib/src/platform_administration.dart"],
     "M02": ["security/postgres/wave2_administration.sql", "packages/ventio_core/lib/src/platform_administration.dart"],
     "M05": ["scripts/windows/manage-host-operations.ps1", "scripts/windows/HostBackupIntegrity.psm1", "security/postgres/wave2_operations.sql"],
-    "M09": ["scripts/windows/restore-host-upgrade-backup.ps1", "packages/ventio_host_api/lib/src/recovery_authority.dart", "security/postgres/wave2_operations.sql"],
-    "B09": ["packages/ventio_core/lib/src/workspace.dart", "packages/ventio_native_client/lib/src/workspace_store.dart"],
-    "C08": ["packages/ventio_native_client/lib/src/workspace_page.dart"],
+    "M09": ["scripts/windows/restore-host-upgrade-backup.ps1", "scripts/windows/HostOperationStorage.psm1", "packages/ventio_host_api/lib/src/recovery_authority.dart", "security/postgres/wave2_operations.sql"],
+    "B09": ["packages/ventio_core/lib/src/workspace.dart", "packages/ventio_native_client/lib/src/workspace_store.dart", "packages/ventio_native_client/lib/src/extension_store.dart"],
+    "C08": ["packages/ventio_native_client/lib/src/workspace_page.dart", "packages/ventio_native_client/lib/src/extension_store.dart"],
     "C09": ["packages/ventio_native_client/lib/src/workspace_store.dart", "packages/ventio_core/lib/src/workspace.dart"],
     "C12": ["packages/ventio_native_client/lib/src/workspace_page.dart", "packages/ventio_core/lib/src/workspace.dart"],
     "F05": ["packages/ventio_host_api/lib/src/persistent_identity.dart", "packages/ventio_native_client/lib/src/workspace_page.dart"],
-    "H04": ["security/postgres/wave2_activity.sql", "packages/ventio_native_client/lib/src/document_activity_page.dart"],
-    "B02": ["packages/ventio_host_api/lib/src/host_api.dart", "packages/ventio_core/lib/src/extension_commands.dart"],
+    "H04": ["security/postgres/wave2_activity.sql", "packages/ventio_host_api/lib/src/wave2_platform.dart", "packages/ventio_native_client/lib/src/document_activity_page.dart"],
+    "B02": ["packages/ventio_host_api/lib/src/host_api.dart", "packages/ventio_core/lib/src/extension_commands.dart", "packages/ventio_postgres/lib/src/migration_runner.dart", "security/postgres/schema_profile.sql"],
     "K10": ["packages/ventio_core/lib/src/extension_commands.dart", "packages/ventio_host/lib/src/durable_command_host.dart"],
     "L01": ["packages/ventio_host_api/lib/src/wave2_platform.dart", "security/postgres/wave2.sql"],
     "D09": ["packages/ventio_host_api/lib/src/persistent_identity.dart", "packages/ventio_host_api/lib/src/recovery_authority.dart"],
@@ -89,10 +89,15 @@ def collect() -> list[dict]:
                 "suiteKind": kind, "command": command,
                 "acceptanceReference": "docs/wave2/WAVE_2_B_VERIFICATION_PLAN.md#capability-acceptance-matrix",
                 "productionContracts": sorted({p for cap in caps for p in CONTRACTS[cap]}),
-                "status": "PREPARED_NOT_EXECUTED"})
+                "status": "SOURCE_INVENTORY_ONLY"})
     ids = [case["id"] for case in cases]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate executable case IDs")
+    original = {f'W2-{letter}{number:03d}' for letter,count in
+        dict(C=31,S=20,H=29,J=27,D=11,O=8,U=3,R=2,E=6,G=7,W=11,P=6).items()
+        for number in range(1,count+1)}
+    if len(original) != 161 or not original.issubset(ids):
+        raise ValueError("An original prepared case ID was lost")
     if {cap for case in cases for cap in case["capabilities"]} != set(CAPABILITIES):
         raise ValueError("One of the 22 capabilities has no prepared source case")
     for case in cases:
@@ -102,19 +107,19 @@ def collect() -> list[dict]:
     return cases
 
 def matrix(cases: list[dict]) -> dict:
-    return {"status": "PREPARED_NOT_EXECUTED", "baselineRevision": "87f8a5c388233f203920aaaec6acbc7bf544a6bc",
-        "executionProhibited": True, "automatedCaseCount": len(cases),
+    return {"status": "SOURCE_INVENTORY_ONLY", "baselineRevision": "87f8a5c388233f203920aaaec6acbc7bf544a6bc",
+        "originalPreparedCaseCount": 161, "executionEvidence": "Recorded separately with exact CI run and revision; this static inventory executes no cases", "automatedCaseCount": len(cases),
         "cases": cases, "manualCases": [{"id": i, "capabilities": caps.split(","), "requirement": req,
             "status": "NOT_EXECUTED_OWNER_OR_DEVICE_REQUIRED"} for i, caps, req in MANUAL]}
 
 def markdown(data: dict) -> str:
-    lines = ["# Wave 2 B prepared case coverage", "", "**PREPARED / NOT EXECUTED. No new test has passed.**", "",
+    lines = ["# Wave 2 B source case coverage", "", "**SOURCE INVENTORY ONLY. Execution outcomes are recorded separately with CI revision/run evidence.**", "",
         f"{data['automatedCaseCount']} executable source cases cover aspects of all 22 capabilities. This is a case inventory, not complete acceptance or a measured coverage percentage.", "",
         "Commands, fixture admission, reused coverage, physical requirements and remaining scenario gaps are in [the runbook](WAVE_2_B_TEST_PREPARATION.md).", "",
         "## Capability index", "", "| Capability | Prepared case IDs |", "|---|---|"]
     for cap in CAPABILITIES:
         lines.append(f"| {cap} | {', '.join(c['id'] for c in data['cases'] if cap in c['capabilities'])} |")
-    lines += ["", "## Executable case-level matrix", "", "Every row below has status **PREPARED_NOT_EXECUTED**. Fixture/command groups are defined in the runbook.", "",
+    lines += ["", "## Executable case-level matrix", "", "Every row below has status **SOURCE_INVENTORY_ONLY**. The original 161 case IDs are preserved; additional corrective cases are explicit. Fixture/command groups are defined in the runbooks. This table supplies no passed status.", "",
         "| Case | Capabilities | Requirement and assertion scope | Source |", "|---|---|---|---|"]
     for case in data["cases"]:
         requirement = case["requirement"].replace("|", "\\|")

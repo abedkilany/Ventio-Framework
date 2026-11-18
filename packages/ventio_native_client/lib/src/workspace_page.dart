@@ -1232,6 +1232,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
         ),
       for (final bundle in _orderedBundles.map(_displayBundle))
         ExpansionTile(
+          // Authorization refresh temporarily removes approved modules. Keep
+          // expansion state for this exact profile/release without caching any
+          // authorization decision or retaining links while authority is absent.
+          key: PageStorageKey<String>(canonicalJson({
+            'profile': {..._scope, 'endpoint': widget.profile.endpoint,
+              'tenantId': widget.profile.tenantId, 'actorId': widget.profile.actorId,
+              'deviceId': widget.profile.deviceId},
+            'moduleId': bundle.moduleId,
+            'version': bundle.version,
+          })),
           title: Text(bundle.manifest.displayName),
           trailing: IconButton(
             icon: const Icon(Icons.vertical_align_top),

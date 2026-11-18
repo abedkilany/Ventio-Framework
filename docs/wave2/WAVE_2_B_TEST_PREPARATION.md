@@ -1,5 +1,11 @@
 # Wave 2 B test preparation — not executed
 
+Historical preparation-phase record. The owner subsequently authorized hosted
+execution and corrective engineering. Its original 161 cases remain preserved;
+the current source inventory adds corrective cases and keeps execution evidence
+in separate exact-revision CI result reports. The preparation-phase prohibition
+below records that earlier assignment and is not the current hosted authorization.
+
 Prepared against `feature/wave-2-a` at
 `87f8a5c388233f203920aaaec6acbc7bf544a6bc`. This assignment authorizes test source
 and documentation only. **All 161 new cases are PREPARED_NOT_EXECUTED.** Static

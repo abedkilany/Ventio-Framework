@@ -1,6 +1,6 @@
-# Wave 2 B prepared case coverage
+# Wave 2 B source case coverage
 
-**PREPARED / NOT EXECUTED. No new test has passed.**
+**SOURCE INVENTORY ONLY. Execution outcomes are recorded separately with CI revision/run evidence.**
 
 164 executable source cases cover aspects of all 22 capabilities. This is a case inventory, not complete acceptance or a measured coverage percentage.
 
@@ -35,7 +35,7 @@ Commands, fixture admission, reused coverage, physical requirements and remainin
 
 ## Executable case-level matrix
 
-Every row below has status **PREPARED_NOT_EXECUTED**. Fixture/command groups are defined in the runbook.
+Every row below has status **SOURCE_INVENTORY_ONLY**. The original 161 case IDs are preserved; additional corrective cases are explicit. Fixture/command groups are defined in the runbooks. This table supplies no passed status.
 
 | Case | Capabilities | Requirement and assertion scope | Source |
 |---|---|---|---|
@@ -179,13 +179,13 @@ Every row below has status **PREPARED_NOT_EXECUTED**. Fixture/command groups are
 | W2-E004 | K09,D09 | reconciliation cannot redirect a terminal draft to another owner scope record or device | [wave2_offline_integration.dart:251](../../packages/ventio_native_client/test/wave2_offline_integration.dart#L251) |
 | W2-E005 | A12,K09 | effective-schema queue receipts never project into the immutable base-package cache | [wave2_offline_integration.dart:292](../../packages/ventio_native_client/test/wave2_offline_integration.dart#L292) |
 | W2-E006 | D08,D09,K09 | revocation prevents queued offline work from becoming Host-confirmed | [wave2_offline_integration.dart:330](../../packages/ventio_native_client/test/wave2_offline_integration.dart#L330) |
-| W2-G001 | C08,F05,B09 | workspace exposes only current approved installed modules and native navigation | [wave2_workspace_acceptance_test.dart:137](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L137) |
-| W2-G002 | C08,D09 | locally installed metadata grants no navigation without current package authority | [wave2_workspace_acceptance_test.dart:153](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L153) |
-| W2-G003 | C08,F05 | a local package digest mismatch contributes no authorized workspace links | [wave2_workspace_acceptance_test.dart:175](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L175) |
-| W2-G004 | C08,C09,C12 | narrow large-text workspace navigation has no overflow or uncaught rendering error | [wave2_workspace_acceptance_test.dart:202](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L202) |
-| W2-G005 | A11,A12,K09 | repeated Host customization labels refresh in the same app session | [wave2_workspace_acceptance_test.dart:220](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L220) |
-| W2-G006 | C12,F05 | a saved dashboard card opens a real current-authorized Host report | [wave2_workspace_acceptance_test.dart:257](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L257) |
-| W2-G007 | H04,D08 | native document activity renders real command identity without protected values | [wave2_workspace_acceptance_test.dart:290](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L290) |
+| W2-G001 | C08,F05,B09 | workspace exposes only current approved installed modules and native navigation | [wave2_workspace_acceptance_test.dart:158](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L158) |
+| W2-G002 | C08,D09 | locally installed metadata grants no navigation without current package authority | [wave2_workspace_acceptance_test.dart:174](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L174) |
+| W2-G003 | C08,F05 | a local package digest mismatch contributes no authorized workspace links | [wave2_workspace_acceptance_test.dart:196](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L196) |
+| W2-G004 | C08,C09,C12 | narrow large-text workspace navigation has no overflow or uncaught rendering error | [wave2_workspace_acceptance_test.dart:223](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L223) |
+| W2-G005 | A11,A12,K09 | repeated Host customization labels refresh in the same app session | [wave2_workspace_acceptance_test.dart:241](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L241) |
+| W2-G006 | C12,F05 | a saved dashboard card opens a real current-authorized Host report | [wave2_workspace_acceptance_test.dart:281](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L281) |
+| W2-G007 | H04,D08 | native document activity renders real command identity without protected values | [wave2_workspace_acceptance_test.dart:314](../../packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart#L314) |
 | W2-W001 | M05 | Real nested backup inventory contains sorted per-file lengths and SHA-256 | [windows_integrity_tests.ps1:51](../../tests/wave2/windows_integrity_tests.ps1#L51) |
 | W2-W002 | M05,M09 | Same-size one-byte corruption is detected | [windows_integrity_tests.ps1:57](../../tests/wave2/windows_integrity_tests.ps1#L57) |
 | W2-W003 | M05,M09 | Missing files cannot pass inventory verification | [windows_integrity_tests.ps1:63](../../tests/wave2/windows_integrity_tests.ps1#L63) |

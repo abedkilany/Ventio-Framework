@@ -54,10 +54,11 @@ try {
   $report.status='PASSED';$report.actualNewVersion=$version.Trim();$report.storageAndRlsPreserved=$true
 } catch {$report.status='FAILED';$report.reason=$_.Exception.Message;throw} finally {
   $env:PGPASSWORD=$prior
-  if($started){& (Join-Path $activeBin 'pg_ctl.exe') -D $data -m fast -w stop | Out-Null;if($LASTEXITCODE){$report.cleanup='BLOCKED_RUNNING_CLUSTER_PRESERVED'}else{$started=$false}}
+  if($started){& (Join-Path $activeBin 'pg_ctl.exe') -D $data -m fast -w stop | Out-Null;if($LASTEXITCODE){$report.cleanup='BLOCKED_RUNNING_CLUSTER_PRESERVED';$report.status='FAILED'}else{$started=$false}}
   $report | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'postgres-minor-update.json')
   $report | ConvertTo-Json -Depth 5
   # Preserve fixture/log evidence for this ephemeral runner; never recursively
   # remove a cluster after an ambiguous shutdown. The whole VM is discarded.
   $password=$null
+  if($started){throw 'Minor-update fixture shutdown was not verified; cluster preserved'}
 }

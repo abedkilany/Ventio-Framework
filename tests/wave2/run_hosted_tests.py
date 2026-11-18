@@ -169,7 +169,7 @@ elif MODE in ('linux','gateway-jobs','core'):
 elif MODE=='offline':
     suite('E',['flutter','test','--no-pub','--machine','test/wave2_offline_integration.dart'],native,setup=docker_fixture)
 elif MODE.startswith('verify-'):
-    modes=['core'] if MODE=='verify-core' else (['windows-recovery','desktop'] if MODE=='verify-windows-recovery' else (['gateway-jobs'] if MODE=='verify-gateway-jobs' else (['windows','desktop'] if MODE=='verify-windows' else ['linux','offline'])))
+    modes=['desktop'] if MODE=='verify-desktop' else (['core'] if MODE=='verify-core' else (['windows-recovery','desktop'] if MODE=='verify-windows-recovery' else (['gateway-jobs'] if MODE=='verify-gateway-jobs' else (['windows','desktop'] if MODE=='verify-windows' else ['linux','offline']))))
     files=[OUT/(m+'-results.json') for m in modes]
     if not all(p.is_file() for p in files): raise SystemExit('Required suite evidence missing')
     runs=[json.loads(p.read_text()) for p in files]
