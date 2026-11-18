@@ -129,8 +129,9 @@ elif MODE=='desktop':
         bootstrap(env)
         env['VENTIO_APP_SUPPORT_DIRECTORY']=str(pathlib.Path(os.environ['RUNNER_TEMP'])/('ventio-wave2-ui-'+os.environ['GITHUB_RUN_ID']))
     suite('G',['flutter','test','--no-pub','--machine','integration_test/wave2_workspace_acceptance_test.dart','-d','windows'],native,setup=desktop_setup)
-elif MODE=='linux':
-    for letter,name in [('H','gateway'),('J','jobs'),('D','database'),('O','operations'),('U','upgrade')]:
+elif MODE in ('linux','gateway-jobs'):
+    selected=[('H','gateway'),('J','jobs')] if MODE=='gateway-jobs' else [('H','gateway'),('J','jobs'),('D','database'),('O','operations'),('U','upgrade')]
+    for letter,name in selected:
         suite(letter,['dart','--packages=.dart_tool/package_config.json',f'test/wave2_{name}_integration.dart'],host,setup=docker_fixture)
     def audit_setup(env):
         cleanup=docker_fixture(env)
@@ -143,11 +144,11 @@ elif MODE=='linux':
         call(['chmod','-R','a+rX,go-w',assembly])
         env.update(VENTIO_AUDIT_HOST_BINARY=str(binary),VENTIO_AUDIT_HOST_WORKDIR=str(assembly/'packages/ventio_host_api'),VENTIO_AUDIT_PRIVILEGE_HELPER='/usr/local/libexec/ventio-ci-drop-to-nobody',VENTIO_AUDIT_RESULTS_FILE=str(OUT/'host-audit-results.json'))
         return cleanup
-    suite('R',['dart','--packages=.dart_tool/package_config.json','test/engineering_audit.dart'],host,setup=audit_setup)
+    if MODE=='linux': suite('R',['dart','--packages=.dart_tool/package_config.json','test/engineering_audit.dart'],host,setup=audit_setup)
 elif MODE=='offline':
     suite('E',['flutter','test','--no-pub','--machine','test/wave2_offline_integration.dart'],native,setup=docker_fixture)
 elif MODE.startswith('verify-'):
-    modes=['windows','desktop'] if MODE=='verify-windows' else ['linux','offline']
+    modes=['gateway-jobs'] if MODE=='verify-gateway-jobs' else (['windows','desktop'] if MODE=='verify-windows' else ['linux','offline'])
     files=[OUT/(m+'-results.json') for m in modes]
     if not all(p.is_file() for p in files): raise SystemExit('Required suite evidence missing')
     runs=[json.loads(p.read_text()) for p in files]

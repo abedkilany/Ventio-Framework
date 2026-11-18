@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   windows-candidate:
-    if: inputs.scope != 'linux'
+    if: inputs.scope == 'all' || inputs.scope == 'windows'
     runs-on: windows-2025
     timeout-minutes: 90
     env:
@@ -112,16 +112,20 @@ jobs:
           docker tag postgres:16.15-bookworm postgres:16
       - name: Execute real PostgreSQL, gateway, jobs, upgrade and WB-CI-02 cases
         continue-on-error: true
-        run: python3 tests/wave2/run_hosted_tests.py linux
+        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'gateway-jobs' && 'gateway-jobs' || 'linux' }}
       - uses: subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885 # v2.15.0
+        if: inputs.scope != 'gateway-jobs'
+        if: inputs.scope != 'gateway-jobs'
         with:
           flutter-version: '3.44.1'
           channel: stable
           cache: false
       - name: Resolve locked Flutter dependencies
+        if: inputs.scope != 'gateway-jobs'
         working-directory: packages/ventio_native_client
         run: flutter pub get --enforce-lockfile
       - name: Execute two-queue offline integration with real PostgreSQL and HTTP
+        if: inputs.scope != 'gateway-jobs'
         continue-on-error: true
         run: python3 tests/wave2/run_hosted_tests.py offline
       - name: Retain case-level integration evidence
@@ -134,4 +138,4 @@ jobs:
           retention-days: 30
       - name: Enforce applicable Linux results
         if: always()
-        run: python3 tests/wave2/run_hosted_tests.py verify-linux
+        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'gateway-jobs' && 'verify-gateway-jobs' || 'verify-linux' }}

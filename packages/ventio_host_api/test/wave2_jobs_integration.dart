@@ -156,6 +156,21 @@ Future<void> main() async {
         final command = f.command(5000);
         final source = command.original;
         final context = requireMap(source['clientContext'], 'clientContext');
+        final deniedDelete = {
+          ...source,
+          'type': ExtensionRecordCommand.deleteType,
+          'expectedRevision': 1,
+          'payload': {
+            ...requireMap(source['payload'], 'payload'),
+            'values': <String, dynamic>{},
+          },
+        };
+        w2Expect(
+          ExtensionRecordCommand.fromEnvelope(
+            CommandEnvelope.fromJson(deniedDelete),
+          ).operation == 'delete',
+          'The denied delete must be valid before authorization is tested',
+        );
         for (final wire in [
           {...source, 'tenantId': 'w2-other-tenant'},
           {...source, 'branchId': 'other'},
@@ -171,11 +186,7 @@ Future<void> main() async {
             ...source,
             'dependsOn': [w2Id(999)],
           },
-          {
-            ...source,
-            'type': ExtensionRecordCommand.deleteType,
-            'expectedRevision': 1,
-          },
+          deniedDelete,
         ]) {
           w2Expect(
             (await f.http(
