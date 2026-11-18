@@ -11,6 +11,7 @@ import 'package:ventio_host_api/ventio_host_api.dart';
 import 'recovery/database_fixture.dart';
 import 'recovery/support.dart';
 import 'test_support.dart' show check, command, assertions;
+import 'support/wave2_manifest_regression.dart';
 
 Future<void> main() async {
   final env = Platform.environment;
@@ -302,15 +303,15 @@ print(json.dumps(checks))
       'Recovery witness matches database after migration test cleanup',
     );
     final host = await start();
-    await insertUnknownMigrationLedgerEntry();
-    final changedManifestResponse = await request(host, token, next());
-    final changedManifestError = changedManifestResponse.body?['error'];
-    check(
-      changedManifestResponse.status == 503,
-      'Changed migration manifest quarantines a running Host '
-      '(http=${changedManifestResponse.status}, error=${changedManifestError is Map ? changedManifestError['code'] : null})',
+    await wave2ManifestRegression(
+      host: host,
+      token: token,
+      nextCommand: next,
+      insertUnknown: insertUnknownMigrationLedgerEntry,
+      deleteUnknown: deleteUnknownMigrationLedgerEntry,
+      witnessMatches: recoveryWitnessMatchesDatabase,
+      effectCounts: (body) => effectCounts(observer, body),
     );
-    await deleteUnknownMigrationLedgerEntry();
     final initial = next();
     await accepted(host, token, initial);
     final healthClient = HttpClient();
