@@ -85,18 +85,20 @@ jobs:
           $flutterRoot = Split-Path -Parent (Split-Path -Parent (Get-Command flutter).Source)
           "VENTIO_HOST_DART_BIN=$flutterRoot/bin/cache/dart-sdk/bin" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - name: Prepare actual private Windows fixture storage
+        shell: cmd
         working-directory: packages/ventio_host_api
         run: |
-          & ../../scripts/ci/run-windows-dart-test.ps1 --packages=.dart_tool/package_config.json test/prepare_private_test_storage.dart
-          if ($LASTEXITCODE) { throw 'Private fixture storage failed production ACL verification' }
+          powershell.exe -NoLogo -NoProfile -NonInteractive -File ..\..\scripts\ci\run-windows-dart-test.ps1 --packages=.dart_tool/package_config.json test/prepare_private_test_storage.dart
       - name: Execute Core, SQLite and Windows integrity cases
+        shell: cmd
         continue-on-error: true
-        run: ./scripts/ci/run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart ${{ inputs.scope == 'windows-tests' && 'windows-recovery' || 'windows' }}
+        run: powershell.exe -NoLogo -NoProfile -NonInteractive -File scripts\ci\run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart ${{ inputs.scope == 'windows-tests' && 'windows-recovery' || 'windows' }}
       - name: Prepare separate disposable PostgreSQL for desktop integration
         run: ./scripts/ci/start-postgres-test-instance.ps1
       - name: Execute native desktop cases against the real fixture
+        shell: cmd
         continue-on-error: true
-        run: ./scripts/ci/run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart desktop
+        run: powershell.exe -NoLogo -NoProfile -NonInteractive -File scripts\ci\run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart desktop
       - name: Stop only this runner's disposable PostgreSQL
         if: always()
         run: |
