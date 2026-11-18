@@ -61,7 +61,9 @@ function Write-VentioOperationJson([string]$Path,[object]$Value,[string]$OwnerSi
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),[Security.AccessControl.FileSystemRights]::FullControl,[Security.AccessControl.AccessControlType]::Allow))
   }
   Set-Acl -LiteralPath $temp -AclObject $acl
-  if(Test-Path -LiteralPath $Path){[IO.File]::Replace($temp,$Path,$null)}else{[IO.File]::Move($temp,$Path)}
+  # PowerShell coerces an untyped $null to an empty System.String here. Pass a
+  # typed null so File.Replace performs the atomic no-backup replacement.
+  if(Test-Path -LiteralPath $Path){[IO.File]::Replace($temp,$Path,[NullString]::Value)}else{[IO.File]::Move($temp,$Path)}
 }
 
 function Read-VentioOperationJson([string]$Path,[string]$OwnerSid,[int]$MaximumBytes=1048576){
