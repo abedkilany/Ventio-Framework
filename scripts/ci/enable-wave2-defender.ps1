@@ -5,8 +5,8 @@ try {
   $evidence.before=Get-MpComputerStatus | Select-Object AMRunningMode,AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled,BehaviorMonitorEnabled,IoavProtectionEnabled,IsTamperProtected,AntivirusSignatureVersion
   $prefs=Get-MpPreference
   $evidence.exclusionsBefore=$prefs | Select-Object ExclusionPath,ExclusionExtension,ExclusionProcess,DisableArchiveScanning
-  Set-MpPreference -DisableRealtimeMonitoring $false -DisableBehaviorMonitoring $false -DisableIOAVProtection $false -DisableArchiveScanning $false -ErrorAction Stop
-  foreach($path in @($prefs.ExclusionPath)) {
+  Set-MpPreference -DisableRealtimeMonitoring $false -DisableBehaviorMonitoring $false -DisableIOAVProtection $false -DisableArchiveScanning $false -DisableScriptScanning $false -ErrorAction Stop
+  foreach($path in @($prefs.ExclusionPath | Where-Object {$_})) {
     if($path -notin @('C:\','D:\')){throw 'Unexpected exclusion on hosted image requires independent review'}
     # Remove only these documented image-wide exclusions. Never add/re-add any.
     Remove-MpPreference -ExclusionPath $path -ErrorAction Stop

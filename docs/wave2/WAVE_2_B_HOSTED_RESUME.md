@@ -41,8 +41,10 @@ passed because an artifact uploaded successfully.
 
 Defender evidence is collected only if the hosted image provides operational
 Defender with real-time protection enabled and reviewable exclusion/archive policy.
-Otherwise scan status is BLOCKED, not a clean scan. No protection, exclusion or
-execution-policy settings are changed. Native executables remain unsigned unless
+Otherwise scan status is BLOCKED, not a clean scan. The dedicated verification job may enable protection and archive/script scanning
+and remove only the fresh image's C:/ and D:/ exclusions through normal APIs.
+It never adds exclusions, disables protection, overrides execution policy or
+changes either test computer. Native executables remain unsigned unless
 their real publisher signature is present. Hash agreement, hosted provenance and
 clean scans do not establish malware absence.
 
@@ -77,7 +79,7 @@ After a separate explicit owner authorization, the TEST-02-only procedure is:
 3. Run current enabled Defender scans on the transferred ZIP and extracted package.
    Review matched completion events and detection history. Do not treat process
    return alone as a clean result. Record fresh endpoint protection evidence.
-4. Check the native x64 VC++ v14 runtime. Minimum 14.50.35719.0 is required; the
+4. Check the native x64 VC++ v14 runtime. Minimum 14.51.36247.0 is required; the
    bundled Microsoft-signed 14.51.36247.0 package is pinned in its manifest. If needed,
    install that exact prerequisite through normal UAC after verifying its hash and
    signature. Exit 3010/1641 requires an owner-authorized TEST-02 restart and recheck;

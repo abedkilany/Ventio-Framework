@@ -6,16 +6,16 @@ function Assert-True([bool]$Condition, [string]$Code) {
   if (-not $Condition) { throw $Code }
 }
 
-$minimum = '14.50.35719.0'
-Assert-True (Test-VentioVcRuntimeSufficient 'v14.50.35719.0' $minimum) 'VC_RUNTIME_EQUAL_VERSION_NOT_ACCEPTED'
-Assert-True (Test-VentioVcRuntimeSufficient '14.51.36247.0' $minimum) 'VC_RUNTIME_NEWER_VERSION_NOT_ACCEPTED'
-Assert-True (-not (Test-VentioVcRuntimeSufficient '14.50.35718.0' $minimum)) 'VC_RUNTIME_OLDER_VERSION_ACCEPTED'
+$minimum = '14.51.36247.0'
+Assert-True (Test-VentioVcRuntimeSufficient 'v14.51.36247.0' $minimum) 'VC_RUNTIME_EQUAL_VERSION_NOT_ACCEPTED'
+Assert-True (Test-VentioVcRuntimeSufficient '14.52.0.0' $minimum) 'VC_RUNTIME_NEWER_VERSION_NOT_ACCEPTED'
+Assert-True (-not (Test-VentioVcRuntimeSufficient '14.51.36246.0' $minimum)) 'VC_RUNTIME_OLDER_VERSION_ACCEPTED'
 Assert-True (-not (Test-VentioVcRuntimeSufficient $null $minimum)) 'VC_RUNTIME_MISSING_VERSION_ACCEPTED'
 Assert-True ($null -eq (ConvertTo-VentioVcRuntimeVersion 'invalid')) 'VC_RUNTIME_MALFORMED_VERSION_ACCEPTED'
 
 $fixture = New-TemporaryFile
 try {
-  $state = [pscustomobject]@{ Version = '14.50.35719.0'; InstallerCalled = $false; Arguments = ''; RegistryReads = 0 }
+  $state = [pscustomobject]@{ Version = '14.51.36247.0'; InstallerCalled = $false; Arguments = ''; RegistryReads = 0 }
   $getVersion = { return $state.Version }.GetNewClosure()
   $runInstaller = { param($Path, $Arguments) $state.InstallerCalled = $true; $state.Arguments = $Arguments; return 0 }.GetNewClosure()
   $result = Invoke-VentioVcRuntimePrerequisite -RuntimeInstallerPath $fixture.FullName -MinimumVersion $minimum -GetInstalledVersion $getVersion -InstallPackage $runInstaller
@@ -26,14 +26,14 @@ try {
     param($Path, $Arguments)
     $state.InstallerCalled = $true
     $state.Arguments = $Arguments
-    $state.Version = '14.50.35719.0'
+    $state.Version = '14.51.36247.0'
     return 0
   }.GetNewClosure()
   $result = Invoke-VentioVcRuntimePrerequisite -RuntimeInstallerPath $fixture.FullName -MinimumVersion $minimum -GetInstalledVersion $getVersion -InstallPackage $runInstaller
   Assert-True ($result.Status -eq 'Installed' -and $result.ExitCode -eq 0) 'VC_RUNTIME_MISSING_MUST_INSTALL'
   Assert-True ($state.Arguments -match '/install' -and $state.Arguments -match '/quiet' -and $state.Arguments -match '/norestart') 'VC_RUNTIME_INSTALL_ARGUMENTS_UNSAFE'
 
-  $state.Version = '14.51.36247.0'
+  $state.Version = '14.52.0.0'
   $state.InstallerCalled = $false
   $result = Invoke-VentioVcRuntimePrerequisite -RuntimeInstallerPath $fixture.FullName -MinimumVersion $minimum -GetInstalledVersion $getVersion -InstallPackage $runInstaller
   Assert-True ($result.Status -eq 'AlreadySatisfied' -and -not $state.InstallerCalled) 'VC_RUNTIME_NEWER_VERSION_MUST_NOT_BE_DOWNGRADED'
@@ -44,7 +44,7 @@ try {
   $getNewerVersion = {
     $state.RegistryReads++
     if ($state.RegistryReads -eq 1) { return $null }
-    return '14.51.36247.0'
+    return '14.52.0.0'
   }.GetNewClosure()
   $result = Invoke-VentioVcRuntimePrerequisite -RuntimeInstallerPath $fixture.FullName -MinimumVersion $minimum -GetInstalledVersion $getNewerVersion -InstallPackage $runInstaller
   Assert-True ($result.Status -eq 'NewerRuntimeAlreadyPresent' -and $result.ExitCode -eq 0) 'VC_RUNTIME_NEWER_PACKAGE_RESULT_NOT_ACCEPTED'

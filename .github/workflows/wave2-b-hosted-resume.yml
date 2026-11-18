@@ -27,9 +27,15 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Establish enabled Defender without image-wide exclusions
+        run: ./scripts/ci/enable-wave2-defender.ps1
       - name: Stage fresh SHA-256-pinned tools; capture hosted provenance
+        # Configuration is strengthened through normal APIs on this disposable VM.
         if: inputs.scope != 'windows-tests'
         run: ./scripts/ci/stage-wave2-acceptance.ps1
+      - name: Enforce CRT compatibility of the pinned runtime
+        if: inputs.scope != 'windows-tests'
+        run: ./scripts/ci/assert-wave2-crt.ps1
       - name: Initialize unexecuted case ledger
         run: python tests/wave2/run_hosted_tests.py initialize
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
@@ -110,6 +116,8 @@ jobs:
           name: wave2-hosted-windows-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/wave2-delivery/*
+            ${{ runner.temp }}/wave2-defender-enablement.json
+            ${{ runner.temp }}/wave2-crt-compatibility.json
             ${{ github.workspace }}/test-results/wave2/*
           if-no-files-found: error
           retention-days: 30

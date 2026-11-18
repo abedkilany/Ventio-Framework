@@ -27,6 +27,7 @@ Copy-Item "$env:RUNNER_TEMP/wave2-installer/Ventio-Setup-*.exe" $package
 $evidence = Join-Path $package 'Evidence'
 Copy-Item "$env:RUNNER_TEMP/wave2-inputs/*provenance.json","$env:RUNNER_TEMP/wave2-inputs/upstream-inputs.json" $evidence
 Copy-Item tests/wave2/build-inputs.json $evidence
+Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'wave2-defender-enablement.json'),(Join-Path $env:RUNNER_TEMP 'wave2-crt-compatibility.json') -Destination $evidence
 git archive --format=zip "--output=$evidence/source-$commit.zip" HEAD
 if ($LASTEXITCODE) { throw 'Source archive failed' }
 git diff --binary "--output=$evidence/generated-source-overlay.patch"
@@ -80,7 +81,8 @@ try {
   Update-MpSignature -ErrorAction Stop
   $preferences=Get-MpPreference
   $security.exclusions=$preferences | Select-Object ExclusionPath,ExclusionExtension,ExclusionProcess,DisableArchiveScanning
-  if ($preferences.DisableArchiveScanning -or $preferences.ExclusionExtension -or $preferences.ExclusionPath) { throw 'Scan completeness requires review of existing exclusions/archive policy' }
+  if ($preferences.DisableArchiveScanning -or $preferences.ExclusionExtension -or $preferences.ExclusionPath -or $preferences.ExclusionProcess) { throw 'Scan completeness requires review of existing exclusions/archive policy' }
+  ./scripts/ci/assert-wave2-scan-targets.ps1 -Paths @($package,$zip) -EvidencePath (Join-Path $delivery 'effective-exclusion-checks.json')
   $security.scanRootsExcluded=$false
   $before=(Get-WinEvent -LogName 'Microsoft-Windows-Windows Defender/Operational' -MaxEvents 1).RecordId
   foreach ($path in @($package,$zip)) { Start-MpScan -ScanType CustomScan -ScanPath $path -ErrorAction Stop }
@@ -89,7 +91,7 @@ try {
   $security.scanEvents=@($events | Select-Object Id,RecordId,TimeCreated,Message)
   $security.protectionAfter=Get-MpComputerStatus | Select-Object AMRunningMode,RealTimeProtectionEnabled,AntivirusEnabled,AntivirusSignatureVersion,DefenderSignaturesOutOfDate
   $security.threats=@(Get-MpThreat | Select-Object ThreatID,ThreatName,IsActive,DidThreatExecute)
-  if (@($events | Where-Object {$_.Id -in 1002,1116,1117,1118,1119}).Count -or @($events | Where-Object Id -eq 1001).Count -lt 2) { throw 'Scan completion/detection evidence requires review' }
+  if (@($events | Where-Object {$_.Id -in 1002,1116,1117,1118,1119}).Count -or @($events | Where-Object Id -eq 1001).Count -lt 2 -or @($security.threats | Where-Object IsActive).Count) { throw 'Scan completion/detection evidence requires review' }
   if (-not $security.protectionAfter.RealTimeProtectionEnabled -or $security.protectionAfter.DefenderSignaturesOutOfDate) { throw 'Post-scan protection or signature currency failed' }
   $security.status='COMPLETED_NO_NEW_DETECTIONS_REPORTED'
 } catch { $security.reason=$_.Exception.Message }

@@ -6,7 +6,7 @@ $report = [ordered]@{identity=$context.identity;candidateCommit=$context.candida
 try {
   $report.protectionBefore = Get-MpComputerStatus | Select-Object AMRunningMode,AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled,BehaviorMonitorEnabled,IoavProtectionEnabled,IsTamperProtected,AntivirusSignatureVersion,DefenderSignaturesOutOfDate
   # Strengthen only this disposable runner through normal Defender APIs. Never
-  # override a denying policy, alter exclusions, disable or restore anything.
+  # override a denying policy, add exclusions, disable or restore anything.
   ./scripts/ci/enable-wave2-defender.ps1
   Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'wave2-defender-enablement.json') -Destination $out
   for($attempt=0;$attempt -lt 30;$attempt++) {
@@ -19,16 +19,7 @@ try {
   $prefs = Get-MpPreference
   $report.exclusions = $prefs | Select-Object ExclusionPath,ExclusionExtension,ExclusionProcess,DisableArchiveScanning
   if ($prefs.DisableArchiveScanning) { throw 'Archive scanning is disabled by the image; policy is left unchanged' }
-  $mp = Join-Path $env:ProgramData 'Microsoft/Windows Defender/Platform/CurrentVersion/MpCmdRun.exe'
-  $sig = Get-AuthenticodeSignature $mp
-  if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notlike '*Microsoft*') { throw 'Defender CLI signature not verified' }
-  $report.exclusionChecks = @()
-  foreach($path in @($context.zip,$context.payload)) {
-    $text = & $mp -CheckExclusion -Path $path 2>&1 | Out-String
-    $code = $LASTEXITCODE
-    $report.exclusionChecks += [pscustomobject]@{path=$path;exitCode=$code;output=$text.Trim()}
-    if ($code -ne 1) { throw 'A scan target is excluded or exclusion visibility is unavailable' }
-  }
+  ./scripts/ci/assert-wave2-scan-targets.ps1 -Paths @($context.zip,$context.payload) -EvidencePath (Join-Path $out 'effective-exclusion-checks.json')
   $files = @(Get-ChildItem -LiteralPath $context.payload -Recurse -File)
   foreach($file in $files) {
     foreach($pattern in @($prefs.ExclusionPath)) {
