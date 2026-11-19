@@ -264,6 +264,13 @@ GRANT ventio_migrator TO ventio_migrator_app;
     [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-v','ON_ERROR_STOP=1') $observerSql)
     Add-RecoveryLabObserverHba -Path (Join-Path $data 'pg_hba.conf')
     [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-Atc','SELECT pg_reload_conf()'))
+    $hbaErrors=Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-Atc','SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
+    if($hbaErrors -cne '0'){throw 'RECOVERY_OBSERVER_HBA_INVALID'}
+    try {
+      $env:PGPASSWORD=Get-SecureText $DisposableObserverCredential.Password
+      $observerProbe=Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U','ventio_w2_observer','-d',$databaseName,'-Atc',"SELECT current_user||':'||(SELECT rolsuper::text||':'||rolbypassrls::text FROM pg_roles WHERE rolname=current_user)||':'||(SELECT count(*) FROM ventio_w2_fixture.sentinel)::text||':'||(SELECT count(*) FROM ventio_w2_fixture.receipts)::text")
+      if($observerProbe -cne 'ventio_w2_observer:false:false:0:0'){throw 'RECOVERY_OBSERVER_LOGIN_PROFILE_INVALID'}
+    } finally {$env:PGPASSWORD=$bootstrapSecret;$observerProbe=$null}
   }
   [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-v','ON_ERROR_STOP=1','-c','ALTER ROLE ventio_bootstrap NOLOGIN PASSWORD NULL'))
   $bootstrapLoginRejected = $false

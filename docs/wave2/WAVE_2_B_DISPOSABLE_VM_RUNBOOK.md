@@ -55,10 +55,20 @@ Supply a dedicated disposable observer DSN for `127.0.0.1:54329/ventio_host`, wi
 access to read the seeded record and command receipt. Arrange this explicitly while
 creating the isolated fixture; do not extract an installed service DPAPI credential,
 reactivate the retired bootstrap login, reset a witness or relax RLS to acquire it.
-The current normal initializer has no supported observer provisioning option;
-the scoped bootstrap/view profile in the implementation plan is proposed source
-work, not an existing command or completed fixture. Do not improvise SQL after
-bootstrap retirement or use `ventio_host_test` login fixtures on this database.
+The guarded optional observer profile is implemented in the new source; ordinary
+setup still creates no observer. After an updated signed candidate is reviewed and
+VM-only setup is approved, invoke the signed `provision-host-installation.ps1`
+with `-Apply -NewHostOnly -DisposableObserverCredential $observerCredential`,
+`-RecoveryAdmissionRecord`, its independently approved
+`-ExpectedRecoveryAdmissionSha256`, and `-ObserverValidUntilUtc` (UTC, between
+30 minutes and 24 hours ahead). Use Get-Credential for `ventio_w2_observer` with a
+fresh 32–256 printable ASCII-character secret; never place the password in argv.
+This must precede normal first-run Host provisioning. Complete supported business
+identity bootstrap afterward; do not improvise SQL after retirement or use
+`ventio_host_test` login fixtures on this database. The observer login is
+NOBYPASSRLS and can SELECT only two scoped views; their separate NOLOGIN owner is
+explicitly privileged. That lab-only profile needs owner approval, not production
+RLS changes. A failed setup is preserved for review/disposal, not automatic repair.
 If a supported fixture administration path cannot provide the observer, stop and
 record that prerequisite as BLOCKED. A privileged observer, if separately approved
 for the disposable cluster, is test infrastructure only and never an application
@@ -85,7 +95,9 @@ production-source commit, not a different test/report checkout.
   -CandidateZip 'C:\Acceptance\APPROVED-CANDIDATE.zip' `
   -ExpectedZipSha256 'APPROVED_64_LOWERCASE_HEX' `
   -ExpectedCommit 'APPROVED_40_LOWERCASE_HEX' `
-  -ExpectedPayloadManifestSha256 'APPROVED_64_LOWERCASE_HEX'
+  -ExpectedPayloadManifestSha256 'APPROVED_64_LOWERCASE_HEX' `
+  -AdmissionRecord 'C:\Acceptance\admission.json' `
+  -ExpectedAdmissionSha256 'APPROVED_64_LOWERCASE_HEX'
 ```
 
 The placeholders intentionally fail argument validation. The script first verifies
@@ -111,6 +123,7 @@ elevation and the same reviewed candidate/test revision:
 ```powershell
 & .\tests\wave2\windows_operations_acceptance.ps1 `
   -FixtureManifest "$env:ProgramData\Ventio-W2-Disposable\installed-fixture.json" `
+  -ExpectedAdmissionSha256 'APPROVED_64_LOWERCASE_HEX' `
   -ApproveLocalOperations -AllowDisposableRestore
 ```
 

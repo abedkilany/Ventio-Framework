@@ -83,6 +83,14 @@ Require (-not [string]::IsNullOrWhiteSpace($env:VENTIO_W2_TOKEN)) 'Provide the s
 Require (-not [string]::IsNullOrWhiteSpace($env:VENTIO_W2_OBSERVER_DSN)) 'Provide separately provisioned disposable observer access; no protected credential is extracted'
 $observer=[uri]$env:VENTIO_W2_OBSERVER_DSN
 Require ($observer.Scheme -ceq 'postgresql' -and $observer.Host -ceq '127.0.0.1' -and $observer.Port -eq 54329 -and $observer.AbsolutePath -ceq '/ventio_host') 'Observer must target the exact disposable loopback cluster'
+$observerParts=$observer.UserInfo.Split(':',2)
+Require ($observerParts.Count -eq 2 -and [uri]::UnescapeDataString($observerParts[0]) -ceq 'ventio_w2_observer' -and $observerParts[1].Length -gt 0) 'Bounded dedicated observer login required'
+$previousPgPassword=$env:PGPASSWORD
+try {
+  $env:PGPASSWORD=[uri]::UnescapeDataString($observerParts[1])
+  $observerProof=@(& (Join-Path $payload 'postgresql\bin\psql.exe') -X -q -w -h 127.0.0.1 -p 54329 -U ventio_w2_observer -d ventio_host -At -v ON_ERROR_STOP=1 -c "SELECT rolsuper::text||':'||rolbypassrls::text FROM pg_roles WHERE rolname=current_user; SELECT count(*) FROM ventio_w2_fixture.sentinel; SELECT count(*) FROM ventio_w2_fixture.receipts" 2>$null)
+  Require ($LASTEXITCODE -eq 0 -and ($observerProof -join '|') -ceq 'false:false|0|0') 'Fresh bounded observer views/profile verification failed'
+} finally {$env:PGPASSWORD=$previousPgPassword;$observerProof=$null}
 $session=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/session' -Headers @{Authorization='Bearer '+$env:VENTIO_W2_TOKEN}
 $identity=$session.identity
 Require ($identity.tenantId -ceq 'w2-physical-disposable' -and $identity.actorId -cmatch '^[A-Za-z0-9_.-]{1,128}$' -and $identity.deviceId -cmatch '^[A-Za-z0-9_.-]{1,128}$') 'Dedicated fixture operator identity required'

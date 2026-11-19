@@ -117,6 +117,7 @@ function Record-Command([string]$Type,[string]$Value,[int]$Revision=0){
   $body=@{protocolVersion=0;commandId=$id;type=$Type;typeVersion=1;tenantId=$fixture.tenantId;companyId=$fixture.companyId;branchId=$fixture.branchId;aggregateId='W2-BACKUP-SENTINEL';expectedRevision=$(if($Revision -gt 0){$Revision}else{$null});dependsOn=@();payload=@{moduleId='com.example.wave2';docType='Asset';values=@{name=$Value}};clientContext=@{actorId=$fixture.actorId;deviceId=$fixture.deviceId;moduleVersion='1.0.0';docTypeVersion=1}}
   $reply=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/commands' -Method Post -Headers $headers -ContentType 'application/json' -Body ($body|ConvertTo-Json -Depth 15 -Compress)
   Assert-True ($reply.receipt.status -ceq 'ACCEPTED') 'Fixture command was not accepted.'
+  Assert-True ($reply.receipt.commandId -ceq $id) 'Receipt command identity differs from the submitted UUID.'
   return $reply.receipt
 }
 function Observer-Query([string]$Sql){
@@ -125,7 +126,7 @@ function Observer-Query([string]$Sql){
   $dsn=[uri]$env:VENTIO_W2_OBSERVER_DSN
   Assert-True ($dsn.Scheme -ceq 'postgresql' -and $dsn.Host -ceq '127.0.0.1' -and $dsn.Port -eq 54329 -and $dsn.AbsolutePath -ceq '/ventio_host') 'Pinned disposable observer endpoint required.'
   $parts=$dsn.UserInfo.Split(':',2)
-  Assert-True ($parts.Length -eq 2) 'Observer fixture authentication missing.'
+  Assert-True ($parts.Length -eq 2 -and [uri]::UnescapeDataString($parts[0]) -ceq 'ventio_w2_observer') 'Bounded observer fixture authentication required.'
   $previous=$env:PGPASSWORD
   try{
     $env:PGPASSWORD=[uri]::UnescapeDataString($parts[1])

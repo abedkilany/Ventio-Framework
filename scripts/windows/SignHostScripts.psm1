@@ -16,9 +16,10 @@ function Set-VentioStagedScriptSignatures {
   while($cursor){if($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'SIGNING_REPARSE_PATH_REFUSED'};$cursor=$cursor.Parent}
   if(@(Get-ChildItem -LiteralPath $rootPath -Force -Recurse | Where-Object {$_.Attributes -band [IO.FileAttributes]::ReparsePoint}).Count){throw 'SIGNING_REPARSE_MEMBER_REFUSED'}
   $certificate=Get-Item -LiteralPath ('Cert:\CurrentUser\My\'+$CertificateThumbprint)
+  $ekuOids=@($certificate.Extensions | Where-Object {$_.Oid.Value -eq '2.5.29.37'} | ForEach-Object {$_.EnhancedKeyUsages | ForEach-Object {$_.Value}})
   if(-not $certificate.HasPrivateKey -or $certificate.NotAfter.ToUniversalTime() -le [DateTime]::UtcNow -or
      $certificate.NotBefore.ToUniversalTime() -gt [DateTime]::UtcNow -or
-     '1.3.6.1.5.5.7.3.3' -notin @($certificate.EnhancedKeyUsageList | ForEach-Object {$_.ObjectId.Value})){throw 'SIGNING_CERTIFICATE_PROFILE_INVALID'}
+     '1.3.6.1.5.5.7.3.3' -notin $ekuOids){throw 'SIGNING_CERTIFICATE_PROFILE_INVALID'}
   if(-not $FixtureCertificate -and ($TimestampServer -notmatch '^https://[^\s]+$')){throw 'SIGNING_RELEASE_TIMESTAMP_REQUIRED'}
   $files=@(Get-ChildItem -LiteralPath $rootPath -Recurse -File | Where-Object {$_.Extension -in @('.ps1','.psm1','.psd1','.ps1xml')})
   if(-not $files.Count){throw 'SIGNING_EMPTY_SCRIPT_CLOSURE'}

@@ -14,7 +14,7 @@ function New-RecoveryLabIsolationPlan {
     $rules+=@{direction=$direction;remoteIPAddress=$family;localPort='';remotePort='';protocol='';action='Deny';weight=$denyWeight;stateful=$false}
     $denyWeight--
   }}
-  [pscustomobject][ordered]@{schemaVersion=1;managementHost='BAHAA';managementHostMachineGuid='206b0dfe-e035-49c5-8b38-3d1d19ceadf7';vmId='99aba626-2cc9-486e-86ab-af7966848126';vmName='Ventio-Recovery-Lab';adapterMac='00155D016805';requireEmptyPriorAcl=$true;rules=$rules;rollback='REMOVE_EXACT_PLAN_RULES_ONLY';effectiveEnforcementVerified=$false}
+  [pscustomobject][ordered]@{schemaVersion=1;managementHost='BAHAA';managementHostMachineGuid='206b0dfe-e035-49c5-8b38-3d1d19ceadf7';vmId='99aba626-2cc9-486e-86ab-af7966848126';vmName='Ventio-Recovery-Lab';adapterMac='00155D016805';switchId='c08cb7b8-9b3c-408e-8e30-5e16a3aeb444';requireEmptyPriorAcl=$true;rules=$rules;rollback='REMOVE_EXACT_PLAN_RULES_ONLY';effectiveEnforcementVerified=$false}
 }
 function Get-RecoveryRuleKey($Rule){
   return (@('direction','remoteIPAddress','localPort','remotePort','protocol','action','weight','stateful') | ForEach-Object {[string]$Rule.$_}) -join '|'
@@ -22,7 +22,7 @@ function Get-RecoveryRuleKey($Rule){
 function Assert-RecoveryLabIsolationPlan {
   [CmdletBinding()]param([Parameter(Mandatory)]$Plan)
   $expected=New-RecoveryLabIsolationPlan
-  foreach($field in @('schemaVersion','managementHost','managementHostMachineGuid','vmId','vmName','adapterMac','requireEmptyPriorAcl','rollback')){
+  foreach($field in @('schemaVersion','managementHost','managementHostMachineGuid','vmId','vmName','adapterMac','switchId','requireEmptyPriorAcl','rollback')){
     if([string]$Plan.$field -cne [string]$expected.$field){throw 'RECOVERY_NETWORK_TARGET_OR_MODE_CHANGED'}
   }
   $actualKeys=@($Plan.rules | ForEach-Object {Get-RecoveryRuleKey $_})
@@ -35,4 +35,20 @@ function Get-RecoveryLabIsolationArguments {
   foreach($field in @('LocalPort','RemotePort','Protocol')){if($Rule.$field){$parameters[$field]=[string]$Rule.$field}}
   return $parameters
 }
-Export-ModuleMember -Function New-RecoveryLabIsolationPlan,Assert-RecoveryLabIsolationPlan,Get-RecoveryLabIsolationArguments,Get-RecoveryRuleKey
+function Get-RecoveryLabRollbackRules {
+  [CmdletBinding()]param([Parameter(Mandatory)]$Plan,[AllowEmptyCollection()][object[]]$ExistingRules=@())
+  Assert-RecoveryLabIsolationPlan $Plan
+  foreach($actual in $ExistingRules){
+    $matches=@($Plan.rules | Where-Object {
+      ([string]$actual.Direction -eq $_.direction -or ($_.stateful -and [bool]$actual.Stateful)) -and [int]$actual.Weight -eq $_.weight -and
+      [string]$actual.RemoteIPAddress -eq $_.remoteIPAddress -and [string]$actual.Action -eq $_.action -and
+      [string]$actual.LocalPort -eq $_.localPort -and [string]$actual.RemotePort -eq $_.remotePort -and
+      [string]$actual.Protocol -eq $_.protocol -and [bool]$actual.Stateful -eq $_.stateful
+    })
+    if($matches.Count -ne 1){throw 'RECOVERY_CONCURRENT_ACL_CHANGE_REVIEW_REQUIRED'}
+  }
+  foreach($rule in @($Plan.rules|Sort-Object weight)){
+    if(@($ExistingRules | Where-Object {[int]$_.Weight -eq $rule.weight -and [string]$_.Direction -eq $rule.direction}).Count){$rule}
+  }
+}
+Export-ModuleMember -Function New-RecoveryLabIsolationPlan,Assert-RecoveryLabIsolationPlan,Get-RecoveryLabIsolationArguments,Get-RecoveryRuleKey,Get-RecoveryLabRollbackRules

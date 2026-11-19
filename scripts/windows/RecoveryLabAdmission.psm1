@@ -3,7 +3,9 @@ $ErrorActionPreference='Stop'
 function Assert-RecoveryLabIdentity {
   [CmdletBinding()]param([Parameter(Mandatory)]$Record,[Parameter(Mandatory)]$Observation)
   # Pure validation also used by hosted tests. It never creates an admission marker.
+  foreach($field in @('fixtureOnly','ownerApproved','networkEffectiveVerified','operatorSystemPolicyVerified')){if($Record.$field -isnot [bool]){throw 'RECOVERY_ADMISSION_BOOLEAN_REQUIRED'}}
   if($Record.schemaVersion -ne 1 -or $Record.fixtureOnly -ne $true -or $Record.ownerApproved -ne $true){throw 'RECOVERY_ADMISSION_NOT_APPROVED'}
+  if($Record.networkEffectiveVerified -ne $true -or $Record.operatorSystemPolicyVerified -ne $true){throw 'RECOVERY_PHYSICAL_PREREQUISITE_EVIDENCE_REQUIRED'}
   if($Record.guest.machineGuid -cne '5cb98737-7141-4486-9a87-08484566e292' -or $Record.guest.smbiosUuid -ine 'BBFBFFD7-D087-4E7C-9D65-D7884CAE0420' -or $Record.guest.adapterMac -cne '00155D016805'){throw 'RECOVERY_APPROVED_GUEST_CHANGED'}
   $denied=@('BAHAA','TEST-01','TEST-02','VENTIO-TEST-01','VENTIO-TEST-02')
   if($Observation.machineName -in $denied -or $Observation.machineGuid -eq '206b0dfe-e035-49c5-8b38-3d1d19ceadf7'){throw 'RECOVERY_PRESERVED_MACHINE'}

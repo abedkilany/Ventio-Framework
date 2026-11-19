@@ -69,7 +69,13 @@ function Add-RecoveryLabObserverHba {
   $original=[IO.File]::ReadAllText($item.FullName)
   if($original -match 'ventio_w2_observer'){throw 'RECOVERY_OBSERVER_HBA_ALREADY_PRESENT'}
   $prefix="# Bounded disposable recovery observer; precedes generic rules.`r`nhost ventio_host ventio_w2_observer 127.0.0.1/32 scram-sha-256`r`nhost all ventio_w2_observer 0.0.0.0/0 reject`r`nhost all ventio_w2_observer ::/0 reject`r`n"
-  # Existing inode/ACL retained; caller is the fresh authorized provisioner only.
-  [IO.File]::WriteAllText($item.FullName,$prefix+$original,[Text.UTF8Encoding]::new($false))
+  # Atomic same-directory replacement preserves the destination security metadata;
+  # caller is the fresh authorized provisioner only. Never leave a truncated HBA.
+  $temporary=Join-Path $item.DirectoryName ('observer-hba-'+[guid]::NewGuid().ToString('N')+'.tmp')
+  try {
+    $stream=[IO.File]::Open($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    try{$bytes=[Text.Encoding]::UTF8.GetBytes($prefix+$original);$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}
+    [IO.File]::Replace($temporary,$item.FullName,[System.Management.Automation.Language.NullString]::Value,$false)
+  } finally {if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary}}
 }
 Export-ModuleMember -Function New-RecoveryLabObserverSql,Add-RecoveryLabObserverHba

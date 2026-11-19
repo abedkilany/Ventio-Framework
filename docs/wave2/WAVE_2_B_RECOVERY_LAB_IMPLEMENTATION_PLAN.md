@@ -4,9 +4,11 @@ Date: 2026-11-19. Reviewed source: `feature/wave-2-a` /
 `bd9b8418767aff0d887aa5b8247676f1703ad588`.
 
 **Verdict: BLOCKED for installation and P001–P006; source engineering is authorized.**
-This document prepares the solution and approval boundaries. The proposed code,
-signing pipeline and infrastructure changes below are not implemented or tested by
-this plan. Existing admission guards remain enabled. No installation, policy or
+This document records the initial design and approval boundaries. The separately
+authorized engineering implementation and actual CI results are recorded in
+[the implementation report](WAVE_2_B_RECOVERY_LAB_ENGINEERING.md); that report
+supersedes the initial "planned" engineering status below. Infrastructure changes
+remain unapplied. Existing admission guards remain enabled. No installation, policy or
 network change, SYSTEM task, recovery operation or destructive test was performed.
 PR #6 remains Draft and unmerged; Wave_2_C remains closed.
 

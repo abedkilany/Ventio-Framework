@@ -3,6 +3,8 @@
   "fixtureOnly": true,
   "ownerApproved": false,
   "observerProfileApproved": false,
+  "networkEffectiveVerified": false,
+  "operatorSystemPolicyVerified": false,
   "guest": {
     "machineName": "VENTIO-W2-VM01",
     "machineGuid": "5cb98737-7141-4486-9a87-08484566e292",

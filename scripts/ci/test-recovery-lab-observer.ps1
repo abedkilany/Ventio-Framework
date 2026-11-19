@@ -7,7 +7,9 @@ Import-Module (Join-Path $repo 'scripts/windows/RecoveryLabObserver.psm1') -Forc
 $root=Join-Path ([IO.Path]::GetTempPath()) ('ventio-pg-initdb-test-'+[guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($root)
 $payload=Join-Path $root 'payload';[void][IO.Directory]::CreateDirectory($payload)
 $pg=Join-Path $payload 'postgresql'
-Copy-Item -LiteralPath (Split-Path -Parent $env:VENTIO_TEST_POSTGRES_BIN_DIR) -Destination $pg -Recurse
+# CI-only layout link to the already hash-verified immutable tool distribution;
+# do not recopy hundreds of MB through real-time scanning for each fixture.
+[void](New-Item -ItemType Junction -Path $pg -Target (Split-Path -Parent $env:VENTIO_TEST_POSTGRES_BIN_DIR))
 $bin=Join-Path $pg 'bin'
 Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'observer-migrate.exe') -Destination (Join-Path $payload 'ventio_migrate.exe')
 Copy-Item -LiteralPath (Join-Path $repo 'migrations/postgres') -Destination (Join-Path $payload 'migrations') -Recurse
@@ -28,11 +30,13 @@ function Require([bool]$Value,[string]$Message){if(-not $Value){throw $Message}}
 function Case([string]$Id,[scriptblock]$Body){try{& $Body;$results.Add(@{id=$Id;status='PASSED'});Write-Output "PASS $Id"}catch{$results.Add(@{id=$Id;status='FAILED';reason=$_.Exception.Message});Write-Output "FAIL $Id $($_.Exception.Message)"}}
 function Free-Port {$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$listener.Start();$port=$listener.LocalEndpoint.Port;$listener.Stop();return $port}
 function Start-Cluster([string]$Data,[int]$Port){
+  Write-Host 'OBS-FIXTURE starting isolated cluster'
   & (Join-Path $bin 'pg_ctl.exe') -D $Data -l ($Data+'.log') -o "-h 127.0.0.1 -p $Port" -w start|Out-Null
   if($LASTEXITCODE){throw 'CI_CLUSTER_START_FAILED'}
   $running.Add(@{data=$Data;port=$Port})
 }
 function New-Cluster([string]$Name,[bool]$Observer,[switch]$FailHba){
+  Write-Host ('OBS-FIXTURE initializing '+$Name)
   $data=Join-Path $root $Name;$port=Free-Port
   $pwFile=Join-Path $root ($Name+'-pw.txt')
   [IO.File]::WriteAllText($pwFile,$password,[Text.UTF8Encoding]::new($false))
@@ -81,18 +85,24 @@ INSERT INTO public.ventio_command_journal(tenant_id,command_id,company_id,branch
     @{id='OBS08-private-recovery-schema-denied';sql='SELECT * FROM ventio_security.command_bindings'},
     @{id='OBS09-create-role-denied';sql='BEGIN READ WRITE; CREATE ROLE observer_escalation'},
     @{id='OBS10-create-object-denied';sql='BEGIN READ WRITE; CREATE TABLE ventio_w2_fixture.bad(id integer)'}
+    ,@{id='OBS23-identity-admin-function-denied';sql="SELECT ventio_security.admin_change('{}'::jsonb)"}
+    ,@{id='OBS24-temp-object-denied';sql='BEGIN READ WRITE; CREATE TEMP TABLE observer_temp(id integer)'}
   )){Case $entry.id {$q=Sql $port 'ventio_w2_observer' $observerPassword 'ventio_host' $entry.sql;Require ($q.code -ne 0 -and $q.error -match '42501') 'Expected SQL permission denial not observed'}}
   Case 'OBS11-wrong-database-hba-denied' {$q=Sql $port 'ventio_w2_observer' $observerPassword 'postgres' 'SELECT 1';Require ($q.code -ne 0 -and $q.error -match 'rejects connection') 'Observer reached another database'}
   Case 'OBS12-wrong-secret-denied' {$q=Sql $port 'ventio_w2_observer' 'wrong-secret' 'ventio_host' 'SELECT 1';Require ($q.code -ne 0) 'Bad secret authenticated'}
   Case 'OBS13-bootstrap-retired' {$q=Sql $port 'ventio_bootstrap' $password 'postgres' 'SELECT 1';Require ($q.code -ne 0) 'Bootstrap authenticated after retirement'}
-  Case 'OBS14-unchanged-runtime-security-profile' {$q=Sql $port 'ventio_runtime_app' $password 'ventio_host' (Get-Content (Join-Path $repo 'security/postgres/runtime_check.sql') -Raw);Require ($q.code -eq 0) 'Production runtime/RLS profile failed'}
+  Case 'OBS14-unchanged-runtime-security-profile' {$q=Sql $port 'ventio_runtime_app' $password 'ventio_host' 'SELECT ventio_security.assert_runtime()';Require ($q.code -eq 0) 'Production runtime/RLS profile failed'}
   Case 'OBS15-role-membership-and-view-barriers' {
     $q=Sql $port 'ventio_ci_seed' $password 'ventio_host' "SELECT rolcanlogin::text||':'||rolsuper::text||':'||rolbypassrls::text FROM pg_roles WHERE rolname='ventio_w2_observer_owner';SELECT count(*) FROM pg_auth_members WHERE roleid IN(SELECT oid FROM pg_roles WHERE rolname IN('ventio_w2_observer_owner','ventio_w2_observer')) OR member IN(SELECT oid FROM pg_roles WHERE rolname='ventio_w2_observer');SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='ventio_w2_fixture' AND c.reloptions @> ARRAY['security_barrier=true'];"
     Require ($q.code -eq 0 -and ($q.value -replace '\r','') -ceq "false:false:true`n0`n2") 'Privilege/view profile differs'
   }
   Case 'OBS16-observer-survives-nondestructive-physical-copy' {
+    Write-Host 'OBS-FIXTURE copying to fresh secondary directory; original remains live'
     $copy=Join-Path $root 'fresh-copy';$copyPort=Free-Port;$prior=$env:PGPASSWORD
-    try{$env:PGPASSWORD=$password;& (Join-Path $bin 'pg_basebackup.exe') -h 127.0.0.1 -p $port -U ventio_ci_seed -D $copy -X stream -w|Out-Null;Require ($LASTEXITCODE -eq 0) 'Physical copy failed'}finally{$env:PGPASSWORD=$prior}
+    $info=[Diagnostics.ProcessStartInfo]::new((Join-Path $bin 'pg_basebackup.exe'));$info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
+    $info.Arguments='-h 127.0.0.1 -p '+$port+' -U ventio_ci_seed -D "'+$copy+'" -X stream -c fast -w';$info.EnvironmentVariables['PGPASSWORD']=$password
+    $process=[Diagnostics.Process]::Start($info)
+    try{$stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync();if(-not $process.WaitForExit(180000)){$process.Kill();throw 'Physical copy timed out; fresh copy preserved'};[void]$stdout.GetAwaiter().GetResult();[void]$stderr.GetAwaiter().GetResult();Require ($process.ExitCode -eq 0) 'Physical copy failed'}finally{$process.Dispose();$env:PGPASSWORD=$prior}
     Start-Cluster $copy $copyPort
     $q=Sql $copyPort 'ventio_w2_observer' $observerPassword 'ventio_host' 'SELECT observed_name FROM ventio_w2_fixture.sentinel';Require ($q.code -eq 0 -and $q.value -ceq 'before-backup') 'Observer/physical data missing in fresh copy'
   }
@@ -109,6 +119,28 @@ INSERT INTO public.ventio_command_journal(tenant_id,command_id,company_id,branch
   }
   $failed=New-Cluster 'failed-hba' $true -FailHba
   Case 'OBS20-initializer-failure-retires-authority' {$q=Sql $failed.port 'ventio_ci_seed' $password 'ventio_host' "SELECT count(*) FROM pg_authid WHERE rolname IN('ventio_bootstrap','ventio_w2_observer') AND (rolcanlogin OR rolpassword IS NOT NULL)";Require ($q.code -eq 0 -and $q.value -ceq '0') 'Failed fixture retains login authority'}
+  Case 'OBS21-expiry-boundaries' {
+    foreach($date in @([DateTime]::UtcNow.AddMinutes(5),[DateTime]::UtcNow.AddHours(25),[DateTime]::Now.AddHours(4))){
+      $blocked=$false;try{[void](New-RecoveryLabObserverSql -Credential (Credential 'ventio_w2_observer' $observerPassword) -ValidUntilUtc $date)}catch{$blocked=$true}
+      Require $blocked 'Invalid expiry accepted'
+    }
+  }
+  Case 'OBS22-weak-secret-and-wrong-user-denied' {
+    foreach($credential in @((Credential 'ventio_w2_observer' 'short'),(Credential 'postgres' $observerPassword))){
+      $blocked=$false;try{[void](New-RecoveryLabObserverSql -Credential $credential -ValidUntilUtc ([DateTime]::UtcNow.AddHours(4)))}catch{$blocked=$true}
+      Require $blocked 'Unsafe observer credential accepted'
+    }
+  }
+  Case 'OBS25-hba-preserves-original-and-acl' {
+    $file=Join-Path $root 'hba-atomic-probe.conf';[IO.File]::WriteAllText($file,'# original rules')
+    $beforeAcl=(Get-Acl $file).Sddl;Add-RecoveryLabObserverHba $file
+    Require ((Get-Acl $file).Sddl -ceq $beforeAcl -and [IO.File]::ReadAllText($file).EndsWith('# original rules')) 'HBA contents/ACL changed unexpectedly'
+    $hash=(Get-FileHash $file).Hash;$rejected=$false;try{Add-RecoveryLabObserverHba $file}catch{$rejected=$true}
+    Require ($rejected -and (Get-FileHash $file).Hash -ceq $hash) 'Existing observer rules were overwritten'
+  }
+} catch {
+  $results.Add(@{id='OBS-FIXTURE-SETUP';status='FAILED';reason=$_.Exception.Message})
+  throw
 } finally {
   foreach($cluster in $running){& (Join-Path $bin 'pg_ctl.exe') -D $cluster.data -m fast -w stop|Out-Null;if($LASTEXITCODE){$results.Add(@{id='OBS-clean-shutdown';status='FAILED';reason='CI cluster shutdown unconfirmed; directory preserved'})}}
   $password=$null;$observerPassword=$null

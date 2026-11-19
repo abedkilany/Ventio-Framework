@@ -9,7 +9,7 @@ function Case([string]$Id,[scriptblock]$Body){try{& $Body;$results.Add(@{id=$Id;
 function Reject([scriptblock]$Body){$rejected=$false;try{& $Body}catch{$rejected=$true};if(-not $rejected){throw 'Expected security rejection'}}
 function Clone($Value){return $Value | ConvertTo-Json -Depth 12 | ConvertFrom-Json}
 $record=Get-Content (Join-Path $repo 'tests/wave2/recovery-lab.admission.example.json') -Raw|ConvertFrom-Json
-$record.ownerApproved=$true;$record.publisherThumbprint='A'*40;$record.networkPlanSha256='1'*64;$record.networkEvidenceSha256='2'*64;$record.signingEvidenceSha256='3'*64
+$record.ownerApproved=$true;$record.networkEffectiveVerified=$true;$record.operatorSystemPolicyVerified=$true;$record.publisherThumbprint='A'*40;$record.networkPlanSha256='1'*64;$record.networkEvidenceSha256='2'*64;$record.signingEvidenceSha256='3'*64
 $observation=@{machineName='VENTIO-W2-VM01';machineGuid=$record.guest.machineGuid;smbiosUuid=$record.guest.smbiosUuid;manufacturer='Microsoft Corporation';model='Virtual Machine';adapterMacs=@('00155D016805')}
 Case 'ADM01-pinned-guest' {Assert-RecoveryLabIdentity $record $observation}
 Case 'ADM02-owner-approval' {$r=Clone $record;$r.ownerApproved=$false;Reject {Assert-RecoveryLabIdentity $r $observation}}
@@ -27,6 +27,8 @@ Case 'ADM12-independent-record-digest' {
   $hash=(Get-FileHash $path).Hash.ToLowerInvariant();[void](Read-RecoveryLabAdmission $path $hash)
   Add-Content $path ' ';Reject {Read-RecoveryLabAdmission $path $hash}
 }
+Case 'ADM13-boolean-approval-required' {$r=Clone $record;$r.ownerApproved='true';Reject {Assert-RecoveryLabIdentity $r $observation}}
+Case 'ADM14-physical-prerequisite-evidence' {$r=Clone $record;$r.networkEffectiveVerified=$false;Reject {Assert-RecoveryLabIdentity $r $observation}}
 $plan=New-RecoveryLabIsolationPlan
 Case 'NET01-exact-adapter-plan' {Assert-RecoveryLabIsolationPlan $plan;if($plan.rules.Count -ne 8){throw 'Rule closure incomplete'}}
 Case 'NET02-only-management-ssh' {$ssh=@($plan.rules|Where-Object {$_.protocol -eq 'TCP' -and $_.action -eq 'Allow'});if($ssh.Count -ne 1 -or $ssh[0].direction -ne 'Inbound' -or $ssh[0].remoteIPAddress -ne '172.19.240.1' -or $ssh[0].localPort -ne '22' -or -not $ssh[0].stateful){throw 'SSH flow widened'}}
@@ -44,6 +46,12 @@ Case 'NET09-export-and-rollback-contract' {
   Reject {& (Join-Path $repo 'scripts/windows/prepare-recovery-lab-isolation.ps1') -Mode Rollback -PlanPath $path}
 }
 Case 'NET10-command-parameter-scope' {foreach($rule in $plan.rules){$arguments=Get-RecoveryLabIsolationArguments $rule;if($arguments.ContainsKey('ManagementOS') -or $arguments.ContainsKey('VMName') -or -not $arguments.ContainsKey('Weight')){throw 'Unsafe parameter scope'}}}
+Case 'NET11-complete-rollback-order' {$selected=@(Get-RecoveryLabRollbackRules -Plan $plan -ExistingRules $plan.rules);if($selected.Count -ne 8 -or $selected[0].action -ne 'Deny' -or $selected[-1].localPort -ne '22'){throw 'Rollback removes SSH before deny rules'}}
+Case 'NET12-partial-rollback' {$selected=@(Get-RecoveryLabRollbackRules -Plan $plan -ExistingRules @($plan.rules[0],$plan.rules[1]));if($selected.Count -ne 2){throw 'Partial apply cannot be rolled back'}}
+Case 'NET13-rollback-refuses-concurrent-change' {$foreign=Clone $plan.rules[0];$foreign.remoteIPAddress='192.168.1.107';Reject {Get-RecoveryLabRollbackRules -Plan $plan -ExistingRules @($foreign)}}
+Case 'NET14-empty-rollback' {if(@(Get-RecoveryLabRollbackRules -Plan $plan -ExistingRules @()).Count -ne 0){throw 'Empty rollback generated mutations'}}
+Case 'NET15-stateful-reflection-removed-once' {$reflected=Clone $plan.rules[0];$reflected.direction='Outbound';$selection=@(Get-RecoveryLabRollbackRules -Plan $plan -ExistingRules @($plan.rules[0],$reflected));if($selection.Count -ne 1){throw 'Stateful pair removed twice'}}
 $out=Join-Path $repo 'test-results/recovery-admission';[void][IO.Directory]::CreateDirectory($out)
+& (Join-Path $repo 'scripts/windows/prepare-recovery-lab-isolation.ps1') -Mode Export -PlanPath (Join-Path $out 'isolation-plan.json') | Out-Null
 [ordered]@{sourceCommit=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;cases=@($results.ToArray());effectiveIsolation='UNEXECUTED_REQUIRES_OWNER_APPROVED_VNIC';physicalVmTouched=$false} | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out 'admission-network.json')
 if(@($results|Where-Object status -eq 'FAILED').Count){throw 'Recovery admission/network cases failed'}

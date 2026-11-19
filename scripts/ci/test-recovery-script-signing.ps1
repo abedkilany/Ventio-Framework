@@ -81,6 +81,9 @@ $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
       } else {Require ($exit -ne 0 -and -not (Test-Path $outputPath)) 'Unsigned/tampered/unapproved content ran'}
     }
   }}
+} catch {
+  $results.Add(@{id='SIG-FIXTURE-SETUP';status='FAILED';reason=$_.Exception.Message})
+  throw
 } finally {
   # Restore the hosted fixture's original policy even after a probe fails.
   foreach($scope in @('Process','CurrentUser','LocalMachine')){Set-ExecutionPolicy $before[$scope] -Scope $scope -Force}
