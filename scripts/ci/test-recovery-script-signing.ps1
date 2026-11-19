@@ -37,13 +37,7 @@ try {
     Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root|Out-Null
     if($cert.Thumbprint -eq $certificate.Thumbprint){Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher|Out-Null}
   }
-  $body=@'
-param([Parameter(Mandatory)][string]$OutputPath)
-$ErrorActionPreference='Stop'
-__MODULE__
-$identity=[Security.Principal.WindowsIdentity]::GetCurrent()
-@{sid=$identity.User.Value;policy=[string](Get-ExecutionPolicy);scopes=@(Get-ExecutionPolicy -List|ForEach-Object {@{scope=[string]$_.Scope;policy=[string]$_.ExecutionPolicy}});version=[string]$PSVersionTable.PSVersion;value='signed-probe-ran'}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath $OutputPath
-'@
+  $body=Get-Content (Join-Path $repo 'tests/wave2/recovery_policy_probe.ps1') -Raw
   $variants=@('valid','unsigned','tampered','untrusted','module-valid','module-unsigned','module-tampered','module-untrusted')
   foreach($variant in $variants){
     $directory=Join-Path $root $variant;[void][IO.Directory]::CreateDirectory($directory)
@@ -52,7 +46,7 @@ $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
       $modulePath=Join-Path $directory 'probe.psm1';Write-Source $modulePath "function Get-FixtureValue {'fixture'};Export-ModuleMember -Function Get-FixtureValue"
       $moduleLine="Import-Module (Join-Path `$PSScriptRoot 'probe.psm1') -Force -ErrorAction Stop"
     }
-    $path=Join-Path $directory 'probe.ps1';Write-Source $path ($body.Replace('__MODULE__',$moduleLine))
+    $path=Join-Path $directory 'probe.ps1';Write-Source $path ($body.Replace('# OPTIONAL_FIXTURE_MODULE_IMPORT',$moduleLine))
     if($variant -ne 'unsigned'){
       [void](Set-VentioStagedScriptSignatures -Root $directory -CertificateThumbprint $certificate.Thumbprint -FixtureCertificate)
       if($variant -eq 'untrusted'){[void](Set-AuthenticodeSignature $path -Certificate $other -HashAlgorithm SHA256)}
