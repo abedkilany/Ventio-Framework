@@ -32,8 +32,17 @@ function Read-RecoveryLabAdmission {
   [CmdletBinding()]param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSha256)
   $item=Get-Item -LiteralPath $Path -ErrorAction Stop
   if($item.Length -gt 65536 -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'RECOVERY_ADMISSION_FILE_INVALID'}
-  if((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedSha256){throw 'RECOVERY_ADMISSION_DIGEST_MISMATCH'}
-  return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+  # Parse exactly the bytes whose digest was approved, never reopen after hashing.
+  $stream=[IO.File]::Open($item.FullName,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  try {
+    if($stream.Length -gt 65536){throw 'RECOVERY_ADMISSION_FILE_INVALID'}
+    $bytes=New-Object byte[] ([int]$stream.Length);$offset=0
+    while($offset -lt $bytes.Length){$read=$stream.Read($bytes,$offset,$bytes.Length-$offset);if($read -eq 0){throw 'RECOVERY_ADMISSION_SHORT_READ'};$offset+=$read}
+  } finally {$stream.Dispose()}
+  $sha=[Security.Cryptography.SHA256]::Create()
+  try{$digest=([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+  if($digest -cne $ExpectedSha256){throw 'RECOVERY_ADMISSION_DIGEST_MISMATCH'}
+  return [Text.UTF8Encoding]::new($false,$true).GetString($bytes).TrimStart([char]0xfeff) | ConvertFrom-Json
 }
 function Assert-CurrentRecoveryLabAdmission {
   [CmdletBinding()]param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][string]$ExpectedSha256)

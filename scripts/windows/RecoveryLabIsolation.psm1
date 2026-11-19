@@ -47,7 +47,7 @@ function Get-RecoveryLabRollbackRules {
     })
     if($matches.Count -ne 1){throw 'RECOVERY_CONCURRENT_ACL_CHANGE_REVIEW_REQUIRED'}
   }
-  foreach($rule in @($Plan.rules|Sort-Object weight)){
+  foreach($rule in @($Plan.rules|Sort-Object {[int]$_.weight})){
     if(@($ExistingRules | Where-Object {[int]$_.Weight -eq $rule.weight -and [string]$_.Direction -eq $rule.direction}).Count){$rule}
   }
 }

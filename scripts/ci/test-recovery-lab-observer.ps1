@@ -2,6 +2,7 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 if($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:COMPUTERNAME -in @('BAHAA','TEST-01','TEST-02')){throw 'HOSTED_OBSERVER_FIXTURE_ONLY'}
 if((Get-Service VentioHost,VentioPostgres -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:ProgramData 'Ventio'))){throw 'NO_INSTALLED_PRODUCT_ALLOWED'}
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $out=Join-Path $repo 'test-results/recovery-admission';[void][IO.Directory]::CreateDirectory($out)
 function Progress-State([string]$Stage){Write-Host ('OBS-FIXTURE '+$Stage);@{stage=$Stage;utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json|Set-Content (Join-Path $out 'observer-progress.json')}

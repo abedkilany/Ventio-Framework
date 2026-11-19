@@ -6,6 +6,9 @@ $progressPath=Join-Path $out 'observer-progress.json'
 $info=[Diagnostics.ProcessStartInfo]::new((Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'))
 $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
 $info.Arguments='-NoLogo -NoProfile -NonInteractive -File "'+(Join-Path $PSScriptRoot 'test-recovery-lab-observer.ps1')+'"'
+# Do not let PowerShell 7's inherited module path resolve PS7 assemblies inside
+# Windows PowerShell 5.1. This changes only the child environment, never policy.
+$info.EnvironmentVariables['PSModulePath']=(Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules')+';'+(Join-Path $env:ProgramFiles 'WindowsPowerShell/Modules')
 $process=[Diagnostics.Process]::Start($info)
 $stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync()
 $watch=[Diagnostics.Stopwatch]::StartNew();$phaseWatch=[Diagnostics.Stopwatch]::StartNew();$stage='startup';$failed=$false

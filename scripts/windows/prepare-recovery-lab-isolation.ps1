@@ -11,8 +11,9 @@ if($Mode -eq 'Export'){
   return
 }
 if(-not $ApproveAdapterConfigurationChange){throw 'RECOVERY_ADAPTER_CHANGE_APPROVAL_REQUIRED'}
-if($ExpectedPlanSha256 -cnotmatch '^[0-9a-f]{64}$' -or (Get-FileHash -LiteralPath $PlanPath).Hash.ToLowerInvariant() -cne $ExpectedPlanSha256){throw 'RECOVERY_NETWORK_PLAN_DIGEST_MISMATCH'}
-$plan=Get-Content -LiteralPath $PlanPath -Raw|ConvertFrom-Json
+if($ExpectedPlanSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'RECOVERY_NETWORK_PLAN_DIGEST_MISMATCH'}
+Import-Module (Join-Path $PSScriptRoot 'RecoveryLabAdmission.psm1') -Force
+$plan=Read-RecoveryLabAdmission -Path $PlanPath -ExpectedSha256 $ExpectedPlanSha256
 Assert-RecoveryLabIsolationPlan $plan
 if($env:COMPUTERNAME -cne $plan.managementHost -or (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid -cne $plan.managementHostMachineGuid){throw 'RECOVERY_MANAGEMENT_HOST_MISMATCH'}
 $principal=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())

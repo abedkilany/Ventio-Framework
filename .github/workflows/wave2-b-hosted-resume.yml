@@ -13,7 +13,7 @@ permissions:
   actions: read
 jobs:
   recovery-admission-engineering:
-    if: inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-signing' || inputs.scope == 'recovery-observer'
+    if: inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-signing' || inputs.scope == 'recovery-observer' || inputs.scope == 'recovery-identity'
     runs-on: windows-2025
     timeout-minutes: 40
     steps:
@@ -24,11 +24,11 @@ jobs:
         shell: pwsh
         run: ./scripts/ci/enable-wave2-defender.ps1
       - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b
-        if: inputs.scope != 'recovery-signing'
+        if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
         with:
           sdk: '3.13.7'
       - name: Compile only the actual migration runner
-        if: inputs.scope != 'recovery-signing'
+        if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
         working-directory: packages/ventio_postgres
         shell: pwsh
         run: |
@@ -37,15 +37,15 @@ jobs:
           dart compile exe bin/migrate.dart -o "$env:RUNNER_TEMP/observer-migrate.exe"
           if ($LASTEXITCODE) { throw 'Migration runner compile failed' }
       - name: Stage pinned PostgreSQL 16.16
-        if: inputs.scope != 'recovery-signing'
+        if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
         shell: pwsh
         run: ./scripts/ci/install-postgres-tools.ps1
       - name: Verify identity and isolation plans without configuration changes
-        if: inputs.scope == 'recovery-admission'
+        if: inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-identity'
         shell: powershell
         run: ./scripts/ci/test-recovery-lab-admission.ps1
       - name: Verify signing and operator plus SYSTEM under AllSigned
-        if: ${{ !cancelled() && inputs.scope != 'recovery-observer' }}
+        if: ${{ !cancelled() && (inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-signing') }}
         shell: powershell
         run: ./scripts/ci/test-recovery-script-signing.ps1
       - name: Preserve completed identity and signing evidence before SQL setup
@@ -57,12 +57,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Exercise real PostgreSQL observer security and initialization
-        if: ${{ !cancelled() && inputs.scope != 'recovery-signing' }}
+        if: ${{ !cancelled() && (inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-observer') }}
         timeout-minutes: 12
         shell: pwsh
         run: ./scripts/ci/run-recovery-observer-fixture.ps1
       - name: Verify affected existing provisioning and installer contracts
-        if: ${{ !cancelled() && inputs.scope != 'recovery-signing' }}
+        if: ${{ !cancelled() && (inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-observer') }}
         shell: powershell
         run: |
           & ./scripts/windows/test-host-new-install-state.ps1
