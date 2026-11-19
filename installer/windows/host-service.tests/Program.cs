@@ -10,6 +10,12 @@ using System.Text;
 
 if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Host service configuration tests require Windows.");
 
+if (args.Length > 0 && args[0].StartsWith("--pg-maintenance-", StringComparison.Ordinal) || args.Length > 0 && args[0] == "--postgres-recovery-fixture")
+{
+    Environment.ExitCode = PostgresCredentialMaintenanceFixture.Dispatch(args);
+    return;
+}
+
 var serviceProgram = Assembly.Load("VentioHostService").GetType("Program")
     ?? throw new InvalidOperationException("Host service entry point was not found.");
 var helperTimeoutField = serviceProgram.GetField(

@@ -4,11 +4,7 @@ param(
   [Parameter(Mandatory = $true)] [string] $DataDirectory,
   [Parameter(Mandatory = $true)] [PSCredential] $RuntimeCredential,
   [Parameter(Mandatory = $true)] [PSCredential] $IdentityApiCredential,
-  [int] $Port = 54329,
-  [switch] $TestMode,
-  [PSCredential] $TestBootstrapCredential,
-  [PSCredential] $TestMigrationCredential,
-  [string] $TestMigrationDirectory
+  [int] $Port = 54329
 )
 
 Set-StrictMode -Version Latest
@@ -26,24 +22,9 @@ $robocopy = Join-Path $env:SystemRoot 'System32\robocopy.exe'
 $backupRoot = $null
 $postgresService = $null
 $postgresNeedsToRun = $false
-$testServerProcess = $null
-$testServerStarted = $false
+$maintenanceProcess = $null
 $runtimePassword = $null
 $identityPassword = $null
-
-if ($TestMode) {
-  if (-not $TestBootstrapCredential -or -not $TestMigrationCredential -or
-      [string]::IsNullOrWhiteSpace($TestMigrationDirectory)) {
-    throw 'HOST_DATABASE_RECOVERY_TEST_MIGRATION_ARGUMENTS_REQUIRED'
-  }
-  $TestMigrationDirectory = [IO.Path]::GetFullPath($TestMigrationDirectory)
-  if (-not (Test-Path -LiteralPath $TestMigrationDirectory -PathType Container)) {
-    throw 'HOST_DATABASE_RECOVERY_TEST_MIGRATION_DIRECTORY_INVALID'
-  }
-} elseif ($TestBootstrapCredential -or $TestMigrationCredential -or
-    -not [string]::IsNullOrWhiteSpace($TestMigrationDirectory)) {
-  throw 'HOST_DATABASE_RECOVERY_TEST_ARGUMENTS_FORBIDDEN'
-}
 
 function ConvertTo-HostRecoveryArgument([string] $Value) {
   $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
@@ -258,25 +239,49 @@ function Assert-HostRoleLogin([string] $RoleName, [string] $Password, [int] $Exp
   }
 }
 
-function Invoke-HostSingleUserCredentialRotation {
-  param(
-    [string] $DataPath,
-    [string] $RuntimeSecret,
-    [string] $IdentitySecret
-  )
-  $sql = @"
-ALTER ROLE ventio_runtime_app WITH LOGIN PASSWORD '$RuntimeSecret';
-ALTER ROLE ventio_identity_api_app WITH LOGIN PASSWORD '$IdentitySecret';
-
-"@
-  $result = Invoke-HostRecoveryProcess $postgres @('--single', '-D', $DataPath, '-j', 'postgres') $sql $null 30000
-  if ($result.ExitCode -ne 0 -or $result.StandardOutput -match '(?m)^ERROR:' -or
-      $result.StandardError -match '(?m)^ERROR:') {
-    $failureClass = Get-HostRecoveryRotationFailureClass $result.ExitCode `
-      $result.StandardOutput $result.StandardError
-    $global:VentioProvisioningFailureDetail = 'single_user_exit_code=' + $result.ExitCode + '; failure_class=' + $failureClass
-    throw 'HOST_DATABASE_RECOVERY_ROLE_ROTATION_FAILED'
+function Start-HostCredentialMaintenance {
+  $helper = Join-Path (Split-Path -Parent $postgresRoot) 'VentioHostService.exe'
+  if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) { throw 'HOST_DATABASE_RECOVERY_MAINTENANCE_HELPER_MISSING' }
+  $process = [Diagnostics.Process]::new()
+  $info = [Diagnostics.ProcessStartInfo]::new($helper, '--recover-postgres-credentials')
+  $info.UseShellExecute = $false
+  $info.CreateNoWindow = $true
+  $info.RedirectStandardInput = $true
+  $info.RedirectStandardOutput = $true
+  $info.RedirectStandardError = $true
+  $process.StartInfo = $info
+  try {
+    if (-not $process.Start()) { throw 'HOST_DATABASE_RECOVERY_MAINTENANCE_START_FAILED' }
+    $ready = $process.StandardOutput.ReadLineAsync()
+    if (-not $ready.Wait(45000) -or $ready.GetAwaiter().GetResult() -cne 'HOST_POSTGRES_MAINTENANCE_READY') {
+      throw 'HOST_DATABASE_RECOVERY_MAINTENANCE_NOT_READY'
+    }
+    return $process
+  } catch {
+    if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit(10000) | Out-Null }
+    $process.Dispose()
+    throw
   }
+}
+
+function Invoke-HostSingleUserCredentialRotation {
+  param([Diagnostics.Process] $Maintenance, [string] $RuntimeSecret, [string] $IdentitySecret)
+  # Credentials travel only over inherited stdin and the authenticated local pipe.
+  # The helper has retained the exact service token before Stop-Service; only its
+  # non-administrator worker opens the stopped cluster. ACLs/HBA are unchanged.
+  $request = @{ runtime = $RuntimeSecret; identity = $IdentitySecret } | ConvertTo-Json -Compress
+  try {
+    $Maintenance.StandardInput.WriteLine($request)
+    $Maintenance.StandardInput.Close()
+    $output = $Maintenance.StandardOutput.ReadToEndAsync()
+    $errorOutput = $Maintenance.StandardError.ReadToEndAsync()
+    if (-not $Maintenance.WaitForExit(60000)) { throw 'HOST_DATABASE_RECOVERY_MAINTENANCE_TIMEOUT' }
+    if ($Maintenance.ExitCode -ne 0 -or $output.GetAwaiter().GetResult().Trim() -cne 'HOST_POSTGRES_MAINTENANCE_PASS') {
+      $safeCode = $errorOutput.GetAwaiter().GetResult().Trim()
+      if ($safeCode -match '^HOST_POSTGRES_MAINTENANCE_[A-Z0-9_]+$') { $global:VentioProvisioningFailureDetail = $safeCode }
+      throw 'HOST_DATABASE_RECOVERY_ROLE_ROTATION_FAILED'
+    }
+  } finally { $request = $null }
 }
 
 function Invoke-HostRecoveryMigrationValidation(
@@ -359,35 +364,27 @@ if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') { throw 
 $runtimePassword = Get-HostCredentialPassword $RuntimeCredential 'ventio_runtime_app'
 $identityPassword = Get-HostCredentialPassword $IdentityApiCredential 'ventio_identity_api_app'
 
-if ($TestMode) {
-  $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\ventio-single-user-recovery-test-'
-  $testRoot = [IO.Path]::GetFullPath((Split-Path -Parent $dataDirectory))
-  if (-not $testRoot.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase) -or
-      (Split-Path -Leaf $testRoot) -notmatch '^ventio-single-user-recovery-test-[0-9a-f]{32}$' -or
-      (Split-Path -Leaf $dataDirectory) -cne 'data') { throw 'HOST_DATABASE_RECOVERY_TEST_PATH_INVALID' }
-  Assert-HostRecoveryNoReparseAncestors $dataDirectory $testRoot
-} else {
-  $expectedPostgres = [IO.Path]::GetFullPath((Join-Path $programFiles 'Ventio\host-payload\postgresql'))
-  $expectedData = [IO.Path]::GetFullPath((Join-Path $programData 'Ventio\PostgreSQL\data'))
-  if (-not $postgresRoot.Equals($expectedPostgres, [StringComparison]::OrdinalIgnoreCase) -or
-      -not $dataDirectory.Equals($expectedData, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'HOST_DATABASE_RECOVERY_PRODUCT_PATH_INVALID'
-  }
-  $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
-  if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw 'HOST_DATABASE_RECOVERY_ADMIN_ELEVATION_REQUIRED'
-  }
-  $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='VentioPostgres'" -ErrorAction SilentlyContinue
-  if ($null -eq $service -or $service.StartName -cne 'NT SERVICE\VentioPostgres' -or
-      $service.PathName -notmatch [regex]::Escape((Join-Path $postgresRoot 'bin\pg_ctl.exe')) -or
-      $service.PathName -notmatch [regex]::Escape($dataDirectory)) {
-    throw 'HOST_DATABASE_RECOVERY_SERVICE_IDENTITY_INVALID'
-  }
-  if (Get-Service -Name 'VentioHost' -ErrorAction SilentlyContinue) { throw 'HOST_DATABASE_RECOVERY_HOST_SERVICE_ALREADY_EXISTS' }
-  $postgresService = Get-Service -Name 'VentioPostgres' -ErrorAction Stop
-  $postgresNeedsToRun = $true
-  Assert-HostRecoveryNoReparseAncestors $dataDirectory $programData
+
+$expectedPostgres = [IO.Path]::GetFullPath((Join-Path $programFiles 'Ventio\host-payload\postgresql'))
+$expectedData = [IO.Path]::GetFullPath((Join-Path $programData 'Ventio\PostgreSQL\data'))
+if (-not $postgresRoot.Equals($expectedPostgres, [StringComparison]::OrdinalIgnoreCase) -or
+    -not $dataDirectory.Equals($expectedData, [StringComparison]::OrdinalIgnoreCase)) {
+  throw 'HOST_DATABASE_RECOVERY_PRODUCT_PATH_INVALID'
 }
+$principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  throw 'HOST_DATABASE_RECOVERY_ADMIN_ELEVATION_REQUIRED'
+}
+$service = Get-CimInstance -ClassName Win32_Service -Filter "Name='VentioPostgres'" -ErrorAction SilentlyContinue
+if ($null -eq $service -or $service.StartName -cne 'NT SERVICE\VentioPostgres' -or
+    $service.PathName -notmatch [regex]::Escape((Join-Path $postgresRoot 'bin\pg_ctl.exe')) -or
+    $service.PathName -notmatch [regex]::Escape($dataDirectory)) {
+  throw 'HOST_DATABASE_RECOVERY_SERVICE_IDENTITY_INVALID'
+}
+if (Get-Service -Name 'VentioHost' -ErrorAction SilentlyContinue) { throw 'HOST_DATABASE_RECOVERY_HOST_SERVICE_ALREADY_EXISTS' }
+$postgresService = Get-Service -Name 'VentioPostgres' -ErrorAction Stop
+$postgresNeedsToRun = $true
+Assert-HostRecoveryNoReparseAncestors $dataDirectory $programData
 
 if (-not (Test-Path -LiteralPath (Join-Path $dataDirectory 'PG_VERSION') -PathType Leaf) -or
     (Get-Content -LiteralPath (Join-Path $dataDirectory 'PG_VERSION') -Raw).Trim() -ne '16') {
@@ -395,81 +392,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $dataDirectory 'PG_VERSION') -PathTy
 }
 
 try {
-  if ($TestMode) {
-    Invoke-HostSingleUserCredentialRotation $dataDirectory $runtimePassword $identityPassword
-    $portListener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
-    $portListener.Start()
-    $testPort = ([Net.IPEndPoint]$portListener.LocalEndpoint).Port
-    $portListener.Stop()
-    $testOutput = Join-Path (Split-Path -Parent $dataDirectory) 'postgres.stdout.log'
-    $testError = Join-Path (Split-Path -Parent $dataDirectory) 'postgres.stderr.log'
-    $serverArguments = @('-D', $dataDirectory, '-h', '127.0.0.1', '-p', [string]$testPort)
-    $quotedArguments = foreach ($argument in $serverArguments) { ConvertTo-HostRecoveryArgument ([string]$argument) }
-    $testServerProcess = Start-Process -FilePath $postgres `
-      -ArgumentList ([string]::Join(' ', [string[]]$quotedArguments)) -WorkingDirectory $bin `
-      -WindowStyle Hidden -PassThru -RedirectStandardOutput $testOutput -RedirectStandardError $testError
-    $testServerStarted = $true
-    Test-HostRecoveryReadiness $testPort
-    Assert-HostRoleLogin 'ventio_runtime_app' $runtimePassword $testPort
-    Assert-HostRoleLogin 'ventio_identity_api_app' $identityPassword $testPort
-    if ($TestBootstrapCredential.UserName -cne 'ventio_bootstrap') {
-      throw 'HOST_DATABASE_RECOVERY_TEST_BOOTSTRAP_CREDENTIAL_INVALID'
-    }
-    $testBootstrapPassword = $TestBootstrapCredential.GetNetworkCredential().Password
-    if ($testBootstrapPassword -notmatch '^[A-Za-z0-9_-]{43}$') {
-      throw 'HOST_DATABASE_RECOVERY_TEST_BOOTSTRAP_CREDENTIAL_INVALID'
-    }
-    $migrationFiles = @(Get-ChildItem -LiteralPath $TestMigrationDirectory -Filter '*.sql' -File -Recurse)
-    $ledgerRows = foreach ($file in $migrationFiles) {
-      "('$($file.Name.Replace("'", "''"))','fixture')"
-    }
-    $ledgerSql = @"
-GRANT CREATE ON SCHEMA public TO ventio_owner;
-SET ROLE ventio_owner;
-CREATE TABLE public.ventio_schema_migrations (
-  name text PRIMARY KEY, sha256 text NOT NULL,
-  applied_at timestamptz NOT NULL DEFAULT now()
-);
-INSERT INTO public.ventio_schema_migrations(name,sha256)
-VALUES $($ledgerRows -join ",`n");
-RESET ROLE;
-"@
-    $ledgerSeed = Invoke-HostRecoveryProcess $psql @(
-      '-X', '-w', '-q', '-h', '127.0.0.1', '-p', [string]$testPort, '-U', 'ventio_bootstrap',
-      '-d', 'ventio_host', '-v', 'ON_ERROR_STOP=1', '-c', $ledgerSql
-    ) $null @{ PGPASSWORD = $testBootstrapPassword; PGCONNECT_TIMEOUT = '5' } 15000
-    $testBootstrapPassword = $null
-    if ($ledgerSeed.ExitCode -ne 0 -or $ledgerSeed.StandardError -match '(?m)^ERROR:') {
-      $seedErrorClass = if ($ledgerSeed.StandardError -match '(?i)password authentication failed') {
-        'authentication_failed'
-      } elseif ($ledgerSeed.StandardError -match '(?i)permission denied|must be member') {
-        'permission_denied'
-      } elseif ($ledgerSeed.StandardError -match '(?i)does not exist|undefined table') {
-        'object_missing'
-      } elseif ($ledgerSeed.StandardError -match '(?i)syntax error') {
-        'syntax_error'
-      } else {
-        'seed_failed'
-      }
-      $global:VentioProvisioningFailureDetail = 'test_ledger_seed_exit_code=' + $ledgerSeed.ExitCode + '; failure_class=' + $seedErrorClass
-      throw 'HOST_DATABASE_RECOVERY_TEST_MIGRATION_LEDGER_SEED_FAILED'
-    }
-    $testMigrationPassword = $TestMigrationCredential.GetNetworkCredential().Password
-    $directLedgerRead = Invoke-HostRecoveryProcess $psql @(
-      '-X', '-w', '-h', '127.0.0.1', '-p', [string]$testPort, '-U', 'ventio_migrator_app',
-      '-d', 'ventio_host', '-v', 'ON_ERROR_STOP=1', '-Atc', 'SELECT count(*) FROM public.ventio_schema_migrations'
-    ) $null @{ PGPASSWORD = $testMigrationPassword; PGCONNECT_TIMEOUT = '5' } 15000
-    $testMigrationPassword = $null
-    if ($directLedgerRead.ExitCode -eq 0 -or
-        $directLedgerRead.StandardError -notmatch '(?i)permission denied') {
-      throw 'HOST_DATABASE_RECOVERY_TEST_DIRECT_LEDGER_READ_BOUNDARY_INVALID'
-    }
-    Invoke-HostRecoveryMigrationValidation $testPort $TestMigrationCredential $TestMigrationDirectory
-    Write-Output 'HOST_DATABASE_RECOVERY_MIGRATION_LEDGER_TEST_PASS'
-    Write-Output 'HOST_DATABASE_CREDENTIAL_RECOVERY_TEST_PASS'
-    return
-  }
-
   if ($postgresService.Status -eq 'Stopped') {
     Start-Service -Name 'VentioPostgres' -ErrorAction Stop
     Wait-HostRecoveryService 'VentioPostgres' 'Running'
@@ -479,6 +401,7 @@ RESET ROLE;
   Test-HostRecoveryReadiness $Port
   Invoke-HostRecoveryMigrationValidation $Port
 
+  $maintenanceProcess = Start-HostCredentialMaintenance
   Stop-Service -Name 'VentioPostgres' -Force -ErrorAction Stop
   Wait-HostRecoveryService 'VentioPostgres' 'Stopped'
   $inventory = Get-HostDataInventory $dataDirectory
@@ -513,7 +436,7 @@ RESET ROLE;
   Set-HostRecoveryBackupAcl $manifestPath
   [IO.Directory]::Move($partialRoot, $backupRoot)
 
-  Invoke-HostSingleUserCredentialRotation $dataDirectory $runtimePassword $identityPassword
+  Invoke-HostSingleUserCredentialRotation $maintenanceProcess $runtimePassword $identityPassword
   Start-Service -Name 'VentioPostgres' -ErrorAction Stop
   Wait-HostRecoveryService 'VentioPostgres' 'Running'
   Test-HostRecoveryReadiness $Port
@@ -522,12 +445,15 @@ RESET ROLE;
   Write-Output 'HOST_DATABASE_CREDENTIAL_RECOVERY_PASS'
   Write-Output "Verified PostgreSQL backup: $backupRoot"
 } finally {
-  if ($TestMode -and $testServerStarted -and $null -ne $testServerProcess) {
-    $stopResult = Invoke-HostRecoveryProcess $pgCtl @('-D', $dataDirectory, '-m', 'fast', '-w', '-t', '30', 'stop') $null $null 45000
-    if ($stopResult.ExitCode -ne 0) { throw 'HOST_DATABASE_RECOVERY_TEST_SERVER_STOP_FAILED' }
-    [void]$testServerProcess.WaitForExit(15000)
-    if (-not $testServerProcess.HasExited) { throw 'HOST_DATABASE_RECOVERY_TEST_SERVER_STILL_RUNNING' }
-  } elseif (-not $TestMode -and $postgresNeedsToRun) {
+  if ($null -ne $maintenanceProcess) {
+    try {
+      if (-not $maintenanceProcess.HasExited) {
+        $maintenanceProcess.StandardInput.Close()
+        if (-not $maintenanceProcess.WaitForExit(15000)) { $maintenanceProcess.Kill(); $maintenanceProcess.WaitForExit(10000) | Out-Null }
+      }
+    } finally { $maintenanceProcess.Dispose() }
+  }
+  if ($postgresNeedsToRun) {
     $currentService = Get-Service -Name 'VentioPostgres' -ErrorAction SilentlyContinue
     if ($currentService -and $currentService.Status -ne 'Running') {
       Start-Service -Name 'VentioPostgres' -ErrorAction Stop
