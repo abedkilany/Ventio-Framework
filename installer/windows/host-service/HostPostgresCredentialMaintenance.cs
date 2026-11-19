@@ -31,6 +31,7 @@ internal static class HostPostgresCredentialMaintenance
     // manifest work. A stale coordinator/token lease still expires fail-closed.
     private static readonly TimeSpan BackupDeadline = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan RotationDeadline = TimeSpan.FromSeconds(30);
+    private static readonly object ServiceTokenInspectionLock = new();
 
     internal static int Coordinate(PostgresMaintenanceTarget target, string[] workerArguments)
     {
@@ -43,43 +44,37 @@ internal static class HostPostgresCredentialMaintenance
             var before = ReadStatus(service);
             var servicePid = checked((int)before.ProcessId);
             if (!SamePath(ProcessImage(servicePid), target.PgCtl)) throw Failure("SERVICE_PROCESS");
-            var source = OpenServiceToken(servicePid);
-            using (source)
+            using (var primary = OpenServiceToken(servicePid))
             {
-                if (!DuplicateTokenEx(source, 0x0001 | 0x0002 | 0x0008, IntPtr.Zero, 2, 1, out var primary))
-                    throw NativeFailure("SERVICE_TOKEN_DUPLICATE");
-                using (primary)
-                {
-                    using var identity = new WindowsIdentity(primary.DangerousGetHandle());
-                    if (identity.User?.Value != target.ServiceSid ||
-                        new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
-                        throw Failure("SERVICE_TOKEN_IDENTITY");
-                    var after = ReadStatus(service);
-                    if (after.CurrentState != 4 || after.ProcessId != before.ProcessId) throw Failure("SERVICE_PROCESS_CHANGED");
-                    var pipeName = "Ventio.PostgresMaintenance." + Guid.NewGuid().ToString("N");
-                    using var pipe = CreatePipe(pipeName, target.ServiceSid);
-                    worker = StartWorker(primary, workerArguments.Concat(new[] { pipeName, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture) }).ToArray());
-                    using var connectionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                    pipe.WaitForConnectionAsync(connectionDeadline.Token).GetAwaiter().GetResult();
-                    if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var clientPid) || clientPid != worker.Id)
-                        throw Failure("WORKER_PIPE_IDENTITY");
-                    using var reader = new StreamReader(pipe, new UTF8Encoding(false, true), false, 1024, leaveOpen: true);
-                    using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true };
-                    if (ReadLine(reader, TimeSpan.FromSeconds(15)) != Ready) throw Failure("WORKER_READINESS");
-                    Console.Out.WriteLine(Ready);
-                    Console.Out.Flush();
-                    using var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false, true), false, 1024, leaveOpen: true);
-                    var request = ReadLine(input, BackupDeadline);
-                    ValidateRequest(request);
-                    using var stopped = OpenValidatedService(target, running: false);
-                    writer.WriteLine(request);
-                    request = null;
-                    var result = ReadLine(reader, TimeSpan.FromSeconds(45));
-                    if (result != Complete) throw Failure("ROTATION_FAILED");
-                    if (!worker.WaitForExit(10000) || worker.ExitCode != 0) throw Failure("WORKER_EXIT");
-                    Console.Out.WriteLine(Complete);
-                    return 0;
-                }
+                using var identity = new WindowsIdentity(primary.DangerousGetHandle());
+                if (identity.User?.Value != target.ServiceSid ||
+                    new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
+                    throw Failure("SERVICE_TOKEN_IDENTITY");
+                var after = ReadStatus(service);
+                if (after.CurrentState != 4 || after.ProcessId != before.ProcessId) throw Failure("SERVICE_PROCESS_CHANGED");
+                var pipeName = "Ventio.PostgresMaintenance." + Guid.NewGuid().ToString("N");
+                using var pipe = CreatePipe(pipeName, target.ServiceSid);
+                worker = StartWorker(primary, workerArguments.Concat(new[] { pipeName, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture) }).ToArray());
+                using var connectionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                pipe.WaitForConnectionAsync(connectionDeadline.Token).GetAwaiter().GetResult();
+                if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var clientPid) || clientPid != worker.Id)
+                    throw Failure("WORKER_PIPE_IDENTITY");
+                using var reader = new StreamReader(pipe, new UTF8Encoding(false, true), false, 1024, leaveOpen: true);
+                using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true };
+                if (ReadLine(reader, TimeSpan.FromSeconds(15)) != Ready) throw Failure("WORKER_READINESS");
+                Console.Out.WriteLine(Ready);
+                Console.Out.Flush();
+                using var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false, true), false, 1024, leaveOpen: true);
+                var request = ReadLine(input, BackupDeadline);
+                ValidateRequest(request);
+                using var stopped = OpenValidatedService(target, running: false);
+                writer.WriteLine(request);
+                request = null;
+                var result = ReadLine(reader, TimeSpan.FromSeconds(45));
+                if (result != Complete) throw Failure("ROTATION_FAILED");
+                if (!worker.WaitForExit(10000) || worker.ExitCode != 0) throw Failure("WORKER_EXIT");
+                Console.Out.WriteLine(Complete);
+                return 0;
             }
         }
         catch (Exception exception)
@@ -300,16 +295,78 @@ internal static class HostPostgresCredentialMaintenance
         if (!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator)) throw Failure("ADMIN_REQUIRED");
     }
     private static bool SamePath(string left, string right) => Path.GetFullPath(left).TrimEnd('\\').Equals(Path.GetFullPath(right).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
-    private static SafeAccessTokenHandle OpenServiceToken(int pid)
+    internal static SafeAccessTokenHandle OpenServiceToken(int pid)
     {
-        var process = OpenProcess(0x1000, false, pid); // The token API requires only PROCESS_QUERY_LIMITED_INFORMATION.
-        if (process == IntPtr.Zero) throw NativeFailure("SERVICE_PROCESS_OPEN");
+        RequireAdministrator();
+        lock (ServiceTokenInspectionLock)
+        {
+            SafeAccessTokenHandle? captured = null;
+            try
+            {
+                // Windows requires this *already assigned* administrator
+                // privilege to inspect the token of a different account. Keep
+                // it enabled only while capturing that token, not while holding
+                // the lease, copying data, launching the worker, or doing SQL.
+                using (var inspection = EnableServiceTokenInspection())
+                {
+                    var process = OpenProcess(0x1000, false, pid);
+                    if (process == IntPtr.Zero) throw NativeFailure("SERVICE_PROCESS_OPEN");
+                    try
+                    {
+                        if (!OpenProcessToken(process, 0x0002 | 0x0008, out var source)) throw NativeFailure("SERVICE_TOKEN_OPEN");
+                        using (source)
+                        {
+                            if (!DuplicateTokenEx(source, 0x0001 | 0x0002 | 0x0008, IntPtr.Zero, 2, 1, out var primary))
+                                throw NativeFailure("SERVICE_TOKEN_DUPLICATE");
+                            captured = primary;
+                        }
+                    }
+                    finally { CloseHandle(process); }
+                }
+                return captured ?? throw Failure("SERVICE_TOKEN_OPEN");
+            }
+            catch { captured?.Dispose(); throw; }
+        }
+    }
+    private static ServiceTokenInspectionScope EnableServiceTokenInspection()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), 0x0020 | 0x0008, out var token)) throw NativeFailure("INSPECTION_TOKEN_OPEN");
         try
         {
-            if (!OpenProcessToken(process, 0x0002 | 0x0008, out var token)) throw NativeFailure("SERVICE_TOKEN_OPEN");
-            return token;
+            if (!LookupPrivilegeValueW(null, "SeDebugPrivilege", out var luid)) throw NativeFailure("INSPECTION_PRIVILEGE_LOOKUP");
+            var requested = new TokenPrivileges { Count = 1, Luid = luid, Attributes = 0x00000002 };
+            if (!AdjustTokenPrivileges(token, false, ref requested, (uint)Marshal.SizeOf<TokenPrivileges>(), out var previous, out _))
+                throw NativeFailure("INSPECTION_PRIVILEGE_ENABLE");
+            var error = Marshal.GetLastWin32Error();
+            if (error != 0)
+            {
+                // AdjustTokenPrivileges can return true with
+                // ERROR_NOT_ALL_ASSIGNED. It cannot grant a missing privilege.
+                using var rollback = new ServiceTokenInspectionScope(token, previous);
+                throw Failure("INSPECTION_PRIVILEGE_ENABLE_WIN32_" + error.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            return new ServiceTokenInspectionScope(token, previous);
         }
-        finally { CloseHandle(process); }
+        catch { token.Dispose(); throw; }
+    }
+    private sealed class ServiceTokenInspectionScope(SafeAccessTokenHandle token, TokenPrivileges previous) : IDisposable
+    {
+        private bool _disposed;
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            try
+            {
+                if (previous.Count == 0) return;
+                var restore = previous;
+                if (!AdjustTokenPrivileges(token, false, ref restore, (uint)Marshal.SizeOf<TokenPrivileges>(), out _, out _))
+                    throw NativeFailure("INSPECTION_PRIVILEGE_RESTORE");
+                var error = Marshal.GetLastWin32Error();
+                if (error != 0) throw Failure("INSPECTION_PRIVILEGE_RESTORE_WIN32_" + error.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            finally { token.Dispose(); }
+        }
     }
     private static string ProcessImage(int pid)
     {
@@ -334,9 +391,14 @@ internal static class HostPostgresCredentialMaintenance
     [StructLayout(LayoutKind.Sequential)] private struct ProcessInformation { public IntPtr Process, Thread; public uint ProcessId, ThreadId; }
     [StructLayout(LayoutKind.Sequential)] private struct ServiceStatus { public uint ServiceType, CurrentState, ControlsAccepted, Win32ExitCode, ServiceSpecificExitCode, CheckPoint, WaitHint, ProcessId, ServiceFlags; }
     [StructLayout(LayoutKind.Sequential)] private struct ServiceConfig { public uint ServiceType, StartType, ErrorControl; public IntPtr BinaryPath, LoadOrderGroup; public uint TagId; public IntPtr Dependencies, StartName, DisplayName; }
+    [StructLayout(LayoutKind.Sequential)] private struct Luid { public uint LowPart; public int HighPart; }
+    [StructLayout(LayoutKind.Sequential)] private struct TokenPrivileges { public uint Count; public Luid Luid; public uint Attributes; }
     private sealed class SafeServiceHandle : SafeHandleZeroOrMinusOneIsInvalid
     { private SafeServiceHandle() : base(true) { } protected override bool ReleaseHandle() => CloseServiceHandle(handle); }
     [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeAccessTokenHandle token);
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool LookupPrivilegeValueW(string? system, string name, out Luid luid);
+    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, [MarshalAs(UnmanagedType.Bool)] bool disableAll, ref TokenPrivileges requested, uint length, out TokenPrivileges previous, out uint needed);
     [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DuplicateTokenEx(SafeAccessTokenHandle token, uint access, IntPtr attributes, int impersonation, int type, out SafeAccessTokenHandle primary);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CreateProcessWithTokenW(SafeAccessTokenHandle token, uint logonFlags, string application, StringBuilder command, uint flags, IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation child);
     [DllImport("userenv.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CreateEnvironmentBlock(out IntPtr environment, SafeAccessTokenHandle token, [MarshalAs(UnmanagedType.Bool)] bool inherit);

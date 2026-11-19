@@ -1,9 +1,12 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.Win32.SafeHandles;
 
 internal static class PostgresCredentialMaintenanceFixture
 {
@@ -11,6 +14,15 @@ internal static class PostgresCredentialMaintenanceFixture
     {
         if (args[0] == "--pg-maintenance-coordinator" && args.Length == 4)
             return HostPostgresCredentialMaintenance.Coordinate(Target(args), ["--pg-maintenance-worker", args[1], args[2], args[3]]);
+        if (args[0] == "--pg-maintenance-coordinator-without-debug" && args.Length == 4)
+        {
+            // Remove the privilege only from this disposable test child. The
+            // product must reject its absence instead of widening token DACLs.
+            using var token = CurrentPrivilegeToken();
+            var removed = DebugState(4);
+            if (!AdjustTokenPrivileges(token, false, ref removed, (uint)Marshal.SizeOf<TokenPrivileges>(), out _, out _) || Marshal.GetLastWin32Error() != 0) return 4;
+            return HostPostgresCredentialMaintenance.Coordinate(Target(args), ["--pg-maintenance-worker", args[1], args[2], args[3]]);
+        }
         if (args[0] == "--pg-maintenance-worker" && args.Length == 6 && int.TryParse(args[5], out var pid))
             return HostPostgresCredentialMaintenance.Work(Target(args), args[4], pid);
         if (args[0] == "--postgres-recovery-fixture" && args.Length == 2) return Run(args[1]);
@@ -90,6 +102,8 @@ internal static class PostgresCredentialMaintenanceFixture
             Require(originalBoundary.ExitCode != 0 && originalBoundary.Error.Contains("administrative", StringComparison.OrdinalIgnoreCase),
                 "direct-administrator-backend-is-rejected");
             Start(name, target, port);
+
+            VerifyInspectionPrivilegeScope(target);
 
             using (var coordinator = Begin(target))
             {
@@ -202,6 +216,81 @@ internal static class PostgresCredentialMaintenanceFixture
         foreach (var argument in new[] { "--pg-maintenance-coordinator", target.ServiceName, target.PostgresRoot, target.DataDirectory }) info.ArgumentList.Add(argument);
         return Process.Start(info) ?? throw new InvalidOperationException("Coordinator start failed.");
     }
+    private static void VerifyInspectionPrivilegeScope(PostgresMaintenanceTarget target)
+    {
+        var match = Regex.Match(Sc(["queryex", target.ServiceName]).Output, @"\bPID\s*:\s*(\d+)", RegexOptions.CultureInvariant);
+        if (!match.Success) throw new InvalidOperationException("Fixture service PID missing.");
+        var pid = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        using var token = CurrentPrivilegeToken();
+        var disabled = DebugState(0);
+        if (!AdjustTokenPrivileges(token, false, ref disabled, (uint)Marshal.SizeOf<TokenPrivileges>(), out var original, out _) || Marshal.GetLastWin32Error() != 0)
+            throw new InvalidOperationException("Fixture could not establish disabled debug privilege.");
+        try
+        {
+            Require(!DebugEnabled(token), "inspection-fixture-starts-with-debug-privilege-disabled");
+            using (var captured = HostPostgresCredentialMaintenance.OpenServiceToken(pid))
+            using (var serviceIdentity = new WindowsIdentity(captured.DangerousGetHandle()))
+                Require(serviceIdentity.User?.Value == target.ServiceSid, "scoped-inspection-captures-only-service-identity");
+            Require(!DebugEnabled(token), "inspection-privilege-restored-after-token-open");
+            var rejected = false;
+            try { using var invalid = HostPostgresCredentialMaintenance.OpenServiceToken(int.MaxValue); }
+            catch (InvalidOperationException exception) when (exception.Message.StartsWith("HOST_POSTGRES_MAINTENANCE_SERVICE_PROCESS_OPEN_", StringComparison.Ordinal)) { rejected = true; }
+            Require(rejected && !DebugEnabled(token), "inspection-privilege-restored-after-process-open-failure");
+        }
+        finally
+        {
+            if (original.Count > 0 && (!AdjustTokenPrivileges(token, false, ref original, (uint)Marshal.SizeOf<TokenPrivileges>(), out _, out _) || Marshal.GetLastWin32Error() != 0))
+                throw new InvalidOperationException("Fixture debug privilege restoration failed.");
+        }
+        var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var argument in new[] { "--pg-maintenance-coordinator-without-debug", target.ServiceName, target.PostgresRoot, target.DataDirectory }) info.ArgumentList.Add(argument);
+        using var withoutDebug = Process.Start(info) ?? throw new InvalidOperationException("Missing-privilege test child failed.");
+        withoutDebug.StandardInput.Close();
+        var output = withoutDebug.StandardOutput.ReadToEndAsync();
+        var error = withoutDebug.StandardError.ReadToEndAsync();
+        if (!withoutDebug.WaitForExit(30000)) { withoutDebug.Kill(entireProcessTree: true); throw new InvalidOperationException("Missing-privilege child timeout."); }
+        Require(withoutDebug.ExitCode != 0 && !output.GetAwaiter().GetResult().Contains(HostPostgresCredentialMaintenance.Ready, StringComparison.Ordinal) &&
+            error.GetAwaiter().GetResult().Trim() == "HOST_POSTGRES_MAINTENANCE_INSPECTION_PRIVILEGE_ENABLE_WIN32_1300", "missing-inspection-privilege-is-rejected-without-grant");
+    }
+    private static SafeAccessTokenHandle CurrentPrivilegeToken()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), 0x0020 | 0x0008, out var token)) throw new InvalidOperationException("Fixture token query failed.");
+        return token;
+    }
+    private static TokenPrivileges DebugState(uint attributes)
+    {
+        if (!LookupPrivilegeValueW(null, "SeDebugPrivilege", out var luid)) throw new InvalidOperationException("Fixture privilege lookup failed.");
+        return new TokenPrivileges { Count = 1, Luid = luid, Attributes = attributes };
+    }
+    private static bool DebugEnabled(SafeAccessTokenHandle token)
+    {
+        var luid = DebugState(0).Luid;
+        if (GetTokenInformation(token, 3, IntPtr.Zero, 0, out var needed) || Marshal.GetLastWin32Error() != 122 || needed < 4 || needed > 65536)
+            throw new InvalidOperationException("Fixture privilege size query failed.");
+        var buffer = Marshal.AllocHGlobal(needed);
+        try
+        {
+            if (!GetTokenInformation(token, 3, buffer, needed, out _)) throw new InvalidOperationException("Fixture privilege query failed.");
+            var count = Marshal.ReadInt32(buffer);
+            if (count < 0 || 4L + count * 12L > needed) throw new InvalidOperationException("Fixture privilege result invalid.");
+            for (var i = 0; i < count; i++)
+            {
+                var entry = IntPtr.Add(buffer, 4 + i * 12);
+                if (unchecked((uint)Marshal.ReadInt32(entry)) == luid.Low && Marshal.ReadInt32(entry, 4) == luid.High)
+                    return (Marshal.ReadInt32(entry, 8) & 2) != 0;
+            }
+            return false;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct Luid { public uint Low; public int High; }
+    [StructLayout(LayoutKind.Sequential)] private struct TokenPrivileges { public uint Count; public Luid Luid; public uint Attributes; }
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeAccessTokenHandle token);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool LookupPrivilegeValueW(string? system, string name, out Luid luid);
+    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, [MarshalAs(UnmanagedType.Bool)] bool disableAll, ref TokenPrivileges requested, uint length, out TokenPrivileges previous, out uint needed);
+    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetTokenInformation(SafeAccessTokenHandle token, int kind, IntPtr buffer, int length, out int needed);
     private static Result CoordinatorWithoutHandshake(PostgresMaintenanceTarget target, string input)
     {
         using var process = StartCoordinator(target);
