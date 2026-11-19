@@ -48,11 +48,19 @@ jobs:
         if: ${{ !cancelled() && inputs.scope != 'recovery-observer' }}
         shell: powershell
         run: ./scripts/ci/test-recovery-script-signing.ps1
+      - name: Preserve completed identity and signing evidence before SQL setup
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovery-admission-pre-sql-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/recovery-admission/*
+          if-no-files-found: warn
+          retention-days: 30
       - name: Exercise real PostgreSQL observer security and initialization
         if: ${{ !cancelled() && inputs.scope != 'recovery-signing' }}
         timeout-minutes: 12
-        shell: powershell
-        run: ./scripts/ci/test-recovery-lab-observer.ps1
+        shell: pwsh
+        run: ./scripts/ci/run-recovery-observer-fixture.ps1
       - name: Verify affected existing provisioning and installer contracts
         if: ${{ !cancelled() && inputs.scope != 'recovery-signing' }}
         shell: powershell

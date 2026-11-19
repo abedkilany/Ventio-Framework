@@ -3,6 +3,9 @@ Set-StrictMode -Version Latest
 if($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:COMPUTERNAME -in @('BAHAA','TEST-01','TEST-02')){throw 'HOSTED_OBSERVER_FIXTURE_ONLY'}
 if((Get-Service VentioHost,VentioPostgres -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:ProgramData 'Ventio'))){throw 'NO_INSTALLED_PRODUCT_ALLOWED'}
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+$out=Join-Path $repo 'test-results/recovery-admission';[void][IO.Directory]::CreateDirectory($out)
+function Progress-State([string]$Stage){Write-Host ('OBS-FIXTURE '+$Stage);@{stage=$Stage;utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json|Set-Content (Join-Path $out 'observer-progress.json')}
+Progress-State 'stage-tool-layout'
 Import-Module (Join-Path $repo 'scripts/windows/RecoveryLabObserver.psm1') -Force
 $root=Join-Path ([IO.Path]::GetTempPath()) ('ventio-pg-initdb-test-'+[guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($root)
 $payload=Join-Path $root 'payload';[void][IO.Directory]::CreateDirectory($payload)
@@ -27,16 +30,18 @@ function Sql([int]$Port,[string]$User,[string]$Secret,[string]$Database,[string]
   try{$stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync();$process.StandardInput.Write($Text);$process.StandardInput.Close();if(-not $process.WaitForExit(60000)){$process.Kill();throw 'SQL_TIMEOUT'};return @{code=$process.ExitCode;value=$stdout.GetAwaiter().GetResult().Trim();error=$stderr.GetAwaiter().GetResult()}}finally{$process.Dispose()}
 }
 function Require([bool]$Value,[string]$Message){if(-not $Value){throw $Message}}
-function Case([string]$Id,[scriptblock]$Body){try{& $Body;$results.Add(@{id=$Id;status='PASSED'});Write-Output "PASS $Id"}catch{$results.Add(@{id=$Id;status='FAILED';reason=$_.Exception.Message});Write-Output "FAIL $Id $($_.Exception.Message)"}}
+function Case([string]$Id,[scriptblock]$Body){Progress-State $Id;try{& $Body;$results.Add(@{id=$Id;status='PASSED'});Write-Output "PASS $Id"}catch{$results.Add(@{id=$Id;status='FAILED';reason=$_.Exception.Message});Write-Output "FAIL $Id $($_.Exception.Message)"}finally{@{sourceCommit=$env:GITHUB_SHA;cases=@($results.ToArray())}|ConvertTo-Json -Depth 8|Set-Content (Join-Path $out 'observer-partial.json')}}
 function Free-Port {$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$listener.Start();$port=$listener.LocalEndpoint.Port;$listener.Stop();return $port}
 function Start-Cluster([string]$Data,[int]$Port){
-  Write-Host 'OBS-FIXTURE starting isolated cluster'
-  & (Join-Path $bin 'pg_ctl.exe') -D $Data -l ($Data+'.log') -o "-h 127.0.0.1 -p $Port" -w start|Out-Null
-  if($LASTEXITCODE){throw 'CI_CLUSTER_START_FAILED'}
+  Progress-State 'start-isolated-cluster'
+  # A long-lived Windows server must not inherit a PowerShell pipeline's handles.
+  $arguments='-D "'+$Data+'" -l "'+$Data+'.log" -o "-h 127.0.0.1 -p '+$Port+'" -w start'
+  $control=Start-Process -FilePath (Join-Path $bin 'pg_ctl.exe') -ArgumentList $arguments -WindowStyle Hidden -PassThru
+  try{if(-not $control.WaitForExit(60000)){$control.Kill();throw 'CI_CLUSTER_START_TIMEOUT'};if($control.ExitCode){throw 'CI_CLUSTER_START_FAILED'}}finally{$control.Dispose()}
   $running.Add(@{data=$Data;port=$Port})
 }
-function New-Cluster([string]$Name,[bool]$Observer,[switch]$FailHba){
-  Write-Host ('OBS-FIXTURE initializing '+$Name)
+function New-Cluster([string]$Name,[bool]$Observer,[switch]$FailHba,[switch]$PreExistingObserver){
+  Progress-State ('initialize-'+$Name)
   $data=Join-Path $root $Name;$port=Free-Port
   $pwFile=Join-Path $root ($Name+'-pw.txt')
   [IO.File]::WriteAllText($pwFile,$password,[Text.UTF8Encoding]::new($false))
@@ -46,21 +51,28 @@ function New-Cluster([string]$Name,[bool]$Observer,[switch]$FailHba){
   Set-Acl -LiteralPath $pwFile -AclObject $acl
   & (Join-Path $bin 'initdb.exe') -D $data --no-sync --locale=C --username=ventio_bootstrap --auth=scram-sha-256 "--pwfile=$pwFile"|Out-Null
   if($LASTEXITCODE){throw 'CI_INITDB_FAILED'}
+  Progress-State ('initdb-completed-'+$Name)
   # Only a random fixture password file, never production data or credentials.
   Remove-Item -LiteralPath $pwFile
   Start-Cluster $data $port
   $seed=Sql $port 'ventio_bootstrap' $password 'postgres' "CREATE ROLE ventio_ci_seed LOGIN SUPERUSER PASSWORD '$password';"
   Require ($seed.code -eq 0) 'Independent CI seed administrator creation failed'
+  if($PreExistingObserver){$q=Sql $port 'ventio_bootstrap' $password 'postgres' "CREATE ROLE ventio_w2_observer LOGIN PASSWORD '$observerPassword'";Require ($q.code -eq 0) 'Existing-role negative fixture failed'}
   if($FailHba){Add-Content (Join-Path $data 'pg_hba.conf') '# ventio_w2_observer pre-existing conflict'}
   $arguments=@{PostgresRoot=$pg;DataDirectory=$data;Port=$port;BootstrapCredential=(Credential 'ventio_bootstrap' $password);RuntimeCredential=(Credential 'ventio_runtime_app' $password);IdentityApiCredential=(Credential 'ventio_identity_api_app' $password);MigrationCredential=(Credential 'ventio_migrator_app' $password);Apply=$true;TestMode=$true}
   if($Observer){$arguments.DisposableObserverCredential=Credential 'ventio_w2_observer' $observerPassword;$arguments.ObserverValidUntilUtc=[DateTime]::UtcNow.AddHours(4)}
   $failed=$false
-  try{& (Join-Path $repo 'scripts/windows/initialize-host-database.ps1') @arguments|Out-Null}catch{$failed=$true;if(-not $FailHba){throw}}
+  $failureReason=''
+  Progress-State ('production-initializer-'+$Name)
+  try{& (Join-Path $repo 'scripts/windows/initialize-host-database.ps1') @arguments|Out-Null}catch{$failed=$true;$failureReason=$_.Exception.Message;if(-not ($FailHba -or $PreExistingObserver)){throw}}
   if($FailHba){Require $failed 'Expected initializer failure not observed'}
-  return @{data=$data;port=$port}
+  if($PreExistingObserver){Require $failed 'Existing observer was accepted'}
+  Progress-State ('initializer-completed-'+$Name)
+  return @{data=$data;port=$port;failureReason=$failureReason}
 }
 try {
   $cluster=New-Cluster 'observer' $true;$port=$cluster.port
+  Progress-State 'seed-real-records'
   $seedSql=@'
 INSERT INTO public.ventio_records(tenant_id,company_id,branch_id,module_id,doc_type,record_id,revision,record_data) VALUES
  ('w2-physical-disposable','w2-company','w2-branch','com.example.wave2','Asset','W2-BACKUP-SENTINEL',1,'{"name":"before-backup"}'),
@@ -84,9 +96,9 @@ INSERT INTO public.ventio_command_journal(tenant_id,command_id,company_id,branch
     @{id='OBS07-set-owner-role-denied';sql='SET ROLE ventio_w2_observer_owner'},
     @{id='OBS08-private-recovery-schema-denied';sql='SELECT * FROM ventio_security.command_bindings'},
     @{id='OBS09-create-role-denied';sql='BEGIN READ WRITE; CREATE ROLE observer_escalation'},
-    @{id='OBS10-create-object-denied';sql='BEGIN READ WRITE; CREATE TABLE ventio_w2_fixture.bad(id integer)'}
-    ,@{id='OBS23-identity-admin-function-denied';sql="SELECT ventio_security.admin_change('{}'::jsonb)"}
-    ,@{id='OBS24-temp-object-denied';sql='BEGIN READ WRITE; CREATE TEMP TABLE observer_temp(id integer)'}
+    @{id='OBS10-create-object-denied';sql='BEGIN READ WRITE; CREATE TABLE ventio_w2_fixture.bad(id integer)'},
+    @{id='OBS23-identity-admin-function-denied';sql="SELECT ventio_security.admin_change('{}'::jsonb)"},
+    @{id='OBS24-temp-object-denied';sql='BEGIN READ WRITE; CREATE TEMP TABLE observer_temp(id integer)'}
   )){Case $entry.id {$q=Sql $port 'ventio_w2_observer' $observerPassword 'ventio_host' $entry.sql;Require ($q.code -ne 0 -and $q.error -match '42501') 'Expected SQL permission denial not observed'}}
   Case 'OBS11-wrong-database-hba-denied' {$q=Sql $port 'ventio_w2_observer' $observerPassword 'postgres' 'SELECT 1';Require ($q.code -ne 0 -and $q.error -match 'rejects connection') 'Observer reached another database'}
   Case 'OBS12-wrong-secret-denied' {$q=Sql $port 'ventio_w2_observer' 'wrong-secret' 'ventio_host' 'SELECT 1';Require ($q.code -ne 0) 'Bad secret authenticated'}
@@ -138,11 +150,24 @@ INSERT INTO public.ventio_command_journal(tenant_id,command_id,company_id,branch
     $hash=(Get-FileHash $file).Hash;$rejected=$false;try{Add-RecoveryLabObserverHba $file}catch{$rejected=$true}
     Require ($rejected -and (Get-FileHash $file).Hash -ceq $hash) 'Existing observer rules were overwritten'
   }
+  Case 'OBS26-high-level-requires-new-host-only' {
+    $blocked=$false;try{& (Join-Path $repo 'scripts/windows/provision-host-installation.ps1') -DisposableObserverCredential (Credential 'ventio_w2_observer' $observerPassword)|Out-Null}catch{$blocked=$_.Exception.Message -ceq 'RECOVERY_OBSERVER_FRESH_NEW_HOST_ONLY'}
+    Require $blocked 'Observer provisioning did not reject non-fresh high-level mode'
+  }
+  $existing=New-Cluster 'preexisting-observer' $true -PreExistingObserver
+  Case 'OBS27-existing-observer-is-not-modified' {
+    Require ($existing.failureReason -ceq 'RECOVERY_OBSERVER_EXISTING_PROFILE') 'Existing role was not rejected before initialization'
+    $q=Sql $existing.port 'ventio_ci_seed' $password 'postgres' "SELECT rolcanlogin FROM pg_roles WHERE rolname='ventio_w2_observer';SELECT count(*) FROM pg_database WHERE datname='ventio_host'"
+    Require ($q.code -eq 0 -and ($q.value -replace '\r','') -ceq "t`n0") 'Existing role/database changed on rejection'
+  }
 } catch {
   $results.Add(@{id='OBS-FIXTURE-SETUP';status='FAILED';reason=$_.Exception.Message})
   throw
 } finally {
-  foreach($cluster in $running){& (Join-Path $bin 'pg_ctl.exe') -D $cluster.data -m fast -w stop|Out-Null;if($LASTEXITCODE){$results.Add(@{id='OBS-clean-shutdown';status='FAILED';reason='CI cluster shutdown unconfirmed; directory preserved'})}}
+  foreach($cluster in $running){
+    $control=Start-Process -FilePath (Join-Path $bin 'pg_ctl.exe') -ArgumentList ('-D "'+$cluster.data+'" -m fast -w stop') -WindowStyle Hidden -PassThru
+    try{if(-not $control.WaitForExit(60000)){$control.Kill();$results.Add(@{id='OBS-clean-shutdown';status='FAILED';reason='CI cluster shutdown timed out; directory preserved'})}elseif($control.ExitCode){$results.Add(@{id='OBS-clean-shutdown';status='FAILED';reason='CI cluster shutdown unconfirmed; directory preserved'})}}finally{$control.Dispose()}
+  }
   $password=$null;$observerPassword=$null
   [ordered]@{sourceCommit=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;postgresVersion='16.16';cases=@($results.ToArray());installedRecoveryTestsExecuted=$false;physicalVmTouched=$false}|ConvertTo-Json -Depth 8|Set-Content (Join-Path $out 'observer.json')
 }

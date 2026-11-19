@@ -30,6 +30,7 @@ $databaseName = 'ventio_host'
 $bootstrapRole = 'ventio_bootstrap'
 $observerRequested=$null -ne $DisposableObserverCredential
 $observerInitialized=$false
+$observerSetupStarted=$false
 if(-not $observerRequested -and ($RecoveryAdmissionRecord -or $ExpectedRecoveryAdmissionSha256 -or $ObserverValidUntilUtc -ne [datetime]::MinValue)){throw 'RECOVERY_OBSERVER_ARGUMENTS_INCOMPLETE'}
 if($observerRequested){
   Import-Module (Join-Path $PSScriptRoot 'RecoveryLabObserver.psm1') -Force
@@ -212,6 +213,11 @@ try {
   $databaseExists = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_database WHERE datname='$databaseName'")
   $reservedRoles = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_roles WHERE rolname IN ('ventio_owner','ventio_runtime','ventio_identity_admin','ventio_identity_api','ventio_migrator','ventio_runtime_app','ventio_identity_api_app','ventio_migrator_app')")
   if ($databaseExists -ne '0' -or $reservedRoles -ne '0') { throw 'HOST_DATABASE_OR_ROLE_CONFLICT' }
+  if($observerRequested){
+    $existingObserver=Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_roles WHERE rolname IN('ventio_w2_observer','ventio_w2_observer_owner')")
+    if($existingObserver -cne '0'){throw 'RECOVERY_OBSERVER_EXISTING_PROFILE'}
+    $observerSetupStarted=$true
+  }
 
   $baseRolesSql = @'
 CREATE ROLE ventio_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
@@ -289,7 +295,7 @@ GRANT ventio_migrator TO ventio_migrator_app;
 }
 finally {
   $retirementFailed=$false
-  if($observerRequested -and -not $observerInitialized -and $bootstrapSecret){
+  if($observerRequested -and $observerSetupStarted -and -not $observerInitialized -and $bootstrapSecret){
     # Fresh fixture only: no recovery fallback and no retained bootstrap authority.
     $env:PGPASSWORD=$bootstrapSecret
     try {
