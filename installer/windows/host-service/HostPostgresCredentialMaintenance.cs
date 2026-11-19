@@ -41,9 +41,9 @@ internal static class HostPostgresCredentialMaintenance
             ValidateTarget(target);
             using var service = OpenValidatedService(target, running: true);
             var before = ReadStatus(service);
-            using var process = Process.GetProcessById(checked((int)before.ProcessId));
-            if (!SamePath(ProcessImage(process.Id), target.PgCtl)) throw Failure("SERVICE_PROCESS");
-            if (!OpenProcessToken(process.Handle, 0x0002 | 0x0008, out var source)) throw NativeFailure("SERVICE_TOKEN_OPEN");
+            var servicePid = checked((int)before.ProcessId);
+            if (!SamePath(ProcessImage(servicePid), target.PgCtl)) throw Failure("SERVICE_PROCESS");
+            var source = OpenServiceToken(servicePid);
             using (source)
             {
                 if (!DuplicateTokenEx(source, 0x0001 | 0x0002 | 0x0008, IntPtr.Zero, 2, 1, out var primary))
@@ -228,10 +228,19 @@ internal static class HostPostgresCredentialMaintenance
         if (service.IsInvalid) { service.Dispose(); throw NativeFailure("SERVICE_OPEN"); }
         try
         {
-            var configuration = Marshal.AllocHGlobal(16384);
+            // SCM's RPC contract limits this buffer to 8 KiB. An oversized
+            // fixed allocation is rejected with RPC_X_BAD_STUB_DATA (1783),
+            // even when the actual service configuration is much smaller.
+            if (QueryServiceConfigW(service, IntPtr.Zero, 0, out var requiredBytes)) throw Failure("SERVICE_CONFIG_PROBE");
+            var probeError = Marshal.GetLastWin32Error();
+            if (probeError != 122) throw Failure("SERVICE_CONFIG_PROBE_WIN32_" + probeError.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (requiredBytes < Marshal.SizeOf<ServiceConfig>() || requiredBytes > 8192) throw Failure("SERVICE_CONFIG_SIZE");
+            var configuration = Marshal.AllocHGlobal(requiredBytes);
             try
             {
-                if (!QueryServiceConfigW(service, configuration, 16384, out _)) throw NativeFailure("SERVICE_CONFIG");
+                // A concurrent configuration expansion fails closed; do not
+                // widen the bound or silently read partially changed identity.
+                if (!QueryServiceConfigW(service, configuration, requiredBytes, out _)) throw NativeFailure("SERVICE_CONFIG");
                 var config = Marshal.PtrToStructure<ServiceConfig>(configuration);
                 if (Marshal.PtrToStringUni(config.StartName) != "NT SERVICE\\" + target.ServiceName) throw Failure("SERVICE_ACCOUNT");
                 var command = Marshal.PtrToStringUni(config.BinaryPath) ?? throw Failure("SERVICE_COMMAND");
@@ -291,6 +300,17 @@ internal static class HostPostgresCredentialMaintenance
         if (!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator)) throw Failure("ADMIN_REQUIRED");
     }
     private static bool SamePath(string left, string right) => Path.GetFullPath(left).TrimEnd('\\').Equals(Path.GetFullPath(right).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
+    private static SafeAccessTokenHandle OpenServiceToken(int pid)
+    {
+        var process = OpenProcess(0x1000, false, pid); // The token API requires only PROCESS_QUERY_LIMITED_INFORMATION.
+        if (process == IntPtr.Zero) throw NativeFailure("SERVICE_PROCESS_OPEN");
+        try
+        {
+            if (!OpenProcessToken(process, 0x0002 | 0x0008, out var token)) throw NativeFailure("SERVICE_TOKEN_OPEN");
+            return token;
+        }
+        finally { CloseHandle(process); }
+    }
     private static string ProcessImage(int pid)
     {
         var process = OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION, never PROCESS_VM_READ.
