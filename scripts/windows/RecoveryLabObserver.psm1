@@ -67,6 +67,7 @@ function Add-RecoveryLabObserverHba {
   $item=Get-Item -LiteralPath $Path
   if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'RECOVERY_OBSERVER_HBA_REPARSE_REFUSED'}
   $original=[IO.File]::ReadAllText($item.FullName)
+  $originalAcl=Get-Acl -LiteralPath $item.FullName
   if($original -match 'ventio_w2_observer'){throw 'RECOVERY_OBSERVER_HBA_ALREADY_PRESENT'}
   $prefix="# Bounded disposable recovery observer; precedes generic rules.`r`nhost ventio_host ventio_w2_observer 127.0.0.1/32 scram-sha-256`r`nhost all ventio_w2_observer 0.0.0.0/0 reject`r`nhost all ventio_w2_observer ::/0 reject`r`n"
   # Atomic same-directory replacement preserves the destination security metadata;
@@ -75,7 +76,12 @@ function Add-RecoveryLabObserverHba {
   try {
     $stream=[IO.File]::Open($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
     try{$bytes=[Text.Encoding]::UTF8.GetBytes($prefix+$original);$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}
+    # File.Replace alone can change inherited ACL metadata on Windows. Both the
+    # staged file and final inode must retain the exact original descriptor.
+    Set-Acl -LiteralPath $temporary -AclObject $originalAcl
     [IO.File]::Replace($temporary,$item.FullName,[System.Management.Automation.Language.NullString]::Value,$false)
+    Set-Acl -LiteralPath $item.FullName -AclObject $originalAcl
+    if((Get-Acl -LiteralPath $item.FullName).Sddl -cne $originalAcl.Sddl){throw 'RECOVERY_OBSERVER_HBA_ACL_PRESERVATION_FAILED'}
   } finally {if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary}}
 }
 Export-ModuleMember -Function New-RecoveryLabObserverSql,Add-RecoveryLabObserverHba

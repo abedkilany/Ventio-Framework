@@ -88,7 +88,9 @@ Require ($observerParts.Count -eq 2 -and [uri]::UnescapeDataString($observerPart
 $previousPgPassword=$env:PGPASSWORD
 try {
   $env:PGPASSWORD=[uri]::UnescapeDataString($observerParts[1])
-  $observerProof=@(& (Join-Path $payload 'postgresql\bin\psql.exe') -X -q -w -h 127.0.0.1 -p 54329 -U ventio_w2_observer -d ventio_host -At -v ON_ERROR_STOP=1 -c "SELECT rolsuper::text||':'||rolbypassrls::text FROM pg_roles WHERE rolname=current_user; SELECT count(*) FROM ventio_w2_fixture.sentinel; SELECT count(*) FROM ventio_w2_fixture.receipts" 2>$null)
+  # Require a fresh sentinel and real view access, not an empty journal: normal
+  # business-fixture setup may already have receipts. P006 checks P001's exact UUID.
+  $observerProof=@(& (Join-Path $payload 'postgresql\bin\psql.exe') -X -q -w -h 127.0.0.1 -p 54329 -U ventio_w2_observer -d ventio_host -At -v ON_ERROR_STOP=1 -c "SELECT rolsuper::text||':'||rolbypassrls::text FROM pg_roles WHERE rolname=current_user; SELECT count(*) FROM ventio_w2_fixture.sentinel; SELECT count(*) FROM ventio_w2_fixture.receipts WHERE false" 2>$null)
   Require ($LASTEXITCODE -eq 0 -and ($observerProof -join '|') -ceq 'false:false|0|0') 'Fresh bounded observer views/profile verification failed'
 } finally {$env:PGPASSWORD=$previousPgPassword;$observerProof=$null}
 $session=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/session' -Headers @{Authorization='Bearer '+$env:VENTIO_W2_TOKEN}
