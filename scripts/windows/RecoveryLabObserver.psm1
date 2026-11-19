@@ -66,22 +66,23 @@ function Add-RecoveryLabObserverHba {
   [CmdletBinding()]param([Parameter(Mandatory)][string]$Path)
   $item=Get-Item -LiteralPath $Path
   if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'RECOVERY_OBSERVER_HBA_REPARSE_REFUSED'}
-  $original=[IO.File]::ReadAllText($item.FullName)
-  $originalAcl=Get-Acl -LiteralPath $item.FullName
-  if($original -match 'ventio_w2_observer'){throw 'RECOVERY_OBSERVER_HBA_ALREADY_PRESENT'}
+  $originalSddl=(Get-Acl -LiteralPath $item.FullName).Sddl
   $prefix="# Bounded disposable recovery observer; precedes generic rules.`r`nhost ventio_host ventio_w2_observer 127.0.0.1/32 scram-sha-256`r`nhost all ventio_w2_observer 0.0.0.0/0 reject`r`nhost all ventio_w2_observer ::/0 reject`r`n"
-  # Atomic same-directory replacement preserves the destination security metadata;
-  # caller is the fresh authorized provisioner only. Never leave a truncated HBA.
-  $temporary=Join-Path $item.DirectoryName ('observer-hba-'+[guid]::NewGuid().ToString('N')+'.tmp')
+  # Fresh fixture bootstrap only, never retained-cluster maintenance. Preserve
+  # the original Windows file object: replacement normalizes inherited ACL bits.
+  # No reload occurs until the exclusive durable write has completed. An
+  # interrupted setup is not reusable; the caller retires logins or requires VM
+  # disposal if retirement cannot be confirmed. No ACL/policy change is needed.
+  $stream=[IO.File]::Open($item.FullName,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
   try {
-    $stream=[IO.File]::Open($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
-    try{$bytes=[Text.Encoding]::UTF8.GetBytes($prefix+$original);$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}
-    # File.Replace alone can change inherited ACL metadata on Windows. Both the
-    # staged file and final inode must retain the exact original descriptor.
-    Set-Acl -LiteralPath $temporary -AclObject $originalAcl
-    [IO.File]::Replace($temporary,$item.FullName,[System.Management.Automation.Language.NullString]::Value,$false)
-    Set-Acl -LiteralPath $item.FullName -AclObject $originalAcl
-    if((Get-Acl -LiteralPath $item.FullName).Sddl -cne $originalAcl.Sddl){throw 'RECOVERY_OBSERVER_HBA_ACL_PRESERVATION_FAILED'}
-  } finally {if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary}}
+    if($stream.Length -gt 1048576){throw 'RECOVERY_OBSERVER_HBA_TOO_LARGE'}
+    $originalBytes=New-Object byte[] ([int]$stream.Length);$offset=0
+    while($offset -lt $originalBytes.Length){$read=$stream.Read($originalBytes,$offset,$originalBytes.Length-$offset);if($read -eq 0){throw 'RECOVERY_OBSERVER_HBA_SHORT_READ'};$offset+=$read}
+    $original=[Text.UTF8Encoding]::new($false,$true).GetString($originalBytes).TrimStart([char]0xfeff)
+    if($original -match 'ventio_w2_observer'){throw 'RECOVERY_OBSERVER_HBA_ALREADY_PRESENT'}
+    $bytes=[Text.Encoding]::UTF8.GetBytes($prefix+$original);$stream.Position=0
+    $stream.Write($bytes,0,$bytes.Length);$stream.SetLength($bytes.Length);$stream.Flush($true)
+  } finally {$stream.Dispose()}
+  if((Get-Acl -LiteralPath $item.FullName).Sddl -cne $originalSddl){throw 'RECOVERY_OBSERVER_HBA_ACL_PRESERVATION_FAILED'}
 }
 Export-ModuleMember -Function New-RecoveryLabObserverSql,Add-RecoveryLabObserverHba
