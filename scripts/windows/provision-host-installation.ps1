@@ -1,7 +1,11 @@
 param(
   [string] $PayloadDirectory = (Join-Path $env:ProgramFiles 'Ventio\host-payload'),
   [switch] $Apply,
-  [switch] $NewHostOnly
+  [switch] $NewHostOnly,
+  [PSCredential] $DisposableObserverCredential,
+  [string] $RecoveryAdmissionRecord,
+  [string] $ExpectedRecoveryAdmissionSha256,
+  [datetime] $ObserverValidUntilUtc
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +20,11 @@ $installerStateDirectory = Join-Path $programData 'Ventio\Installer'
 $postgresServiceName = 'VentioPostgres'
 $hostServiceName = 'VentioHost'
 $setupDirectory = Join-Path $payload 'setup'
+$observerArguments=@{}
+if($DisposableObserverCredential){
+  if(-not $NewHostOnly){throw 'RECOVERY_OBSERVER_FRESH_NEW_HOST_ONLY'}
+  $observerArguments=@{DisposableObserverCredential=$DisposableObserverCredential;RecoveryAdmissionRecord=$RecoveryAdmissionRecord;ExpectedRecoveryAdmissionSha256=$ExpectedRecoveryAdmissionSha256;ObserverValidUntilUtc=$ObserverValidUntilUtc}
+} elseif($RecoveryAdmissionRecord -or $ExpectedRecoveryAdmissionSha256 -or $ObserverValidUntilUtc -ne [datetime]::MinValue){throw 'RECOVERY_OBSERVER_ARGUMENTS_INCOMPLETE'}
 $postgresProvisioner = Join-Path $setupDirectory 'provision-postgres-service.ps1'
 $databaseInitializer = Join-Path $setupDirectory 'initialize-host-database.ps1'
 $hostServiceRegistrar = Join-Path $setupDirectory 'register-host-service.ps1'
@@ -337,6 +346,7 @@ if ($trustedHostUpgradeEntry.Count -ne 1 -or
 $setupScriptNames = @(
   'provision-host-installation.ps1', 'provision-postgres-service.ps1',
   'initialize-host-database.ps1', 'register-host-service.ps1',
+  'RecoveryLabAdmission.psm1', 'RecoveryLabObserver.psm1',
   'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1', 'recover-host-database-credentials.ps1',
   'upgrade-host-database.ps1', 'stop-host-services.ps1', 'enable-host-lan-listener.ps1',
   'restore-host-upgrade-backup.ps1',
@@ -373,6 +383,13 @@ if ($NewHostOnly) {
     ) -InstallerStateDirectory $installerStateDirectory
 }
 
+if($DisposableObserverCredential){
+  # Import only after the complete setup member hashes and fresh-install state
+  # have passed. No service/security/SQL mutation occurs before this admission.
+  Import-Module (Join-Path $setupDirectory 'RecoveryLabAdmission.psm1') -Force
+  $admission=Assert-CurrentRecoveryLabAdmission -Path $RecoveryAdmissionRecord -ExpectedSha256 $ExpectedRecoveryAdmissionSha256
+  if($admission.observerProfileApproved -ne $true){throw 'RECOVERY_OBSERVER_OWNER_APPROVAL_REQUIRED'}
+}
 if (-not $Apply) {
   if ($postgres -and $hostService) {
     Write-Output 'HOST_UPGRADE_PLAN_VALID'
@@ -469,7 +486,7 @@ try {
     & $databaseInitializer -PostgresRoot (Join-Path $payload 'postgresql') `
       -DataDirectory $databaseDirectory -Port $port -BootstrapCredential $bootstrapCredential `
       -RuntimeCredential $runtimeCredential -IdentityApiCredential $identityCredential `
-      -MigrationCredential $migrationCredential -Apply
+      -MigrationCredential $migrationCredential -Apply @observerArguments
 
     $phase = 'MIGRATION_CREDENTIAL_PROTECTION'
     Write-Output "HOST_SETUP_PHASE:$phase"

@@ -1,17 +1,25 @@
 # P001–P006 installed Windows fixture preparation
 
-Status: PREPARED, NOT PROVISIONED OR EXECUTED. On 2026-11-18 the owner confirmed
-that no dedicated VM is available and requested fixture tooling and this runbook.
-P001–P006 remain BLOCKED_PREREQUISITE. This does not block independent source/CI
-corrections. It does block claiming installed backup/retention/restore acceptance.
+Status: PREPARED, NOT PROVISIONED OR EXECUTED. On 2026-11-19 the owner provided
+Ventio-Recovery-Lab and designated only that VM disposable; BAHAA is preserved.
+P001–P006 remain BLOCKED_PREREQUISITE. The consolidated
+[recovery-lab implementation plan](WAVE_2_B_RECOVERY_LAB_IMPLEMENTATION_PLAN.md)
+records current identity, isolation, policy and observer blockers, source work and
+required owner approvals. No admission guard is waived by this documentation update.
 
 ## Provision a separate VM
 
-Use a new Windows 11 x64 VM named `VENTIO-W2-VM01` (4 vCPU, 8 GiB RAM and at least
-80 GiB disposable NTFS storage are practical starting allocations). Use a trusted
-Windows image/license on a trusted hypervisor or isolated cloud subscription;
-neither BAHAA nor either physical test computer is an approved VM host here.
-Do not rename TEST-01/02 or a hosted runner merely to satisfy the fixture guard.
+Use a genuinely disposable Windows 11 x64 VM named `VENTIO-W2-VM01` (4 vCPU,
+8 GiB RAM and at least 80 GiB disposable NTFS storage are practical starting
+allocations). The owner's designated guest on BAHAA may be prepared under the
+exact VM/OS/SSH identity and isolation conditions in the consolidated plan.
+BAHAA itself remains ineligible for installation, product execution, signing,
+builds or recovery tests. Its management role does not establish hypervisor trust;
+retain that assurance limitation. Both physical test computers remain out of scope.
+The guest currently reports `DESKTOP-CJVPE84`, which fails the preserved hostname
+guard. A normal guest-only rename/restart requires separate owner approval, with
+VMId, MachineGuid, SMBIOS UUID and SSH pin rechecked afterward. Do not widen the
+guard or rename TEST-01/02, BAHAA or a hosted runner to satisfy it.
 Isolate it from both physical test computers and their PostgreSQL/Host endpoints.
 No physical credentials, data, certificates, Recovery Authority, backups or Client
 profiles are copied. The VM and all its data must be explicitly disposable.
@@ -47,6 +55,10 @@ Supply a dedicated disposable observer DSN for `127.0.0.1:54329/ventio_host`, wi
 access to read the seeded record and command receipt. Arrange this explicitly while
 creating the isolated fixture; do not extract an installed service DPAPI credential,
 reactivate the retired bootstrap login, reset a witness or relax RLS to acquire it.
+The current normal initializer has no supported observer provisioning option;
+the scoped bootstrap/view profile in the implementation plan is proposed source
+work, not an existing command or completed fixture. Do not improvise SQL after
+bootstrap retirement or use `ventio_host_test` login fixtures on this database.
 If a supported fixture administration path cannot provide the observer, stop and
 record that prerequisite as BLOCKED. A privileged observer, if separately approved
 for the disposable cluster, is test infrastructure only and never an application

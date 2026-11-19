@@ -4,6 +4,8 @@ param(
   [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedZipSha256,
   [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedCommit,
   [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPayloadManifestSha256,
+  [Parameter(Mandatory)][string]$AdmissionRecord,
+  [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedAdmissionSha256,
   [switch]$CreateFixtureMarker
 )
 # Preparation/intake only. No installer, service change, SQL mutation, test case,
@@ -15,6 +17,8 @@ Require ($env:COMPUTERNAME -cmatch '^VENTIO-W2-VM[0-9]{2}$') 'Separately provisi
 Require ($env:COMPUTERNAME -notin @('TEST-01','TEST-02','VENTIO-TEST-01','VENTIO-TEST-02','BAHAA')) 'Preserved machines prohibited'
 Require (([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) 'Normal administrator elevation required'
 Require ($env:VENTIO_WAVE2_PREPARED_TESTS -ceq 'yes') 'Explicit disposable fixture opt-in required'
+Import-Module (Join-Path $PSScriptRoot '..\..\scripts\windows\RecoveryLabAdmission.psm1') -Force
+$admission=Assert-CurrentRecoveryLabAdmission -Path $AdmissionRecord -ExpectedSha256 $ExpectedAdmissionSha256
 Require ((Get-FileHash -LiteralPath $CandidateZip -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $ExpectedZipSha256) 'Candidate ZIP differs from independently approved digest'
 $status=Get-MpComputerStatus
 $prefs=Get-MpPreference
@@ -58,6 +62,10 @@ foreach($entry in $payloadManifest.verifiedFiles){
   $file=[IO.Path]::GetFullPath((Join-Path $payload ([string]$entry.path)))
   Require ($file.StartsWith([IO.Path]::GetFullPath($payload).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) 'Payload entry escapes root'
   Require ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $entry.sha256) 'Installed payload differs from approved inventory'
+  if([IO.Path]::GetExtension($file) -in @('.ps1','.psm1','.psd1','.ps1xml')){
+    $signature=Get-AuthenticodeSignature -LiteralPath $file
+    Require ($signature.Status -eq 'Valid' -and $signature.SignerCertificate.Thumbprint -ceq $admission.publisherThumbprint) 'Installed script publisher differs from approved identity'
+  }
 }
 foreach($name in @('VentioHost','VentioPostgres')){
   $service=Get-CimInstance Win32_Service -Filter "Name='$name'"
@@ -88,6 +96,9 @@ $acl=[Security.AccessControl.DirectorySecurity]::new();$acl.SetAccessRuleProtect
 foreach($sid in @('S-1-5-18','S-1-5-32-544')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}
 Set-Acl -LiteralPath $markerDirectory -AclObject $acl
 $fixture=[ordered]@{fixtureOnly=$true;fixtureNonce=[guid]::NewGuid().ToString('N');machineName=$env:COMPUTERNAME;machineGuid=(Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid;sourceCommit=$ExpectedCommit;candidateZipSha256=$ExpectedZipSha256;payloadManifestSha256=$ExpectedPayloadManifestSha256;tenantId=$identity.tenantId;companyId='w2-company';branchId='w2-branch';actorId=$identity.actorId;deviceId=$identity.deviceId;recoveryWitnessPath=$witness}
+$fixture.smbiosUuid=(Get-CimInstance Win32_ComputerSystemProduct).UUID
+$fixture.admissionRecordSha256=$ExpectedAdmissionSha256
+[IO.File]::WriteAllBytes((Join-Path $markerDirectory 'admission.json'),[IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $AdmissionRecord).Path))
 foreach($file in @($markerPath,$manifestPath)){
   [IO.File]::WriteAllText($file,($fixture|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
   $fileAcl=[Security.AccessControl.FileSecurity]::new();$fileAcl.SetAccessRuleProtection($true,$false);$fileAcl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))

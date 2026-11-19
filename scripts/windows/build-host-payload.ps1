@@ -1,9 +1,13 @@
 param(
   [string] $PostgresBinDirectory = (Join-Path $env:LOCALAPPDATA 'VentioFramework\postgresql-16.16-tools\pgsql\bin'),
-  [string] $OutputDirectory
+  [string] $OutputDirectory,
+  [string] $SigningCertificateThumbprint,
+  [string] $SigningTimestampServer,
+  [switch] $RequireSignedScripts
 )
 
 $ErrorActionPreference = 'Stop'
+if($RequireSignedScripts -and (-not $SigningCertificateThumbprint -or -not $SigningTimestampServer)){throw 'HOST_PAYLOAD_SIGNING_IDENTITY_REQUIRED'}
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $hostRoot = Join-Path $repoRoot 'packages\ventio_host_api'
 # Capture the Host compiler before a later Flutter setup changes PATH.
@@ -150,6 +154,7 @@ try {
   foreach ($scriptName in @(
     'provision-host-installation.ps1', 'provision-postgres-service.ps1',
     'initialize-host-database.ps1', 'register-host-service.ps1',
+    'RecoveryLabAdmission.psm1', 'RecoveryLabObserver.psm1',
     'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1', 'HostServiceRecoveryPolicy.psm1', 'HostBackupIntegrity.psm1','HostOperationStorage.psm1','manage-host-operations.ps1',
     'enable-host-lan-listener.ps1',
     'recover-host-database-credentials.ps1',
@@ -164,6 +169,12 @@ try {
     Copy-Item -LiteralPath $scriptPath -Destination $setupDirectory
   }
 
+  $signingEvidence=$null
+  if($SigningCertificateThumbprint){
+    Import-Module (Join-Path $PSScriptRoot 'SignHostScripts.psm1') -Force
+    $signingEvidence=Set-VentioStagedScriptSignatures -Root $setupDirectory -CertificateThumbprint $SigningCertificateThumbprint -TimestampServer $SigningTimestampServer
+    [IO.File]::WriteAllText((Join-Path $tempDirectory 'script-signing-evidence.json'),($signingEvidence|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
+  }
   $payloadFiles = Get-ChildItem -LiteralPath $tempDirectory -File -Recurse
   $migrationRoot = Join-Path $tempDirectory 'migrations'
   $securityRoot = Join-Path $tempDirectory 'security'
@@ -199,6 +210,8 @@ try {
   $manifest = [ordered]@{
     formatVersion = 1
     sourceCommit = $sourceCommit
+    scriptSigningRequired = [bool]$RequireSignedScripts
+    scriptSigning = $signingEvidence
     sourceHasTrackedChanges = $sourceHasTrackedChanges
     hostCompilerVersion = $hostCompilerVersion
     hostLockfileSha256 = $hostLockfileSha256

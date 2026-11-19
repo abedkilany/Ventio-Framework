@@ -12,6 +12,58 @@ permissions:
   contents: read
   actions: read
 jobs:
+  recovery-admission-engineering:
+    if: inputs.scope == 'recovery-admission'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Enable normal protection on the disposable runner
+        shell: pwsh
+        run: ./scripts/ci/enable-wave2-defender.ps1
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b
+        with:
+          sdk: '3.13.7'
+      - name: Compile only the actual migration runner
+        working-directory: packages/ventio_postgres
+        shell: pwsh
+        run: |
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Locked migration dependencies failed' }
+          dart compile exe bin/migrate.dart -o "$env:RUNNER_TEMP/observer-migrate.exe"
+          if ($LASTEXITCODE) { throw 'Migration runner compile failed' }
+      - name: Stage pinned PostgreSQL 16.16
+        shell: pwsh
+        run: ./scripts/ci/install-postgres-tools.ps1
+      - name: Verify identity and isolation plans without configuration changes
+        shell: powershell
+        run: ./scripts/ci/test-recovery-lab-admission.ps1
+      - name: Verify signing and operator plus SYSTEM under AllSigned
+        if: ${{ !cancelled() }}
+        shell: powershell
+        run: ./scripts/ci/test-recovery-script-signing.ps1
+      - name: Exercise real PostgreSQL observer security and initialization
+        if: ${{ !cancelled() }}
+        shell: powershell
+        run: ./scripts/ci/test-recovery-lab-observer.ps1
+      - name: Verify affected existing provisioning and installer contracts
+        if: ${{ !cancelled() }}
+        shell: powershell
+        run: |
+          & ./scripts/windows/test-host-new-install-state.ps1
+          & ./scripts/windows/test-unified-installer-path-contract.ps1
+      - name: Retain recovery engineering evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovery-admission-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/recovery-admission/*
+            ${{ runner.temp }}/wave2-defender-enablement.json
+          if-no-files-found: error
+          retention-days: 30
   windows-runtime-regressions:
     if: inputs.scope == 'windows-runtime' || inputs.scope == 'windows-pg-minor'
     runs-on: windows-2025

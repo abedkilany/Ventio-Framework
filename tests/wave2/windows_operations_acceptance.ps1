@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory=$true)][string]$FixtureManifest,
+  [Parameter(Mandatory=$true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedAdmissionSha256,
   [switch]$ApproveLocalOperations,
   [switch]$AllowDisposableRestore
 )
@@ -22,6 +23,9 @@ $fixture=Get-Content -LiteralPath $FixtureManifest -Raw|ConvertFrom-Json
 $programData=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
 $markerPath=Join-Path $programData 'Ventio-W2-Disposable\fixture.json'
 $marker=Get-Content -LiteralPath $markerPath -Raw|ConvertFrom-Json
+Import-Module (Join-Path $PSScriptRoot '..\..\scripts\windows\RecoveryLabAdmission.psm1') -Force
+$admission=Assert-CurrentRecoveryLabAdmission -Path (Join-Path (Split-Path -Parent $markerPath) 'admission.json') -ExpectedSha256 $ExpectedAdmissionSha256
+Assert-True ($marker.admissionRecordSha256 -ceq $ExpectedAdmissionSha256 -and $fixture.admissionRecordSha256 -ceq $ExpectedAdmissionSha256 -and $marker.smbiosUuid -ceq (Get-CimInstance Win32_ComputerSystemProduct).UUID -and $fixture.smbiosUuid -ceq $marker.smbiosUuid) 'Independent admission and SMBIOS binding mismatch.'
 Assert-True ($fixture.fixtureOnly -eq $true -and $marker.fixtureOnly -eq $true -and $fixture.fixtureNonce -ceq $marker.fixtureNonce -and $fixture.machineName -ceq $env:COMPUTERNAME -and $marker.machineName -ceq $env:COMPUTERNAME) 'Disposable VM marker/manifest mismatch.'
 Assert-True ($fixture.machineGuid -ceq $marker.machineGuid -and $marker.machineGuid -ceq (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid) 'Disposable marker belongs to another Windows installation.'
 $markerAcl=Get-Acl -LiteralPath $markerPath
@@ -136,7 +140,7 @@ Test-Case 'W2-P001' 'D09,M05,M09' 'Real disposable installed Host authenticates 
   Assert-True ($session.identity.actorId -ceq $fixture.actorId -and $session.identity.tenantId -ceq $fixture.tenantId) 'Wrong fixture identity.'
   Assert-True ((Get-Service VentioHost).Status -eq 'Running' -and (Get-Service VentioPostgres).Status -eq 'Running') 'Installed fixture services not running.'
   $script:createReceipt=Record-Command 'extension.record.create' 'before-backup'
-  Assert-True ((Observer-Query "SELECT record_data->>'name' FROM public.ventio_records WHERE tenant_id='$($fixture.tenantId)' AND record_id='W2-BACKUP-SENTINEL'") -ceq 'before-backup') 'Observer does not see actual committed seed.'
+  Assert-True ((Observer-Query 'SELECT observed_name FROM ventio_w2_fixture.sentinel') -ceq 'before-backup') 'Observer does not see actual committed seed.'
 }
 Test-Case 'W2-P002' 'M05' 'Supported Host authorization and elevated local approval arm the fixed SYSTEM schedule' {
   Assert-True (@((Api 'definitions/list' @{kind='backup_policy'}).definitions).Count -eq 0) 'Fresh policy fixture required.'
@@ -214,8 +218,8 @@ Test-Case 'W2-P006' 'M09,M05,J03' 'Disposable restoration preserves current clus
   Assert-True ($result.state -ceq 'SUCCEEDED' -and $result.code -ceq 'RESTORED_RECOVERY_AUTHORITY_RECONCILIATION_REQUIRED' -and $result.restoreRequiresRecovery -eq $true) 'Restore not durably recorded as requiring recovery.'
   Assert-True ((Get-Service VentioHost).Status -eq 'Stopped') 'Restore automatically reopened Host.'
   Assert-True ((Get-FileHash -LiteralPath $witness -Algorithm SHA256).Hash -ceq $witnessHash) 'Restore rewrote independent witness.'
-  Assert-True ((Observer-Query "SELECT record_data->>'name' FROM public.ventio_records WHERE tenant_id='$($fixture.tenantId)' AND record_id='W2-BACKUP-SENTINEL'") -ceq 'before-backup') 'Restored data does not match backup.'
-  Assert-True ((Observer-Query "SELECT count(*) FROM public.ventio_command_journal WHERE tenant_id='$($fixture.tenantId)' AND command_id='$($createReceipt.commandId)' AND receipt->>'status'='ACCEPTED'") -ceq '1') 'Original receipt missing from restore.'
+  Assert-True ((Observer-Query 'SELECT observed_name FROM ventio_w2_fixture.sentinel') -ceq 'before-backup') 'Restored data does not match backup.'
+  Assert-True ((Observer-Query "SELECT count(*) FROM ventio_w2_fixture.receipts WHERE command_id='$($createReceipt.commandId)' AND status='ACCEPTED'") -ceq '1') 'Original receipt missing from restore.'
   Assert-True (@(Get-ChildItem -LiteralPath (Split-Path -Parent $liveData) -Directory -Filter 'data.failed-upgrade-*').Count -gt 0) 'Current cluster was not preserved.'
   # Deliberately no witness adoption, credential resurrection or Host restart.
 }
