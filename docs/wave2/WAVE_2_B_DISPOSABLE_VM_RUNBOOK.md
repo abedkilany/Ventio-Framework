@@ -6,6 +6,9 @@ P001–P006 remain BLOCKED_PREREQUISITE. The consolidated
 [recovery-lab implementation plan](WAVE_2_B_RECOVERY_LAB_IMPLEMENTATION_PLAN.md)
 records current identity, isolation, policy and observer blockers, source work and
 required owner approvals. No admission guard is waived by this documentation update.
+Independent source implementation and the actual targeted results are in the
+[engineering report](WAVE_2_B_RECOVERY_LAB_ENGINEERING.md). Its 74 auxiliary case
+passes do not change the blocked/unexecuted status of the installed P suite.
 
 ## Provision a separate VM
 

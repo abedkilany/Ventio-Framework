@@ -1,0 +1,14 @@
+{
+    "sourceCommit":  "07e21f38c4c030d197d1bef5c44a12b0bde1fda9",
+    "runId":  "44585530419",
+    "postgresVersion":  "16.16",
+    "cases":  [
+                  {
+                      "status":  "FAILED",
+                      "id":  "OBS-FIXTURE-SETUP",
+                      "reason":  "The \u0027Set-Acl\u0027 command was found in the module \u0027Microsoft.PowerShell.Security\u0027, but the module could not be loaded. For more information, run \u0027Import-Module Microsoft.PowerShell.Security\u0027."
+                  }
+              ],
+    "installedRecoveryTestsExecuted":  false,
+    "physicalVmTouched":  false
+}

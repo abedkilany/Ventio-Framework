@@ -1,0 +1,1103 @@
+{
+  "status": "TARGETED_ENGINEERING_PASSED_PHYSICAL_ADMISSION_BLOCKED",
+  "engineeringSourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+  "engineeringSourceTree": "89ce498cc002cc4ce2187d5492bd544c81244f03",
+  "counts": {
+    "auxiliaryPassed": 74,
+    "auxiliaryFailed": 0,
+    "originalProductCasesPreserved": 164,
+    "physicalPBlockedUnexecuted": 6,
+    "manualUnexecuted": 6
+  },
+  "suites": [
+    {
+      "suite": "admission-network",
+      "passed": 29,
+      "failed": 0,
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "artifactId": 14563510110,
+      "artifactSha256": "sha256:c723c38189445a06c3712689ecab4681d4d0a26c4a84f2d072ddf9e40795e166",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "suite": "script-signing",
+      "passed": 18,
+      "failed": 0,
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "artifactId": 14563408501,
+      "artifactSha256": "sha256:3ac7697077c195af2505ab269fc00023c84a3039079bd4d84d3938f70b639a52",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "suite": "observer",
+      "passed": 27,
+      "failed": 0,
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "artifactId": 14563473959,
+      "artifactSha256": "sha256:558166b2024fb7c5bacfee9021f0d8ca64da5fcc316274b00eaf699406dc2a72",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    }
+  ],
+  "cases": [
+    {
+      "id": "ADM01-pinned-guest",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM02-owner-approval",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM03-current-wrong-name",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM04-preserved-host",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM05-physical-test-hosts",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM06-copied-marker",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM07-smbios-not-vmid",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM08-extra-adapter",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM09-nonvirtual-hardware",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM10-missing-evidence",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM11-changed-ssh-pin",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM12-independent-record-digest",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM13-boolean-approval-required",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "ADM14-physical-prerequisite-evidence",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET01-exact-adapter-plan",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET02-only-management-ssh",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET03-dual-stack-denial",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET04-unique-priorities",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET05-no-general-egress",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET06-forbidden-extra-rule",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET07-stateful-mutation",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET08-target-mutation",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET09-export-and-rollback-contract",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET10-command-parameter-scope",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET11-complete-rollback-order",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET12-partial-rollback",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET13-rollback-refuses-concurrent-change",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET14-empty-rollback",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "NET15-stateful-reflection-removed-once",
+      "status": "PASSED",
+      "suite": "admission-network",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44587707476",
+      "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44587707476/artifact-14563510110/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/admission-network.json"
+    },
+    {
+      "id": "SIG01-release-needs-timestamp",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG02-source-tree-refused",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-valid",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-unsigned",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-tampered",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-untrusted",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-module-valid",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-module-unsigned",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-module-tampered",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-operator-module-untrusted",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-valid",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-unsigned",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-tampered",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-untrusted",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-module-valid",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-module-unsigned",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-module-tampered",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "SIG-SYSTEM-module-untrusted",
+      "status": "PASSED",
+      "suite": "script-signing",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44593187246",
+      "sourceCommit": "7260b02f43898734c7e986103a5f8dbe82bea8e5",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44593187246/artifact-14563408501/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/script-signing.json"
+    },
+    {
+      "id": "OBS01-fixed-sentinel-view",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS02-original-receipt-view",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS03-base-record-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS04-base-journal-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS05-write-after-readwrite-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS06-view-write-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS07-set-owner-role-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS08-private-recovery-schema-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS09-create-role-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS10-create-object-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS23-identity-admin-function-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS24-temp-object-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS11-wrong-database-hba-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS12-wrong-secret-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS13-bootstrap-retired",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS14-unchanged-runtime-security-profile",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS15-role-membership-and-view-barriers",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS16-observer-survives-nondestructive-physical-copy",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS17-expired-login-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS18-ordinary-setup-has-no-observer",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS19-failed-profile-ddl-rolls-back",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS20-initializer-failure-retires-authority",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS21-expiry-boundaries",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS22-weak-secret-and-wrong-user-denied",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS25-hba-preserves-original-and-acl",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS26-high-level-requires-new-host-only",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    },
+    {
+      "id": "OBS27-existing-observer-is-not-modified",
+      "status": "PASSED",
+      "suite": "observer",
+      "capabilities": [
+        "D09",
+        "J03",
+        "M05",
+        "M09"
+      ],
+      "relation": "AUXILIARY_PREREQUISITE_NOT_PHYSICAL_ACCEPTANCE",
+      "runId": "44592150075",
+      "sourceCommit": "3d83958b5a19cbe7ca561f2e11a61821100942de",
+      "evidence": "docs/wave2/evidence/20261119-recovery-admission/runs/44592150075/artifact-14563473959/Ventio-Framework/Ventio-Framework/test-results/recovery-admission/observer.json"
+    }
+  ],
+  "notExecuted": [
+    "real publisher signing and timestamp integration",
+    "complete signed Host/Client/installer candidate build",
+    "actual Hyper-V enforcement and rollback",
+    "owner VM operator/SYSTEM probes",
+    "installed fixture admission",
+    "P001-P006",
+    "M001-M006"
+  ],
+  "preservedPhysicalMachinesUntouched": true,
+  "pr6DraftRequired": true,
+  "wave2CClosed": true
+}

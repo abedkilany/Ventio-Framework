@@ -1,0 +1,7 @@
+RECOVERY_OBSERVER_ARGUMENTS_INCOMPLETE
+At D:\a\Ventio-Framework\Ventio-Framework\scripts\windows\initialize-host-database.ps1:34 char:150
++ ... datetime]::MinValue)){throw 'RECOVERY_OBSERVER_ARGUMENTS_INCOMPLETE'}
++                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (RECOVERY_OBSERVER_ARGUMENTS_INCOMPLETE:String) [], RuntimeException
+    + FullyQualifiedErrorId : RECOVERY_OBSERVER_ARGUMENTS_INCOMPLETE
+ 

@@ -19,3 +19,13 @@ The three original JSON files are copied byte-for-byte from
 Those hashes preserve evidence identity; they establish neither malware absence
 nor trust in the hypervisor. Observations must be refreshed before admission.
 No production data, private key, token, password or service credential is included.
+
+`runs/` retains subsequent hosted engineering evidence and has its own recursive
+SHA-256 index. The original four-observation index above remains unchanged. Run
+metadata, complete available logs and extracted artifact members are preserved
+without line-ending conversion. GitHub outer artifact digests are independently
+matched before extraction; the small downloaded ZIPs remain in
+`C:\v2b\20261118-hosted\run-RUNID`. Cancelled runs 44578358835/44581724169 have
+metadata only: GitHub returned no artifacts and their job-log blobs were missing.
+See the [engineering report](../../WAVE_2_B_RECOVERY_LAB_ENGINEERING.md) for actual
+case status and the difference between CI verification and physical admission.
