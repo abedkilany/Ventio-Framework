@@ -15,7 +15,12 @@ $watch=[Diagnostics.Stopwatch]::StartNew();$phaseWatch=[Diagnostics.Stopwatch]::
 try {
   while(-not $process.WaitForExit(1000)){
     if(Test-Path $progressPath){
-      try{$progress=Get-Content $progressPath -Raw|ConvertFrom-Json;if($progress.stage -cne $stage){$stage=$progress.stage;$phaseWatch.Restart();Write-Host ('OBSERVER-PHASE '+$stage)}}catch{Write-Host 'Progress update in flight'}
+      try{
+        $stream=[IO.File]::Open($progressPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+        $reader=[IO.StreamReader]::new($stream)
+        try{$progress=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}
+        if($progress.stage -cne $stage){$stage=$progress.stage;$phaseWatch.Restart();Write-Host ('OBSERVER-PHASE '+$stage)}
+      }catch{Write-Host 'Progress update in flight'}
     }
     $limit=90;if($stage -like 'OBS16-*'){$limit=240}
     if($phaseWatch.Elapsed.TotalSeconds -gt $limit -or $watch.Elapsed.TotalSeconds -gt 480){$failed=$true;throw ('OBSERVER_FIXTURE_TIMEOUT_PHASE_'+$stage)}

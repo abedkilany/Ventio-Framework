@@ -5,7 +5,14 @@ if((Get-Service VentioHost,VentioPostgres -ErrorAction SilentlyContinue) -or (Te
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $out=Join-Path $repo 'test-results/recovery-admission';[void][IO.Directory]::CreateDirectory($out)
-function Progress-State([string]$Stage){Write-Host ('OBS-FIXTURE '+$Stage);@{stage=$Stage;utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json|Set-Content (Join-Path $out 'observer-progress.json')}
+function Progress-State([string]$Stage){
+  Write-Host ('OBS-FIXTURE '+$Stage)
+  $path=Join-Path $out 'observer-progress.json';$temporary=Join-Path $out ('progress-'+[guid]::NewGuid().ToString('N')+'.tmp')
+  try {
+    [IO.File]::WriteAllText($temporary,(@{stage=$Stage;utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    if(Test-Path $path){[IO.File]::Replace($temporary,$path,[NullString]::Value)}else{[IO.File]::Move($temporary,$path)}
+  }finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary}}
+}
 Progress-State 'stage-tool-layout'
 Import-Module (Join-Path $repo 'scripts/windows/RecoveryLabObserver.psm1') -Force
 $root=Join-Path ([IO.Path]::GetTempPath()) ('ventio-pg-initdb-test-'+[guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($root)
