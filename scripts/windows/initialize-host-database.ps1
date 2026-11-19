@@ -9,7 +9,7 @@ param(
   [PSCredential] $DisposableObserverCredential,
   [string] $RecoveryAdmissionRecord,
   [string] $ExpectedRecoveryAdmissionSha256,
-  [datetime] $ObserverValidUntilUtc,
+  [datetime] $ObserverValidUntilUtc = [datetime]::MinValue,
   [switch] $Apply,
   [switch] $TestMode
 )
