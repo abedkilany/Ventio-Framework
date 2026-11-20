@@ -1,5 +1,17 @@
 using BrokerProgram = Ventio.HostSetupBroker.Program;
 
+using (var initializerPipe = Ventio.HostSetupBroker.NativeHostInstallation.CreateInitializerPipe("Ventio.Initdb.Test." + Guid.NewGuid().ToString("N")))
+{
+    var security = System.IO.Pipes.PipesAclExtensions.GetAccessControl(initializerPipe);
+    var user = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+    var rules = security.GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier));
+    if (!security.AreAccessRulesProtected || security.GetOwner(typeof(System.Security.Principal.SecurityIdentifier))?.Value != user.Value ||
+        rules.Count != 1 || rules[0] is not System.IO.Pipes.PipeAccessRule rule ||
+        rule.IdentityReference.Value != user.Value || rule.AccessControlType != System.Security.AccessControl.AccessControlType.Allow ||
+        rule.PipeAccessRights != System.IO.Pipes.PipeAccessRights.FullControl)
+        throw new InvalidOperationException("Initializer password pipe is not restricted to the actual user SID.");
+}
+
 var originalRestorePrivilege = OwnershipPrivilegeProbe.Enabled();
 Ventio.HostSetupBroker.NativeHostInstallation.WithRestorePrivilege(() =>
 {

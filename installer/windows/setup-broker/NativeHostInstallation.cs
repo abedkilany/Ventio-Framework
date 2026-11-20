@@ -135,7 +135,10 @@ internal static partial class NativeHostInstallation
                         failureCode = System.Text.RegularExpressions.Regex.IsMatch(exception.Message, "\\AHOST_NATIVE_[A-Z0-9_]{1,96}\\z") ? exception.Message : "HOST_NATIVE_INSTALL_FAILED_DATA_PRESERVED",
                         nativeExecutable = (exception as NativeProcessException)?.ExecutableName,
                         nativeExitCode = (exception as NativeProcessException)?.ExitCode,
-                        sqlState = (exception as NativeProcessException)?.SqlState
+                        nativeFailure = (exception as NativeProcessException)?.FailureKind,
+                        sqlState = (exception as NativeProcessException)?.SqlState,
+                        exceptionType = exception.GetType().Name,
+                        exceptionHResult = exception.HResult
                     }), []);
             }
             catch { }
@@ -148,8 +151,7 @@ internal static partial class NativeHostInstallation
         if ((await RunAsync(Pg("postgres.exe"), ["--version"])).Trim() != "postgres (PostgreSQL) 16.16")
             throw Failure("POSTGRES_VERSION_UNSUPPORTED");
         var name = "Ventio.Initdb." + Guid.NewGuid().ToString("N");
-        using var pipe = new NamedPipeServerStream(name, PipeDirection.Out, 1, PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        using var pipe = CreateInitializerPipe(name);
         var start = StartInfo(Pg("initdb.exe"), ["-D", Data, "-U", "ventio_bootstrap", "--pwfile=\\\\.\\pipe\\" + name,
             "--auth-local=scram-sha-256", "--auth-host=scram-sha-256", "--encoding=UTF8", "--no-locale"]);
         using var process = Process.Start(start) ?? throw Failure("POSTGRES_INITIALIZER_UNAVAILABLE");
@@ -159,7 +161,16 @@ internal static partial class NativeHostInstallation
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         try
         {
-            await pipe.WaitForConnectionAsync(timeout.Token);
+            var connection = pipe.WaitForConnectionAsync(timeout.Token);
+            var exit = process.WaitForExitAsync(timeout.Token);
+            if (await Task.WhenAny(connection, exit) == exit)
+            {
+                await exit;
+                await Task.WhenAll(output, error);
+                if (process.ExitCode != 0) throw new NativeProcessException(start.FileName, process.ExitCode, await error);
+                throw Failure("POSTGRES_INITIALIZER_EXITED_WITHOUT_PASSWORD");
+            }
+            await connection;
             // PostgreSQL 16 initdb re-executes itself with a restricted token on
             // Windows. Bind that peer to this owned job and the pinned initdb
             // image instead of assuming the launcher PID reads the password.
@@ -173,7 +184,28 @@ internal static partial class NativeHostInstallation
             await Task.WhenAll(output, error);
             if (process.ExitCode != 0) throw new NativeProcessException(start.FileName, process.ExitCode, await error);
         }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            throw Failure("POSTGRES_INITIALIZER_TIMEOUT");
+        }
         finally { if (!process.HasExited) { process.Kill(true); await process.WaitForExitAsync(); } }
+    }
+
+    internal static NamedPipeServerStream CreateInitializerPipe(string name)
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        var user = identity.User ?? throw Failure("REQUESTER_IDENTITY_INVALID");
+        // CurrentUserOnly uses the elevated token's Owner (Administrators), not
+        // its user SID. PostgreSQL deliberately disables that group when it
+        // re-executes initdb with a restricted token. Grant only the actual user
+        // here; the caller additionally verifies the peer's owned job and exact
+        // pinned initdb image before writing any password bytes.
+        var security = new PipeSecurity();
+        security.SetAccessRuleProtection(true, false);
+        security.SetOwner(user);
+        security.AddAccessRule(new PipeAccessRule(user, PipeAccessRights.FullControl, AccessControlType.Allow));
+        return NamedPipeServerStreamAcl.Create(name, PipeDirection.Out, 1,
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 4096, security);
     }
 
     private static async Task InitializeDatabaseAsync(string bootstrap, string runtime, string identity, string migrator)
@@ -426,11 +458,18 @@ internal static partial class NativeHostInstallation
         internal string ExecutableName { get; }
         internal int ExitCode { get; }
         internal string? SqlState { get; }
+        internal string? FailureKind { get; }
         internal NativeProcessException(string executable, int exitCode, string error) : base("HOST_NATIVE_PROCESS_FAILED")
         {
             ExecutableName = Path.GetFileName(executable); ExitCode = exitCode;
             var match = System.Text.RegularExpressions.Regex.Match(error, "(?:SQLSTATE|code)\\s*[:= ]\\s*([0-9A-Z]{5})", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
             SqlState = match.Success ? match.Groups[1].Value.ToUpperInvariant() : null;
+            // Fixed classifications only: native stderr can contain credentials
+            // or SQL and must never be copied into installation evidence.
+            FailureKind = error.Contains("Permission denied", StringComparison.OrdinalIgnoreCase) ? "ACCESS_DENIED" :
+                error.Contains("could not re-execute with restricted token", StringComparison.OrdinalIgnoreCase) ? "RESTRICTED_TOKEN_REEXECUTION_FAILED" :
+                error.Contains("could not open file", StringComparison.OrdinalIgnoreCase) ? "FILE_OPEN_FAILED" :
+                error.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ? "REQUIRED_FILE_MISSING" : null;
         }
     }
     private static void RequireAdministrator() { using var identity = WindowsIdentity.GetCurrent(); if (!OperatingSystem.IsWindows() || !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator)) throw Failure("ADMIN_ELEVATION_REQUIRED"); }
