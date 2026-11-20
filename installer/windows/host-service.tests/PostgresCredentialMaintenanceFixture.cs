@@ -12,24 +12,53 @@ internal static class PostgresCredentialMaintenanceFixture
 {
     internal static int Dispatch(string[] args)
     {
-        if (args[0] == "--pg-maintenance-coordinator" && args.Length == 4)
-            return HostPostgresCredentialMaintenance.Coordinate(Target(args), ["--pg-maintenance-worker", args[1], args[2], args[3]]);
-        if (args[0] == "--pg-maintenance-coordinator-without-debug" && args.Length == 4)
+        var target = args.Length >= 4 ? Target(args) : null;
+        if (args[0] == "--pg-maintenance-coordinator" && args.Length is 4 or 5)
+            return HostPostgresCredentialMaintenance.Coordinate(target!, WorkerArguments(args), phase => FixturePhase(target!, args.Length == 5 ? args[4] : null, phase));
+        if (args[0] == "--pg-maintenance-reconcile" && args.Length is 4 or 5)
+            return HostPostgresCredentialMaintenance.Reconcile(target!, WorkerArguments(args));
+        if (args[0] == "--pg-maintenance-worker" && args.Length is 7 or 8 && int.TryParse(args[^2], out var pid))
         {
-            // Remove the privilege only from this disposable test child. The
-            // product must reject its absence instead of widening token DACLs.
-            using var token = CurrentPrivilegeToken();
-            var removed = DebugState(4);
-            if (!AdjustTokenPrivileges(token, false, ref removed, (uint)Marshal.SizeOf<TokenPrivileges>(), out _, out _) || Marshal.GetLastWin32Error() != 0) return 4;
-            return HostPostgresCredentialMaintenance.Coordinate(Target(args), ["--pg-maintenance-worker", args[1], args[2], args[3]]);
+            VerifyWorkerJobRights(target!, args[^3]);
+            return HostPostgresCredentialMaintenance.RunService(target!, WorkerArguments(args), args[^3], pid, args[^1], args.Length == 8 ? (backend, stop) => HoldBackend(target!, backend, stop) : null);
         }
-        if (args[0] == "--pg-maintenance-worker" && args.Length == 6 && int.TryParse(args[5], out var pid))
-            return HostPostgresCredentialMaintenance.Work(Target(args), args[4], pid);
         if (args[0] == "--postgres-recovery-fixture" && args.Length == 2) return Run(args[1]);
         return 2;
     }
-
-    private static PostgresMaintenanceTarget Target(string[] args) => new(args[1], args[2], args[3]);
+    private static string[] WorkerArguments(string[] args) => args.Length > 4 && args[4] == "hold-backend" ? ["--pg-maintenance-worker", args[1], args[2], args[3], "hold-backend"] : ["--pg-maintenance-worker", args[1], args[2], args[3]];
+    private static void HoldBackend(PostgresMaintenanceTarget target, int pid, CancellationToken stop)
+    {
+        using (var marker = new FileStream(Path.Combine(target.DataDirectory, "maintenance-backend-pid.txt"), FileMode.CreateNew, FileAccess.Write, FileShare.Read, 4096, FileOptions.WriteThrough))
+        { marker.Write(Encoding.ASCII.GetBytes(pid.ToString(System.Globalization.CultureInfo.InvariantCulture))); marker.Flush(true); }
+        stop.WaitHandle.WaitOne(30000);
+    }
+    private static void VerifyWorkerJobRights(PostgresMaintenanceTarget target, string pipeName)
+    {
+        var rows = new List<object>();
+        foreach (var request in new[] { (Rights: 0x00020005u, Allowed: true), (Rights: 0x0002u, Allowed: false), (Rights: 0x0008u, Allowed: false), (Rights: 0x00040000u, Allowed: false) })
+        {
+            var handle = OpenJobObjectW(request.Rights, false, "Global\\" + pipeName + ".BackendLifetime");
+            var error = handle == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
+            if (handle != IntPtr.Zero) CloseHandle(handle);
+            if ((handle != IntPtr.Zero) != request.Allowed || (!request.Allowed && error != 5)) throw new InvalidOperationException("SCM worker job-rights boundary failed.");
+            rows.Add(new { rights = "0x" + request.Rights.ToString("X"), allowed = request.Allowed, win32 = error });
+        }
+        File.WriteAllText(Path.Combine(target.DataDirectory, "maintenance-job-rights.json"), JsonSerializer.Serialize(rows));
+    }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr OpenJobObjectW(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, string name);
+    [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+    private static PostgresMaintenanceTarget Target(string[] args) => new(args[1], args[2], args[3], Path.Combine(Path.GetDirectoryName(args[3])! + "-management", "maintenance"));
+    private static void FixturePhase(PostgresMaintenanceTarget target, string? fault, HostPostgresCredentialMaintenance.Phase phase)
+    {
+        if (fault == "throw:" + phase) throw new InvalidOperationException("HOST_POSTGRES_MAINTENANCE_FIXTURE_INJECTED_FAILURE");
+        if (fault == "pause:" + phase)
+        {
+            using (var marker = new FileStream(PhaseMarker(target, phase), FileMode.CreateNew, FileAccess.Write, FileShare.Read, 1, FileOptions.WriteThrough)) { marker.WriteByte(1); marker.Flush(true); }
+            Thread.Sleep(30000);
+            throw new InvalidOperationException("HOST_POSTGRES_MAINTENANCE_FIXTURE_FAULT_NOT_INTERRUPTED");
+        }
+    }
+    private static string PhaseMarker(PostgresMaintenanceTarget target, HostPostgresCredentialMaintenance.Phase phase) => Path.Combine(Path.GetDirectoryName(target.JournalDirectory)!, "phase-" + phase);
     private static readonly List<string> Passed = [];
     private static void Pass(string name) { Passed.Add(name); Console.WriteLine("PASS " + name); }
     private static void Require(bool condition, string name) { if (!condition) throw new InvalidOperationException(name); Pass(name); }
@@ -47,7 +76,8 @@ internal static class PostgresCredentialMaintenanceFixture
         var root = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, name);
         var data = Path.Combine(root, "data");
         var passwordFile = Path.Combine(root, "bootstrap-password.tmp");
-        var target = new PostgresMaintenanceTarget(name, Path.GetFullPath(postgresRoot), data);
+        var management = root + "-management";
+        var target = new PostgresMaintenanceTarget(name, Path.GetFullPath(postgresRoot), data, Path.Combine(management, "maintenance"));
         var bootstrap = Secret(32);
         var oldRuntime = Secret(36);
         var oldIdentity = Secret(36);
@@ -63,6 +93,8 @@ internal static class PostgresCredentialMaintenanceFixture
         var retained = false;
         try
         {
+            Directory.CreateDirectory(management);
+            Protect(management, null);
             Directory.CreateDirectory(root);
             Protect(root, null, includeCurrentUser: true);
             File.WriteAllText(passwordFile, bootstrap, new UTF8Encoding(false));
@@ -103,14 +135,14 @@ internal static class PostgresCredentialMaintenanceFixture
                 "direct-administrator-backend-is-rejected");
             Start(name, target, port);
 
-            VerifyInspectionPrivilegeScope(target);
+            VerifyScmInterruption(target, name, port, oldRuntime, oldIdentity);
 
             using (var coordinator = Begin(target))
             {
                 Stop(name);
                 var result = Complete(coordinator, runtime, identity);
                 Require(result.ExitCode == 0 && result.Output.Trim() == HostPostgresCredentialMaintenance.Complete,
-                    "same-service-token-single-user-rotation-succeeded");
+                    "same-service-account-scm-single-user-rotation-succeeded");
             }
             Start(name, target, port);
             Require(Login(target, port, "ventio_runtime_app", runtime) && Login(target, port, "ventio_identity_api_app", identity), "both-new-role-passwords-authenticate");
@@ -188,6 +220,7 @@ internal static class PostgresCredentialMaintenanceFixture
                 if (Directory.EnumerateFileSystemEntries(root, "*", SearchOption.AllDirectories).Any(p => (File.GetAttributes(p) & FileAttributes.ReparsePoint) != 0)) retained = true;
                 else Directory.Delete(root, recursive: true);
             }
+            if (!retained && Directory.Exists(management) && Path.GetFileName(management) == name + "-management" && !Directory.EnumerateFileSystemEntries(management, "*", SearchOption.AllDirectories).Any(p => (File.GetAttributes(p) & FileAttributes.ReparsePoint) != 0)) Directory.Delete(management, recursive: true);
             var reportRoot = Path.Combine(Environment.CurrentDirectory, "test-results", "wave2-runtime");
             Directory.CreateDirectory(reportRoot);
             File.WriteAllText(Path.Combine(reportRoot, "postgres-maintenance-cases.json"), JsonSerializer.Serialize(new
@@ -195,9 +228,9 @@ internal static class PostgresCredentialMaintenanceFixture
         }
     }
 
-    private static Process Begin(PostgresMaintenanceTarget target)
+    private static Process Begin(PostgresMaintenanceTarget target, string? fault = null)
     {
-        var process = StartCoordinator(target);
+        var process = StartCoordinator(target, fault);
         var ready = process.StandardOutput.ReadLineAsync();
         if (!ready.Wait(45000) || ready.GetAwaiter().GetResult() != HostPostgresCredentialMaintenance.Ready)
         {
@@ -209,182 +242,14 @@ internal static class PostgresCredentialMaintenanceFixture
         }
         return process;
     }
-    private static Process StartCoordinator(PostgresMaintenanceTarget target)
+    private static Process StartCoordinator(PostgresMaintenanceTarget target, string? fault = null)
     {
         var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in new[] { "--pg-maintenance-coordinator", target.ServiceName, target.PostgresRoot, target.DataDirectory }) info.ArgumentList.Add(argument);
+        if (fault is not null) info.ArgumentList.Add(fault);
         return Process.Start(info) ?? throw new InvalidOperationException("Coordinator start failed.");
     }
-    private static void VerifyInspectionPrivilegeScope(PostgresMaintenanceTarget target)
-    {
-        var match = Regex.Match(Sc(["queryex", target.ServiceName]).Output, @"\bPID\s*:\s*(\d+)", RegexOptions.CultureInvariant);
-        if (!match.Success) throw new InvalidOperationException("Fixture service PID missing.");
-        var pid = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-        DiagnoseServiceTokenAccess(pid, target.ServiceSid);
-        using var token = CurrentPrivilegeToken();
-        var disabled = DebugState(0);
-        if (!AdjustTokenPrivileges(token, false, ref disabled, (uint)Marshal.SizeOf<TokenPrivileges>(), out var original, out _) || Marshal.GetLastWin32Error() != 0)
-            throw new InvalidOperationException("Fixture could not establish disabled debug privilege.");
-        try
-        {
-            Require(!DebugEnabled(token), "inspection-fixture-starts-with-debug-privilege-disabled");
-            using (var captured = HostPostgresCredentialMaintenance.OpenServiceToken(pid))
-            using (var serviceIdentity = new WindowsIdentity(captured.DangerousGetHandle()))
-                Require(serviceIdentity.User?.Value == target.ServiceSid, "scoped-inspection-captures-only-service-identity");
-            Require(!DebugEnabled(token), "inspection-privilege-restored-after-token-open");
-            var rejected = false;
-            try { using var invalid = HostPostgresCredentialMaintenance.OpenServiceToken(int.MaxValue); }
-            catch (InvalidOperationException exception) when (exception.Message.StartsWith("HOST_POSTGRES_MAINTENANCE_SERVICE_PROCESS_OPEN_", StringComparison.Ordinal)) { rejected = true; }
-            Require(rejected && !DebugEnabled(token), "inspection-privilege-restored-after-process-open-failure");
-        }
-        finally
-        {
-            if (original.Count > 0 && (!AdjustTokenPrivileges(token, false, ref original, (uint)Marshal.SizeOf<TokenPrivileges>(), out _, out _) || Marshal.GetLastWin32Error() != 0))
-                throw new InvalidOperationException("Fixture debug privilege restoration failed.");
-        }
-        var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var argument in new[] { "--pg-maintenance-coordinator-without-debug", target.ServiceName, target.PostgresRoot, target.DataDirectory }) info.ArgumentList.Add(argument);
-        using var withoutDebug = Process.Start(info) ?? throw new InvalidOperationException("Missing-privilege test child failed.");
-        withoutDebug.StandardInput.Close();
-        var output = withoutDebug.StandardOutput.ReadToEndAsync();
-        var error = withoutDebug.StandardError.ReadToEndAsync();
-        if (!withoutDebug.WaitForExit(30000)) { withoutDebug.Kill(entireProcessTree: true); throw new InvalidOperationException("Missing-privilege child timeout."); }
-        Require(withoutDebug.ExitCode != 0 && !output.GetAwaiter().GetResult().Contains(HostPostgresCredentialMaintenance.Ready, StringComparison.Ordinal) &&
-            error.GetAwaiter().GetResult().Trim() == "HOST_POSTGRES_MAINTENANCE_INSPECTION_PRIVILEGE_ENABLE_WIN32_1300", "missing-inspection-privilege-is-rejected-without-grant");
-    }
-    private static SafeAccessTokenHandle CurrentPrivilegeToken()
-    {
-        if (!OpenProcessToken(GetCurrentProcess(), 0x0020 | 0x0008, out var token)) throw new InvalidOperationException("Fixture token query failed.");
-        return token;
-    }
-    private static void DiagnoseServiceTokenAccess(int pid, string expectedServiceSid)
-    {
-        // Read-only interop bisection on the fixture's own registered service.
-        // Do not alter any process/token DACL to turn a denial into a pass.
-        var rows = new List<object>();
-        using var current = CurrentPrivilegeToken();
-        var enabled = DebugState(2);
-        if (!AdjustTokenPrivileges(current, false, ref enabled, (uint)Marshal.SizeOf<TokenPrivileges>(), out var previous, out _) || Marshal.GetLastWin32Error() != 0)
-            throw new InvalidOperationException("Fixture token-access diagnostics could not enable its assigned debug privilege.");
-        try
-        {
-            foreach (var processRights in new uint[] { 0x1000, 0x0400, 0x1400 })
-            {
-                var process = OpenProcess(processRights, false, pid);
-                var processError = process == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
-                if (process == IntPtr.Zero)
-                {
-                    rows.Add(new { processRights = "0x" + processRights.ToString("X"), processError });
-                    continue;
-                }
-                try
-                {
-                    foreach (var tokenRights in new uint[] { 0x0008, 0x0002, 0x000A, 0x20008, 0x2000A, 0x02000000 })
-                    {
-                        var opened = OpenProcessToken(process, tokenRights, out var token);
-                        var openError = opened ? 0 : Marshal.GetLastWin32Error();
-                        var row = new Dictionary<string, object?> { ["processRights"] = "0x" + processRights.ToString("X"),
-                            ["tokenRights"] = "0x" + tokenRights.ToString("X"), ["opened"] = opened, ["openError"] = openError };
-                        using (token)
-                        {
-                            if (opened)
-                            {
-                                var user = ReadTokenUser(token);
-                                row["tokenUser"] = user;
-                                row["expectedServiceIdentity"] = user == expectedServiceSid;
-                                row["restricted"] = IsTokenRestricted(token);
-                                var duplicated = DuplicateTokenEx(token, 0x000B, IntPtr.Zero, 2, 1, out var primary);
-                                row["primaryDuplicate"] = duplicated;
-                                row["duplicateError"] = duplicated ? 0 : Marshal.GetLastWin32Error();
-                                primary.Dispose();
-                                var securityError = GetSecurityInfo(token, 6, 4, out _, out _, out _, out _, out var descriptor);
-                                row["securityQueryError"] = securityError;
-                                if (securityError == 0)
-                                {
-                                    try
-                                    {
-                                        if (ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, 1, 4, out var sddl, out _))
-                                        {
-                                            try { row["tokenDacl"] = Marshal.PtrToStringUni(sddl); }
-                                            finally { LocalFree(sddl); }
-                                        }
-                                        else row["sddlError"] = Marshal.GetLastWin32Error();
-                                    }
-                                    finally { LocalFree(descriptor); }
-                                }
-                            }
-                        }
-                        rows.Add(row);
-                        Console.WriteLine("TOKEN_ACCESS_DIAGNOSTIC process=0x" + processRights.ToString("X") + " token=0x" + tokenRights.ToString("X") +
-                            " opened=" + opened + " error=" + openError);
-                    }
-                }
-                finally { CloseHandle(process); }
-            }
-        }
-        finally
-        {
-            if (previous.Count > 0 && (!AdjustTokenPrivileges(current, false, ref previous, (uint)Marshal.SizeOf<TokenPrivileges>(), out _, out _) || Marshal.GetLastWin32Error() != 0))
-                throw new InvalidOperationException("Fixture token-access diagnostics could not restore its debug privilege.");
-            var root = Path.Combine(Environment.CurrentDirectory, "test-results", "wave2-runtime");
-            Directory.CreateDirectory(root);
-            File.WriteAllText(Path.Combine(root, "postgres-token-access-diagnostics.json"), JsonSerializer.Serialize(new
-            { sourceCommit = Environment.GetEnvironmentVariable("GITHUB_SHA"), runId = Environment.GetEnvironmentVariable("GITHUB_RUN_ID"), expectedServiceSid, rows, changedDacl = false }, new JsonSerializerOptions { WriteIndented = true }));
-        }
-    }
-    private static string? ReadTokenUser(SafeAccessTokenHandle token)
-    {
-        if (GetTokenInformation(token, 1, IntPtr.Zero, 0, out var needed) || Marshal.GetLastWin32Error() != 122 || needed < IntPtr.Size || needed > 65536) return null;
-        var buffer = Marshal.AllocHGlobal(needed);
-        try
-        {
-            if (!GetTokenInformation(token, 1, buffer, needed, out _)) return null;
-            return new SecurityIdentifier(Marshal.ReadIntPtr(buffer)).Value;
-        }
-        finally { Marshal.FreeHGlobal(buffer); }
-    }
-    private static TokenPrivileges DebugState(uint attributes)
-    {
-        if (!LookupPrivilegeValueW(null, "SeDebugPrivilege", out var luid)) throw new InvalidOperationException("Fixture privilege lookup failed.");
-        return new TokenPrivileges { Count = 1, Luid = luid, Attributes = attributes };
-    }
-    private static bool DebugEnabled(SafeAccessTokenHandle token)
-    {
-        var luid = DebugState(0).Luid;
-        if (GetTokenInformation(token, 3, IntPtr.Zero, 0, out var needed) || Marshal.GetLastWin32Error() != 122 || needed < 4 || needed > 65536)
-            throw new InvalidOperationException("Fixture privilege size query failed.");
-        var buffer = Marshal.AllocHGlobal(needed);
-        try
-        {
-            if (!GetTokenInformation(token, 3, buffer, needed, out _)) throw new InvalidOperationException("Fixture privilege query failed.");
-            var count = Marshal.ReadInt32(buffer);
-            if (count < 0 || 4L + count * 12L > needed) throw new InvalidOperationException("Fixture privilege result invalid.");
-            for (var i = 0; i < count; i++)
-            {
-                var entry = IntPtr.Add(buffer, 4 + i * 12);
-                if (unchecked((uint)Marshal.ReadInt32(entry)) == luid.Low && Marshal.ReadInt32(entry, 4) == luid.High)
-                    return (Marshal.ReadInt32(entry, 8) & 2) != 0;
-            }
-            return false;
-        }
-        finally { Marshal.FreeHGlobal(buffer); }
-    }
-    [StructLayout(LayoutKind.Sequential)] private struct Luid { public uint Low; public int High; }
-    [StructLayout(LayoutKind.Sequential)] private struct TokenPrivileges { public uint Count; public Luid Luid; public uint Attributes; }
-    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
-    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeAccessTokenHandle token);
-    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool LookupPrivilegeValueW(string? system, string name, out Luid luid);
-    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, [MarshalAs(UnmanagedType.Bool)] bool disableAll, ref TokenPrivileges requested, uint length, out TokenPrivileges previous, out uint needed);
-    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetTokenInformation(SafeAccessTokenHandle token, int kind, IntPtr buffer, int length, out int needed);
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, int pid);
-    [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
-    [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr pointer);
-    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DuplicateTokenEx(SafeAccessTokenHandle token, uint access, IntPtr attributes, int impersonation, int type, out SafeAccessTokenHandle primary);
-    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsTokenRestricted(SafeAccessTokenHandle token);
-    [DllImport("advapi32.dll", SetLastError = true)] private static extern uint GetSecurityInfo(SafeAccessTokenHandle handle, int type, uint information, out IntPtr owner, out IntPtr group, out IntPtr dacl, out IntPtr sacl, out IntPtr descriptor);
-    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ConvertSecurityDescriptorToStringSecurityDescriptorW(IntPtr descriptor, uint revision, uint information, out IntPtr sddl, out uint length);
     private static Result CoordinatorWithoutHandshake(PostgresMaintenanceTarget target, string input)
     {
         using var process = StartCoordinator(target);
@@ -392,6 +257,74 @@ internal static class PostgresCredentialMaintenanceFixture
         var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
         if (!process.WaitForExit(45000)) { process.Kill(entireProcessTree: true); throw new InvalidOperationException("Coordinator timeout."); }
         return new(process.ExitCode, output.GetAwaiter().GetResult(), error.GetAwaiter().GetResult());
+    }
+    private static void VerifyScmInterruption(PostgresMaintenanceTarget target, string name, int port, string runtime, string identity)
+    {
+        var original = Sc(["qc", name]).Output;
+        var permissions = Sc(["sdshow", name]).Output;
+        using (var holder = Begin(target))
+        {
+            Require(!File.Exists(target.JournalPath) && Sc(["qc", name]).Output == original, "ready-before-backup-does-not-change-service-image");
+            var rejected = CoordinatorWithoutHandshake(target, "");
+            Require(rejected.ExitCode != 0 && !rejected.Output.Contains(HostPostgresCredentialMaintenance.Ready, StringComparison.Ordinal), "concurrent-coordinator-refused-by-private-operation-lease");
+            holder.StandardInput.Close();
+            Require(holder.WaitForExit(20000) && holder.ExitCode != 0, "abandoned-pre-backup-coordinator-terminates");
+        }
+        using (var failed = Begin(target, "throw:ImageChanged"))
+        {
+            Stop(name);
+            var result = Complete(failed, runtime, identity);
+            Require(result.ExitCode != 0 && !File.Exists(target.JournalPath) && Sc(["qc", name]).Output == original, "injected-post-image-failure-restores-exact-original-configuration");
+        }
+        Start(name, target, port);
+        foreach (var phase in new[] { HostPostgresCredentialMaintenance.Phase.JournalDurable, HostPostgresCredentialMaintenance.Phase.ImageChanged,
+            HostPostgresCredentialMaintenance.Phase.WorkerReady, HostPostgresCredentialMaintenance.Phase.RequestDelivered })
+        {
+            File.Delete(PhaseMarker(target, phase));
+            using var interrupted = Begin(target, "pause:" + phase);
+            Stop(name);
+            interrupted.StandardInput.WriteLine(JsonSerializer.Serialize(new { runtime, identity })); interrupted.StandardInput.Close();
+            WaitFile(PhaseMarker(target, phase));
+            Require(File.Exists(target.JournalPath), "durable-journal-exists-before-crash-" + phase);
+            interrupted.Kill(entireProcessTree: true); interrupted.WaitForExit(10000);
+            var reconciled = Execute(Environment.ProcessPath!, ["--pg-maintenance-reconcile", target.ServiceName, target.PostgresRoot, target.DataDirectory]);
+            Require(reconciled.ExitCode == 0 && !File.Exists(target.JournalPath) && Sc(["qc", name]).Output == original,
+                "crash-reconciliation-restores-configuration-" + phase);
+            Start(name, target, port);
+            Require(Login(target, port, "ventio_runtime_app", runtime) && Login(target, port, "ventio_identity_api_app", identity), "crash-reconciliation-preserves-role-authentication-" + phase);
+        }
+        var backendMarker = Path.Combine(target.DataDirectory, "maintenance-backend-pid.txt");
+        File.Delete(backendMarker);
+        using (var interrupted = Begin(target, "hold-backend"))
+        {
+            Stop(name);
+            interrupted.StandardInput.WriteLine(JsonSerializer.Serialize(new { runtime, identity })); interrupted.StandardInput.Close();
+            WaitFile(backendMarker);
+            var backendPid = int.Parse(File.ReadAllText(backendMarker), System.Globalization.CultureInfo.InvariantCulture);
+            using var backend = Process.GetProcessById(backendPid);
+            Require(!backend.HasExited, "real-single-user-backend-alive-before-worker-hard-crash");
+            var pid = Regex.Match(Sc(["queryex", name]).Output, @"\bPID\s*:\s*(\d+)", RegexOptions.CultureInvariant);
+            if (!pid.Success) throw new InvalidOperationException("SCM worker PID missing.");
+            using (var worker = Process.GetProcessById(int.Parse(pid.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)))
+            { worker.Kill(); worker.WaitForExit(10000); }
+            Require(interrupted.WaitForExit(60000) && interrupted.ExitCode != 0, "worker-hard-crash-does-not-report-success");
+            Require(backend.WaitForExit(15000) && !File.Exists(target.JournalPath) && Sc(["qc", name]).Output == original,
+                "owned-job-terminates-backend-before-service-image-restoration");
+        }
+        File.Delete(backendMarker);
+        Start(name, target, port);
+        Require(Login(target, port, "ventio_runtime_app", runtime) && Login(target, port, "ventio_identity_api_app", identity), "hard-worker-crash-preserves-both-passwords");
+        using (var jobPermissions = JsonDocument.Parse(File.ReadAllText(Path.Combine(target.DataDirectory, "maintenance-job-rights.json"))))
+            Require(jobPermissions.RootElement.GetArrayLength() == 4, "real-service-worker-job-query-and-assignment-allowed-modification-and-termination-denied");
+        var evidenceRoot = Path.Combine(Environment.CurrentDirectory, "test-results", "wave2-runtime");
+        Directory.CreateDirectory(evidenceRoot);
+        File.Copy(Path.Combine(target.DataDirectory, "maintenance-job-rights.json"), Path.Combine(evidenceRoot, "postgres-worker-job-rights.json"), overwrite: true);
+        Require(Sc(["sdshow", name]).Output == permissions, "service-security-descriptor-unchanged-by-maintenance-and-reconciliation");
+    }
+    private static void WaitFile(string path)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (!File.Exists(path) || new FileInfo(path).Length == 0) { if (DateTime.UtcNow >= deadline) throw new InvalidOperationException("Fixture phase marker timeout."); Thread.Sleep(25); }
     }
     private static Result Complete(Process process, string runtime, string identity)
     {

@@ -366,6 +366,12 @@ foreach ($scriptName in $setupScriptNames) {
   }
 }
 
+$maintenanceJournal = Join-Path $installerStateDirectory 'PostgresMaintenance\maintenance.json'
+if (Test-Path -LiteralPath $maintenanceJournal) {
+  if (-not $Apply) { throw 'HOST_POSTGRES_MAINTENANCE_RECONCILIATION_REQUIRED' }
+  & (Join-Path $payload 'VentioHostService.exe') '--reconcile-postgres-maintenance'
+  if ($LASTEXITCODE -ne 0) { throw 'HOST_POSTGRES_MAINTENANCE_RECONCILIATION_FAILED' }
+}
 $postgres = Test-ProductService $postgresServiceName 'NT SERVICE\VentioPostgres' `
   (Join-Path $payload 'postgresql\bin\pg_ctl.exe') $databaseDirectory
 $hostService = Test-ProductService $hostServiceName 'NT SERVICE\VentioHost' `

@@ -65,8 +65,10 @@ internal static class Program
             if (args.Length == 1 && args[0] == "--recover-postgres-credentials")
                 return HostPostgresCredentialMaintenance.Coordinate(PostgresMaintenanceTarget.Installed,
                     ["--postgres-maintenance-worker"]);
-            if (args.Length == 3 && args[0] == "--postgres-maintenance-worker" && int.TryParse(args[2], out var parentPid))
-                return HostPostgresCredentialMaintenance.Work(PostgresMaintenanceTarget.Installed, args[1], parentPid);
+            if (args.Length == 1 && args[0] == "--reconcile-postgres-maintenance")
+                return HostPostgresCredentialMaintenance.Reconcile(PostgresMaintenanceTarget.Installed, ["--postgres-maintenance-worker"]);
+            if (args.Length == 4 && args[0] == "--postgres-maintenance-worker" && int.TryParse(args[2], out var parentPid))
+                return HostPostgresCredentialMaintenance.RunService(PostgresMaintenanceTarget.Installed, ["--postgres-maintenance-worker"], args[1], parentPid, args[3]);
             if (args.Length == 1 && args[0] == "--provision-lan-certificate")
                 return HostLanCertificateProvisioner.Run();
             if (args.Length == 2 && args[0] == "--set-lan-listener-status" &&

@@ -264,18 +264,28 @@ function Start-HostCredentialMaintenance {
   }
 }
 
+function Invoke-HostCredentialMaintenanceReconciliation {
+  $helper = Join-Path (Split-Path -Parent $postgresRoot) 'VentioHostService.exe'
+  $reconciled = Invoke-HostRecoveryProcess $helper @('--reconcile-postgres-maintenance') $null $null 120000
+  if ($reconciled.ExitCode -ne 0) {
+    $safeCode = $reconciled.StandardError.Trim()
+    if ($safeCode -match '^HOST_POSTGRES_MAINTENANCE_[A-Z0-9_]+$') { $global:VentioProvisioningFailureDetail = $safeCode }
+    throw 'HOST_DATABASE_RECOVERY_MAINTENANCE_RECONCILIATION_REQUIRED'
+  }
+}
+
 function Invoke-HostSingleUserCredentialRotation {
   param([Diagnostics.Process] $Maintenance, [string] $RuntimeSecret, [string] $IdentitySecret)
   # Credentials travel only over inherited stdin and the authenticated local pipe.
-  # The helper has retained the exact service token before Stop-Service; only its
-  # non-administrator worker opens the stopped cluster. ACLs/HBA are unchanged.
+  # SCM starts the bounded worker under the existing PostgreSQL virtual account
+  # only after the stopped-cluster backup. ACLs/HBA are unchanged.
   $request = @{ runtime = $RuntimeSecret; identity = $IdentitySecret } | ConvertTo-Json -Compress
   try {
     $Maintenance.StandardInput.WriteLine($request)
     $Maintenance.StandardInput.Close()
     $output = $Maintenance.StandardOutput.ReadToEndAsync()
     $errorOutput = $Maintenance.StandardError.ReadToEndAsync()
-    if (-not $Maintenance.WaitForExit(60000)) { throw 'HOST_DATABASE_RECOVERY_MAINTENANCE_TIMEOUT' }
+    if (-not $Maintenance.WaitForExit(240000)) { throw 'HOST_DATABASE_RECOVERY_MAINTENANCE_TIMEOUT' }
     if ($Maintenance.ExitCode -ne 0 -or $output.GetAwaiter().GetResult().Trim() -cne 'HOST_POSTGRES_MAINTENANCE_PASS') {
       $safeCode = $errorOutput.GetAwaiter().GetResult().Trim()
       if ($safeCode -match '^HOST_POSTGRES_MAINTENANCE_[A-Z0-9_]+$') { $global:VentioProvisioningFailureDetail = $safeCode }
@@ -375,6 +385,7 @@ $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.Wind
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   throw 'HOST_DATABASE_RECOVERY_ADMIN_ELEVATION_REQUIRED'
 }
+Invoke-HostCredentialMaintenanceReconciliation
 $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='VentioPostgres'" -ErrorAction SilentlyContinue
 if ($null -eq $service -or $service.StartName -cne 'NT SERVICE\VentioPostgres' -or
     $service.PathName -notmatch [regex]::Escape((Join-Path $postgresRoot 'bin\pg_ctl.exe')) -or
@@ -454,6 +465,9 @@ try {
     } finally { $maintenanceProcess.Dispose() }
   }
   if ($postgresNeedsToRun) {
+    # A killed coordinator can leave a guarded maintenance ImagePath. Resolve
+    # its private journal and prove the owned backend is gone before starting PG.
+    Invoke-HostCredentialMaintenanceReconciliation
     $currentService = Get-Service -Name 'VentioPostgres' -ErrorAction SilentlyContinue
     if ($currentService -and $currentService.Status -ne 'Running') {
       Start-Service -Name 'VentioPostgres' -ErrorAction Stop
