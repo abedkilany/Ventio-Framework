@@ -1,0 +1,31 @@
+{
+  "runId": 44703269459,
+  "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "jobs": [
+    {
+      "mode": "windows",
+      "jobId": 136176535343,
+      "log": "final-windows-job-136176535343.log",
+      "logBytes": 433015,
+      "logSha256": "3609d3f6ac2594a08a1ef1ab5c00d7ee976391cd49b3553e2be024c6e342cffb",
+      "metadata": "final-windows-job-136176535343-metadata.json",
+      "downloadAuthenticatedToGitHub": true,
+      "redirectAuthorizationForwarded": false,
+      "privateCredentialPatternsFound": false,
+      "preservedLog": "final-windows-job-136176535343.txt"
+    },
+    {
+      "mode": "linux",
+      "jobId": 136176534954,
+      "log": "final-linux-job-136176534954.log",
+      "logBytes": 60720,
+      "logSha256": "7734e24d3ecd7179116d9caa6cf6ac13fb9369e2b70dc498338ed777b10b2ab5",
+      "metadata": "final-linux-job-136176534954-metadata.json",
+      "downloadAuthenticatedToGitHub": true,
+      "redirectAuthorizationForwarded": false,
+      "privateCredentialPatternsFound": false,
+      "preservedLog": "final-linux-job-136176534954.txt"
+    }
+  ],
+  "hashBoundary": "Job log hashes are computed locally; GitHub does not publish a job-log digest. Separate artifact digests are independently matched."
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-11-20T15:04:42.709526+00:00",
+  "status": "PASS_DELIVERY_CONSISTENCY_ONLY",
+  "validatedProductSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "jsonFilesParsed": 75,
+  "capabilityCounts": {
+    "PASS": 0,
+    "FAIL": 0,
+    "BLOCKED": 22
+  },
+  "installedRecoveryNotExecuted": 6,
+  "manualPartial": 3,
+  "uniqueProductIdsPassed": 158,
+  "rawOutcomeEventsVerified": 161,
+  "separateScmAssertionsPassed": 51,
+  "indexedHashEntriesVerified": 67,
+  "uniqueIndexedFilesVerified": 62,
+  "localMarkdownTargetsVerified": 43,
+  "finalTest02InstalledMemberMatches": 1746,
+  "finalTest02HostBrokerExitCode": 5,
+  "productChangesAfterValidatedSource": [],
+  "limitation": "Delivery consistency is not product acceptance. The 22 complete capabilities and installed P001-P006 remain blocked."
+}

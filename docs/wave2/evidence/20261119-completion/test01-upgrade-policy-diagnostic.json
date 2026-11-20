@@ -1,0 +1,16 @@
+{
+  "case": "TEST01-NATIVE-UPGRADE-POLICY-DIAGNOSTIC",
+  "utc": "2026-11-20T13:44:27.0334316Z",
+  "events": [
+    {
+      "Id": 4100,
+      "RecordId": 167313,
+      "TimeCreated": "/Date(1795182188326)/",
+      "Message": "Error Message = File C:\\Users\\codex-1\\AppData\\Local\\Temp\\is-9ZRFRS986O.tmp\\stop-host-services.ps1 cannot be loaded because running scripts is disabled on this system. For more information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.\r\nFully Qualified Error ID = UnauthorizedAccess\r\nRecommended Action = \r\n\r\n\r\nContext:\r\n        Severity = Warning\r\n        Host Name = ConsoleHost\r\n        Host Version = 5.1.26100.9818\r\n        Host ID = 5d86a672-6c27-4217-a159-20a405f5d87f\r\n        Host Application = C:\\WINDOWS\\system32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -NoProfile -NonInteractive -File C:\\Users\\codex-1\\AppData\\Local\\Temp\\is-9ZRFRS986O.tmp\\stop-host-services.ps1 -PayloadDirectory C:\\Program Files\\Ventio\\host-payload -AllowPostgresOnlyRecovery -FailureCodePath C:\\Users\\codex-1\\AppData\\Local\\Temp\\is-9ZRFRS986O.tmp\\ventio-preinstall-failure.txt\r\n        Engine Version = 5.1.26100.9818\r\n        Runspace ID = fdaa637e-b4b4-467a-bc45-b26a8b27b5fd\r\n        Pipeline ID = 1\r\n        Command Name = \r\n        Command Type = \r\n        Script Name = \r\n        Command Path = \r\n        Sequence Number = 15\r\n        User = VENTIO-TEST-01\\Codex-1\r\n        Connected User = \r\n        Shell ID = Microsoft.PowerShell\r\n\r\n\r\nUser Data:\r\n\r\n"
+    }
+  ],
+  "configurationChanged": false,
+  "policy": "Restricted",
+  "operationalLogEnabled": true,
+  "status": "MATCHING_EVENTS_CAPTURED"
+}

@@ -1,0 +1,16 @@
+{
+  "case": "TEST01-INSTALLER-BOUNDED-RESUME",
+  "startedAtUtc": "2026-11-20T13:28:22.421450+00:00",
+  "status": "TRANSPORT_COMPLETED_UNVERIFIED",
+  "protocol": "OpenSSH SFTP reput",
+  "timeoutSeconds": 1200,
+  "remoteInitialBytes": 20643840,
+  "expectedBytes": 108097385,
+  "installerTemporaryName": "Ventio-Setup-0.1.23.exe.upload-064087e898544930909999035365ac6a",
+  "manifestTemporaryName": "installed-files-44619230172.json.upload-064087e898544930909999035365ac6a",
+  "nativeInstallerExecuted": false,
+  "exitCode": 0,
+  "stdout": "sftp> reput \"C:/Users/User/.codex/tmp/ventio-wave2-completion/candidate-44619230172-extracted/Payload/Ventio-Setup-0.1.23.exe\" \"C:/Ventio-Acceptance/candidate-44619230172/Ventio-Setup-0.1.23.exe.upload-064087e898544930909999035365ac6a\"\nsftp> put \"C:/Users/User/.codex/tmp/ventio-wave2-completion/installed-files-44619230172.json\" \"C:/Ventio-Acceptance/candidate-44619230172/installed-files-44619230172.json.upload-064087e898544930909999035365ac6a\"\n",
+  "stderr": "",
+  "completedAtUtc": "2026-11-20T13:41:19.518724+00:00"
+}

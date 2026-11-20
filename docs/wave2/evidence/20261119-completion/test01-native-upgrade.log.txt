@@ -1,0 +1,23 @@
+﻿2026-11-20 15:42:53.842   Log opened. (Time zone: UTC+02:00)
+2026-11-20 15:42:53.842   Setup version: Inno Setup version 6.7.4
+2026-11-20 15:42:53.842   Original Setup EXE: C:\Ventio-Acceptance\candidate-44619230172\Ventio-Setup-0.1.23.exe
+2026-11-20 15:42:53.842   Setup command line: /SL5="$1A00BC,106813080,893952,C:\Ventio-Acceptance\candidate-44619230172\Ventio-Setup-0.1.23.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="C:\Program Files\Ventio" /LOG="C:\Ventio-Acceptance\candidate-44619230172\test01-native-upgrade.log" 
+2026-11-20 15:42:53.842   Windows version: 10.0.26300
+2026-11-20 15:42:53.842   Windows architecture: x64 (64-bit)
+2026-11-20 15:42:53.842   Machine types supported by system: x86 x64
+2026-11-20 15:42:53.842   User privileges: Administrative
+2026-11-20 15:42:53.858   Administrative install mode: Yes
+2026-11-20 15:42:53.858   Install mode root key: HKEY_LOCAL_MACHINE
+2026-11-20 15:42:53.858   64-bit install mode: Yes
+2026-11-20 15:42:53.858   RedirectionGuard status for current process: Enabled in enforcing mode
+2026-11-20 15:42:53.858   Created protected temporary directory: C:\Users\codex-1\AppData\Local\Temp\is-9ZRFRS986O.tmp
+2026-11-20 15:42:54.266   Extracting temporary file: C:\Users\codex-1\AppData\Local\Temp\is-9ZRFRS986O.tmp\stop-host-services.ps1
+2026-11-20 15:43:01.307   Extracting temporary file: C:\Users\codex-1\AppData\Local\Temp\is-9ZRFRS986O.tmp\HostMigrationCredential.psm1
+2026-11-20 15:43:07.766   Extracting temporary file: C:\Users\codex-1\AppData\Local\Temp\is-9ZRFRS986O.tmp\HostServiceRecoveryPolicy.psm1
+2026-11-20 15:43:08.668   PrepareToInstall failed: Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_HELPER_FAILED. Stage: STOP_HOST_SERVICES. No application files were replaced.
+2026-11-20 15:43:08.668   Need to restart Windows? No
+2026-11-20 15:43:08.668   Defaulting to OK for suppressed message box (OK):
+                          Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_HELPER_FAILED. Stage: STOP_HOST_SERVICES. No application files were replaced.
+2026-11-20 15:43:08.668   Got EAbort exception.
+2026-11-20 15:43:08.668   Deinitializing Setup.
+2026-11-20 15:43:08.684   Log closed.

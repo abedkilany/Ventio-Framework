@@ -1,0 +1,91 @@
+{
+  "case": "TEST01-UPGRADE-STATE-REFRESH",
+  "startedAtUtc": "2026-11-20T13:24:30.6535960Z",
+  "status": "PASS",
+  "machine": "VENTIO-TEST-01",
+  "machineGuid": "e1bd301b-05eb-4b3f-9b40-2c899ae39ae8",
+  "normalAdminToken": true,
+  "clientSha256": "cd9dfa98cd03a76c2cfc7f8cad4c570fb963e141b91fd5d19124a4c3206d6bd4",
+  "appSoSha256": "f6a6496237f8e6ec05dc210fac2306176f3f8d0a75505cc32c40b999c1b395d3",
+  "services": [
+    {
+      "Name": "VentioHost",
+      "State": "Stopped",
+      "StartName": "NT SERVICE\\VentioHost",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\"",
+      "ProcessId": 0,
+      "StartMode": "Auto"
+    },
+    {
+      "Name": "VentioPostgres",
+      "State": "Running",
+      "StartName": "NT SERVICE\\VentioPostgres",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w",
+      "ProcessId": 4780,
+      "StartMode": "Auto"
+    }
+  ],
+  "postgresProcesses": [
+    {
+      "Name": "pg_ctl.exe",
+      "ProcessId": 4780,
+      "ParentProcessId": 888,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe",
+      "CreationDate": "/Date(1795160755719)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5484,
+      "ParentProcessId": 4780,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160756971)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5780,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160758009)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5792,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160758015)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5124,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160759831)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5060,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160759837)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 4424,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160759843)/"
+    }
+  ],
+  "effectivePolicy": "Restricted",
+  "protection": {
+    "AMRunningMode": "Normal",
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "DefenderSignaturesOutOfDate": false,
+    "AntivirusSignatureVersion": "1.463.382.0"
+  },
+  "activeThreats": [],
+  "defenderLastRecordId": 1361,
+  "completedAtUtc": "2026-11-20T13:24:34.1553623Z"
+}

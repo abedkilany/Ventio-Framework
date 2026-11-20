@@ -1,0 +1,66 @@
+{
+  "artifactId": 14411753686,
+  "runId": 44267441630,
+  "sourceCommit": "50d4d2bb41891d8d598d9e6f2408773411dc97b1",
+  "expectedTransportBytes": 275581219,
+  "expectedTransportSha256": "1a04f1c12dfa84a4eb370ca6d3de862f3766e41b18af223266015224fbe533ea",
+  "verifiedForExecution": false,
+  "attempts": [
+    {
+      "method": "Git credential manager authenticated GitHub REST redirect, Python streamed HTTPS",
+      "target": "BAHAA task staging only",
+      "outcome": "FAILED_READ_TIMEOUT",
+      "receivedBytes": 8388608
+    },
+    {
+      "method": "Authenticated GitHub REST redirect, bounded parallel HTTP Range requests",
+      "target": "BAHAA task staging only",
+      "outcome": "FAILED_READ_TIMEOUT",
+      "partialRangeBytes": 38273024,
+      "completeArtifactReconstructed": false
+    },
+    {
+      "method": "Authenticated GitHub REST temporary redirect, native curl on TEST-02",
+      "target": "TEST-02 C:/Ventio-Acceptance",
+      "outcome": "FAILED_CONNECTION_RESET",
+      "exitCode": 56,
+      "receivedBytes": 1309616
+    },
+    {
+      "method": "GitHub connector download_workflow_artifact, then native curl from reusable file reference",
+      "target": "BAHAA task staging only",
+      "connectorFetch": "SUCCEEDED",
+      "localTransfer": "FAILED_READ_TIMEOUT",
+      "curlExitCode": 28,
+      "receivedBytes": 507176
+    }
+  ],
+  "freshCandidateRequested": {
+    "runId": 44619230172,
+    "head": "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "url": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44619230172"
+  },
+  "resolution": {
+    "status": "RESOLVED_AUTOMATICALLY_WITH_FRESH_CANDIDATE",
+    "artifactId": 14579310933,
+    "runId": 44619230172,
+    "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "method": "Authenticated GitHub REST redirect and resumable bounded HTTP ranges; reused the TEST-01 partial as transport bytes and validated the complete reconstruction against the independently published digest",
+    "transportBytes": 276542877,
+    "transportSha256": "e70e52f181f39138568a8673baa1a45cfecfc65325f6e83d493d04d5b7ef8483",
+    "payloadMembersVerified": 1767,
+    "sourceArchiveMembersMatchedToGit": 1297,
+    "manualTransferRequired": false,
+    "clientInstalledOn": "TEST-02",
+    "installedFilesMatched": 1746,
+    "evidence": [
+      "fresh-transport-verification.json",
+      "fresh-package-verification.json",
+      "preinstall-scan.json",
+      "native-install-result.json",
+      "installed-integrity.json"
+    ],
+    "limitation": "The c326 candidate is used for independent Client testing; the final candidate containing SCM recovery corrections is a separate build. The old 44267441630 partial files remain unverified and unexecuted."
+  },
+  "security": "No partial file executed; no policy, signature validation, TLS validation or Defender setting changed."
+}

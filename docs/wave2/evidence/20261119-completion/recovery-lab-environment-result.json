@@ -1,0 +1,17 @@
+{
+  "status": "BLOCKED_NORMAL_MANAGEMENT_ELEVATION",
+  "operation": "Apply the exact eight-rule VM adapter isolation plan",
+  "planSha256": "1f2b083029358e1bd52b1a3d701761b344abbb6d89a2dcbaa7e3c6f18c703774",
+  "vmId": "99aba626-2cc9-486e-86ab-af7966848126",
+  "vmName": "Ventio-Recovery-Lab",
+  "guestRenamedTo": "VENTIO-W2-VM01",
+  "guestMachineGuid": "5cb98737-7141-4486-9a87-08484566e292",
+  "guestSmbiosUuid": "BBFBFFD7-D087-4E7C-9D65-D7884CAE0420",
+  "sshReturnObservedUtc": "2026-11-19T21:40:31.8934493Z",
+  "guard": "RECOVERY_MANAGEMENT_ELEVATION_REQUIRED",
+  "guardLocation": "scripts/windows/prepare-recovery-lab-isolation.ps1:20",
+  "sideEffectsBeforeGuard": "None; elevation guard precedes Hyper-V rule writes.",
+  "networkEffectiveVerified": false,
+  "beforeProbes": "Both public IPv4 TCP443 and guest link-local IPv6 SSH probes were already unsuccessful before isolation; these cannot be used to infer new isolation enforcement.",
+  "releaseSigning": "Deferred by owner; no signing identity/secrets investigation or security-policy changes continued."
+}

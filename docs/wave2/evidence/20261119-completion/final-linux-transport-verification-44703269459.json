@@ -1,0 +1,47 @@
+{
+  "artifactId": 14614620519,
+  "metadata": {
+    "id": 14614620519,
+    "node_id": "MDg6QXJ0aWZhY3QxNDYxNDYyMDUxOQ==",
+    "name": "wave2-hosted-linux-81661f7f2f10844d0132a5f3b91ab14580ec9a52-44703269459-1",
+    "size_in_bytes": 23884,
+    "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14614620519",
+    "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14614620519/zip",
+    "expired": false,
+    "digest": "sha256:06097bde5f0a77c7f996a5fa7935e969bf5f0180994a46a493dfd7a3ad463194",
+    "created_at": "2026-11-20T08:37:58Z",
+    "updated_at": "2026-11-20T08:37:58Z",
+    "expires_at": "2026-12-20T08:37:56Z",
+    "workflow_run": {
+      "id": 44703269459,
+      "repository_id": 1431395537,
+      "head_repository_id": 1431395537,
+      "head_branch": "feature/wave-2-a",
+      "head_sha": "81661f7f2f10844d0132a5f3b91ab14580ec9a52"
+    }
+  },
+  "verifiedSha256": "06097bde5f0a77c7f996a5fa7935e969bf5f0180994a46a493dfd7a3ad463194",
+  "members": [
+    "host-audit-results.json",
+    "initial-case-ledger.json",
+    "initialize-results.json",
+    "linux-d.log",
+    "linux-fixture-0.json",
+    "linux-fixture-1.json",
+    "linux-fixture-2.json",
+    "linux-fixture-3.json",
+    "linux-fixture-4.json",
+    "linux-fixture-5.json",
+    "linux-fixture-6.json",
+    "linux-h.log",
+    "linux-j.log",
+    "linux-o.log",
+    "linux-r.log",
+    "linux-results.json",
+    "linux-u-040-to-041.log",
+    "linux-u.log",
+    "offline-e.log",
+    "offline-fixture-0.json",
+    "offline-results.json"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "phase": "before-isolation",
+  "probe": "management-to-guest-ipv6-ssh",
+  "connected": false,
+  "utc": "2026-11-19T21:41:07.9211582Z"
+}

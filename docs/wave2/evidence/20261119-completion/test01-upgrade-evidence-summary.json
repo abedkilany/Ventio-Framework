@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "case": "TEST01-NATIVE-UPGRADE-ATTEMPT",
+  "recordedAtUtc": "2026-11-20T13:45:25.936796+00:00",
+  "taskResult": "ACTUAL_NATIVE_ATTEMPT_COMPLETED_DENIED",
+  "upgradeAcceptance": "FAIL_NOT_UPGRADED",
+  "denialHandling": "PASS_BASELINE_AND_PROTECTION_PRESERVED",
+  "wave2AcceptanceEstablished": false,
+  "target": {
+    "machine": "VENTIO-TEST-01",
+    "machineGuid": "e1bd301b-05eb-4b3f-9b40-2c899ae39ae8",
+    "canonicalInstallDirectory": "C:\\Program Files\\Ventio"
+  },
+  "candidate": {
+    "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "runId": "44619230172",
+    "installerSha256": "e1b45bf246ed1414fa8de19fe0ecd8d009007be1038982414d59330bbfe1364b",
+    "installerBytes": 108097385,
+    "isFinal81661f7Candidate": false
+  },
+  "scan": {
+    "result": "PASS",
+    "startRecordId": 1362,
+    "completeRecordId": 1363,
+    "postScanHashMatched": true
+  },
+  "nativeExecution": {
+    "startedAtUtc": "2026-11-20T13:42:50.6999555Z",
+    "completedAtUtc": "2026-11-20T13:43:08.7316497Z",
+    "exitCode": 7,
+    "failureCode": "HOST_PREINSTALL_HELPER_FAILED",
+    "stage": "STOP_HOST_SERVICES",
+    "applicationFilesReplacedAccordingToNativeLog": false,
+    "restartRequiredAccordingToNativeLog": false
+  },
+  "confirmedDenialReason": {
+    "effectivePolicy": "Restricted",
+    "powerShellEventId": 4100,
+    "recordId": 167313,
+    "reason": "The normal -File invocation of stop-host-services.ps1 was rejected because running scripts is disabled on this system."
+  },
+  "preservedPostconditions": {
+    "clientVersion": "0.1.18+19",
+    "clientSha256": "cd9dfa98cd03a76c2cfc7f8cad4c570fb963e141b91fd5d19124a4c3206d6bd4",
+    "appSoSha256": "f6a6496237f8e6ec05dc210fac2306176f3f8d0a75505cc32c40b999c1b395d3",
+    "postgresServicePid": 4780,
+    "postgresMainPid": 5484,
+    "postgresState": "Running",
+    "hostServiceState": "Stopped",
+    "policy": "Restricted",
+    "defender": {
+      "AMServiceEnabled": true,
+      "AntivirusEnabled": true,
+      "RealTimeProtectionEnabled": true,
+      "DefenderSignaturesOutOfDate": false,
+      "AntivirusSignatureVersion": "1.463.382.0"
+    },
+    "newDefenderDetections": 0,
+    "activeThreats": 0
+  },
+  "scopeLimits": [
+    "No successful upgrade, Host integration, two-device synchronization, P-case or manual UI acceptance is claimed.",
+    "The first observation harness failed on the reserved PowerShell Host variable before product mutation; its record is retained separately and was corrected.",
+    "The initial 180-second SCP attempt produced an incomplete file; one bounded SFTP resume completed, and full independent byte/hash checks preceded scan/execution.",
+    "No execution-policy/protection change, quarantine restoration, helper bypass, database reset or reboot was performed."
+  ],
+  "evidence": [
+    {
+      "path": "test01-upgrade-preflight-attempt1.json",
+      "bytes": 1540,
+      "sha256": "40a4fb4a24cef3398ac099d3acf6ccc04f6f222926317ae7d5aed932cf09c428"
+    },
+    {
+      "path": "test01-upgrade-preflight.json",
+      "bytes": 4313,
+      "sha256": "a8dd4799566d171e2923f672fa965ffe9eff1a245a9bef93423ed6c28a27427c"
+    },
+    {
+      "path": "test01-upgrade-state-refresh.json",
+      "bytes": 3220,
+      "sha256": "4d9bc404bedd13abe96c2af1647989960d39b0d1988ac12908ac0b236e4b2d54"
+    },
+    {
+      "path": "test01-installer-transfer-attempt.json",
+      "bytes": 717,
+      "sha256": "198b9c6cc1648f1e49e9caafcbd9aecf75a8bbfff135315e8921f16d666395d2"
+    },
+    {
+      "path": "test01-installer-transfer-resume.json",
+      "bytes": 1087,
+      "sha256": "4833f85c2e074350ff725bc1c736724a6a9eb2b98773e925f3c01cb370766d5a"
+    },
+    {
+      "path": "test01-input-integrity.json",
+      "bytes": 692,
+      "sha256": "abf22b4c686dad66619a9603bae8ec68b3e3863783c35c745b5e0ba119e0f937"
+    },
+    {
+      "path": "test01-upgrade-scan.json",
+      "bytes": 2766,
+      "sha256": "fc2c0167bd050d5d34d00f08cf6f5dcd650f03e89968b1f90c42c10c3d3bb818"
+    },
+    {
+      "path": "test01-native-upgrade-result.json",
+      "bytes": 4715,
+      "sha256": "c2bee5cc071445a7a884726e1e51852921e072f39878019d0ea7a8fcbfe921cb"
+    },
+    {
+      "path": "test01-native-upgrade.log.txt",
+      "bytes": 2230,
+      "sha256": "b04e4ae94eba8d8bcccb5de3d15cc43e7a8776415d22836920d57e5e9b511e5b"
+    },
+    {
+      "path": "test01-upgrade-policy-diagnostic.json",
+      "bytes": 1744,
+      "sha256": "cbbbac5314288c6e44ec3867f1516e1ddca4903d2c99e13095eb6f8457fb0a0f"
+    }
+  ]
+}

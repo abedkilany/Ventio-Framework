@@ -1,0 +1,18 @@
+{
+  "case": "TEST01-INSTALLER-TRANSFER",
+  "transport": "SCP over strict-key SSH",
+  "status": "TIMEOUT_180_SECONDS",
+  "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+  "expectedBytes": 108097385,
+  "expectedSha256": "e1b45bf246ed1414fa8de19fe0ecd8d009007be1038982414d59330bbfe1364b",
+  "temporaryFile": "Ventio-Setup-0.1.23.exe.upload-064087e898544930909999035365ac6a",
+  "nativeInstallerExecuted": false,
+  "scanExecuted": false,
+  "observedAtUtc": "2026-11-20T13:27:16.888151+00:00",
+  "remoteFileObservation": {
+    "name": "Ventio-Setup-0.1.23.exe.upload-064087e898544930909999035365ac6a",
+    "bytes": 20643840,
+    "sha256": null,
+    "utc": "2026-11-20T13:27:18.6481424Z"
+  }
+}

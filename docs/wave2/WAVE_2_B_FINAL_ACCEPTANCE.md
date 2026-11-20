@@ -1,3 +1,5 @@
+> **Superseded current status (2026-11-20):** see [Wave 2 B execution outcome](WAVE_2_B_COMPLETION_2026_11_20.md) and its current acceptance matrix. The body below is preserved as historical evidence; its candidate, device and investigation statements do not describe the current checkpoint. PR #6 remains Draft/unmerged and NOT READY.
+
 # Wave 2 B final acceptance
 
 2026-11-18 update: this physical checkpoint remains historical. Current corrective

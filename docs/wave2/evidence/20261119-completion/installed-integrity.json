@@ -1,0 +1,49 @@
+﻿{
+    "case":  "TEST02-INSTALLED-COMPLETE-INTEGRITY",
+    "sourceCommit":  "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "runId":  "44619230172",
+    "computer":  "TEST-02",
+    "startedAtUtc":  "2026-11-20T08:17:55.4113188Z",
+    "status":  "PASS",
+    "missing":  [
+
+                ],
+    "changed":  [
+
+                ],
+    "matched":  1746,
+    "identity":  "Ventio-W2B-0.1.23+24-20261118-c32691c30373-gh44619230172-a1",
+    "expected":  1746,
+    "extraFiles":  [
+                       "unins000.dat",
+                       "unins000.exe"
+                   ],
+    "version":  {
+                    "FileVersion":  "0.1.23+24",
+                    "ProductVersion":  "0.1.23+24",
+                    "ProductName":  "ventio_native_client"
+                },
+    "clientSha256":  "2a5d9b0f359da5623cf33b41d13981caeb08f592a0ba4f96d185ba4cec9b2556",
+    "appSoSha256":  "d41f35895c6a78389d80711015656f58b5fdc3816cd08cd7ee92cd80168efa25",
+    "vcRuntime":  {
+                      "Installed":  1,
+                      "Version":  "v14.51.36247.00"
+                  },
+    "policy":  "Restricted",
+    "protection":  {
+                       "AMServiceEnabled":  true,
+                       "AntivirusEnabled":  true,
+                       "RealTimeProtectionEnabled":  true,
+                       "DefenderSignaturesOutOfDate":  false,
+                       "AntivirusSignatureVersion":  "1.463.378.0"
+                   },
+    "exclusionExitCode":  1,
+    "exclusionResult":  "C:\\Program Files\\Ventio [\\Device\\HarddiskVolume3\\Program Files\\Ventio] is not excluded. Exit code is 1.",
+    "detectionsSinceInstall":  [
+
+                               ],
+    "services":  [
+
+                 ],
+    "completedAtUtc":  "2026-11-20T08:18:18.7690391Z"
+}

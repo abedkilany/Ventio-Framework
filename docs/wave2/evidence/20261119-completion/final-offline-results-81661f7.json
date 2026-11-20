@@ -1,0 +1,58 @@
+{
+  "commit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "runId": "44703269459",
+  "attempt": "1",
+  "mode": "offline",
+  "suites": [
+    {
+      "suite": "E",
+      "variant": null,
+      "log": "offline-E.log",
+      "command": [
+        "flutter",
+        "test",
+        "--no-pub",
+        "--machine",
+        "test/wave2_offline_integration.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-E001",
+          "status": "PASSED",
+          "suite": "E"
+        },
+        {
+          "id": "W2-E002",
+          "status": "PASSED",
+          "suite": "E"
+        },
+        {
+          "id": "W2-E003",
+          "status": "PASSED",
+          "suite": "E"
+        },
+        {
+          "id": "W2-E004",
+          "status": "PASSED",
+          "suite": "E"
+        },
+        {
+          "id": "W2-E005",
+          "status": "PASSED",
+          "suite": "E"
+        },
+        {
+          "id": "W2-E006",
+          "status": "PASSED",
+          "suite": "E"
+        }
+      ]
+    }
+  ],
+  "expectedUnexecuted": {
+    "P": "BLOCKED_PREREQUISITE: separately provisioned installed Windows VM and normal local approval required"
+  },
+  "manualAcceptance": "W2-M001..M006 remain unexecuted; CI does not establish physical two-device or owner acceptance"
+}

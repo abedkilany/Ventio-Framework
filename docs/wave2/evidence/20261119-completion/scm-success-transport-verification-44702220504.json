@@ -1,0 +1,33 @@
+{
+  "artifactId": 14613402659,
+  "metadata": {
+    "id": 14613402659,
+    "node_id": "MDg6QXJ0aWZhY3QxNDYxMzQwMjY1OQ==",
+    "name": "wave2-runtime-7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a-44702220504-1",
+    "size_in_bytes": 5308,
+    "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14613402659",
+    "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14613402659/zip",
+    "expired": false,
+    "digest": "sha256:d60cdb12dc8dffadffb0d23639d518f20616eab1dcc206b45d37c278bb1b3b2a",
+    "created_at": "2026-11-20T08:28:38Z",
+    "updated_at": "2026-11-20T08:28:38Z",
+    "expires_at": "2026-12-20T08:28:37Z",
+    "workflow_run": {
+      "id": 44702220504,
+      "repository_id": 1431395537,
+      "head_repository_id": 1431395537,
+      "head_branch": "feature/wave-2-a",
+      "head_sha": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a"
+    }
+  },
+  "verifiedSha256": "d60cdb12dc8dffadffb0d23639d518f20616eab1dcc206b45d37c278bb1b3b2a",
+  "members": [
+    "_temp/wave2-defender-enablement.json",
+    "ventio-framework/ventio-framework/test-results/wave2-runtime/net-host-service.log",
+    "ventio-framework/ventio-framework/test-results/wave2-runtime/net-setup-broker.log",
+    "ventio-framework/ventio-framework/test-results/wave2-runtime/pg-single-user-recovery.log",
+    "ventio-framework/ventio-framework/test-results/wave2-runtime/postgres-maintenance-cases.json",
+    "ventio-framework/ventio-framework/test-results/wave2-runtime/postgres-worker-job-rights.json",
+    "ventio-framework/ventio-framework/test-results/wave2-runtime/runtime-results.json"
+  ]
+}

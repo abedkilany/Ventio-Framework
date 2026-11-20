@@ -1,0 +1,44 @@
+{
+  "checkedAtUtc": "2026-11-20T14:56:29.085611+00:00",
+  "validatedCodeRevision": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "candidateSourceTree": "d3959d1808dbe6b261be6606ab4c459997866e46",
+  "trackedProductDifferencesInDeliveryWorktree": [],
+  "productSubtreeComparisons": [
+    {
+      "path": "packages",
+      "candidateTree": "28df2e95142e94c5818aad8399cb708928461341",
+      "deliveryProductTree": "28df2e95142e94c5818aad8399cb708928461341"
+    },
+    {
+      "path": "installer",
+      "candidateTree": "f75118aaa5a3613520eb1645c1c373b422ad6bf1",
+      "deliveryProductTree": "f75118aaa5a3613520eb1645c1c373b422ad6bf1"
+    },
+    {
+      "path": "scripts",
+      "candidateTree": "c94b62bcc5de2e0fad65570335ce534d115a8344",
+      "deliveryProductTree": "c94b62bcc5de2e0fad65570335ce534d115a8344"
+    },
+    {
+      "path": "migrations",
+      "candidateTree": "d0be2bb7af4fa9131c1609d77f2c0f2b5492184a",
+      "deliveryProductTree": "d0be2bb7af4fa9131c1609d77f2c0f2b5492184a"
+    },
+    {
+      "path": "security",
+      "candidateTree": "261c8c748a2234fb266c3cef0455fe59028ca1a9",
+      "deliveryProductTree": "261c8c748a2234fb266c3cef0455fe59028ca1a9"
+    },
+    {
+      "path": ".github",
+      "candidateTree": "2cc02d2b95af35630e00b24dcc5be984b5bd80d4",
+      "deliveryProductTree": "2cc02d2b95af35630e00b24dcc5be984b5bd80d4"
+    }
+  ],
+  "targetedRuntimeSource": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a",
+  "changesBetweenTargetedRuntimeAndFinalCode": [
+    "scripts/ci/package-wave2-acceptance.ps1"
+  ],
+  "applicability": "The targeted SCM runtime tests apply to the unchanged recovery implementation; only packaging-date source changed before final full CI. Acceptance/evidence documentation will be committed separately; no product-code change is made after the validated candidate revision.",
+  "limitation": "Source equality does not close installed Host, two-device, P001-P006 or manual acceptance."
+}
