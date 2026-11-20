@@ -33,7 +33,8 @@ jobs:
             finally { Pop-Location }
           }
           ./scripts/ci/install-postgres-tools.ps1
-          ./scripts/windows/build-host-payload.ps1 -PostgresBinDirectory $env:VENTIO_TEST_POSTGRES_BIN_DIR
+          $pg = Join-Path $env:RUNNER_TOOL_CACHE 'ventio-postgresql-16.16-1-x64/pgsql/bin'
+          ./scripts/windows/build-host-payload.ps1 -PostgresBinDirectory $pg
       - name: Run broker security regressions
         run: |
           dotnet run --project installer/windows/setup-broker.tests/VentioSetupBroker.Tests.csproj -c Release
