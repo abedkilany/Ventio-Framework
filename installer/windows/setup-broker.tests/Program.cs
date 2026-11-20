@@ -1,5 +1,21 @@
 using BrokerProgram = Ventio.HostSetupBroker.Program;
 
+var originalRestorePrivilege = OwnershipPrivilegeProbe.Enabled();
+Ventio.HostSetupBroker.NativeHostInstallation.WithRestorePrivilege(() =>
+{
+    if (!OwnershipPrivilegeProbe.Enabled()) throw new InvalidOperationException("Required ownership privilege was not scoped to the operation.");
+});
+if (OwnershipPrivilegeProbe.Enabled() != originalRestorePrivilege)
+    throw new InvalidOperationException("Native ownership operation leaked a token privilege.");
+try
+{
+    Ventio.HostSetupBroker.NativeHostInstallation.WithRestorePrivilege(() => throw new ApplicationException("injected ownership failure"));
+    throw new InvalidOperationException("Ownership failure did not propagate.");
+}
+catch (ApplicationException) { }
+if (OwnershipPrivilegeProbe.Enabled() != originalRestorePrivilege)
+    throw new InvalidOperationException("Failed native ownership operation leaked a token privilege.");
+
 foreach (var path in new[] { "../outside.exe", "/absolute.exe", "C:/outside.exe", "setup//x.ps1", "setup/./x", "postgresql\\bin\\postgres.exe", "migrations/NUL.sql", "setup/file.", "setup/x:stream", "setup/*" })
     if (Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(path))
         throw new InvalidOperationException("Native installation accepted an unsafe payload member path.");
@@ -139,3 +155,26 @@ foreach (var request in rejected)
 }
 
 Console.WriteLine("Host setup broker validation passed: read-only and write-capable ACL rights, fixed new-host operation, scope allowlist, caller SID, GUID operation ID, and arbitrary argument rejection.");
+
+internal static class OwnershipPrivilegeProbe
+{
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct Luid { internal uint Low; internal int High; }
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct PrivilegeSet { internal uint Count, Control; internal Luid Luid; internal uint Attributes; }
+    internal static bool Enabled()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), 8, out var token)) throw new InvalidOperationException("Token query failed.");
+        using (token)
+        {
+            if (!LookupPrivilegeValueW(null, "SeRestorePrivilege", out var luid)) throw new InvalidOperationException("Privilege lookup failed.");
+            var set = new PrivilegeSet { Count = 1, Control = 1, Luid = luid, Attributes = 2 };
+            if (!PrivilegeCheck(token, ref set, out var enabled)) throw new InvalidOperationException("Privilege query failed.");
+            return enabled;
+        }
+    }
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint rights, out Microsoft.Win32.SafeHandles.SafeAccessTokenHandle token);
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)] private static extern bool LookupPrivilegeValueW(string? system, string name, out Luid luid);
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)] private static extern bool PrivilegeCheck(Microsoft.Win32.SafeHandles.SafeAccessTokenHandle token, ref PrivilegeSet set, out bool result);
+}

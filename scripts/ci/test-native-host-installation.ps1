@@ -102,7 +102,7 @@ try {
   Case 'NHI005-real-native-Host-installation-and-first-administrator' {
     $p=Request-NewHost
     $statusPath=Join-Path $app ('SetupStatus/'+$script:operation+'.json')
-    if(Test-Path -LiteralPath $statusPath){Copy-Item -LiteralPath $statusPath -Destination (Join-Path $out 'native-attempt-status.json')}
+    if(Test-Path -LiteralPath $statusPath){Copy-Item -LiteralPath $statusPath -Destination (Join-Path $out 'native-attempt-status.json');Get-Content -LiteralPath $statusPath -Raw|Write-Output}
     if($p.code -ne 0){
       $diagnostics=Join-Path $product 'Installer/ProvisioningDiagnostics'
       if(Test-Path -LiteralPath $diagnostics){Copy-Item (Join-Path $diagnostics '*.json') $out}
@@ -199,6 +199,10 @@ try {
 } finally {
   $diagnostics=Join-Path $product 'Installer/ProvisioningDiagnostics'
   if(Test-Path -LiteralPath $diagnostics){Copy-Item (Join-Path $diagnostics '*.json') $out}
+  foreach($record in @(Get-ChildItem -LiteralPath $out -Filter 'native-*.json' -File)){
+    Write-Output $record.Name
+    Get-Content -LiteralPath $record.FullName -Raw|Write-Output
+  }
   foreach($entry in $networks){try {$entry.network.SetCategory($entry.category)} catch {}}
   $policiesAfter=@(Get-ExecutionPolicy -List|ForEach-Object { @{scope=[string]$_.Scope;policy=[string]$_.ExecutionPolicy} })
   $unchanged=($policiesBefore|ConvertTo-Json -Compress) -ceq ($policiesAfter|ConvertTo-Json -Compress)

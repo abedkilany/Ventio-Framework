@@ -575,7 +575,7 @@ internal static partial class NativeHostInstallation
         finally { CloseServiceHandle(manager); }
     }
 
-    private static void WithRestorePrivilege(Action action)
+    internal static void WithRestorePrivilege(Action action)
     {
         if (!OpenProcessToken(GetCurrentProcess(), 0x28, out var token)) throw Failure("OWNERSHIP_TOKEN_UNAVAILABLE");
         using (token)
@@ -584,7 +584,7 @@ internal static partial class NativeHostInstallation
             var requested = new Privileges { Count = 1, Luid = luid, Attributes = 2 };
             if (!AdjustTokenPrivileges(token, false, ref requested, (uint)Marshal.SizeOf<Privileges>(), out var previous, out _) || Marshal.GetLastWin32Error() == 1300) throw Failure("OWNERSHIP_PRIVILEGE_REQUIRED");
             try { action(); }
-            finally { if (!AdjustTokenPrivileges(token, false, ref previous, 0, out _, out _)) throw Failure("OWNERSHIP_PRIVILEGE_RESTORE_FAILED"); }
+            finally { if (!RestoreTokenPrivileges(token, false, ref previous, 0, IntPtr.Zero, IntPtr.Zero)) throw Failure("OWNERSHIP_PRIVILEGE_RESTORE_FAILED"); }
         }
     }
 
@@ -613,4 +613,5 @@ internal static partial class NativeHostInstallation
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeAccessTokenHandle token);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool LookupPrivilegeValueW(string? system, string name, out Luid luid);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, bool disableAll, ref Privileges state, uint length, out Privileges previous, out uint returned);
+    [DllImport("advapi32.dll", EntryPoint = "AdjustTokenPrivileges", SetLastError = true)] private static extern bool RestoreTokenPrivileges(SafeAccessTokenHandle token, bool disableAll, ref Privileges state, uint length, IntPtr previous, IntPtr returned);
 }
