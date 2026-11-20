@@ -28,6 +28,9 @@ function Native([string]$File,[string[]]$Arguments){
   $info=[Diagnostics.ProcessStartInfo]::new($File);$info.UseShellExecute=$false;$info.CreateNoWindow=$true
   $info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
   $info.Environment['PSExecutionPolicyPreference']='Restricted'
+  # A pwsh 7 parent otherwise passes its incompatible module search path to
+  # Windows PowerShell 5.1. The read-only policy probe uses only OS modules.
+  $info.Environment['PSModulePath']="$env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules"
   foreach($arg in $Arguments){$info.ArgumentList.Add($arg)}
   $process=[Diagnostics.Process]::Start($info)
   $stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync()
@@ -50,6 +53,7 @@ $networks=@()
 try {
   Case 'NHI001-effective-Restricted-child-policy' {
     $p=Native "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoLogo','-NoProfile','-NonInteractive','-Command','Get-ExecutionPolicy')
+    $p|ConvertTo-Json|Set-Content (Join-Path $out 'policy-probe.json')
     Require ($p.code -eq 0 -and $p.output.Trim() -ceq 'Restricted') 'Child policy was not Restricted'
     $p=Native "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoLogo','-NoProfile','-NonInteractive','-File',(Join-Path $payload 'setup/provision-host-installation.ps1'))
     Require ($p.code -ne 0 -and $p.error -match 'running scripts is disabled') 'Legacy script was not rejected under Restricted'
