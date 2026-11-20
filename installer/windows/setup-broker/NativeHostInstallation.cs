@@ -14,7 +14,7 @@ namespace Ventio.HostSetupBroker;
 
 // The interactive broker already requires elevation and binds the requester SID.
 // This implementation executes fixed native operations, never a script interpreter.
-internal static class NativeHostInstallation
+internal static partial class NativeHostInstallation
 {
     private static readonly string Payload = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Ventio", "host-payload");
     private static readonly string Product = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Ventio");
@@ -160,7 +160,10 @@ internal static class NativeHostInstallation
         try
         {
             await pipe.WaitForConnectionAsync(timeout.Token);
-            if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var pid) || pid != process.Id)
+            // PostgreSQL 16 initdb re-executes itself with a restricted token on
+            // Windows. Bind that peer to this owned job and the pinned initdb
+            // image instead of assuming the launcher PID reads the password.
+            if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var pid) || !IsInitializerPeer(pid, job))
                 throw Failure("POSTGRES_PASSWORD_PIPE_PEER_INVALID");
             var bytes = Encoding.ASCII.GetBytes(password + "\n");
             try { await pipe.WriteAsync(bytes, timeout.Token); await pipe.FlushAsync(timeout.Token); }
@@ -353,15 +356,21 @@ internal static class NativeHostInstallation
     {
         AssertNoReparseAncestors(path);
         FileSystemSecurity acl = Directory.Exists(path) ? new DirectoryInfo(path).GetAccessControl() : new FileInfo(path).GetAccessControl();
+        if (acl.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner || !new[] { Administrators.Value, SystemSid.Value, "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" }.Contains(owner.Value))
+            throw Failure("PAYLOAD_UNTRUSTED_OWNER");
         foreach (FileSystemAccessRule rule in acl.GetAccessRules(true, true, typeof(SecurityIdentifier)))
             if (rule.AccessControlType == AccessControlType.Allow && (rule.PropagationFlags & PropagationFlags.InheritOnly) == 0 && Program.HasWriteCapability(rule.FileSystemRights) && rule.IdentityReference.Value != Administrators.Value && rule.IdentityReference.Value != SystemSid.Value && rule.IdentityReference.Value != "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464")
                 throw Failure("PAYLOAD_UNTRUSTED_WRITE_ACCESS");
     }
-    private static void AssertPrivateAcl(string path)
+    private static void AssertPrivateAcl(string path, SecurityIdentifier[]? readers = null)
     {
         FileSystemSecurity acl = Directory.Exists(path) ? new DirectoryInfo(path).GetAccessControl() : new FileInfo(path).GetAccessControl();
         var rules = acl.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>().ToArray();
-        if (!acl.AreAccessRulesProtected || rules.Length != 2 || !rules.Select(r => r.IdentityReference.Value).ToHashSet().SetEquals([Administrators.Value, SystemSid.Value]) || rules.Any(r => r.AccessControlType != AccessControlType.Allow || r.FileSystemRights != FileSystemRights.FullControl)) throw Failure("PRIVATE_ACL_INVALID");
+        readers ??= [];
+        var expected = new HashSet<string>(readers.Select(s => s.Value)) { Administrators.Value, SystemSid.Value };
+        if (!acl.AreAccessRulesProtected || acl.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner || owner.Value != Administrators.Value || rules.Length != expected.Count ||
+            !rules.Select(r => r.IdentityReference.Value).ToHashSet().SetEquals(expected) || rules.Any(r => r.AccessControlType != AccessControlType.Allow ||
+                r.FileSystemRights != (r.IdentityReference.Value == Administrators.Value || r.IdentityReference.Value == SystemSid.Value ? FileSystemRights.FullControl : FileSystemRights.Read | FileSystemRights.Synchronize))) throw Failure("PRIVATE_ACL_INVALID");
     }
     private static void SetDirectoryAcl(string path, SecurityIdentifier owner, SecurityIdentifier[] services, bool root = false)
     {
@@ -409,7 +418,9 @@ internal static class NativeHostInstallation
     private static bool SamePath(string a, string b) => Path.GetFullPath(a).TrimEnd('\\').Equals(Path.GetFullPath(b).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
     private static string Quote(string value) => "\"" + value + "\"";
     private static SecurityIdentifier ServiceSid(string name) => (SecurityIdentifier)new NTAccount("NT SERVICE", name).Translate(typeof(SecurityIdentifier));
-    private static InvalidOperationException Failure(string code) => new("HOST_NATIVE_" + code);
+    private static InvalidOperationException Failure(string code) => new NativeInstallationException(code);
+    private sealed class NativeInstallationException(string code) : InvalidOperationException("HOST_NATIVE_" + code);
+    internal static string? SafeFailureCode(Exception exception) => exception is NativeInstallationException or NativeProcessException ? exception.Message : null;
     private sealed class NativeProcessException : InvalidOperationException
     {
         internal string ExecutableName { get; }
@@ -425,32 +436,60 @@ internal static class NativeHostInstallation
     private static void RequireAdministrator() { using var identity = WindowsIdentity.GetCurrent(); if (!OperatingSystem.IsWindows() || !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator)) throw Failure("ADMIN_ELEVATION_REQUIRED"); }
     private static void AssertFreePort(int port) { var listener = new TcpListener(IPAddress.Any, port); try { listener.Start(); } catch (SocketException) { throw Failure("PORT_IN_USE"); } finally { listener.Stop(); } }
 
-    private static int TrustedFirewallProfiles()
+    private static int TrustedFirewallProfiles(bool allowExisting = false)
     {
         dynamic policy = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2", true)!)!;
         try
         {
+            if ((int)policy.LocalPolicyModifyState != 0) throw Failure("FIREWALL_EFFECTIVE_POLICY_BLOCKED");
             foreach (var profile in new[] { 1, 2, 4 })
                 if (!(bool)policy.FirewallEnabled[profile] || (int)policy.DefaultInboundAction[profile] != 0) throw Failure("FIREWALL_BASELINE_UNSAFE");
-        var profiles = (int)policy.CurrentProfileTypes & 3;
+            var profiles = (int)policy.CurrentProfileTypes & 3;
             if (profiles == 0) throw Failure("LAN_TRUSTED_NETWORK_REQUIRED");
+            foreach (var profile in new[] { 1, 2 })
+                if ((profiles & profile) != 0 && (bool)policy.BlockAllInboundTraffic[profile]) throw Failure("FIREWALL_EFFECTIVE_POLICY_BLOCKED");
+            var count = 0;
             foreach (dynamic rule in policy.Rules)
             {
-                try { if ((string)rule.Name == FirewallName) throw Failure("FIREWALL_RULE_CONFLICT"); }
+                try
+                {
+                    if ((string)rule.Name == FirewallName)
+                    {
+                        if (!allowExisting || ++count > 1) throw Failure("FIREWALL_RULE_CONFLICT");
+                        AssertFirewallRule(rule, (int)rule.Profiles);
+                    }
+                }
                 finally { Marshal.FinalReleaseComObject(rule); }
             }
             return profiles;
         }
         finally { Marshal.FinalReleaseComObject(policy); }
     }
-    private static void EnsureFirewallRule(int profiles)
+    private static void EnsureFirewallRule(int profiles, bool allowExisting = false)
     {
         // Recheck before mutation; never widen an existing or centrally governed rule.
-        if (TrustedFirewallProfiles() != profiles) throw Failure("FIREWALL_PROFILE_CHANGED");
+        if (TrustedFirewallProfiles(allowExisting) != profiles) throw Failure("FIREWALL_PROFILE_CHANGED");
         dynamic policy = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2", true)!)!;
         dynamic rule = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FWRule", true)!)!;
         try
         {
+            if (allowExisting)
+            {
+                foreach (dynamic candidate in policy.Rules)
+                {
+                    try
+                    {
+                        if ((string)candidate.Name == FirewallName)
+                        {
+                            AssertFirewallRule(candidate, (int)candidate.Profiles);
+                            candidate.Profiles = profiles;
+                            AssertFirewallRule(candidate, profiles);
+                            return;
+                        }
+                    }
+                    finally { Marshal.FinalReleaseComObject(candidate); }
+                }
+            }
             rule.Name = FirewallName; rule.Description = "Ventio Host HTTPS on the local subnet"; rule.Grouping = "Ventio Host";
             rule.Protocol = 6; rule.LocalPorts = "8443"; rule.Direction = 1; rule.Action = 1;
             rule.ApplicationName = Path.Combine(Payload, "ventio_host.exe"); rule.RemoteAddresses = "LocalSubnet";
@@ -459,13 +498,19 @@ internal static class NativeHostInstallation
             dynamic actual = policy.Rules.Item(FirewallName);
             try
             {
-                if ((int)actual.Protocol != 6 || (string)actual.LocalPorts != "8443" || (int)actual.Direction != 1 || (int)actual.Action != 1 ||
-                    !(bool)actual.Enabled || (bool)actual.EdgeTraversal || (int)actual.Profiles != profiles || !SamePath((string)actual.ApplicationName, Path.Combine(Payload, "ventio_host.exe")) ||
-                    !new[] { "LocalSubnet", "LocalSubnet4,LocalSubnet6" }.Contains((string)actual.RemoteAddresses, StringComparer.OrdinalIgnoreCase)) throw Failure("FIREWALL_READBACK_INVALID");
+                AssertFirewallRule(actual, profiles);
             }
             finally { Marshal.FinalReleaseComObject(actual); }
         }
         finally { Marshal.FinalReleaseComObject(rule); Marshal.FinalReleaseComObject(policy); }
+    }
+
+    private static void AssertFirewallRule(dynamic rule, int profiles)
+    {
+        if (profiles == 0 || (profiles & ~3) != 0 || (int)rule.Protocol != 6 || (string)rule.LocalPorts != "8443" || (int)rule.Direction != 1 || (int)rule.Action != 1 ||
+            !(bool)rule.Enabled || (bool)rule.EdgeTraversal || (int)rule.Profiles != profiles || !SamePath((string)rule.ApplicationName, Path.Combine(Payload, "ventio_host.exe"))) throw Failure("FIREWALL_READBACK_INVALID");
+        var addresses = ((string)rule.RemoteAddresses).Split(',', StringSplitOptions.TrimEntries);
+        if (addresses.Length == 0 || addresses.Any(address => !new[] { "LocalSubnet", "LocalSubnet4", "LocalSubnet6" }.Contains(address, StringComparer.OrdinalIgnoreCase))) throw Failure("FIREWALL_READBACK_INVALID");
     }
 
     private static SafeFileHandle Fence(Process process)
@@ -475,6 +520,13 @@ internal static class NativeHostInstallation
         var limits = new JobLimits { BasicLimitInformation = new BasicLimits { LimitFlags = 0x2000 } };
         if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf<JobLimits>()) || !AssignProcessToJobObject(job, process.Handle)) { job.Dispose(); if (!process.HasExited) process.Kill(true); throw Failure("CHILD_JOB_FENCE_FAILED"); }
         return job;
+    }
+    private static bool IsInitializerPeer(int pid, SafeFileHandle job)
+    {
+        using var peer = OpenProcess(0x1000, false, pid);
+        if (peer.IsInvalid || !IsProcessInJob(peer, job, out var owned) || !owned) return false;
+        var image = new StringBuilder(32768); var length = image.Capacity;
+        return QueryFullProcessImageNameW(peer, 0, image, ref length) && SamePath(image.ToString(), Pg("initdb.exe"));
     }
 
     private static uint? ServiceState(string name)
@@ -551,6 +603,9 @@ internal static class NativeHostInstallation
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CommandLineToArgvW(string command, out int count);
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr memory);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out int pid);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern SafeProcessHandle OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool IsProcessInJob(SafeProcessHandle process, SafeFileHandle job, out bool result);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool QueryFullProcessImageNameW(SafeProcessHandle process, uint flags, StringBuilder image, ref int length);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern SafeFileHandle CreateJobObjectW(IntPtr attributes, string? name);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetInformationJobObject(SafeFileHandle job, int type, ref JobLimits limits, uint length);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool AssignProcessToJobObject(SafeFileHandle job, IntPtr process);

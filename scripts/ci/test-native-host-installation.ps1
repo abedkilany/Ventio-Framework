@@ -56,7 +56,8 @@ try {
     $p|ConvertTo-Json|Set-Content (Join-Path $out 'policy-probe.json')
     Require ($p.code -eq 0 -and $p.output.Trim() -ceq 'Restricted') 'Child policy was not Restricted'
     $p=Native "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoLogo','-NoProfile','-NonInteractive','-File',(Join-Path $payload 'setup/provision-host-installation.ps1'))
-    Require ($p.code -ne 0 -and $p.error -match 'running scripts is disabled') 'Legacy script was not rejected under Restricted'
+    $p|ConvertTo-Json|Set-Content (Join-Path $out 'legacy-policy-denial.json')
+    Require ($p.code -ne 0 -and $p.error -match 'running\s+scripts\s+is\s+disabled') 'Legacy script was not rejected under Restricted'
     Require (-not(Test-Path -LiteralPath $product)) 'Policy probe changed product data'
   }
   Case 'NHI002-arbitrary-arguments-denied' {
@@ -95,6 +96,8 @@ try {
   foreach($entry in $networks){if($entry.category -eq 0){$entry.network.SetCategory(1)}}
   Case 'NHI005-real-native-Host-installation-and-first-administrator' {
     $p=Request-NewHost
+    $statusPath=Join-Path $app ('SetupStatus/'+$script:operation+'.json')
+    if(Test-Path -LiteralPath $statusPath){Copy-Item -LiteralPath $statusPath -Destination (Join-Path $out 'native-attempt-status.json')}
     if($p.code -ne 0){
       $diagnostics=Join-Path $product 'Installer/ProvisioningDiagnostics'
       if(Test-Path -LiteralPath $diagnostics){Copy-Item (Join-Path $diagnostics '*.json') $out}
@@ -138,7 +141,39 @@ try {
     $status=Get-MpComputerStatus
     Require ($status.AntivirusEnabled -and $status.RealTimeProtectionEnabled) 'Defender is not enabled'
   }
+  Case 'NHI010-untrusted-maintenance-helper-location-denied' {
+    $untrusted=Join-Path $env:RUNNER_TEMP 'VentioSetupBroker.exe'
+    Copy-Item -LiteralPath $broker -Destination $untrusted
+    $p=Native $untrusted @('--prepare-installer-upgrade')
+    Require ($p.code -ne 0) 'Maintenance was accepted from an untrusted location'
+    Require ((Get-Service VentioHost).Status -eq 'Running' -and (Get-Service VentioPostgres).Status -eq 'Running') 'Denied helper changed service state'
+  }
+  Case 'NHI011-native-upgrade-maintenance-drains-services' {
+    $p=Native $broker @('--prepare-installer-upgrade')
+    Require ($p.code -eq 0) ('Native preparation returned '+$p.code)
+    Require ((Get-Service VentioHost).Status -eq 'Stopped' -and (Get-Service VentioPostgres).Status -eq 'Stopped') 'Services were not drained'
+    Require (Test-Path -LiteralPath (Join-Path $product 'Installer/host-service-recovery-policy.VentioHost.v1.dpapi')) 'Durable original recovery policy was not retained'
+  }
+  Case 'NHI012-native-upgrade-backs-up-and-reconciles-real-Recovery-Authority' {
+    $p=Native $broker @('--complete-installer-upgrade')
+    Require ($p.code -eq 0) ('Native upgrade returned '+$p.code)
+    Require ((Get-Service VentioHost).Status -eq 'Running' -and (Get-Service VentioPostgres).Status -eq 'Running') 'Upgraded services are not running'
+    Require (-not (Test-Path -LiteralPath (Join-Path $product 'Installer/host-service-recovery-policy.VentioHost.v1.dpapi'))) 'Original recovery policy was not restored'
+    Require (-not (Test-Path -LiteralPath (Join-Path $product 'Host/schema-upgrade.request.dpapi'))) 'Schema request was not reconciled'
+    Require (Test-Path -LiteralPath (Join-Path $product 'Host/recovery.witness')) 'Recovery Authority witness was lost'
+    $backups=@(Get-ChildItem -LiteralPath (Join-Path $product 'Backups') -Directory|Where-Object Name -notlike '*.partial')
+    Require ($backups.Count -eq 1) 'A complete verified pre-upgrade backup was not committed'
+    $manifest=Get-Content -LiteralPath (Join-Path $backups[0].FullName 'backup-manifest.json') -Raw|ConvertFrom-Json
+    Require ($manifest.formatVersion -eq 2 -and $manifest.integrityAlgorithm -ceq 'SHA-256' -and $manifest.recoveryAuthorityIncluded -eq $false) 'Backup boundary or integrity contract changed'
+    foreach($member in $manifest.files){
+      $file=Join-Path (Join-Path $backups[0].FullName 'data') $member.path
+      Require ((Get-Item -LiteralPath $file).Length -eq $member.bytes -and (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $member.sha256) 'Stopped data backup content mismatch'
+    }
+    @{formatVersion=$manifest.formatVersion;fileCount=$manifest.fileCount;bytes=$manifest.bytes;recoveryAuthorityIncluded=$manifest.recoveryAuthorityIncluded;allMemberHashesVerified=$true}|ConvertTo-Json|Set-Content (Join-Path $out 'native-upgrade-backup.json')
+  }
 } finally {
+  $diagnostics=Join-Path $product 'Installer/ProvisioningDiagnostics'
+  if(Test-Path -LiteralPath $diagnostics){Copy-Item (Join-Path $diagnostics '*.json') $out}
   foreach($entry in $networks){try {$entry.network.SetCategory($entry.category)} catch {}}
   $policiesAfter=@(Get-ExecutionPolicy -List|ForEach-Object { @{scope=[string]$_.Scope;policy=[string]$_.ExecutionPolicy} })
   $unchanged=($policiesBefore|ConvertTo-Json -Compress) -ceq ($policiesAfter|ConvertTo-Json -Compress)

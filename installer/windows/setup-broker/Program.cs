@@ -83,6 +83,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] is "--prepare-installer-upgrade" or "--complete-installer-upgrade" or "--resume-installer-upgrade" or "--resume-installer-postgres")
+            return RunInstallerMaintenance(args[0]);
         Request request;
         try
         {
@@ -116,6 +118,39 @@ internal static class Program
         catch
         {
             TryWriteStatus(request, "failed", "HOST_SETUP_PROVISIONING_FAILED", null);
+            return 5;
+        }
+    }
+
+    private static int RunInstallerMaintenance(string operation)
+    {
+        if (!IsAdministrator()) return 3;
+        var locationValidated = false;
+        try
+        {
+            NativeHostInstallation.AssertInstallerHelperPath();
+            locationValidated = true;
+            using var mutex = new Mutex(false, @"Global\Ventio.HostSetup.v1");
+            bool held; try { held = mutex.WaitOne(0); } catch (AbandonedMutexException) { held = true; }
+            if (!held) return 6;
+            try
+            {
+                var task = operation switch
+                {
+                    "--prepare-installer-upgrade" => NativeHostInstallation.PrepareUpgradeAsync(),
+                    "--complete-installer-upgrade" => NativeHostInstallation.CompleteUpgradeAsync(),
+                    "--resume-installer-upgrade" => NativeHostInstallation.ResumeUpgradeAsync(includeHost: true),
+                    "--resume-installer-postgres" => NativeHostInstallation.ResumeUpgradeAsync(includeHost: false),
+                    _ => throw new InvalidOperationException()
+                };
+                task.GetAwaiter().GetResult();
+                return 0;
+            }
+            finally { mutex.ReleaseMutex(); }
+        }
+        catch (Exception exception)
+        {
+            if (locationValidated) NativeHostInstallation.RecordMaintenanceFailure(operation, exception);
             return 5;
         }
     }
@@ -165,7 +200,7 @@ internal static class Program
         }
         catch (Exception exception)
         {
-            var safeFailure = IsSafeFailureCode(exception.Message) ? exception.Message : "HOST_SETUP_PROVISIONING_FAILED";
+            var safeFailure = NativeHostInstallation.SafeFailureCode(exception) ?? (IsSafeFailureCode(exception.Message) ? exception.Message : "HOST_SETUP_PROVISIONING_FAILED");
             WriteStatus(request, "failed", safeFailure, progress.CurrentPhase);
             return 5;
         }
@@ -1167,7 +1202,7 @@ internal static class Program
             (rights & writeAccess) != 0;
     }
 
-    private static void ValidateBrokerManifest(string payloadDirectory, string executablePath, string expectedName = "VentioSetupBroker.exe")
+    internal static void ValidateBrokerManifest(string payloadDirectory, string executablePath, string expectedName = "VentioSetupBroker.exe")
     {
         var manifestPath = Path.Combine(payloadDirectory, "payload-manifest.json");
         AssertNoReparsePoint(manifestPath);

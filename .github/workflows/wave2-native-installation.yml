@@ -39,6 +39,13 @@ jobs:
         run: |
           dotnet run --project installer/windows/setup-broker.tests/VentioSetupBroker.Tests.csproj -c Release
           if ($LASTEXITCODE) { throw 'Broker tests failed' }
+      - name: Retain complete test payload from the exact source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-native-payload-${{ github.sha }}-${{ github.run_id }}
+          path: packages/ventio_host_api/build/windows/host-payload/**
+          if-no-files-found: error
+          retention-days: 30
       - name: Provision real services under Restricted and verify readiness and denials
         run: ./scripts/ci/test-native-host-installation.ps1
       - name: Retain native installation evidence
