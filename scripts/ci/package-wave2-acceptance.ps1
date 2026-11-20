@@ -14,7 +14,8 @@ if ((Get-FileHash (Join-Path $client 'pdfium.dll') -Algorithm SHA256).Hash.ToLow
 git diff --ignore-space-at-eol --exit-code -- .
 if ($LASTEXITCODE) { throw 'Build changed tracked source semantics' }
 $version = [regex]::Match((Get-Content packages/ventio_native_client/pubspec.yaml -Raw),'(?m)^version:\s*(\S+)').Groups[1].Value
-$identity = "Ventio-W2B-$version-20261118-$($commit.Substring(0,12))-gh$env:GITHUB_RUN_ID-a$env:GITHUB_RUN_ATTEMPT"
+$identityDate = [DateTime]::UtcNow.ToString('yyyyMMdd', [Globalization.CultureInfo]::InvariantCulture)
+$identity = "Ventio-W2B-$version-$identityDate-$($commit.Substring(0,12))-gh$env:GITHUB_RUN_ID-a$env:GITHUB_RUN_ATTEMPT"
 $delivery = Join-Path $env:RUNNER_TEMP 'wave2-delivery'
 $package = Join-Path $env:RUNNER_TEMP 'wave2-package'
 if ((Test-Path $delivery) -or (Test-Path $package)) { throw 'Fresh immutable output required' }
