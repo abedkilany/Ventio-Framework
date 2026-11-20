@@ -1,5 +1,12 @@
 using BrokerProgram = Ventio.HostSetupBroker.Program;
 
+foreach (var path in new[] { "../outside.exe", "/absolute.exe", "C:/outside.exe", "setup//x.ps1", "setup/./x", "postgresql\\bin\\postgres.exe", "migrations/NUL.sql", "setup/file.", "setup/x:stream", "setup/*" })
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(path))
+        throw new InvalidOperationException("Native installation accepted an unsafe payload member path.");
+foreach (var path in new[] { "postgresql/bin/postgres.exe", "security/bootstrap.sql", "migrations/041_wave2.sql" })
+    if (!Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(path))
+        throw new InvalidOperationException("Native installation rejected a canonical payload member path.");
+
 var secret = System.Text.Encoding.UTF8.GetBytes("isolated-bootstrap-handoff-test");
 var expectedSecret = secret.ToArray();
 var entropy = System.Text.Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef");

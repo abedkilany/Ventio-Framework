@@ -146,56 +146,29 @@ internal static class Program
         if (request.ResumeFirstAdministrator)
             return CompleteFirstAdministrator(request);
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = paths.PowerShell,
-            WorkingDirectory = paths.PayloadDirectory,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        startInfo.ArgumentList.Add("-NoLogo");
-        startInfo.ArgumentList.Add("-NoProfile");
-        startInfo.ArgumentList.Add("-NonInteractive");
-        startInfo.ArgumentList.Add("-File");
-        startInfo.ArgumentList.Add(paths.ProvisioningScript);
-        startInfo.ArgumentList.Add("-PayloadDirectory");
-        startInfo.ArgumentList.Add(paths.PayloadDirectory);
-        startInfo.ArgumentList.Add("-Apply");
-        startInfo.ArgumentList.Add("-NewHostOnly");
-        startInfo.Environment["PATH"] = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System));
-
-        using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        if (!process.Start())
-        {
-            WriteStatus(request, "failed", "HOST_SETUP_PROCESS_START_FAILED", null);
-            return 4;
-        }
-
-        var stderrTask = process.StandardError.ReadToEndAsync();
         var progress = new SetupProgress();
-        var stdoutTask = ReadProgressAsync(process.StandardOutput, request, progress);
-        var processExit = process.WaitForExitAsync();
-        while (!processExit.IsCompleted)
+        try
         {
-            var completed = await Task.WhenAny(processExit, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
-            if (completed == processExit) break;
-            WriteStatus(request, "running", null, progress.CurrentPhase);
-        }
-        await processExit.ConfigureAwait(false);
-        await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-
-        if (process.ExitCode == 0)
-        {
+            var installation = NativeHostInstallation.InstallAsync(paths.PayloadDirectory, phase =>
+            {
+                if (!AllowedPhases.Contains(phase)) throw new InvalidOperationException();
+                progress.Update(phase);
+                WriteStatus(request, "running", null, phase);
+            });
+            while (!installation.IsCompleted)
+            {
+                await Task.WhenAny(installation, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+                if (!installation.IsCompleted) WriteStatus(request, "running", null, progress.CurrentPhase);
+            }
+            await installation.ConfigureAwait(false);
             return CompleteFirstAdministrator(request);
         }
-
-        var safeFailure = SafeFailureCodes.FirstOrDefault(code =>
-            stderr.Contains(code, StringComparison.Ordinal));
-        WriteStatus(request, "failed", safeFailure ?? "HOST_SETUP_PROVISIONING_FAILED", progress.CurrentPhase);
-        return 5;
+        catch (Exception exception)
+        {
+            var safeFailure = IsSafeFailureCode(exception.Message) ? exception.Message : "HOST_SETUP_PROVISIONING_FAILED";
+            WriteStatus(request, "failed", safeFailure, progress.CurrentPhase);
+            return 5;
+        }
     }
 
     private static int CompleteFirstAdministrator(Request request)
@@ -236,21 +209,6 @@ internal static class Program
 
             WriteStatus(request, "complete", null, "HOST_READINESS");
             return 0;
-    }
-
-    private static async Task ReadProgressAsync(StreamReader output, Request request, SetupProgress progress)
-    {
-        while (await output.ReadLineAsync().ConfigureAwait(false) is { } line)
-        {
-            const string prefix = "HOST_SETUP_PHASE:";
-            if (!line.StartsWith(prefix, StringComparison.Ordinal)) continue;
-            var phase = line[prefix.Length..];
-            if (AllowedPhases.Contains(phase))
-            {
-                progress.Update(phase);
-                WriteStatus(request, "running", null, phase);
-            }
-        }
     }
 
     private static BootstrapReply? RequestFirstAdministrator(Request request)
@@ -1152,20 +1110,8 @@ internal static class Program
         AssertNoUntrustedWriteAccess(payloadDirectory);
         AssertNoUntrustedWriteAccess(executablePath);
 
-        var scriptPath = Path.Combine(payloadDirectory, "setup", "provision-host-installation.ps1");
-        AssertNoReparsePoint(Path.Combine(payloadDirectory, "setup"));
-        AssertNoReparsePoint(scriptPath);
-        AssertNoUntrustedWriteAccess(Path.Combine(payloadDirectory, "setup"));
-        AssertNoUntrustedWriteAccess(scriptPath);
-        if (!File.Exists(scriptPath)) throw new InvalidOperationException();
-
         ValidateBrokerManifest(payloadDirectory, executablePath);
-
-        var systemDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System);
-        var powerShell = Path.Combine(systemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
-        if (!File.Exists(powerShell)) throw new InvalidOperationException();
-
-        return new Paths(payloadDirectory, scriptPath, powerShell);
+        return new Paths(payloadDirectory);
     }
 
     private static void AssertNoReparsePoint(string path)
@@ -1384,7 +1330,7 @@ internal static class Program
             Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$", RegexOptions.CultureInvariant);
     }
 
-    private sealed record Paths(string PayloadDirectory, string ProvisioningScript, string PowerShell);
+    private sealed record Paths(string PayloadDirectory);
 
     private sealed record BootstrapReply(
         bool Success,

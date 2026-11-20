@@ -20,7 +20,7 @@ on:
       wave2_scope:
         description: Targeted rerun scope
         type: choice
-        options: [all, linux, windows, gateway-jobs, windows-tests, windows-gui, windows-runtime, windows-pg-minor, core, verify-candidate, candidate-evidence, recovery-admission, recovery-signing, recovery-observer, recovery-identity]
+        options: [all, linux, windows, gateway-jobs, windows-tests, windows-gui, windows-runtime, windows-pg-minor, native-installation, core, verify-candidate, candidate-evidence, recovery-admission, recovery-signing, recovery-observer, recovery-identity]
         default: all
       candidate_run_id:
         description: Existing hosted candidate run for protected verification

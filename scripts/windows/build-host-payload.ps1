@@ -178,7 +178,10 @@ try {
   $payloadFiles = Get-ChildItem -LiteralPath $tempDirectory -File -Recurse
   $migrationRoot = Join-Path $tempDirectory 'migrations'
   $securityRoot = Join-Path $tempDirectory 'security'
+  # Native provisioning pins the complete executable/SQL/runtime closure, including
+  # DLLs and PostgreSQL share files, before any privileged mutation.
   $verifiedFiles = @(
+    $payloadFiles
     Get-Item -LiteralPath $hostExe
     Get-Item -LiteralPath $migrationExe
     Get-Item -LiteralPath $identityBootstrapExe
