@@ -221,6 +221,7 @@ internal static class PostgresCredentialMaintenanceFixture
         var match = Regex.Match(Sc(["queryex", target.ServiceName]).Output, @"\bPID\s*:\s*(\d+)", RegexOptions.CultureInvariant);
         if (!match.Success) throw new InvalidOperationException("Fixture service PID missing.");
         var pid = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        DiagnoseServiceTokenAccess(pid, target.ServiceSid);
         using var token = CurrentPrivilegeToken();
         var disabled = DebugState(0);
         if (!AdjustTokenPrivileges(token, false, ref disabled, (uint)Marshal.SizeOf<TokenPrivileges>(), out var original, out _) || Marshal.GetLastWin32Error() != 0)
@@ -258,6 +259,92 @@ internal static class PostgresCredentialMaintenanceFixture
         if (!OpenProcessToken(GetCurrentProcess(), 0x0020 | 0x0008, out var token)) throw new InvalidOperationException("Fixture token query failed.");
         return token;
     }
+    private static void DiagnoseServiceTokenAccess(int pid, string expectedServiceSid)
+    {
+        // Read-only interop bisection on the fixture's own registered service.
+        // Do not alter any process/token DACL to turn a denial into a pass.
+        var rows = new List<object>();
+        using var current = CurrentPrivilegeToken();
+        var enabled = DebugState(2);
+        if (!AdjustTokenPrivileges(current, false, ref enabled, (uint)Marshal.SizeOf<TokenPrivileges>(), out var previous, out _) || Marshal.GetLastWin32Error() != 0)
+            throw new InvalidOperationException("Fixture token-access diagnostics could not enable its assigned debug privilege.");
+        try
+        {
+            foreach (var processRights in new uint[] { 0x1000, 0x0400, 0x1400 })
+            {
+                var process = OpenProcess(processRights, false, pid);
+                var processError = process == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
+                if (process == IntPtr.Zero)
+                {
+                    rows.Add(new { processRights = "0x" + processRights.ToString("X"), processError });
+                    continue;
+                }
+                try
+                {
+                    foreach (var tokenRights in new uint[] { 0x0008, 0x0002, 0x000A, 0x20008, 0x2000A, 0x02000000 })
+                    {
+                        var opened = OpenProcessToken(process, tokenRights, out var token);
+                        var openError = opened ? 0 : Marshal.GetLastWin32Error();
+                        var row = new Dictionary<string, object?> { ["processRights"] = "0x" + processRights.ToString("X"),
+                            ["tokenRights"] = "0x" + tokenRights.ToString("X"), ["opened"] = opened, ["openError"] = openError };
+                        using (token)
+                        {
+                            if (opened)
+                            {
+                                var user = ReadTokenUser(token);
+                                row["tokenUser"] = user;
+                                row["expectedServiceIdentity"] = user == expectedServiceSid;
+                                row["restricted"] = IsTokenRestricted(token);
+                                var duplicated = DuplicateTokenEx(token, 0x000B, IntPtr.Zero, 2, 1, out var primary);
+                                row["primaryDuplicate"] = duplicated;
+                                row["duplicateError"] = duplicated ? 0 : Marshal.GetLastWin32Error();
+                                primary.Dispose();
+                                var securityError = GetSecurityInfo(token, 6, 4, out _, out _, out _, out _, out var descriptor);
+                                row["securityQueryError"] = securityError;
+                                if (securityError == 0)
+                                {
+                                    try
+                                    {
+                                        if (ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, 1, 4, out var sddl, out _))
+                                        {
+                                            try { row["tokenDacl"] = Marshal.PtrToStringUni(sddl); }
+                                            finally { LocalFree(sddl); }
+                                        }
+                                        else row["sddlError"] = Marshal.GetLastWin32Error();
+                                    }
+                                    finally { LocalFree(descriptor); }
+                                }
+                            }
+                        }
+                        rows.Add(row);
+                        Console.WriteLine("TOKEN_ACCESS_DIAGNOSTIC process=0x" + processRights.ToString("X") + " token=0x" + tokenRights.ToString("X") +
+                            " opened=" + opened + " error=" + openError);
+                    }
+                }
+                finally { CloseHandle(process); }
+            }
+        }
+        finally
+        {
+            if (previous.Count > 0 && (!AdjustTokenPrivileges(current, false, ref previous, (uint)Marshal.SizeOf<TokenPrivileges>(), out _, out _) || Marshal.GetLastWin32Error() != 0))
+                throw new InvalidOperationException("Fixture token-access diagnostics could not restore its debug privilege.");
+            var root = Path.Combine(Environment.CurrentDirectory, "test-results", "wave2-runtime");
+            Directory.CreateDirectory(root);
+            File.WriteAllText(Path.Combine(root, "postgres-token-access-diagnostics.json"), JsonSerializer.Serialize(new
+            { sourceCommit = Environment.GetEnvironmentVariable("GITHUB_SHA"), runId = Environment.GetEnvironmentVariable("GITHUB_RUN_ID"), expectedServiceSid, rows, changedDacl = false }, new JsonSerializerOptions { WriteIndented = true }));
+        }
+    }
+    private static string? ReadTokenUser(SafeAccessTokenHandle token)
+    {
+        if (GetTokenInformation(token, 1, IntPtr.Zero, 0, out var needed) || Marshal.GetLastWin32Error() != 122 || needed < IntPtr.Size || needed > 65536) return null;
+        var buffer = Marshal.AllocHGlobal(needed);
+        try
+        {
+            if (!GetTokenInformation(token, 1, buffer, needed, out _)) return null;
+            return new SecurityIdentifier(Marshal.ReadIntPtr(buffer)).Value;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
     private static TokenPrivileges DebugState(uint attributes)
     {
         if (!LookupPrivilegeValueW(null, "SeDebugPrivilege", out var luid)) throw new InvalidOperationException("Fixture privilege lookup failed.");
@@ -291,6 +378,13 @@ internal static class PostgresCredentialMaintenanceFixture
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool LookupPrivilegeValueW(string? system, string name, out Luid luid);
     [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, [MarshalAs(UnmanagedType.Bool)] bool disableAll, ref TokenPrivileges requested, uint length, out TokenPrivileges previous, out uint needed);
     [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetTokenInformation(SafeAccessTokenHandle token, int kind, IntPtr buffer, int length, out int needed);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, int pid);
+    [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr pointer);
+    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DuplicateTokenEx(SafeAccessTokenHandle token, uint access, IntPtr attributes, int impersonation, int type, out SafeAccessTokenHandle primary);
+    [DllImport("advapi32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsTokenRestricted(SafeAccessTokenHandle token);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern uint GetSecurityInfo(SafeAccessTokenHandle handle, int type, uint information, out IntPtr owner, out IntPtr group, out IntPtr dacl, out IntPtr sacl, out IntPtr descriptor);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ConvertSecurityDescriptorToStringSecurityDescriptorW(IntPtr descriptor, uint revision, uint information, out IntPtr sddl, out uint length);
     private static Result CoordinatorWithoutHandshake(PostgresMaintenanceTarget target, string input)
     {
         using var process = StartCoordinator(target);
