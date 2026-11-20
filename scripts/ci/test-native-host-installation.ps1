@@ -91,9 +91,14 @@ try {
   }
   # The network category below belongs exclusively to this ephemeral hosted VM.
   # Firewall profiles stay enabled/default-block and no Public rule is created.
-  $networkManager=New-Object -ComObject NetworkListManager
-  $networks=@($networkManager.GetNetworks(1)|ForEach-Object { @{network=$_;category=$_.GetCategory()} })
-  foreach($entry in $networks){if($entry.category -eq 0){$entry.network.SetCategory(1)}}
+  Case 'NHI014-disposable-network-fixture-admission' {
+    $script:networkManager=[Activator]::CreateInstance([type]::GetTypeFromCLSID([guid]'DCB00C01-570F-4A9B-8D69-199FDBA5723B'))
+    $script:networks=@($script:networkManager.GetNetworks(1)|ForEach-Object { @{network=$_;category=$_.GetCategory()} })
+    foreach($entry in $script:networks){if($entry.category -eq 0){$entry.network.SetCategory(1)}}
+    $policy=New-Object -ComObject HNetCfg.FwPolicy2
+    for($attempt=0;$attempt -lt 40 -and ($policy.CurrentProfileTypes -band 3) -eq 0;$attempt++){Start-Sleep -Milliseconds 250}
+    Require (($policy.CurrentProfileTypes -band 3) -ne 0) 'Disposable fixture has no trusted network profile'
+  }
   Case 'NHI005-real-native-Host-installation-and-first-administrator' {
     $p=Request-NewHost
     $statusPath=Join-Path $app ('SetupStatus/'+$script:operation+'.json')
@@ -105,6 +110,7 @@ try {
     Require ($p.code -eq 0) ('Native provisioning returned '+$p.code)
     $status=Get-Content -LiteralPath (Join-Path $app ('SetupStatus/'+$script:operation+'.json')) -Raw|ConvertFrom-Json
     Require ($status.state -ceq 'complete') 'First administrator did not complete'
+    $script:bootstrapOperation=$script:operation
     $status|ConvertTo-Json|Set-Content (Join-Path $out 'native-status.json')
     $ready=$null
     for($i=0;$i -lt 90;$i++){
@@ -147,6 +153,25 @@ try {
     $p=Native $untrusted @('--prepare-installer-upgrade')
     Require ($p.code -ne 0) 'Maintenance was accepted from an untrusted location'
     Require ((Get-Service VentioHost).Status -eq 'Running' -and (Get-Service VentioPostgres).Status -eq 'Running') 'Denied helper changed service state'
+  }
+  Case 'NHI013-installed-Host-authenticates-protected-bootstrap-and-denies-anonymous' {
+    $path=Join-Path $app ('SetupStatus/'+$script:bootstrapOperation+'.credential.dpapi')
+    $encrypted=[IO.File]::ReadAllBytes($path)
+    $entropy=[Text.Encoding]::UTF8.GetBytes($script:bootstrapOperation)
+    $plain=$null
+    try {
+      $plain=[Security.Cryptography.ProtectedData]::Unprotect($encrypted,$entropy,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+      $handoff=[Text.Encoding]::UTF8.GetString($plain)|ConvertFrom-Json
+      $authenticated=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/session' -Headers @{Authorization='Bearer '+$handoff.token}
+      Require ($authenticated.identity.actorId -ceq $handoff.actorId -and $authenticated.identity.tenantId -ceq 'w2-ci-tenant') 'Installed Host did not authenticate the actual first administrator'
+      $anonymous=Invoke-WebRequest -Uri 'http://127.0.0.1:8080/api/v1/session' -SkipHttpErrorCheck
+      Require ([int]$anonymous.StatusCode -in @(401,403)) 'Anonymous session request was accepted'
+      @{tenantId=$authenticated.identity.tenantId;actorMatched=$true;authenticated=$true;anonymousStatus=[int]$anonymous.StatusCode}|ConvertTo-Json|Set-Content (Join-Path $out 'installed-session-authorization.json')
+    } finally {
+      [Array]::Clear($encrypted,0,$encrypted.Length);[Array]::Clear($entropy,0,$entropy.Length)
+      if($plain){[Array]::Clear($plain,0,$plain.Length)}
+      $handoff=$null;$authenticated=$null
+    }
   }
   Case 'NHI011-native-upgrade-maintenance-drains-services' {
     $p=Native $broker @('--prepare-installer-upgrade')
