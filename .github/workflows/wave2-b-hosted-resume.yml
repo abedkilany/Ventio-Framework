@@ -12,6 +12,33 @@ permissions:
   contents: read
   actions: read
 jobs:
+  native-evidence:
+    if: inputs.scope == 'native-evidence'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Read existing bounded native diagnostic evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: wave2-native-installation-*
+          path: evidence
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate_run_id }}
+      - name: Emit sanitized native diagnostics without rebuilding
+        shell: python
+        run: |
+          import json, pathlib
+          allowed = {'results.json', 'native-attempt-status.json', 'native-status.json'}
+          files = list(pathlib.Path('evidence').rglob('*.json'))
+          assert len(files) <= 100
+          for path in files:
+              if path.name in allowed or path.name.startswith('native-maintenance-') or path.name.startswith('native-'):
+                  assert path.stat().st_size <= 65536
+                  data = json.loads(path.read_text(encoding='utf-8-sig'))
+                  print(path.name, json.dumps(data, ensure_ascii=True))
   native-host-installation:
     if: inputs.scope == 'native-installation'
     uses: ./.github/workflows/wave2-native-installation.yml
