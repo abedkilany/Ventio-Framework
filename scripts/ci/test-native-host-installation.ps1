@@ -197,6 +197,15 @@ try {
     @{formatVersion=$manifest.formatVersion;fileCount=$manifest.fileCount;bytes=$manifest.bytes;recoveryAuthorityIncluded=$manifest.recoveryAuthorityIncluded;allMemberHashesVerified=$true}|ConvertTo-Json|Set-Content (Join-Path $out 'native-upgrade-backup.json')
   }
 } finally {
+  $bootstrapFailure=Join-Path $product 'Host/first-admin-failure.json'
+  if(Test-Path -LiteralPath $bootstrapFailure){
+    $record=Get-Content -LiteralPath $bootstrapFailure -Raw|ConvertFrom-Json
+    $allowed=@('failureCode','exceptionType','sqlState','operation','phase','helperStage','helperType','helperCode')
+    Require (@($record.PSObject.Properties).Count -le 8) 'Bootstrap diagnostic field limit'
+    foreach($property in $record.PSObject.Properties){Require ($property.Name -in $allowed -and ($null -eq $property.Value -or [string]$property.Value -cmatch '^[A-Za-z0-9_-]{1,100}$')) 'Unsafe bootstrap diagnostic'}
+    $record|ConvertTo-Json|Set-Content (Join-Path $out 'native-bootstrap-failure.json')
+  }
+  Get-MpThreatDetection -ErrorAction SilentlyContinue|Select-Object ThreatID,ActionSuccess,InitialDetectionTime,DetectionSourceTypeID|ConvertTo-Json|Set-Content (Join-Path $out 'defender-detection-metadata.json')
   $diagnostics=Join-Path $product 'Installer/ProvisioningDiagnostics'
   if(Test-Path -LiteralPath $diagnostics){Copy-Item (Join-Path $diagnostics '*.json') $out}
   foreach($record in @(Get-ChildItem -LiteralPath $out -Filter 'native-*.json' -File)){

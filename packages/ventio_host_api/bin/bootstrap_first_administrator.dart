@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_host_api/ventio_host_api.dart';
+import 'package:ventio_host_api/src/private_files_windows.dart';
 
 Future<void> main(List<String> args) async {
   pg.Connection? connection;
@@ -125,7 +126,51 @@ Future<void> main(List<String> args) async {
     );
     failureCode = 'HOST_FIRST_ADMIN_RESULT_INVALID';
     stdout.write(jsonEncode({'success': true, 'actorId': credential.actorId}));
-  } catch (_) {
+  } catch (error) {
+    // A service-owned, secret-free diagnostic makes installed failures
+    // actionable without exposing a request, connection URL or exception text.
+    if (Platform.isWindows) {
+      try {
+        final authority =
+            Platform.environment['VENTIO_RECOVERY_AUTHORITY_FILE'];
+        final data = Platform.environment['ProgramData'] ?? r'C:\ProgramData';
+        final parent = Directory('$data\\Ventio\\Host');
+        if (authority == '${parent.path}\\recovery.witness' &&
+            await FileSystemEntity.type(parent.path, followLinks: false) ==
+                FileSystemEntityType.directory) {
+          final target = File('${parent.path}\\first-admin-failure.json');
+          final kind = await FileSystemEntity.type(
+            target.path,
+            followLinks: false,
+          );
+          if (kind == FileSystemEntityType.notFound ||
+              kind == FileSystemEntityType.file) {
+            final type = error.runtimeType.toString();
+            final sqlState = error is pg.ServerException ? error.code : null;
+            final record = <String, Object?>{
+              'failureCode': failureCode,
+              'exceptionType':
+                  RegExp(r'^[A-Za-z][A-Za-z0-9]{0,63}$').hasMatch(type)
+                  ? type
+                  : 'Unknown',
+              'sqlState':
+                  sqlState != null &&
+                      RegExp(r'^[0-9A-Z]{5}$').hasMatch(sqlState)
+                  ? sqlState
+                  : null,
+              if (error is WindowsPrivateFileFailure) ...{
+                'operation': error.operation,
+                'phase': error.phase,
+                'helperStage': error.helperStage,
+                'helperType': error.helperType,
+                'helperCode': error.helperCode,
+              },
+            };
+            await target.writeAsString(jsonEncode(record), flush: true);
+          }
+        }
+      } catch (_) {}
+    }
     stderr.writeln(failureCode);
     exitCode = 1;
   } finally {

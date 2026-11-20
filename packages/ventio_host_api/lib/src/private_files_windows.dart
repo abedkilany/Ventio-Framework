@@ -2,6 +2,23 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// Contains only bounded classifications. The exception text never includes
+/// paths, file contents, interpreter stderr, SQL or credentials.
+class WindowsPrivateFileFailure extends StateError {
+  WindowsPrivateFileFailure(
+    this.operation,
+    this.phase, {
+    this.helperStage,
+    this.helperType,
+    this.helperCode,
+  }) : super('Protected file operation failed ($operation, $phase)');
+  final String operation;
+  final String phase;
+  final String? helperStage;
+  final String? helperType;
+  final String? helperCode;
+}
+
 /// Windows ACL-backed counterpart to the Linux private-file helper.
 /// Request data, including secrets, is sent over stdin rather than argv.
 class WindowsPrivateFiles {
@@ -277,12 +294,10 @@ try {
     }
   }
 } catch {
-  if ($env:VENTIO_PRIVATE_FILES_DIAGNOSTICS -eq '1') {
-    $exceptionType = $_.Exception.GetType().Name
-    $exceptionCode = ([int]$_.Exception.HResult).ToString('X8')
-    [Console]::Out.WriteLine('VENTIO_PRIVATE_HELPER_FAILURE:' + $stage + ':' +
-      $exceptionType + ':0x' + $exceptionCode)
-  }
+  $exceptionType = $_.Exception.GetType().Name
+  $exceptionCode = ([int]$_.Exception.HResult).ToString('X8')
+  [Console]::Out.WriteLine('VENTIO_PRIVATE_HELPER_FAILURE:' + $stage + ':' +
+    $exceptionType + ':0x' + $exceptionCode)
   [Console]::Error.WriteLine('Protected Windows file operation failed')
   exit 2
 }
@@ -348,6 +363,9 @@ Invoke-Expression $ventioScript
     Future<List<int>>? stdout;
     Future<String>? stderr;
     var phase = 'start';
+    String? helperStage;
+    String? helperType;
+    String? helperCode;
     try {
       process = await Process.start(powershell.path, [
         '-NoLogo',
@@ -383,10 +401,13 @@ Invoke-Expression $ventioScript
       final result = utf8.decode(await stdout);
       if (code != 0) {
         phase = 'helper_rejected';
+        final diagnostic = RegExp(
+          r'VENTIO_PRIVATE_HELPER_FAILURE:([A-Za-z_]{1,64}):([A-Za-z]{1,64}):(0x[0-9A-Fa-f]{8})',
+        ).firstMatch('$helperStderr\n$result');
+        helperStage = diagnostic?.group(1);
+        helperType = diagnostic?.group(2);
+        helperCode = diagnostic?.group(3);
         if (Platform.environment['VENTIO_PRIVATE_FILES_DIAGNOSTICS'] == '1') {
-          final diagnostic = RegExp(
-            r'VENTIO_PRIVATE_HELPER_FAILURE:([A-Za-z_]+):([A-Za-z]+):(0x[0-9A-Fa-f]{8})',
-          ).firstMatch('$helperStderr\n$result');
           if (diagnostic != null) {
             print(
               'Windows private-file helper: ${diagnostic[1]} '
@@ -423,7 +444,13 @@ Invoke-Expression $ventioScript
       } catch (_) {
         // Drain failures are deliberately excluded from public error text.
       }
-      throw StateError('Protected file operation failed ($operation, $phase)');
+      throw WindowsPrivateFileFailure(
+        operation,
+        phase,
+        helperStage: helperStage,
+        helperType: helperType,
+        helperCode: helperCode,
+      );
     }
   }
 }
