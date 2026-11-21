@@ -5444,7 +5444,7 @@ class _DynamicDocTypePageState extends State<DynamicDocTypePage> {
           endpoint: Uri.parse(profile.endpoint),
           credentials: vault,
         );
-    final localBundle = await widget.store.exportBundle(widget.moduleId);
+    final localBundle = await widget.store.readInstalledBundle(widget.moduleId);
     final localDigest = sha256
         .convert(utf8.encode(canonicalJson(localBundle.toJson())))
         .toString();
@@ -7384,7 +7384,7 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
     if (selected == null || !mounted) return;
     setState(() => _printingRecord = true);
     try {
-      final bundle = await widget.store.exportBundle(widget.moduleId);
+      final bundle = await widget.store.readInstalledBundle(widget.moduleId);
       if (bundle.version != moduleVersion) {
         throw const HostPackageTransportException(
           'LOCAL_PACKAGE_VERSION_DIFFERS_FROM_HOST_APPROVED_RELEASE',
@@ -7484,7 +7484,7 @@ class _DynamicRecordDetailsPageState extends State<DynamicRecordDetailsPage> {
             endpoint: Uri.parse(profile.endpoint),
             credentials: vault,
           );
-      final bundle = await widget.store.exportBundle(widget.moduleId);
+      final bundle = await widget.store.readInstalledBundle(widget.moduleId);
       final digest = sha256
           .convert(utf8.encode(canonicalJson(bundle.toJson())))
           .toString();
