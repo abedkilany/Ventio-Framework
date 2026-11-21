@@ -1039,7 +1039,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
         : requireMap(existing['body'], 'customization');
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _CustomizationEditor(
+      builder: (_) => MetadataCustomizationEditor(
         base: bundle,
         body: body,
         definition: definition,
@@ -2424,22 +2424,25 @@ class _RecordViewPageState extends State<_RecordViewPage> {
   }
 }
 
-class _CustomizationEditor extends StatefulWidget {
-  const _CustomizationEditor({
+/// Edits a validated overlay while retaining its immutable package binding.
+class MetadataCustomizationEditor extends StatefulWidget {
+  const MetadataCustomizationEditor({
     required this.body,
     required this.base,
     required this.definition,
     required this.namespace,
+    super.key,
   });
   final Map<String, dynamic> body;
   final ExtensionBundle base;
   final DocTypeDefinition definition;
   final String namespace;
   @override
-  State<_CustomizationEditor> createState() => _CustomizationEditorState();
+  State<MetadataCustomizationEditor> createState() =>
+      _CustomizationEditorState();
 }
 
-class _CustomizationEditorState extends State<_CustomizationEditor> {
+class _CustomizationEditorState extends State<MetadataCustomizationEditor> {
   late final _label = TextEditingController(
     text:
         (widget.body['properties'] as Map)['label'] as String? ??
@@ -2465,7 +2468,14 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
   );
   late final _layouts = {
     for (final name in ['listColumns', 'formFields', 'detailFields'])
-      name: List<String>.from((widget.body['ui'] as Map)[name] as List),
+      name: List<String>.from(
+        (widget.body['ui'] as Map)[name] as List? ??
+            switch (name) {
+              'listColumns' => widget.definition.listColumns,
+              'formFields' => widget.definition.formFields,
+              _ => widget.definition.detailFields,
+            },
+      ),
   };
   String? _error;
   @override

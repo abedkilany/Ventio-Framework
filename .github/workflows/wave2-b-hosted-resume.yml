@@ -233,7 +233,7 @@ jobs:
         timeout-minutes: 5
         working-directory: packages/ventio_native_client
         run: |
-          flutter test --no-pub test/host_tls_probe_test.dart test/host_credentials_test.dart test/client_pairing_test.dart test/host_transport_test.dart test/extension_studio_test.dart test/print_format_renderer_test.dart test/wave2_workspace_store_test.dart --reporter expanded 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-client-trust-tests.log"
+          flutter test --no-pub test/host_tls_probe_test.dart test/host_credentials_test.dart test/client_pairing_test.dart test/host_transport_test.dart test/extension_studio_test.dart test/print_format_renderer_test.dart test/wave2_workspace_store_test.dart test/metadata_customization_editor_test.dart --reporter expanded 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-client-trust-tests.log"
           if ($LASTEXITCODE) { throw 'Client trust or installed package identity regression failed' }
       - name: Retain Client trust evidence before release compilation
         if: always() && inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
