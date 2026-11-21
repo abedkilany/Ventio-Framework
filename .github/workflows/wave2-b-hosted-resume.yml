@@ -172,9 +172,10 @@ jobs:
       - name: Initialize unexecuted case ledger
         run: python tests/wave2/run_hosted_tests.py initialize
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
         with:
           dotnet-version: '10.0.404'
+      - name: Build native private-file runtime for actual Dart fixtures
+        run: ./scripts/ci/prepare-native-private-file-runtime.ps1
       - name: Build Host before Flutter changes Dart PATH
         if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
         run: |

@@ -41,6 +41,12 @@ jobs:
           if ($LASTEXITCODE) { throw 'Host service security tests failed' }
           dotnet run --project installer/windows/setup-broker.tests/VentioSetupBroker.Tests.csproj -c Release
           if ($LASTEXITCODE) { throw 'Broker tests failed' }
+          $env:VENTIO_WINDOWS_PRIVATE_FILE_HELPER = Join-Path (Get-Location) 'packages/ventio_host_api/build/windows/host-payload/VentioHostService.exe'
+          Push-Location packages/ventio_host_api
+          try {
+            dart run test/private_files_windows.dart
+            if ($LASTEXITCODE) { throw 'Actual Dart/native private-file integration failed' }
+          } finally { Pop-Location }
       - name: Retain complete test payload from the exact source
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

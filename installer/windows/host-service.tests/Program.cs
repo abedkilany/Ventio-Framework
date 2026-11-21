@@ -94,6 +94,8 @@ if (args.Length == 2 && args[0] == "--validate-file")
     return;
 }
 
+NativePrivateFileTests.Run();
+
 var baseConfig = new Dictionary<string, string>(StringComparer.Ordinal)
 {
     ["VENTIO_HOST_DATABASE_URL"] = "postgresql://runtime:secret@127.0.0.1:54329/ventio?sslmode=disable",

@@ -13,7 +13,7 @@ internal static class Program
 {
     private const string ServiceName = "VentioHost";
     internal const string HostReadyMessage = "VENTIO_HOST_READY";
-    internal const int FirstAdministratorHelperTimeoutSeconds = 90;
+    internal const int FirstAdministratorHelperTimeoutSeconds = 60;
     internal const int TrustedPairingHelperTimeoutSeconds = 90;
     internal const int TrustedSchemaUpgradeHelperTimeoutSeconds = 900;
     private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(90);
@@ -62,6 +62,8 @@ internal static class Program
     {
         if (args.Length > 0)
         {
+            if (args.Length == 1 && args[0] == "--private-file-operation")
+                return WindowsPrivateFileOperation.Run(Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.Error);
             if (args.Length == 1 && args[0] == "--recover-postgres-credentials")
                 return HostPostgresCredentialMaintenance.Coordinate(PostgresMaintenanceTarget.Installed,
                     ["--postgres-maintenance-worker"]);
