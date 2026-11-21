@@ -1,0 +1,57 @@
+{
+  "observedUtc": "2026-11-21T21:35:23.578494+00:00",
+  "machine": "TEST-02",
+  "clientSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "hostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "testMode": "Actual installed native Client through visible RDP, Host backed by running PostgreSQL",
+  "jobWorkspace": {
+    "successfulCsvImport": {
+      "jobId": "23836c20-d945-48a9-b647-919a3a43648d",
+      "status": "SUCCEEDED",
+      "completed": 2,
+      "total": 2,
+      "rows": [
+        2,
+        3
+      ],
+      "receipts": [
+        "ACCEPTED",
+        "ACCEPTED"
+      ]
+    },
+    "permissionDenial": {
+      "jobId": "476eb35e-618e-4960-b9e6-be27ba3b9516",
+      "status": "COMPLETED_WITH_ERRORS",
+      "completed": 1,
+      "total": 1,
+      "rowReceipt": "REJECTED",
+      "reason": "PERMISSION_DENIED"
+    },
+    "cancelledJobVisible": {
+      "jobId": "ce9147b9-ead3-4d85-a9a3-b748fbf564ce",
+      "status": "CANCELLED",
+      "completed": 0,
+      "total": 1
+    },
+    "scope": "Visible workspace rendering and persisted Host job status/receipts; separate server-side tests cover retry/cancellation behavior"
+  },
+  "dashboard": {
+    "name": "My dashboard",
+    "syncState": "SYNCED",
+    "revision": 1,
+    "report": "Asset count",
+    "hostRowsDisplayed": 6,
+    "eachCount": 1
+  },
+  "screenshots": {
+    "test02-native-host-jobs-success-and-denial.png": {
+      "bytes": 163385,
+      "sha256": "0c5a644dc49458bba243a92cf243dbd1f542f4cbcf82c8b2e10f859b2a5677c0"
+    },
+    "test02-native-dashboard-host-report-six-rows.png": {
+      "bytes": 138982,
+      "sha256": "581f1106ea0044a72aaa127142b55d7efcc575e2bb4f09c13584007b21eb4cbe"
+    }
+  },
+  "acceptanceLimit": "These checks use the older installed Client; corrected 7fb installer and full final release candidate remain pending."
+}

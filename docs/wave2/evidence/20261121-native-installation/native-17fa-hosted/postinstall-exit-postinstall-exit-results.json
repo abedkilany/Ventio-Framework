@@ -1,0 +1,25 @@
+{
+  "case": "ACTUAL_INNO_SILENT_POSTINSTALL_EXIT",
+  "status": "PASS",
+  "utc": "2026-11-21T22:19:32.5853353Z",
+  "sourceCommit": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+  "runId": "44955685351",
+  "usesActualProductionPostinstallInclude": true,
+  "hostServicesTouched": false,
+  "cases": [
+    {
+      "expectedExitCode": 0,
+      "mode": "pass",
+      "sha256": "320b9205977d729a734b47aa28d2886687e8039556f1b7784f8acb822a16165b",
+      "exitCode": 0,
+      "withinThirtySeconds": true
+    },
+    {
+      "expectedExitCode": 9,
+      "mode": "fail",
+      "sha256": "f46627b84fddf635dd64b785b39bdad879ffe90b31d194fcc74d61fb856f972e",
+      "exitCode": 9,
+      "withinThirtySeconds": true
+    }
+  ]
+}

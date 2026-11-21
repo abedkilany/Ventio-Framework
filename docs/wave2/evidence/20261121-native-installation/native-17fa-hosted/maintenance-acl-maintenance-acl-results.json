@@ -1,0 +1,15 @@
+{
+  "case": "INNO-MAINTENANCE-PRIVATE-FILE-ACL",
+  "status": "PASS",
+  "utc": "2026-11-21T22:19:28.8132285Z",
+  "originalInheritedFileRejectedByProtectedAclContract": true,
+  "fixedFileProtected": true,
+  "administratorOwned": true,
+  "onlyAdministratorsAndSystemFullControl": true,
+  "missingFileRejected": true,
+  "brokerSecurityContractChanged": false,
+  "fixtureSha256": "5ea8618f8105bd0ce7956836fffc0788745b053e21b006641c0a2f1ba306ceff",
+  "beforeSddl": "O:BAG:S-1-5-21-3414932011-3134797172-3625386099-513D:(A;ID;FA;;;BA)(A;ID;FA;;;SY)",
+  "afterSddl": "O:BAG:S-1-5-21-3414932011-3134797172-3625386099-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+  "root": "C:\\Program Files\\Ventio-Acl-Regression-4d4d8059fe694dffb884ffb4cb12caf3"
+}

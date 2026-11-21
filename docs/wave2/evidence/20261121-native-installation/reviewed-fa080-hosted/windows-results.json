@@ -1,0 +1,385 @@
+{
+  "commit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+  "runId": "44912845335",
+  "attempt": "2",
+  "mode": "windows",
+  "suites": [
+    {
+      "suite": "C",
+      "variant": null,
+      "log": "windows-C.log",
+      "command": [
+        "dart",
+        "--packages=../ventio_native_client/.dart_tool/package_config.json",
+        "test/wave2_contracts_test.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-C001",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C002",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C003",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C004",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C005",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C006",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C007",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C008",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C009",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C010",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C011",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C012",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C013",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C014",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C015",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C016",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C017",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C018",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C019",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C020",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C021",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C022",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C023",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C024",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C025",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C026",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C027",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C028",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C029",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C030",
+          "status": "PASSED",
+          "suite": "C"
+        },
+        {
+          "id": "W2-C031",
+          "status": "PASSED",
+          "suite": "C"
+        }
+      ]
+    },
+    {
+      "suite": "S",
+      "variant": null,
+      "log": "windows-S.log",
+      "command": [
+        "flutter",
+        "test",
+        "--no-pub",
+        "--machine",
+        "test/wave2_workspace_store_test.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-S001",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S002",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S003",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S004",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S005",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S006",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S007",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S008",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S009",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S010",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S011",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S012",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S013",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S014",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S015",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S016",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S017",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S018",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S019",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S020",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S021",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S022",
+          "status": "PASSED",
+          "suite": "S"
+        },
+        {
+          "id": "W2-S023",
+          "status": "PASSED",
+          "suite": "S"
+        }
+      ]
+    },
+    {
+      "suite": "W",
+      "variant": null,
+      "log": "windows-W.log",
+      "command": [
+        "pwsh",
+        "-NoLogo",
+        "-NoProfile",
+        "-File",
+        "tests/wave2/windows_integrity_tests.ps1",
+        "-PrivateFixtureParent",
+        "C:\\Users\\runneradmin"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-W001",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W002",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W003",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W004",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W005",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W006",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W007",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W008",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W009",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W010",
+          "status": "PASSED",
+          "suite": "W"
+        },
+        {
+          "id": "W2-W011",
+          "status": "PASSED",
+          "suite": "W"
+        }
+      ]
+    }
+  ],
+  "expectedUnexecuted": {
+    "P": "BLOCKED_PREREQUISITE: separately provisioned installed Windows VM and normal local approval required"
+  },
+  "manualAcceptance": "W2-M001..M006 remain unexecuted; CI does not establish physical two-device or owner acceptance"
+}

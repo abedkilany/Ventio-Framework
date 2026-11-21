@@ -1,0 +1,274 @@
+{
+  "snapshotUtc": "2026-11-21T21:38:24.372027+00:00",
+  "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+  "branch": "feature/wave-2-a",
+  "pr": 6,
+  "prRequiredState": "DRAFT_UNMERGED",
+  "mergeRecommendation": "NOT_READY",
+  "counts": {
+    "BLOCKED": 21,
+    "PASS": 1
+  },
+  "authoritativeScope": "../../WAVE_2_SCOPE_AND_ACCEPTANCE.md",
+  "installedSources": {
+    "client": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "host": "29e36a84875228baf518a2a7030a86bbcb164908"
+  },
+  "installedHttpUniquePassed": 54,
+  "automatedLedger": {
+    "stableUniquePassed": 158,
+    "windows": {
+      "run": 44912845335,
+      "attempt": 2,
+      "source": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+      "passed": 72
+    },
+    "linux": {
+      "run": 44911145739,
+      "source": "537449689d815aa92ddd69cf8344b9a0c503fbfa",
+      "passed": 86
+    },
+    "applicability": "Prior 72 Windows and 86 Linux stable results are recorded at their exact revisions. 17fa changes native Host upgrade inventory/cleanup and Inno postinstall failure handling, so those changed paths require current-source hosted and installed reruns; the older counts are not final-head acceptance.",
+    "separateCountsNotAddedToStable158": {
+      "clientRegressions": 88,
+      "nativeNhiCases": 14,
+      "installedIapiCases": 54
+    }
+  },
+  "releaseGates": {
+    "fullUnifiedInstallerUpgrade": "FAIL on TEST-01 old PostgreSQL payload upgrade; 17fa1b7 hosted native run 44955685351 passed 14 installed/denied Host cases and actual Inno silent failure exit 9. Full Windows candidate run 44955810614 in progress; no corrected physical upgrade PASS.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "TEST-01 native Client enrolled to TEST-02 Host with separate actor and approved registry list observed; offline/restart/sync/conflict unexecuted.",
+    "installedRecoveryP001_P006": "NOT_EXECUTED",
+    "recoveryVmAccess": "PASS strict pinned SSH to verified VM/guest identity via firewall rule restricted to BAHAA 172.20.160.1 and guest 172.20.162.145 TCP/22. VNIC isolation absent and recovery P001-P006 unexecuted; source 15fa pins current isolation plan.",
+    "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
+    "wave2C": "NOT_STARTED_PENDING_B_ACCEPTANCE_AND_FINAL_OWNER_APPROVAL",
+    "fullFa080ArtifactVerified": "PASS full authenticated GitHub transport, inner package, all 1767 member hashes, 1508 source archive members and source metadata; superseded installer itself practically failed.",
+    "nativeJobAndReportSubset": "PASS older installed Client actual Host jobs 2/2 accepted, permission-denied row, cancelled row and six-row Host dashboard report; corrected Client/full release gate remains.",
+    "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass."
+  },
+  "capabilities": [
+    {
+      "id": "A12",
+      "requiredImplementation": "Governed optional custom fields, versioned definitions, safe upgrade restrictions",
+      "authoritativeAcceptance": "Create/read/update custom fields across two clients; unauthorized and stale revisions denied; old records survive",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Corrected installed form customization, custom data across both native Clients, old-record survival and current denials."
+    },
+    {
+      "id": "A11",
+      "requiredImplementation": "Supported label/layout property overlays, deterministic base merge",
+      "authoritativeAcceptance": "Deterministic merge; invalid properties and destructive changes rejected; explicit base digest mismatch",
+      "status": "BLOCKED",
+      "evidence": [
+        "actual-host-customization-cases-29e.json",
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Corrected installed empty-layout editor and published label/layout presentation; invalid/destructive/stale/base-digest installed denials already passed."
+    },
+    {
+      "id": "K09",
+      "requiredImplementation": "Owner-scoped drafts, versioned Host synchronization and package-compatible overlays",
+      "authoritativeAcceptance": "Reopen drafts offline; publish/retry/conflict; approved package remains byte-identical",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native offline draft reopen, submit, independent approval and registry install passed; multi-identity edit/retry/conflict and package-compatible rebase remain."
+    },
+    {
+      "id": "D08",
+      "requiredImplementation": "Permission-aware CSV export and import access",
+      "authoritativeAcceptance": "Negative read/create/field grants, revocation mid-transfer and cross-scope attempts",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Installed operation/field grant denials and mid-export revocation passed; full native transfer/hidden-field presentation and two-device current role coverage remain."
+    },
+    {
+      "id": "J01",
+      "requiredImplementation": "Bounded declarative CSV mapping/preview/validation and authoritative row writes",
+      "authoritativeAcceptance": "Quoting/newlines/BOM/invalid UTF-8; data types, required fields, row errors, batch bounds",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Installed native mapping, quoted CSV, row errors and actual durable valid-row import passed; complete installed data-type/UTF-8 edge matrix remains."
+    },
+    {
+      "id": "J03",
+      "requiredImplementation": "Import duplicate detection, per-row stable command IDs, retries/progress",
+      "authoritativeAcceptance": "Duplicate IDs, lost receipt, worker restart/lease race; existing-record conflict and partial failures",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Stable real row commands, receipt identities, actual service restart and cancellation passed; lost-response/lease-race/existing-record conflict/partial failure acceptance remains."
+    },
+    {
+      "id": "K08",
+      "requiredImplementation": "Reuse query pagination for bounded field-safe export; metadata-compatible transfer",
+      "authoritativeAcceptance": "Query/export equivalence, stable page boundaries, permissions changed between pages",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native saved query/export equality and sort/columns, API pagination revocation passed; complete installed stable-page projection/filter/sort denial coverage remains."
+    },
+    {
+      "id": "M01",
+      "requiredImplementation": "Governed organization/company/branch administration within existing identity trust",
+      "authoritativeAcceptance": "Exact scope, branch membership, parent hierarchy, concurrent updates and audit",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native company update and installed parent/CAS/current-scope/no-implicit-branch-grant denials passed; complete membership/archive/reactivate/audit gate remains."
+    },
+    {
+      "id": "M02",
+      "requiredImplementation": "Bounded scoped configuration and operational settings",
+      "authoritativeAcceptance": "Persist/reopen; unauthorized edits denied; secret redaction; configuration effect",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Actual scoped settings persistence, job pause effect and invalid executable/outbound fields passed; native edit/reopen, role switch and secret presentation remain."
+    },
+    {
+      "id": "M05",
+      "requiredImplementation": "Backup policy/schedule, trusted execution, integrity metadata and retention",
+      "authoritativeAcceptance": "Private ACLs, quiesced cluster consistency/checksums, schedule failure, retention safety, tamper detection",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "P001-P005 installed backup/schedule/retention/tamper cases unexecuted; trusted signed operational path and effective recovery VM admission/isolation remain."
+    },
+    {
+      "id": "M09",
+      "requiredImplementation": "Controlled restore planning/execution and safeguards, operational audit and diagnostics",
+      "authoritativeAcceptance": "Disposable restore only in B; stale witness rejection; compatibility and identity recovery; no automatic production restore",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "P006 real restore/receipt/witness preservation and reconciliation unexecuted. Native upgrade backup is separate evidence."
+    },
+    {
+      "id": "B09",
+      "requiredImplementation": "Persistent user-owned saved searches/filters and record views",
+      "authoritativeAcceptance": "Persist/reopen, change scope/user, revoke permission; filter/sort/columns round trip",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native saved view revision 2, query/export equivalence and explicit-refresh read revocation passed; restart, actor/scope switch and concurrent edits remain."
+    },
+    {
+      "id": "C08",
+      "requiredImplementation": "Permission-aware module/workspace organization",
+      "authoritativeAcceptance": "Different roles/scopes; no-data, offline, denial and stale-session states",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native authorized module/workspace, no-data/loading and denied/refreshed lists observed; second role/device and stale-session/offline presentation remain."
+    },
+    {
+      "id": "C09",
+      "requiredImplementation": "User-owned density/theme/navigation preferences",
+      "authoritativeAcceptance": "Upgrade old DB, restart, switch actor/Host, Windows/Android narrow layout",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native theme/density and draft/command restart persistence passed; old-DB full upgrade, actor/Host separation and Android/narrow presentation remain."
+    },
+    {
+      "id": "C12",
+      "requiredImplementation": "Declarative native dashboard presentation",
+      "authoritativeAcceptance": "Report cards, denied filters/fields, bounded tables, loading/error/empty states",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native dashboard/report card publication and actual record count passed; complete loading/error/empty and current field/filter revocation presentation remain."
+    },
+    {
+      "id": "F05",
+      "requiredImplementation": "Workspace integration with installed approved report metadata",
+      "authoritativeAcceptance": "Report compatibility across releases, revocation and unavailable package",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Installed approved report works and undeclared filter denied; actual cross-release/dependency/package unavailable and revocation compatibility remain."
+    },
+    {
+      "id": "H04",
+      "requiredImplementation": "Document history and audit-oriented activity UI",
+      "authoritativeAcceptance": "Revision chronology, deleted/restricted records, cross-tenant denial, redaction",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native revision 1/2 chronology, exact command IDs, metadata-only activity and read-revocation clearing/restoration passed; deleted/restricted/cross-scope and cross-record effects remain."
+    },
+    {
+      "id": "B02",
+      "requiredImplementation": "Published versioned developer platform interfaces",
+      "authoritativeAcceptance": "Old packages still load; unknown new contract versions rejected",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Unknown contract versions rejected and legacy approved package loaded; corrected installed legacy query/print/conflict paths and full upgrade/version compatibility remain."
+    },
+    {
+      "id": "K10",
+      "requiredImplementation": "Reusable governed APIs, safe lifecycle behaviors",
+      "authoritativeAcceptance": "Existing submit/cancel/amend/governed operations preserved; malformed extensions rejected",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Existing governed business create/update and declarative handler refusal passed; installed submit/cancel/amend/calculation/numbering and malformed operation matrix remains."
+    },
+    {
+      "id": "L01",
+      "requiredImplementation": "Host-owned durable jobs, identity/state/retry/cancel/audit/visibility",
+      "authoritativeAcceptance": "Concurrent workers/crashes, stable IDs, revocation, bounded retries/cancellation and audit",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Real Host jobs, per-row receipts, cancellation, actual SCM restart durability and execution-grant revocation passed; multi-worker/crash/lease-fencing/complete diagnostics remain."
+    },
+    {
+      "id": "D09",
+      "requiredImplementation": "Bounded compatibility evaluation; reuse existing identity",
+      "authoritativeAcceptance": "Documented accepted/deferred scope and denial coverage; no auth bypass",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Actual native Host provisioning, DPAPI handoff, pairing, business credentials, TLS matching/wrong pin and current permission denial passed; post-restore identity/credential acceptance remains a release gate."
+    },
+    {
+      "id": "J04",
+      "requiredImplementation": "Bounded transfer/contract integration only",
+      "authoritativeAcceptance": "Reject unknown routes, handlers, executable fields, oversize payloads and tenant spoofing",
+      "status": "PASS",
+      "evidence": [
+        "actual-host-business-cases-29e.json",
+        "actual-host-negative-cases-29e.json",
+        "actual-host-bounded-integration-cases-29e.json"
+      ],
+      "remaining": "None for the bounded API contract: actual authenticated requests and installed rejection of unknown routes/handlers/executable properties/oversize/spoofed scope/outbound metadata verified. Global installer/device/recovery gates remain open."
+    }
+  ]
+}

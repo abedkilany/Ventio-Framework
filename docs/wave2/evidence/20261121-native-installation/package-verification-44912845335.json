@@ -1,0 +1,26 @@
+{
+  "artifactId": 14720664507,
+  "runId": 44912845335,
+  "sourceCommit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+  "sourceTree": "b7478b1fc217d03f8288bb3509df943ab5349895",
+  "identity": "Ventio-W2B-0.1.24+25-20261121-fa080fcd5072-gh44912845335-a2",
+  "outerSha256": "641cbd0854f231bd5fc7ec72b9c0ae9784d6d3c135dcd317f341dedfccca78d2",
+  "localDeliveryMembersVerified": 3,
+  "hostedAllPackageMembersVerified": 1767,
+  "sourceArchiveMatchedGit": true,
+  "sourceArchiveVerificationLocation": "Independent hosted Windows export; exact regenerated Git archive and tree; local tree identity also checked",
+  "hostedSecurityStatus": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+  "importantFiles": {
+    "Ventio-Setup-0.1.24.exe": {
+      "bytes": 108304598,
+      "sha256": "bc9f81e9d1171455a499474dfc68d8dd83396fb102f1d2f04282024a320eeaa0"
+    }
+  },
+  "payload": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\artifact-14720664507\\Payload",
+  "installedManifestPath": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\installed-files-44912845335.json",
+  "installedManifestSha256": "771bc24e63dfa56d4cae7d7b7cce7fa27c658fc00b8828cb73f77e1024a94d7e",
+  "limitations": [
+    "Installed application and upgrade acceptance remain separate",
+    "Release signing deferred by owner"
+  ]
+}

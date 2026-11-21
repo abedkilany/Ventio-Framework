@@ -1,0 +1,41 @@
+{
+  "artifactId": 14727840715,
+  "metadata": {
+    "id": 14727840715,
+    "node_id": "MDg6QXJ0aWZhY3QxNDcyNzg0MDcxNQ==",
+    "name": "wave2-native-installation-17fa1b73e1a9aeb411e22f752041a4b5a7194cd3-44955685351",
+    "size_in_bytes": 4641745,
+    "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14727840715",
+    "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14727840715/zip",
+    "expired": false,
+    "digest": "sha256:93db1fcca04b288c405b5198b2452534e8a10563d0a3181542ecba82855812ed",
+    "created_at": "2026-11-21T22:22:59Z",
+    "updated_at": "2026-11-21T22:22:59Z",
+    "expires_at": "2026-12-21T22:22:57Z",
+    "workflow_run": {
+      "id": 44955685351,
+      "repository_id": 1431395537,
+      "head_repository_id": 1431395537,
+      "head_branch": "feature/wave-2-a",
+      "head_sha": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3"
+    }
+  },
+  "verifiedSha256": "93db1fcca04b288c405b5198b2452534e8a10563d0a3181542ecba82855812ed",
+  "members": [
+    "_temp/wave2-defender-enablement.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/host-health.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/installed-session-authorization.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/legacy-policy-denial.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/maintenance-acl/maintenance-acl-fixture.exe",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/maintenance-acl/maintenance-acl-results.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/native-attempt-status.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/native-status.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/native-upgrade-backup.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/policy-probe.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/postinstall-exit/postinstall-exit-results.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/postinstall-exit/postinstall-fail.exe",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/postinstall-exit/postinstall-pass.exe",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/results.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/services.json"
+  ]
+}

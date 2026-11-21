@@ -1,0 +1,88 @@
+{
+  "identity": "Ventio-W2B-0.1.24+25-20261121-fa080fcd5072-gh44912845335-a2",
+  "commit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+  "sourceTree": "b7478b1fc217d03f8288bb3509df943ab5349895",
+  "hostDart": "Dart SDK version: 3.13.7 (stable) (Thu Oct 22 14:28:57 2026 -0700) on \"windows_x64\"",
+  "flutter": {
+    "frameworkVersion": "3.44.1",
+    "channel": "stable",
+    "repositoryUrl": "https://github.com/flutter/flutter.git",
+    "frameworkRevision": "924134a44c189315be2148659913dda1671cbe99",
+    "frameworkCommitDate": "2026-05-29 12:13:22 -0400",
+    "engineRevision": "c416acfeb8126e097f758c664aaa3da929e27da0",
+    "engineCommitDate": "2026-05-27 20:19:31.000Z",
+    "engineContentHash": "39b1f7043775b9578bbb26a1676e79c4e31c8b5e",
+    "engineBuildDate": "2026-05-27 20:50:43.210",
+    "dartSdkVersion": "3.12.1",
+    "devToolsVersion": "2.57.0",
+    "flutterVersion": "3.44.1",
+    "flutterRoot": "C:\\hostedtoolcache\\windows\\flutter\\stable-3.44.1-x64"
+  },
+  "dotnet": "10.0.404",
+  "dotnetInfo": ".NET SDK:\r\n Version:           10.0.404\r\n Commit:            2ab2854867\r\n Workload version:  10.0.400-manifests.ad9f6d83\r\n MSBuild version:   18.9.15+2ab285486\r\n\r\nRuntime Environment:\r\n OS Name:     Windows\r\n OS Version:  10.0.26100\r\n OS Platform: Windows\r\n RID:         win-x64\r\n Base Path:   C:\\Program Files\\dotnet\\sdk\\10.0.404\\\r\n\r\n.NET workloads installed:\r\n [maui-windows]\r\n   Installation Source: VS 18.12.12405.243\r\n   Manifest Version:    10.0.0/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.maui\\10.0.0\\WorkloadManifest.json\r\n   Install Type:        FileBased\r\n\r\n [maccatalyst]\r\n   Installation Source: VS 18.12.12405.243\r\n   Manifest Version:    26.0.11017/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.maccatalyst\\26.0.11017\\WorkloadManifest.json\r\n   Install Type:        FileBased\r\n\r\n [ios]\r\n   Installation Source: VS 18.12.12405.243\r\n   Manifest Version:    26.0.11017/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.ios\\26.0.11017\\WorkloadManifest.json\r\n   Install Type:        FileBased\r\n\r\n [android]\r\n   Installation Source: VS 18.12.12405.243\r\n   Manifest Version:    36.1.2/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.android\\36.1.2\\WorkloadManifest.json\r\n   Install Type:        FileBased\r\n\r\n [wasm-tools]\r\n   Installation Source: VS 18.12.12405.243\r\n   Manifest Version:    10.0.115/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.workload.mono.toolchain.current\\10.0.115\\WorkloadManifest.json\r\n   Install Type:        FileBased\r\n\r\nConfigured to use workload sets when installing new manifests.\r\nNo workload sets are installed. Run \"dotnet workload restore\" to install a workload set.\r\n\r\nHost:\r\n  Version:      11.0.0\r\n  Architecture: x64\r\n  Commit:       297acf930f\r\n\r\n.NET SDKs installed:\r\n  8.0.134 [C:\\Program Files\\dotnet\\sdk]\r\n  8.0.206 [C:\\Program Files\\dotnet\\sdk]\r\n  8.0.319 [C:\\Program Files\\dotnet\\sdk]\r\n  8.0.428 [C:\\Program Files\\dotnet\\sdk]\r\n  9.0.124 [C:\\Program Files\\dotnet\\sdk]\r\n  9.0.205 [C:\\Program Files\\dotnet\\sdk]\r\n  9.0.321 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.115 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.204 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.303 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.404 [C:\\Program Files\\dotnet\\sdk]\r\n  11.0.100 [C:\\Program Files\\dotnet\\sdk]\r\n\r\n.NET runtimes installed:\r\n  Microsoft.AspNetCore.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 8.0.34 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 9.0.23 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.15 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 11.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.NETCore.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 8.0.34 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.23 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.15 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 11.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.WindowsDesktop.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 8.0.34 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 9.0.23 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.15 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 11.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n\r\nOther architectures found:\r\n  x86   [C:\\Program Files (x86)\\dotnet]\r\n    registered at [HKLM\\SOFTWARE\\dotnet\\Setup\\InstalledVersions\\x86\\InstallLocation]\r\n\r\nEnvironment variables:\r\n  DOTNET_MULTILEVEL_LOOKUP                 [0]\r\n  DOTNET_NOLOGO                            [1]\r\n  DOTNET_ROOT                              [C:\\Program Files\\dotnet]\r\n  DOTNET_SKIP_FIRST_TIME_EXPERIENCE        [1]\r\n\r\nglobal.json file:\r\n  D:\\a\\Ventio-Framework\\Ventio-Framework\\global.json\r\n\r\nLearn more:\r\n  https://aka.ms/dotnet/info\r\n\r\nDownload .NET:\r\n  https://aka.ms/dotnet/download\r\n",
+  "compilerFiles": [
+    {
+      "name": "msvc-14.52.37025-cl",
+      "path": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.52.37025\\bin\\Hostx64\\x64\\cl.exe",
+      "sha256": "87b094e4fb3c646247b8eb515b5daa4fd73f991fe7cc42e98c0c9e3d3805d6fb",
+      "version": "19.52.37029.0"
+    },
+    {
+      "name": "msvc-14.52.37025-link",
+      "path": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.52.37025\\bin\\Hostx64\\x64\\link.exe",
+      "sha256": "6089fbb8ca5d7beb5a69e625bf614ef23ebe07100a987c8a32b121f906e3fb51",
+      "version": "14.52.37029.0"
+    },
+    {
+      "name": "clientDart",
+      "path": "C:\\hostedtoolcache\\windows\\flutter\\stable-3.44.1-x64\\bin\\cache\\dart-sdk\\bin\\dart.exe",
+      "sha256": "f265a8883b0a9fc993cbbd400675d25b40e18386644124999c2d117674e7e37c",
+      "version": null
+    },
+    {
+      "name": "hostDart",
+      "path": "D:\\a\\_temp\\wave2-inputs\\host-sdk\\dart-sdk\\bin\\dart.exe",
+      "sha256": "dbc2da722f24a786daa23c053ef61f04e52d6675c43f572bf36f4289971e6d46",
+      "version": null
+    },
+    {
+      "name": "inno",
+      "path": "C:\\Program Files (x86)/Inno Setup 6/ISCC.exe",
+      "sha256": "f02fa0e5f237b47d7ed1edae9b991866ec94fe02af61eb6a73e94f92fe8e0604",
+      "version": "0.0.0.0"
+    },
+    {
+      "name": "dotnet",
+      "path": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "sha256": "0a1b7ca731245de1f267a9c3c4d1ef8705e0821923fcdd6e0d61c31132f51240",
+      "version": "10,0,1526,53008 @Commit: 8e0f8ed2312954727f8919d7d1c2f78b483b4ee7"
+    }
+  ],
+  "dependencyLockfiles": [
+    {
+      "path": "packages/ventio_host/pubspec.lock",
+      "sha256": "2878c4d81a673c6be750912f1a72eee6c1a2af7580fb73f9d9694b3c0284f687"
+    },
+    {
+      "path": "packages/ventio_host_api/pubspec.lock",
+      "sha256": "6d3b773f37ff2c23b82ef39474c19ef9c145d338e7925038fefe5a7160db7066"
+    },
+    {
+      "path": "packages/ventio_native_client/pubspec.lock",
+      "sha256": "2b6d007b6f42e0878bf612bbe6eff99cc23f22a3d2290d29b95d52b15ac8ee9b"
+    },
+    {
+      "path": "packages/ventio_postgres/pubspec.lock",
+      "sha256": "37765b55a53c5e3dd37d19356e27087f6a86bdde2a02644d12db576353bcce43"
+    }
+  ],
+  "inno": "6.7.4",
+  "postgres": "16.16-1",
+  "imageOS": "win25-vs2026",
+  "imageVersion": "20261116.315.1",
+  "runnerEnvironment": "github-hosted",
+  "runId": "44912845335",
+  "attempt": "2",
+  "bitIdenticalRebuild": "NOT_ESTABLISHED",
+  "productionSourceChanges": "Only recorded generated line-ending overlay allowed"
+}
