@@ -1,6 +1,6 @@
 {
   "recordedDate": "2026-11-21",
-  "engineeringHead": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "engineeringHead": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
   "installedHostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
   "installedClientSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
   "native29eHosted": {
@@ -12,13 +12,13 @@
     "actualDartNativePrivateFileIntegrationPassed": true
   },
   "linux": {
-    "sourceCommit": "1f6fee86713c288242f1fa093d3ff6a292748f2a",
-    "runId": 44882263766,
-    "jobId": 136779922092,
+    "sourceCommit": "537449689d815aa92ddd69cf8344b9a0c503fbfa",
+    "runId": 44911145739,
+    "jobId": 136867035648,
     "jobConclusion": "success",
-    "wholeRunConclusion": "failure in Windows compiler pin preflight",
     "distinctPassedCaseCount": 86,
-    "applicability": "Changes from this source to engineeringHead affect Windows native IO, Windows compiler/runtime inputs, documentation and dispatch diagnostics; Linux Dart, SQL, Core and Client business implementation is unchanged."
+    "executions": 89,
+    "applicability": "Changes 5374496..fa080fc affect the native customization editor, its widget regression, Windows test selection and evidence only. Host, Core, PostgreSQL and offline integration implementation unchanged. Native UI regression separately passed; installed rerun pending."
   },
   "installedTest02": {
     "installationOperationId": "922f550e4a5f40dca7764ec180899718",
@@ -63,10 +63,11 @@
       "fixedPhysicalRerun": "PASS; actual-native-concurrent-reader-29e.json"
     },
     "installedHttpCases": {
-      "distinctPassed": 34,
+      "distinctPassed": 37,
       "reports": [
         "actual-host-business-cases-29e.json",
-        "actual-host-negative-cases-29e.json"
+        "actual-host-negative-cases-29e.json",
+        "actual-host-restart-cases-29e.json"
       ],
       "initialHarnessFailuresRetained": "actual-host-negative-cases-29e-initial.json",
       "harnessCorrections": [
@@ -94,13 +95,23 @@
   "remaining": {
     "correctedPhysicalPayloadDownload": "VERIFIED_AND_INSTALLED",
     "fullWindows29eCandidateRun": 44883758259,
-    "fullWindows29eCandidateStatus": "IN_PROGRESS; last checked 2026-11-21T09:06Z",
+    "fullWindows29eCandidateStatus": "29e attempts and newer 5374496/fa080fc runs lost hosted runner communication. fa080fc run 44912845335 failed-job rerun requested. No final candidate verified or installed.",
     "all22Capabilities": "REQUIRED_INSTALLED_ACCEPTANCE_INCOMPLETE",
     "twoDeviceOfflineSynchronization": "NOT_EXECUTED",
     "P001_P006": "NOT_EXECUTED",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
-    "recoveryLabSsh": "2026-11-21: Hyper-V reports approved guest running at 172.20.162.145; strict pinned SSH timed out. P001-P006 remain unexecuted."
+    "recoveryLabSsh": "2026-11-21: Hyper-V reports approved guest running at 172.20.162.145; strict pinned SSH timed out. P001-P006 remain unexecuted.",
+    "currentDeviceAccess": "2026-11-21 20:52 Asia/Beirut: TEST-02 SSH responds; TEST-01 .106 SSH times out; neither RDP window currently available. Owner asked to open sessions."
   },
   "mergeRecommendation": "NOT_READY",
-  "pr6DraftRequired": true
+  "pr6DraftRequired": true,
+  "nativeBusinessUi": {
+    "enrollment": "PASS; owner screenshot",
+    "offlineCreateRestartAndReconnect": "PASS_SINGLE_CLIENT; native-business-offline-20261121.json",
+    "update": "PASS; native-business-update-20261121.json",
+    "csvAndDashboard": "PASS; native-csv-dashboard-20261121.json",
+    "customizationEditor": "Installed failure reproduced; fixed in fa080fc; empty and partial overlay widget regressions passed; installed corrected rerun pending",
+    "savedViewEdit": "INCOMPLETE; native editor changed provisionally but Save was not performed before session interruption",
+    "twoDeviceAcceptance": "NOT_EXECUTED"
+  }
 }
