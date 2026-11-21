@@ -401,6 +401,14 @@ jobs:
         if: inputs.scope == 'verify-candidate'
         shell: pwsh
         run: ./scripts/ci/verify-wave2-protected-candidate.ps1
+      - name: Retain the independently verified installer for device delivery
+        if: inputs.scope == 'candidate-evidence'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-reviewed-installer-${{ inputs.candidate_run_id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wave2-reviewed-installer/*
+          if-no-files-found: error
+          retention-days: 30
       - name: Retain independent protection and installer evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

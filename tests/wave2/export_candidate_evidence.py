@@ -72,4 +72,32 @@ review = dict(context, sourceTree=tree, sourceEntriesMatchedRegeneratedGitArchiv
     selectedPayloadHashes={r['path']: r['sha256'] for r in inventory if r['path'] in ('Client/ventio_native_client.exe', 'Client/data/app.so', 'HostPayload/ventio_host.exe') or r['path'].startswith('Ventio-Setup-')},
     copiedTestReports=reports, evidenceOnly=True, securityClearance='NOT_ESTABLISHED_BY_DATA_EXPORT')
 (out/'exported-artifact-review.json').write_text(json.dumps(review, indent=2)+'\n')
+# The verified installer is sufficient for on-device installation. Retain it
+# separately so disposable devices need not download the source/tools archive.
+# All outer/inner members and archived source were verified above before export.
+installers = [r for r in inventory if r['path'].startswith('Ventio-Setup-') and r['path'].endswith('.exe')]
+assert len(installers) == 1
+installer = installers[0]
+assert pathlib.PurePosixPath(installer['path']).name == installer['path']
+installer_source = payload/installer['path']
+assert hashlib.sha256(installer_source.read_bytes()).hexdigest() == installer['sha256']
+installer_out = pathlib.Path(os.environ['RUNNER_TEMP'])/'wave2-reviewed-installer'
+installer_out.mkdir(exist_ok=False)
+shutil.copyfile(installer_source, installer_out/installer['path'])
+installed_files = [
+    {'installedPath': r['path'][7:] if r['path'].startswith('Client/') else 'host-payload/'+r['path'][12:],
+     'bytes': r['bytes'], 'sha256': r['sha256']}
+    for r in inventory if r['path'].startswith(('Client/', 'HostPayload/'))
+]
+installed_manifest = dict(sourceCommit=commit, identity=context['identity'],
+    installerSha256=installer['sha256'], expectedFiles=installed_files)
+(installer_out/'installed-files.json').write_text(json.dumps(installed_manifest, indent=2)+'\n')
+delivery = dict(candidateRunId=context['candidateRunId'], sourceCommit=commit,
+    verificationCommit=context['verificationCommit'], identity=context['identity'],
+    githubArtifactSha256=context['githubArtifactSha256'], zipSha256=context['zipSha256'],
+    allPackageMembersVerified=context['membersVerified'], sourceArchiveRecreatedExactly=True,
+    installer=installer, installedManifestSha256=hashlib.sha256((installer_out/'installed-files.json').read_bytes()).hexdigest(),
+    installerExecuted=False, releaseSigning='DEFERRED_OWNER_PREREQUISITE')
+(installer_out/'reviewed-installer.json').write_text(json.dumps(delivery, indent=2)+'\n')
+shutil.copyfile(installer_out/'reviewed-installer.json', out/'reviewed-installer.json')
 print(json.dumps({k:v for k,v in review.items() if k != 'gitCheckoutRepresentationPaths'}, indent=2))
