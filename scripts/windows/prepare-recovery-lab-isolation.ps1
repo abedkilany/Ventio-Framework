@@ -26,7 +26,7 @@ $adapter=$adapters[0]
 if(@($adapter | Get-VMNetworkAdapterAcl).Count){throw 'RECOVERY_EXISTING_STANDARD_ACL_REVIEW_REQUIRED'}
 $existing=@($adapter | Get-VMNetworkAdapterExtendedAcl)
 if($Mode -eq 'Apply'){
-  if([string]$adapter.SwitchId -cne $plan.switchId -or -not (Get-NetIPAddress -AddressFamily IPv4 | Where-Object IPAddress -EQ '172.19.240.1')){throw 'RECOVERY_NETWORK_REPLAN_REQUIRED'}
+  if([string]$adapter.SwitchId -cne $plan.switchId -or -not (Get-NetIPAddress -AddressFamily IPv4 | Where-Object IPAddress -EQ '172.20.160.1')){throw 'RECOVERY_NETWORK_REPLAN_REQUIRED'}
   if($existing.Count){throw 'RECOVERY_EXISTING_EXTENDED_ACL_REVIEW_REQUIRED'}
   # SSH allow is installed before deny rules. Partial failures require console
   # review/rollback; never silently flush ACLs or change the switch/firewall.

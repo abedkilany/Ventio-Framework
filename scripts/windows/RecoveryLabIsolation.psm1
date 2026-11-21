@@ -4,10 +4,10 @@ function New-RecoveryLabIsolationPlan {
   [CmdletBinding()]param()
   # The only approved management route. No DNS, Internet, production or LAN allows.
   $rules=@(
-    @{direction='Inbound';remoteIPAddress='172.19.240.1';localPort='22';remotePort='';protocol='TCP';action='Allow';weight=200;stateful=$true},
+    @{direction='Inbound';remoteIPAddress='172.20.160.1';localPort='22';remotePort='';protocol='TCP';action='Allow';weight=200;stateful=$true},
     @{direction='Outbound';remoteIPAddress='255.255.255.255';localPort='68';remotePort='67';protocol='UDP';action='Allow';weight=190;stateful=$false},
-    @{direction='Outbound';remoteIPAddress='172.19.240.1';localPort='68';remotePort='67';protocol='UDP';action='Allow';weight=180;stateful=$false},
-    @{direction='Inbound';remoteIPAddress='172.19.240.1';localPort='68';remotePort='67';protocol='UDP';action='Allow';weight=170;stateful=$false}
+    @{direction='Outbound';remoteIPAddress='172.20.160.1';localPort='68';remotePort='67';protocol='UDP';action='Allow';weight=180;stateful=$false},
+    @{direction='Inbound';remoteIPAddress='172.20.160.1';localPort='68';remotePort='67';protocol='UDP';action='Allow';weight=170;stateful=$false}
   )
   $denyWeight=10
   foreach($family in @('0.0.0.0/0','::/0')){foreach($direction in @('Inbound','Outbound')){

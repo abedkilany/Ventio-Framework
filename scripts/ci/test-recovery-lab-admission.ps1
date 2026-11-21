@@ -31,7 +31,7 @@ Case 'ADM13-boolean-approval-required' {$r=Clone $record;$r.ownerApproved='true'
 Case 'ADM14-physical-prerequisite-evidence' {$r=Clone $record;$r.networkEffectiveVerified=$false;Reject {Assert-RecoveryLabIdentity $r $observation}}
 $plan=New-RecoveryLabIsolationPlan
 Case 'NET01-exact-adapter-plan' {Assert-RecoveryLabIsolationPlan $plan;if($plan.rules.Count -ne 8){throw 'Rule closure incomplete'}}
-Case 'NET02-only-management-ssh' {$ssh=@($plan.rules|Where-Object {$_.protocol -eq 'TCP' -and $_.action -eq 'Allow'});if($ssh.Count -ne 1 -or $ssh[0].direction -ne 'Inbound' -or $ssh[0].remoteIPAddress -ne '172.19.240.1' -or $ssh[0].localPort -ne '22' -or -not $ssh[0].stateful){throw 'SSH flow widened'}}
+Case 'NET02-only-management-ssh' {$ssh=@($plan.rules|Where-Object {$_.protocol -eq 'TCP' -and $_.action -eq 'Allow'});if($ssh.Count -ne 1 -or $ssh[0].direction -ne 'Inbound' -or $ssh[0].remoteIPAddress -ne '172.20.160.1' -or $ssh[0].localPort -ne '22' -or -not $ssh[0].stateful){throw 'SSH flow widened'}}
 Case 'NET03-dual-stack-denial' {foreach($ip in @('0.0.0.0/0','::/0')){foreach($direction in @('Inbound','Outbound')){if(@($plan.rules|Where-Object {$_.remoteIPAddress -eq $ip -and $_.direction -eq $direction -and $_.action -eq 'Deny'}).Count -ne 1){throw 'Missing default deny'}}}}
 Case 'NET04-unique-priorities' {if(@($plan.rules.weight|Select-Object -Unique).Count -ne $plan.rules.Count){throw 'Duplicate Hyper-V rule priority'}}
 Case 'NET05-no-general-egress' {foreach($rule in @($plan.rules|Where-Object {$_.action -eq 'Allow' -and $_.direction -eq 'Outbound'})){if($rule.protocol -ne 'UDP' -or $rule.localPort -ne '68' -or $rule.remotePort -ne '67'){throw 'Unexpected egress'}}}
