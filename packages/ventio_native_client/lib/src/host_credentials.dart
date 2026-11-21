@@ -396,10 +396,13 @@ class HostCredentialVault {
         timeout: timeout,
         context: pinnedCertificateContext(der),
       );
-      await validationSocket.close();
+      // These sockets exchange only TLS handshakes. close() shuts down the
+      // sending half; their unread receiving halves can keep native IO handles
+      // alive indefinitely. Release both directions after validation.
+      validationSocket.destroy();
       return der;
     } finally {
-      await socket.close();
+      socket.destroy();
     }
   }
 

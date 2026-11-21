@@ -228,6 +228,13 @@ jobs:
           flutter pub get --enforce-lockfile
           if ($LASTEXITCODE) { throw 'Client dependency resolution failed' }
           Pop-Location
+      - name: Verify real TLS probe lifecycle and credential transport regressions
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        timeout-minutes: 5
+        working-directory: packages/ventio_native_client
+        run: |
+          flutter test --no-pub test/host_tls_probe_test.dart test/host_credentials_test.dart test/client_pairing_test.dart test/host_transport_test.dart --reporter expanded 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-client-tls-tests.log"
+          if ($LASTEXITCODE) { throw 'Client TLS or credential transport regression failed' }
       - name: Build native Client with bounded compiler parallelism
         if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
         timeout-minutes: 40
@@ -243,7 +250,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: wave2-client-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/wave2-client-build.log
+          path: |
+            ${{ runner.temp }}/wave2-client-build.log
+            ${{ runner.temp }}/wave2-client-tls-tests.log
           if-no-files-found: warn
           retention-days: 30
       - name: Build unified installer from this checkout only
