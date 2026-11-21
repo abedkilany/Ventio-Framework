@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-21T21:38:24.372027+00:00",
+  "snapshotUtc": "2026-11-21T23:17:05.709595+00:00",
   "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -37,14 +37,16 @@
   },
   "releaseGates": {
     "fullUnifiedInstallerUpgrade": "FAIL on TEST-01 old PostgreSQL payload upgrade; 17fa1b7 hosted native run 44955685351 passed 14 installed/denied Host cases and actual Inno silent failure exit 9. Full Windows candidate run 44955810614 in progress; no corrected physical upgrade PASS.",
-    "twoPhysicalDeviceOfflineRestartSyncConflict": "TEST-01 native Client enrolled to TEST-02 Host with separate actor and approved registry list observed; offline/restart/sync/conflict unexecuted.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "PASS subset: installed TEST-01 native Client to TEST-02 authoritative Host; six-row read, online create/receipt, Host outage, local queue durability across Client restart, reconnect receipt and exactly-once eight-row result. Actual network-adapter disconnect, corrected TEST-02 Client convergence, conflict and revocation remain. See test01-test02-client-host-sync-20261122.json",
     "installedRecoveryP001_P006": "NOT_EXECUTED",
     "recoveryVmAccess": "PASS strict pinned SSH to verified VM/guest identity via firewall rule restricted to BAHAA 172.20.160.1 and guest 172.20.162.145 TCP/22. VNIC isolation absent and recovery P001-P006 unexecuted; source 15fa pins current isolation plan.",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
     "wave2C": "NOT_STARTED_PENDING_B_ACCEPTANCE_AND_FINAL_OWNER_APPROVAL",
     "fullFa080ArtifactVerified": "PASS full authenticated GitHub transport, inner package, all 1767 member hashes, 1508 source archive members and source metadata; superseded installer itself practically failed.",
     "nativeJobAndReportSubset": "PASS older installed Client actual Host jobs 2/2 accepted, permission-denied row, cancelled row and six-row Host dashboard report; corrected Client/full release gate remains.",
-    "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass."
+    "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass.",
+    "test02OlderClientDigest": "TEST-02 Client source 81661f7 used exportBundle for local digest; current source 5374496+ uses retained installed bundle. Stored bundle Dart canonical roundtrip and authenticated approved/record query digests all equal a0f9d3b7...; old installed UI denial must be rechecked after corrected Client install.",
+    "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json"
   },
   "capabilities": [
     {
@@ -74,7 +76,8 @@
       "authoritativeAcceptance": "Reopen drafts offline; publish/retry/conflict; approved package remains byte-identical",
       "status": "BLOCKED",
       "evidence": [
-        "nov21-checkpoint.json"
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json"
       ],
       "remaining": "Native offline draft reopen, submit, independent approval and registry install passed; multi-identity edit/retry/conflict and package-compatible rebase remain."
     },
@@ -174,9 +177,10 @@
       "authoritativeAcceptance": "Different roles/scopes; no-data, offline, denial and stale-session states",
       "status": "BLOCKED",
       "evidence": [
-        "nov21-checkpoint.json"
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json"
       ],
-      "remaining": "Native authorized module/workspace, no-data/loading and denied/refreshed lists observed; second role/device and stale-session/offline presentation remain."
+      "remaining": "Second physical Client read authorized module and Host records; different roles/scopes, network disconnect presentation, stale-session and denied states on corrected final Client remain."
     },
     {
       "id": "C09",
@@ -184,9 +188,10 @@
       "authoritativeAcceptance": "Upgrade old DB, restart, switch actor/Host, Windows/Android narrow layout",
       "status": "BLOCKED",
       "evidence": [
-        "nov21-checkpoint.json"
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json"
       ],
-      "remaining": "Native theme/density and draft/command restart persistence passed; old-DB full upgrade, actor/Host separation and Android/narrow presentation remain."
+      "remaining": "Installed TEST-01 local command and package/profile survived actual Client restart during Host outage; old-DB full upgrade, actor/Host separation and Android/narrow presentation remain."
     },
     {
       "id": "C12",
@@ -254,7 +259,8 @@
       "authoritativeAcceptance": "Documented accepted/deferred scope and denial coverage; no auth bypass",
       "status": "BLOCKED",
       "evidence": [
-        "nov21-checkpoint.json"
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json"
       ],
       "remaining": "Actual native Host provisioning, DPAPI handoff, pairing, business credentials, TLS matching/wrong pin and current permission denial passed; post-restore identity/credential acceptance remains a release gate."
     },

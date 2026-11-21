@@ -1,0 +1,20 @@
+{
+  "case": "TEST01_APPROVED_WAVE2_PACKAGE_IMPORT",
+  "status": "PASS_DRAFT_IMPORT_ONLY",
+  "observedFrom": "read-only copy of actual installed Client SQLite main/WAL/SHM while app running",
+  "package": {
+    "moduleId": "com.example.wave2",
+    "displayName": "Wave 2 fixture",
+    "version": "1.0.0",
+    "state": "DRAFT"
+  },
+  "hostProfile": {
+    "origin": "https://test-02:8443",
+    "company": "w2-company",
+    "branch": "w2-branch",
+    "actorId": "usr_9f8a1211de4060e456aa148c13cdc712"
+  },
+  "nativeUi": "Host approved registry displayed two packages, owner confirmed install action; package saved as local draft",
+  "activationAndBusinessCrud": "NOT_EXECUTED",
+  "rawCredentialRecorded": false
+}
