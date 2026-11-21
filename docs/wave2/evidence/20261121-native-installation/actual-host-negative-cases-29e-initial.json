@@ -1,0 +1,82 @@
+﻿{
+    "recordedAtUtc":  "2026-11-21T08:43:44.2303389Z",
+    "machine":  "TEST-02",
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "actualInstalledHost":  true,
+    "directSqlUsed":  false,
+    "credentialContentsRecorded":  false,
+    "cases":  [
+                  {
+                      "id":  "IAPI024",
+                      "description":  "Installed CSV preview handles BOM quoted commas escaped quotes and embedded newlines",
+                      "status":  "FAIL",
+                      "safeFailure":  "ACTUAL_QUOTED_CSV_DID_NOT_ROUND_TRIP",
+                      "elapsedMs":  701
+                  },
+                  {
+                      "id":  "IAPI025",
+                      "description":  "Installed CSV preview enforces its configured 500-row bound",
+                      "status":  "PASS",
+                      "elapsedMs":  628
+                  },
+                  {
+                      "id":  "IAPI026",
+                      "description":  "Unknown installed API routes are refused",
+                      "status":  "FAIL",
+                      "safeFailure":  "UNKNOWN_ROUTE_WAS_ADMITTED",
+                      "elapsedMs":  377
+                  },
+                  {
+                      "id":  "IAPI027",
+                      "description":  "Caller cannot override its authenticated tenant",
+                      "status":  "PASS",
+                      "elapsedMs":  378
+                  },
+                  {
+                      "id":  "IAPI028",
+                      "description":  "Oversized integration bodies are rejected before processing",
+                      "status":  "FAIL",
+                      "safeFailure":  "ACTUAL_REQUEST_BYTE_BOUND_NOT_ENFORCED",
+                      "elapsedMs":  280
+                  },
+                  {
+                      "id":  "IAPI029",
+                      "description":  "Current field revocation stops the next export page despite an unchanged token ceiling",
+                      "status":  "PASS",
+                      "elapsedMs":  3845
+                  },
+                  {
+                      "id":  "IAPI030",
+                      "description":  "Governed overlays leave the approved base package byte identity unchanged",
+                      "status":  "PASS",
+                      "elapsedMs":  342
+                  },
+                  {
+                      "id":  "IAPI031",
+                      "description":  "Executable SQL properties are rejected in declarative customizations",
+                      "status":  "PASS",
+                      "elapsedMs":  208
+                  },
+                  {
+                      "id":  "IAPI032",
+                      "description":  "Declarative extension cannot supply executable command handlers",
+                      "status":  "PASS",
+                      "elapsedMs":  181
+                  },
+                  {
+                      "id":  "IAPI033",
+                      "description":  "Installed report rejects a filter not declared in report metadata",
+                      "status":  "PASS",
+                      "elapsedMs":  355
+                  },
+                  {
+                      "id":  "IAPI034",
+                      "description":  "Cancellation of a paused durable job prevents its future business effect",
+                      "status":  "FAIL",
+                      "safeFailure":  "The property \u0027jobsPaused\u0027 cannot be found on this object. Verify that the property exists and can be set.",
+                      "elapsedMs":  345
+                  }
+              ],
+    "capabilityCompletionClaimed":  false,
+    "P001_P006Executed":  false
+}

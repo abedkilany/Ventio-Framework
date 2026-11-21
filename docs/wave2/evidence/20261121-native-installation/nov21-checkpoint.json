@@ -1,7 +1,7 @@
 {
   "recordedDate": "2026-11-21",
   "engineeringHead": "29e36a84875228baf518a2a7030a86bbcb164908",
-  "installedHostSource": "246172799a44e16a4214f16ff0c2f6efdafc42bf",
+  "installedHostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
   "installedClientSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
   "native29eHosted": {
     "runId": 44883747805,
@@ -41,7 +41,7 @@
     "oneTimeEnrollmentRedeemedAndCurrentUserDpapiPersisted": true,
     "rawCredentialsRecorded": false,
     "readOnlyHttpCasesPassed": 9,
-    "businessCrudExecuted": false,
+    "businessCrudExecuted": true,
     "interruptedOldFixture": {
       "priorSource": "735399049d841a9dae0d0437b5f6640a0f8266ee",
       "observedResponse": "503 RECOVERY_AUTHORITY_UNAVAILABLE",
@@ -60,8 +60,27 @@
       "diagnostic": "replace_file:IOException:0x80070020",
       "businessDataTouched": false,
       "fixedIn": "29e36a84875228baf518a2a7030a86bbcb164908",
-      "fixedPhysicalRerun": "NOT_EXECUTED_YET"
-    }
+      "fixedPhysicalRerun": "PASS; actual-native-concurrent-reader-29e.json"
+    },
+    "installedHttpCases": {
+      "distinctPassed": 34,
+      "reports": [
+        "actual-host-business-cases-29e.json",
+        "actual-host-negative-cases-29e.json"
+      ],
+      "initialHarnessFailuresRetained": "actual-host-negative-cases-29e-initial.json",
+      "harnessCorrections": [
+        "explicit UTF-8 HTTP encoding",
+        "standard non-Expect100Continue request transport",
+        "400 INVALID_COMMAND for unknown platform routes",
+        "definition reads use the authorized host.status.read identity"
+      ],
+      "productChangesForHarnessCorrections": false,
+      "stableWave2IdsOrCompleteCapabilityAcceptanceClaimed": false
+    },
+    "nativePayloadUpgrade": "PASS; native-upgrade-246-to-29e.json",
+    "upgradeBackupIntegrity": "PASS; native-upgrade-backup-29e-verification.json; all 1437 members checked on device",
+    "nativeLocalDraftRestartWithHostStopped": "PASS; native-local-draft-offline-restart-29e.json and screenshots; full offline sync not claimed"
   },
   "actualTest01ToTest02Tls": {
     "timestampUtc": "2026-11-21T08:24:52.0297159Z",
@@ -73,13 +92,14 @@
     "offlineSyncAcceptanceClaimed": false
   },
   "remaining": {
-    "correctedPhysicalPayloadDownload": "IN_PROGRESS",
+    "correctedPhysicalPayloadDownload": "VERIFIED_AND_INSTALLED",
     "fullWindows29eCandidateRun": 44883758259,
-    "fullWindows29eCandidateStatus": "IN_PROGRESS",
+    "fullWindows29eCandidateStatus": "IN_PROGRESS; last checked 2026-11-21T09:06Z",
     "all22Capabilities": "REQUIRED_INSTALLED_ACCEPTANCE_INCOMPLETE",
     "twoDeviceOfflineSynchronization": "NOT_EXECUTED",
     "P001_P006": "NOT_EXECUTED",
-    "releaseSigning": "DEFERRED_OWNER_PREREQUISITE"
+    "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
+    "recoveryLabSsh": "2026-11-21: Hyper-V reports approved guest running at 172.20.162.145; strict pinned SSH timed out. P001-P006 remain unexecuted."
   },
   "mergeRecommendation": "NOT_READY",
   "pr6DraftRequired": true

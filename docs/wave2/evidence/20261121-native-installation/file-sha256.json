@@ -5,9 +5,29 @@
     "sha256": "8b9c3028d6467ff3be7c793141927841d70f47f52d0590677438f488ca154992"
   },
   {
+    "path": "actual-host-business-cases-29e.json",
+    "bytes": 6476,
+    "sha256": "f952470807fff9a07ca2375d9c6270c8d09cda22015d6eb93639af9055f79de1"
+  },
+  {
+    "path": "actual-host-negative-cases-29e-initial.json",
+    "bytes": 3789,
+    "sha256": "755b81007f05bd0e5dbf46b8153f288bd2bdcfcdc89fb06c34657ddd1bf203ab"
+  },
+  {
+    "path": "actual-host-negative-cases-29e.json",
+    "bytes": 3403,
+    "sha256": "a98cbf1e3138ffc398aabdf107cd2b2d108973494f3e364b92c1141beb1d5544"
+  },
+  {
     "path": "actual-host-readonly-cases-246.json",
     "bytes": 2695,
     "sha256": "4cc96692462b07341c7891f975700c2a946fb07a95a10d0bf61fe8b572f3a03f"
+  },
+  {
+    "path": "actual-native-concurrent-reader-29e.json",
+    "bytes": 414,
+    "sha256": "84b74fb71b0f43c1618630fad345530c87de5500a304a81eb0d4b545ec425d6c"
   },
   {
     "path": "github-native-92f2503-job-136660085092.log",
@@ -240,14 +260,54 @@
     "sha256": "74c726c789704bd5a00d07d1d119cdca09e8048d6e52c86a6b82a479d074f38a"
   },
   {
+    "path": "native-29e-payload-verification.json",
+    "bytes": 501,
+    "sha256": "d2afce5a06a56300381813e674534460656bac1588abf95a7377d4be1076f164"
+  },
+  {
     "path": "native-job-136784450815.log",
     "bytes": 57207,
     "sha256": "b10ce4aa66660d37edcc7e79f60aae9003378e82c13d2aadf670ae93efc7dbca"
   },
   {
+    "path": "native-local-draft-offline-restart-29e.json",
+    "bytes": 738,
+    "sha256": "a9593b13d7427ab8de45af733881612a5061660f3c4a4494e4632d69b44294c2"
+  },
+  {
+    "path": "native-upgrade-246-to-29e.json",
+    "bytes": 1299,
+    "sha256": "c3c573cdd64cbf510777cca736e8c0db34ffaaa20175f81b6e0548120e2f6a93"
+  },
+  {
+    "path": "native-upgrade-backup-29e-verification.json",
+    "bytes": 595,
+    "sha256": "50569ffacc360ef3da373ac57840c99266e1c6edfc137b010d687a657575bfac"
+  },
+  {
     "path": "nov21-checkpoint.json",
-    "bytes": 3790,
-    "sha256": "b715f88addaae8f2f5153380a7aa77624c91c2f42e8a087f220b1ecad9441217"
+    "bytes": 5028,
+    "sha256": "bc30a0801df7e7eb8de3abaee6f33f204dd09e17a2c932ee5274a7fb339c206d"
+  },
+  {
+    "path": "reproduction/actual-host-business-cases-test02.ps1",
+    "bytes": 14211,
+    "sha256": "6b2530be6f61e3ed0ed163ffd56fe4d827a44e9a885e7998e52e8bf8c512ff2c"
+  },
+  {
+    "path": "reproduction/actual-host-negative-cases-test02.ps1",
+    "bytes": 11812,
+    "sha256": "45d7bce814b781acf76ad35f94c343b3b37a412d44ac5901ead6bec5a084ce72"
+  },
+  {
+    "path": "reproduction/probe-native-read-replace-test02.ps1",
+    "bytes": 3808,
+    "sha256": "6186fa3da745505359e804d4ee074d44ba356663f39687ddb5e7a150fefc400a"
+  },
+  {
+    "path": "reproduction/test01-pinned-host-tls.ps1",
+    "bytes": 2366,
+    "sha256": "fb460d5a92a452c2bd96314c3986f88b783ee279a5ff5592ae125d119852b6a2"
   },
   {
     "path": "runtime-246-hosted/_temp/wave2-defender-enablement.json",
@@ -293,5 +353,20 @@
     "path": "test02-client-authenticated-host-ready.png",
     "bytes": 92103,
     "sha256": "e2c2c6507632b3c59354fafda3a6e568766d1c08d18ae722b8d7c0b61b090bd0"
+  },
+  {
+    "path": "test02-native-draft-after-restart-host-stopped.png",
+    "bytes": 160385,
+    "sha256": "c7c808a6da2736ea98f974d356c6103da78f44d56c189b7c5a0d4cd0e187f778"
+  },
+  {
+    "path": "test02-native-draft-doctype-created.png",
+    "bytes": 87639,
+    "sha256": "33788d00013a346419504824d2f14f45aec944de0ad4109508df9e972118c1a2"
+  },
+  {
+    "path": "test02-native-generated-form-host-stopped.png",
+    "bytes": 124795,
+    "sha256": "97533a108ec2c9101913501e5181e2f4ee5b5b62c8d2590b3dce5ec4767c2d43"
   }
 ]

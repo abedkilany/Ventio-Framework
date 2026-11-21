@@ -1,0 +1,19 @@
+﻿{
+    "test":  "Installed Client restart with Host stopped",
+    "atUtc":  "2026-11-21T09:00:15.2121455Z",
+    "witnessPending":  false,
+    "host":  "Stopped",
+    "postgres":  "Running",
+    "policy":  "Restricted",
+    "clientTaskStarted":  true,
+    "actualNativeDraftAndDocTypeReopened":  true,
+    "generatedRequiredNameFieldReopened":  true,
+    "previewSaveCorrectlyDisabled":  true,
+    "hostRestored":  "Running",
+    "restoredHealth":  {
+                           "apiVersion":  1,
+                           "status":  "alive"
+                       },
+    "completedAtUtc":  "2026-11-21T09:01:28.6134998Z",
+    "limitation":  "Local draft restart only; no two-device offline synchronization claimed"
+}

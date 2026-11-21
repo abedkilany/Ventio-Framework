@@ -1,0 +1,15 @@
+﻿{
+    "timestampUtc":  "2026-11-21T08:41:58.6552732Z",
+    "machine":  "TEST-02",
+    "actualNativeUpgradeBackup":  true,
+    "backupName":  "ventio-postgresql-before-upgrade-20261121T083523277Z-24bde7ac770c4d6987dfd249cab8351a",
+    "formatVersion":  2,
+    "fileCount":  1437,
+    "bytes":  69612805,
+    "allMemberHashesVerified":  true,
+    "manifestSha256":  "715a7f7a80aef32099c196364b5e5e125179df680d31f6d62402f878a34d814a",
+    "recoveryAuthorityIncluded":  false,
+    "externalWitnessPreserved":  true,
+    "restoreExecuted":  false,
+    "P001_P006Executed":  false
+}
