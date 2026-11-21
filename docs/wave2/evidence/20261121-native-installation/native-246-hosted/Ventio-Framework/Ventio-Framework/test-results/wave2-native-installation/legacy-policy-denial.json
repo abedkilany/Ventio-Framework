@@ -1,0 +1,5 @@
+{
+  "error": "File C:\\Program Files\\Ventio\\host-payload\\setup\\provision-host-installation.ps1 cannot be loaded because running \r\nscripts is disabled on this system. For more information, see about_Execution_Policies at \r\nhttps:/go.microsoft.com/fwlink/?LinkID=135170.\r\n    + CategoryInfo          : SecurityError: (:) [], ParentContainsErrorRecordException\r\n    + FullyQualifiedErrorId : UnauthorizedAccess\r\n",
+  "code": 1,
+  "output": ""
+}

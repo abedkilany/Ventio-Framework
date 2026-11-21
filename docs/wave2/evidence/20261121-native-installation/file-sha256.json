@@ -1,0 +1,297 @@
+[
+  {
+    "path": ".gitattributes",
+    "bytes": 13,
+    "sha256": "d91263f8075671bd30be9efc2b2cff966cb0c46ab41280e44e71175dede42226"
+  },
+  {
+    "path": "actual-host-readonly-cases-246.json",
+    "bytes": 2695,
+    "sha256": "4cc96692462b07341c7891f975700c2a946fb07a95a10d0bf61fe8b572f3a03f"
+  },
+  {
+    "path": "github-native-92f2503-job-136660085092.log",
+    "bytes": 30768,
+    "sha256": "800d3b77d371278528b214bd76e518e152fbddc18254600aad56b768f902c2cc"
+  },
+  {
+    "path": "installed-test02-observations.json",
+    "bytes": 4190,
+    "sha256": "27b29d07a3cb7aa33762d55d9dba948b5d4419d3901047bd4944b7a5637f5969"
+  },
+  {
+    "path": "linux-1f-hosted/host-audit-results.json",
+    "bytes": 2296,
+    "sha256": "c1107379db2b5b09a144490b25349cd6a68a59cb1286e0c7eded1beea2f5eb0c"
+  },
+  {
+    "path": "linux-1f-hosted/initial-case-ledger.json",
+    "bytes": 143674,
+    "sha256": "4feeae5a779a357335e52730829275f5249510990c7e4ae408c472e6c3ff05be"
+  },
+  {
+    "path": "linux-1f-hosted/initialize-results.json",
+    "bytes": 406,
+    "sha256": "b7da52de3de2f1a3ccb0c7211087aaa74f176538918716cd546f2b074a1f2bdc"
+  },
+  {
+    "path": "linux-1f-hosted/linux-D.log",
+    "bytes": 1096,
+    "sha256": "eecd570d4e4e3cd08224af5d9df49a35570d42fe444469526d1678a07ae0b696"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-0.json",
+    "bytes": 279,
+    "sha256": "b3e814f955dd09fef1e059825e82eb52148963e5abc6f1386a0f7868478d548f"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-1.json",
+    "bytes": 279,
+    "sha256": "6d41a7fcf576f75741ff78d7078ab3d86ad95a1888c2f7318ecd4fd43dd128f8"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-2.json",
+    "bytes": 279,
+    "sha256": "fef5adfb402000a8f18b2c83bb749010522fc9a7aaf4d75c8f904725baa10763"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-3.json",
+    "bytes": 279,
+    "sha256": "0191be8042ec06040be14735b9d354bc828e053d7f09203a0c93dc9ee0ab1f09"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-4.json",
+    "bytes": 279,
+    "sha256": "73f03084cc8403acf2765922220bdd05fcb2baef3b06a5456762f4c1d58479fd"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-5.json",
+    "bytes": 279,
+    "sha256": "a7f31cf043bc037d702de6e90faab9140cffb17fbdba5cdccb5d5b071a86b3d6"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-6.json",
+    "bytes": 279,
+    "sha256": "c8de6aea8b9a4b03bac42c25bdabde3fd0ce45eefeb902d5faacb8ad5d7e7b02"
+  },
+  {
+    "path": "linux-1f-hosted/linux-H.log",
+    "bytes": 2815,
+    "sha256": "8f7aa9655d9fe283baf6cc9713dea3e6dc6435e5514f16c903cb82afa4b87250"
+  },
+  {
+    "path": "linux-1f-hosted/linux-J.log",
+    "bytes": 2655,
+    "sha256": "2b7a59fe67f44b4372260d577d1962492ef32bae854ffdf63ba1b76a570a938b"
+  },
+  {
+    "path": "linux-1f-hosted/linux-O.log",
+    "bytes": 825,
+    "sha256": "ba141bf866f55286286d052c5bfdddd8caf994cdd357dcc2649425850e0cc01c"
+  },
+  {
+    "path": "linux-1f-hosted/linux-R.log",
+    "bytes": 8354,
+    "sha256": "e934e757990c5583f2787ce074d069237f986d9008bca3ebd50e65acf1d33d76"
+  },
+  {
+    "path": "linux-1f-hosted/linux-results.json",
+    "bytes": 10884,
+    "sha256": "3742e079f55c0efd661dd5aa0ba7172c0b6ad144e7d2d6acde9509580d90039f"
+  },
+  {
+    "path": "linux-1f-hosted/linux-U-040-to-041.log",
+    "bytes": 342,
+    "sha256": "f41d7229a21ec5faf211cf5ef5800a33ba4fa0eb62b38550207bca42d63474bd"
+  },
+  {
+    "path": "linux-1f-hosted/linux-U.log",
+    "bytes": 342,
+    "sha256": "f41d7229a21ec5faf211cf5ef5800a33ba4fa0eb62b38550207bca42d63474bd"
+  },
+  {
+    "path": "linux-1f-hosted/offline-E.log",
+    "bytes": 4634,
+    "sha256": "4682eea148ebd9ce8d5ad52279e5e66e89db39b92691a4d742993a968ff557ce"
+  },
+  {
+    "path": "linux-1f-hosted/offline-fixture-0.json",
+    "bytes": 279,
+    "sha256": "c25c830a422140679b6e5fe9ad7e3cff016b1f332fd671594dc4a335f807c6d1"
+  },
+  {
+    "path": "linux-1f-hosted/offline-results.json",
+    "bytes": 1318,
+    "sha256": "bdf7327b3845db8b81e5b55989c63129c53885888d3fbbbdb40cd05d8449d14a"
+  },
+  {
+    "path": "linux-1f-hosted/transport-verification.json",
+    "bytes": 1627,
+    "sha256": "9918f35d4b793fe1efbf2eaff7db4b10e026b626a686f1ddb012035abdfc9b74"
+  },
+  {
+    "path": "native-246-hosted/_temp/wave2-defender-enablement.json",
+    "bytes": 1242,
+    "sha256": "b8c6247b0ac662279a2d2d0a449c6b5844668b20b283c83dc32fe1639f6a6e48"
+  },
+  {
+    "path": "native-246-hosted/transport-verification.json",
+    "bytes": 2043,
+    "sha256": "e16595260179a1eb8b87c980a3ca656b3c3ba38eae552b0fd15051836a7f5f61"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/host-health.json",
+    "bytes": 47,
+    "sha256": "7088bb45a5fa65fbf28c4476c9b31af414d468e42817a64920160e3609544fa3"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/installed-session-authorization.json",
+    "bytes": 114,
+    "sha256": "112a843c522b477e372f9193face4f137f2801ffbc60e43a1e38b417fdb3b869"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/legacy-policy-denial.json",
+    "bytes": 461,
+    "sha256": "ae58b33e048371d700ef66749fc6437241d762e0352df0fc91026d8655a92c91"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-attempt-status.json",
+    "bytes": 182,
+    "sha256": "68ef7c6882e4e50c9cc52f576db379a6eced8499742fa948c5e3244fbfc564e1"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-status.json",
+    "bytes": 216,
+    "sha256": "7a13c921f12923be52e08681008f87308018cf8933b284c34db5a6ac772d91f2"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-upgrade-backup.json",
+    "bytes": 147,
+    "sha256": "fe2254dbc0945b6720c79336ddfa6d1babb277d749ac1a1b18f0b1530362a408"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/policy-probe.json",
+    "bytes": 66,
+    "sha256": "43697c184a91e7093e230968f110b8dc88c371d5754b2879ed82161fba2b43d4"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/results.json",
+    "bytes": 1790,
+    "sha256": "a3b2d7cf4d616de91dbee8ef240e76a5b39e56a3eb6f7862f5b262ff71bcf811"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/services.json",
+    "bytes": 490,
+    "sha256": "74c726c789704bd5a00d07d1d119cdca09e8048d6e52c86a6b82a479d074f38a"
+  },
+  {
+    "path": "native-29e-hosted/_temp/wave2-defender-enablement.json",
+    "bytes": 1242,
+    "sha256": "30f7d398817656ae5dc01f815916ca95d2706ca29f67e40dfb900a223ee4f2b2"
+  },
+  {
+    "path": "native-29e-hosted/transport-verification.json",
+    "bytes": 2043,
+    "sha256": "99f7bf981ae294735531dc68f2e16235a526f0e35837f4ff755da4e54b75246d"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/host-health.json",
+    "bytes": 47,
+    "sha256": "7088bb45a5fa65fbf28c4476c9b31af414d468e42817a64920160e3609544fa3"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/installed-session-authorization.json",
+    "bytes": 114,
+    "sha256": "112a843c522b477e372f9193face4f137f2801ffbc60e43a1e38b417fdb3b869"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/legacy-policy-denial.json",
+    "bytes": 461,
+    "sha256": "ae58b33e048371d700ef66749fc6437241d762e0352df0fc91026d8655a92c91"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-attempt-status.json",
+    "bytes": 182,
+    "sha256": "658d77b200c3c3204f51c3045872a78f3f42dc4c469a5ccfb956af14877b95be"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-status.json",
+    "bytes": 216,
+    "sha256": "85eb13d0fc9d3a3bf2805d739ce5baa14e85447478ef1af469c68347ffaeace8"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-upgrade-backup.json",
+    "bytes": 147,
+    "sha256": "55f87b6a7e97da8121d7a6ac713404e479d0cd4dfc212eac98ac61559ffeee70"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/policy-probe.json",
+    "bytes": 66,
+    "sha256": "43697c184a91e7093e230968f110b8dc88c371d5754b2879ed82161fba2b43d4"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/results.json",
+    "bytes": 1790,
+    "sha256": "b40c7e60f64c73ab800f9e83871a6c637b622fc933f0b7ff3f1766750dd1d25b"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/services.json",
+    "bytes": 490,
+    "sha256": "74c726c789704bd5a00d07d1d119cdca09e8048d6e52c86a6b82a479d074f38a"
+  },
+  {
+    "path": "native-job-136784450815.log",
+    "bytes": 57207,
+    "sha256": "b10ce4aa66660d37edcc7e79f60aae9003378e82c13d2aadf670ae93efc7dbca"
+  },
+  {
+    "path": "nov21-checkpoint.json",
+    "bytes": 3790,
+    "sha256": "b715f88addaae8f2f5153380a7aa77624c91c2f42e8a087f220b1ecad9441217"
+  },
+  {
+    "path": "runtime-246-hosted/_temp/wave2-defender-enablement.json",
+    "bytes": 1242,
+    "sha256": "851f66431287122c95285b683c3dc4cd457b2aa6d361903381f68fc898ae5b10"
+  },
+  {
+    "path": "runtime-246-hosted/transport-verification.json",
+    "bytes": 1675,
+    "sha256": "8e77c07ee7129ddad980d1bdd9ad319f2856c9ffe47e0b9c08a87d3dc4e1f0cb"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/NET-HOST-SERVICE.log",
+    "bytes": 1445,
+    "sha256": "06b20537c50d694f500827fe84551dba295a981e0e1626bcd10ee817e805c4cf"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/NET-SETUP-BROKER.log",
+    "bytes": 186,
+    "sha256": "96e29d965593a073ab2502d6ceea8fb644479bfd1e4535accc752fad5542fa7b"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/PG-SINGLE-USER-RECOVERY.log",
+    "bytes": 2780,
+    "sha256": "67638fc2a23108cd0eb450c519bb7cac7699a68a193723b147175147f810dde6"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/postgres-maintenance-cases.json",
+    "bytes": 5518,
+    "sha256": "c9513be019406f54527125dc4d062ee9fa6db8b45e9c3e3e3e8aa30b53553f8b"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/postgres-worker-job-rights.json",
+    "bytes": 180,
+    "sha256": "39123839a78b5c2416d3a3531309c9f88bf56a55fba2299733816e880daece2b"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/runtime-results.json",
+    "bytes": 629,
+    "sha256": "fb4e32b75b8633cb805c8cea396f66951ab504f0336a495a9b015142fa45cf6e"
+  },
+  {
+    "path": "test02-client-authenticated-host-ready.png",
+    "bytes": 92103,
+    "sha256": "e2c2c6507632b3c59354fafda3a6e568766d1c08d18ae722b8d7c0b61b090bd0"
+  }
+]

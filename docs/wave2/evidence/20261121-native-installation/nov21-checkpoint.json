@@ -1,0 +1,86 @@
+{
+  "recordedDate": "2026-11-21",
+  "engineeringHead": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "installedHostSource": "246172799a44e16a4214f16ff0c2f6efdafc42bf",
+  "installedClientSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "native29eHosted": {
+    "runId": 44883747805,
+    "jobId": 136784450815,
+    "conclusion": "success",
+    "installedCasesPassed": 14,
+    "nativeConcurrentReaderRegressionPassed": true,
+    "actualDartNativePrivateFileIntegrationPassed": true
+  },
+  "linux": {
+    "sourceCommit": "1f6fee86713c288242f1fa093d3ff6a292748f2a",
+    "runId": 44882263766,
+    "jobId": 136779922092,
+    "jobConclusion": "success",
+    "wholeRunConclusion": "failure in Windows compiler pin preflight",
+    "distinctPassedCaseCount": 86,
+    "applicability": "Changes from this source to engineeringHead affect Windows native IO, Windows compiler/runtime inputs, documentation and dispatch diagnostics; Linux Dart, SQL, Core and Client business implementation is unchanged."
+  },
+  "installedTest02": {
+    "installationOperationId": "922f550e4a5f40dca7764ec180899718",
+    "nativeStatus": "complete / HOST_READINESS",
+    "effectivePolicy": "Restricted",
+    "clientActualProtectedHandoffConsumed": true,
+    "clientPendingJournalCleared": true,
+    "observedAuthenticatedHostOverview": {
+      "overall": "READY",
+      "authenticatedApi": "READY",
+      "postgres": "READY",
+      "schemaAndRuntimeProfile": "READY",
+      "recoveryAuthority": "READY",
+      "checkedAtUtc": "2026-11-21T08:26:39Z",
+      "correlationId": "cor_5b5a7dcd4530d89c8ea7120a8202f8ad"
+    },
+    "actualBusinessActorCreatedThroughHostApi": true,
+    "actualBusinessScopedGrants": 15,
+    "actualBusinessPairingOperation": "174403218483413f8cd6b95594fc0178",
+    "oneTimeEnrollmentRedeemedAndCurrentUserDpapiPersisted": true,
+    "rawCredentialsRecorded": false,
+    "readOnlyHttpCasesPassed": 9,
+    "businessCrudExecuted": false,
+    "interruptedOldFixture": {
+      "priorSource": "735399049d841a9dae0d0437b5f6640a0f8266ee",
+      "observedResponse": "503 RECOVERY_AUTHORITY_UNAVAILABLE",
+      "pendingWitness": true,
+      "archive": "C:\\Ventio-Acceptance\\interrupted-735-90413bb7f5e04d178ddd0b953b1e6733",
+      "witnessSha256": "ec53be7a1f846903677768b0f95786d2c2f4aa878fee93cb0299f4258c617650",
+      "witnessRewritten": false,
+      "supportedNativeServiceDrainAndAuthorizedDisposableFixtureReset": true
+    },
+    "confirmedNativeIoDefect": {
+      "timestampUtc": "2026-11-21T08:10:54.4036918Z",
+      "actualInstalledHelper": true,
+      "readerHeldOpenThroughBoundedPipeBackpressure": true,
+      "readerSnapshotIntact": true,
+      "writerExitCode": 2,
+      "diagnostic": "replace_file:IOException:0x80070020",
+      "businessDataTouched": false,
+      "fixedIn": "29e36a84875228baf518a2a7030a86bbcb164908",
+      "fixedPhysicalRerun": "NOT_EXECUTED_YET"
+    }
+  },
+  "actualTest01ToTest02Tls": {
+    "timestampUtc": "2026-11-21T08:24:52.0297159Z",
+    "endpoint": "https://192.168.1.108:8443",
+    "certificateSha256": "fc5c6bdf70d631a5863897d4af6620642cfff4875a53a3b433a3b2eb0083f4cc",
+    "matchingPinHealthSucceeded": true,
+    "wrongPinDenied": true,
+    "osTrustStoreChanged": false,
+    "offlineSyncAcceptanceClaimed": false
+  },
+  "remaining": {
+    "correctedPhysicalPayloadDownload": "IN_PROGRESS",
+    "fullWindows29eCandidateRun": 44883758259,
+    "fullWindows29eCandidateStatus": "IN_PROGRESS",
+    "all22Capabilities": "REQUIRED_INSTALLED_ACCEPTANCE_INCOMPLETE",
+    "twoDeviceOfflineSynchronization": "NOT_EXECUTED",
+    "P001_P006": "NOT_EXECUTED",
+    "releaseSigning": "DEFERRED_OWNER_PREREQUISITE"
+  },
+  "mergeRecommendation": "NOT_READY",
+  "pr6DraftRequired": true
+}

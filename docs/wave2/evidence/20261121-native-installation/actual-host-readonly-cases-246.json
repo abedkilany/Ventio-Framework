@@ -1,0 +1,66 @@
+﻿{
+    "recordedAtUtc":  "2026-11-21T08:25:53.5435142Z",
+    "machine":  "TEST-02",
+    "hostSource":  "246172799a44e16a4214f16ff0c2f6efdafc42bf",
+    "actualInstalledHost":  true,
+    "databaseDirectlyModified":  false,
+    "credentialContentsRecorded":  false,
+    "cases":  [
+                  {
+                      "id":  "IAPI001",
+                      "description":  "Real enrolled device authenticates exact authoritative scope",
+                      "status":  "PASS",
+                      "elapsedMs":  258
+                  },
+                  {
+                      "id":  "IAPI002",
+                      "description":  "Anonymous platform operations are denied",
+                      "status":  "PASS",
+                      "elapsedMs":  71
+                  },
+                  {
+                      "id":  "IAPI003",
+                      "description":  "Invalid bearer is denied",
+                      "status":  "PASS",
+                      "elapsedMs":  21
+                  },
+                  {
+                      "id":  "IAPI004",
+                      "description":  "Another branch remains outside current credential scope",
+                      "status":  "PASS",
+                      "elapsedMs":  173
+                  },
+                  {
+                      "id":  "IAPI005",
+                      "description":  "Unknown platform contract version is refused",
+                      "status":  "PASS",
+                      "elapsedMs":  174
+                  },
+                  {
+                      "id":  "IAPI006",
+                      "description":  "Unknown API request properties are refused",
+                      "status":  "PASS",
+                      "elapsedMs":  171
+                  },
+                  {
+                      "id":  "IAPI007",
+                      "description":  "Bootstrap credential does not confer workspace permission",
+                      "status":  "PASS",
+                      "elapsedMs":  329
+                  },
+                  {
+                      "id":  "IAPI008",
+                      "description":  "Current scoped operational settings are readable",
+                      "status":  "PASS",
+                      "elapsedMs":  388
+                  },
+                  {
+                      "id":  "IAPI009",
+                      "description":  "Business actor cannot approve its extension package",
+                      "status":  "PASS",
+                      "elapsedMs":  175
+                  }
+              ],
+    "capabilityCompletionClaimed":  false,
+    "P001_P006Executed":  false
+}
