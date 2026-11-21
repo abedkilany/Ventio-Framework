@@ -38,6 +38,28 @@ internal static class NativePrivateFileTests
             Require(Invoke("create", file, "overwrite").Code == 2 && File.ReadAllText(file) == literal, "Duplicate private create overwrote data.");
             Require(Invoke("replace", file, "replacement").Code == 0 && File.ReadAllText(file) == "replacement", "Native private replacement failed.");
             Require(Invoke("verify", file).Code == 0, "Native private verification failed.");
+            // Hold the actual native reader inside its output flush so the
+            // writer must replace a file with a live reader, without timing races.
+            using (var snapshotOutput = new PausedReadOutput())
+            using (var readRequest = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(new {
+                operation = "read", path = file, data = "", ownerSid = (string?)null, readerSid = (string?)null
+            })))
+            using (var readDiagnostic = new StringWriter())
+            {
+                var reading = Task.Run(() => WindowsPrivateFileOperation.Run(readRequest, snapshotOutput, readDiagnostic));
+                try
+                {
+                    Require(snapshotOutput.Opened.Wait(TimeSpan.FromSeconds(10)), "Native snapshot reader did not open.");
+                    Require(Invoke("replace", file, "concurrent replacement").Code == 0,
+                        "An authorized atomic replacement was blocked by a native reader.");
+                    Require(File.ReadAllText(file) == "concurrent replacement", "Concurrent replacement was not published.");
+                }
+                finally { snapshotOutput.Continue.Set(); }
+                Require(reading.GetAwaiter().GetResult() == 0 &&
+                    Encoding.UTF8.GetString(Convert.FromBase64String(Encoding.ASCII.GetString(snapshotOutput.ToArray()))) == "replacement",
+                    "Atomic replacement corrupted the existing reader's snapshot.");
+            }
+            Require(Invoke("replace", file, "replacement").Code == 0, "Could not restore the concurrent test fixture.");
             var original = new FileInfo(file).GetAccessControl();
             var broad = new FileInfo(file).GetAccessControl();
             broad.AddAccessRule(new FileSystemAccessRule(authenticated, FileSystemRights.Read, AccessControlType.Allow));
@@ -61,7 +83,7 @@ internal static class NativePrivateFileTests
             finally { Directory.Delete(link); }
             var denial = Invoke("read", Path.Combine(root, "missing-secret-file.json"));
             Require(denial.Code == 2 && !denial.Diagnostic.Contains(root) && !denial.Diagnostic.Contains(literal) && denial.Output.Length == 0, "Private-file denial exposed sensitive data.");
-            Console.WriteLine("Native private-file tests passed: literal data, atomic replacement, create-only, private ownership, reader/ancestor/reparse/ADS/network denials and redacted failures.");
+            Console.WriteLine("Native private-file tests passed: literal data, atomic replacement with an active snapshot reader, create-only, private ownership, reader/ancestor/reparse/ADS/network denials and redacted failures.");
         }
         finally
         {
@@ -69,6 +91,23 @@ internal static class NativePrivateFileTests
             if (Path.GetDirectoryName(root) != Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar) ||
                 !Path.GetFileName(root).StartsWith("ventio-native-private-test-", StringComparison.Ordinal)) throw new InvalidOperationException("Unsafe fixture cleanup.");
             Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class PausedReadOutput : MemoryStream
+    {
+        internal readonly ManualResetEventSlim Opened = new(false);
+        internal readonly ManualResetEventSlim Continue = new(false);
+        public override void Flush()
+        {
+            Opened.Set();
+            if (!Continue.Wait(TimeSpan.FromSeconds(15))) throw new TimeoutException();
+            base.Flush();
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { Continue.Set(); Opened.Dispose(); Continue.Dispose(); }
+            base.Dispose(disposing);
         }
     }
 }

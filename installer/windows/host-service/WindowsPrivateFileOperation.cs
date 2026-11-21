@@ -78,7 +78,11 @@ internal static class WindowsPrivateFileOperation
                 phase = "validate_target_acl";
                 NoReparseChain(path);
                 AssertAcl(new FileInfo(path), owner, fileReader);
-                using var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                // Readers keep a stable, ACL-validated snapshot while another
+                // authorized process atomically replaces the directory entry.
+                // Without delete sharing, normal runtime admission reads can
+                // reject an independent witness update with ERROR_SHARING_VIOLATION.
+                using var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
                 if (file.Length > MaximumBytes) throw new InvalidDataException();
                 if (action == "read")
                 {
