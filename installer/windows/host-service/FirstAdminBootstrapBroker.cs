@@ -80,7 +80,7 @@ internal sealed class FirstAdminBootstrapBroker
 {
     internal const string PipeName = "Ventio.Host.FirstAdmin.v1";
     internal static readonly TimeSpan RequestReadTimeout = TimeSpan.FromSeconds(30);
-    internal static readonly TimeSpan BootstrapOperationTimeout = TimeSpan.FromSeconds(90);
+    internal static readonly TimeSpan BootstrapOperationTimeout = TimeSpan.FromSeconds(120);
     private const int MaximumRequestBytes = 65536;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly BootstrapReceiptCoordinator _coordinator;

@@ -37,6 +37,8 @@ jobs:
           ./scripts/windows/build-host-payload.ps1 -PostgresBinDirectory $pg
       - name: Run broker security regressions
         run: |
+          dotnet run --project installer/windows/host-service.tests/HostService.Tests.csproj -c Release
+          if ($LASTEXITCODE) { throw 'Host service security tests failed' }
           dotnet run --project installer/windows/setup-broker.tests/VentioSetupBroker.Tests.csproj -c Release
           if ($LASTEXITCODE) { throw 'Broker tests failed' }
       - name: Retain complete test payload from the exact source

@@ -395,7 +395,10 @@ Invoke-Expression $ventioScript
       phase = 'close_request';
       await process.stdin.close().timeout(const Duration(seconds: 10));
       phase = 'wait_for_helper';
-      final code = await process.exitCode.timeout(const Duration(seconds: 10));
+      // A cold Windows PowerShell runtime under normal Defender protection can
+      // take longer than ten seconds in the virtual service account profile.
+      // Keep this bounded and retain the existing kill-and-drain failure path.
+      final code = await process.exitCode.timeout(const Duration(seconds: 30));
       phase = 'collect_output';
       final helperStderr = await stderr;
       final result = utf8.decode(await stdout);

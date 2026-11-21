@@ -13,7 +13,7 @@ internal static class Program
 {
     private const string ServiceName = "VentioHost";
     internal const string HostReadyMessage = "VENTIO_HOST_READY";
-    internal const int FirstAdministratorHelperTimeoutSeconds = 60;
+    internal const int FirstAdministratorHelperTimeoutSeconds = 90;
     internal const int TrustedPairingHelperTimeoutSeconds = 90;
     internal const int TrustedSchemaUpgradeHelperTimeoutSeconds = 900;
     private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(90);
