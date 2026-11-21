@@ -41,12 +41,6 @@ jobs:
           if ($LASTEXITCODE) { throw 'Host service security tests failed' }
           dotnet run --project installer/windows/setup-broker.tests/VentioSetupBroker.Tests.csproj -c Release
           if ($LASTEXITCODE) { throw 'Broker tests failed' }
-          $env:VENTIO_WINDOWS_PRIVATE_FILE_HELPER = Join-Path (Get-Location) 'packages/ventio_host_api/build/windows/host-payload/VentioHostService.exe'
-          Push-Location packages/ventio_host_api
-          try {
-            dart run test/private_files_windows.dart
-            if ($LASTEXITCODE) { throw 'Actual Dart/native private-file integration failed' }
-          } finally { Pop-Location }
       - name: Retain complete test payload from the exact source
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -56,6 +50,17 @@ jobs:
           retention-days: 30
       - name: Provision real services under Restricted and verify readiness and denials
         run: ./scripts/ci/test-native-host-installation.ps1
+      - name: Verify actual Dart and native private-file integration
+        if: ${{ !cancelled() }}
+        run: |
+          $env:VENTIO_WINDOWS_PRIVATE_FILE_HELPER = Join-Path (Get-Location) 'packages/ventio_host_api/build/windows/host-payload/VentioHostService.exe'
+          $env:VENTIO_TEST_PRIVATE_ROOT = $env:USERPROFILE
+          $env:VENTIO_PRIVATE_FILES_DIAGNOSTICS = '1'
+          Push-Location packages/ventio_host_api
+          try {
+            powershell.exe -NoLogo -NoProfile -NonInteractive -File ../../scripts/ci/run-windows-dart-test.ps1 run test/private_files_windows.dart
+            if ($LASTEXITCODE) { throw 'Actual Dart/native private-file integration failed' }
+          } finally { Pop-Location }
       - name: Retain native installation evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
