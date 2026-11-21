@@ -263,6 +263,17 @@ jobs:
             ${{ runner.temp }}/wave2-client-trust-tests.log
           if-no-files-found: warn
           retention-days: 30
+      - name: Verify actual Inno maintenance file ACL before packaging
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        run: ./scripts/ci/test-installer-maintenance-acl.ps1 -OutputDirectory "${{ runner.temp }}/wave2-maintenance-acl"
+      - name: Retain installer maintenance ACL regression evidence
+        if: always() && inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-maintenance-acl-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wave2-maintenance-acl/maintenance-acl-results.json
+          if-no-files-found: warn
+          retention-days: 30
       - name: Build unified installer from this checkout only
         if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
         timeout-minutes: 20

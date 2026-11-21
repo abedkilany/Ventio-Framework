@@ -1,0 +1,15 @@
+﻿{
+    "case":  "ACTUAL-INNO-MAINTENANCE-ACL-FIXTURE",
+    "status":  "PASS",
+    "computer":  "TEST-02",
+    "utc":  "2026-11-21T20:17:36.3716590Z",
+    "fixtureSha256":  "9b75f8e155eefddc02dc5e3c19ca0f784923265f807f9c7eee2fbbc36552ce59",
+    "compilerVersion":  "6.7.3",
+    "productionSecurityFunctionExecuted":  true,
+    "beforeSddl":  "O:BAG:S-1-5-21-1675930981-3618812200-3033185100-513D:(A;ID;FA;;;BA)(A;ID;FA;;;SY)",
+    "afterSddl":  "O:BAG:S-1-5-21-1675930981-3618812200-3033185100-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+    "missingFileRejected":  true,
+    "policy":  "Restricted",
+    "servicesModified":  false,
+    "releaseInstallerAcceptance":  "PENDING_REBUILD"
+}

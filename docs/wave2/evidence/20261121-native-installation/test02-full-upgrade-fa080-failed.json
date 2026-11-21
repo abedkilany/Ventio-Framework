@@ -1,0 +1,69 @@
+﻿{
+    "case":  "ACTUAL-FULL-WINDOWS-Ventio-Setup-0.1.24.exe-UPGRADE",
+    "machine":  "TEST-02",
+    "sourceAfter":  "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+    "runId":  44912845335,
+    "startedAtUtc":  "2026-11-21T20:12:42.2993470Z",
+    "status":  "FAIL_Ventio-Setup-0.1.24.exe_EXIT",
+    "beforeClientVersion":  "0.1.23+24",
+    "beforeClientSha256":  "2544a41e5fe475351437906edc6afff93406a956cae5b6381eea87a4e41c5daa",
+    "servicesBefore":  [
+                           {
+                               "Name":  "VentioHost",
+                               "State":  "Running",
+                               "StartName":  "NT SERVICE\\VentioHost",
+                               "PathName":  "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\""
+                           },
+                           {
+                               "Name":  "VentioPostgres",
+                               "State":  "Running",
+                               "StartName":  "NT SERVICE\\VentioPostgres",
+                               "PathName":  "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w"
+                           }
+                       ],
+    "installerSha256":  "bc9f81e9d1171455a499474dfc68d8dd83396fb102f1d2f04282024a320eeaa0",
+    "policyBefore":  "Restricted",
+    "databaseReset":  false,
+    "installerExecuted":  true,
+    "nativeProcessId":  8004,
+    "installerExitCode":  7,
+    "afterClientVersion":  "0.1.23+24",
+    "servicesAfter":  [
+                          {
+                              "Name":  "VentioHost",
+                              "State":  "Running",
+                              "StartName":  "NT SERVICE\\VentioHost",
+                              "PathName":  "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\""
+                          },
+                          {
+                              "Name":  "VentioPostgres",
+                              "State":  "Running",
+                              "StartName":  "NT SERVICE\\VentioPostgres",
+                              "PathName":  "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w"
+                          }
+                      ],
+    "policyAfter":  "Restricted",
+    "protectionAfter":  {
+                            "AMServiceEnabled":  true,
+                            "AntivirusEnabled":  true,
+                            "RealTimeProtectionEnabled":  true,
+                            "DefenderSignaturesOutOfDate":  false
+                        },
+    "witnessPending":  false,
+    "matchedFiles":  1738,
+    "changedFiles":  [
+                         "dartjni.dll",
+                         "data/app.so",
+                         "flutter_secure_storage_windows_plugin.dll",
+                         "printing_plugin.dll",
+                         "ventio_native_client.exe",
+                         "host-payload/payload-manifest.json",
+                         "host-payload/VentioHostService.exe",
+                         "host-payload/VentioSetupBroker.exe"
+                     ],
+    "missingFiles":  [
+
+                     ],
+    "expectedFiles":  1746,
+    "completedAtUtc":  "2026-11-21T20:13:46.5743637Z"
+}

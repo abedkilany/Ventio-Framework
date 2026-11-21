@@ -191,6 +191,8 @@ function NativeGetFileAttributes(Path: String): Cardinal;
 function NativeGetTickCount(): Cardinal;
   external 'GetTickCount@kernel32.dll stdcall';
 
+#include "maintenance-file-security.iss"
+
 function EnsureNativeMaintenanceHelper(): Boolean;
 var
   Descriptor: LongWord;
@@ -222,6 +224,7 @@ begin
   ExtractTemporaryFile('VentioSetupMaintenance.exe');
   NativeMaintenanceHelper := NativeMaintenanceDirectory + '\VentioSetupBroker.exe';
   if not FileCopy(ExpandConstant('{tmp}\VentioSetupMaintenance.exe'), NativeMaintenanceHelper, True) then exit;
+  if not ProtectNativeMaintenanceFile(NativeMaintenanceHelper) then exit;
   Result := CompareText(GetSHA256OfFile(NativeMaintenanceHelper), '{#MaintenanceBrokerSha256}') = 0;
   if not Result then NativeMaintenanceHelper := '';
 end;
