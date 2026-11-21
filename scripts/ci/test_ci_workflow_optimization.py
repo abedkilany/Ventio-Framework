@@ -37,7 +37,15 @@ class WorkflowOptimizationTests(unittest.TestCase):
             for context in contexts:
                 with self.subTest(workflow=filename, context=context):
                     self.assertRegex(text, rf"(?m)^  {re.escape(context)}:\s*$")
-                    self.assertRegex(text, rf"(?ms)^  {re.escape(context)}:\n    needs: \[select-changes, [^\]]+\]\n    if: always\(\)")
+                    gate_condition = (
+                        "${{ always() && !inputs.wave2_resume }}"
+                        if filename == "native-flutter-client.yml"
+                        else "always()"
+                    )
+                    self.assertRegex(
+                        text,
+                        rf"(?m)^  {re.escape(context)}:\n    needs: \[select-changes, [^\]]+\]\n    if: {re.escape(gate_condition)}$",
+                    )
                     self.assertRegex(text, rf"(?m)^          SHOULD_RUN: \$\{{\{{ needs\.select-changes\.outputs\.run_[a-z_]+ \}}\}}$")
 
     def test_heavy_suites_are_conditioned_on_selector_outputs(self):

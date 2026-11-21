@@ -220,16 +220,36 @@ jobs:
           flutter-version: '3.44.1'
           channel: stable
           cache: false
-      - name: Build Client and unified installer from this checkout only
+      - name: Prepare locked native Client dependencies
         if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
         run: |
           ./scripts/prepare_native_client_platforms.ps1
           Push-Location packages/ventio_native_client
           flutter pub get --enforce-lockfile
           if ($LASTEXITCODE) { throw 'Client dependency resolution failed' }
-          flutter build windows --release
-          if ($LASTEXITCODE) { throw 'Client release build failed' }
           Pop-Location
+      - name: Build native Client with bounded compiler parallelism
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        timeout-minutes: 40
+        working-directory: packages/ventio_native_client
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: '2'
+        run: |
+          Write-Output 'CMAKE_BUILD_PARALLEL_LEVEL=2; security protection remains enabled.'
+          flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-client-build.log"
+          if ($LASTEXITCODE) { throw 'Client release build failed' }
+      - name: Retain Client build diagnostics before packaging
+        if: always() && inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-client-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wave2-client-build.log
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Build unified installer from this checkout only
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        timeout-minutes: 20
+        run: |
           ./scripts/windows/build-windows-installer.ps1 -SkipFlutterBuild -VCRedistPath "$env:RUNNER_TEMP/wave2-inputs/vc_redist.x64.exe" -InstallerOutputDirectory "$env:RUNNER_TEMP/wave2-installer"
       - name: Package complete candidate, manifests, source and security evidence
         if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
