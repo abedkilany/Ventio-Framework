@@ -43,6 +43,8 @@ jobs:
           if ($LASTEXITCODE) { throw 'Broker tests failed' }
       - name: Verify actual Inno copied maintenance file protection and denial
         run: ./scripts/ci/test-installer-maintenance-acl.ps1 -OutputDirectory test-results/wave2-native-installation/maintenance-acl
+      - name: Verify actual Inno silent postinstall failure exit
+        run: ./scripts/ci/test-installer-postinstall-exit.ps1 -OutputDirectory test-results/wave2-native-installation/postinstall-exit
       - name: Retain complete test payload from the exact source
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

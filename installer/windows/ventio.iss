@@ -89,6 +89,8 @@ var
   HostDatabaseUpgradeFailed: Boolean;
   VCRuntimeIsReady: Boolean;
 
+#include "postinstall-upgrade-failure.iss"
+
 function IsVentioRuntimeReady(): Boolean;
 begin
   Result := VCRuntimeIsReady;
@@ -324,8 +326,7 @@ begin
   if CurrentStep = ssInstall then HostFilesUpdateStarted := True;
   if (CurrentStep <> ssPostInstall) or not HostServicesStoppedForUpgrade then exit;
   if not Exec(NativeMaintenanceHelper, '--complete-installer-upgrade', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-    HostDatabaseUpgradeFailed := True;
-    MsgBox('Ventio updated its application files, but the guarded native Host upgrade did not complete. Host remains stopped; database, Recovery Authority and backup/recovery records are preserved. Repair the reported upgrade state before starting Host.', mbError, MB_OK);
+    ReportHostDatabaseUpgradeFailure();
     exit;
   end;
   HostServicesStoppedForUpgrade := False;

@@ -31,6 +31,8 @@ internal static partial class NativeHostInstallation
         AssertTrustedPayloadAcl(executable);
     }
     private static readonly string PolicyPath = Path.Combine(Installer, "host-service-recovery-policy.VentioHost.v1.dpapi");
+    private static readonly string PreviousPayloadManifestPath = Path.Combine(Installer, "host-payload-previous.manifest.json");
+    internal readonly record struct PayloadMember(long Length, string Sha256);
     internal static void RecordMaintenanceFailure(string operation, Exception exception)
     {
         try
@@ -57,6 +59,16 @@ internal static partial class NativeHostInstallation
     {
         ValidateInstalledServices(requireHost: true);
         using var maintenance = MaintenanceLock();
+        // Preserve the exact verified old inventory before Inno replaces its
+        // manifest. Only members in that inventory may be retired later.
+        using (var installedPayload = PinPayload(Payload, allowPreviousPostgres: true))
+        {
+            if (File.Exists(PreviousPayloadManifestPath)) throw Failure("PAYLOAD_PREVIOUS_MANIFEST_PENDING");
+            var bytes = File.ReadAllBytes(Path.Combine(Payload, "payload-manifest.json"));
+            if (bytes.Length is < 1 or > 1_048_576) throw Failure("PAYLOAD_MANIFEST_INVALID");
+            SetDirectoryAcl(Installer, Administrators, []);
+            WritePrivate(PreviousPayloadManifestPath, bytes, []);
+        }
         var snapshot = ReadPolicySnapshot();
         if (snapshot is null)
         {
@@ -107,16 +119,36 @@ internal static partial class NativeHostInstallation
             await StartServiceAsync(HostService);
         }
         RestoreRecoveryPolicy();
+        if (includeHost && File.Exists(PreviousPayloadManifestPath))
+        {
+            AssertNoReparseAncestors(PreviousPayloadManifestPath);
+            AssertPrivateAcl(PreviousPayloadManifestPath);
+            File.Delete(PreviousPayloadManifestPath);
+        }
     }
 
     internal static async Task CompleteUpgradeAsync()
     {
         ValidateInstalledServices(requireHost: true);
-        using var verified = PinPayload(Payload);
         using var maintenance = MaintenanceLock();
         var snapshot = ReadPolicySnapshot() ?? throw Failure("SERVICE_RECOVERY_SNAPSHOT_MISSING");
         if (!Suppressed(RecoveryNative.Query(HostService)) || ServiceState(HostService) != 1 || ServiceState(PgService) != 1)
             throw Failure("UPGRADE_SERVICES_MUST_BE_STOPPED");
+        var obsolete = ReadObsoletePayloadMembers();
+        // Verify every new member and every old-only member before changing
+        // anything. An unknown or modified file remains a hard failure.
+        using (var verifiedBeforeCleanup = PinPayload(Payload, obsolete)) { }
+        foreach (var (relative, member) in obsolete)
+        {
+            var path = Path.Combine(Payload, relative.Replace('/', Path.DirectorySeparatorChar));
+            AssertNoReparseAncestors(path);
+            AssertTrustedPayloadAcl(path);
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                if (stream.Length != member.Length || Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant() != member.Sha256)
+                    throw Failure("PAYLOAD_OBSOLETE_HASH_INVALID");
+            File.Delete(path);
+        }
+        using var verified = PinPayload(Payload);
         var password = ReadMigratorPassword();
         // Back up a stopped cluster before any schema/configuration mutation.
         // The authority witness deliberately stays in its original Host storage.
@@ -186,6 +218,9 @@ internal static partial class NativeHostInstallation
             await StartServiceAsync(HostService);
             RestoreRecoveryPolicy();
             File.Delete(resultPath);
+            AssertNoReparseAncestors(PreviousPayloadManifestPath);
+            AssertPrivateAcl(PreviousPayloadManifestPath);
+            File.Delete(PreviousPayloadManifestPath);
         }
         catch
         {
@@ -194,6 +229,47 @@ internal static partial class NativeHostInstallation
             await StopServiceAsync(HostService);
             throw;
         }
+    }
+
+    private static Dictionary<string, PayloadMember> ReadObsoletePayloadMembers()
+    {
+        AssertNoReparseAncestors(PreviousPayloadManifestPath);
+        AssertPrivateAcl(PreviousPayloadManifestPath);
+        if (new FileInfo(PreviousPayloadManifestPath).Length is < 1 or > 1_048_576) throw Failure("PAYLOAD_MANIFEST_INVALID");
+        using var previous = JsonDocument.Parse(File.ReadAllBytes(PreviousPayloadManifestPath));
+        var currentPath = Path.Combine(Payload, "payload-manifest.json");
+        AssertNoReparseAncestors(currentPath);
+        AssertTrustedPayloadAcl(currentPath);
+        using var current = JsonDocument.Parse(File.ReadAllBytes(currentPath));
+        return ComputeObsoletePayloadMembers(previous.RootElement, current.RootElement);
+    }
+
+    internal static Dictionary<string, PayloadMember> ComputeObsoletePayloadMembers(JsonElement previous, JsonElement current)
+    {
+        static Dictionary<string, PayloadMember> Index(JsonElement root)
+        {
+            if (root.GetProperty("formatVersion").GetInt32() != 1 ||
+                root.GetProperty("credentialsIncluded").GetBoolean() || root.GetProperty("databaseIncluded").GetBoolean())
+                throw Failure("PAYLOAD_MANIFEST_INVALID");
+            var files = new Dictionary<string, PayloadMember>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in root.GetProperty("verifiedFiles").EnumerateArray())
+            {
+                var relative = entry.GetProperty("path").GetString() ?? "";
+                var length = entry.GetProperty("length").GetInt64();
+                var sha256 = entry.GetProperty("sha256").GetString() ?? "";
+                if (!SafeRelativePath(relative) || relative.Equals("payload-manifest.json", StringComparison.OrdinalIgnoreCase) ||
+                    length < 0 || !System.Text.RegularExpressions.Regex.IsMatch(sha256, "\\A[0-9a-f]{64}\\z") ||
+                    !files.TryAdd(relative, new PayloadMember(length, sha256))) throw Failure("PAYLOAD_MANIFEST_INVALID");
+            }
+            if (files.Count < 1 || files.Count > 20_000 || files.Count != root.GetProperty("payloadFileCount").GetInt32())
+                throw Failure("PAYLOAD_MANIFEST_INVALID");
+            return files;
+        }
+        var oldFiles = Index(previous);
+        var newFiles = Index(current);
+        foreach (var required in new[] { "VentioSetupBroker.exe", "VentioHostService.exe", "ventio_host.exe", "ventio_migrate.exe", "postgresql/bin/postgres.exe" })
+            if (!newFiles.ContainsKey(required)) throw Failure("PAYLOAD_INCOMPLETE");
+        return oldFiles.Where(pair => !newFiles.ContainsKey(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
     }
 
     private static async Task ConfigureUpgradedLanAsync()

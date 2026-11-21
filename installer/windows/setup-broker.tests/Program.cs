@@ -34,6 +34,43 @@ foreach (var path in new[] { "../outside.exe", "/absolute.exe", "C:/outside.exe"
 foreach (var path in new[] { "postgresql/bin/postgres.exe", "security/bootstrap.sql", "migrations/041_wave2.sql" })
     if (!Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(path))
         throw new InvalidOperationException("Native installation rejected a canonical payload member path.");
+if (!Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.15", true) ||
+    Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.15", false) ||
+    !Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.16", false) ||
+    Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.14", true) ||
+    Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("17.0", true))
+    throw new InvalidOperationException("Previous PostgreSQL minor compatibility widened the new-payload contract.");
+
+static System.Text.Json.JsonDocument PayloadManifest(params string[] paths) => System.Text.Json.JsonDocument.Parse(
+    System.Text.Json.JsonSerializer.Serialize(new {
+        formatVersion = 1, credentialsIncluded = false, databaseIncluded = false,
+        payloadFileCount = paths.Length,
+        verifiedFiles = paths.Select(path => new { path, length = 3, sha256 = new string('a', 64) }).ToArray()
+    }));
+var requiredPayload = new[] { "VentioSetupBroker.exe", "VentioHostService.exe", "ventio_host.exe", "ventio_migrate.exe", "postgresql/bin/postgres.exe" };
+using (var oldPayload = PayloadManifest([.. requiredPayload, "postgresql/bin/obsolete.dll"]))
+using (var newPayload = PayloadManifest(requiredPayload))
+{
+    var obsolete = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(oldPayload.RootElement, newPayload.RootElement);
+    if (obsolete.Count != 1 || !obsolete.TryGetValue("postgresql/bin/obsolete.dll", out var member) ||
+        member.Length != 3 || member.Sha256 != new string('a', 64))
+        throw new InvalidOperationException("Verified old-only payload member was not identified for retirement.");
+    var same = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(newPayload.RootElement, newPayload.RootElement);
+    if (same.Count != 0) throw new InvalidOperationException("Same-version payload generated an obsolete deletion.");
+}
+foreach (var invalid in new[] { "../outside.dll", "postgresql/bin/x:stream", "postgresql/bin/obsolete." })
+{
+    using var oldPayload = PayloadManifest([.. requiredPayload, invalid]);
+    using var newPayload = PayloadManifest(requiredPayload);
+    try { _ = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(oldPayload.RootElement, newPayload.RootElement); throw new InvalidOperationException("Unsafe obsolete payload path accepted."); }
+    catch (InvalidOperationException exception) when (exception.Message != "Unsafe obsolete payload path accepted.") { }
+}
+using (var oldPayload = PayloadManifest([.. requiredPayload, "postgresql/bin/obsolete.dll", "postgresql/bin/obsolete.dll"]))
+using (var newPayload = PayloadManifest(requiredPayload))
+{
+    try { _ = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(oldPayload.RootElement, newPayload.RootElement); throw new InvalidOperationException("Duplicate old payload member accepted."); }
+    catch (InvalidOperationException exception) when (exception.Message != "Duplicate old payload member accepted.") { }
+}
 
 var secret = System.Text.Encoding.UTF8.GetBytes("isolated-bootstrap-handoff-test");
 var expectedSecret = secret.ToArray();

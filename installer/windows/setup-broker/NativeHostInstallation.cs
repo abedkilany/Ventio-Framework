@@ -327,7 +327,7 @@ internal static partial class NativeHostInstallation
         }
     }
 
-    internal static IDisposable PinPayload(string payload)
+    internal static IDisposable PinPayload(string payload, IReadOnlyDictionary<string, PayloadMember>? approvedObsolete = null, bool allowPreviousPostgres = false)
     {
         if (!SamePath(payload, Payload)) throw Failure("PAYLOAD_PATH_INVALID");
         var pins = new FilePins();
@@ -341,7 +341,9 @@ internal static partial class NativeHostInstallation
             var manifestStream = pins.Open(manifestPath);
             using var document = JsonDocument.Parse(manifestStream);
             var root = document.RootElement;
-            if (root.GetProperty("formatVersion").GetInt32() != 1 || root.GetProperty("postgresVersion").GetString() != "16.16" ||
+            var postgresVersion = root.GetProperty("postgresVersion").GetString();
+            if (root.GetProperty("formatVersion").GetInt32() != 1 ||
+                !IsSupportedPayloadPostgres(postgresVersion, allowPreviousPostgres) ||
                 root.GetProperty("credentialsIncluded").GetBoolean() || root.GetProperty("databaseIncluded").GetBoolean()) throw Failure("PAYLOAD_MANIFEST_INVALID");
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in root.GetProperty("verifiedFiles").EnumerateArray())
@@ -356,6 +358,7 @@ internal static partial class NativeHostInstallation
             }
             foreach (var required in new[] { "VentioSetupBroker.exe", "VentioHostService.exe", "ventio_host.exe", "ventio_migrate.exe", "ventio_identity_bootstrap.exe", "security/bootstrap.sql", "postgresql/bin/pg_ctl.exe", "postgresql/bin/initdb.exe", "postgresql/bin/psql.exe", "postgresql/bin/createdb.exe", "postgresql/bin/postgres.exe" })
                 if (!seen.Contains(required)) throw Failure("PAYLOAD_INCOMPLETE");
+            var observedObsolete = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var pending = new Stack<string>(); pending.Push(payload);
             while (pending.TryPop(out var directory))
             {
@@ -364,13 +367,26 @@ internal static partial class NativeHostInstallation
                 {
                     AssertNoReparseAncestors(file);
                     if (Directory.Exists(file)) pending.Push(file);
-                    else if (!SamePath(file, manifestPath) && !seen.Contains(Path.GetRelativePath(payload, file).Replace('\\', '/'))) throw Failure("PAYLOAD_UNLISTED_FILE");
+                    else if (!SamePath(file, manifestPath))
+                    {
+                        var relative = Path.GetRelativePath(payload, file).Replace('\\', '/');
+                        if (seen.Contains(relative)) continue;
+                        if (approvedObsolete is null || !approvedObsolete.TryGetValue(relative, out var old) || !observedObsolete.Add(relative))
+                            throw Failure("PAYLOAD_UNLISTED_FILE");
+                        AssertTrustedPayloadAcl(file);
+                        var stream = pins.Open(file);
+                        if (stream.Length != old.Length || Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant() != old.Sha256)
+                            throw Failure("PAYLOAD_OBSOLETE_HASH_INVALID");
+                    }
                 }
             }
+            if (approvedObsolete is not null && !observedObsolete.SetEquals(approvedObsolete.Keys)) throw Failure("PAYLOAD_OBSOLETE_FILE_MISSING");
             return pins;
         }
         catch { pins.Dispose(); throw; }
     }
+    internal static bool IsSupportedPayloadPostgres(string? version, bool allowPrevious) =>
+        version == "16.16" || (allowPrevious && version == "16.15");
     internal static bool SafeRelativePath(string path) => path.Length is > 0 and < 240 && !path.Contains('\\') && !path.Contains(':') && !Path.IsPathRooted(path) && path.Split('/').All(part => part.Length > 0 && part != "." && part != ".." && part.TrimEnd(' ', '.') == part && part.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && !System.Text.RegularExpressions.Regex.IsMatch(part, "\\A(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\.|\\z)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant));
     private sealed class FilePins : IDisposable
     {
