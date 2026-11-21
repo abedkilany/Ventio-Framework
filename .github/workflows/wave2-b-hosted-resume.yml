@@ -12,6 +12,31 @@ permissions:
   contents: read
   actions: read
 jobs:
+  windows-toolchain:
+    if: inputs.scope == 'windows-toolchain'
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Record installed compiler and CRT before reviewing a changed build input
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = (& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or -not $vs) { throw 'Compiler installation unavailable' }
+          $toolset = (Get-Content (Join-Path $vs 'VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt') -Raw).Trim()
+          $header = Join-Path $vs "VC/Tools/MSVC/$toolset/include/crtversion.h"
+          $record = [ordered]@{sourceCommit=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;imageVersion=$env:ImageVersion;toolset=$toolset;installedToolsets=@(Get-ChildItem (Join-Path $vs 'VC/Tools/MSVC') -Directory | ForEach-Object Name);crtHeaderSha256=(Get-FileHash $header -Algorithm SHA256).Hash.ToLowerInvariant();crtVersionDefines=@(Get-Content $header | Where-Object { $_ -match '^\s*#define\s+_VC_CRT_(MAJOR|MINOR|BUILD|RBUILD)_VERSION\s+' })}
+          $record | ConvertTo-Json -Depth 4 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-toolchain.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-toolchain-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/wave2-toolchain.json
+          if-no-files-found: error
+          retention-days: 30
   native-evidence:
     if: inputs.scope == 'native-evidence'
     runs-on: ubuntu-24.04
