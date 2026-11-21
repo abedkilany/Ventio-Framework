@@ -64,6 +64,11 @@
       "phase": "repeat_sync_no_duplicate",
       "result": "PASS",
       "observed": "A second native Sync pending left both local commands ACCEPTED at one attempt each, Host record count eight, and the offline name appearing once."
+    },
+    {
+      "phase": "second_installed_client_convergence",
+      "result": "PASS",
+      "observed": "TEST-02 installed native Workspace Asset displayed all eight authoritative Host records, including both TEST-01 creates after reconnect. This was observed in the actual TEST-02 RDP UI; current source Client version remains uninstalled on TEST-02."
     }
   ],
   "localCommandIds": [
@@ -73,8 +78,8 @@
   "credentialValuesRecorded": false,
   "limits": [
     "Outage used a stopped Host service, not a detached client network adapter.",
-    "TEST-02 native Client is older 81661f7 and its Host record view was denied by the pre-5374496 package digest calculation; a fresh corrected Client install and two-client convergence remain.",
-    "No concurrent conflict, permission revocation or full installer upgrade is established by this case."
+    "TEST-02 native Client is older 81661f7. Its Workspace Asset view converged to eight Host records, but its separate Extension Studio record view still has the pre-5374496 package digest denial. Fresh corrected Client install and retest remain.",
+    "No completed concurrent conflict, permission revocation or full installer upgrade is established by this case."
   ],
   "test02OlderClientDigestAnalysis": {
     "status": "FIX_PRESENT_IN_SOURCE_PENDING_INSTALLED_RETEST",

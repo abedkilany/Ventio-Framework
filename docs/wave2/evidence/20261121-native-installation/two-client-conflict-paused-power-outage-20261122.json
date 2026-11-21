@@ -1,0 +1,46 @@
+{
+  "case": "PHYSICAL_TWO_CLIENT_STALE_REVISION_CONFLICT_INCOMPLETE_POWER_OUTAGE",
+  "observedAtUtc": "2026-11-21T23:33:22Z",
+  "branch": "feature/wave-2-a",
+  "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+  "recordId": "ee249212-9761-44c6-84a1-0f5242f73904",
+  "result": "BLOCKED",
+  "observations": [
+    {
+      "phase": "test01_offline_edit",
+      "result": "PASS",
+      "detail": "Installed TEST-01 native Client opened Host revision 1, then only TEST-02 VentioHost service was stopped while VentioPostgres remained Running. TEST-01 native form saved name test01 offline conflict edit 20261122. Read-only installed SQLite copy showed extension.record.update command 0ad4bf52-b026-44dd-84d6-678344f2d51c PENDING, attempt 0, no receipt."
+    },
+    {
+      "phase": "test02_online_edit",
+      "result": "PASS",
+      "detail": "TEST-02 VentioHost was restarted; its installed native Client edited the same record to test02 online wins conflict 20261122 and invoked Sync pending. Authenticated Host records/query returned that exact name at revision 2, record count eight."
+    },
+    {
+      "phase": "test01_stale_sync_and_host_authority",
+      "result": "BLOCKED",
+      "detail": "Before TEST-01 Sync pending, TEST-01 RDP disconnected and TCP 22 stopped responding during a reported power outage. No rejection or conflict receipt has been observed. Do not mark this phase PASS."
+    }
+  ],
+  "runtimeStateAtPause": {
+    "test02Host": "Running after restart",
+    "test02Postgres": "Running",
+    "test01": "Unavailable after power outage",
+    "test01PendingCommand": "0ad4bf52-b026-44dd-84d6-678344f2d51c; verify durable state before resuming"
+  },
+  "ciCandidate": {
+    "runId": 44955810614,
+    "source": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+    "status": "completed",
+    "conclusion": "failure",
+    "lastActiveStep": "Prepare locked native Client dependencies",
+    "logs": "Not retrieved; root cause not established",
+    "releaseCandidate": "Not validated"
+  },
+  "nextActionsWhenDeviceReturns": [
+    "Verify TEST-01 identity, connectivity and installed SQLite pending command without altering it.",
+    "Invoke native TEST-01 Sync pending, inspect rejection/conflict receipt and Host revision/name, then verify TEST-02 view.",
+    "Diagnose hosted Client build failure and produce verified candidate."
+  ],
+  "credentialsRecorded": false
+}
