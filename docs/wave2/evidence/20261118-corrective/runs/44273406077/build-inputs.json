@@ -1,0 +1,39 @@
+{
+  "dart": {
+    "version": "3.13.7",
+    "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-x64-release.zip",
+    "sha256": "3b31d9f90b27861f29842d378f39f98ce9e60910042334f950ef5702f174fb81"
+  },
+  "inno": {
+    "version": "6.7.4",
+    "url": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe",
+    "sha256": "a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c"
+  },
+  "pdfium": {
+    "version": "5200",
+    "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/5200/pdfium-win-x64.tgz",
+    "sha256": "8e900c3e5103ae9a3aa7800653e804575c687d132fcfb4deda7bb2ce04aca8d2",
+    "dllSha256": "0c88ebacc0393fd45fc3e7b35e31e72c9e55b633a846a7ecf4085694dba68abd"
+  },
+  "flutter": {
+    "version": "3.44.1",
+    "revision": "924134a44c189315be2148659913dda1671cbe99"
+  },
+  "dotnet": {
+    "version": "10.0.404",
+    "runtimeVersion": "10.0.15",
+    "metadataUrl": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",
+    "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.404/dotnet-sdk-10.0.404-win-x64.zip",
+    "sha512": "330ddd2665b43cd2e428216a0d8ea1ac7bb19b5434fdc530e62010dc3b52823a620bf95489d628e1ed6f5122401793ee4887cca4a019122361a1231497f632ee"
+  },
+  "msvc": {
+    "toolset": "14.51.36231"
+  },
+  "postgres": {
+    "version": "16.16-1",
+    "sha256": "5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f",
+    "bytes": 378078504,
+    "url": "https://get.enterprisedb.com/postgresql/postgresql-16.16-1-windows-x64-binaries.zip",
+    "checksumUrl": "https://get.enterprisedb.com/postgresql/postgresql-16.16-1-windows-x64-binaries.zip.sha256"
+  }
+}

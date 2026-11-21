@@ -1,0 +1,29 @@
+{
+    "computer":  "VENTIO-TEST-02",
+    "utc":  "2026-11-15T21:41:50.2843612Z",
+    "source":  "fb341a78eca1bb897e2ce09f1271dae39bbd7d11",
+    "archiveSha256":  "5a3551bf67df600803df4c9760ee56813b74779ec50d12858c3f54cff9d7008a",
+    "binarySha256":  "5A18C389C5CCE563CAA8A5A5BA9222108B785680AEBED6878996385C3EA1E5F2",
+    "binaryExecuted":  false,
+    "defender":  {
+                     "AMProductVersion":  "4.18.26100.4",
+                     "AMEngineVersion":  "1.1.26100.4",
+                     "AntivirusSignatureVersion":  "1.463.319.0",
+                     "AntivirusSignatureLastUpdated":  "\/Date(1794760766000)\/",
+                     "AntivirusEnabled":  true,
+                     "RealTimeProtectionEnabled":  true,
+                     "AMServiceEnabled":  true
+                 },
+    "submissionPolicy":  {
+                             "SubmitSamplesConsent":  1,
+                             "MAPSReporting":  2
+                         },
+    "scanExit":  0,
+    "scan":  [
+                 "Scan starting...",
+                 "Scan finished.",
+                 "Scanning C:\\Users\\codex-3\\AppData\\Local\\VentioFramework\\SecurityInvestigation\\e2c5fb1\\host-conventional.exe found no threats."
+             ],
+    "existsAfter":  true,
+    "originalEnginePresent":  false
+}

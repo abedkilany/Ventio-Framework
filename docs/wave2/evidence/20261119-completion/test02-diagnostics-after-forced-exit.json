@@ -1,0 +1,49 @@
+{
+  "sourceSnapshot": {
+    "case": "TEST02-CLIENT-CRASH-DIAGNOSTIC-SNAPSHOT",
+    "utc": "2026-11-20T13:52:57.6451412Z",
+    "before": [
+      {
+        "ProcessId": 4524,
+        "SessionId": 2,
+        "ExecutablePath": "C:\\Program Files\\Ventio\\ventio_native_client.exe"
+      }
+    ],
+    "forcedTermination": true,
+    "remainingClients": 0,
+    "diagnosticFiles": [
+      {
+        "Name": "ventio_diagnostics.sqlite3",
+        "Length": 4096,
+        "sha256": "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+      },
+      {
+        "Name": "ventio_diagnostics.sqlite3-shm",
+        "Length": 32768,
+        "sha256": "c19744a1fda0439fa8875472a1b94fdb4ad5743fca7a5de852a32240033da2dc"
+      },
+      {
+        "Name": "ventio_diagnostics.sqlite3-wal",
+        "Length": 37112,
+        "sha256": "97f78fbe6757d89ace5800e21c516709c5bede48912615a7625b23267e44273e"
+      }
+    ],
+    "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f"
+  },
+  "integrity": "ok",
+  "schemaVersion": 4,
+  "events": [
+    {
+      "code": "HOST_SETUP_BROKER_UNAVAILABLE",
+      "component": "client.host_setup.administrator_access",
+      "category": "host_startup",
+      "severity": "ERROR",
+      "occurred_at_utc": "2026-11-20T08:34:58.317583Z",
+      "correlation_id": "cor_62dcfa637fc8b87ae0d69ee1794b8ff3",
+      "retryable": 0,
+      "message_key": "native.diagnostics.host_setup_failed",
+      "safe_explanation": "Host setup failed during administrator access.",
+      "recommended_action": "Keep existing Host data intact. Share this sanitized report with an authorized Host operator before attempting recovery."
+    }
+  ]
+}

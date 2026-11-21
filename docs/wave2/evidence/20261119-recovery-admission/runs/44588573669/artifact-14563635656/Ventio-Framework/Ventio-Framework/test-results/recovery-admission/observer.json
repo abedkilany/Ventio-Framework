@@ -1,0 +1,14 @@
+{
+    "sourceCommit":  "b7e984f22dffbc8af8022b3ca4051d11ec6a8c23",
+    "runId":  "44588573669",
+    "postgresVersion":  "16.16",
+    "cases":  [
+                  {
+                      "status":  "FAILED",
+                      "id":  "OBS-FIXTURE-SETUP",
+                      "reason":  "The process cannot access the file \u0027D:\\a\\Ventio-Framework\\Ventio-Framework\\test-results\\recovery-admission\\observer-progress.json\u0027 because it is being used by another process."
+                  }
+              ],
+    "installedRecoveryTestsExecuted":  false,
+    "physicalVmTouched":  false
+}

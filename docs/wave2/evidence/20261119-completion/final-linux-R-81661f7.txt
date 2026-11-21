@@ -1,0 +1,91 @@
+PASS: Audit subprocess really runs under the separate nobody OS identity
+PASS: Recovery witness matches database after initial identity setup
+PASS: Remote Host rejects group-readable TLS private keys
+PASS: Same-UID Host cannot claim independently protected witness ownership (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+)
+PASS: Wrong configured witness owner is rejected (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+)
+PASS: Writable witness directory is rejected even when the file is read-only (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+)
+PASS: Host OS account cannot overwrite, unlink, rename witness or read admin connection secrets
+PASS: Recovery witness tracks the temporary unknown migration
+PASS: Unknown migration ledger entry blocks startup (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+)
+PASS: Recovery witness matches database after migration test cleanup
+PASS W2-R001 [B02,D09,J04] WB-CI-02: a changed manifest returns an actual 503 HOST_UNAVAILABLE without transport substitution or effects
+PASS W2-R002 [B02,D09] WB-CI-02: removing the fixture mutation restores admission on the same process
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Liveness remains distinct from security/database readiness
+PASS: FIFO input is rejected before a blocking open can hang the helper
+PASS: Timed-out private-file helper is killed and reaped
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+BENCHMARK: {"fixtureUsers":10,"fixtureAudit":100,"actualRows":{"users":11,"devices":21,"credentials":21,"grants":11,"audit":105},"fingerprintMs":{"min":0.449,"median":0.677,"p95":1.374,"max":1.374},"httpConcurrency":4,"httpSamples":8,"httpMs":{"min":82.387,"median":97.282,"p95":167.973,"max":167.973},"httpAcceptedWithoutRetry":8,"rlsReadLimit":20,"rlsReadRows":10,"rlsReadMs":53.079,"rlsReadSqlState":null}
+PASS: Bounded small-profile acceptance: eight accepted commands, p95 below ten seconds, scoped read completes
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+BENCHMARK: {"fixtureUsers":100,"fixtureAudit":5000,"actualRows":{"users":101,"devices":201,"credentials":201,"grants":101,"audit":5005},"fingerprintMs":{"min":0.401,"median":0.457,"p95":2.037,"max":2.037},"httpConcurrency":4,"httpSamples":8,"httpMs":{"min":79.151,"median":87.25,"p95":97.493,"max":97.493},"httpAcceptedWithoutRetry":8,"rlsReadLimit":20,"rlsReadRows":18,"rlsReadMs":50.645,"rlsReadSqlState":null}
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Concurrent profile reconciles one complete effect per command
+BENCHMARK: {"fixtureUsers":1000,"fixtureAudit":20000,"actualRows":{"users":1001,"devices":2001,"credentials":2001,"grants":1001,"audit":20005},"fingerprintMs":{"min":0.49,"median":0.519,"p95":2.248,"max":2.248},"httpConcurrency":4,"httpSamples":8,"httpMs":{"min":71.271,"median":77.783,"p95":86.844,"max":86.844},"httpAcceptedWithoutRetry":8,"rlsReadLimit":20,"rlsReadRows":20,"rlsReadMs":47.506,"rlsReadSqlState":null}
+PASS: Pending authority closes new command admission during administrative commit
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Database lock timeout produces no false acceptance
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Lock-timeout retry does not duplicate command effects
+PASS: SIGTERM drains the admitted real PostgreSQL command
+PASS: OS-separated production launcher exits after its drain
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: OS-separated Host shuts down cleanly
+PASS: Post-shutdown replay retains exactly one durable effect
+PASS: Witness-only rollback is denied against current identity state (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+)
+PASS: Database-only rollback is denied against latest independent witness (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+)
+PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+PASS: Known production blocker reproduced: rolling back BOTH trusted copies cannot prove freshness locally
+PASS: OS-separated Host shuts down cleanly
+ENVIRONMENT: {"dart":"3.13.7","postgres":"16.16 (Debian 16.16-1.pgdg12+1)","visibleLogicalProcessors":4,"os":"linux","architecture":"x86_64"}
+RESULT: 78 engineering audit assertions passed

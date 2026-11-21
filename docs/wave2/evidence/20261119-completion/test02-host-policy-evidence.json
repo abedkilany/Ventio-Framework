@@ -1,0 +1,26 @@
+﻿{
+    "case":  "TEST02-HOST-POLICY-EVIDENCE",
+    "observedAtUtc":  "2026-11-20T13:50:46.9213195Z",
+    "computer":  "TEST-02",
+    "policy":  "Restricted",
+    "scriptSignature":  "NotSigned",
+    "events":  [
+                   {
+                       "Id":  4100,
+                       "RecordId":  1258,
+                       "TimeCreated":  "\/Date(1795181824444)\/",
+                       "Message":  "Error Message = File C:\\Program Files\\Ventio\\host-payload\\setup\\provision-host-installation.ps1 cannot be loaded because running scripts is disabled on this system. For more information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.\r\nFully Qualified Error ID = UnauthorizedAccess\r\nRecommended Action = \r\n\r\n\r\nContext:\r\n        Severity = Warning\r\n        Host Name = ConsoleHost\r\n        Host Version = 5.1.26100.9818\r\n        Host ID = 5722ed20-141f-47cc-994f-3ebd5b398e83\r\n        Host Application = C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -NoProfile -NonInteractive -File C:\\Program Files\\Ventio\\host-payload\\setup\\provision-host-installation.ps1 -PayloadDirectory C:\\Program Files\\Ventio\\host-payload\r\n        Engine Version = 5.1.26100.9818\r\n        Runspace ID = 7257cbd5-bae8-497e-a9db-f9cf974d9d65\r\n        Pipeline ID = 1\r\n        Command Name = \r\n        Command Type = \r\n        Script Name = \r\n        Command Path = \r\n        Sequence Number = 15\r\n        User = TEST-02\\Codex-3\r\n        Connected User = \r\n        Shell ID = Microsoft.PowerShell\r\n\r\n\r\nUser Data:\r\n\r\n"
+                   },
+                   {
+                       "Id":  4100,
+                       "RecordId":  1254,
+                       "TimeCreated":  "\/Date(1795181823796)\/",
+                       "Message":  "Error Message = File C:\\Program Files\\Ventio\\host-payload\\setup\\provision-host-installation.ps1 cannot be loaded because running scripts is disabled on this system. For more information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.\r\nFully Qualified Error ID = UnauthorizedAccess\r\nRecommended Action = \r\n\r\n\r\nContext:\r\n        Severity = Warning\r\n        Host Name = ConsoleHost\r\n        Host Version = 5.1.26100.9818\r\n        Host ID = 9dcb986e-3002-4b81-a8d4-d589ca9dc68b\r\n        Host Application = C:\\WINDOWS\\system32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -NoProfile -NonInteractive -File C:\\Program Files\\Ventio\\host-payload\\setup\\provision-host-installation.ps1 -PayloadDirectory C:\\Program Files\\Ventio\\host-payload -Apply -NewHostOnly\r\n        Engine Version = 5.1.26100.9818\r\n        Runspace ID = 08f5a92f-0c1d-47bf-b287-b4a42a8da621\r\n        Pipeline ID = 1\r\n        Command Name = \r\n        Command Type = \r\n        Script Name = \r\n        Command Path = \r\n        Sequence Number = 15\r\n        User = TEST-02\\Codex-3\r\n        Connected User = \r\n        Shell ID = Microsoft.PowerShell\r\n\r\n\r\nUser Data:\r\n\r\n"
+                   }
+               ],
+    "normalNativeApplyInvocationObserved":  true,
+    "policyChanged":  false,
+    "services":  [
+
+                 ]
+}

@@ -1,0 +1,87 @@
+{
+  "formatVersion": 1,
+  "recordedDate": "2026-11-21",
+  "evidenceKind": "sanitized actual tool observations, not a capability acceptance claim",
+  "machine": {
+    "hostname": "TEST-02",
+    "machineGuid": "4f9cfa6d-48f6-4c66-a3a9-93e612f6bacb",
+    "sshIdentity": "previously pinned TEST-02 key, verified at new address",
+    "lastAddress": "192.168.1.108"
+  },
+  "hostPayload": {
+    "sourceCommit": "735399049d841a9dae0d0437b5f6640a0f8266ee",
+    "runId": 44820075747,
+    "artifactId": 14670587382,
+    "transportBytes": 133839183,
+    "transportSha256": "d91404b87d438c2ca81c82e6fa457fc5fe0d0c9fb351a67a75d763d7efa98971",
+    "manifestSha256": "9edd35fe5cce477b852e9cd0606f9d3046b900e09221d2be08aaab2e5c8c35b4",
+    "verifiedMembers": 1730,
+    "transportVerifiedAgainstAuthenticatedGitHubDigest": true,
+    "allManifestMembersVerifiedLocallyAndOnDevice": true,
+    "previousPayloadPreserved": true,
+    "nativeClientFilesChanged": false,
+    "candidateKind": "development Host test payload; not a final Windows installer or accepted release candidate"
+  },
+  "installation": {
+    "operationId": "c99de644fe47423caf984cc845cb3ea6",
+    "tenantId": "w2-rc-20261120",
+    "companyId": "w2-company",
+    "branchId": "w2-branch",
+    "effectiveExecutionPolicyObserved": "Restricted",
+    "policiesChanged": false,
+    "firstSshAttempt": "POSTGRES_AND_HOST_SERVICES_CREATED; local administrator pipe connection failed from SSH; existing network-denial ACL retained",
+    "supportedLocalFixture": "same installed native broker, existing Codex-3 interactive administrator token, fixed temporary task, no credentials in task arguments",
+    "localResumeStatus": {
+      "formatVersion": 1,
+      "operationId": "c99de644fe47423caf984cc845cb3ea6",
+      "state": "complete",
+      "phase": "HOST_READINESS",
+      "failureCode": null,
+      "updatedAtUtc": "2026-11-21T00:10:05.0431553+00:00"
+    },
+    "health": {"apiVersion": 1, "status": "alive"},
+    "actualBearerSessionAuthenticated": true,
+    "authenticatedActorMatchedProtectedNativeHandoff": true,
+    "actualFirstAdministratorScopeVerified": true,
+    "firstAdministratorPermissions": [
+      "extension.package.review", "host.diagnostics.read", "host.status.read",
+      "identity.devices.manage", "identity.pairing.manage",
+      "identity.roles.manage", "identity.users.manage"
+    ],
+    "recoveryWitnessCreatedByActualHost": true,
+    "postgresAndHostObservedRunningUnderDedicatedVirtualAccounts": true,
+    "firewall": {
+      "enabled": true, "currentProfiles": 2, "ruleProfiles": 2,
+      "localPorts": "8443", "remoteAddresses": "LocalSubnet", "edgeTraversal": false,
+      "application": "C:\\Program Files\\Ventio\\host-payload\\ventio_host.exe"
+    },
+    "defender": {"antivirusEnabled": true, "realTimeProtectionEnabled": true}
+  },
+  "businessFixturePreparation": {
+    "actorId": "usr_3bd4a4d430f4b81e3a72179eaf8a8eaf",
+    "actualHostUserCreateSucceeded": true,
+    "actualHostScopedDirectGrantsSucceeded": 15,
+    "grantTransport": "authorized management HTTP API; no direct database writes",
+    "trustedPairingOperationId": "7b5a1a2885624d6eb9d0db4b2bf3bdf8",
+    "trustedPairingNativeStatus": "complete",
+    "pairingRedeemOutcome": "UNKNOWN_AFTER_DEVICE_CONNECTION_LOSS",
+    "resumeRequirement": "inspect existing protected enrollment result and current Host device state before retrying a one-time enrollment",
+    "credentialContentsRecorded": false,
+    "businessCrudOrCapabilityAcceptanceClaimed": false
+  },
+  "nativeClient": {
+    "installedSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "observedUi": "English first-run and Host setup screens",
+    "resumeJournalPreparedForActualCompletedNativeOperation": true,
+    "clientCredentialOrProfileFabricated": false,
+    "actualClientHandoffConsumptionAndBusinessUiAcceptance": "NOT_EXECUTED"
+  },
+  "ownerAvailabilityUpdate": {
+    "TEST-01": "OUT_OF_SERVICE_BY_OWNER",
+    "TEST-02": "OUT_OF_SERVICE_BY_OWNER_AFTER_LOW_BATTERY_AND_CONNECTION_LOSS",
+    "furtherDeviceCalls": "DEFERRED_UNTIL_OWNER_REPORTS_RETURN",
+    "twoDeviceAcceptance": "BLOCKED_NOT_EXECUTED",
+    "P001_P006": "NOT_EXECUTED"
+  },
+  "mergeRecommendation": "NOT_READY"
+}

@@ -17,6 +17,7 @@ __pycache__/
 /deliverables/
 /.installer-validation-temp/
 /artifacts/
+/test-results/
 /packages/ventio_native_client/.build-codex-generated-*/
 /packages/ventio_native_client/b[0-9]*/
 /packages/ventio_native_client/build-*/

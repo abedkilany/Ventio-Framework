@@ -3,41 +3,60 @@ name: Native Flutter Client and Extension Builder
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/native-flutter-client.yml'
-      - '.github/workflows/host-api.yml'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_native_client/**'
-      - 'scripts/prepare_native_client_platforms.ps1'
-      - 'scripts/ci/**'
-      - 'scripts/ci_android/**'
-      - 'scripts/check_localization_gate.py'
-      - 'scripts/test_check_localization_gate.py'
-      - 'spec/v1.2/examples/**'
   pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/native-flutter-client.yml'
-      - '.github/workflows/host-api.yml'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_native_client/**'
-      - 'scripts/prepare_native_client_platforms.ps1'
-      - 'scripts/ci/**'
-      - 'scripts/ci_android/**'
-      - 'scripts/check_localization_gate.py'
-      - 'scripts/test_check_localization_gate.py'
-      - 'spec/v1.2/examples/**'
+  workflow_call:
+    inputs:
+      ci_run_scope:
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
+    inputs:
+      wave2_resume:
+        description: Only the isolated Wave 2 B acceptance build and prepared suites
+        type: boolean
+        default: false
+      wave2_scope:
+        description: Targeted rerun scope
+        type: choice
+        options: [all, linux, windows, windows-toolchain, gateway-jobs, windows-tests, windows-gui, windows-runtime, windows-pg-minor, native-installation, native-evidence, core, verify-candidate, candidate-evidence, recovery-admission, recovery-signing, recovery-observer, recovery-identity]
+        default: all
+      candidate_run_id:
+        description: Existing hosted candidate run for protected verification
+        type: string
+        default: ''
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}-${{ inputs.wave2_scope || 'default' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 
 jobs:
-  native-client-windows-android:
+  select-changes:
+    if: ${{ !inputs.wave2_resume }}
+    uses: ./.github/workflows/ci-change-selector.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      event_name: ${{ github.event_name }}
+      event_action: ${{ github.event.action || '' }}
+      head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+      before_sha: ${{ github.event.before || '' }}
+      pr_number: ${{ github.event.pull_request.number || 0 }}
+      ref_name: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      ci_force_full: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
+      ci_run_scope: ${{ inputs.ci_run_scope || '' }}
+  native-client-windows-android-suite:
+    needs: select-changes
+    if: needs.select-changes.outputs.run_native_client == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     defaults:
@@ -111,3 +130,33 @@ jobs:
       - name: Build Android release APK
         working-directory: packages/ventio_native_client
         run: flutter build apk --release
+  native-client-windows-android:
+    needs: [select-changes, native-client-windows-android-suite]
+    if: ${{ always() && !inputs.wave2_resume }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the required check context and report suite result
+        env:
+          SELECTOR_RESULT: ${{ needs.select-changes.result }}
+          SHOULD_RUN: ${{ needs.select-changes.outputs.run_native_client }}
+          SUITE_RESULT: ${{ needs.native-client-windows-android-suite.result }}
+        run: |
+          if [[ "$SELECTOR_RESULT" != "success" ]]; then
+            echo "CI change selection or documentation validation failed." >&2
+            exit 1
+          fi
+          if [[ "$SHOULD_RUN" == "true" && "$SUITE_RESULT" != "success" ]]; then
+            echo "The selected verification suite did not succeed (result: $SUITE_RESULT)." >&2
+            exit 1
+          fi
+          echo "Required check passed; selected suite result: $SUITE_RESULT."
+
+  wave2-resume:
+    if: github.event_name == 'workflow_dispatch' && inputs.wave2_resume
+    uses: ./.github/workflows/wave2-b-hosted-resume.yml
+    with:
+      scope: ${{ inputs.wave2_scope || 'all' }}
+      candidate_run_id: ${{ inputs.candidate_run_id || '' }}
+    permissions:
+      contents: read
+      actions: read

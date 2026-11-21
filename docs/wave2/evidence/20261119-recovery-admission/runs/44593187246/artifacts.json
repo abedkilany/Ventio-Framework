@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 14564691408,
+      "node_id": "MDg6QXJ0aWZhY3QxNDU2NDY5MTQwOA==",
+      "name": "recovery-admission-pre-sql-7260b02f43898734c7e986103a5f8dbe82bea8e5-44593187246-1",
+      "size_in_bytes": 2347,
+      "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14564691408",
+      "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14564691408/zip",
+      "expired": false,
+      "digest": "sha256:0985a3633e52ca7bf9a922b7fa8bfa894a2960e1c29a3018fb5991588dd51e49",
+      "created_at": "2026-11-19T18:58:17Z",
+      "updated_at": "2026-11-19T18:58:17Z",
+      "expires_at": "2026-12-19T18:58:16Z",
+      "workflow_run": {
+        "id": 44593187246,
+        "repository_id": 1431395537,
+        "head_repository_id": 1431395537,
+        "head_branch": "feature/wave-2-a",
+        "head_sha": "7260b02f43898734c7e986103a5f8dbe82bea8e5"
+      }
+    },
+    {
+      "id": 14563408501,
+      "node_id": "MDg6QXJ0aWZhY3QxNDU2MzQwODUwMQ==",
+      "name": "recovery-admission-7260b02f43898734c7e986103a5f8dbe82bea8e5-44593187246-1",
+      "size_in_bytes": 3596,
+      "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14563408501",
+      "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14563408501/zip",
+      "expired": false,
+      "digest": "sha256:3ac7697077c195af2505ab269fc00023c84a3039079bd4d84d3938f70b639a52",
+      "created_at": "2026-11-19T18:58:18Z",
+      "updated_at": "2026-11-19T18:58:18Z",
+      "expires_at": "2026-12-19T18:58:17Z",
+      "workflow_run": {
+        "id": 44593187246,
+        "repository_id": 1431395537,
+        "head_repository_id": 1431395537,
+        "head_branch": "feature/wave-2-a",
+        "head_sha": "7260b02f43898734c7e986103a5f8dbe82bea8e5"
+      }
+    }
+  ]
+}

@@ -9,6 +9,13 @@ if (-not $env:GITHUB_ACTIONS -or $env:RUNNER_OS -ne 'Windows') {
 if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
     throw 'Private-file CI tests require a GitHub-hosted runner.'
 }
+# Fixture ACL preparation invokes Windows PowerShell 5.1. A pwsh 7 parent
+# otherwise passes module versions that 5.1 cannot import. Scope this to the
+# test process and use only the OS-shipped 5.1 module directory.
+$env:PSModulePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules'
+if (-not $env:VENTIO_WINDOWS_PRIVATE_FILE_HELPER) {
+    & (Join-Path $PSScriptRoot 'prepare-native-private-file-runtime.ps1')
+}
 
 # Elevated hosted runners default new object ownership to Administrators.
 # Scope the default owner to the existing current user while tests and their

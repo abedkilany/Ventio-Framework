@@ -1,0 +1,6 @@
+# Preserve captured evidence bytes; raw logs retain their original whitespace.
+*.json -text whitespace=cr-at-eol
+*.txt -text -whitespace
+*.log -text -whitespace
+*.md -text whitespace=cr-at-eol
+*.jpg -text

@@ -1,0 +1,12 @@
+{
+  "dispatchHttpStatus": 204,
+  "requestedHead": "c32691c3037361b5709cc5a517c956e417e18e7f",
+  "workflow": "native-flutter-client.yml",
+  "inputs": {
+    "wave2_resume": "true",
+    "wave2_scope": "windows",
+    "candidate_run_id": ""
+  },
+  "purpose": "Fresh independent Windows candidate and existing acceptance suites; recovery correction remains separate",
+  "requestedUtc": "2026-11-19T21:29:10.466460+00:00"
+}

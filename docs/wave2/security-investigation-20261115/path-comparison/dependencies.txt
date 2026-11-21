@@ -1,0 +1,7 @@
+Resolving dependencies...
+Downloading packages...
+  crypto 3.0.7 (3.0.8 available)
+  postgres 3.5.20 (3.6.0 available)
+Got dependencies!
+2 packages have newer versions incompatible with dependency constraints.
+Try `dart pub outdated` for more information.

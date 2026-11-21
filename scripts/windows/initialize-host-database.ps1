@@ -6,6 +6,10 @@ param(
   [PSCredential] $RuntimeCredential,
   [PSCredential] $IdentityApiCredential,
   [PSCredential] $MigrationCredential,
+  [PSCredential] $DisposableObserverCredential,
+  [string] $RecoveryAdmissionRecord,
+  [string] $ExpectedRecoveryAdmissionSha256,
+  [datetime] $ObserverValidUntilUtc = [datetime]::MinValue,
   [switch] $Apply,
   [switch] $TestMode
 )
@@ -24,6 +28,21 @@ $bootstrapSql = Join-Path $securityRoot 'bootstrap.sql'
 $serviceName = 'VentioPostgres'
 $databaseName = 'ventio_host'
 $bootstrapRole = 'ventio_bootstrap'
+$observerRequested=$null -ne $DisposableObserverCredential
+$observerInitialized=$false
+$observerSetupStarted=$false
+if(-not $observerRequested -and ($RecoveryAdmissionRecord -or $ExpectedRecoveryAdmissionSha256 -or $ObserverValidUntilUtc -ne [datetime]::MinValue)){throw 'RECOVERY_OBSERVER_ARGUMENTS_INCOMPLETE'}
+if($observerRequested){
+  Import-Module (Join-Path $PSScriptRoot 'RecoveryLabObserver.psm1') -Force
+  if($TestMode){
+    if($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:COMPUTERNAME -in @('BAHAA','TEST-01','TEST-02')){throw 'RECOVERY_OBSERVER_HOSTED_TEST_REQUIRED'}
+  } else {
+    Import-Module (Join-Path $PSScriptRoot 'RecoveryLabAdmission.psm1') -Force
+    $admission=Assert-CurrentRecoveryLabAdmission -Path $RecoveryAdmissionRecord -ExpectedSha256 $ExpectedRecoveryAdmissionSha256
+    if($admission.observerProfileApproved -ne $true){throw 'RECOVERY_OBSERVER_OWNER_APPROVAL_REQUIRED'}
+  }
+  $observerSql=New-RecoveryLabObserverSql -Credential $DisposableObserverCredential -ValidUntilUtc $ObserverValidUntilUtc
+}
 
 function Get-SecureText([Security.SecureString] $Secret) {
   $pointer = [Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($Secret)
@@ -138,7 +157,7 @@ foreach ($path in @($psql, $createdb, $postgres, $migrationExe, $migrations, $bo
   if (-not (Test-Path -LiteralPath $path)) { throw 'HOST_DATABASE_PAYLOAD_INCOMPLETE' }
 }
 $version = (& $postgres --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') { throw 'HOST_DATABASE_VERSION_UNSUPPORTED' }
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') { throw 'HOST_DATABASE_VERSION_UNSUPPORTED' }
 $data = [IO.Path]::GetFullPath($DataDirectory)
 if ($TestMode) {
   $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\ventio-pg-initdb-test-'
@@ -194,6 +213,11 @@ try {
   $databaseExists = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_database WHERE datname='$databaseName'")
   $reservedRoles = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_roles WHERE rolname IN ('ventio_owner','ventio_runtime','ventio_identity_admin','ventio_identity_api','ventio_migrator','ventio_runtime_app','ventio_identity_api_app','ventio_migrator_app')")
   if ($databaseExists -ne '0' -or $reservedRoles -ne '0') { throw 'HOST_DATABASE_OR_ROLE_CONFLICT' }
+  if($observerRequested){
+    $existingObserver=Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT count(*) FROM pg_roles WHERE rolname IN('ventio_w2_observer','ventio_w2_observer_owner')")
+    if($existingObserver -cne '0'){throw 'RECOVERY_OBSERVER_EXISTING_PROFILE'}
+    $observerSetupStarted=$true
+  }
 
   $baseRolesSql = @'
 CREATE ROLE ventio_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
@@ -242,6 +266,18 @@ GRANT ventio_migrator TO ventio_migrator_app;
   }
   $bootstrapProfile = Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-Atc',"SELECT rolcanlogin::text || ':' || rolsuper::text FROM pg_roles WHERE rolname='$bootstrapRole'")
   if ($bootstrapProfile -ne 'true:true') { throw 'HOST_DATABASE_BOOTSTRAP_PROFILE_INVALID' }
+  if($observerRequested){
+    [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-v','ON_ERROR_STOP=1') $observerSql)
+    Add-RecoveryLabObserverHba -Path (Join-Path $data 'pg_hba.conf')
+    [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-Atc','SELECT pg_reload_conf()'))
+    $hbaErrors=Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d',$databaseName,'-Atc','SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
+    if($hbaErrors -cne '0'){throw 'RECOVERY_OBSERVER_HBA_INVALID'}
+    try {
+      $env:PGPASSWORD=Get-SecureText $DisposableObserverCredential.Password
+      $observerProbe=Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U','ventio_w2_observer','-d',$databaseName,'-Atc',"SELECT current_user||':'||(SELECT rolsuper::text||':'||rolbypassrls::text FROM pg_roles WHERE rolname=current_user)||':'||(SELECT count(*) FROM ventio_w2_fixture.sentinel)::text||':'||(SELECT count(*) FROM ventio_w2_fixture.receipts)::text")
+      if($observerProbe -cne 'ventio_w2_observer:false:false:0:0'){throw 'RECOVERY_OBSERVER_LOGIN_PROFILE_INVALID'}
+    } finally {$env:PGPASSWORD=$bootstrapSecret;$observerProbe=$null}
+  }
   [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-v','ON_ERROR_STOP=1','-c','ALTER ROLE ventio_bootstrap NOLOGIN PASSWORD NULL'))
   $bootstrapLoginRejected = $false
   try {
@@ -252,17 +288,29 @@ GRANT ventio_migrator TO ventio_migrator_app;
     $bootstrapLoginRejected = $true
   }
   if (-not $bootstrapLoginRejected) { throw 'HOST_DATABASE_BOOTSTRAP_LOGIN_STILL_ALLOWED' }
+  $observerInitialized=$true
   Write-Output 'HOST_DATABASE_INITIALIZED'
   Write-Output 'HOST_BOOTSTRAP_LOGIN_RETIRED'
   Write-Output 'Migrations, security bootstrap, least-privilege runtime and identity API logins passed verification; temporary cluster bootstrap login is NOLOGIN with no password verifier.'
 }
 finally {
+  $retirementFailed=$false
+  if($observerRequested -and $observerSetupStarted -and -not $observerInitialized -and $bootstrapSecret){
+    # Fresh fixture only: no recovery fallback and no retained bootstrap authority.
+    $env:PGPASSWORD=$bootstrapSecret
+    try {
+      [void](Invoke-Psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$bootstrapRole,'-d','postgres','-v','ON_ERROR_STOP=1','-c',"DO `$retire`$ BEGIN IF EXISTS(SELECT FROM pg_roles WHERE rolname='ventio_w2_observer') THEN ALTER ROLE ventio_w2_observer NOLOGIN PASSWORD NULL; END IF; END `$retire`$; ALTER ROLE ventio_bootstrap NOLOGIN PASSWORD NULL;"))
+    } catch {$retirementFailed=$true}
+  }
   if ($null -eq $oldPassword) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue } else { $env:PGPASSWORD = $oldPassword }
   $runtimeSecret = $null
   $identitySecret = $null
   $migrationSecret = $null
   $bootstrapSecret = $null
+  $observerSql=$null
+  $DisposableObserverCredential=$null
   $RuntimeCredential = $null
   $IdentityApiCredential = $null
   $BootstrapCredential = $null
+  if($retirementFailed){throw 'RECOVERY_FIXTURE_RETIREMENT_UNCONFIRMED_DISPOSE_VM'}
 }

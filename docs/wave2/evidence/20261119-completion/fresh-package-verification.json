@@ -1,0 +1,43 @@
+{
+  "artifactId": 14579310933,
+  "runId": 44619230172,
+  "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+  "sourceTree": "286750a5b86d5400a643d0fe799f42967561ae52",
+  "identity": "Ventio-W2B-0.1.23+24-20261118-c32691c30373-gh44619230172-a1",
+  "outerBytes": 276542877,
+  "outerSha256": "e70e52f181f39138568a8673baa1a45cfecfc65325f6e83d493d04d5b7ef8483",
+  "innerBytes": 277429099,
+  "innerSha256": "4fc856d4af8c58bde040e8c4753862800556415568c0558d47ece7895e602bec",
+  "membersVerified": 1767,
+  "completeInventoryEntriesVerified": 1765,
+  "sourceArchiveMatchedGit": true,
+  "sourceArchiveMembersVerified": 1297,
+  "sourceArchiveContainerBytesIdentical": false,
+  "hostedSecurityStatus": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+  "importantFiles": {
+    "Ventio-Setup-0.1.23.exe": {
+      "bytes": 108097385,
+      "sha256": "e1b45bf246ed1414fa8de19fe0ecd8d009007be1038982414d59330bbfe1364b"
+    },
+    "Client/ventio_native_client.exe": {
+      "bytes": 92160,
+      "sha256": "2a5d9b0f359da5623cf33b41d13981caeb08f592a0ba4f96d185ba4cec9b2556"
+    },
+    "Prerequisites/vc_redist.x64.exe": {
+      "bytes": 18731856,
+      "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c"
+    },
+    "Client/data/app.so": {
+      "bytes": 10650512,
+      "sha256": "d41f35895c6a78389d80711015656f58b5fdc3816cd08cd7ee92cd80168efa25"
+    }
+  },
+  "payload": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\candidate-44619230172-extracted\\Payload",
+  "innerZip": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\candidate-44619230172-extracted\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-c32691c30373-gh44619230172-a1.zip",
+  "limitations": [
+    "Candidate predates PostgreSQL maintenance engineering corrections; use for independent Client/feature testing only",
+    "No installed acceptance is established by integrity checks",
+    "Bit-identical binary rebuild is not established",
+    "Source ZIP container bytes differ between Git environments; every member path/content and commit comment matched"
+  ]
+}

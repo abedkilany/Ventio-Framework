@@ -8,6 +8,7 @@ import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
+import 'command_validation.dart';
 import 'credential_reissue.dart';
 import 'device_administration.dart';
 import 'extension_packages.dart';
@@ -18,6 +19,7 @@ import 'pairing_administration.dart';
 import 'recovery_authority.dart';
 import 'role_administration.dart';
 import 'user_administration.dart';
+import 'wave2_platform.dart';
 
 abstract interface class CommandExecutor {
   Future<Map<String, dynamic>> execute(
@@ -47,6 +49,7 @@ class HostApi {
   final IdentityDeviceAdministrationGateway? _identityDeviceAdministration;
   final AuthoritativeIdentityCredentialReissueGateway? _credentialReissues;
   final HostReadinessProvider? _readinessProvider;
+  final AuthoritativeWave2Gateway? _wave2;
   final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
@@ -71,6 +74,7 @@ class HostApi {
     this._identityDeviceAdministration,
     this._credentialReissues,
     this._readinessProvider,
+    this._wave2,
     this._diagnostics,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
@@ -101,6 +105,7 @@ class HostApi {
     IdentityDeviceAdministrationGateway? identityDeviceAdministration,
     AuthoritativeIdentityCredentialReissueGateway? credentialReissues,
     HostReadinessProvider? readinessProvider,
+    AuthoritativeWave2Gateway? wave2,
     ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
@@ -164,6 +169,7 @@ class HostApi {
       identityDeviceAdministration,
       credentialReissues,
       readinessProvider,
+      wave2,
       diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
       maxConcurrentRequests,
@@ -511,6 +517,9 @@ class HostApi {
       '/api/v1/extensions/review' => 'review',
       _ => null,
     };
+    final wave2Action = request.uri.path.startsWith('/api/v1/platform/')
+        ? request.uri.path.substring('/api/v1/platform/'.length)
+        : null;
     final recordQueryRoute =
         request.uri.path == '/api/v1/extensions/records/query';
     final reportQueryRoute =
@@ -530,6 +539,7 @@ class HostApi {
     final diagnosticsRoute =
         request.uri.path == HostManagementRoutes.diagnosticsRecent;
     if (request.uri.path != '/api/v1/commands' &&
+        wave2Action == null &&
         packageRoute == null &&
         extensionReviewRoute == null &&
         !recordQueryRoute &&
@@ -601,6 +611,10 @@ class HostApi {
       });
       return;
     }
+    if (wave2Action != null &&
+        (_wave2 == null || session.credentialDigest == null)) {
+      throw const _ApiError(404, 'NOT_FOUND');
+    }
     if (packageRoute != null && _extensionPackages == null) {
       throw const _ApiError(404, 'NOT_FOUND');
     }
@@ -651,7 +665,9 @@ class HostApi {
         request.headers.value(HttpHeaders.contentEncodingHeader) != null) {
       throw const _ApiError(415, 'UNSUPPORTED_MEDIA_TYPE');
     }
-    final bodyLimit = packageRoute == 'submit'
+    final bodyLimit = wave2Action == 'imports/preview'
+        ? StructuredCsv.maxBytes * 6 + 16384
+        : packageRoute == 'submit'
         ? ExtensionBundle.maxEncodedBytes + 8192
         : maxBodyBytes;
     if (request.contentLength > bodyLimit) {
@@ -679,6 +695,24 @@ class HostApi {
     final text = utf8.decode(bytes.takeBytes());
     _validateNesting(text);
     final json = requireMap(jsonDecode(text), 'command');
+    if (wave2Action != null) {
+      final result = await _wave2!.handle(wave2Action, json, session);
+      final status = result['status'] == 'REJECTED'
+          ? 403
+          : result['status'] == 'CONFLICT'
+          ? 409
+          : 200;
+      if (utf8.encode(jsonEncode(result)).length > 4 * 1024 * 1024) {
+        throw const _ApiError(413, 'RESPONSE_TOO_LARGE');
+      }
+      _json(request, status, {
+        'apiVersion': 1,
+        'contractVersion': wave2ContractVersion,
+        'correlationId': correlationId,
+        'result': result,
+      });
+      return;
+    }
     if (readinessRoute) {
       await _handleReadiness(request, json, session, correlationId);
       return;
@@ -771,7 +805,7 @@ class HostApi {
       await _handleExtensionReportQuery(request, json, session);
       return;
     }
-    _validateWireShape(json);
+    validateHostCommandWireShape(json);
     final command = CommandEnvelope.fromJson(json);
     // Persistent scope/permissions are resolved inside the execution transaction.
     // Only identity claims are checked against the authenticated snapshot here.
@@ -2340,62 +2374,6 @@ bool _isSafeAuditLabel(Object? raw) {
     return false;
   }
   return true;
-}
-
-void _validateWireShape(Map<String, dynamic> json) {
-  const allowed = {
-    'protocolVersion',
-    'commandId',
-    'type',
-    'typeVersion',
-    'tenantId',
-    'companyId',
-    'branchId',
-    'aggregateId',
-    'expectedRevision',
-    'dependsOn',
-    'payload',
-    'clientContext',
-  };
-  final context = requireMap(json['clientContext'], 'clientContext');
-  if (json.keys.any((key) => !allowed.contains(key)) ||
-      context.keys.any(
-        (key) => !{
-          'deviceId',
-          'actorId',
-          'moduleVersion',
-          'docTypeVersion',
-          'clientTimestamp',
-        }.contains(key),
-      ) ||
-      !RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(requireString(json, 'type'))) {
-    throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  if (context.containsKey('clientTimestamp') &&
-      (context['clientTimestamp'] is! String ||
-          !RegExp(
-            r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$',
-          ).hasMatch(context['clientTimestamp'] as String) ||
-          DateTime.tryParse(context['clientTimestamp'] as String) == null)) {
-    throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  for (final key in [
-    'tenantId',
-    'companyId',
-    'branchId',
-    'aggregateId',
-    'type',
-  ]) {
-    if (requireString(json, key).length > 256)
-      throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  for (final key in ['actorId', 'deviceId']) {
-    if (requireString(context, key).length > 256)
-      throw const _ApiError(400, 'INVALID_COMMAND');
-  }
-  if (json['dependsOn'] is List && (json['dependsOn'] as List).length > 128) {
-    throw const _ApiError(400, 'INVALID_COMMAND');
-  }
 }
 
 /// Bound parser recursion before decoding adversarial nested JSON.

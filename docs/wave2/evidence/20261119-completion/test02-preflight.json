@@ -1,0 +1,55 @@
+{
+  "capturedUtc": "2026-11-19T21:25:25.3688038Z",
+  "machine": "TEST-02",
+  "account": "TEST-02\\Codex-3",
+  "elevated": true,
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26300",
+    "BuildNumber": "26300"
+  },
+  "executionPolicies": [
+    {
+      "scope": "MachinePolicy",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "UserPolicy",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "Process",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "CurrentUser",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "LocalMachine",
+      "policy": "Undefined"
+    }
+  ],
+  "effectivePolicy": "Restricted",
+  "services": [],
+  "clientPresent": false,
+  "client": null,
+  "hostExecutablePresent": false,
+  "hostSha256": null,
+  "productDataPresent": false,
+  "defender": {
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "AntivirusSignatureVersion": "1.463.368.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "threats": [],
+  "interactiveSessions": [
+    " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+    " codex-3               rdp-tcp#0           2  Active          2  11/17/2026 9:43 AM"
+  ],
+  "testActions": "Read-only observation; no service/data/policy changes",
+  "target": "test02",
+  "status": "OBSERVED"
+}

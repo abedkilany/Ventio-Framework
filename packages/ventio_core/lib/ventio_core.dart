@@ -18,3 +18,7 @@ export 'src/host.dart';
 export 'src/bootstrap.dart';
 export 'src/installation.dart';
 export 'src/management_contracts.dart';
+export 'src/customization.dart';
+export 'src/data_transfer.dart';
+export 'src/workspace.dart';
+export 'src/platform_administration.dart';

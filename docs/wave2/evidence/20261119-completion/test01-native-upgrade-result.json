@@ -1,0 +1,119 @@
+{
+  "case": "TEST01-ACTUAL-NATIVE-UPGRADE",
+  "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+  "runId": "44619230172",
+  "startedAtUtc": "2026-11-20T13:42:46.9567147Z",
+  "status": "DENIED_WITH_BASELINE_PRESERVED",
+  "installerExecuted": true,
+  "installerLogPath": "C:\\Ventio-Acceptance\\candidate-44619230172\\test01-native-upgrade.log",
+  "installDirectory": "C:\\Program Files\\Ventio",
+  "policyChanged": false,
+  "protectionChanged": false,
+  "databaseReset": false,
+  "normalAdminToken": true,
+  "installerSha256": "e1b45bf246ed1414fa8de19fe0ecd8d009007be1038982414d59330bbfe1364b",
+  "policyBefore": "Restricted",
+  "beforeClientSha256": "cd9dfa98cd03a76c2cfc7f8cad4c570fb963e141b91fd5d19124a4c3206d6bd4",
+  "beforeAppSoSha256": "f6a6496237f8e6ec05dc210fac2306176f3f8d0a75505cc32c40b999c1b395d3",
+  "postgresPidBefore": 4780,
+  "defenderRecordBefore": 1363,
+  "nativeArguments": "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=\"C:\\Program Files\\Ventio\" /LOG=\"C:\\Ventio-Acceptance\\candidate-44619230172\\test01-native-upgrade.log\"",
+  "nativeStartedAtUtc": "2026-11-20T13:42:50.6999555Z",
+  "nativeProcessId": 3116,
+  "installerExitCode": 7,
+  "nativeCompletedAtUtc": "2026-11-20T13:43:08.7316497Z",
+  "clientPresent": true,
+  "appSoPresent": true,
+  "clientSha256": "cd9dfa98cd03a76c2cfc7f8cad4c570fb963e141b91fd5d19124a4c3206d6bd4",
+  "clientVersion": "0.1.18+19",
+  "appSoSha256": "f6a6496237f8e6ec05dc210fac2306176f3f8d0a75505cc32c40b999c1b395d3",
+  "servicesAfter": [
+    {
+      "Name": "VentioHost",
+      "State": "Stopped",
+      "StartName": "NT SERVICE\\VentioHost",
+      "ProcessId": 0,
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\""
+    },
+    {
+      "Name": "VentioPostgres",
+      "State": "Running",
+      "StartName": "NT SERVICE\\VentioPostgres",
+      "ProcessId": 4780,
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w"
+    }
+  ],
+  "postgresPidAfter": 4780,
+  "postgresStateAfter": "Running",
+  "postgresProcessesAfter": [
+    {
+      "Name": "pg_ctl.exe",
+      "ProcessId": 4780,
+      "ParentProcessId": 888,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe",
+      "CreationDate": "/Date(1795160755719)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5484,
+      "ParentProcessId": 4780,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160756971)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5780,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160758009)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5792,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160758015)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5124,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160759831)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 5060,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160759837)/"
+    },
+    {
+      "Name": "postgres.exe",
+      "ProcessId": 4424,
+      "ParentProcessId": 5484,
+      "ExecutablePath": "C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\postgres.exe",
+      "CreationDate": "/Date(1795160759843)/"
+    }
+  ],
+  "oldClientPreserved": true,
+  "oldAppSoPreserved": true,
+  "postgresServiceProcessPreserved": true,
+  "postgresMainProcessPreserved": true,
+  "policyAfter": "Restricted",
+  "protectionAfter": {
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "DefenderSignaturesOutOfDate": false,
+    "AntivirusSignatureVersion": "1.463.382.0"
+  },
+  "newDefenderEvents": [],
+  "activeThreatsAfter": [],
+  "protectionPreserved": true,
+  "nativeLogBytes": 2230,
+  "nativeLogSha256": "b04e4ae94eba8d8bcccb5de3d15cc43e7a8776415d22836920d57e5e9b511e5b",
+  "upgradeAcceptance": "FAIL_NOT_UPGRADED",
+  "denialHandling": "PASS_BASELINE_AND_PROTECTION_PRESERVED",
+  "completedAtUtc": "2026-11-20T13:43:09.8550770Z"
+}

@@ -1,0 +1,150 @@
+﻿{
+    "recordedAtUtc":  "2026-11-21T08:36:51.0514709Z",
+    "machine":  "TEST-02",
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "actualInstalledHost":  true,
+    "databaseDirectlyModified":  false,
+    "credentialContentsRecorded":  false,
+    "cases":  [
+                  {
+                      "id":  "IAPI001",
+                      "description":  "Real enrolled device authenticates exact authoritative scope",
+                      "status":  "PASS",
+                      "elapsedMs":  259
+                  },
+                  {
+                      "id":  "IAPI002",
+                      "description":  "Anonymous platform operations are denied",
+                      "status":  "PASS",
+                      "elapsedMs":  35
+                  },
+                  {
+                      "id":  "IAPI003",
+                      "description":  "Invalid bearer is denied",
+                      "status":  "PASS",
+                      "elapsedMs":  5
+                  },
+                  {
+                      "id":  "IAPI004",
+                      "description":  "Another branch remains outside current credential scope",
+                      "status":  "PASS",
+                      "elapsedMs":  163
+                  },
+                  {
+                      "id":  "IAPI005",
+                      "description":  "Unknown platform contract version is refused",
+                      "status":  "PASS",
+                      "elapsedMs":  155
+                  },
+                  {
+                      "id":  "IAPI006",
+                      "description":  "Unknown API request properties are refused",
+                      "status":  "PASS",
+                      "elapsedMs":  154
+                  },
+                  {
+                      "id":  "IAPI007",
+                      "description":  "Bootstrap credential does not confer workspace permission",
+                      "status":  "PASS",
+                      "elapsedMs":  318
+                  },
+                  {
+                      "id":  "IAPI008",
+                      "description":  "Current scoped operational settings are readable",
+                      "status":  "PASS",
+                      "elapsedMs":  366
+                  },
+                  {
+                      "id":  "IAPI009",
+                      "description":  "Business actor cannot approve its extension package",
+                      "status":  "PASS",
+                      "elapsedMs":  162
+                  },
+                  {
+                      "id":  "IAPI010",
+                      "description":  "Governed package submission reaches the installed Host",
+                      "status":  "PASS",
+                      "elapsedMs":  343
+                  },
+                  {
+                      "id":  "IAPI011",
+                      "description":  "Independent first administrator approves exact submitted package digest",
+                      "status":  "PASS",
+                      "elapsedMs":  1089
+                  },
+                  {
+                      "id":  "IAPI012",
+                      "description":  "Native platform customization adds a governed custom field",
+                      "status":  "PASS",
+                      "elapsedMs":  1514
+                  },
+                  {
+                      "id":  "IAPI013",
+                      "description":  "Configuration persists and settings consume it in the exact scope",
+                      "status":  "PASS",
+                      "elapsedMs":  1299
+                  },
+                  {
+                      "id":  "IAPI014",
+                      "description":  "Saved view is durable and rejects a stale conflicting edit",
+                      "status":  "PASS",
+                      "elapsedMs":  3189
+                  },
+                  {
+                      "id":  "IAPI015",
+                      "description":  "User preferences persist through the installed definition API",
+                      "status":  "PASS",
+                      "elapsedMs":  1303
+                  },
+                  {
+                      "id":  "IAPI016",
+                      "description":  "Actual business create is accepted with governed custom data",
+                      "status":  "PASS",
+                      "elapsedMs":  719
+                  },
+                  {
+                      "id":  "IAPI017",
+                      "description":  "Actual business update applies the expected Host revision",
+                      "status":  "PASS",
+                      "elapsedMs":  370
+                  },
+                  {
+                      "id":  "IAPI018",
+                      "description":  "Real history contains accepted business effects",
+                      "status":  "PASS",
+                      "elapsedMs":  363
+                  },
+                  {
+                      "id":  "IAPI019",
+                      "description":  "CSV preview preserves logical invalid and valid source rows",
+                      "status":  "PASS",
+                      "elapsedMs":  368
+                  },
+                  {
+                      "id":  "IAPI020",
+                      "description":  "Scoped CSV export contains committed updated data",
+                      "status":  "PASS",
+                      "elapsedMs":  563
+                  },
+                  {
+                      "id":  "IAPI021",
+                      "description":  "Durable Host job executes an actual independent business create",
+                      "status":  "PASS",
+                      "elapsedMs":  1617
+                  },
+                  {
+                      "id":  "IAPI022",
+                      "description":  "Declarative report queries actual installed business records",
+                      "status":  "PASS",
+                      "elapsedMs":  347
+                  },
+                  {
+                      "id":  "IAPI023",
+                      "description":  "Organization creation is revisioned and idempotent through the actual API",
+                      "status":  "PASS",
+                      "elapsedMs":  1961
+                  }
+              ],
+    "capabilityCompletionClaimed":  false,
+    "P001_P006Executed":  false
+}

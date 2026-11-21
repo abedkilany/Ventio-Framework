@@ -571,7 +571,7 @@ function Invoke-SystemRemovalWorker {
   if (-not (Test-Path -LiteralPath $systemPowerShell -PathType Leaf)) { throw 'HOST_REMOVAL_SYSTEM_WORKER_UNAVAILABLE' }
 
   $arguments = @(
-    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-NoLogo', '-NoProfile', '-NonInteractive',
     '-File', (ConvertTo-WindowsCommandLineArgument $removalScriptPath),
     '-PayloadDirectory', (ConvertTo-WindowsCommandLineArgument $payload),
     '-RemoveData', '-SystemWorker', '-StatusPath', (ConvertTo-WindowsCommandLineArgument $statusPath)

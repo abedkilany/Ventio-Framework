@@ -1,0 +1,45 @@
+﻿{
+    "case":  "TEST01-CANDIDATE-PREUPGRADE",
+    "utc":  "2026-11-20T13:41:48.5824887Z",
+    "computer":  "VENTIO-TEST-01",
+    "sourceCommit":  "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "runId":  "44619230172",
+    "status":  "PASS",
+    "events":  [
+                   {
+                       "Id":  1001,
+                       "RecordId":  1363,
+                       "TimeCreated":  "\/Date(1795182120242)\/",
+                       "Message":  "Microsoft Defender Antivirus scan has finished.\r\n \tScan ID: {3CA7E49C-8014-4850-92B2-5D8C7227520A}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Time: 0:00:06"
+                   },
+                   {
+                       "Id":  1000,
+                       "RecordId":  1362,
+                       "TimeCreated":  "\/Date(1795182114149)\/",
+                       "Message":  "Microsoft Defender Antivirus scan has started.\r\n \tScan ID: {3CA7E49C-8014-4850-92B2-5D8C7227520A}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tScan Resources: file:_C:\\Ventio-Acceptance\\candidate-44619230172\\Ventio-Setup-0.1.23.exe\r\n  \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Trigger: On demand\r\n \tScan Only If Idle: Enabled\r\n \tLow CPU Priority for Scans: Disabled\r\n \tThread Priority: 7"
+                   }
+               ],
+    "sha256":  "e1b45bf246ed1414fa8de19fe0ecd8d009007be1038982414d59330bbfe1364b",
+    "policy":  "Restricted",
+    "installerSignature":  "NotSigned",
+    "protectionBefore":  {
+                             "AMRunningMode":  "Normal",
+                             "AMServiceEnabled":  true,
+                             "AntivirusEnabled":  true,
+                             "RealTimeProtectionEnabled":  true,
+                             "DefenderSignaturesOutOfDate":  false,
+                             "AntivirusSignatureVersion":  "1.463.382.0"
+                         },
+    "exclusionExitCode":  1,
+    "exclusionResult":  "C:\\Ventio-Acceptance\\candidate-44619230172\\Ventio-Setup-0.1.23.exe [\\Device\\HarddiskVolume3\\Ventio-Acceptance\\candidate-44619230172\\Ventio-Setup-0.1.23.exe] is not excluded. Exit code is 1.",
+    "scanStartedRecordId":  1362,
+    "scanCompletedRecordId":  1363,
+    "protectionAfter":  {
+                            "AMServiceEnabled":  true,
+                            "AntivirusEnabled":  true,
+                            "RealTimeProtectionEnabled":  true,
+                            "DefenderSignaturesOutOfDate":  false,
+                            "AntivirusSignatureVersion":  "1.463.382.0"
+                        },
+    "completedAtUtc":  "2026-11-20T13:42:03.9950005Z"
+}

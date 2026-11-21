@@ -1,0 +1,27 @@
+{
+  "commit": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a",
+  "runId": "44702220504",
+  "sdk": "10.0.404",
+  "postgres": "postgres (PostgreSQL) 16.16",
+  "cases": [
+    {
+      "id": "NET-HOST-SERVICE",
+      "exitCode": 0,
+      "status": "PASSED",
+      "log": "NET-HOST-SERVICE.log"
+    },
+    {
+      "id": "NET-SETUP-BROKER",
+      "exitCode": 0,
+      "status": "PASSED",
+      "log": "NET-SETUP-BROKER.log"
+    },
+    {
+      "id": "PG-SINGLE-USER-RECOVERY",
+      "exitCode": 0,
+      "status": "PASSED",
+      "log": "PG-SINGLE-USER-RECOVERY.log"
+    }
+  ],
+  "physicalMachinesTouched": false
+}

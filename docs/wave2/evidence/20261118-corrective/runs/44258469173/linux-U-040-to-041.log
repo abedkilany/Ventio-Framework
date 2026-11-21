@@ -1,0 +1,3 @@
+PASS W2-U001 [B02,M01] Materialize exact accepted baseline and seed representative legacy records and identity
+PASS W2-U002 [B02,M01,M02,A12,L01] Witness-aware 036/040-to-041 transitions preserve data and reapply real security contracts
+PASS W2-U003 [B02,M09] Replaying the same completed transition does not run its migration callback again

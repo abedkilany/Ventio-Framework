@@ -1,0 +1,525 @@
+{
+  "commit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "runId": "44703269459",
+  "attempt": "1",
+  "mode": "linux",
+  "suites": [
+    {
+      "suite": "H",
+      "variant": null,
+      "log": "linux-H.log",
+      "command": [
+        "dart",
+        "--packages=.dart_tool/package_config.json",
+        "test/wave2_gateway_integration.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-H001",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H002",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H003",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H004",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H005",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H006",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H007",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H008",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H009",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H010",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H011",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H012",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H013",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H014",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H015",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H016",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H017",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H018",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H019",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H020",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H021",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H022",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H023",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H024",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H025",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H026",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H027",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H028",
+          "status": "PASSED",
+          "suite": "H"
+        },
+        {
+          "id": "W2-H029",
+          "status": "PASSED",
+          "suite": "H"
+        }
+      ]
+    },
+    {
+      "suite": "J",
+      "variant": null,
+      "log": "linux-J.log",
+      "command": [
+        "dart",
+        "--packages=.dart_tool/package_config.json",
+        "test/wave2_jobs_integration.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-J001",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J002",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J003",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J004",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J005",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J006",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J007",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J008",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J009",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J010",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J011",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J012",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J013",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J014",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J015",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J016",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J017",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J018",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J019",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J020",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J021",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J022",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J023",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J024",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J025",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J026",
+          "status": "PASSED",
+          "suite": "J"
+        },
+        {
+          "id": "W2-J027",
+          "status": "PASSED",
+          "suite": "J"
+        }
+      ]
+    },
+    {
+      "suite": "D",
+      "variant": null,
+      "log": "linux-D.log",
+      "command": [
+        "dart",
+        "--packages=.dart_tool/package_config.json",
+        "test/wave2_database_integration.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-D001",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D002",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D003",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D004",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D005",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D006",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D007",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D008",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D009",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D010",
+          "status": "PASSED",
+          "suite": "D"
+        },
+        {
+          "id": "W2-D011",
+          "status": "PASSED",
+          "suite": "D"
+        }
+      ]
+    },
+    {
+      "suite": "O",
+      "variant": null,
+      "log": "linux-O.log",
+      "command": [
+        "dart",
+        "--packages=.dart_tool/package_config.json",
+        "test/wave2_operations_integration.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-O001",
+          "status": "PASSED",
+          "suite": "O"
+        },
+        {
+          "id": "W2-O002",
+          "status": "PASSED",
+          "suite": "O"
+        },
+        {
+          "id": "W2-O003",
+          "status": "PASSED",
+          "suite": "O"
+        },
+        {
+          "id": "W2-O004",
+          "status": "PASSED",
+          "suite": "O"
+        },
+        {
+          "id": "W2-O005",
+          "status": "PASSED",
+          "suite": "O"
+        },
+        {
+          "id": "W2-O006",
+          "status": "PASSED",
+          "suite": "O"
+        },
+        {
+          "id": "W2-O007",
+          "status": "PASSED",
+          "suite": "O"
+        },
+        {
+          "id": "W2-O008",
+          "status": "PASSED",
+          "suite": "O"
+        }
+      ]
+    },
+    {
+      "suite": "U",
+      "variant": null,
+      "log": "linux-U.log",
+      "command": [
+        "dart",
+        "--packages=.dart_tool/package_config.json",
+        "test/wave2_upgrade_integration.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-U001",
+          "status": "PASSED",
+          "suite": "U"
+        },
+        {
+          "id": "W2-U002",
+          "status": "PASSED",
+          "suite": "U"
+        },
+        {
+          "id": "W2-U003",
+          "status": "PASSED",
+          "suite": "U"
+        }
+      ]
+    },
+    {
+      "suite": "U",
+      "variant": "040-to-041",
+      "log": "linux-U-040-to-041.log",
+      "command": [
+        "dart",
+        "--packages=.dart_tool/package_config.json",
+        "test/wave2_upgrade_integration.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-U001",
+          "status": "PASSED",
+          "suite": "U"
+        },
+        {
+          "id": "W2-U002",
+          "status": "PASSED",
+          "suite": "U"
+        },
+        {
+          "id": "W2-U003",
+          "status": "PASSED",
+          "suite": "U"
+        }
+      ]
+    },
+    {
+      "suite": "R",
+      "variant": null,
+      "log": "linux-R.log",
+      "command": [
+        "dart",
+        "--packages=.dart_tool/package_config.json",
+        "test/engineering_audit.dart"
+      ],
+      "exitCode": 0,
+      "setupError": null,
+      "cases": [
+        {
+          "id": "W2-R001",
+          "status": "PASSED",
+          "suite": "R"
+        },
+        {
+          "id": "W2-R002",
+          "status": "PASSED",
+          "suite": "R"
+        }
+      ]
+    }
+  ],
+  "expectedUnexecuted": {
+    "P": "BLOCKED_PREREQUISITE: separately provisioned installed Windows VM and normal local approval required"
+  },
+  "manualAcceptance": "W2-M001..M006 remain unexecuted; CI does not establish physical two-device or owner acceptance"
+}

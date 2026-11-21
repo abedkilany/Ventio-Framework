@@ -1,0 +1,212 @@
+{
+  "sourceCommit": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a",
+  "runId": "44702220504",
+  "cases": [
+    {
+      "id": "service-fixture-initialized",
+      "status": "PASSED"
+    },
+    {
+      "id": "disposable-virtual-account-service-registered",
+      "status": "PASSED"
+    },
+    {
+      "id": "service-sid-enabled",
+      "status": "PASSED"
+    },
+    {
+      "id": "bounded-roles-seeded",
+      "status": "PASSED"
+    },
+    {
+      "id": "real-ledger-table-and-restricted-migrator-profile-seeded",
+      "status": "PASSED"
+    },
+    {
+      "id": "actual-product-migrator-profile-and-ledger-validator-before-rotation",
+      "status": "PASSED"
+    },
+    {
+      "id": "migrator-direct-ledger-read-denied",
+      "status": "PASSED"
+    },
+    {
+      "id": "direct-administrator-backend-is-rejected",
+      "status": "PASSED"
+    },
+    {
+      "id": "ready-before-backup-does-not-change-service-image",
+      "status": "PASSED"
+    },
+    {
+      "id": "concurrent-coordinator-refused-by-private-operation-lease",
+      "status": "PASSED"
+    },
+    {
+      "id": "abandoned-pre-backup-coordinator-terminates",
+      "status": "PASSED"
+    },
+    {
+      "id": "injected-post-image-failure-restores-exact-original-configuration",
+      "status": "PASSED"
+    },
+    {
+      "id": "durable-journal-exists-before-crash-JournalDurable",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-restores-configuration-JournalDurable",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-preserves-role-authentication-JournalDurable",
+      "status": "PASSED"
+    },
+    {
+      "id": "durable-journal-exists-before-crash-ImageChanged",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-restores-configuration-ImageChanged",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-preserves-role-authentication-ImageChanged",
+      "status": "PASSED"
+    },
+    {
+      "id": "durable-journal-exists-before-crash-WorkerReady",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-restores-configuration-WorkerReady",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-preserves-role-authentication-WorkerReady",
+      "status": "PASSED"
+    },
+    {
+      "id": "durable-journal-exists-before-crash-RequestDelivered",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-restores-configuration-RequestDelivered",
+      "status": "PASSED"
+    },
+    {
+      "id": "crash-reconciliation-preserves-role-authentication-RequestDelivered",
+      "status": "PASSED"
+    },
+    {
+      "id": "real-single-user-backend-alive-before-worker-hard-crash",
+      "status": "PASSED"
+    },
+    {
+      "id": "worker-hard-crash-does-not-report-success",
+      "status": "PASSED"
+    },
+    {
+      "id": "owned-job-terminates-backend-before-service-image-restoration",
+      "status": "PASSED"
+    },
+    {
+      "id": "hard-worker-crash-preserves-both-passwords",
+      "status": "PASSED"
+    },
+    {
+      "id": "real-service-worker-job-query-and-assignment-allowed-modification-and-termination-denied",
+      "status": "PASSED"
+    },
+    {
+      "id": "service-security-descriptor-unchanged-by-maintenance-and-reconciliation",
+      "status": "PASSED"
+    },
+    {
+      "id": "same-service-account-scm-single-user-rotation-succeeded",
+      "status": "PASSED"
+    },
+    {
+      "id": "both-new-role-passwords-authenticate",
+      "status": "PASSED"
+    },
+    {
+      "id": "both-old-role-passwords-rejected",
+      "status": "PASSED"
+    },
+    {
+      "id": "actual-product-migration-ledger-and-profile-preserved-after-rotation",
+      "status": "PASSED"
+    },
+    {
+      "id": "existing-cluster-data-preserved",
+      "status": "PASSED"
+    },
+    {
+      "id": "runtime-role-privileges-preserved",
+      "status": "PASSED"
+    },
+    {
+      "id": "runtime-cannot-read-role-secrets",
+      "status": "PASSED"
+    },
+    {
+      "id": "fixture-service-command-negative-staged",
+      "status": "PASSED"
+    },
+    {
+      "id": "unexpected-service-command-rejected",
+      "status": "PASSED"
+    },
+    {
+      "id": "abandoned-stdin-terminates-without-rotation",
+      "status": "PASSED"
+    },
+    {
+      "id": "abandoned-request-keeps-service-and-password",
+      "status": "PASSED"
+    },
+    {
+      "id": "arbitrary-request-properties-rejected",
+      "status": "PASSED"
+    },
+    {
+      "id": "missing-role-negative-staged",
+      "status": "PASSED"
+    },
+    {
+      "id": "missing-role-rotation-rejected",
+      "status": "PASSED"
+    },
+    {
+      "id": "failure-diagnostics-redact-passwords",
+      "status": "PASSED"
+    },
+    {
+      "id": "missing-role-transaction-preserves-first-password",
+      "status": "PASSED"
+    },
+    {
+      "id": "cluster-and-hba-acls-unchanged",
+      "status": "PASSED"
+    },
+    {
+      "id": "authentication-rules-unchanged",
+      "status": "PASSED"
+    },
+    {
+      "id": "external-recovery-authority-sentinel-unchanged",
+      "status": "PASSED"
+    },
+    {
+      "id": "migration-ledger-count-negative-staged",
+      "status": "PASSED"
+    },
+    {
+      "id": "actual-product-validator-rejects-missing-ledger-row",
+      "status": "PASSED"
+    }
+  ],
+  "retainedFixture": false,
+  "physicalAcceptance": false
+}

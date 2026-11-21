@@ -1,0 +1,47 @@
+{
+  "allTargetsEffectivelyNotExcluded": true,
+  "checks": [
+    {
+      "attempt": 0,
+      "utc": "2026-11-18T08:55:26.3195073Z",
+      "path": "C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip",
+      "exitCode": 0,
+      "output": "C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip [\\Device\\HarddiskVolume3\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip] is excluded. Exit code is 0."
+    },
+    {
+      "attempt": 0,
+      "utc": "2026-11-18T08:55:26.3623750Z",
+      "path": "C:\\VentioWave2Verify-44271082527-1\\Payload",
+      "exitCode": 0,
+      "output": "C:\\VentioWave2Verify-44271082527-1\\Payload [\\Device\\HarddiskVolume3\\VentioWave2Verify-44271082527-1\\Payload] is excluded. Exit code is 0."
+    },
+    {
+      "attempt": 1,
+      "utc": "2026-11-18T08:55:31.4019114Z",
+      "path": "C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip",
+      "exitCode": 0,
+      "output": "C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip [\\Device\\HarddiskVolume3\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip] is excluded. Exit code is 0."
+    },
+    {
+      "attempt": 1,
+      "utc": "2026-11-18T08:55:31.4331705Z",
+      "path": "C:\\VentioWave2Verify-44271082527-1\\Payload",
+      "exitCode": 0,
+      "output": "C:\\VentioWave2Verify-44271082527-1\\Payload [\\Device\\HarddiskVolume3\\VentioWave2Verify-44271082527-1\\Payload] is excluded. Exit code is 0."
+    },
+    {
+      "attempt": 2,
+      "utc": "2026-11-18T08:55:36.4899045Z",
+      "path": "C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip",
+      "exitCode": 1,
+      "output": "C:\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip [\\Device\\HarddiskVolume3\\VentioWave2Verify-44271082527-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip] is not excluded. Exit code is 1."
+    },
+    {
+      "attempt": 2,
+      "utc": "2026-11-18T08:55:36.5183707Z",
+      "path": "C:\\VentioWave2Verify-44271082527-1\\Payload",
+      "exitCode": 1,
+      "output": "C:\\VentioWave2Verify-44271082527-1\\Payload [\\Device\\HarddiskVolume3\\VentioWave2Verify-44271082527-1\\Payload] is not excluded. Exit code is 1."
+    }
+  ]
+}

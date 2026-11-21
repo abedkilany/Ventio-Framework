@@ -12,7 +12,8 @@ import 'test_support.dart';
 Future<int> _stopServerProcess(Process process) async {
   if (Platform.isWindows) {
     process.stdin.writeln('shutdown');
-    await process.stdin.flush();
+    // EOF lets the fixture finish cancelling its stdin subscription on Windows.
+    await process.stdin.close();
   } else {
     process.kill(ProcessSignal.sigterm);
   }

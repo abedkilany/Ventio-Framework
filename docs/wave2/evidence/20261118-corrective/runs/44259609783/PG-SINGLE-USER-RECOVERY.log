@@ -1,0 +1,9 @@
+POSTGRES_SINGLE_USER_BACKUP_COLLISION_TEST_PASS
+POSTGRES_SINGLE_USER_ROTATION_FAILURE_CLASSIFICATION_TEST_PASS
+POSTGRES_SINGLE_USER_TEST_DATABASE_CREATION_FAILED
+At D:\a\Ventio-Framework\Ventio-Framework\scripts\windows\test-postgres-single-user-recovery.ps1:188 char:5
++     throw 'POSTGRES_SINGLE_USER_TEST_DATABASE_CREATION_FAILED'
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (POSTGRES_SINGLE...CREATION_FAILED:String) [], RuntimeException
+    + FullyQualifiedErrorId : POSTGRES_SINGLE_USER_TEST_DATABASE_CREATION_FAILED
+ 

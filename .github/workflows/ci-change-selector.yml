@@ -1,0 +1,105 @@
+name: Ventio CI Change Selector
+
+on:
+  workflow_call:
+    inputs:
+      event_name:
+        required: true
+        type: string
+      event_action:
+        required: false
+        type: string
+        default: ''
+      head_sha:
+        required: true
+        type: string
+      base_sha:
+        required: false
+        type: string
+        default: ''
+      before_sha:
+        required: false
+        type: string
+        default: ''
+      pr_number:
+        required: false
+        type: number
+        default: 0
+      ref_name:
+        required: false
+        type: string
+        default: ''
+      ci_force_full:
+        required: false
+        type: boolean
+        default: false
+      ci_run_scope:
+        required: false
+        type: string
+        default: ''
+    outputs:
+      run_core_foundation:
+        value: ${{ jobs.select.outputs.run_core_foundation }}
+      run_credential_lifecycle:
+        value: ${{ jobs.select.outputs.run_credential_lifecycle }}
+      run_host_api:
+        value: ${{ jobs.select.outputs.run_host_api }}
+      run_durable_commands:
+        value: ${{ jobs.select.outputs.run_durable_commands }}
+      run_host_engineering_gate:
+        value: ${{ jobs.select.outputs.run_host_engineering_gate }}
+      run_postgres_adapter:
+        value: ${{ jobs.select.outputs.run_postgres_adapter }}
+      run_host_recovery:
+        value: ${{ jobs.select.outputs.run_host_recovery }}
+      run_host_security_investigation:
+        value: ${{ jobs.select.outputs.run_host_security_investigation }}
+      run_native_client:
+        value: ${{ jobs.select.outputs.run_native_client }}
+      run_windows_acceptance_package:
+        value: ${{ jobs.select.outputs.run_windows_acceptance_package }}
+      docs_only:
+        value: ${{ jobs.select.outputs.docs_only }}
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run_core_foundation: ${{ steps.select.outputs.run_core_foundation }}
+      run_credential_lifecycle: ${{ steps.select.outputs.run_credential_lifecycle }}
+      run_host_api: ${{ steps.select.outputs.run_host_api }}
+      run_durable_commands: ${{ steps.select.outputs.run_durable_commands }}
+      run_host_engineering_gate: ${{ steps.select.outputs.run_host_engineering_gate }}
+      run_postgres_adapter: ${{ steps.select.outputs.run_postgres_adapter }}
+      run_host_recovery: ${{ steps.select.outputs.run_host_recovery }}
+      run_host_security_investigation: ${{ steps.select.outputs.run_host_security_investigation }}
+      run_native_client: ${{ steps.select.outputs.run_native_client }}
+      run_windows_acceptance_package: ${{ steps.select.outputs.run_windows_acceptance_package }}
+      docs_only: ${{ steps.select.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: select
+        name: Select affected suites and validate documentation-only updates
+        env:
+          CI_EVENT_NAME: ${{ inputs.event_name }}
+          CI_EVENT_ACTION: ${{ inputs.event_action }}
+          CI_HEAD_SHA: ${{ inputs.head_sha }}
+          CI_BASE_SHA: ${{ inputs.base_sha }}
+          CI_BEFORE_SHA: ${{ inputs.before_sha }}
+          CI_PR_NUMBER: ${{ inputs.pr_number }}
+          CI_REF_NAME: ${{ inputs.ref_name }}
+          CI_FORCE_FULL: ${{ inputs.ci_force_full }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -m unittest discover -s scripts/ci -p test_select_ci_suites.py -v
+          python -m unittest discover -s scripts/ci -p test_ci_workflow_optimization.py -v
+          python scripts/ci/select_ci_suites.py

@@ -38,7 +38,7 @@ function Invoke-BackupOnlyUpgrade([string] $FailureAt, [string] $FailureCodePath
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
     $arguments = @(
-      '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-NoLogo', '-NoProfile', '-NonInteractive',
       '-File', $upgradeScript,
       '-PostgresRoot', $pgRoot,
       '-Port', '55439',

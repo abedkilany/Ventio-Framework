@@ -1,0 +1,411 @@
+name: Isolated Wave 2 B hosted acceptance
+on:
+  workflow_call:
+    inputs:
+      scope:
+        type: string
+        default: all
+      candidate_run_id:
+        type: string
+        default: ''
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows-toolchain:
+    if: inputs.scope == 'windows-toolchain'
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Record installed compiler and CRT before reviewing a changed build input
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = (& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or -not $vs) { throw 'Compiler installation unavailable' }
+          $toolset = (Get-Content (Join-Path $vs 'VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt') -Raw).Trim()
+          $header = Join-Path $vs "VC/Tools/MSVC/$toolset/include/crtversion.h"
+          $record = [ordered]@{sourceCommit=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;imageVersion=$env:ImageVersion;toolset=$toolset;installedToolsets=@(Get-ChildItem (Join-Path $vs 'VC/Tools/MSVC') -Directory | ForEach-Object Name);crtHeaderSha256=(Get-FileHash $header -Algorithm SHA256).Hash.ToLowerInvariant();crtVersionDefines=@(Get-Content $header | Where-Object { $_ -match '^\s*#define\s+_VC_CRT_(MAJOR|MINOR|BUILD|RBUILD)_VERSION\s+' })}
+          $record | ConvertTo-Json -Depth 4 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-toolchain.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-toolchain-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/wave2-toolchain.json
+          if-no-files-found: error
+          retention-days: 30
+  native-evidence:
+    if: inputs.scope == 'native-evidence'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Read existing bounded native diagnostic evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: wave2-native-installation-*
+          path: evidence
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate_run_id }}
+      - name: Emit sanitized native diagnostics without rebuilding
+        shell: python
+        run: |
+          import json, pathlib
+          allowed = {'results.json', 'native-attempt-status.json', 'native-status.json'}
+          files = list(pathlib.Path('evidence').rglob('*.json'))
+          assert len(files) <= 100
+          for path in files:
+              if path.name in allowed or path.name.startswith('native-maintenance-') or path.name.startswith('native-'):
+                  assert path.stat().st_size <= 65536
+                  data = json.loads(path.read_text(encoding='utf-8-sig'))
+                  print(path.name, json.dumps(data, ensure_ascii=True))
+  native-host-installation:
+    if: inputs.scope == 'native-installation'
+    uses: ./.github/workflows/wave2-native-installation.yml
+    permissions:
+      contents: read
+  recovery-admission-engineering:
+    if: inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-signing' || inputs.scope == 'recovery-observer' || inputs.scope == 'recovery-identity'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Enable normal protection on the disposable runner
+        shell: pwsh
+        run: ./scripts/ci/enable-wave2-defender.ps1
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b
+        if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
+        with:
+          sdk: '3.13.7'
+      - name: Compile only the actual migration runner
+        if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
+        working-directory: packages/ventio_postgres
+        shell: pwsh
+        run: |
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Locked migration dependencies failed' }
+          dart compile exe bin/migrate.dart -o "$env:RUNNER_TEMP/observer-migrate.exe"
+          if ($LASTEXITCODE) { throw 'Migration runner compile failed' }
+      - name: Stage pinned PostgreSQL 16.16
+        if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
+        shell: pwsh
+        run: ./scripts/ci/install-postgres-tools.ps1
+      - name: Verify identity and isolation plans without configuration changes
+        if: inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-identity'
+        shell: powershell
+        run: ./scripts/ci/test-recovery-lab-admission.ps1
+      - name: Verify signing and operator plus SYSTEM under AllSigned
+        if: ${{ !cancelled() && (inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-signing') }}
+        shell: powershell
+        run: ./scripts/ci/test-recovery-script-signing.ps1
+      - name: Preserve completed identity and signing evidence before SQL setup
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovery-admission-pre-sql-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/recovery-admission/*
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Exercise real PostgreSQL observer security and initialization
+        if: ${{ !cancelled() && (inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-observer') }}
+        timeout-minutes: 12
+        shell: pwsh
+        run: ./scripts/ci/run-recovery-observer-fixture.ps1
+      - name: Verify affected existing provisioning and installer contracts
+        if: ${{ !cancelled() && (inputs.scope == 'recovery-admission' || inputs.scope == 'recovery-observer') }}
+        shell: powershell
+        run: |
+          & ./scripts/windows/test-host-new-install-state.ps1
+          & ./scripts/windows/test-unified-installer-path-contract.ps1
+      - name: Retain recovery engineering evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovery-admission-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/recovery-admission/*
+            ${{ runner.temp }}/wave2-defender-enablement.json
+          if-no-files-found: error
+          retention-days: 30
+  windows-runtime-regressions:
+    if: inputs.scope == 'windows-runtime' || inputs.scope == 'windows-pg-minor'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Enable normal protection on the disposable VM
+        shell: pwsh
+        run: ./scripts/ci/enable-wave2-defender.ps1
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: inputs.scope == 'windows-runtime'
+        with:
+          dotnet-version: '10.0.404'
+      - name: Stage reviewed PostgreSQL 16.16 archive
+        shell: pwsh
+        run: ./scripts/ci/install-postgres-tools.ps1
+      - name: Execute service broker and PostgreSQL recovery regressions
+        if: inputs.scope == 'windows-runtime'
+        shell: pwsh
+        run: ./scripts/ci/run-wave2-runtime-regressions.ps1
+      - name: Open a real PostgreSQL 16.15 cluster with the pinned 16.16 engine
+        if: inputs.scope == 'windows-pg-minor'
+        shell: powershell
+        run: ./scripts/ci/test-wave2-postgres-minor-update.ps1
+      - name: Retain targeted runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-runtime-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/wave2-runtime/*
+            ${{ runner.temp }}/wave2-defender-enablement.json
+          if-no-files-found: error
+          retention-days: 30
+  windows-candidate:
+    if: inputs.scope == 'all' || inputs.scope == 'windows' || inputs.scope == 'windows-tests' || inputs.scope == 'windows-gui'
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      VENTIO_WAVE2_PREPARED_TESTS: 'yes'
+      VENTIO_PRIVATE_FILES_DIAGNOSTICS: '1'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Establish enabled Defender without image-wide exclusions
+        run: ./scripts/ci/enable-wave2-defender.ps1
+      - name: Stage fresh SHA-256-pinned tools; capture hosted provenance
+        # Configuration is strengthened through normal APIs on this disposable VM.
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        run: ./scripts/ci/stage-wave2-acceptance.ps1
+      - name: Enforce CRT compatibility of the pinned runtime
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        run: ./scripts/ci/assert-wave2-crt.ps1
+      - name: Initialize unexecuted case ledger
+        run: python tests/wave2/run_hosted_tests.py initialize
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.404'
+      - name: Build native private-file runtime for actual Dart fixtures
+        run: ./scripts/ci/prepare-native-private-file-runtime.ps1
+      - name: Build Host before Flutter changes Dart PATH
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        run: |
+          Push-Location packages/ventio_host_api
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Host dependency resolution failed' }
+          Pop-Location
+          Push-Location packages/ventio_postgres
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Migration dependency resolution failed' }
+          Pop-Location
+          ./scripts/ci/install-postgres-tools.ps1
+          $pg = Join-Path $env:RUNNER_TOOL_CACHE 'ventio-postgresql-16.16-1-x64/pgsql/bin'
+          ./scripts/windows/build-host-payload.ps1 -PostgresBinDirectory $pg
+      - uses: subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885 # v2.15.0
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: false
+      - name: Prepare locked native Client dependencies
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        run: |
+          ./scripts/prepare_native_client_platforms.ps1
+          Push-Location packages/ventio_native_client
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Client dependency resolution failed' }
+          Pop-Location
+      - name: Verify Client trust and installed package identity regressions
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        timeout-minutes: 5
+        working-directory: packages/ventio_native_client
+        run: |
+          flutter test --no-pub test/host_tls_probe_test.dart test/host_credentials_test.dart test/client_pairing_test.dart test/host_transport_test.dart test/extension_studio_test.dart test/print_format_renderer_test.dart test/wave2_workspace_store_test.dart test/metadata_customization_editor_test.dart --reporter expanded 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-client-trust-tests.log"
+          if ($LASTEXITCODE) { throw 'Client trust or installed package identity regression failed' }
+      - name: Retain Client trust evidence before release compilation
+        if: always() && inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-client-trust-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wave2-client-trust-tests.log
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Build native Client with bounded compiler parallelism
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        timeout-minutes: 40
+        working-directory: packages/ventio_native_client
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: '2'
+        run: |
+          Write-Output 'CMAKE_BUILD_PARALLEL_LEVEL=2; security protection remains enabled.'
+          flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/wave2-client-build.log"
+          if ($LASTEXITCODE) { throw 'Client release build failed' }
+      - name: Retain Client build diagnostics before packaging
+        if: always() && inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-client-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wave2-client-build.log
+            ${{ runner.temp }}/wave2-client-trust-tests.log
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Build unified installer from this checkout only
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        timeout-minutes: 20
+        run: |
+          ./scripts/windows/build-windows-installer.ps1 -SkipFlutterBuild -VCRedistPath "$env:RUNNER_TEMP/wave2-inputs/vc_redist.x64.exe" -InstallerOutputDirectory "$env:RUNNER_TEMP/wave2-installer"
+      - name: Package complete candidate, manifests, source and security evidence
+        if: inputs.scope != 'windows-tests' && inputs.scope != 'windows-gui'
+        run: ./scripts/ci/package-wave2-acceptance.ps1
+      - name: Resolve only prerequisites for selected Windows test reruns
+        if: inputs.scope == 'windows-tests' || inputs.scope == 'windows-gui'
+        run: |
+          ./scripts/prepare_native_client_platforms.ps1
+          Push-Location packages/ventio_native_client
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Flutter test dependencies failed' }
+          Pop-Location
+          Push-Location packages/ventio_host_api
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE) { throw 'Host fixture dependencies failed' }
+          Pop-Location
+          ./scripts/ci/install-postgres-tools.ps1
+          $flutterRoot = Split-Path -Parent (Split-Path -Parent (Get-Command flutter).Source)
+          "VENTIO_HOST_DART_BIN=$flutterRoot/bin/cache/dart-sdk/bin" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Prepare actual private Windows fixture storage
+        shell: cmd
+        working-directory: packages/ventio_host_api
+        run: |
+          powershell.exe -NoLogo -NoProfile -NonInteractive -File ..\..\scripts\ci\run-windows-dart-test.ps1 --packages=.dart_tool/package_config.json test/prepare_private_test_storage.dart
+      - name: Execute Core, SQLite and Windows integrity cases
+        if: inputs.scope != 'windows-gui'
+        shell: cmd
+        continue-on-error: true
+        run: powershell.exe -NoLogo -NoProfile -NonInteractive -File scripts\ci\run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart ${{ inputs.scope == 'windows-tests' && 'windows-recovery' || 'windows' }}
+      - name: Prepare separate disposable PostgreSQL for desktop integration
+        run: ./scripts/ci/start-postgres-test-instance.ps1
+      - name: Execute native desktop cases against the real fixture
+        shell: cmd
+        continue-on-error: true
+        run: powershell.exe -NoLogo -NoProfile -NonInteractive -File scripts\ci\run-windows-dart-test.ps1 tests/wave2/hosted_test_entry.dart desktop
+      - name: Stop only this runner's disposable PostgreSQL
+        if: always()
+        run: |
+          if ($env:VENTIO_TEST_POSTGRES_DATA_DIRECTORY) { ./scripts/ci/stop-postgres-test-instance.ps1 }
+      - name: Retain immutable candidate and case-level evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wave2-hosted-windows-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wave2-delivery/*
+            ${{ runner.temp }}/wave2-defender-enablement.json
+            ${{ runner.temp }}/wave2-crt-compatibility.json
+            ${{ github.workspace }}/test-results/wave2/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce applicable Windows results
+        if: always()
+        run: python tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'windows-gui' && 'verify-desktop' || inputs.scope == 'windows-tests' && 'verify-windows-recovery' || 'verify-windows' }}
+  linux-integration:
+    if: inputs.scope == 'all' || inputs.scope == 'linux' || inputs.scope == 'gateway-jobs' || inputs.scope == 'core'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1
+        with:
+          sdk: '3.13.7'
+      - name: Initialize unexecuted case ledger
+        run: python3 tests/wave2/run_hosted_tests.py initialize
+      - name: Resolve locked Host dependencies and prepare restricted audit helper
+        run: |
+          set -euo pipefail
+          cd packages/ventio_host_api
+          dart pub get --enforce-lockfile
+          cd ../ventio_postgres
+          dart pub get --enforce-lockfile
+          cd ../..
+          bash scripts/ci/install-ventio-ci-drop-helper.sh
+          docker pull postgres:16.16-bookworm
+          docker tag postgres:16.16-bookworm postgres:16
+      - name: Execute real PostgreSQL, gateway, jobs, upgrade and WB-CI-02 cases
+        continue-on-error: true
+        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'core' && 'core' || (inputs.scope == 'gateway-jobs' && 'gateway-jobs' || 'linux') }}
+      - uses: subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885 # v2.15.0
+        if: inputs.scope != 'gateway-jobs' && inputs.scope != 'core'
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: false
+      - name: Resolve locked Flutter dependencies
+        if: inputs.scope != 'gateway-jobs' && inputs.scope != 'core'
+        working-directory: packages/ventio_native_client
+        run: flutter pub get --enforce-lockfile
+      - name: Execute two-queue offline integration with real PostgreSQL and HTTP
+        if: inputs.scope != 'gateway-jobs' && inputs.scope != 'core'
+        continue-on-error: true
+        run: python3 tests/wave2/run_hosted_tests.py offline
+      - name: Retain case-level integration evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wave2-hosted-linux-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/wave2/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce applicable Linux results
+        if: always()
+        run: python3 tests/wave2/run_hosted_tests.py ${{ inputs.scope == 'core' && 'verify-core' || (inputs.scope == 'gateway-jobs' && 'verify-gateway-jobs' || 'verify-linux') }}
+  protected-candidate-verification:
+    if: inputs.scope == 'verify-candidate' || inputs.scope == 'candidate-evidence'
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Fetch the hosted artifact and verify all package bytes
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: python tests/wave2/download_hosted_candidate.py $env:CANDIDATE_RUN_ID
+      - name: Export complete manifests and verify archived source against Git objects
+        if: inputs.scope == 'candidate-evidence'
+        shell: pwsh
+        run: python tests/wave2/export_candidate_evidence.py
+      - name: Inspect all PE headers including differently named application payloads
+        if: inputs.scope == 'candidate-evidence'
+        shell: pwsh
+        run: ./scripts/ci/review-wave2-pe-content.ps1
+      - name: Enable protection normally, scan, and test fresh Client-only installer rollback
+        if: inputs.scope == 'verify-candidate'
+        shell: pwsh
+        run: ./scripts/ci/verify-wave2-protected-candidate.ps1
+      - name: Retain independent protection and installer evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wave2-${{ inputs.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wave2-protected-evidence/*
+          if-no-files-found: error
+          retention-days: 30

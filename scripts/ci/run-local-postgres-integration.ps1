@@ -26,8 +26,8 @@ if (-not (Test-Path -LiteralPath $postgres -PathType Leaf)) {
     throw 'The supplied PostgreSQL binary directory is incomplete.'
 }
 $version = (& $postgres --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') {
-    throw 'The disposable test runner requires verified PostgreSQL 16.15 binaries.'
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') {
+    throw 'The disposable test runner requires verified PostgreSQL 16.16 binaries.'
 }
 
 $runId = ([DateTime]::UtcNow.ToString('yyyyMMddHHmmss') +

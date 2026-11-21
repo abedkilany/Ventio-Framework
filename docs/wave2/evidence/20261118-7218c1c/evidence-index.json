@@ -1,0 +1,92 @@
+{
+  "candidate": "Ventio-W2B-0.1.21+22-20261118-7218c1c9994a-gh44239309334-a1",
+  "buildCommit": "7218c1c9994acc31cfa86008b92d2950367c6fac",
+  "buildRun": "44239309334",
+  "protectedVerificationRun": "44242987286",
+  "sourceAndEvidenceExportRun": "44244798737",
+  "githubArtifactDigests": {
+    "44239309334": "sha256:e84a5fd77b27363c79f5ea061acd6c23b8c312780986be9836f89e3296cf68bd",
+    "44242987286": "sha256:04bb21a33afab899757a8730cae5eada18149193a00aa642c64f2199ec0c7e96",
+    "44244798737": "sha256:7527ffa02f7838e1e81c45033d5228ba9f8f04f7bd1bd7ad8ea6384f4955990c"
+  },
+  "canonicalCandidateLocalMirror": "NOT_COMPLETED; complete canonical ZIP is on GitHub and was fully verified on independent hosted runners",
+  "artifactRetentionUntil": "2026-12-18; retain the approved binary package before GitHub expiry",
+  "files": [
+    {
+      "name": "build-inputs.json",
+      "sha256": "048ae07c405f6cf34c5787b4b320675184b97d009a01832aaeb0b3346a0800f8"
+    },
+    {
+      "name": "build-metadata.json",
+      "sha256": "759d0992fbd300d2302b54acf0031b865498d09d91d5ab97419c6cbd6dc5f714"
+    },
+    {
+      "name": "CANDIDATE.zip.sha256",
+      "sha256": "02a10b8ce9ad3ba9da024a2c85be6bc133b021308149fb782c5a235ee1ce6a0d"
+    },
+    {
+      "name": "client-CMakeCache.txt",
+      "sha256": "29d8dfa8ec49dac77a2b25604a01f31c578514a33cd90e0200df78be4ea937a3"
+    },
+    {
+      "name": "customization-operator-reproduction.json",
+      "sha256": "a562956963f4b48abf669ab0a67e4ba3d230cd94ba6d1f9ba011a66991da4862"
+    },
+    {
+      "name": "effective-exclusion-checks.json",
+      "sha256": "2a4c047b5889d38324c301082c1a36def1ce3cfa7fcef756505c0ca99a34d49d"
+    },
+    {
+      "name": "executable-signatures.json",
+      "sha256": "92dc3473496d455521708a23641d00dbce7b4a38a89c34d21ef8a76302d1969a"
+    },
+    {
+      "name": "exported-artifact-review.json",
+      "sha256": "52dfa4cf47cfcd349421f059ba39a75cb1060178525810056d5ffdf0fe1824a4"
+    },
+    {
+      "name": "generated-source-overlay.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "host-service-project.assets.json",
+      "sha256": "0521aca3895b72e684e237f61347ec2a35d0a9405e383266a545bae011e47d82"
+    },
+    {
+      "name": "hosted-provenance.json",
+      "sha256": "10eb5847f1f6ab53fc932d8b1688ebdb30c826556ab0628b5c8aa77d5cb633ce"
+    },
+    {
+      "name": "payload-manifest.json",
+      "sha256": "f928a6de9dad120be78d2af5f2184a53a742de8ef3525adb63d3d12d651390f5"
+    },
+    {
+      "name": "protected-verification.json",
+      "sha256": "47d2ec1f3217936ac04e5c22d1a5645b83dc3b0b557b772fa6d1a2e1c3558a31"
+    },
+    {
+      "name": "setup-broker-project.assets.json",
+      "sha256": "8cc74ae9cbc419869e4b8de8d7a28e7111b9a2a62334f98529dac7690e133c98"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "sha256": "9faf4c28d8adf718e309f2f1731c4501563d2ee3c1eded10b28d7ecfdbf7aa99"
+    },
+    {
+      "name": "upstream-inputs.json",
+      "sha256": "0a929be667be5cb457869ce13f91d1d98747792be69b48aac7c3790ea612009b"
+    },
+    {
+      "name": "verified-candidate-input.json",
+      "sha256": "c5a27b4f67d46cd8d9c9c110614fc44542691035a05342acf96236344f6d0f1b"
+    },
+    {
+      "name": "wave2-crt-compatibility.json",
+      "sha256": "370a5616cc1b10068520f0ee3afcd146bc26324aba6df9bfebb010f48a3c41a1"
+    },
+    {
+      "name": "wave2-defender-enablement.json",
+      "sha256": "8566204e1530282c4a77beb950e5fede9b71360030f6fea99df285472a1d01ad"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "candidateRunId": "44267441630",
+  "candidateCommit": "50d4d2bb41891d8d598d9e6f2408773411dc97b1",
+  "artifactId": 14411753686,
+  "githubArtifactSha256": "1a04f1c12dfa84a4eb370ca6d3de862f3766e41b18af223266015224fbe533ea",
+  "zipSha256": "2acbf5bf37698a0876a9a78b5eb6a8a0e586fbe352f08d05c4b30734cd82b85c",
+  "membersVerified": 1765,
+  "identity": "Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1",
+  "root": "C:\\VentioWave2Verify-44273406077-1",
+  "zip": "C:\\VentioWave2Verify-44273406077-1\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip",
+  "payload": "C:\\VentioWave2Verify-44273406077-1\\Payload",
+  "verificationCommit": "4b905b45a91c805d5562a19c88cc2cc58a06c02c"
+}

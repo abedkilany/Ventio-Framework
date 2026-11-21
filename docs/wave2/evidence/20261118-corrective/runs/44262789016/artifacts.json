@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 14409597706,
+      "node_id": "MDg6QXJ0aWZhY3QxNDQwOTU5NzcwNg==",
+      "name": "wave2-runtime-3bf00486e94a7e5c69d74cc909d00486cec964ea-44262789016-1",
+      "size_in_bytes": 1214,
+      "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14409597706",
+      "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14409597706/zip",
+      "expired": false,
+      "digest": "sha256:fd81dfaea070eec724ae57365143a16d66e2cc9296067f0baa2c02299c74fe14",
+      "created_at": "2026-11-18T08:10:36Z",
+      "updated_at": "2026-11-18T08:10:36Z",
+      "expires_at": "2026-12-18T08:10:35Z",
+      "workflow_run": {
+        "id": 44262789016,
+        "repository_id": 1431395537,
+        "head_repository_id": 1431395537,
+        "head_branch": "feature/wave-2-a",
+        "head_sha": "3bf00486e94a7e5c69d74cc909d00486cec964ea"
+      }
+    }
+  ]
+}

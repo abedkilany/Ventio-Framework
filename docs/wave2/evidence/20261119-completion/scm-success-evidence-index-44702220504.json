@@ -1,0 +1,36 @@
+{
+  "runId": "44702220504",
+  "artifactId": 14613402659,
+  "files": [
+    {
+      "path": "scm-success-runtime-results-7a378ba.json",
+      "bytes": 629,
+      "sha256": "49e6fbec3197fa271030d6ae430ee52029d17624a0f65799286080035620e9ec"
+    },
+    {
+      "path": "scm-success-maintenance-cases-7a378ba.json",
+      "bytes": 5518,
+      "sha256": "611819d78b6abcf927b3cf25b43cc9d42306605422931f8a87b67f340b52c021"
+    },
+    {
+      "path": "scm-success-worker-job-rights-7a378ba.json",
+      "bytes": 180,
+      "sha256": "39123839a78b5c2416d3a3531309c9f88bf56a55fba2299733816e880daece2b"
+    },
+    {
+      "path": "scm-success-transport-verification-44702220504.json",
+      "bytes": 1675,
+      "sha256": "4e912b64a86576783c61a5901f33ec16bcde331d3dd02b5f787253abca3a9e29"
+    },
+    {
+      "path": "scm-success-defender-44702220504.json",
+      "bytes": 1242,
+      "sha256": "a1b0926c7c32f69f247b46e75d1c006457435db1374add0d8ef480ad3a527326"
+    },
+    {
+      "path": "scm-success-engineering-report-44702220504.json",
+      "bytes": 4048,
+      "sha256": "be65b15ab540482a0b7b8d18b1ca2a9770a8c08d9a63c9309b1b217387320414"
+    }
+  ]
+}

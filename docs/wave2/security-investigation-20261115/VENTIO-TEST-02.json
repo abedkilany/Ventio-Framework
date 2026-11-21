@@ -1,0 +1,720 @@
+{
+  "collectedAtUtc": "2026-11-15T21:19:28.9294979Z",
+  "computer": "VENTIO-TEST-02",
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26300",
+    "BuildNumber": "26300"
+  },
+  "defender": {
+    "AMProductVersion": "4.18.26100.4",
+    "AMEngineVersion": "1.1.26100.4",
+    "AntivirusSignatureVersion": "1.463.313.0",
+    "AntivirusSignatureLastUpdated": "2026-11-15T07:49:58Z",
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "BehaviorMonitorEnabled": true,
+    "IoavProtectionEnabled": true,
+    "NISEnabled": true,
+    "IsTamperProtected": true
+  },
+  "submissionPolicy": {
+    "MAPSReporting": 2,
+    "SubmitSamplesConsent": 1,
+    "DisableBlockAtFirstSeen": false
+  },
+  "detections": [
+    {
+      "DetectionID": "{32473D60-83EB-4EE8-8A22-F2781939E6C9}",
+      "ThreatID": 2147731250,
+      "ActionSuccess": true,
+      "CleaningActionID": 2,
+      "ThreatStatusID": 3,
+      "ThreatStatusErrorCode": 0,
+      "InitialDetectionTime": "2026-11-15T09:59:21.939Z",
+      "LastThreatStatusChangeTime": "2026-11-15T09:59:45.177Z",
+      "RemediationTime": "2026-11-15T09:59:45.177Z",
+      "DetectionSourceTypeID": 3,
+      "CurrentThreatExecutionStatusID": 1,
+      "ProcessName": "C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe",
+      "Resources": [
+        "file:_C:\\Program Files\\Ventio\\host-payload\\ventio_host.exe"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": 1117,
+      "recordId": 1242,
+      "utc": "2026-11-15T09:59:45.1795179Z",
+      "fields": {
+        "Product Name": "Microsoft Defender Antivirus",
+        "Product Version": "4.18.26100.4",
+        "Detection ID": "{32473D60-83EB-4EE8-8A22-F2781939E6C9}",
+        "Detection Time": "2026-11-15T09:59:21.939Z",
+        "Unused": "",
+        "Unused2": "",
+        "Threat ID": "2147731250",
+        "Threat Name": "Trojan:Win32/Bearfoos.A!ml",
+        "Severity ID": "5",
+        "Severity Name": "Severe",
+        "Category ID": "8",
+        "Category Name": "Trojan",
+        "FWLink": "https://go.microsoft.com/fwlink/?linkid=37020&name=Trojan:Win32/Bearfoos.A!ml&threatid=2147731250&enterprise=0",
+        "Status Code": "3",
+        "Status Description": "",
+        "State": "2",
+        "Source ID": "3",
+        "Source Name": "Real-Time Protection",
+        "Process Name": "C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe",
+        "Detection User": "NT SERVICE\\VentioHost",
+        "Unused3": "",
+        "Path": "file:_C:\\Program Files\\Ventio\\host-payload\\ventio_host.exe",
+        "Origin ID": "1",
+        "Origin Name": "Local machine",
+        "Execution ID": "1",
+        "Execution Name": "Suspended",
+        "Type ID": "0",
+        "Type Name": "Concrete",
+        "Pre Execution Status": "3",
+        "Action ID": "2",
+        "Action Name": "Quarantine",
+        "Unused4": "",
+        "Error Code": "0x00000000",
+        "Error Description": "The operation completed successfully. ",
+        "Unused5": "",
+        "Post Clean Status": "0",
+        "Additional Actions ID": "0",
+        "Additional Actions String": "No additional actions required",
+        "Remediation User": "NT AUTHORITY\\SYSTEM",
+        "Unused6": "",
+        "Security intelligence Version": "AV: 1.463.308.0, AS: 1.463.308.0, NIS: 1.463.308.0",
+        "Engine Version": "AM: 1.1.26100.4, NIS: 1.1.26100.4"
+      }
+    },
+    {
+      "id": 1116,
+      "recordId": 1241,
+      "utc": "2026-11-15T09:59:21.9682258Z",
+      "fields": {
+        "Product Name": "Microsoft Defender Antivirus",
+        "Product Version": "4.18.26100.4",
+        "Detection ID": "{32473D60-83EB-4EE8-8A22-F2781939E6C9}",
+        "Detection Time": "2026-11-15T09:59:21.939Z",
+        "Unused": "",
+        "Unused2": "",
+        "Threat ID": "2147731250",
+        "Threat Name": "Trojan:Win32/Bearfoos.A!ml",
+        "Severity ID": "5",
+        "Severity Name": "Severe",
+        "Category ID": "8",
+        "Category Name": "Trojan",
+        "FWLink": "https://go.microsoft.com/fwlink/?linkid=37020&name=Trojan:Win32/Bearfoos.A!ml&threatid=2147731250&enterprise=0",
+        "Status Code": "1",
+        "Status Description": "",
+        "State": "1",
+        "Source ID": "3",
+        "Source Name": "Real-Time Protection",
+        "Process Name": "C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe",
+        "Detection User": "NT SERVICE\\VentioHost",
+        "Unused3": "",
+        "Path": "file:_C:\\Program Files\\Ventio\\host-payload\\ventio_host.exe",
+        "Origin ID": "1",
+        "Origin Name": "Local machine",
+        "Execution ID": "1",
+        "Execution Name": "Suspended",
+        "Type ID": "0",
+        "Type Name": "Concrete",
+        "Pre Execution Status": "0",
+        "Action ID": "9",
+        "Action Name": "Not Applicable",
+        "Unused4": "",
+        "Error Code": "0x00000000",
+        "Error Description": "The operation completed successfully. ",
+        "Unused5": "",
+        "Post Clean Status": "0",
+        "Additional Actions ID": "0",
+        "Additional Actions String": "No additional actions required",
+        "Remediation User": "",
+        "Unused6": "",
+        "Security intelligence Version": "AV: 1.463.308.0, AS: 1.463.308.0, NIS: 1.463.308.0",
+        "Engine Version": "AM: 1.1.26100.4, NIS: 1.1.26100.4"
+      }
+    }
+  ],
+  "manifestFiles": [
+    {
+      "path": "migrations/001_records.sql",
+      "expectedSha256": "8ec1d1c4dc9e7d4b9879067b3420254c5158b2bd66bd6fe6be50847d720f8c56",
+      "expectedLength": 636,
+      "present": true
+    },
+    {
+      "path": "migrations/002_command_journal.sql",
+      "expectedSha256": "8938a1df4d2e5b9fbfd26203409f62eb52ebc0dd776b70a60a14a3dd16dc7692",
+      "expectedLength": 413,
+      "present": true
+    },
+    {
+      "path": "migrations/003_audit.sql",
+      "expectedSha256": "71426b05e127f033251a6e8581cec9c7e3c6b1489d7a906288e8827c0759c7fa",
+      "expectedLength": 403,
+      "present": true
+    },
+    {
+      "path": "migrations/004_outbox.sql",
+      "expectedSha256": "1f9a97e14ce1ae532f3ada2246c3ecafc441bd9ab413b968948d940f303610c4",
+      "expectedLength": 399,
+      "present": true
+    },
+    {
+      "path": "migrations/005_outbox_index.sql",
+      "expectedSha256": "d25e73626ef3e95d6d8445a07fc7eeee93d981e0fa1c3037599ed74dba3fbe67",
+      "expectedLength": 127,
+      "present": true
+    },
+    {
+      "path": "migrations/006_identity_users.sql",
+      "expectedSha256": "a257a7620b4aedc2742e6cedec26afd336306d592898164613f434423a1220c0",
+      "expectedLength": 322,
+      "present": true
+    },
+    {
+      "path": "migrations/007_identity_devices.sql",
+      "expectedSha256": "279c6665c82f4846d25f31de36fd33fb0dbfdd4a5e2fe840b0156d66dbe22514",
+      "expectedLength": 440,
+      "present": true
+    },
+    {
+      "path": "migrations/008_identity_credentials.sql",
+      "expectedSha256": "cce276a66efb240f60cb7f1c198ffc9e5dc7d94b8a7c6b01ec9e2a2807868447",
+      "expectedLength": 637,
+      "present": true
+    },
+    {
+      "path": "migrations/009_identity_branches.sql",
+      "expectedSha256": "d542439ce7f9bca89f4a81c70eb69f072cbb7547b3b4612396475e8cd8a800c3",
+      "expectedLength": 330,
+      "present": true
+    },
+    {
+      "path": "migrations/010_identity_grants.sql",
+      "expectedSha256": "b03e2e7f9194acc00cc53b1cb65e923455abe9a13833513698e690e41c4f4cf2",
+      "expectedLength": 547,
+      "present": true
+    },
+    {
+      "path": "migrations/011_identity_audit.sql",
+      "expectedSha256": "63a6453bd708b469780ea591a75b007c556e6ab32bd921d9a5e9e47f010d34f5",
+      "expectedLength": 354,
+      "present": true
+    },
+    {
+      "path": "migrations/012_credential_scopes.sql",
+      "expectedSha256": "81a55e735c8d41966a1a8f60819d7cc3ad7156735496680d74b04ef2add04063",
+      "expectedLength": 149,
+      "present": true
+    },
+    {
+      "path": "migrations/013_extension_packages.sql",
+      "expectedSha256": "bde6043a9f3688d4df5b58af4e2be61b30c8b3d7920818075bcf7d910406c579",
+      "expectedLength": 1762,
+      "present": true
+    },
+    {
+      "path": "migrations/014_extension_package_events.sql",
+      "expectedSha256": "a43172acb1f3de4aca7eed1556beb39397a3f4a3d6148c6c0530802a6a15b86b",
+      "expectedLength": 948,
+      "present": true
+    },
+    {
+      "path": "migrations/015_scope_cursor_index.sql",
+      "expectedSha256": "5d5424d4aba22dd634fe41c764210adfd5ed88ee452cc92dca98ca0043b03f7d",
+      "expectedLength": 1174,
+      "present": true
+    },
+    {
+      "path": "migrations/016_module_scoped_records.sql",
+      "expectedSha256": "e9bdc7925d5d173f9ef6cb5c9ae2f54ee68f500b858af1b28784760b96b385a6",
+      "expectedLength": 799,
+      "present": true
+    },
+    {
+      "path": "migrations/017_identity_roles.sql",
+      "expectedSha256": "78782cc70943f085996061524cb0fac53f24e5633ccdc1c046c36bb8c9ae1260",
+      "expectedLength": 394,
+      "present": true
+    },
+    {
+      "path": "migrations/018_identity_role_permissions.sql",
+      "expectedSha256": "fe282378b5bbd8ff8e5a238d31966073b1f9ba5ad042c5e1133f9b5466831e85",
+      "expectedLength": 346,
+      "present": true
+    },
+    {
+      "path": "migrations/019_identity_role_assignments.sql",
+      "expectedSha256": "1e0c85b7e983d1e95174f08d7033b60068a99123fd050c12fa0253accffc81d3",
+      "expectedLength": 570,
+      "present": true
+    },
+    {
+      "path": "migrations/020_approved_extension_registry.sql",
+      "expectedSha256": "f624467ddcc95234fc072a4257a14d5e52eae39bb133928996dc6d3e56549985",
+      "expectedLength": 152,
+      "present": true
+    },
+    {
+      "path": "migrations/021_extension_update_compatibility.sql",
+      "expectedSha256": "197f1f42fd80dffebf1acff0d0a4b763180008a99abb07e321a2ea1d9459bc2a",
+      "expectedLength": 17309,
+      "present": true
+    },
+    {
+      "path": "migrations/022_record_data_gin_index.sql",
+      "expectedSha256": "ebca574fc7a265182c12e2964d8316a0a1ad151d13f85cb9c7282d1c95bf0dce",
+      "expectedLength": 131,
+      "present": true
+    },
+    {
+      "path": "migrations/023_governed_document_state.sql",
+      "expectedSha256": "50d4f8f647b0497cd2d8ef862182753f1b37d42cac12d5e2ead0617c2a207fa5",
+      "expectedLength": 202,
+      "present": true
+    },
+    {
+      "path": "migrations/024_document_number_series.sql",
+      "expectedSha256": "9d56dfd8e131ee78a01f6483e2ccfec9b661928511f4d701084cc81d2ad7c3c7",
+      "expectedLength": 713,
+      "present": true
+    },
+    {
+      "path": "migrations/025_identity_audit_scope_index.sql",
+      "expectedSha256": "83edec696e8123faaba066105b71167e8273c0b7ecabbb0f08317ce55ac2ffa3",
+      "expectedLength": 367,
+      "present": true
+    },
+    {
+      "path": "migrations/026_identity_pairing.sql",
+      "expectedSha256": "137ddd18dbff5aaba19584df430ea0fcbc12fd3c81b23238a1edec64aa67383e",
+      "expectedLength": 259,
+      "present": true
+    },
+    {
+      "path": "migrations/027_identity_pairings.sql",
+      "expectedSha256": "4e2c3f9d9c68a664384774c41438ad1827bd2cd66597f80beea6b4305457d578",
+      "expectedLength": 1556,
+      "present": true
+    },
+    {
+      "path": "migrations/028_identity_pairing_rate_index.sql",
+      "expectedSha256": "9660f2cab04217561c3accf2479ad0b86129ff8d7b689d359d5b0dbdada66ec5",
+      "expectedLength": 164,
+      "present": true
+    },
+    {
+      "path": "migrations/029_identity_device_activity.sql",
+      "expectedSha256": "259613973bbaf15a3f060b20b894152bbf28e6ffaf4dd7878069a01befb7cc2f",
+      "expectedLength": 412,
+      "present": true
+    },
+    {
+      "path": "migrations/030_identity_user_enable.sql",
+      "expectedSha256": "a540baddc06cc358de9ec9a0ecfa20025abcf244ee4102a84be9144ceb07078c",
+      "expectedLength": 243,
+      "present": true
+    },
+    {
+      "path": "migrations/031_identity_credential_reissues.sql",
+      "expectedSha256": "5587c8f25b45231aea20bbfec13d1071828a9b92c943050c7e373d1cedde8a4e",
+      "expectedLength": 1335,
+      "present": true
+    },
+    {
+      "path": "migrations/032_identity_credential_reissue_pending.sql",
+      "expectedSha256": "ba8028e3d640d707ddc348bcbf627665865fea67dd210f721b17b4cbfdf61cb0",
+      "expectedLength": 169,
+      "present": true
+    },
+    {
+      "path": "migrations/033_host_schema_upgrade_receipts.sql",
+      "expectedSha256": "acda7fa3df9ce6dc2cdf644b9200b9b234f5e209f0f36aa76e874a22ce354b54",
+      "expectedLength": 1000,
+      "present": true
+    },
+    {
+      "path": "migrations/034_extension_package_rejection.sql",
+      "expectedSha256": "f556525cb7d9da92c894830e47380120891b686cd74ef78cb693aad8fcc7d9c7",
+      "expectedLength": 1823,
+      "present": true
+    },
+    {
+      "path": "migrations/035_scoped_extension_approval.sql",
+      "expectedSha256": "38278fcbea262c2217a34eab1fd64309bbffef3bcc522ce59ad845503de9aed3",
+      "expectedLength": 17625,
+      "present": true
+    },
+    {
+      "path": "migrations/036_scoped_extension_runtime.sql",
+      "expectedSha256": "dcb945745918e696877119f585ae702206b0c7340e7d306f9c252495de40c1c9",
+      "expectedLength": 32549,
+      "present": true
+    },
+    {
+      "path": "migrations/037_wave2_platform.sql",
+      "expectedSha256": "fdc35baf0ca5e3abd5773283fd791366f9c64aa2894fac13637fe5b9dc033b45",
+      "expectedLength": 3725,
+      "present": true
+    },
+    {
+      "path": "migrations/038_wave2_administration.sql",
+      "expectedSha256": "2ae9a53be2333b16889a526876156e8fdf8e777180f6a5c2b96dbf1f8f76ef81",
+      "expectedLength": 5107,
+      "present": true
+    },
+    {
+      "path": "migrations/039_wave2_operation_execution.sql",
+      "expectedSha256": "6f925cc861beb211daa260ce669d62055b60c330247f4a69062188561d080c5f",
+      "expectedLength": 679,
+      "present": true
+    },
+    {
+      "path": "migrations/040_wave2_job_archival.sql",
+      "expectedSha256": "28f8bed05917636c8c34cf1387a7d428f95d09c78472830b22fd437fdbbf5fbe",
+      "expectedLength": 842,
+      "present": true
+    },
+    {
+      "path": "postgresql/bin/createdb.exe",
+      "expectedSha256": "bef1cd7b9ecca3899f99fdf0120b7a5f4c0f9775a67f743b5c6c2f48fca53110",
+      "expectedLength": 133120,
+      "present": true
+    },
+    {
+      "path": "postgresql/bin/initdb.exe",
+      "expectedSha256": "cc6373e9d2070f51d7373e49d6b17c95216f3de9797138f1ec70775b3e308aff",
+      "expectedLength": 228352,
+      "present": true
+    },
+    {
+      "path": "postgresql/bin/pg_controldata.exe",
+      "expectedSha256": "1fdf1c883e1cb8b47e43b7d89dcac050c77ae751404c32148a1bd02bbf9d645e",
+      "expectedLength": 101376,
+      "present": true
+    },
+    {
+      "path": "postgresql/bin/pg_ctl.exe",
+      "expectedSha256": "bed9ec9686fdf66b407f55d15be2466365827feb6b343fdb452c2dbcfbcfe0a1",
+      "expectedLength": 124928,
+      "present": true
+    },
+    {
+      "path": "postgresql/bin/pg_isready.exe",
+      "expectedSha256": "89a7a08c3e0de688b8cb4fabf820d1533007a3cab12fe47357954e99c2c6b267",
+      "expectedLength": 128000,
+      "present": true
+    },
+    {
+      "path": "postgresql/bin/postgres.exe",
+      "expectedSha256": "19e73deb1152b3b505f2e1fd579191427f9eb3b3f800754968e7214b24edf31d",
+      "expectedLength": 8687616,
+      "present": true
+    },
+    {
+      "path": "postgresql/bin/psql.exe",
+      "expectedSha256": "baf1e8234f5d6a09fed47a5eb6dfee8919a0be7be5eac2600edf98fe69f2d694",
+      "expectedLength": 623616,
+      "present": true
+    },
+    {
+      "path": "security/administration_change.sql",
+      "expectedSha256": "ec4208329cf70e9f8fe758b9ffa28311e3a7dc51200ed29f1c3c2122f883a28b",
+      "expectedLength": 25623,
+      "present": true
+    },
+    {
+      "path": "security/administration.sql",
+      "expectedSha256": "da37e9c7d33ef96c4a78bbe6f703813dd9f64cba76283b707e8ae2acad112594",
+      "expectedLength": 32624,
+      "present": true
+    },
+    {
+      "path": "security/bootstrap.sql",
+      "expectedSha256": "5378f9ebacff51dba84132055904053b16e49c9b964df5f11d55c81f4e891ff9",
+      "expectedLength": 52558,
+      "present": true
+    },
+    {
+      "path": "security/credential_reissues.sql",
+      "expectedSha256": "6bbdd6af0e68edd511a1dc369f02f9488b09c267f588a599b3b729affc305cc7",
+      "expectedLength": 29297,
+      "present": true
+    },
+    {
+      "path": "security/extensions.sql",
+      "expectedSha256": "11cdd28a565d09d718befcc6d186ec1afb1ccfa9348fc301ff064fc3ac75c0a1",
+      "expectedLength": 32222,
+      "present": true
+    },
+    {
+      "path": "security/pairing_create.sql",
+      "expectedSha256": "92cc60a06beccd025ed4e1ff8b9045826ba6e4cd8941537826eef2236f4e3f2e",
+      "expectedLength": 7850,
+      "present": true
+    },
+    {
+      "path": "security/pairing.sql",
+      "expectedSha256": "3dfd5a8d5f4586f887b3484113fd7359d082ac0eb0d3d2c3d867ccfcfb3dc0b8",
+      "expectedLength": 36911,
+      "present": true
+    },
+    {
+      "path": "security/recovery.sql",
+      "expectedSha256": "e22540dcc2a5595f466a4822d7106ae93c2dc021ce2e7fbe362b1ff16b4deda7",
+      "expectedLength": 18795,
+      "present": true
+    },
+    {
+      "path": "security/runtime_check.sql",
+      "expectedSha256": "a61b69a73f69f1f4dda0098e820165176d65d87277beba566d99990a74437565",
+      "expectedLength": 9711,
+      "present": true
+    },
+    {
+      "path": "security/schema_profile.sql",
+      "expectedSha256": "19a7224316c2dfe66fefa04b54ae75b756d66ed656a46a6b738f364c9363cac6",
+      "expectedLength": 6467,
+      "present": true
+    },
+    {
+      "path": "security/test_logins.sql",
+      "expectedSha256": "a13d35a2223c929f21afc62e53291cf9ac1aabf4aa3dcec13dc2ea9970a6861f",
+      "expectedLength": 1002,
+      "present": true
+    },
+    {
+      "path": "security/wave2_activity.sql",
+      "expectedSha256": "53396da63a8c02ad9d826e51eb3c964ea4b3dac957b9e0554bfe187feeff7f4e",
+      "expectedLength": 11038,
+      "present": true
+    },
+    {
+      "path": "security/wave2_administration.sql",
+      "expectedSha256": "7bcb641763644d2a2dff4c23d0cde9ba33672fa88a9c690a3503d7c49cc3d431",
+      "expectedLength": 16812,
+      "present": true
+    },
+    {
+      "path": "security/wave2_customization_rebase.sql",
+      "expectedSha256": "5565fe793d3153d77fa082d496dd624beae037921838ed792afa7e96341903ec",
+      "expectedLength": 11755,
+      "present": true
+    },
+    {
+      "path": "security/wave2_identity_base.sql",
+      "expectedSha256": "e29d5f39c49747e09b8f96699a014943d7aabcaa561b4bddead86257d8a4b1c5",
+      "expectedLength": 4901,
+      "present": true
+    },
+    {
+      "path": "security/wave2_operations.sql",
+      "expectedSha256": "95f7251ecf4e88bbc68d90580ec4d6b9861889f6c397f1f2a3a76397880b4941",
+      "expectedLength": 14904,
+      "present": true
+    },
+    {
+      "path": "security/wave2_schema_migration.sql",
+      "expectedSha256": "9d2c4b4550eb4c56a5b7386123a3e75c78177d137001d71bbd103356224f4e69",
+      "expectedLength": 18211,
+      "present": true
+    },
+    {
+      "path": "security/wave2_upgrade.sql",
+      "expectedSha256": "b25ae0c8689aaae20bbbee4ce39c27e63f9b429b40bcf4a2b815cf3f31a82c64",
+      "expectedLength": 5328,
+      "present": true
+    },
+    {
+      "path": "security/wave2.sql",
+      "expectedSha256": "a78ed123afa62627c0aa3fc3939358df292efe6bdfe588ecc01d311dc7e62d77",
+      "expectedLength": 35063,
+      "present": true
+    },
+    {
+      "path": "setup/enable-host-lan-listener.ps1",
+      "expectedSha256": "cc48b6bf2e58261c448f7212d2d62fe193b477c5567a992d664726aeeeecfda4",
+      "expectedLength": 30712,
+      "present": true
+    },
+    {
+      "path": "setup/HostBackupIntegrity.psm1",
+      "expectedSha256": "b864d9226b741b7d4613a579df0f17d919ddb1c3b47569b59f8ba42c4123c8ab",
+      "expectedLength": 3464,
+      "present": true
+    },
+    {
+      "path": "setup/HostMigrationCredential.psm1",
+      "expectedSha256": "c30dbb517d532a5f3ad6986ea7d05256fad6f95bad642a56a2a0bec57f777b05",
+      "expectedLength": 9538,
+      "present": true
+    },
+    {
+      "path": "setup/HostOperationStorage.psm1",
+      "expectedSha256": "fd4b40893da5c08df36eada1b052b06608c3edc06eeca84c4014ca2c3e6c012d",
+      "expectedLength": 5023,
+      "present": true
+    },
+    {
+      "path": "setup/HostProductDataRoot.psm1",
+      "expectedSha256": "4fabfb83907b37904db5f0d06d4f8e395b41aa17fc53f25f25b1e7d60ab9d34a",
+      "expectedLength": 2970,
+      "present": true
+    },
+    {
+      "path": "setup/HostServiceRecoveryPolicy.psm1",
+      "expectedSha256": "19145fce26b00676765a9f1b9c1a2f927663969caf3fe5f4fba28663cc02bf69",
+      "expectedLength": 30889,
+      "present": true
+    },
+    {
+      "path": "setup/initialize-host-database.ps1",
+      "expectedSha256": "5b6b968647544ff7214b7748602f754ac2114caee0ef8953b5945928d38fdaaa",
+      "expectedLength": 16343,
+      "present": true
+    },
+    {
+      "path": "setup/manage-host-operations.ps1",
+      "expectedSha256": "3009ff701297d464611b9586cb809ba25b86f5208d31319d68989502c6fcd4aa",
+      "expectedLength": 19900,
+      "present": true
+    },
+    {
+      "path": "setup/provision-host-installation.ps1",
+      "expectedSha256": "3c7ac8b93203c308170610e868f73bb78169f0b195db5ca1d77718c0eac87597",
+      "expectedLength": 27162,
+      "present": true
+    },
+    {
+      "path": "setup/provision-postgres-service.ps1",
+      "expectedSha256": "11ef8bbfedd6c284e5484b05b8e2d4e6ffaeadb56a237164ff118a1ade2ee074",
+      "expectedLength": 26956,
+      "present": true
+    },
+    {
+      "path": "setup/reactivate-retained-host.ps1",
+      "expectedSha256": "6f8a27042b5aa30ce0f482ce9c9c1d78eb8e911c4d6ded03bd47a0513f64fd9f",
+      "expectedLength": 5693,
+      "present": true
+    },
+    {
+      "path": "setup/recover-host-database-credentials.ps1",
+      "expectedSha256": "65725afbc9cbe455ecaaabbf039dde1d8eb3675802435b12e44372725091d6db",
+      "expectedLength": 27326,
+      "present": true
+    },
+    {
+      "path": "setup/register-host-service.ps1",
+      "expectedSha256": "880b84240fdda8ddc7d9565a5c23411ccf69bfec19f8de80890de030504fd79d",
+      "expectedLength": 8474,
+      "present": true
+    },
+    {
+      "path": "setup/remove-host-installation.ps1",
+      "expectedSha256": "88211b0aed1e1fe11f23c5b2098f78cd20ab81c2b6f85557577113a651963aa8",
+      "expectedLength": 33810,
+      "present": true
+    },
+    {
+      "path": "setup/restore-host-upgrade-backup.ps1",
+      "expectedSha256": "c07c92c89ca7390d1b431147d6476bc5813c65faef9fb8222e515ffe15784969",
+      "expectedLength": 12424,
+      "present": true
+    },
+    {
+      "path": "setup/stop-host-services.ps1",
+      "expectedSha256": "38b8976d2d0e01dc4ff28ab26b6c8ea5be24f9547eec57e76ad7d4a40da5e6cd",
+      "expectedLength": 15648,
+      "present": true
+    },
+    {
+      "path": "setup/upgrade-host-database.ps1",
+      "expectedSha256": "c49fb79afd324ac91936d3e90d18927bd2b4e4cb7b9cbfeb3cd763b055b9c53a",
+      "expectedLength": 49944,
+      "present": true
+    },
+    {
+      "path": "setup/write-host-service-config.ps1",
+      "expectedSha256": "1329b79d7aef8bc5a8ed8f63243559eac3d7dbfee38ba53884838c8911c219fe",
+      "expectedLength": 11845,
+      "present": true
+    },
+    {
+      "path": "ventio_host.exe",
+      "expectedSha256": "5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2",
+      "expectedLength": 8806400,
+      "present": false
+    },
+    {
+      "path": "ventio_identity_bootstrap.exe",
+      "expectedSha256": "bda41c1a687fd4ccc9c11318a82a4cf71f7a0fe4385bef1e8922993730d0f35f",
+      "expectedLength": 7622656,
+      "present": true
+    },
+    {
+      "path": "ventio_migrate.exe",
+      "expectedSha256": "a24cba27929ded2d29d4f59b33fd54516256188c981b9d772181fd58b5117156",
+      "expectedLength": 7537664,
+      "present": true
+    },
+    {
+      "path": "ventio_trusted_credential_reissue.exe",
+      "expectedSha256": "fd2e6295ff4a28f8886b92d9dfc57c3c27207b15560b3e4ce260a2c3a072ec83",
+      "expectedLength": 7684096,
+      "present": true
+    },
+    {
+      "path": "ventio_trusted_host_upgrade.exe",
+      "expectedSha256": "64cfae5cc4084942d715772bee8db677c9f73884bf3bf18d2a779391684d8eb8",
+      "expectedLength": 7711232,
+      "present": true
+    },
+    {
+      "path": "ventio_trusted_pairing.exe",
+      "expectedSha256": "3b98f4435de5e149a4da4cfa67fe38fad996899b625ce492ec3bebce713dfeb4",
+      "expectedLength": 7678976,
+      "present": true
+    },
+    {
+      "path": "VentioHostService.exe",
+      "expectedSha256": "bd7399e1bac53314c704cfd333d8fe01068e77c28929d11035270e650d8b277c",
+      "expectedLength": 67637939,
+      "present": true
+    },
+    {
+      "path": "VentioSetupBroker.exe",
+      "expectedSha256": "95d5f5923db491edef15c9dd69c120e8ce87d4901093ab4dddb1412103e987ee",
+      "expectedLength": 67592883,
+      "present": true
+    }
+  ],
+  "quarantineListExitCode": 0,
+  "quarantineList": [
+    "ThreatName = Trojan:Win32/Bearfoos.A!ml\r\n      file:C:\\Program Files\\Ventio\\host-payload\\ventio_host.exe quarantined at 11/15/2026 9:59:44 AM (UTC)\r\n\r\n"
+  ],
+  "services": [
+    {
+      "Name": "VentioHost",
+      "State": "Stopped",
+      "ExitCode": 2,
+      "StartName": "NT SERVICE\\VentioHost",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\""
+    },
+    {
+      "Name": "VentioPostgres",
+      "State": "Running",
+      "ExitCode": 0,
+      "StartName": "NT SERVICE\\VentioPostgres",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w"
+    }
+  ]
+}

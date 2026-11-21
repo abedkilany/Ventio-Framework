@@ -23,9 +23,14 @@
   #error VCRuntimeMinimumVersion must be supplied by build-windows-installer.ps1
 #endif
 
+#ifndef VCRuntimeSha256
+  #error VCRuntimeSha256 must be supplied by the verified build
+#endif
+
 #define AppName "Ventio"
 #define AppPublisher "Ventio Framework"
 #define AppExeName "ventio_native_client.exe"
+#define MaintenanceBrokerSha256 GetSHA256OfFile(HostPayload + "\VentioSetupBroker.exe")
 
 [Setup]
 AppId={{62C74F3A-5420-4E2F-91A3-9178C4E4D8A1}
@@ -63,9 +68,7 @@ Source: "{#HostPayload}\*"; DestDir: "{app}\host-payload"; Flags: ignoreversion 
 Source: "{#VCRedistPath}"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#VCRuntimeHelperPath}"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#VCRuntimeModulePath}"; DestDir: "{tmp}"; Flags: dontcopy
-Source: "{#HostPayload}\setup\stop-host-services.ps1"; Flags: dontcopy
-Source: "{#HostPayload}\setup\HostMigrationCredential.psm1"; Flags: dontcopy
-Source: "{#HostPayload}\setup\HostServiceRecoveryPolicy.psm1"; Flags: dontcopy
+Source: "{#HostPayload}\VentioSetupBroker.exe"; DestName: "VentioSetupMaintenance.exe"; Flags: dontcopy
 
 [Icons]
 Name: "{autoprograms}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
@@ -77,7 +80,9 @@ Filename: "{app}\{#AppExeName}"; Description: "Launch Ventio"; WorkingDir: "{app
 [Code]
 var
   RemoveVentioHostData: Boolean;
-  HostRecoveryHelpersExtracted: Boolean;
+  NativeMaintenanceHelper: String;
+  NativeMaintenanceDirectory: String;
+  HostFilesUpdateStarted: Boolean;
   HostServicesStoppedForUpgrade: Boolean;
   ExistingHostServiceFound: Boolean;
   ExistingPostgresServiceFound: Boolean;
@@ -89,48 +94,49 @@ begin
   Result := VCRuntimeIsReady;
 end;
 
+function IsVCRuntimeSufficient(): Boolean;
+var
+  Installed: Cardinal;
+  VersionText: String;
+  InstalledVersion, MinimumVersion: Int64;
+begin
+  Result := False;
+  if not RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) then exit;
+  if Installed <> 1 then exit;
+  if not RegQueryStringValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Version', VersionText) then exit;
+  VersionText := Trim(VersionText);
+  if (Length(VersionText) > 0) and ((VersionText[1] = 'v') or (VersionText[1] = 'V')) then Delete(VersionText, 1, 1);
+  if not StrToVersion(VersionText, InstalledVersion) then exit;
+  if not StrToVersion('{#VCRuntimeMinimumVersion}', MinimumVersion) then exit;
+  Result := ComparePackedVersion(InstalledVersion, MinimumVersion) >= 0;
+end;
+
 function EnsureVCRuntime(): String;
 var
   ResultCode: Integer;
-  PowerShell: String;
   RuntimeInstaller: String;
-  RuntimeHelper: String;
-  RuntimeModule: String;
-  Parameters: String;
 begin
   Result := '';
-  VCRuntimeIsReady := False;
+  VCRuntimeIsReady := IsVCRuntimeSufficient();
+  if VCRuntimeIsReady then exit;
   ExtractTemporaryFile('vc_redist.x64.exe');
-  ExtractTemporaryFile('ensure-vc-runtime-prerequisite.ps1');
-  ExtractTemporaryFile('vc-runtime-prerequisite.psm1');
-
   RuntimeInstaller := ExpandConstant('{tmp}\vc_redist.x64.exe');
-  RuntimeHelper := ExpandConstant('{tmp}\ensure-vc-runtime-prerequisite.ps1');
-  RuntimeModule := ExpandConstant('{tmp}\vc-runtime-prerequisite.psm1');
   if (not FileExists(RuntimeInstaller)) or
-     (not FileExists(RuntimeHelper)) or
-     (not FileExists(RuntimeModule)) then begin
-    Result := 'Ventio requires the Microsoft Visual C++ x64 Runtime, but its verified offline prerequisite could not be extracted. No Ventio application files or Host services were changed.';
+     (CompareText(GetSHA256OfFile(RuntimeInstaller), '{#VCRuntimeSha256}') <> 0) then begin
+    Result := 'The verified Microsoft Visual C++ x64 prerequisite is unavailable or failed its SHA-256 check. Setup stopped before changing Ventio files or services.';
     exit;
   end;
-
-  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + RuntimeHelper + '" -RuntimeInstallerPath "' + RuntimeInstaller + '" -MinimumVersion "{#VCRuntimeMinimumVersion}"';
-  if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then begin
-    Result := 'Ventio could not start its Microsoft Visual C++ Runtime prerequisite check. No Ventio application files or Host services were changed.';
-    exit;
-  end;
-
-  if ResultCode = 0 then begin
-    VCRuntimeIsReady := True;
+  if not Exec(RuntimeInstaller, '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then begin
+    Result := 'The Microsoft Visual C++ x64 prerequisite could not start. Setup stopped before changing Ventio files or services.';
     exit;
   end;
   if (ResultCode = 3010) or (ResultCode = 1641) then begin
-    Result := 'The Microsoft Visual C++ x64 Runtime was updated and requires a Windows restart. Restart Windows, then run Ventio Setup again. No Ventio application files or Host services were changed.';
+    Result := 'The Microsoft Visual C++ x64 Runtime requires a Windows restart. Restart Windows, then run Ventio Setup again. No Ventio files or services were changed.';
     exit;
   end;
-
-  Result := 'Ventio could not install or verify the Microsoft Visual C++ x64 Runtime. Setup stopped before replacing application files or stopping Host services. No database or Host data was changed.';
+  VCRuntimeIsReady := ((ResultCode = 0) or (ResultCode = 1638)) and IsVCRuntimeSufficient();
+  if not VCRuntimeIsReady then
+    Result := 'The Microsoft Visual C++ x64 Runtime could not be verified after installation. Setup stopped before changing Ventio files or services.';
 end;
 
 function IsSafePreinstallFailureCode(const Code: string): Boolean;
@@ -167,91 +173,94 @@ begin
   end;
 end;
 
+type
+  TNativeSecurityAttributes = record
+    Length: Cardinal;
+    Descriptor: LongWord;
+    InheritHandle: Cardinal;
+  end;
+
+function NativeSecurityDescriptor(Sddl: String; Revision: Cardinal; var Descriptor: LongWord; Size: LongWord): Boolean;
+  external 'ConvertStringSecurityDescriptorToSecurityDescriptorW@advapi32.dll stdcall';
+function NativeCreateDirectory(Path: String; var Attributes: TNativeSecurityAttributes): Boolean;
+  external 'CreateDirectoryW@kernel32.dll stdcall';
+function NativeLocalFree(Memory: LongWord): LongWord;
+  external 'LocalFree@kernel32.dll stdcall';
+function NativeGetFileAttributes(Path: String): Cardinal;
+  external 'GetFileAttributesW@kernel32.dll stdcall';
+function NativeGetTickCount(): Cardinal;
+  external 'GetTickCount@kernel32.dll stdcall';
+
+function EnsureNativeMaintenanceHelper(): Boolean;
+var
+  Descriptor: LongWord;
+  Attributes: TNativeSecurityAttributes;
+  Nonce: String;
+begin
+  Result := False;
+  if NativeMaintenanceHelper <> '' then begin
+    Result := FileExists(NativeMaintenanceHelper) and
+      (CompareText(GetSHA256OfFile(NativeMaintenanceHelper), '{#MaintenanceBrokerSha256}') = 0);
+    exit;
+  end;
+  // Atomic protected creation under the OS-owned Program Files root. Copy from
+  // the extraction cache, then validate the protected destination before Exec.
+  // No executable is launched from a user-writable temporary directory.
+  if (NativeGetFileAttributes(ExpandConstant('{autopf}')) and $400) <> 0 then exit;
+  Nonce := Copy(GetSHA256OfString(ExpandConstant('{tmp}') + IntToStr(NativeGetTickCount())), 1, 32);
+  NativeMaintenanceDirectory := ExpandConstant('{autopf}\Ventio-Setup-') + Nonce;
+  Descriptor := 0;
+  if not NativeSecurityDescriptor('O:BAG:BAD:P(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)', 1, Descriptor, 0) then exit;
+  try
+    Attributes.Length := SizeOf(Attributes);
+    Attributes.Descriptor := Descriptor;
+    Attributes.InheritHandle := 0;
+    if not NativeCreateDirectory(NativeMaintenanceDirectory, Attributes) then exit;
+  finally
+    NativeLocalFree(Descriptor);
+  end;
+  ExtractTemporaryFile('VentioSetupMaintenance.exe');
+  NativeMaintenanceHelper := NativeMaintenanceDirectory + '\VentioSetupBroker.exe';
+  if not FileCopy(ExpandConstant('{tmp}\VentioSetupMaintenance.exe'), NativeMaintenanceHelper, True) then exit;
+  Result := CompareText(GetSHA256OfFile(NativeMaintenanceHelper), '{#MaintenanceBrokerSha256}') = 0;
+  if not Result then NativeMaintenanceHelper := '';
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
-  StopScript: string;
-  PowerShell: string;
-  Parameters: string;
-  HasHostService: Boolean;
-  HasPostgresService: Boolean;
-  FailureCodePath: string;
-  FailureCode: string;
-  FailureStage: string;
-  FailureCodeLines: TArrayOfString;
-  ProcessStarted: Boolean;
 begin
   Result := EnsureVCRuntime();
   if Result <> '' then exit;
-  HasHostService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost');
-  HasPostgresService := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres');
-  ExistingHostServiceFound := HasHostService;
-  ExistingPostgresServiceFound := HasPostgresService;
-  if not HasHostService and not HasPostgresService then exit;
-  ExtractTemporaryFile('stop-host-services.ps1');
-  ExtractTemporaryFile('HostMigrationCredential.psm1');
-  ExtractTemporaryFile('HostServiceRecoveryPolicy.psm1');
-  HostRecoveryHelpersExtracted := True;
-  StopScript := ExpandConstant('{tmp}\stop-host-services.ps1');
-  if not FileExists(StopScript) then begin
-    Result := 'Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_STOP_HELPER_MISSING. Stage: HELPER_EXTRACTION. No application files were replaced.';
+  ExistingHostServiceFound := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost');
+  ExistingPostgresServiceFound := RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres');
+  if not ExistingHostServiceFound and not ExistingPostgresServiceFound then exit;
+  if not EnsureNativeMaintenanceHelper() then begin
+    Result := 'Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_NATIVE_HELPER_INTEGRITY_FAILED. No application files were replaced.';
     exit;
   end;
-  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  FailureCodePath := ExpandConstant('{tmp}\ventio-preinstall-failure.txt');
-  DeleteFile(FailureCodePath);
-  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + StopScript + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -AllowPostgresOnlyRecovery -FailureCodePath "' + FailureCodePath + '"';
-  ResultCode := -1;
-  ProcessStarted := Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  if (not ProcessStarted) or (ResultCode <> 0) then begin
-    FailureCode := '';
-    FailureStage := '';
-    if not ProcessStarted then begin
-      FailureCode := 'HOST_PREINSTALL_POWERSHELL_START_FAILED';
-      FailureStage := 'POWERSHELL_LAUNCH';
-    end else if FileExists(FailureCodePath) and LoadStringsFromFile(FailureCodePath, FailureCodeLines) then begin
-      if (GetArrayLength(FailureCodeLines) > 0) and (Copy(FailureCodeLines[0], 1, 5) = 'Code=') then
-        FailureCode := Copy(FailureCodeLines[0], 6, Length(FailureCodeLines[0]));
-      if (GetArrayLength(FailureCodeLines) > 1) and (Copy(FailureCodeLines[1], 1, 6) = 'Stage=') then
-        FailureStage := Copy(FailureCodeLines[1], 7, Length(FailureCodeLines[1]));
-    end;
-    DeleteFile(FailureCodePath);
-    if not IsSafePreinstallFailureCode(FailureCode) then FailureCode := 'HOST_PREINSTALL_HELPER_FAILED';
-    if not IsSafePreinstallFailureStage(FailureStage) then FailureStage := 'STOP_HOST_SERVICES';
-    Result := 'Ventio pre-install failed safely. Failure code: ' + FailureCode + '. Stage: ' + FailureStage + '. No application files were replaced.';
-  end else begin
-    HostServicesStoppedForUpgrade := True;
+  if not Exec(NativeMaintenanceHelper, '--prepare-installer-upgrade', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+    Result := 'Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_NATIVE_MAINTENANCE_FAILED. Existing services and data require verified repair before retrying. No application files were replaced.';
+    exit;
   end;
+  HostServicesStoppedForUpgrade := True;
 end;
+
 procedure DeinitializeSetup();
 var
   ResultCode: Integer;
-  PowerShell: string;
-  ResumeScript: string;
-  Parameters: string;
+  Operation: String;
 begin
-  if not HostServicesStoppedForUpgrade then exit;
-  try
-    if not HostRecoveryHelpersExtracted then begin
-      ExtractTemporaryFile('stop-host-services.ps1');
-      ExtractTemporaryFile('HostMigrationCredential.psm1');
-      ExtractTemporaryFile('HostServiceRecoveryPolicy.psm1');
-      HostRecoveryHelpersExtracted := True;
-    end;
-    PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-    ResumeScript := ExpandConstant('{tmp}\stop-host-services.ps1');
-    if ExistingHostServiceFound and ExistingPostgresServiceFound and not HostDatabaseUpgradeFailed then
-      Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumeServices'
+  if HostServicesStoppedForUpgrade and (NativeMaintenanceHelper <> '') then begin
+    if not HostFilesUpdateStarted and not HostDatabaseUpgradeFailed then
+      Operation := '--resume-installer-upgrade'
     else
-      Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ResumeScript + '" -ResumePostgresOnly';
-    if ExistingHostServiceFound and ExistingPostgresServiceFound then
-      Parameters := Parameters + ' -RestoreHostFailureActions';
-    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-      Log('HOST_POSTGRES_RESUME_AFTER_FAILED_INSTALL_DID_NOT_COMPLETE');
-    end;
-  except
-    Log('HOST_POSTGRES_RESUME_HELPER_UNAVAILABLE');
+      Operation := '--resume-installer-postgres';
+    if not Exec(NativeMaintenanceHelper, Operation, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+      Log('HOST_NATIVE_RESUME_FAILED_DATA_AND_RECOVERY_RECORDS_PRESERVED');
   end;
+  if NativeMaintenanceHelper <> '' then DeleteFile(NativeMaintenanceHelper);
+  if NativeMaintenanceDirectory <> '' then RemoveDir(NativeMaintenanceDirectory);
 end;
 
 function IsSafeHostLanFailureCode(const Code: string): Boolean;
@@ -308,106 +317,15 @@ end;
 procedure CurStepChanged(CurrentStep: TSetupStep);
 var
   ResultCode: Integer;
-  PowerShell: string;
-  ScriptPath: string;
-  Parameters: string;
-  FailureCodePath: string;
-  FailureCode: string;
-  FailureStage: string;
-  FailureCodeLines: TArrayOfString;
 begin
+  if CurrentStep = ssInstall then HostFilesUpdateStarted := True;
   if (CurrentStep <> ssPostInstall) or not HostServicesStoppedForUpgrade then exit;
-  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
-    ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly -KeepHostRecoveryPolicySuppressed';
-    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-      HostDatabaseUpgradeFailed := True;
-      MsgBox('Ventio updated its application files, but PostgreSQL could not be safely started for the verified Host database upgrade. VentioHost remains stopped; no database migration was attempted.', mbError, MB_OK);
-      exit;
-    end;
-    ScriptPath := ExpandConstant('{app}\host-payload\setup\upgrade-host-database.ps1');
-    if not FileExists(ScriptPath) then begin
-      HostDatabaseUpgradeFailed := True;
-      MsgBox('Ventio updated its application files, but the database upgrade helper is missing. PostgreSQL may run for repair, but the Host service will remain stopped. Restore the verified backup or repair the upgrade payload before starting VentioHost.', mbError, MB_OK);
-      exit;
-    end;
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PostgresRoot "' + ExpandConstant('{app}\host-payload\postgresql') + '" -Apply';
-    FailureCodePath := ExpandConstant('{tmp}\ventio-host-database-upgrade-failure.txt');
-    DeleteFile(FailureCodePath);
-    Parameters := Parameters + ' -FailureCodePath "' + FailureCodePath + '"';
-    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-      HostDatabaseUpgradeFailed := True;
-      FailureCode := '';
-      FailureStage := '';
-      if FileExists(FailureCodePath) and LoadStringsFromFile(FailureCodePath, FailureCodeLines) and
-         (GetArrayLength(FailureCodeLines) > 0) then begin
-        FailureCode := Trim(FailureCodeLines[0]);
-        if GetArrayLength(FailureCodeLines) > 1 then
-          FailureStage := Trim(FailureCodeLines[1]);
-      end;
-      DeleteFile(FailureCodePath);
-      if IsSafeHostDatabaseUpgradeFailureCode(FailureCode) and IsSafeHostDatabaseUpgradeFailureStage(FailureStage) then
-        MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Correct the reported stage before retrying. Error code: ' + FailureCode + '. Stage: ' + Copy(FailureStage, 7, Length(FailureStage)) + '.', mbError, MB_OK)
-      else if IsSafeHostDatabaseUpgradeFailureCode(FailureCode) then
-        MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Correct the reported stage before retrying. Error code: ' + FailureCode + '.', mbError, MB_OK)
-      else
-        MsgBox('Ventio updated its application files, but the Host database upgrade stopped safely. VentioHost remains stopped and the existing database, Recovery Authority, and backups were preserved. Keep any .partial backup for review and do not delete or restore backups based only on this error. Repair the upgrade before retrying.', mbError, MB_OK);
-      exit;
-    end;
-    DeleteFile(FailureCodePath);
-
-    // The Recovery Authority upgrade coordinator starts VentioHost while it
-    // consumes the one-time migration request. Stop it again before the LAN
-    // helper validates the stopped-service precondition and replaces DPAPI
-    // listener configuration.
-    ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly -KeepHostRecoveryPolicySuppressed';
-    if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-      HostDatabaseUpgradeFailed := True;
-      MsgBox('Ventio updated its application files and the Host database upgrade completed, but VentioHost could not be stopped safely before LAN configuration. PostgreSQL will remain available for recovery; no database reset was performed. Error code: HOST_POST_UPGRADE_HOST_STOP_FAILED.', mbError, MB_OK);
-      exit;
-    end;
+  if not Exec(NativeMaintenanceHelper, '--complete-installer-upgrade', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+    HostDatabaseUpgradeFailed := True;
+    MsgBox('Ventio updated its application files, but the guarded native Host upgrade did not complete. Host remains stopped; database, Recovery Authority and backup/recovery records are preserved. Repair the reported upgrade state before starting Host.', mbError, MB_OK);
+    exit;
   end;
-  FailureCodePath := ExpandConstant('{tmp}\ventio-host-lan-failure.txt');
-  DeleteFile(FailureCodePath);
-  if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
-    ScriptPath := ExpandConstant('{app}\host-payload\setup\enable-host-lan-listener.ps1');
-    if not FileExists(ScriptPath) then begin
-      MsgBox('Ventio was updated, but the LAN HTTPS setup helper is missing. The existing Host will be restarted in local-only mode.', mbError, MB_OK);
-      exit;
-    end;
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -RestartServices -FailureCodePath "' + FailureCodePath + '"';
-  end else begin
-    ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
-    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -ResumePostgresOnly';
-  end;
-  if Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then begin
-    if ExistingHostServiceFound and ExistingPostgresServiceFound then begin
-      ScriptPath := ExpandConstant('{app}\host-payload\setup\stop-host-services.ps1');
-      Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '" -RestoreHostFailureActions';
-      if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
-        HostDatabaseUpgradeFailed := True;
-        MsgBox('Ventio completed the Host update but could not verify restoration of the original Windows service recovery policy. The protected recovery record was preserved. Retry Setup as an administrator before relying on automatic service recovery.', mbError, MB_OK);
-        exit;
-      end;
-    end;
-    HostServicesStoppedForUpgrade := False;
-    DeleteFile(FailureCodePath);
-  end else begin
-    FailureCode := '';
-    if ExistingHostServiceFound and ExistingPostgresServiceFound and FileExists(FailureCodePath) then begin
-      if LoadStringsFromFile(FailureCodePath, FailureCodeLines) and
-         (GetArrayLength(FailureCodeLines) > 0) then
-        FailureCode := FailureCodeLines[0];
-    end;
-    DeleteFile(FailureCodePath);
-    FailureCode := Trim(FailureCode);
-    if IsSafeHostLanFailureCode(FailureCode) then
-      MsgBox('Ventio updated its application files, but could not complete Host network setup or service restart. The Host will remain local-only if recovery succeeds. Check that Windows Firewall is enabled and this PC is connected to a Private or authenticated Domain network allowed by local security policy, then retry the update. Public networks are not enabled for Host access. No database reset was performed. Error code: ' + FailureCode + '.', mbError, MB_OK)
-    else
-      MsgBox('Ventio updated its application files, but could not complete Host network setup or service restart. The Host will remain local-only if recovery succeeds. Check that Windows Firewall is enabled and this PC is connected to a Private or authenticated Domain network allowed by local security policy, then retry the update. Public networks are not enabled for Host access. No database reset was performed.', mbError, MB_OK);
-  end;
+  HostServicesStoppedForUpgrade := False;
 end;
 
 function ConfirmHostDataRemoval(var DeleteData: Boolean): Boolean; forward;
@@ -453,6 +371,9 @@ begin
     end;
     exit;
   end;
+  if (not DirExists(ExpandConstant('{commonappdata}\Ventio'))) and
+     (not RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioHost')) and
+     (not RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\VentioPostgres')) then exit;
   RemoveVentioHostData := False;
   if not UninstallSilent and
      (DirExists(ExpandConstant('{commonappdata}\Ventio')) or
@@ -466,7 +387,7 @@ begin
   PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
   FailureCodePath := ExpandConstant('{tmp}\ventio-host-removal-failure.txt');
   DeleteFile(FailureCodePath);
-  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '"';
+  Parameters := '-NoLogo -NoProfile -NonInteractive -File "' + ScriptPath + '" -PayloadDirectory "' + ExpandConstant('{app}\host-payload') + '"';
   if RemoveVentioHostData then Parameters := Parameters + ' -RemoveData';
   Parameters := Parameters + ' -FailureCodePath "' + FailureCodePath + '"';
   if not Exec(PowerShell, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin

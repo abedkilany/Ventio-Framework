@@ -1,0 +1,42 @@
+﻿{
+    "case":  "TEST02-INSTALLED-HOST-COMPONENT-ATTEMPT",
+    "sourceCommit":  "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "runId":  "44619230172",
+    "computer":  "TEST-02",
+    "startedAtUtc":  "2026-11-20T13:37:02.2601201Z",
+    "status":  "BLOCKED",
+    "invocation":  "Shipped native setup broker under the existing authenticated Windows administrator session; no UAC automation or policy override",
+    "scope":  {
+                  "branch":  "w2-branch",
+                  "company":  "w2-company",
+                  "tenant":  "w2-completion-20261120"
+              },
+    "brokerSha256":  "35017da3f3b418df476504310da3e1e41198c2eea1861dc9895aa52b154c22db",
+    "policyBefore":  "Restricted",
+    "operationId":  "b85c4685e02f4dc3aea81ff334e1b285",
+    "nativeExitCode":  null,
+    "nativeStatus":  {
+                         "formatVersion":  1,
+                         "operationId":  "b85c4685e02f4dc3aea81ff334e1b285",
+                         "state":  "failed",
+                         "phase":  "PAYLOAD_VALIDATION",
+                         "failureCode":  "HOST_SETUP_PROVISIONING_FAILED",
+                         "updatedAtUtc":  "2026-11-20T13:37:03.9035281+00:00"
+                     },
+    "services":  [
+
+                 ],
+    "hostDataExists":  false,
+    "postgresDataExists":  false,
+    "scriptSignature":  "NotSigned",
+    "readOnlyFilePolicyProbe":  {
+                                    "exitCode":  1,
+                                    "executionDisabled":  false,
+                                    "policyOverrideUsed":  false,
+                                    "applyRequested":  false,
+                                    "psSecurityException":  false
+                                },
+    "reason":  "NATIVE_COMPONENT_FAILED_REQUIRES_DIAGNOSIS",
+    "policyAfter":  "Restricted",
+    "completedAtUtc":  "2026-11-20T13:37:04.6126262Z"
+}

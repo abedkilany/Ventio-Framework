@@ -12,6 +12,7 @@ Future<void> reconcileQueuedRecords(
 ) async {
   final entries = await queue.list(limit: 1000);
   for (final entry in entries.reversed) {
+    if (!entry.projectToLocalRecords) continue;
     final envelope = entry.envelope;
     final isRecordCommand =
         envelope.type == ExtensionRecordCommand.createType ||

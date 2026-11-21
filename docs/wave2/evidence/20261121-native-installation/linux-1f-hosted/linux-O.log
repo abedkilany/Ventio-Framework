@@ -1,0 +1,8 @@
+PASS W2-O001 [M05] SQL prepares no scheduled operation before an explicit approved policy outcome
+PASS W2-O002 [M05,M09,D09] Operation identity is idempotent and tenant-bound; unauthorized callers cannot prepare
+PASS W2-O003 [M05] SQL approved-policy transition produces one daily offer with stable request identity
+PASS W2-O004 [M05] SQL schedule retry requires known retryable failure backoff and bounded attempt count
+PASS W2-O005 [M05,M02] Changing or disabling policy invalidates old approval instead of silently rearming
+PASS W2-O006 [M05,M09] Trusted outcome inputs are fenced by offer identity exact scope and terminal immutability
+PASS W2-O007 [M09] SQL restore preparation requires a recent successful exact backup plan
+PASS W2-O008 [M05,D09] Expired pending requests and revoked credentials lose executable offers

@@ -1,0 +1,73 @@
+name: Wave 2 native Host installation
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  native-host-installation:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Enable normal Defender protection
+        run: ./scripts/ci/enable-wave2-defender.ps1
+      - name: Stage the existing pinned build tools
+        run: ./scripts/ci/stage-wave2-acceptance.ps1
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.404'
+      - name: Install the verified VC prerequisite
+        run: |
+          $p = Start-Process -FilePath "$env:RUNNER_TEMP/wave2-inputs/vc_redist.x64.exe" -ArgumentList '/install /quiet /norestart' -Wait -PassThru -WindowStyle Hidden
+          if ($p.ExitCode -notin 0,1638,3010) { throw 'VC runtime installation failed' }
+      - name: Resolve pinned dependencies and build actual Host payload
+        run: |
+          foreach ($package in @('packages/ventio_host_api','packages/ventio_postgres')) {
+            Push-Location $package
+            try { dart pub get --enforce-lockfile; if ($LASTEXITCODE) { throw 'Dependency resolution failed' } }
+            finally { Pop-Location }
+          }
+          ./scripts/ci/install-postgres-tools.ps1
+          $pg = Join-Path $env:RUNNER_TOOL_CACHE 'ventio-postgresql-16.16-1-x64/pgsql/bin'
+          ./scripts/windows/build-host-payload.ps1 -PostgresBinDirectory $pg
+      - name: Run broker security regressions
+        run: |
+          dotnet run --project installer/windows/host-service.tests/HostService.Tests.csproj -c Release
+          if ($LASTEXITCODE) { throw 'Host service security tests failed' }
+          dotnet run --project installer/windows/setup-broker.tests/VentioSetupBroker.Tests.csproj -c Release
+          if ($LASTEXITCODE) { throw 'Broker tests failed' }
+      - name: Retain complete test payload from the exact source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-native-payload-${{ github.sha }}-${{ github.run_id }}
+          path: packages/ventio_host_api/build/windows/host-payload/**
+          if-no-files-found: error
+          retention-days: 30
+      - name: Provision real services under Restricted and verify readiness and denials
+        run: ./scripts/ci/test-native-host-installation.ps1
+      - name: Verify actual Dart and native private-file integration
+        if: ${{ !cancelled() }}
+        run: |
+          $env:VENTIO_WINDOWS_PRIVATE_FILE_HELPER = Join-Path (Get-Location) 'packages/ventio_host_api/build/windows/host-payload/VentioHostService.exe'
+          $env:VENTIO_TEST_PRIVATE_ROOT = $env:USERPROFILE
+          $env:VENTIO_PRIVATE_FILES_DIAGNOSTICS = '1'
+          Push-Location packages/ventio_host_api
+          try {
+            powershell.exe -NoLogo -NoProfile -NonInteractive -File ../../scripts/ci/run-windows-dart-test.ps1 run test/private_files_windows.dart
+            if ($LASTEXITCODE) { throw 'Actual Dart/native private-file integration failed' }
+          } finally { Pop-Location }
+      - name: Retain native installation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave2-native-installation-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            test-results/wave2-native-installation/*
+            ${{ runner.temp }}/wave2-defender-enablement.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,49 @@
+name: Sign staged Windows scripts on a clean hosted runner
+on:
+  workflow_call:
+    inputs:
+      unsigned_artifact_name:
+        type: string
+        required: true
+      publisher_thumbprint:
+        type: string
+        required: true
+      timestamp_server:
+        type: string
+        required: true
+    secrets:
+      signing_pfx_base64:
+        required: true
+      signing_pfx_password:
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sign:
+    runs-on: windows-2025
+    environment: wave2-script-signing
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Download only the caller's staged scripts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ${{ inputs.unsigned_artifact_name }}
+          path: ${{ runner.temp }}/ventio-staged-scripts
+      - name: Sign and inventory output copies
+        shell: powershell
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.signing_pfx_base64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.signing_pfx_password }}
+          SIGNING_THUMBPRINT: ${{ inputs.publisher_thumbprint }}
+          SIGNING_TIMESTAMP: ${{ inputs.timestamp_server }}
+        run: ./scripts/ci/sign-staged-windows-scripts.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: signed-${{ inputs.unsigned_artifact_name }}-${{ github.sha }}
+          path: ${{ runner.temp }}/ventio-staged-scripts
+          if-no-files-found: error
+          retention-days: 30

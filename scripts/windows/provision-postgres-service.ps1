@@ -170,7 +170,7 @@ foreach ($name in @('postgres.exe', 'initdb.exe', 'pg_ctl.exe', 'pg_isready.exe'
   }
 }
 $version = (& $postgres --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') {
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') {
   throw 'POSTGRES_VERSION_UNSUPPORTED'
 }
 if ($TestInitDbOnly) {
@@ -217,7 +217,7 @@ if ($TestInitDbOnly) {
     $env:PGPASSWORD = $testPassword
     $result = & (Join-Path $bin 'psql.exe') -h 127.0.0.1 -p $testPort -U ventio_bootstrap -d postgres `
       -v ON_ERROR_STOP=1 -Atc "select current_user || ':' || current_setting('server_version')"
-    if ($LASTEXITCODE -ne 0 -or $result -ne 'ventio_bootstrap:16.15') { throw 'POSTGRES_TEST_AUTHENTICATED_QUERY_FAILED' }
+    if ($LASTEXITCODE -ne 0 -or $result -ne 'ventio_bootstrap:16.16') { throw 'POSTGRES_TEST_AUTHENTICATED_QUERY_FAILED' }
     if ($TestMigrations) {
       $databaseInitializer = Join-Path $PSScriptRoot 'initialize-host-database.ps1'
       if (-not (Test-Path -LiteralPath $databaseInitializer)) { throw 'POSTGRES_TEST_DATABASE_INITIALIZER_MISSING' }
@@ -403,7 +403,7 @@ try { $listener.Start() } catch { throw 'POSTGRES_PORT_IN_USE' } finally { $list
 
 if (-not $Apply) {
   Write-Output 'POSTGRES_SERVICE_PLAN_VALID'
-  Write-Output "Pinned version: 16.15; service: $serviceName; account: $serviceAccount; start: automatic; listener: 127.0.0.1:$Port."
+  Write-Output "Pinned version: 16.16; service: $serviceName; account: $serviceAccount; start: automatic; listener: 127.0.0.1:$Port."
   Write-Output "Data directory: $dataDirectory. Existing PostgreSQL services and non-empty data directories are never changed."
   Write-Output 'Plan only; no files, services, accounts, firewall rules, or registry values were changed.'
   return
@@ -483,7 +483,7 @@ try {
   }
   if (-not $ready) { throw 'POSTGRES_READINESS_FAILED' }
   Write-Output 'POSTGRES_SERVICE_PROVISIONED'
-  Write-Output "PostgreSQL 16.15 is ready on 127.0.0.1:$Port; service recovery is configured."
+  Write-Output "PostgreSQL 16.16 is ready on 127.0.0.1:$Port; service recovery is configured."
   Write-Output 'POSTGRES_DATA_PRESERVED_FOR_REPAIR'
   Write-Output 'Host database migrations, application role provisioning, and Host service startup are separate next steps.'
 }

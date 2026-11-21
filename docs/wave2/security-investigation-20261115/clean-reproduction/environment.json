@@ -1,0 +1,33 @@
+{
+  "workflowCommit": "c47dc6a4a493389589e7669d8dd78078f478f6b4",
+  "sourceCommit": "fb341a78eca1bb897e2ce09f1271dae39bbd7d11",
+  "sourceTree": "9fcf6b32add93e68a70212bd45b3db155d5cb15a",
+  "sdk": "Dart SDK version: 3.13.7 (stable) (Thu Oct 22 14:28:57 2026 -0700) on \"windows_x64\"",
+  "runnerImage": "20261103.298.1",
+  "os": "Microsoft Windows NT 10.0.26100.0",
+  "defenderBefore": {
+    "AMProductVersion": "4.18.26100.4",
+    "AMEngineVersion": "1.1.26100.4",
+    "AntivirusSignatureVersion": "1.463.317.0",
+    "AntivirusSignatureLastUpdated": "2026-11-15T13:40:02+00:00",
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": false,
+    "AMServiceEnabled": true
+  },
+  "samplePolicy": {
+    "SubmitSamplesConsent": 2,
+    "MAPSReporting": 0
+  },
+  "sdkFiles": [
+    {
+      "name": "dart.exe",
+      "length": 5391360,
+      "sha256": "DBC2DA722F24A786DAA23C053EF61F04E52D6675C43F572BF36F4289971E6D46"
+    },
+    {
+      "name": "dartaotruntime.exe",
+      "length": 5348864,
+      "sha256": "571488E253924B2D6EC010D3A87D59372C3A9B09C06792A6F7CA80A1E4AA0C77"
+    }
+  ]
+}

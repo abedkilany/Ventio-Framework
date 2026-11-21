@@ -1,0 +1,7 @@
+RECOVERY_OBSERVER_HBA_ACL_PRESERVATION_FAILED
+At D:\a\Ventio-Framework\Ventio-Framework\scripts\windows\RecoveryLabObserver.psm1:84 char:75
++ ... ginalAcl.Sddl){throw 'RECOVERY_OBSERVER_HBA_ACL_PRESERVATION_FAILED'}
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (RECOVERY_OBSERV...ERVATION_FAILED:String) [], RuntimeException
+    + FullyQualifiedErrorId : RECOVERY_OBSERVER_HBA_ACL_PRESERVATION_FAILED
+ 

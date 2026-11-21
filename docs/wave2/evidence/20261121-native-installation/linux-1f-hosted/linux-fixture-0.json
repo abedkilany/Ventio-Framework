@@ -1,0 +1,8 @@
+{
+  "container": "0563d7fb33a9a6ca656d6a8765b3bef47a951065bcee62281551b1d6f1570d5e",
+  "image": [
+    "postgres@sha256:ce3efec6bc404f6b15ebf5d9bed6b45a9d4655aea238d7dacc3467ccb05a1175"
+  ],
+  "version": "postgres (PostgreSQL) 16.16 (Debian 16.16-1.pgdg12+1)",
+  "port": "32768"
+}

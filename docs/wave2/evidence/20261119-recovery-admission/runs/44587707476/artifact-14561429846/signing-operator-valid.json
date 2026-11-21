@@ -1,0 +1,28 @@
+{
+    "scopes":  [
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "MachinePolicy"
+                   },
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "UserPolicy"
+                   },
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "Process"
+                   },
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "CurrentUser"
+                   },
+                   {
+                       "policy":  "AllSigned",
+                       "scope":  "LocalMachine"
+                   }
+               ],
+    "sid":  "S-1-5-21-3289802278-1561746829-1498425070-500",
+    "policy":  "AllSigned",
+    "version":  "5.1.26100.33648",
+    "value":  "signed-probe-ran"
+}

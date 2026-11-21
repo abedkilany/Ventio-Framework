@@ -1,0 +1,11 @@
+Host service startup tests passed: readiness, pre-readiness process exit, bootstrap state, stop during bootstrap, and successful bootstrap completion.
+Host service configuration tests passed: safe defaults, setting allowlist, identity-admin credential rejection, invalid port, TLS path, external TLS requirement, and broad ACL rejection.
+HOST_LAN_CERTIFICATE_READY 3DDA33439DFFB442D2F7893A836557851CB921F94D8D1D7A60DC56BACCCECDDD
+HOST_LAN_CERTIFICATE_READY 3DDA33439DFFB442D2F7893A836557851CB921F94D8D1D7A60DC56BACCCECDDD
+Host LAN certificate tests passed: DNS/IP SAN, stable retry, public endpoint metadata, and restrictive private-key ACL.
+Unhandled exception. System.Security.Principal.IdentityNotMappedException: Some or all identity references could not be translated.
+   at System.Security.Principal.NTAccount.Translate(IdentityReferenceCollection sourceAccounts, Type targetType, Boolean forceSuccess)
+   at System.Security.Principal.NTAccount.Translate(Type targetType)
+   at Program.<<Main>$>g__TestLanCertificateServiceOwnerProvisioning|0_3() in D:\a\Ventio-Framework\Ventio-Framework\installer\windows\host-service.tests\Program.cs:line 253
+   at Program.<Main>$(String[] args) in D:\a\Ventio-Framework\Ventio-Framework\installer\windows\host-service.tests\Program.cs:line 124
+   at Program.<Main>(String[] args)

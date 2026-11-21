@@ -1,0 +1,1465 @@
+[
+  {
+    "path": "Ventio-Setup-0.1.21.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "                    ",
+    "sha256": "99e2cf73e4964dc3542e72e66d7ed593022aba89a8ece8e973c2ab5fd1c90a99"
+  },
+  {
+    "path": "Client/dartjni.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "e45e8eec94c9af128087d44ff342e1973874fd5531f5e127f4a1ab9ff5213d52"
+  },
+  {
+    "path": "Client/flutter_secure_storage_windows_plugin.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "4a22e94503aaa61a3236aacb5258362c8c977c1702c55be34554ceac18268f8a"
+  },
+  {
+    "path": "Client/flutter_windows.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "a147927018fcc1a843fb3938ead58838d2e185ce7d840bc4191a7a1b90c21015"
+  },
+  {
+    "path": "Client/pdfium.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "106.0.5200.0",
+    "sha256": "0c88ebacc0393fd45fc3e7b35e31e72c9e55b633a846a7ecf4085694dba68abd"
+  },
+  {
+    "path": "Client/printing_plugin.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "1d2a47fdf31e719339f157d8c82938e0e883b6b4d56ac40552f3d4092de36d35"
+  },
+  {
+    "path": "Client/sqlite3.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "2bf39f2aadafdc59a90b260f582a8fccebc5b89eb94175fdbaa9148c1e1f084d"
+  },
+  {
+    "path": "Client/ventio_native_client.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "0.1.21+22",
+    "sha256": "929caa604cba6da72c1d1b4f99fbd6cb6a7f74441ac951a58e4a9b57e7e75586"
+  },
+  {
+    "path": "HostPayload/ventio_host.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2"
+  },
+  {
+    "path": "HostPayload/ventio_identity_bootstrap.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "bda41c1a687fd4ccc9c11318a82a4cf71f7a0fe4385bef1e8922993730d0f35f"
+  },
+  {
+    "path": "HostPayload/ventio_migrate.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "a24cba27929ded2d29d4f59b33fd54516256188c981b9d772181fd58b5117156"
+  },
+  {
+    "path": "HostPayload/ventio_trusted_credential_reissue.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "fd2e6295ff4a28f8886b92d9dfc57c3c27207b15560b3e4ce260a2c3a072ec83"
+  },
+  {
+    "path": "HostPayload/ventio_trusted_host_upgrade.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "64cfae5cc4084942d715772bee8db677c9f73884bf3bf18d2a779391684d8eb8"
+  },
+  {
+    "path": "HostPayload/ventio_trusted_pairing.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "3b98f4435de5e149a4da4cfa67fe38fad996899b625ce492ec3bebce713dfeb4"
+  },
+  {
+    "path": "HostPayload/VentioHostService.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.0.0.0",
+    "sha256": "0a25756b6bd80710590ee100dc100dd1ce001956cd452e5675337f0b3d3bb689"
+  },
+  {
+    "path": "HostPayload/VentioSetupBroker.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.0.0.0",
+    "sha256": "375b5d56d3703cfbe4023daa0b9e73c08d6833169b356c23aca76c7a91bd8a78"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/clusterdb.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "830691d43d09de244c3890f0ab7941477ba330e9ffb59cefd5c1f04a1ae975ab"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/createdb.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bef1cd7b9ecca3899f99fdf0120b7a5f4c0f9775a67f743b5c6c2f48fca53110"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/createuser.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d23cd3bd3503032639afe44aeab6506aaceaf690af9f6b481ad5cb709d5a798b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/dropdb.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "e146d98b40c2b7d0fd93cf484f3e1d0a3d2a6e30f965833d3f6d441296cdee95"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/dropuser.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "9eb7a2fc7b0cc011f4b112dde752a50dd61427d03357ff446ffbaaa4e6a8f5d3"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/ecpg.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "0cc2507ac19fb0c162c8836223b82612216286fe84e2059fc9c8169667f672f3"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icudt67.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "5ff9c8026344e886f280ddfa235a1e16e1bcd396e90f9ed600b6f71d9d881ae8"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icuin67.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "23d5914acf071f566df19aaf404373e5c73c9910c370e728976f6202c04cf6c3"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icuio67.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "1ca5221753f930de19041d546ce0f24102455621c71033d4d5cb8151762c9694"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icutu67.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "371c4784b5510b8e80a6b5896567b17bc70e231ea47ee8f614a7ebd3d510960f"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icuuc67.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "2fb4007a1f1089a0807cc1abde5443f5c3b0865ecfd80344b6ad165f1fe53ade"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/initdb.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "cc6373e9d2070f51d7373e49d6b17c95216f3de9797138f1ec70775b3e308aff"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/isolationtester.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "e433d31baf1f6f01454423bd8f99385d76f86fccaf4d3c0e0b2e0af9606aebb9"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libcrypto-3-x64.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.5.9",
+    "sha256": "54c0a88da398559c3daec198d7af8f020ff6fbeead38dbacd97d21ae920c3a00"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libcurl.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "8.22.0",
+    "sha256": "7d756f341091924063baa4f9fd79b5a013125e0d5d876badc1e355310e0857f8"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libecpg_compat.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d1854f91403510e094b35a3a0fd85539e9f15678ce0e9dc1590592b59e78cbd3"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libecpg.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "a896e8b75e01cb87edaffd6af69dcccbd0b4577b8d7de776f4e8a9ff1420e7b2"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libiconv-2.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.15",
+    "sha256": "3ee9786ab3eb8dfd791bdbd17c7e791dbe025734befcded0ee4170e1089f79df"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libintl-9.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "0.19.8",
+    "sha256": "1125ac8dc0c4f5c3ed4712e0d8ad29474099fcb55bb0e563a352ce9d03ef1d78"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/liblz4.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.10.0",
+    "sha256": "096af775241b3bd4b1c3d79c83b103bb8f02da54ec4cd76c5d49eef61a68ad01"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpgtypes.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "964de6df199900039c9c7125ce610dda42a713629fd2581242b0d7f18716d7f4"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq_pipeline.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "59244a24a210a02081d3a4f5b3820e5dcc733c8a289d60aca4567aedf5acafd4"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq_testclient.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "84afb0e8aee329e0c684944b8fe74e0c1119403a84057b5a325e941b297f42fa"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq_uri_regress.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "19c86cf97d445affb6096e2c064d9decd38a529552c730ea3ccb9f32b0a27aca"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "9d4d9bff790a564efb65b5f8bcb15b7fe8e6f481157e9ce65e13d5da2e0306da"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libssl-3-x64.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.5.9",
+    "sha256": "0ac3d836a2fa84dee83bd06a4abfaf8ab7ded689420edc76febc185500e2d6e1"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libwinpthread-1.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1, 0, 0, 0",
+    "sha256": "ffe2d56375bb4e8bdee9037df6befc5016ddd8871d0d85027314dd5792f8fdc9"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libxml2.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "2.15.4",
+    "sha256": "1cb308eb9be9063eda714549bacda541cc711843c3ab45f91ae91d3ae046dba9"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libxslt.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "8226fad0fc6e9b79b14203d4f5263ddec5764c0108aa7c17622dd77f311669a6"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libzstd.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.5.7",
+    "sha256": "287e7e474961e8886a3d961e2c07da647a7ac8d60d97023545f3a3ecf604daba"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/oid2name.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "f3affbcf34113d3297a4f068493193ec3db7bf46b4482cb9bea6c98e53afd00b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_amcheck.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "4cb7ac64b123f2f97bbe03f9d3ffdfd04dad44afae1281b83b2b2313171138ae"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_archivecleanup.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "b88483ca4afcbf5525209d9c07b605ec5014f033aeff08f54008e610f2491c1e"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_basebackup.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "4e6534fc47afd0248d47eaec8d493244e824a5cf3b712aa1cfacbc724d3898e7"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_checksums.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "ee1fd4f652d1e26cb2ef6e236484541a6591917de5b9597eb392066fcd82cb7b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_config.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "17b1e902d76bb8467d456797cb0b88c7438d1d34c9e8285f3928ef6e54a63c5e"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_controldata.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1fdf1c883e1cb8b47e43b7d89dcac050c77ae751404c32148a1bd02bbf9d645e"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_ctl.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bed9ec9686fdf66b407f55d15be2466365827feb6b343fdb452c2dbcfbcfe0a1"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_dump.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "6b48f617851d0f5daaaf9162f6dc3bb76c901b7da7b73706e535b5e3094170c3"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_dumpall.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "e6bfe647108454fb55e88198e52aa378d3ae96140a4a96315528348a2682f422"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_isolation_regress.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "e74b50ad6484cde26b6d3c7863f0590d2d466a661b0a39f52000f1e31a983499"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_isready.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "89a7a08c3e0de688b8cb4fabf820d1533007a3cab12fe47357954e99c2c6b267"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_receivewal.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "0ce87168f6442374d65352d2916dfd838b949b5082188109955bb68ee032c956"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_recvlogical.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d9055fcc29241215b5b6355ec1ede627d7c23286db953110a75df0cc82797b58"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_regress_ecpg.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "38565190c96fc40da046055acfc36cac5f2f674882f94499de2bd557d0653f17"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_regress.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "c7bed55862b723d6fbc8d589abc7b79f412e139ab08840204df15c1353b22bc0"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_resetwal.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "79995f4c10ed4222d09005d2da1d197fe8d91ac1bbb66566c54e7ca088c5d867"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_restore.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "09c7d1ee7c4321735c49580de10d2df41ebc5794abaf5941f88eb167c5a94248"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_rewind.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1ce08e61a5bbfa3c23331206003b440f38de0f7353c4181b2145505307e907da"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_test_fsync.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "42338e6b34110b316e2c0791d5bb136206eb3c7699067cb30c34001a76afc993"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_test_timing.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "33c10639e96fb9c28a8412152bbf2b26b93177514324e326325ab4d7ad28d311"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_upgrade.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "da3c96c80fc129a77aac0c9120740758c09d248d1797003f7ade91cf85012d32"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_verifybackup.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "622ebfedf605ef792645434829d7abd604ee8d97447891991964eafd8462d0a7"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_waldump.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bae0f994f3576efe6c8af903cb4f6be396e6b9efbe35d04061638d72a279d6c0"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pgbench.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "cf1951ee27e9637913e3ca59a4e3bb14a08429a490e802cbf2bc5c8c49bcc269"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/postgres.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "19e73deb1152b3b505f2e1fd579191427f9eb3b3f800754968e7214b24edf31d"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/psql.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "baf1e8234f5d6a09fed47a5eb6dfee8919a0be7be5eac2600edf98fe69f2d694"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/reindexdb.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1a351e40a4be4b6b34f49659d2383a3d69022039c7bc0a9480274e8eb8db35f9"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/test_cloexec.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "5e967192a3c89fb05cbc761175859914a3101202de94dad2a6b778f456507892"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/testplug.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "d1b10395868a004f6ae4700159ba89992a65147efaca63218cd5fb084b32303a"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/vacuumdb.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "5d4bad1259e1a1d00ac1b584fd60d7c3615a73923bdee0afdc431991dd3acb0d"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/vacuumlo.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "926612d9a2efefbef856d43fbabc41de14b527034315f42065415d730e3d5cf1"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxbase3211u_net_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "f707ee1d13ed5d3264a6b95dbb6cc4cd79e5d663180a91dca80704b1d97783eb"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxbase3211u_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "cc6b32bb8cbc1ecd798a8e08144671bb0542e75217ee5b0f9a76fab9146b88be"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxbase3211u_xml_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "4c716cb9407ed90331d677b55e82b3e31a16ff6f5adf9493321594d01fa200d3"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3211u_adv_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "e9b0906ec69d7656228f564596ae882a8d68f37b5021f490ebcf2aae289eb742"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3211u_aui_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "ded33cdf2455389eaef3e9c2bd6bca04d3edfbea9e7f53393ee6f8bab2ae124c"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3211u_core_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "d658d50d6820d17ac4de22bd66b93799595d63c7469ca6a1d99f479a838b67b8"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3211u_html_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "74b2e9f9f4b690b554733f1be1e4412c27ea5e0b0a6cd67d05e3895eafb2946e"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3211u_xrc_vc_x64_custom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "3.2.11",
+    "sha256": "24bb563eaed37c5b87d238fab8183eac8f66dbf4c67b06c2b9fa54a1234e020f"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/zic.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "64335dc02d5c870bde4319dd2410848623374942e97d3fcdb680d975030de9a8"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/zlib1.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.3.2",
+    "sha256": "890afa7a17fb66308e0026631070409138b157ef2773c0a41d22a76943f7aedf"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/_int.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "a46c12599aa338ea913a94b023450f8c2ba3ef5a4207a7e12e66ffd47c449e8d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/adminpack.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "ee6383015f8dbb732505cb1e303d286ce9391bf557436c20b455608af69fee6d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/amcheck.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "b96cc186e554f21653188f620aca52e62bfa652cd4777dee1f8571463b329386"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/auth_delay.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1d495fddbe5549bd91385dbd9d7c982d304f1245c72058b1949bf04b4b9f744f"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/auto_explain.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "8fbe83283fab972b06b024eef51e99c30ea1b2653791ff9eb058f285e697f8d2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/autoinc.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "3a2f8feedc0140b45b677bd8ad17e03eee8cea02335b45554b680408b3165e3f"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/basebackup_to_shell.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d395396cecd0700e40fe68f66b28ae7d571caf1a9e9122d63de53dc2c2cab1f6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/basic_archive.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "512b5fa5109fcd51c615eb79080af4c34b6de6bd92c3fee0bd4886118d283f7f"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/bloom.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bda62809a4d05393954998af24aa588c7bc4bc6b275880db651a3fe6b94f9ee1"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/bool_plperl.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "8e29306b88f38a9f5e7927f51c25b6928a4ccbaaf33989e4be5278e07c183b3e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/btree_gin.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "b59d79ef917b37b1d49e3ad8f856042d4684d9c51b8e5af58459f4c752b580af"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/btree_gist.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1ddf558a520c6ad497cbdeec6bef53ed9732dc66078f6d380f640323b3d9e2cb"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/citext.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bcd0a2c954cbc7e48f0e0cd3684745eca5ebc5dc5c881b55642964dccd8d5523"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/cube.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "86e03e22096e4acf845e0fe1d6cf6e99f72fd73dad331212ef741a10dc898f39"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/cyrillic_and_mic.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "ac0fdcd8af43ab359e0a287f343f8d33898a80d0745b453c076b224df1debbf4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dblink.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "eb165f5d8f1340fed10abd1c293516e3dce317786a8f99cc24252af44573f513"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/delay_execution.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "f17ee8a300be3b1f4d0a8f591d81b114304f28ef25dc6d19b446310c021784df"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dict_int.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "8c9ec478e95b20381fa6bb54d4caf0091fa710f3ae6f92ee1322a3cd0ea430fd"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dict_snowball.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "4b1219cf248f8b5e97fb254ac3c50f76660bbe8c37d41ec647e53852494dcf5b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dict_xsyn.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "e5451fa1b64cc111e178fed8e948bf235b1ebf3aa36d7f77a07961cbd86ea864"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dummy_index_am.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "480de7aaecbead6b9beef662667c83efcac49e965d51b4c55967d448465f4594"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dummy_seclabel.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "17542402d32e6bdaa0db45bd295a8c2e5a46506d83a04bc9369de2f1f09276d5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/earthdistance.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "39e142ac59c494178bea6c93d164dc75b05c43026a0dcce365b6bb4b2829e895"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_cn_and_mic.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "2e2a18b1e552a5afa8250da8a1bb5c901b4f3ea2ad51b57082fecbcca496915a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_jp_and_sjis.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "0a41590ecba36944ad79d64f259dd36cc3310a28dc4e454e9f5baee07bbae090"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_kr_and_mic.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "857cd0f475f570b727d2dee86c814a529b8b00f5b6b4ac185bdb6a29cf52fd3e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_tw_and_big5.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "3197ba3378c1f15984c50dc53b3f5ce54022fa20daca67580506fda22d54e1dd"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc2004_sjis2004.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bd117415f921bb510600b8a4c5f9f5ade0a0eeba005cc77152372df067c754ff"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/file_fdw.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "03202b8a276b90567475e3cd6655d3986ac33d96d494abbf7c601055d8f8d33c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/fuzzystrmatch.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "4a30f3bd6ba95261324fbfdbe9f82f9405e95f3a785c6c0c320ed24d6d41a7ba"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/hstore_plperl.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "6dd8d606539f6b4214d6599b93e5d158a06509d5c6375af42dfc8a3591ac044b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/hstore_plpython3.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "9b7e59d21218deeb63cb32b37818ee36e151539f9b3c8a3f136335fe2561c8a4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/hstore.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "23e0170603d5aaf684e9db3fc210075a22f0b5d950d45c5ef52a605c4d2c2e14"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/insert_username.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "cede8a4e1ecc0a8b511ec51155f6b98d214f14b37315dba61b36092ae7c67519"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/isn.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "c5ffa4ea759f7c346935c43118ce2d85c26048cc991fc17ec8c1d630fa9d418a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/jsonb_plperl.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "2b4b05dbc311a02db11f0f1e017a114c9262d44b0fdee52d681ffe597fa2b3cd"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/jsonb_plpython3.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "c4ae418d6f0a7bef0d816c1d443e5551c11a86edc74917d58e5b1248ec2c62b4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/latin_and_mic.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "60f0672a8e4eb8663785887bd559c280760e23e2ca9bee30e8a83d052e15c267"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/latin2_and_win1250.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "a5a58a1c24badef6ef3b225d606fe5857468716dd851228bc054bcc19c6fb5a2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ldap_password_func.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "598c33f43be971f400f8a1c5253802a9f85c57b4259760f0285b05e1548368c5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libecpg_compat.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d1854f91403510e094b35a3a0fd85539e9f15678ce0e9dc1590592b59e78cbd3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libecpg.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "a896e8b75e01cb87edaffd6af69dcccbd0b4577b8d7de776f4e8a9ff1420e7b2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libpgtypes.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "964de6df199900039c9c7125ce610dda42a713629fd2581242b0d7f18716d7f4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libpq.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "9d4d9bff790a564efb65b5f8bcb15b7fe8e6f481157e9ce65e13d5da2e0306da"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libpqwalreceiver.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "ee782d3d0923694c9e081dae75889bc4cd4c4f53432577221b38aeff2f8e0600"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/lo.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1d7694850bb5d4dc2d97cf28d8012443311b15b7c2932cc7f7dfe5424834c4bf"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ltree_plpython3.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d2e59014ad6bbbfe1c51e7297f4f4655fd4994b56738cb59be030fd32932daf7"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ltree.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "2e3f03e1c61f1997c3720e4cf73425a23d22a843356aaec960c46a163cb3e8f8"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/moddatetime.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "ed75574ef16d91de41445f37f96b4d2c333ae30530196eaef84c13ad57461fb4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/old_snapshot.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "9ea1f64b4952ee83663c854861a72de2d6e6f328b739a367129ce60965b4f408"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pageinspect.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "4d737db873579e15fea838cb340d5e285153793a3169f8aec39d4585eda007d3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/passwordcheck.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "6114682b8d2ce530078f117a649893ac98c43be347139c5c4a72a827710c654b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_buffercache.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "de1feffea11ab721cee6cfce02dece4d3c048b4e7dbbecdb0e4aeafff29cba16"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_freespacemap.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "4f7dea82eacf3356b54d8c6ab2a2bacb13f30b16d9c45ba57a0e56d638e2411e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_prewarm.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "91a5d7af0706681e09e97ec5cd6c18c7f2d03939a119580a9d6dfee5d97ab6da"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_stat_statements.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "e550ba835298f98e4a0c1b983b3060c906e1875488bbf9187bf06395f2482cf3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_surgery.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "c71f272b1f2784bb124e49194dbc09f1e90a22a5a9618653f9b47308ddd58043"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_trgm.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "7924e1af0ba5665c0d5dcfd8502132ca3fb8aa19e756b7db6b0442a37bcc2436"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_visibility.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "cbb8a6ab606797809c0be20e2ea4e1b73fdf5ce12ff6cbadb1dc7297f4540989"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_walinspect.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "2fa2484472dad9a9db25c03837f321b5b7a235af4791ed710654b8f72f1c85e6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgcrypto.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "be0bad537580cd4707a8ced5ac2600f46c6215bc015ce596048cd004fd29c25a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgevent.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "5fad1d2048bea9e7e6ecd8ec1d4a6382118abf8d69fd09d47087628311d70bd3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgoutput.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d12d191afd4be963b61eb07aa2ca5104e7ccbd190f11ed5ca366ae520428d0e4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgrowlocks.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "61a9dc52cc47de0d2fe2a67d32633f790a96560a84661e81d3c9616f64288094"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgstattuple.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "5f6113419c205e9a620300d58b9b8081e7501a3709deca45a75e1d6324bb5257"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgxml.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "45eb869a22cd9029213c0c799e2c6f814664bba62347c2d87d5e37e1d92b714e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plperl.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "590dba5384ebb7b3c6eeda44397cc931b16b9ea34efaa2c4adccaf7a4b848422"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plpgsql.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "361e9ade4ac317d6406d6a321b7d481e94c50f052adc6ed8e6aa4da8edd4158a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plpython3.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "0ce2cc927c52f2606e9fddd5c703a216f9184c870964c8c85c75dad3bfa2007e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plsample.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "0816d59b254be388f4bfec21f340c5c8edece428c1a10f6cdc96faf97fa76f5d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pltcl.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "3b6200bbaf0a3c367df436c1ad9e10524f3b9e2636ceea4c9b76b7e164392b97"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plugin_debugger.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "8a3778d3cf6333bcbe9b49c5177f1c25d869c0228002d32466056ab712df49ff"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/postgres_fdw.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "6f648dea43397a5c174a85b6ae79a36f2c21f509c7fddff19d621ee4b7d008cc"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/refint.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "f12312cc226bfeed66cdb8a349655e903a6c61a143df2efa4fa3c2bda710d700"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/regress.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bb52bdf57af13cf72bd6b9c4106e42d31a2273739d34843da3bea273d208c7c8"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/seg.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "25750fc9a3863fa4b0205aded794b87c4c9a728c693f1a6edfb3e22234807d59"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/spgist_name_ops.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1bfbb9e86bd1a23882478833c2bb95d71728f404ba2542078f487c8921161a29"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ssl_passphrase_func.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "2f27ef1f8d6a71cca5f51e3f0533fc09f5d287013bf0d8f4fe161b04ef7fe2b8"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/sslinfo.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "13f36162da6f74bb22481a95b6cad7b37745b9056b594761e9c0bdf86e62e3ed"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/system_stats.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "1a4f64aedca30d54a2963e8a49a5f41d067342554407d8a6347cad41c43f83e5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tablefunc.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "b00e493f51cdf5572335e1b28447ad2e3dfdf2ebfc9fb665d699fdfefd2d7adc"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tcn.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "7860be2f753020bdaa95cb55e6c36825b93afa6ae4b9eca119fa0bb5d5a6f8fd"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_bloomfilter.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "59be7474d0e6785a7c413caf666df6bd1dfdf4b9053e5166a3e91999abda3635"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_copy_callbacks.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "dfd63723c7f19048f99768d0d4a7825599483f6549b45d48fae2ffd54face947"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_custom_rmgrs.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "6044292fac9060a0047c0e32d6aa3f8a2e222947ac9accf07ccb1659f9b933a3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_custom_types.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bd78969575c94f9a1325743db6e8287dd3a537c84e655d281ed6225d355f20c1"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_ddl_deparse.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "e75b1f53d264bdf5fb9ed19c0d659493ecbecc8a314b4fc6a2bb83c82f1f8c9b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_decoding.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "fe038ae6aa189a4a4e3a753f8b8e3f64f53cd2c6c02edc2eca0a067e78bb55ec"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_ginpostinglist.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "0516af2e104193d1215cd45f97b7fee826e763fba78f09f77739180241226a22"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_integerset.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "f175ed9b39e38fdbe8560b979550cded75f786ccfb957fb8454740b55fda67de"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_lfind.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "b361c26a4f36c267008df8b4b087b4061b34960918a4bcd5f756dd3cfb9c3e7e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_oat_hooks.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "75a07ea39812d10576a36e53459b3196ce41e241e44b1676f4b3d3940046c5b8"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_parser.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "54bafec115aa760dc95480774252058efe29959796c6b267e29e75a8a017c15a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_predtest.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "3f94c46b24968bed101c5540c83de673ef507f9fc33abe3b2069c77144d1810d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_rbtree.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "020126e147191e326db4d0c756fab6e88873afc630413efa21bbd5cc4291812e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_regex.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "8cbcd77af8dda9be3fed0b2339743c5a65392450c41caf1c79e98cf640834e61"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_rls_hooks.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "7eae6dae3dd05203b0c328ee1168dd8759a658f3a7c574035d977570e63fc9b2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_shm_mq.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "340a194ec6726e770e8b30a234021a90007017e375618e6681ea923e8c2e5cb1"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_slru.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "4c9d33f86e34320122c11fd1440f40444f3b3cbc300821c4b71987668144183d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tsm_system_rows.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "1ec5785ffbc4b5fe51a66cc78cd25360120feeee39514d89e5a150cbd673e003"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tsm_system_time.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "5ac5eaf96a4640522af70857357f1471ea8ad367a80a8ac21b7a96a54caec172"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/unaccent.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "8581c31b180e91c24c65acd2c2a6b85c14df6113e36f106abfb646e843655fae"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_big5.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "2c8c879505e40fabf329c58e4dc07d8f2adb238a6e71c630df755401dcd2faae"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_cyrillic.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "32ef03c9c102f754155d19cd033382865b70bb73ff0deabc6c96875ab04f16a4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_cn.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "98becd3b440981bf685ee7c603cf082b1016f7c018d61c0bbde49c1bf9f32af0"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_jp.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "8c332558060494a7f8528c22030b3c848d81e8795faa8cefbd5c3774ffbde8d6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_kr.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "ca4c76b7945d6794c5d3432b19822a6670cca27057adab9d077006ab4c171237"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_tw.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "8bbcbad314d35c0b324b391a427192b3ccc2757bffd2065485b0acb4267c7943"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc2004.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "d93e528b15c39472e5e0fef6dcacf80189175bed4d47b0a7f46fdd446818d36a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_gb18030.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "aa404c4443a7cd514b72aad32ee7eaf990d2eddeb511e0e38cd59f8dbbfc7baa"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_gbk.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "beedd9ef16c1dd831f83ef23f310d65fb55cf9779640219f860c464bb05681de"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_iso8859_1.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "ade1e60845c73f609949347c5404124ac95eb01c29880b9632c75ac73baee7f7"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_iso8859.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "bd98dc9be4bde7a0b0be703c09dd36253f0d69deda71f3afd4b93ac938b2d05c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_johab.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "19ae742dc56ad66184963cadd9997b3fcf99bc35d929096aa2488711eb78307b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_sjis.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "3d2e963ca433f601dd1d1c64728336c7b1e17fb715311c03638e2e3fdbf19568"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_sjis2004.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "83dfefa7ca0f70e07f0ffb48b7b48da2ba3d0e542814be029771decd515fe503"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_uhc.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "92ddd5d672ec2981e1e60f02c80f15ac6f696d1ebcb788a64ed6509471141ad5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_win.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "c6a99df599d67ee71f20192625b34994cff5fac6ff609b6a99079b4f615e70bc"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/uuid-ossp.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "fc17711d963b17592deb32b29d15689b2db1632d29363837ef74597af396d8c7"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/worker_spi.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "16.15",
+    "sha256": "47a174bcb4bf9297948666e6d5dc533221d505c34d3fa7e7b3f7d43bfbca5d42"
+  },
+  {
+    "path": "Prerequisites/vc_redist.x64.exe",
+    "status": "Valid",
+    "publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    "fileVersion": "14.51.36247.0",
+    "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c"
+  }
+]

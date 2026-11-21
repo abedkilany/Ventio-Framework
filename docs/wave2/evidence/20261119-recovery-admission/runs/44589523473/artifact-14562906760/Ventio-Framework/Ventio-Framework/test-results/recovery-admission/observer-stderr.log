@@ -1,0 +1,7 @@
+Recovery observer security tests failed
+At D:\a\Ventio-Framework\Ventio-Framework\scripts\ci\test-recovery-lab-observer.ps1:182 char:56
++ ... -eq 'FAILED').Count){throw 'Recovery observer security tests failed'}
++                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Recovery observer security tests failed:String) [], RuntimeException
+    + FullyQualifiedErrorId : Recovery observer security tests failed
+ 

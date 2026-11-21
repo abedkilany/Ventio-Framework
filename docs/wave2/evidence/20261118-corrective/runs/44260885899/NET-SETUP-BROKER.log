@@ -1,0 +1,1 @@
+Host setup broker validation passed: read-only and write-capable ACL rights, fixed new-host operation, scope allowlist, caller SID, GUID operation ID, and arbitrary argument rejection.

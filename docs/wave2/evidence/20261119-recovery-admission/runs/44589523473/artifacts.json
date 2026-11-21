@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 14562906760,
+      "node_id": "MDg6QXJ0aWZhY3QxNDU2MjkwNjc2MA==",
+      "name": "recovery-admission-4ff79a4a4b8e1663164e7d96678617caa0926276-44589523473-1",
+      "size_in_bytes": 4792,
+      "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14562906760",
+      "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14562906760/zip",
+      "expired": false,
+      "digest": "sha256:9e5eedb9e6936d73c35b0952d633e71876656871b3de140cae87afb540e27cd8",
+      "created_at": "2026-11-19T18:40:15Z",
+      "updated_at": "2026-11-19T18:40:15Z",
+      "expires_at": "2026-12-19T18:40:15Z",
+      "workflow_run": {
+        "id": 44589523473,
+        "repository_id": 1431395537,
+        "head_repository_id": 1431395537,
+        "head_branch": "feature/wave-2-a",
+        "head_sha": "4ff79a4a4b8e1663164e7d96678617caa0926276"
+      }
+    }
+  ]
+}

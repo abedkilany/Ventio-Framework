@@ -1,0 +1,66 @@
+{
+  "sourceCommit": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "runId": "44883747805",
+  "cases": [
+    {
+      "id": "NHI001-effective-Restricted-child-policy",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI002-arbitrary-arguments-denied",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI009-requester-SID-mismatch-denied",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI003-native-payload-tampering-denied-before-mutation",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI004-untrusted-payload-write-access-denied",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI014-disposable-network-fixture-admission",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI005-real-native-Host-installation-and-first-administrator",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI006-service-identities-and-private-data-preserved",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI007-new-installation-cannot-overwrite-existing-Host",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI008-firewall-remains-enabled-and-scoped",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI010-untrusted-maintenance-helper-location-denied",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI013-installed-Host-authenticates-protected-bootstrap-and-denies-anonymous",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI011-native-upgrade-maintenance-drains-services",
+      "status": "PASSED"
+    },
+    {
+      "id": "NHI012-native-upgrade-backs-up-and-reconciles-real-Recovery-Authority",
+      "status": "PASSED"
+    }
+  ],
+  "childEffectivePolicy": "Restricted",
+  "executionPoliciesUnchanged": true,
+  "physicalMachinesTouched": false,
+  "installedRecoveryCasesExecuted": false
+}

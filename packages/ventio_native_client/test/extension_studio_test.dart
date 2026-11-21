@@ -2769,7 +2769,19 @@ void main() {
       deviceId: 'device-host',
     );
     await store.saveHostProfile(profile);
-    final bundle = await store.exportBundle(moduleId);
+    // An external publisher may choose a different valid catalog filename.
+    // Designer export regenerates it; Host identity must use the exact import.
+    final published =
+        jsonDecode(jsonEncode((await store.exportBundle(moduleId)).toJson()))
+            as Map<String, dynamic>;
+    (published['manifest'] as Map)['englishCatalog'] =
+        'localization/en.published_host_records.json';
+    final bundle = ExtensionBundle.fromJson(published);
+    await store.installBundle(bundle);
+    expect(
+      canonicalJson((await store.exportBundle(moduleId)).toJson()),
+      isNot(canonicalJson(bundle.toJson())),
+    );
     final digest = sha256
         .convert(utf8.encode(canonicalJson(bundle.toJson())))
         .toString();
