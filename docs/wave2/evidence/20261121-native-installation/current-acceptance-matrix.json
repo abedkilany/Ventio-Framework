@@ -1,6 +1,6 @@
 {
-  "snapshotUtc": "2026-11-22T07:46:00Z",
-  "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+  "snapshotUtc": "2026-11-22T13:09:00Z",
+  "engineeringSource": "89a17a54098e2556c78f6325ed4db77221eee6b2",
   "branch": "feature/wave-2-a",
   "pr": 6,
   "prRequiredState": "DRAFT_UNMERGED",
@@ -28,7 +28,7 @@
       "source": "537449689d815aa92ddd69cf8344b9a0c503fbfa",
       "passed": 86
     },
-    "applicability": "Prior 72 Windows and 86 Linux stable results are recorded at their exact revisions. 17fa changes native Host upgrade inventory/cleanup and Inno postinstall failure handling, so those changed paths require current-source hosted and installed reruns; the older counts are not final-head acceptance.",
+    "applicability": "Prior 72 Windows and 86 Linux stable results are recorded at their exact revisions. Source 89a17a5 additionally introduces exact-hash retirement of nine verified PostgreSQL 16.15 residue files after a physical 67e upgrade denial. Hosted and installed reruns of this correction remain pending; older counts are not final-head acceptance.",
     "separateCountsNotAddedToStable158": {
       "clientRegressions": 88,
       "nativeNhiCases": 14,
@@ -36,7 +36,7 @@
     }
   },
   "releaseGates": {
-    "fullUnifiedInstallerUpgrade": "FAIL on TEST-01 old PostgreSQL payload upgrade; 17fa1b7 hosted native run 44955685351 passed 14 installed/denied Host cases and Inno silent failure exit 9. Full Windows candidate run 44955810614 attempt 1 failed in/after Prepare locked native Client dependencies (job logs unavailable); rerun failed job requested. No corrected physical upgrade PASS.",
+    "fullUnifiedInstallerUpgrade": "FAIL: source 67e7240 full Windows run 45000545052 attempt 2 passed and its 1767-member artifact passed local source/hash/security verification, but the genuine TEST-01 upgrade exited 7 at native preinstall with HOST_NATIVE_PAYLOAD_UNLISTED_FILE. Nine retained PostgreSQL 16.15 DLLs matched the verified 7218c1c release hashes; Host/Postgres and the original database system identifier were preserved. Source 89a17a5 implements bounded exact-hash retirement; current-source CI, rebuilt artifact and physical retry are pending. See test01-upgrade-67e-failure-summary.json.",
     "twoPhysicalDeviceOfflineRestartSyncConflict": "PASS subsets: installed TEST-01 Client to TEST-02 Host online create, durable Host-outage offline create through Client restart, client-only TCP8443 isolation while Host remained live for TEST-02, reconnect receipts and exactly-once nine-row Host result. Stale revision 1 edit from TEST-01 received nonretryable REVISION_CONFLICT after TEST-02 revision 2; Host value stayed revision 2. TEST-02 Host read revocation removed Asset navigation from TEST-01 native Workspace; restoring the grant restored navigation and the nine-row list. Corrected release Client, user conflict resolution and complete device acceptance remain. See test01-test02-client-host-sync-20261122.json, two-client-conflict-paused-power-outage-20261122.json, test01-client-only-network-isolation-20261122.json, test01-cross-device-read-revocation-20261122.json.",
     "installedRecoveryP001_P006": "NOT_EXECUTED",
     "recoveryVmAccess": "PASS strict pinned SSH to verified VM/guest identity via firewall rule restricted to BAHAA 172.20.160.1 and guest 172.20.162.145 TCP/22. VNIC isolation absent and recovery P001-P006 unexecuted; source 15fa pins current isolation plan.",
@@ -128,9 +128,10 @@
       "authoritativeAcceptance": "Exact scope, branch membership, parent hierarchy, concurrent updates and audit",
       "status": "BLOCKED",
       "evidence": [
-        "nov21-checkpoint.json"
+        "nov21-checkpoint.json",
+        "test02-organization-archive-roundtrip-20261122.json"
       ],
-      "remaining": "Native company update and installed parent/CAS/current-scope/no-implicit-branch-grant denials passed; complete membership/archive/reactivate/audit gate remains."
+      "remaining": "Native company update and installed parent/CAS/current-scope/no-implicit-branch-grant denials passed. TEST-02 installed Host created, archived and reactivated a branch with revisions 1-3, rejecting a stale update. Membership and audit acceptance remain."
     },
     {
       "id": "M02",

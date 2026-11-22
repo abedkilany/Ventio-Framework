@@ -124,6 +124,30 @@ try
 }
 finally { Directory.Delete(residueRoot, true); }
 
+var absentProcess = "ventio-never-running-" + Guid.NewGuid().ToString("N");
+Ventio.HostSetupBroker.NativeHostInstallation.AssertProcessNotRunning(absentProcess);
+try
+{
+    Ventio.HostSetupBroker.NativeHostInstallation.AssertProcessNotRunning(
+        System.Diagnostics.Process.GetCurrentProcess().ProcessName);
+    throw new InvalidOperationException("A running process was not detected before Host maintenance.");
+}
+catch (InvalidOperationException exception) when (exception.Message == "HOST_NATIVE_CLIENT_RUNNING_CLOSE_BEFORE_UPGRADE") { }
+
+var unchangedManifest = System.Text.Encoding.UTF8.GetBytes("verified installed payload manifest");
+var changedManifest = System.Text.Encoding.UTF8.GetBytes("different payload manifest");
+bool SafeStaleManifest(bool running, bool policy, bool schema, bool witness, byte[] prior, byte[] installed) =>
+    Ventio.HostSetupBroker.NativeHostInstallation.CanRetireStalePreviousManifest(
+        prior, installed, running, policy, schema, witness);
+if (!SafeStaleManifest(true, false, false, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, false, false, unchangedManifest, changedManifest) ||
+    SafeStaleManifest(false, false, false, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, true, false, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, true, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, false, true, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, false, false, [], []))
+    throw new InvalidOperationException("Stale upgrade marker retirement did not enforce exact unchanged state.");
+
 var secret = System.Text.Encoding.UTF8.GetBytes("isolated-bootstrap-handoff-test");
 var expectedSecret = secret.ToArray();
 var entropy = System.Text.Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef");

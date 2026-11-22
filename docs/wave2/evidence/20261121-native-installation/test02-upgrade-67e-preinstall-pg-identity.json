@@ -1,0 +1,1 @@
+{"case":"TEST02-PREUPGRADE-PG-IDENTITY","atUtc":"2026-11-22T13:15:08.2089613Z","machine":"TEST-02","databaseSystemIdentifier":"7710532368768573384","health":{"apiVersion":1,"status":"alive"},"postgresService":"Running","hostService":"Running","witnessPending":false,"noCredentialsRead":true}

@@ -1,0 +1,58 @@
+{
+  "artifactId": 14753888546,
+  "runId": 45000545052,
+  "sourceCommit": "67e7240f02b1c485afde4b8e3320f60c441ff6af",
+  "sourceTree": "16882391968dcef8ff5f64e5443ce61ba3592de8",
+  "identity": "Ventio-W2B-0.1.24+25-20261122-67e7240f02b1-gh45000545052-a2",
+  "outerBytes": 281001552,
+  "outerSha256": "ddf35ee4bd9344203ccc41cda344d515a065274f2ee7c2abfb6f1f438ab496be",
+  "innerBytes": 281888111,
+  "innerSha256": "889a6ebdc8420abfbcdecedf57c4a94e9729041831a3bfa8b2990799c38d49b2",
+  "membersVerified": 1767,
+  "completeInventoryEntriesVerified": 1765,
+  "sourceArchiveMatchedGit": true,
+  "sourceArchiveMembersVerified": 1665,
+  "hostedSecurityStatus": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+  "importantFiles": {
+    "Ventio-Setup-0.1.24.exe": {
+      "bytes": 108289409,
+      "sha256": "8a1ccaa8c9275a77087d165f6abc61a95e1abfe75bf89a8721718354582a1d84"
+    },
+    "Client/ventio_native_client.exe": {
+      "bytes": 91648,
+      "sha256": "70b84a707bb014ad13fe3895094ad4ccbcf6cc9e3f98aa8e4176c488b066083f"
+    },
+    "HostPayload/VentioHostService.exe": {
+      "bytes": 73713449,
+      "sha256": "c37bebdfb5e84324bc8d5eeb6ec9e9ebac068d515284a6ec3e4e21edf2485ab6"
+    },
+    "HostPayload/VentioSetupBroker.exe": {
+      "bytes": 73725737,
+      "sha256": "421777b6c55eaab868007ea1eefffa04e468411dc498a49a96ddb77fec44a011"
+    },
+    "HostPayload/ventio_host.exe": {
+      "bytes": 8786944,
+      "sha256": "6cf635dde415b4673899130cef04a35c8ad0d3ecb6f14e6a3944747d135c6daf"
+    },
+    "HostPayload/ventio_migrate.exe": {
+      "bytes": 7537664,
+      "sha256": "a24cba27929ded2d29d4f59b33fd54516256188c981b9d772181fd58b5117156"
+    },
+    "Prerequisites/vc_redist.x64.exe": {
+      "bytes": 18863624,
+      "sha256": "9c02c9ed120f671b900e6b9471d890e3b2414117a7e53f4ae2e855466fa2b7c9"
+    },
+    "Client/data/app.so": {
+      "bytes": 10650512,
+      "sha256": "97156a6b0887b9069d629bcbcc3df80aea26921238b5b231f3cb7b671c9a54ac"
+    }
+  },
+  "payload": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\candidate-45000545052-extracted\\Payload",
+  "installedManifestPath": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\installed-files-45000545052.json",
+  "installedManifestSha256": "8579a4d848b83af580fc669888811b541cae03f072ee930141079aa750cf39e1",
+  "limitations": [
+    "Installed acceptance remains separate",
+    "Bit-identical binary rebuild not established",
+    "Release signing deferred by owner"
+  ]
+}

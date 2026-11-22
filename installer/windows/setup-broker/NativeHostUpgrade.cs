@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
@@ -83,6 +84,47 @@ internal static partial class NativeHostInstallation
         if (alreadyApproved is not null) listed.UnionWith(alreadyApproved);
         return SelectPinnedResidue(Payload, listed, LegacyPg1615Residue);
     }
+
+    internal static void AssertProcessNotRunning(string processName)
+    {
+        var processes = Process.GetProcessesByName(processName);
+        try { if (processes.Length != 0) throw Failure("CLIENT_RUNNING_CLOSE_BEFORE_UPGRADE"); }
+        finally { foreach (var process in processes) process.Dispose(); }
+    }
+
+    internal static Task CheckInstallerClientClosedAsync()
+    {
+        AssertProcessNotRunning("ventio_native_client");
+        return Task.CompletedTask;
+    }
+
+    internal static bool CanRetireStalePreviousManifest(ReadOnlySpan<byte> previous, ReadOnlySpan<byte> installed,
+        bool servicesRunning, bool policyPending, bool schemaPending, bool witnessPending) =>
+        servicesRunning && !policyPending && !schemaPending && !witnessPending &&
+        previous.Length is > 0 and <= 1_048_576 && previous.SequenceEqual(installed);
+
+    private static void RetireStalePreviousManifestIfSafe()
+    {
+        if (!File.Exists(PreviousPayloadManifestPath)) return;
+        AssertNoReparseAncestors(PreviousPayloadManifestPath);
+        AssertPrivateAcl(PreviousPayloadManifestPath);
+        var witnessPath = Path.Combine(HostDirectory, "recovery.witness");
+        AssertNoReparseAncestors(witnessPath);
+        var witnessInfo = new FileInfo(witnessPath);
+        if (!witnessInfo.Exists || witnessInfo.Length is < 1 or > 1_048_576)
+            throw Failure("PAYLOAD_PREVIOUS_MANIFEST_PENDING");
+        using var witness = JsonDocument.Parse(File.ReadAllBytes(witnessPath));
+        if (!witness.RootElement.TryGetProperty("pending", out var pending) ||
+            pending.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw Failure("PAYLOAD_PREVIOUS_MANIFEST_PENDING");
+        var previous = File.ReadAllBytes(PreviousPayloadManifestPath);
+        var installed = File.ReadAllBytes(Path.Combine(Payload, "payload-manifest.json"));
+        if (!CanRetireStalePreviousManifest(previous, installed,
+            ServiceState(HostService) == 4 && ServiceState(PgService) == 4,
+            File.Exists(PolicyPath), File.Exists(Path.Combine(HostDirectory, "schema-upgrade.request.dpapi")),
+            pending.GetBoolean())) throw Failure("PAYLOAD_PREVIOUS_MANIFEST_PENDING");
+        File.Delete(PreviousPayloadManifestPath);
+    }
     internal static void RecordMaintenanceFailure(string operation, Exception exception)
     {
         try
@@ -109,11 +151,12 @@ internal static partial class NativeHostInstallation
     {
         ValidateInstalledServices(requireHost: true);
         using var maintenance = MaintenanceLock();
+        AssertProcessNotRunning("ventio_native_client");
         // Preserve the verified installed inventory before Inno replaces its
         // manifest. Known 16.15 residue is pinned independently above.
         using (var installedPayload = PinPayload(Payload, PresentLegacyResidue(), allowPreviousPostgres: true))
         {
-            if (File.Exists(PreviousPayloadManifestPath)) throw Failure("PAYLOAD_PREVIOUS_MANIFEST_PENDING");
+            RetireStalePreviousManifestIfSafe();
             var bytes = File.ReadAllBytes(Path.Combine(Payload, "payload-manifest.json"));
             if (bytes.Length is < 1 or > 1_048_576) throw Failure("PAYLOAD_MANIFEST_INVALID");
             SetDirectoryAcl(Installer, Administrators, []);

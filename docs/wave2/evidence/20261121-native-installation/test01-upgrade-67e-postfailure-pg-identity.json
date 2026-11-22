@@ -1,0 +1,1 @@
+{"case":"TEST01-PREUPGRADE-PG-IDENTITY","atUtc":"2026-11-22T13:03:30.8318935Z","machine":"VENTIO-TEST-01","databaseSystemIdentifier":"7708157972516564392","health":{"apiVersion":1,"status":"alive"},"postgresService":"Running","hostService":"Running","witnessPending":false,"noCredentialsRead":true}

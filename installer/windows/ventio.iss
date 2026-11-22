@@ -244,6 +244,17 @@ begin
     Result := 'Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_NATIVE_HELPER_INTEGRITY_FAILED. No application files were replaced.';
     exit;
   end;
+  if not Exec(NativeMaintenanceHelper, '--check-installer-clients-closed', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then begin
+    Result := 'Ventio Client upgrade precheck could not run. No Ventio files or services were changed.';
+    exit;
+  end;
+  if ResultCode <> 0 then begin
+    if ResultCode = 7 then
+      Result := 'Close Ventio Client in every Windows session before upgrading. No Ventio files or services were changed.'
+    else
+      Result := 'Ventio Client upgrade precheck failed safely. No Ventio files or services were changed.';
+    exit;
+  end;
   if not Exec(NativeMaintenanceHelper, '--prepare-installer-upgrade', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
     Result := 'Ventio pre-install failed safely. Failure code: HOST_PREINSTALL_NATIVE_MAINTENANCE_FAILED. Existing services and data require verified repair before retrying. No application files were replaced.';
     exit;

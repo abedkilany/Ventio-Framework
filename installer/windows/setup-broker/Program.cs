@@ -83,7 +83,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length == 1 && args[0] is "--prepare-installer-upgrade" or "--complete-installer-upgrade" or "--resume-installer-upgrade" or "--resume-installer-postgres")
+        if (args.Length == 1 && args[0] is "--check-installer-clients-closed" or "--prepare-installer-upgrade" or "--complete-installer-upgrade" or "--resume-installer-upgrade" or "--resume-installer-postgres")
             return RunInstallerMaintenance(args[0]);
         Request request;
         try
@@ -137,6 +137,7 @@ internal static class Program
             {
                 var task = operation switch
                 {
+                    "--check-installer-clients-closed" => NativeHostInstallation.CheckInstallerClientClosedAsync(),
                     "--prepare-installer-upgrade" => NativeHostInstallation.PrepareUpgradeAsync(),
                     "--complete-installer-upgrade" => NativeHostInstallation.CompleteUpgradeAsync(),
                     "--resume-installer-upgrade" => NativeHostInstallation.ResumeUpgradeAsync(includeHost: true),
@@ -151,7 +152,8 @@ internal static class Program
         catch (Exception exception)
         {
             if (locationValidated) NativeHostInstallation.RecordMaintenanceFailure(operation, exception);
-            return 5;
+            return operation == "--check-installer-clients-closed" &&
+                exception.Message == "HOST_NATIVE_CLIENT_RUNNING_CLOSE_BEFORE_UPGRADE" ? 7 : 5;
         }
     }
 
