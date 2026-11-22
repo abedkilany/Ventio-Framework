@@ -1,0 +1,67 @@
+{
+  "recordedAtUtc": "2026-11-22T17:44:08.6091725Z",
+  "machine": "TEST-02",
+  "hostSource": "246172799a44e16a4214f16ff0c2f6efdafc42bf",
+  "actualInstalledHost": true,
+  "databaseDirectlyModified": false,
+  "credentialContentsRecorded": false,
+  "cases": [
+    {
+      "id": "IAPI001",
+      "description": "Real enrolled device authenticates exact authoritative scope",
+      "status": "PASS",
+      "elapsedMs": 494
+    },
+    {
+      "id": "IAPI002",
+      "description": "Anonymous platform operations are denied",
+      "status": "PASS",
+      "elapsedMs": 69
+    },
+    {
+      "id": "IAPI003",
+      "description": "Invalid bearer is denied",
+      "status": "PASS",
+      "elapsedMs": 27
+    },
+    {
+      "id": "IAPI004",
+      "description": "Another branch remains outside current credential scope",
+      "status": "PASS",
+      "elapsedMs": 197
+    },
+    {
+      "id": "IAPI005",
+      "description": "Unknown platform contract version is refused",
+      "status": "PASS",
+      "elapsedMs": 173
+    },
+    {
+      "id": "IAPI006",
+      "description": "Unknown API request properties are refused",
+      "status": "PASS",
+      "elapsedMs": 174
+    },
+    {
+      "id": "IAPI007",
+      "description": "Bootstrap credential does not confer workspace permission",
+      "status": "BLOCKED",
+      "elapsedMs": 187,
+      "blocker": "Credential expired or revoked: prepared check received HTTP 401, so authorization denial for a valid bootstrap identity was not established; see test02-bootstrap-denial-credential-expired-20261122.json."
+    },
+    {
+      "id": "IAPI008",
+      "description": "Current scoped operational settings are readable",
+      "status": "PASS",
+      "elapsedMs": 379
+    },
+    {
+      "id": "IAPI009",
+      "description": "Business actor cannot approve its extension package",
+      "status": "PASS",
+      "elapsedMs": 213
+    }
+  ],
+  "capabilityCompletionClaimed": false,
+  "P001_P006Executed": false
+}

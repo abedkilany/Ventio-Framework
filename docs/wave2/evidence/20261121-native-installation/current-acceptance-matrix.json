@@ -1,6 +1,6 @@
 {
-  "snapshotUtc": "2026-11-22T13:09:00Z",
-  "engineeringSource": "89a17a54098e2556c78f6325ed4db77221eee6b2",
+  "snapshotUtc": "2026-11-22T18:44:55Z",
+  "engineeringSource": "474c3a4e2824c86ea5267d9ed9370d3986197983",
   "branch": "feature/wave-2-a",
   "pr": 6,
   "prRequiredState": "DRAFT_UNMERGED",
@@ -36,17 +36,18 @@
     }
   },
   "releaseGates": {
-    "fullUnifiedInstallerUpgrade": "FAIL: source 67e7240 full Windows run 45000545052 attempt 2 passed and its 1767-member artifact passed local source/hash/security verification, but the genuine TEST-01 upgrade exited 7 at native preinstall with HOST_NATIVE_PAYLOAD_UNLISTED_FILE. Nine retained PostgreSQL 16.15 DLLs matched the verified 7218c1c release hashes; Host/Postgres and the original database system identifier were preserved. Source 89a17a5 implements bounded exact-hash retirement; current-source CI, rebuilt artifact and physical retry are pending. See test01-upgrade-67e-failure-summary.json.",
+    "fullUnifiedInstallerUpgrade": "BLOCKED: 67e candidate TEST-01 rejected safe and TEST-02 rollback due Client open; correction at current source 474c3a4 passes exact-source Windows/native-installation CI. Current candidate 45050058552 authenticated, exact source, all package members verified and Windows Defender scan PASS on TEST-02. Physical installer precheck with Client open returned code 7 before service stop and preserved Client hash, Host/PostgreSQL running and Restricted policy. Actual upgrade waits for normal Client closure; TEST-01 SSH currently times out. See test02-candidate-45050058552-acceptance.json and linked evidence files.",
     "twoPhysicalDeviceOfflineRestartSyncConflict": "PASS subsets: installed TEST-01 Client to TEST-02 Host online create, durable Host-outage offline create through Client restart, client-only TCP8443 isolation while Host remained live for TEST-02, reconnect receipts and exactly-once nine-row Host result. Stale revision 1 edit from TEST-01 received nonretryable REVISION_CONFLICT after TEST-02 revision 2; Host value stayed revision 2. TEST-02 Host read revocation removed Asset navigation from TEST-01 native Workspace; restoring the grant restored navigation and the nine-row list. Corrected release Client, user conflict resolution and complete device acceptance remain. See test01-test02-client-host-sync-20261122.json, two-client-conflict-paused-power-outage-20261122.json, test01-client-only-network-isolation-20261122.json, test01-cross-device-read-revocation-20261122.json.",
     "installedRecoveryP001_P006": "NOT_EXECUTED",
     "recoveryVmAccess": "PASS strict pinned SSH to verified VM/guest identity via firewall rule restricted to BAHAA 172.20.160.1 and guest 172.20.162.145 TCP/22. VNIC isolation absent and recovery P001-P006 unexecuted; source 15fa pins current isolation plan.",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
     "wave2C": "NOT_STARTED_PENDING_B_ACCEPTANCE_AND_FINAL_OWNER_APPROVAL",
-    "fullFa080ArtifactVerified": "PASS full authenticated GitHub transport, inner package, all 1767 member hashes, 1508 source archive members and source metadata; superseded installer itself practically failed.",
+    "fullFa080ArtifactVerified": "PASS authenticated artifact transport, source archive match and complete 1767 member inventory for superseded fa080 revision; current 474c3a4 candidate independently verified as test02-candidate-45050058552-acceptance.json.",
     "nativeJobAndReportSubset": "PASS older installed Client actual Host jobs 2/2 accepted, permission-denied row, cancelled row and six-row Host dashboard report; corrected Client/full release gate remains.",
     "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass.",
     "test02OlderClientDigest": "TEST-02 Client source 81661f7 used exportBundle for local digest; current source 5374496+ uses retained installed bundle. Stored bundle Dart canonical roundtrip and authenticated approved/record query digests all equal a0f9d3b7...; old installed UI denial must be rechecked after corrected Client install.",
-    "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json"
+    "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
+    "currentCandidate": "PASS source-bound CI and package integrity; physical test02 install pending normal Client closure; TEST-01 unavailable at capture."
   },
   "capabilities": [
     {

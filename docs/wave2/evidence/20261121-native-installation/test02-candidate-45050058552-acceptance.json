@@ -1,0 +1,45 @@
+{
+  "candidateIdentity": "Ventio-W2B-0.1.24+25-20261122-474c3a4e2824-gh45050058552-a1",
+  "sourceCommit": "474c3a4e2824c86ea5267d9ed9370d3986197983",
+  "artifactId": 14766460867,
+  "workflowRunId": 45050058552,
+  "outerSha256": "054cfd0712192079d6732ba65efcc56641b47961ae5672f16163ae068921ec7f",
+  "innerPackageSha256": "c909b8827b8a5a03615f7fa1341189bcd629727cfa2720c81f3d72214ceb8250",
+  "installerSha256": "3d3c550717597f87063cce029913537a2b4b5f4acd630057c35151c489c33585",
+  "installedManifestSha256": "2b29c8983c5daaf47ea81880691e0233b2ee324d3276e17a8ba47c6727062f68",
+  "sourceArchiveMatchedGit": true,
+  "verifiedPackageMembers": 1767,
+  "hostedSecurityScan": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+  "nativeInstallationWorkflowRun": 45050058203,
+  "fullWindowsWorkflowRun": 45050058552,
+  "test02": {
+    "machine": "TEST-02",
+    "machineGuid": "4f9cfa6d-48f6-4c66-a3a9-93e612f6bacb",
+    "policy": "Restricted",
+    "stage": "PASS",
+    "artifactHashAndManifest": "PASS",
+    "manifestInventoryEntries": 1746,
+    "defenderTargetScan": "PASS",
+    "defenderScanCompletedRecordId": 785,
+    "upgradeWhileClientOpen": "PASS_SAFE_PRECHECK_DENIAL",
+    "installerExitCode": 7,
+    "clientProcessId": 7636,
+    "clientSessionId": 1,
+    "hostAndPostgresRemainRunning": true,
+    "clientBinaryUnchanged": true,
+    "actualUpgrade": "BLOCKED_CLIENT_OPEN_IN_SESSION_1"
+  },
+  "test01": {
+    "ssh": "UNAVAILABLE_TIMEOUT_192.168.1.106"
+  },
+  "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
+  "limitations": [
+    "Actual TEST-02 upgrade requires the user-session Client to be closed normally.",
+    "TEST-01 was unreachable over SSH at evidence capture.",
+    "Two-device acceptance must be re-run with the corrected installed candidate."
+  ],
+  "evidenceFiles": [
+    "test02-candidate-45050058552-preinstall-scan.json",
+    "test02-candidate-45050058552-open-client-precheck.json"
+  ]
+}
