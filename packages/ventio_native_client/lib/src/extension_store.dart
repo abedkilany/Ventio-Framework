@@ -873,14 +873,16 @@ class LocalExtensionStore {
         whereArgs: [moduleId],
         limit: 1,
       );
-      if (rows.isEmpty)
+      if (rows.isEmpty) {
         throw const ExtensionStoreException(
           'UNKNOWN_MODULE',
           'The local module is unavailable.',
         );
+      }
       final raw = rows.single['installed_bundle_json'] as String?;
-      if (raw == null)
+      if (raw == null) {
         return null; // Legacy/draft: current Host digest still required.
+      }
       final bundle = ExtensionBundle.fromJson(_decodeMap(raw));
       final local = LocalExtension.fromRow(rows.single);
       final types = await tx.query(
@@ -911,11 +913,12 @@ class LocalExtensionStore {
                 canonicalJson(_decodeMap(row['metadata_json'])) ==
                     canonicalJson(type);
           });
-      if (!valid)
+      if (!valid) {
         throw const ExtensionStoreException(
           'LOCAL_PACKAGE_INTEGRITY_FAILED',
           'Installed metadata differs from its package.',
         );
+      }
       return bundle;
     });
     return stored ?? await exportBundle(moduleId);
