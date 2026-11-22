@@ -1,0 +1,27 @@
+{
+  "case": "PHYSICAL_TEST01_DASHBOARD_REPORT_SYNC_RESTART",
+  "observedAtUtc": "2026-11-22T07:46:00Z",
+  "result": "PASS",
+  "branch": "feature/wave-2-a",
+  "installedSources": {
+    "test01Client": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+    "test02Host": "29e36a84875228baf518a2a7030a86bbcb164908"
+  },
+  "observations": [
+    {
+      "phase": "native_report_from_second_client",
+      "result": "PASS",
+      "detail": "TEST-01 native Workspace showed the Host-approved Wave 2 fixture Asset count report. Adding it to the user's initially empty Dashboard created a local DRAFT revision 0 tile. Opening the tile executed the current Host report and displayed nine rows, matching the authenticated TEST-02 Host query."
+    },
+    {
+      "phase": "dashboard_sync_and_process_restart",
+      "result": "PASS",
+      "detail": "TEST-01 native Dashboard sync changed DRAFT revision 0 to SYNCED revision 1. Closed the actual Ventio Client and reopened it from its installed Windows desktop shortcut. The same tile and SYNCED revision 1 survived. Opening it after restart again returned the current nine-row Host report."
+    }
+  ],
+  "credentialValuesRecorded": false,
+  "limits": [
+    "This verifies one approved report and one user's dashboard across a native process restart, not all filters, permission revocation, or empty/error states.",
+    "The corrected 17fa1b7 Client installation and final release artifact are still pending."
+  ]
+}

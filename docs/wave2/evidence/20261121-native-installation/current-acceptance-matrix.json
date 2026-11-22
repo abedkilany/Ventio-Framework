@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-22T07:36:00Z",
+  "snapshotUtc": "2026-11-22T07:46:00Z",
   "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -201,9 +201,10 @@
       "authoritativeAcceptance": "Report cards, denied filters/fields, bounded tables, loading/error/empty states",
       "status": "BLOCKED",
       "evidence": [
-        "nov21-checkpoint.json"
+        "nov21-checkpoint.json",
+        "test01-dashboard-report-restart-20261122.json"
       ],
-      "remaining": "Native dashboard/report card publication and actual record count passed; complete loading/error/empty and current field/filter revocation presentation remain."
+      "remaining": "Native TEST-01 dashboard card sync to revision 1, persistence across Client process restart and current nine-row Host report passed; complete loading/error/empty and current field/filter revocation presentation remain."
     },
     {
       "id": "F05",
@@ -211,9 +212,10 @@
       "authoritativeAcceptance": "Report compatibility across releases, revocation and unavailable package",
       "status": "BLOCKED",
       "evidence": [
-        "nov21-checkpoint.json"
+        "nov21-checkpoint.json",
+        "test01-dashboard-report-restart-20261122.json"
       ],
-      "remaining": "Installed approved report works and undeclared filter denied; actual cross-release/dependency/package unavailable and revocation compatibility remain."
+      "remaining": "Installed approved report works from TEST-01 after dashboard sync and Client restart; undeclared filter denied earlier. Actual cross-release/dependency/package unavailable and revocation compatibility remain."
     },
     {
       "id": "H04",
