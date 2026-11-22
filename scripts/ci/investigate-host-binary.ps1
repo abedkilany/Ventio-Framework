@@ -5,9 +5,12 @@ $evidence = Join-Path $root 'evidence'
 [void](New-Item -ItemType Directory -Path $evidence -Force)
 $repo = (Get-Location).Path
 $source = Join-Path $root 'source'
+$conventionalSource = Join-Path $root 'conventional-source'
 $original = 'fb341a78eca1bb897e2ce09f1271dae39bbd7d11'
 git worktree add --detach $source $original
 if ($LASTEXITCODE -ne 0) { throw 'Frozen source checkout failed.' }
+git worktree add --detach $conventionalSource $original
+if ($LASTEXITCODE -ne 0) { throw 'Conventional comparison checkout failed.' }
 $dart = (Get-Command dart).Source
 $sdk = Split-Path (Split-Path $dart -Parent) -Parent
 $status = Get-MpComputerStatus
@@ -57,13 +60,15 @@ try {
     if ($scanExit -ne 0) { throw 'Defender scan did not complete cleanly; see captured CLI evidence.' }
   }
   [ordered]@{identical=($outputs[0].sha256 -eq $outputs[1].sha256);matchesReported=($outputs[0].sha256.ToLowerInvariant() -eq '5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2')} | ConvertTo-Json | Set-Content (Join-Path $evidence 'comparison.json')
-  # Compare the conventional Actions checkout path with the isolated worktree.
-  # Dart snapshots may retain source URIs. Never modify the program to change
-  # an antivirus verdict; first prove the relevant source inputs are identical.
-  $sameInputs = @('packages/ventio_host_api/lib','packages/ventio_host_api/bin/local_host.dart','packages/ventio_host_api/pubspec.yaml','packages/ventio_host_api/pubspec.lock','packages/ventio_core','packages/ventio_host','packages/ventio_postgres')
-  & git -C $repo diff --exit-code $original HEAD -- @sameInputs
-  if ($LASTEXITCODE -ne 0) { throw 'Conventional-path comparison has different source inputs.' }
-  Push-Location (Join-Path $repo 'packages/ventio_host_api')
+  # Compare two paths containing the exact same frozen source. The PR checkout
+  # is intentionally newer than the reproduction commit and cannot serve as
+  # an apples-to-apples path comparison. Dart snapshots may retain source URIs.
+  $sourceTree = (& git -C $source rev-parse 'HEAD^{tree}').Trim()
+  $conventionalTree = (& git -C $conventionalSource rev-parse 'HEAD^{tree}').Trim()
+  if ($LASTEXITCODE -ne 0 -or $sourceTree -ne $conventionalTree) {
+    throw 'Conventional-path comparison source trees differ.'
+  }
+  Push-Location (Join-Path $conventionalSource 'packages/ventio_host_api')
   try {
     & dart pub get --enforce-lockfile | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Conventional-path dependency verification failed.' }
@@ -71,7 +76,7 @@ try {
     & dart compile exe bin/local_host.dart -o $conventional
     if ($LASTEXITCODE -ne 0) { throw 'Conventional-path compile failed.' }
     $conventionalHash = (Get-FileHash $conventional -Algorithm SHA256).Hash.ToLowerInvariant()
-    [ordered]@{sha256=$conventionalHash;length=(Get-Item $conventional).Length;matchesReported=($conventionalHash -eq '5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2');sourceInputsMatch=$true;checkoutPath=$repo} | ConvertTo-Json | Set-Content (Join-Path $evidence 'conventional-comparison.json')
+    [ordered]@{sha256=$conventionalHash;length=(Get-Item $conventional).Length;matchesReported=($conventionalHash -eq '5a18c389c5cce563caa8a5a5ba9222108b785680aebed6878996385c3ea1e5f2');sourceInputsMatch=$true;sourceTree=$sourceTree;checkoutPath=$conventionalSource} | ConvertTo-Json | Set-Content (Join-Path $evidence 'conventional-comparison.json')
     & $mp -Scan -ScanType 3 -File $conventional -DisableRemediation 2>&1 | Tee-Object (Join-Path $evidence 'scan-conventional.txt')
     if ($LASTEXITCODE -ne 0) { throw 'Conventional-path Defender scan failed.' }
   } finally { Pop-Location }
