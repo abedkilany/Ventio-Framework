@@ -72,6 +72,55 @@ using (var newPayload = PayloadManifest(requiredPayload))
     catch (InvalidOperationException exception) when (exception.Message != "Duplicate old payload member accepted.") { }
 }
 
+// Pin legacy repair to the verified 16.15 artifact and reject changed bytes.
+var legacy = Ventio.HostSetupBroker.NativeHostInstallation.LegacyPg1615Residue;
+if (legacy.Count != 9) throw new InvalidOperationException("Legacy PostgreSQL residue allowlist changed size.");
+var evidenceRoot = new DirectoryInfo(Directory.GetCurrentDirectory());
+while (evidenceRoot is not null && !File.Exists(Path.Combine(evidenceRoot.FullName,
+    "docs", "wave2", "evidence", "20261118-7218c1c", "SHA256SUMS.txt"))) evidenceRoot = evidenceRoot.Parent;
+if (evidenceRoot is null) throw new InvalidOperationException("Verified previous release hash evidence is unavailable.");
+var previousHashes = File.ReadAllLines(Path.Combine(evidenceRoot.FullName, "docs", "wave2", "evidence", "20261118-7218c1c", "SHA256SUMS.txt"))
+    .Where(line => line.Contains("  HostPayload/", StringComparison.Ordinal))
+    .Select(line => line.Split("  HostPayload/", 2, StringSplitOptions.None))
+    .ToDictionary(parts => parts[1], parts => parts[0], StringComparer.OrdinalIgnoreCase);
+foreach (var (relative, member) in legacy)
+    if (!previousHashes.TryGetValue(relative, out var digest) || digest != member.Sha256 ||
+        !Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(relative) || member.Length <= 0)
+        throw new InvalidOperationException("Legacy residue pin differs from verified 16.15 release evidence.");
+
+var residueRoot = Path.Combine(Path.GetTempPath(), "VentioLegacyResidueTest-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(Path.Combine(residueRoot, "postgresql", "bin"));
+try
+{
+    const string relative = "postgresql/bin/legacy.dll";
+    var file = Path.Combine(residueRoot, "postgresql", "bin", "legacy.dll");
+    var original = System.Text.Encoding.UTF8.GetBytes("verified previous release bytes");
+    File.WriteAllBytes(file, original);
+    var pin = new Ventio.HostSetupBroker.NativeHostInstallation.PayloadMember(original.Length,
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant());
+    var fixturePins = new Dictionary<string, Ventio.HostSetupBroker.NativeHostInstallation.PayloadMember> { [relative] = pin };
+    var selected = Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string>(), fixturePins);
+    if (selected.Count != 1 || selected[relative] != pin)
+        throw new InvalidOperationException("Exact legacy residue was not admitted.");
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string> { relative }, fixturePins).Count != 0)
+        throw new InvalidOperationException("Listed current payload was classified as residue.");
+    File.WriteAllBytes(file, System.Text.Encoding.UTF8.GetBytes("untrusted replacement"));
+    try
+    {
+        _ = Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+            new HashSet<string>(), fixturePins);
+        throw new InvalidOperationException("Changed residue bytes were accepted.");
+    }
+    catch (InvalidOperationException exception) when (exception.Message == "HOST_NATIVE_PAYLOAD_OBSOLETE_HASH_INVALID") { }
+    File.Delete(file);
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string>(), fixturePins).Count != 0)
+        throw new InvalidOperationException("Missing legacy residue was required for a clean installation.");
+}
+finally { Directory.Delete(residueRoot, true); }
+
 var secret = System.Text.Encoding.UTF8.GetBytes("isolated-bootstrap-handoff-test");
 var expectedSecret = secret.ToArray();
 var entropy = System.Text.Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef");

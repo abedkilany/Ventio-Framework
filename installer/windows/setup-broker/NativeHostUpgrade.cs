@@ -33,6 +33,55 @@ internal static partial class NativeHostInstallation
     private static readonly string PolicyPath = Path.Combine(Installer, "host-service-recovery-policy.VentioHost.v1.dpapi");
     private static readonly string PreviousPayloadManifestPath = Path.Combine(Installer, "host-payload-previous.manifest.json");
     internal readonly record struct PayloadMember(long Length, string Sha256);
+    // Verified 7218c1c / PostgreSQL 16.15 package members left by an interrupted
+    // in-place 16.16 upgrade. These are the only unlisted files repair may retire.
+    // See docs/wave2/evidence/20261118-7218c1c/SHA256SUMS.txt.
+    internal static readonly IReadOnlyDictionary<string, PayloadMember> LegacyPg1615Residue =
+        new Dictionary<string, PayloadMember>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["postgresql/bin/libwinpthread-1.dll"] = new(52736, "ffe2d56375bb4e8bdee9037df6befc5016ddd8871d0d85027314dd5792f8fdc9"),
+            ["postgresql/bin/wxbase3211u_net_vc_x64_custom.dll"] = new(257024, "f707ee1d13ed5d3264a6b95dbb6cc4cd79e5d663180a91dca80704b1d97783eb"),
+            ["postgresql/bin/wxbase3211u_vc_x64_custom.dll"] = new(2985472, "cc6b32bb8cbc1ecd798a8e08144671bb0542e75217ee5b0f9a76fab9146b88be"),
+            ["postgresql/bin/wxbase3211u_xml_vc_x64_custom.dll"] = new(193024, "4c716cb9407ed90331d677b55e82b3e31a16ff6f5adf9493321594d01fa200d3"),
+            ["postgresql/bin/wxmsw3211u_adv_vc_x64_custom.dll"] = new(11264, "e9b0906ec69d7656228f564596ae882a8d68f37b5021f490ebcf2aae289eb742"),
+            ["postgresql/bin/wxmsw3211u_aui_vc_x64_custom.dll"] = new(594944, "ded33cdf2455389eaef3e9c2bd6bca04d3edfbea9e7f53393ee6f8bab2ae124c"),
+            ["postgresql/bin/wxmsw3211u_core_vc_x64_custom.dll"] = new(8352768, "d658d50d6820d17ac4de22bd66b93799595d63c7469ca6a1d99f479a838b67b8"),
+            ["postgresql/bin/wxmsw3211u_html_vc_x64_custom.dll"] = new(708096, "74b2e9f9f4b690b554733f1be1e4412c27ea5e0b0a6cd67d05e3895eafb2946e"),
+            ["postgresql/bin/wxmsw3211u_xrc_vc_x64_custom.dll"] = new(886784, "24bb563eaed37c5b87d238fab8183eac8f66dbf4c67b06c2b9fa54a1234e020f")
+        };
+
+    internal static Dictionary<string, PayloadMember> SelectPinnedResidue(string root,
+        IReadOnlySet<string> listed, IReadOnlyDictionary<string, PayloadMember> pins)
+    {
+        var selected = new Dictionary<string, PayloadMember>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (relative, member) in pins)
+        {
+            if (!SafeRelativePath(relative)) throw Failure("PAYLOAD_MANIFEST_INVALID");
+            if (listed.Contains(relative)) continue;
+            var path = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+            if (!path.StartsWith(Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase)) throw Failure("PAYLOAD_MANIFEST_INVALID");
+            AssertNoReparseAncestors(path);
+            if (!File.Exists(path)) continue;
+            using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (stream.Length != member.Length || Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant() != member.Sha256)
+                throw Failure("PAYLOAD_OBSOLETE_HASH_INVALID");
+            selected.Add(relative, member);
+        }
+        return selected;
+    }
+
+    private static Dictionary<string, PayloadMember> PresentLegacyResidue()
+    {
+        var manifestPath = Path.Combine(Payload, "payload-manifest.json");
+        AssertNoReparseAncestors(manifestPath);
+        AssertTrustedPayloadAcl(manifestPath);
+        using var manifest = JsonDocument.Parse(File.ReadAllBytes(manifestPath));
+        var listed = manifest.RootElement.GetProperty("verifiedFiles").EnumerateArray()
+            .Select(entry => entry.GetProperty("path").GetString() ?? throw Failure("PAYLOAD_MANIFEST_INVALID"))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return SelectPinnedResidue(Payload, listed, LegacyPg1615Residue);
+    }
     internal static void RecordMaintenanceFailure(string operation, Exception exception)
     {
         try
@@ -59,9 +108,9 @@ internal static partial class NativeHostInstallation
     {
         ValidateInstalledServices(requireHost: true);
         using var maintenance = MaintenanceLock();
-        // Preserve the exact verified old inventory before Inno replaces its
-        // manifest. Only members in that inventory may be retired later.
-        using (var installedPayload = PinPayload(Payload, allowPreviousPostgres: true))
+        // Preserve the verified installed inventory before Inno replaces its
+        // manifest. Known 16.15 residue is pinned independently above.
+        using (var installedPayload = PinPayload(Payload, PresentLegacyResidue(), allowPreviousPostgres: true))
         {
             if (File.Exists(PreviousPayloadManifestPath)) throw Failure("PAYLOAD_PREVIOUS_MANIFEST_PENDING");
             var bytes = File.ReadAllBytes(Path.Combine(Payload, "payload-manifest.json"));
@@ -135,6 +184,9 @@ internal static partial class NativeHostInstallation
         if (!Suppressed(RecoveryNative.Query(HostService)) || ServiceState(HostService) != 1 || ServiceState(PgService) != 1)
             throw Failure("UPGRADE_SERVICES_MUST_BE_STOPPED");
         var obsolete = ReadObsoletePayloadMembers();
+        foreach (var (relative, member) in PresentLegacyResidue())
+            if (!obsolete.TryAdd(relative, member) && obsolete[relative] != member)
+                throw Failure("PAYLOAD_OBSOLETE_HASH_INVALID");
         // Verify every new member and every old-only member before changing
         // anything. An unknown or modified file remains a hard failure.
         using (var verifiedBeforeCleanup = PinPayload(Payload, obsolete)) { }
