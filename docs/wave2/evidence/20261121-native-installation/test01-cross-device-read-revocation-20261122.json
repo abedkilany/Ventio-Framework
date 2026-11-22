@@ -1,0 +1,32 @@
+{
+  "case": "PHYSICAL_TEST01_CROSS_DEVICE_READ_REVOCATION_AND_RESTORATION",
+  "observedAtUtc": "2026-11-22T07:36:00Z",
+  "result": "PASS",
+  "branch": "feature/wave-2-a",
+  "installedSources": {
+    "test01Client": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+    "test02Host": "29e36a84875228baf518a2a7030a86bbcb164908"
+  },
+  "devices": {
+    "client": "VENTIO-TEST-01 at 192.168.1.106",
+    "host": "TEST-02 at 192.168.1.100"
+  },
+  "permission": "extension.com_example_wave2.asset.read",
+  "observations": [
+    {
+      "phase": "revoke_on_authoritative_host",
+      "result": "PASS",
+      "detail": "TEST-02 Host management API applied a revoke for the distinct TEST-01 actor at 2026-11-22T07:32:18Z. Its actual native TEST-01 Workspace refresh then removed both Asset navigation and Asset count from the Wave 2 fixture module."
+    },
+    {
+      "phase": "restore_on_authoritative_host",
+      "result": "PASS",
+      "detail": "TEST-02 Host management API reapplied the same grant at 2026-11-22T07:35:25Z. On the next TEST-01 native Workspace refresh, Asset navigation and Asset count returned. The native Asset list then displayed nine Host-backed records, including the TEST-02 winning conflict value and the TEST-01 client-isolation record. Authenticated TEST-02 Host query independently returned HTTP 200, nine records and the expected package SHA-256."
+    }
+  ],
+  "credentialValuesRecorded": false,
+  "limits": [
+    "This case proves current navigation and list access after cross-device read revocation/restoration for one actor and package, not the complete role/scope matrix.",
+    "A corrected 17fa1b7 Client remains to be installed and retested."
+  ]
+}
