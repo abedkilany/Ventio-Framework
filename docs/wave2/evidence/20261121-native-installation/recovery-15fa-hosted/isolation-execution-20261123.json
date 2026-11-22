@@ -1,0 +1,100 @@
+{
+  "capturedAtLocal": "2026-11-23T00:20:42.8817470+02:00",
+  "managementHost": "BAHAA",
+  "managementHostMachineGuid": "206b0dfe-e035-49c5-8b38-3d1d19ceadf7",
+  "vmName": "Ventio-Recovery-Lab",
+  "vmId": "99aba626-2cc9-486e-86ab-af7966848126",
+  "vmGeneration": 2,
+  "vmState": "Running",
+  "switchId": "c08cb7b8-9b3c-408e-8e30-5e16a3aeb444",
+  "adapterMac": "00155D016805",
+  "guestSshHostname": "VENTIO-W2-VM01",
+  "guestSshExit": 0,
+  "externalHttpsProbeOutput": "curl: (28) Connection timed out after 8000 milliseconds\nHTTP=000",
+  "externalHttpsProbeExit": 28,
+  "liveExtendedAclCount": 8,
+  "exactPlanMatch": true,
+  "effectiveIsolationVerified": true,
+  "rules": [
+    {
+      "weight": 7,
+      "stateful": false,
+      "action": "Deny",
+      "remoteIPAddress": "::/0",
+      "remotePort": "",
+      "direction": "Outbound",
+      "localPort": "",
+      "protocol": ""
+    },
+    {
+      "weight": 8,
+      "stateful": false,
+      "action": "Deny",
+      "remoteIPAddress": "::/0",
+      "remotePort": "",
+      "direction": "Inbound",
+      "localPort": "",
+      "protocol": ""
+    },
+    {
+      "weight": 9,
+      "stateful": false,
+      "action": "Deny",
+      "remoteIPAddress": "0.0.0.0/0",
+      "remotePort": "",
+      "direction": "Outbound",
+      "localPort": "",
+      "protocol": ""
+    },
+    {
+      "weight": 10,
+      "stateful": false,
+      "action": "Deny",
+      "remoteIPAddress": "0.0.0.0/0",
+      "remotePort": "",
+      "direction": "Inbound",
+      "localPort": "",
+      "protocol": ""
+    },
+    {
+      "weight": 170,
+      "stateful": false,
+      "action": "Allow",
+      "remoteIPAddress": "172.20.160.1",
+      "remotePort": "67",
+      "direction": "Inbound",
+      "localPort": "68",
+      "protocol": "UDP"
+    },
+    {
+      "weight": 180,
+      "stateful": false,
+      "action": "Allow",
+      "remoteIPAddress": "172.20.160.1",
+      "remotePort": "67",
+      "direction": "Outbound",
+      "localPort": "68",
+      "protocol": "UDP"
+    },
+    {
+      "weight": 190,
+      "stateful": false,
+      "action": "Allow",
+      "remoteIPAddress": "255.255.255.255",
+      "remotePort": "67",
+      "direction": "Outbound",
+      "localPort": "68",
+      "protocol": "UDP"
+    },
+    {
+      "weight": 200,
+      "stateful": true,
+      "action": "Allow",
+      "remoteIPAddress": "172.20.160.1",
+      "remotePort": "",
+      "direction": "Inbound",
+      "localPort": "22",
+      "protocol": "TCP"
+    }
+  ]
+}

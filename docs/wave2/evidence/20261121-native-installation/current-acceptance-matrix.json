@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-22T22:06:21Z",
+  "snapshotUtc": "2026-11-22T22:22:04Z",
   "engineeringSource": "474c3a4e2824c86ea5267d9ed9370d3986197983",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -11,8 +11,8 @@
   },
   "authoritativeScope": "../../WAVE_2_SCOPE_AND_ACCEPTANCE.md",
   "installedSources": {
-    "client": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
-    "host": "29e36a84875228baf518a2a7030a86bbcb164908"
+    "client": "474c3a4e2824c86ea5267d9ed9370d3986197983",
+    "host": "474c3a4e2824c86ea5267d9ed9370d3986197983"
   },
   "installedHttpUniquePassed": 54,
   "automatedLedger": {
@@ -37,9 +37,9 @@
   },
   "releaseGates": {
     "fullUnifiedInstallerUpgrade": "PASS for physical candidate install/upgrade on both disposable Windows systems: the current-source installer completed with exit 0, all 1746 installed manifest entries matched, Host/PostgreSQL recovered with expected service identities, PostgreSQL was accepting connections, Host /healthz returned 200, anonymous /api/v1/session returned 401, Recovery Authority witness stayed clear, Defender stayed active, and Windows execution policy remained Restricted. TEST-02 moved from Client 0.1.23+24 to 0.1.24+25; TEST-01 replaced the prior same-version Client binary with the verified candidate. Both PostgreSQL system identifiers match their pre-upgrade evidence. See two-device-candidate-45050058552-upgrade-20261123.json.",
-    "twoPhysicalDeviceOfflineRestartSyncConflict": "PARTIAL: older installed native cases demonstrated actual offline command persistence, reconnect, conflict and revocation. Current verified candidate is now installed on both devices and Host/PG readiness passed after upgrade. TEST-02 current Client visibly reopened with its approved package, local draft and 3 stored Host receipts; no new post-upgrade replay/conflict was executed. TEST-01 GUI acceptance awaits clearing its Tailscale welcome window; no credential or security setting was touched.",
-    "installedRecoveryP001_P006": "NOT_EXECUTED",
-    "recoveryVmAccess": "PASS strict pinned SSH to verified VM/guest identity via firewall rule restricted to BAHAA 172.20.160.1 and guest 172.20.162.145 TCP/22. VNIC isolation absent and recovery P001-P006 unexecuted; source 15fa pins current isolation plan.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "PARTIAL: physical offline persistence/restart/reconnect/exactly-once sync and stale-revision conflict were proven on prior installed clients. The exact verified 474c3a4 candidate is now physically installed on both devices with Host/PostgreSQL readiness and DB identity preserved. No fresh command, offline restart, reconnect, or conflict has yet been exercised on the corrected Client; TEST-01 RDP window is minimized to the operator desktop and not currently observable through CUA.",
+    "installedRecoveryP001_P006": "NOT_EXECUTED: disposable Recovery-Lab VM is admitted and effectively isolated, but P001-P006 acceptance scripts remain unsigned under AllSigned and the owner has deferred the signing identity. Do not bypass policy. Backup/restore may be tested through supported installed UI/API workflows if available; the six named acceptance cases remain open until genuine case evidence exists.",
+    "recoveryVmAccess": "PASS: pinned SSH access to verified VENTIO-W2-VM01 works from BAHAA. The exact reviewed eight-rule Hyper-V ACL plan is applied and matches live vNIC ACLs; SSH from BAHAA remains reachable and guest outbound HTTPS timed out as expected. Evidence: recovery-15fa-hosted/isolation-execution-20261123.json.",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
     "wave2C": "NOT_STARTED_PENDING_B_ACCEPTANCE_AND_FINAL_OWNER_APPROVAL",
     "fullFa080ArtifactVerified": "PASS authenticated artifact transport, source archive match and complete 1767 member inventory for superseded fa080 revision; current 474c3a4 candidate independently verified as test02-candidate-45050058552-acceptance.json.",
@@ -47,7 +47,7 @@
     "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass.",
     "test02OlderClientDigest": "TEST-02 Client source 81661f7 used exportBundle for local digest; current source 5374496+ uses retained installed bundle. Stored bundle Dart canonical roundtrip and authenticated approved/record query digests all equal a0f9d3b7...; old installed UI denial must be rechecked after corrected Client install.",
     "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
-    "currentCandidate": "PASS: artifact 14766460867 source-bound to product commit 474c3a4, exact authenticated digest and package inventory, Windows Defender scan PASS, and physical install/upgrade + DB identity preservation on both TEST-01 and TEST-02. App-level revised-candidate synchronization and the full feature matrix remain open."
+    "currentCandidate": "PASS: candidate 45050058552 is source-bound to 474c3a4, SHA-256 verified and physically installed on TEST-01 and TEST-02. Both manifest checks, Host health, PostgreSQL readiness, service identity, anonymous 401, Defender and DB identity continuity passed. Fresh app-level revised-client sync/conflict and full capability matrix remain open."
   },
   "capabilities": [
     {
@@ -152,7 +152,7 @@
       "evidence": [
         "nov21-checkpoint.json"
       ],
-      "remaining": "P001-P005 installed backup/schedule/retention/tamper cases unexecuted; trusted signed operational path and effective recovery VM admission/isolation remain."
+      "remaining": "P001-P005 genuine installed backup/schedule/retention/tamper acceptance remains unexecuted. Exact Recovery-Lab identity, isolation plan and outbound-denial probe now pass; trusted signed recovery operations remain deferred pending approved signing identity."
     },
     {
       "id": "M09",
@@ -162,7 +162,7 @@
       "evidence": [
         "nov21-checkpoint.json"
       ],
-      "remaining": "P006 real restore/receipt/witness preservation and reconciliation unexecuted. Native upgrade backup is separate evidence."
+      "remaining": "P006 real restore/receipt/witness preservation and Recovery Authority reconciliation remain unexecuted. Recovery-Lab admission/isolation now pass; no automatic production restore is permitted."
     },
     {
       "id": "B09",
@@ -282,5 +282,6 @@
       ],
       "remaining": "None for the bounded API contract: actual authenticated requests and installed rejection of unknown routes/handlers/executable properties/oversize/spoofed scope/outbound metadata verified. Global installer/device/recovery gates remain open."
     }
-  ]
+  ],
+  "branchHead": "8d3bb6e65b1c412762f61bca49f0435802decb3a"
 }
