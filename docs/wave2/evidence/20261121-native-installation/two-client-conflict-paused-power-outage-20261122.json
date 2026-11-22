@@ -4,7 +4,7 @@
   "branch": "feature/wave-2-a",
   "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
   "recordId": "ee249212-9761-44c6-84a1-0f5242f73904",
-  "result": "BLOCKED",
+  "result": "PASS",
   "observations": [
     {
       "phase": "test01_offline_edit",
@@ -20,6 +20,16 @@
       "phase": "test01_stale_sync_and_host_authority",
       "result": "BLOCKED",
       "detail": "Before TEST-01 Sync pending, TEST-01 RDP disconnected and TCP 22 stopped responding during a reported power outage. No rejection or conflict receipt has been observed. Do not mark this phase PASS."
+    },
+    {
+      "phase": "test01_stale_sync_after_power_restoration",
+      "result": "PASS",
+      "detail": "Pinned SSH identity VENTIO-TEST-01 and read-only installed SQLite showed the same pending command, attempt 0 after power restoration. Relaunched installed native Ventio Client, retained Host profile and ACTIVE_LOCAL package, invoked Sync pending. Installed SQLite command 0ad4bf52-b026-44dd-84d6-678344f2d51c became CONFLICT, attempt 1. Host receipt status CONFLICT, reasonCode REVISION_CONFLICT, currentRevision 2, retryable false, serverTimestamp 2026-11-22T06:50:54.034285Z. Native Synchronization UI showed Pending 0, Host confirmed 2, Conflicts 1 and the conflicting extension.record.update with one attempt and Host reason REVISION_CONFLICT."
+    },
+    {
+      "phase": "host_authority_after_conflict",
+      "result": "PASS",
+      "detail": "Authenticated TEST-02 Host records/query returned eight records and the target record ee249212-9761-44c6-84a1-0f5242f73904 at revision 2 with name test02 online wins conflict 20261122. The rejected TEST-01 offline name did not overwrite authoritative Host data."
     }
   ],
   "runtimeStateAtPause": {
@@ -34,7 +44,7 @@
     "status": "completed",
     "conclusion": "failure",
     "lastActiveStep": "Prepare locked native Client dependencies",
-    "logs": "Not retrieved; root cause not established",
+    "logs": "GitHub job logs endpoint returned BlobNotFound/404; job metadata says failure after Prepare locked native Client dependencies remained in_progress. Exact cause unproven. Failed job rerun requested.",
     "releaseCandidate": "Not validated"
   },
   "nextActionsWhenDeviceReturns": [
@@ -42,5 +52,11 @@
     "Invoke native TEST-01 Sync pending, inspect rejection/conflict receipt and Host revision/name, then verify TEST-02 view.",
     "Diagnose hosted Client build failure and produce verified candidate."
   ],
-  "credentialsRecorded": false
+  "credentialsRecorded": false,
+  "resumedAtUtc": "2026-11-22T06:50:54.034285Z",
+  "limits": [
+    "This scenario used a stopped VentioHost service for the offline edit and physical power interruption before stale sync; a client-only network disconnect with the Host serving TEST-02 concurrently remains unexecuted.",
+    "Current release-candidate Client is not installed on either device; this case uses installed TEST-01 fa080fc and TEST-02 81661f7 Clients with Host 29e36a8.",
+    "Permission revocation during offline queue, user-facing conflict resolution and full old-payload installer upgrade remain separate acceptance gates."
+  ]
 }

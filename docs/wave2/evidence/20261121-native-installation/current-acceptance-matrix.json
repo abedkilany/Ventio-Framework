@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-21T23:17:05.709595+00:00",
+  "snapshotUtc": "2026-11-22T06:53:58Z",
   "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -36,8 +36,8 @@
     }
   },
   "releaseGates": {
-    "fullUnifiedInstallerUpgrade": "FAIL on TEST-01 old PostgreSQL payload upgrade; 17fa1b7 hosted native run 44955685351 passed 14 installed/denied Host cases and actual Inno silent failure exit 9. Full Windows candidate run 44955810614 in progress; no corrected physical upgrade PASS.",
-    "twoPhysicalDeviceOfflineRestartSyncConflict": "PASS subset: installed TEST-01 native Client to TEST-02 authoritative Host; six-row read, online create/receipt, Host outage, local queue durability across Client restart, reconnect receipt and exactly-once eight-row result. Actual network-adapter disconnect, corrected TEST-02 Client convergence, conflict and revocation remain. See test01-test02-client-host-sync-20261122.json",
+    "fullUnifiedInstallerUpgrade": "FAIL on TEST-01 old PostgreSQL payload upgrade; 17fa1b7 hosted native run 44955685351 passed 14 installed/denied Host cases and Inno silent failure exit 9. Full Windows candidate run 44955810614 attempt 1 failed in/after Prepare locked native Client dependencies (job logs unavailable); rerun failed job requested. No corrected physical upgrade PASS.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "PASS subsets: actual TEST-01 native Client to TEST-02 Host online create, Host outage, durable offline create through Client restart, reconnect receipt and exactly-once convergence on both installed Workspace views; stale revision 1 edit queued offline on TEST-01, TEST-02 revision 2 accepted, TEST-01 received nonretryable REVISION_CONFLICT with currentRevision 2 after power return and Host value stayed revision 2. Client-only network disconnect, permission revocation, corrected Client and conflict resolution remain. See test01-test02-client-host-sync-20261122.json and two-client-conflict-paused-power-outage-20261122.json.",
     "installedRecoveryP001_P006": "NOT_EXECUTED",
     "recoveryVmAccess": "PASS strict pinned SSH to verified VM/guest identity via firewall rule restricted to BAHAA 172.20.160.1 and guest 172.20.162.145 TCP/22. VNIC isolation absent and recovery P001-P006 unexecuted; source 15fa pins current isolation plan.",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
