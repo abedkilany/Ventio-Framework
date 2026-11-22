@@ -296,18 +296,18 @@
   },
   {
     "path": "native-business-offline-20261121.json",
-    "bytes": 3268,
-    "sha256": "44e149ea44711cde83a6cf49aafb6d8514082d1f5841e35263a066e131fe878a"
+    "bytes": 1633,
+    "sha256": "dc9adab73cf5e23958eab5ccfc11c14bc72313c2fffc5b35af68ff0c63170974"
   },
   {
     "path": "native-business-update-20261121.json",
-    "bytes": 2002,
-    "sha256": "424e71a2400e0b65f29cf54b77ff28dda34f2354016cf147e47a57e6c78f7b3f"
+    "bytes": 1000,
+    "sha256": "54be3d1504ced76897b388d45e91bac68694609e96297495c5e3abc35551f36c"
   },
   {
     "path": "native-csv-dashboard-20261121.json",
-    "bytes": 3046,
-    "sha256": "75ea8852e20b33d29febf571bce9734635eecf06ae098839b5974ce585bd3e20"
+    "bytes": 1522,
+    "sha256": "2057519ce651984d0bf5773d7be4606f0f00d1b1310e7935a84f364117253857"
   },
   {
     "path": "native-job-136784450815.log",
@@ -346,8 +346,8 @@
   },
   {
     "path": "product-hostname-tls-test01-to-test02-fixed.json",
-    "bytes": 1212,
-    "sha256": "9d48bb079b2b43cc9273eab06a8f85661edde77cf4d61c988183d674c82c343d"
+    "bytes": 605,
+    "sha256": "94372eff546a43d3ad98e70f3fcd875a0020a10d6d22a8faf5788f4420e53b85"
   },
   {
     "path": "reproduction/actual-host-business-cases-test02.ps1",

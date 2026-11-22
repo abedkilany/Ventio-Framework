@@ -31,7 +31,7 @@ for path in required:
 
 files = [p for p in ROOT.rglob('*') if p.is_file() and p.suffix in ('.md','.dart','.json','.yaml','.py')]
 for path in files:
-  content = path.read_text(encoding='utf-8')
+  content = path.read_text(encoding='utf-8-sig')
   for ch in content:
     # Excludes non-English script letters; English typography is not forbidden.
     if ('\u0600' <= ch <= '\u06ff' or '\u0750' <= ch <= '\u077f' or
@@ -40,7 +40,7 @@ for path in files:
       raise AssertionError(f'Non-English script in {path.relative_to(ROOT)}')
 
 for path in ROOT.rglob('*.json'):
-  json.loads(path.read_text(encoding='utf-8'))
+  json.loads(path.read_text(encoding='utf-8-sig'))
 
 base = json.loads((SPEC/'localization'/'en.core.json').read_text())
 runtime = json.loads((SPEC/'localization'/'en.runtime.json').read_text())
