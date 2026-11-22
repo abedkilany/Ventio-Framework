@@ -1,0 +1,26 @@
+﻿{
+    "case":  "POST_UPGRADE_HOST_READINESS",
+    "capturedAtUtc":  "2026-11-22T22:03:15.2648198Z",
+    "machine":  "VENTIO-TEST-01",
+    "clientVersion":  "0.1.24+25",
+    "postgresReady":  true,
+    "hostHealthStatus":  200,
+    "unauthenticatedSessionStatus":  401,
+    "services":  [
+                     {
+                         "Name":  "VentioHost",
+                         "Status":  4
+                     },
+                     {
+                         "Name":  "VentioPostgres",
+                         "Status":  4
+                     }
+                 ],
+    "executionPolicy":  "Restricted",
+    "witnessPending":  false,
+    "remoteHost8443TcpReachable":  true,
+    "remoteHostResolvedAddresses":  [
+                                        "192.168.1.100"
+                                    ],
+    "pass":  true
+}

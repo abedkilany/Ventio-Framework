@@ -1,0 +1,88 @@
+{
+  "capturedAtUtc": "2026-11-22T22:06:21Z",
+  "candidateIdentity": "Ventio-W2B-0.1.24+25-20261122-474c3a4e2824-gh45050058552-a1",
+  "sourceCommit": "474c3a4e2824c86ea5267d9ed9370d3986197983",
+  "branchHeadAfterEvidenceCommit": "f02f50fbd24b5014e414c13ab77499361abb6628",
+  "workflowRun": 45050058552,
+  "artifactId": 14766460867,
+  "artifactSha256": "054cfd0712192079d6732ba65efcc56641b47961ae5672f16163ae068921ec7f",
+  "installerSha256": "3d3c550717597f87063cce029913537a2b4b5f4acd630057c35151c489c33585",
+  "manifestSha256": "2b29c8983c5daaf47ea81880691e0233b2ee324d3276e17a8ba47c6727062f68",
+  "physicalUpgrades": {
+    "test01": {
+      "machine": "VENTIO-TEST-01",
+      "status": "PASS",
+      "installerExitCode": 0,
+      "fromClientVersion": "0.1.24+25",
+      "toClientVersion": "0.1.24+25",
+      "fullManifestEntriesMatched": 1746,
+      "expectedManifestEntries": 1746,
+      "installerSha256": "3d3c550717597f87063cce029913537a2b4b5f4acd630057c35151c489c33585",
+      "hostAndPostgresRunning": true,
+      "serviceIdentities": {
+        "VentioHost": "NT SERVICE\\VentioHost",
+        "VentioPostgres": "NT SERVICE\\VentioPostgres"
+      },
+      "policyRemainedRestricted": true,
+      "defenderScan": "PASS",
+      "defenderScanEndRecordId": 1529,
+      "hostHealthHttp": 200,
+      "unauthenticatedSessionHttp": 401,
+      "postgresAcceptingConnections": true,
+      "databaseSystemIdentifierBefore": "7708157972516564392",
+      "databaseSystemIdentifierAfter": "7708157972516564392",
+      "databaseIdentityPreserved": true,
+      "recoveryWitnessPending": false,
+      "remoteHost8443TcpReachable": true,
+      "resolvedHostAddress": [
+        "192.168.1.100"
+      ]
+    },
+    "test02": {
+      "machine": "TEST-02",
+      "status": "PASS",
+      "installerExitCode": 0,
+      "fromClientVersion": "0.1.23+24",
+      "toClientVersion": "0.1.24+25",
+      "fullManifestEntriesMatched": 1746,
+      "expectedManifestEntries": 1746,
+      "installerSha256": "3d3c550717597f87063cce029913537a2b4b5f4acd630057c35151c489c33585",
+      "hostAndPostgresRunning": true,
+      "serviceIdentities": {
+        "VentioHost": "NT SERVICE\\VentioHost",
+        "VentioPostgres": "NT SERVICE\\VentioPostgres"
+      },
+      "policyRemainedRestricted": true,
+      "defenderScan": "PASS",
+      "defenderScanEndRecordId": 785,
+      "hostHealthHttp": 200,
+      "unauthenticatedSessionHttp": 401,
+      "postgresAcceptingConnections": true,
+      "databaseSystemIdentifierBefore": "7710532368768573384",
+      "databaseSystemIdentifierAfter": "7710532368768573384",
+      "databaseIdentityPreserved": true,
+      "recoveryWitnessPending": false
+    }
+  },
+  "test02NativeClientAfterUpgradeUiObservation": {
+    "openedInstalledClient": true,
+    "verifiedHostSession": true,
+    "extensionDraftSurvived": "Installed draft acceptance / DRAFT",
+    "approvedPackageActivationSurvived": "Wave 2 fixture / ACTIVE_LOCAL",
+    "synchronizationSummary": {
+      "pending": 0,
+      "retryLater": 0,
+      "hostConfirmed": 3,
+      "rejected": 0,
+      "conflicts": 0
+    },
+    "lastCommandAttemptUtc": "2026-11-21T23:29:15.770614Z",
+    "interpretation": "Installed Client reopened successfully after upgrade and retained local package and receipt state; the displayed receipt summary was previously recorded, so no post-upgrade command replay is claimed."
+  },
+  "test01DesktopUi": "BLOCKED_TAILSCALE_WELCOME_WINDOW; no credentials entered and no security setting changed; Host/Client remain accessible for authorized remote testing.",
+  "counts": {
+    "capabilityPass": 1,
+    "capabilityBlocked": 21
+  },
+  "releaseRecommendation": "NOT_READY; corrected-candidate two-device offline/reconnect/conflict, broad 22-capability manual acceptance, Recovery P001-P006, and deferred release signing remain."
+}

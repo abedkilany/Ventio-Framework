@@ -1,0 +1,8 @@
+﻿{
+    "case":  "POST_UPGRADE_DATABASE_IDENTITY",
+    "capturedAtUtc":  "2026-11-22T22:06:21.6367444Z",
+    "machine":  "VENTIO-TEST-01",
+    "databaseSystemIdentifier":  "7708157972516564392",
+    "noCredentialsRead":  true,
+    "databaseModified":  false
+}
