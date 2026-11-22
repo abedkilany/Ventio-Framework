@@ -62,8 +62,7 @@ jobs:
           path: ~\AppData\Local\Pub\Cache
           key: windows-pub-${{ hashFiles('packages/**/pubspec.lock', 'packages/**/pubspec.yaml') }}
       - run: dart pub get
-      - run: dart format lib bin test
-      - run: git diff -- test/support/wave2_fixtures.dart test/wave2_contracts_test.dart
+      - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
       - run: dart run test/all_tests.dart
       - run: dart run bin/maintenance_demo.dart
