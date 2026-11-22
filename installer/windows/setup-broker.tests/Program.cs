@@ -114,6 +114,9 @@ try
         throw new InvalidOperationException("Changed residue bytes were accepted.");
     }
     catch (InvalidOperationException exception) when (exception.Message == "HOST_NATIVE_PAYLOAD_OBSOLETE_HASH_INVALID") { }
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string> { relative }, fixturePins).Count != 0)
+        throw new InvalidOperationException("A previous manifest's own verified member was overridden by a legacy pin.");
     File.Delete(file);
     if (Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
         new HashSet<string>(), fixturePins).Count != 0)

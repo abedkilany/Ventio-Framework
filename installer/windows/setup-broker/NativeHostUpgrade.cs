@@ -71,7 +71,7 @@ internal static partial class NativeHostInstallation
         return selected;
     }
 
-    private static Dictionary<string, PayloadMember> PresentLegacyResidue()
+    private static Dictionary<string, PayloadMember> PresentLegacyResidue(IEnumerable<string>? alreadyApproved = null)
     {
         var manifestPath = Path.Combine(Payload, "payload-manifest.json");
         AssertNoReparseAncestors(manifestPath);
@@ -80,6 +80,7 @@ internal static partial class NativeHostInstallation
         var listed = manifest.RootElement.GetProperty("verifiedFiles").EnumerateArray()
             .Select(entry => entry.GetProperty("path").GetString() ?? throw Failure("PAYLOAD_MANIFEST_INVALID"))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (alreadyApproved is not null) listed.UnionWith(alreadyApproved);
         return SelectPinnedResidue(Payload, listed, LegacyPg1615Residue);
     }
     internal static void RecordMaintenanceFailure(string operation, Exception exception)
@@ -184,7 +185,9 @@ internal static partial class NativeHostInstallation
         if (!Suppressed(RecoveryNative.Query(HostService)) || ServiceState(HostService) != 1 || ServiceState(PgService) != 1)
             throw Failure("UPGRADE_SERVICES_MUST_BE_STOPPED");
         var obsolete = ReadObsoletePayloadMembers();
-        foreach (var (relative, member) in PresentLegacyResidue())
+        // The previous manifest may approve a different 16.15 build of the
+        // same file; its own verified hash takes precedence over this residue list.
+        foreach (var (relative, member) in PresentLegacyResidue(obsolete.Keys))
             if (!obsolete.TryAdd(relative, member) && obsolete[relative] != member)
                 throw Failure("PAYLOAD_OBSOLETE_HASH_INVALID");
         // Verify every new member and every old-only member before changing
