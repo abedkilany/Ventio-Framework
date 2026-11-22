@@ -1,0 +1,50 @@
+{
+  "case": "PHYSICAL_TEST01_CLIENT_ONLY_NETWORK_ISOLATION_RECONNECT",
+  "observedAtUtc": "2026-11-22T07:10:00Z",
+  "result": "PASS",
+  "branch": "feature/wave-2-a",
+  "installedSources": {
+    "test01Client": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+    "test02Host": "29e36a84875228baf518a2a7030a86bbcb164908"
+  },
+  "devices": {
+    "client": "VENTIO-TEST-01 at 192.168.1.106",
+    "host": "TEST-02 at 192.168.1.100"
+  },
+  "scope": {
+    "moduleId": "com.example.wave2",
+    "version": "1.0.0",
+    "companyId": "w2-company",
+    "branchId": "w2-branch"
+  },
+  "observations": [
+    {
+      "phase": "exact_client_network_isolation",
+      "result": "PASS",
+      "detail": "On TEST-01 only, added a temporary enabled Windows Defender Firewall outbound Block rule for TCP remote 192.168.1.100:8443. Validated exact remote address and port, TEST-02 DNS resolution to 192.168.1.100, and TEST-01 TCP connect failure. SSH to TEST-01 remained functional. TEST-02 VentioHost and PostgreSQL remained running; authenticated local Host records query returned eight rows throughout isolation."
+    },
+    {
+      "phase": "native_offline_create",
+      "result": "PASS",
+      "detail": "Actual TEST-01 installed native New Asset form saved name test01 isolated client network 20261122. Read-only copied installed SQLite local_commands showed extension.record.create command 1d20a93f-b904-416a-ba34-706133ca3e68 PENDING, attempt 0 with no Host receipt. Native Host-backed Asset list showed HOST_REQUEST_TIMEOUT rather than stale Host data; authenticated TEST-02 Host query remained at eight records."
+    },
+    {
+      "phase": "restore_exact_rule",
+      "result": "PASS",
+      "detail": "Removed only the exact named and scope-validated temporary firewall rule. Verified no matching rule remained and TEST-01 TCP connected again to 192.168.1.100:8443."
+    },
+    {
+      "phase": "native_reconnect_and_idempotence",
+      "result": "PASS",
+      "detail": "Invoked native TEST-01 Sync pending. Installed SQLite changed the exact command to ACCEPTED, attempt 1 with Host receipt revision 1. Authenticated TEST-02 Host query rose from eight to nine records and included exactly one test01 isolated client network 20261122. Repeated native Sync pending left Host count nine and command at attempt 1."
+    }
+  ],
+  "testRuleRemaining": 0,
+  "hostFinalRecordCount": 9,
+  "credentialValuesRecorded": false,
+  "limits": [
+    "This case verified client-only TCP Host isolation, not entire network adapter detachment.",
+    "Full corrected Client/Host installation candidate and upgrade still await hosted release artifact.",
+    "TEST-02 native Client visual confirmation of the ninth row remains separate; authoritative Host query verified it."
+  ]
+}

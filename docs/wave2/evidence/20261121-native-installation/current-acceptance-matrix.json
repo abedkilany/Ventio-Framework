@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-22T06:53:58Z",
+  "snapshotUtc": "2026-11-22T07:10:00Z",
   "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -37,7 +37,7 @@
   },
   "releaseGates": {
     "fullUnifiedInstallerUpgrade": "FAIL on TEST-01 old PostgreSQL payload upgrade; 17fa1b7 hosted native run 44955685351 passed 14 installed/denied Host cases and Inno silent failure exit 9. Full Windows candidate run 44955810614 attempt 1 failed in/after Prepare locked native Client dependencies (job logs unavailable); rerun failed job requested. No corrected physical upgrade PASS.",
-    "twoPhysicalDeviceOfflineRestartSyncConflict": "PASS subsets: actual TEST-01 native Client to TEST-02 Host online create, Host outage, durable offline create through Client restart, reconnect receipt and exactly-once convergence on both installed Workspace views; stale revision 1 edit queued offline on TEST-01, TEST-02 revision 2 accepted, TEST-01 received nonretryable REVISION_CONFLICT with currentRevision 2 after power return and Host value stayed revision 2. Client-only network disconnect, permission revocation, corrected Client and conflict resolution remain. See test01-test02-client-host-sync-20261122.json and two-client-conflict-paused-power-outage-20261122.json.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "PASS subsets: installed TEST-01 Client to TEST-02 Host online create, durable Host-outage offline create through Client restart, client-only TCP8443 isolation while Host remained live for TEST-02, reconnect receipts and exactly-once nine-row Host result. Stale revision 1 edit from TEST-01 received nonretryable REVISION_CONFLICT after TEST-02 revision 2; Host value stayed revision 2. Corrected release Client, permission revocation, user conflict resolution and complete device acceptance remain. See test01-test02-client-host-sync-20261122.json, two-client-conflict-paused-power-outage-20261122.json, test01-client-only-network-isolation-20261122.json.",
     "installedRecoveryP001_P006": "NOT_EXECUTED",
     "recoveryVmAccess": "PASS strict pinned SSH to verified VM/guest identity via firewall rule restricted to BAHAA 172.20.160.1 and guest 172.20.162.145 TCP/22. VNIC isolation absent and recovery P001-P006 unexecuted; source 15fa pins current isolation plan.",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
