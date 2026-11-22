@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-22T22:22:04Z",
+  "snapshotUtc": "2026-11-22T22:53:52Z",
   "engineeringSource": "474c3a4e2824c86ea5267d9ed9370d3986197983",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -37,7 +37,7 @@
   },
   "releaseGates": {
     "fullUnifiedInstallerUpgrade": "PASS for physical candidate install/upgrade on both disposable Windows systems: the current-source installer completed with exit 0, all 1746 installed manifest entries matched, Host/PostgreSQL recovered with expected service identities, PostgreSQL was accepting connections, Host /healthz returned 200, anonymous /api/v1/session returned 401, Recovery Authority witness stayed clear, Defender stayed active, and Windows execution policy remained Restricted. TEST-02 moved from Client 0.1.23+24 to 0.1.24+25; TEST-01 replaced the prior same-version Client binary with the verified candidate. Both PostgreSQL system identifiers match their pre-upgrade evidence. See two-device-candidate-45050058552-upgrade-20261123.json.",
-    "twoPhysicalDeviceOfflineRestartSyncConflict": "PARTIAL: physical offline persistence/restart/reconnect/exactly-once sync and stale-revision conflict were proven on prior installed clients. The exact verified 474c3a4 candidate is now physically installed on both devices with Host/PostgreSQL readiness and DB identity preserved. No fresh command, offline restart, reconnect, or conflict has yet been exercised on the corrected Client; TEST-01 RDP window is minimized to the operator desktop and not currently observable through CUA.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "PARTIAL: physical offline persistence/restart/reconnect/exactly-once sync and stale-revision conflict were proven on prior installed clients. The exact verified 474c3a4 candidate is now physically installed on both devices with Host/PostgreSQL readiness and DB identity preserved. No fresh command, offline restart, reconnect, or conflict has yet been exercised on the corrected Client. TEST-01 is currently observable in the installed native app: its Workspace shows the Wave 2 fixture, Preferences shows a pending revision conflict plus a synced customization definition, Host jobs reports no visible jobs, and Saved views has no saved view. This live UI observation does not close the fresh offline/reconciliation gate.",
     "installedRecoveryP001_P006": "NOT_EXECUTED: disposable Recovery-Lab VM is admitted and effectively isolated, but P001-P006 acceptance scripts remain unsigned under AllSigned and the owner has deferred the signing identity. Do not bypass policy. Backup/restore may be tested through supported installed UI/API workflows if available; the six named acceptance cases remain open until genuine case evidence exists.",
     "recoveryVmAccess": "PASS: pinned SSH access to verified VENTIO-W2-VM01 works from BAHAA. The exact reviewed eight-rule Hyper-V ACL plan is applied and matches live vNIC ACLs; SSH from BAHAA remains reachable and guest outbound HTTPS timed out as expected. Evidence: recovery-15fa-hosted/isolation-execution-20261123.json.",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
@@ -283,5 +283,5 @@
       "remaining": "None for the bounded API contract: actual authenticated requests and installed rejection of unknown routes/handlers/executable properties/oversize/spoofed scope/outbound metadata verified. Global installer/device/recovery gates remain open."
     }
   ],
-  "branchHead": "8d3bb6e65b1c412762f61bca49f0435802decb3a"
+  "branchHead": "4048abe3b73f99249089ad9aed6911ad8f4c8917"
 }

@@ -268,11 +268,10 @@ Future<void> main() async {
               },
             ),
         ]);
-        w2Equal(
-          replies.map((r) => r.status).toList()..sort(),
-          [200, 409],
-          'CAS did not fence concurrent writers',
-        );
+        w2Equal(replies.map((r) => r.status).toList()..sort(), [
+          200,
+          409,
+        ], 'CAS did not fence concurrent writers');
       },
     );
     await cases.run(
@@ -633,14 +632,10 @@ Future<void> main() async {
         };
         final result = await f.call('exports/page', fields: fields);
         w2Expect(result['status'] == 'EXPORT', 'Export failed');
-        w2Equal(
-          StructuredCsv.decode(result['csv'] as String),
-          [
-            ['recordId', 'name'],
-            ['asset-190', "'=formula"],
-          ],
-          'Export changed projection or formula escape',
-        );
+        w2Equal(StructuredCsv.decode(result['csv'] as String), [
+          ['recordId', 'name'],
+          ['asset-190', "'=formula"],
+        ], 'Export changed projection or formula escape');
         w2Expect(
           (await f.http(
                 'exports/page',

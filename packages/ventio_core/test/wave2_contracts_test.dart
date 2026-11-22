@@ -10,12 +10,12 @@ DocTypeDefinition _csvDefinition() {
   final doc =
       (w2BundleJson()['docTypes'] as List).single as Map<String, dynamic>;
   Map<String, dynamic> field(String name, String type) => {
-    'name': name,
-    'type': type,
-    'required': true,
-    'label': name,
-    'labelKey': '$w2Label.${name.toLowerCase()}',
-  };
+        'name': name,
+        'type': type,
+        'required': true,
+        'label': name,
+        'labelKey': '$w2Label.${name.toLowerCase()}',
+      };
   (doc['fields'] as List).addAll([
     field('due', 'date'),
     field('state', 'enum')
@@ -79,22 +79,23 @@ List<ImportPreviewRow> _typedCsv({
   Object? lines = const [
     {'asset': 'asset-child'},
   ],
-}) => previewCsvImport(
-  source: StructuredCsv.encode([
-    ['id', 'Name', 'Due', 'State', 'Linked', 'Lines'],
-    ['row-a', 'CSV asset', due, state, linked, lines],
-  ]),
-  definition: _csvDefinition(),
-  mapping: {
-    'Name': 'name',
-    'Due': 'due',
-    'State': 'state',
-    'Linked': 'linked',
-    'Lines': 'lines',
-  },
-  recordIdHeader: 'id',
-  writableFields: {'name', 'due', 'state', 'linked', 'lines'},
-);
+}) =>
+    previewCsvImport(
+      source: StructuredCsv.encode([
+        ['id', 'Name', 'Due', 'State', 'Linked', 'Lines'],
+        ['row-a', 'CSV asset', due, state, linked, lines],
+      ]),
+      definition: _csvDefinition(),
+      mapping: {
+        'Name': 'name',
+        'Due': 'due',
+        'State': 'state',
+        'Linked': 'linked',
+        'Lines': 'lines',
+      },
+      recordIdHeader: 'id',
+      writableFields: {'name', 'due', 'state', 'linked', 'lines'},
+    );
 
 Future<void> main() async {
   final cases = W2Cases();
@@ -441,12 +442,15 @@ Future<void> main() async {
         recordIdHeader: 'id',
         writableFields: {'name'},
       );
-      w2Equal(rows.map((r) => r.rowNumber).toList(), [
-        2,
-        3,
-        4,
-        5,
-      ], 'Rows renumbered');
+      w2Equal(
+          rows.map((r) => r.rowNumber).toList(),
+          [
+            2,
+            3,
+            4,
+            5,
+          ],
+          'Rows renumbered');
       w2Expect(
         rows[0].errors.contains('DUPLICATE_RECORD_ID') &&
             rows[1].errors.contains('COLUMN_COUNT_MISMATCH') &&
@@ -517,12 +521,12 @@ Future<void> main() async {
       };
       final definition = DocTypeDefinition.fromJson(doc);
       List<ImportPreviewRow> preview(String cells) => previewCsvImport(
-        source: 'id,N,A,B\na,$cells',
-        definition: definition,
-        mapping: {'N': 'number', 'A': 'amount', 'B': 'active'},
-        recordIdHeader: 'id',
-        writableFields: {'number', 'amount', 'active'},
-      );
+            source: 'id,N,A,B\na,$cells',
+            definition: definition,
+            mapping: {'N': 'number', 'A': 'amount', 'B': 'active'},
+            recordIdHeader: 'id',
+            writableFields: {'number', 'amount', 'active'},
+          );
       w2Expect(
         preview('12,1.20,true').single.errors.isEmpty,
         'Typed valid values rejected',
@@ -618,20 +622,20 @@ Future<void> main() async {
     'Dashboard accepts twelve declarative cards and rejects thirteen or executable cards',
     () {
       Map<String, dynamic> dashboard(int count) => {
-        'contractVersion': 1,
-        'title': 'Dashboard',
-        'cards': List.generate(
-          count,
-          (_) => {
-            'title': 'Assets',
-            'moduleId': w2Module,
-            'moduleVersion': '1.0.0',
-            'docType': 'Asset',
-            'reportId': 'asset_count',
-            'filters': <String, dynamic>{},
-          },
-        ),
-      };
+            'contractVersion': 1,
+            'title': 'Dashboard',
+            'cards': List.generate(
+              count,
+              (_) => {
+                'title': 'Assets',
+                'moduleId': w2Module,
+                'moduleVersion': '1.0.0',
+                'docType': 'Asset',
+                'reportId': 'asset_count',
+                'filters': <String, dynamic>{},
+              },
+            ),
+          };
       validateWave2Definition('dashboard', dashboard(12));
       w2Contract(
         () => validateWave2Definition('dashboard', dashboard(13)),
@@ -674,11 +678,12 @@ Future<void> main() async {
     () {
       validateWave2Definition(
         'configuration',
-        w2Settings()..addAll({
-          'defaultPageSize': 100,
-          'maxImportRows': 500,
-          'completedJobRetentionDays': 3650,
-        }),
+        w2Settings()
+          ..addAll({
+            'defaultPageSize': 100,
+            'maxImportRows': 500,
+            'completedJobRetentionDays': 3650,
+          }),
       );
       for (final entry in {
         'defaultPageSize': 100,
@@ -708,13 +713,14 @@ Future<void> main() async {
     'Backup policy bounds include retention, retries and UTC schedule',
     () {
       BackupPolicy.fromJson(
-        w2Policy()..addAll({
-          'retainDays': 3650,
-          'retainCopies': 1000,
-          'maximumAttempts': 5,
-          'retryMinutes': 1440,
-          'utcTime': '23:59',
-        }),
+        w2Policy()
+          ..addAll({
+            'retainDays': 3650,
+            'retainCopies': 1000,
+            'maximumAttempts': 5,
+            'retryMinutes': 1440,
+            'utcTime': '23:59',
+          }),
       );
       for (final entry in {
         'retainDays': [0, 3651],
