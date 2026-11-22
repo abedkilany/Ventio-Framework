@@ -119,13 +119,7 @@ if ($env:VENTIO_PRIVATE_FILES_DIAGNOSTICS -eq '1') {
       'powershell.exe';
   final result = await Process.run(
     powershell,
-    [
-      '-NoLogo',
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      script,
-    ],
+    ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
     environment: {
       'VENTIO_TEST_PRIVATE_ACL_PATH': directory.path,
       'VENTIO_TEST_PRIVATE_ACL_OWNER': ownerSid,
@@ -222,13 +216,7 @@ exit 0
       'powershell.exe';
   final result = await Process.run(
     powershell,
-    [
-      '-NoLogo',
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      script,
-    ],
+    ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
     environment: {'VENTIO_TEST_PRIVATE_ACL_PATH': path},
   );
   return result.exitCode == 0;

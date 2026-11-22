@@ -167,8 +167,9 @@ Future<void> main() async {
         };
         w2Expect(
           ExtensionRecordCommand.fromEnvelope(
-            CommandEnvelope.fromJson(deniedDelete),
-          ).operation == 'delete',
+                CommandEnvelope.fromJson(deniedDelete),
+              ).operation ==
+              'delete',
           'The denied delete must be valid before authorization is tested',
         );
         for (final wire in [

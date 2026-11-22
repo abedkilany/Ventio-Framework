@@ -291,9 +291,15 @@ class W2Fixture {
   }) async {
     final reply = await http(action, fields: fields, as: as);
     final recent = diagnostics.recent(limit: 1);
-    final sqlState = recent.isEmpty ? null : recent.first.protectedTechnicalCode;
-    final failureType = recent.isEmpty ? null : recent.first.protectedFailureType;
-    final failureSource = recent.isEmpty ? null : recent.first.protectedFailureSource;
+    final sqlState = recent.isEmpty
+        ? null
+        : recent.first.protectedTechnicalCode;
+    final failureType = recent.isEmpty
+        ? null
+        : recent.first.protectedFailureType;
+    final failureSource = recent.isEmpty
+        ? null
+        : recent.first.protectedFailureSource;
     w2Expect(
       reply.status == status,
       'Unexpected HTTP status for $action: ${reply.status}; fixture SQLSTATE=$sqlState type=$failureType source=$failureSource',
