@@ -934,7 +934,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.source_doctype': 'Source DocType',
   'native.ui.sum_numeric_field': 'Sum numeric field',
   'native.ui.stable_identifier_use_letters_numbers_and_underscores':
-      'Stable identifier. Use letters, numbers and underscores.',
+      'Stable identifier. Start with an uppercase letter, then use letters, numbers and underscores.',
   'native.ui.stable_namespaced_id_it_cannot_be_changed_later':
       'Stable namespaced ID; it cannot be changed later.',
   'native.ui.start_with_an_extension': 'Start with an extension',

@@ -1863,6 +1863,21 @@ void main() {
       );
       expect(find.text('Save field'), findsNothing);
       fields = find.byType(TextFormField);
+      expect(
+        find.text(
+          'Stable identifier. Start with an uppercase letter, then use letters, numbers and underscores.',
+        ),
+        findsOneWidget,
+      );
+      await tester.enterText(fields.at(0), 'w2_acceptance_record');
+      await tester.tap(find.text('Add field'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Enter a valid DocType ID before adding fields.'),
+        findsOneWidget,
+      );
+      expect(find.text('Save field'), findsNothing);
+      fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'Asset');
       await tester.enterText(fields.at(1), 'Asset');
       await tester.enterText(fields.at(2), 'An asset assigned to a branch.');
