@@ -28,6 +28,12 @@
     "curlCertificateVerificationResult": 0,
     "healthz": 200,
     "anonymousSession": 401,
+    "postgresPort": 54329,
+    "postgresAcceptingConnections": true,
+    "postgresClusterState": "in production",
+    "databaseSystemIdentifier": "7710532368768573384",
+    "databaseSystemIdentifierBeforeCandidateInstall": "7710532368768573384",
+    "databaseIdentityPreserved": true,
     "credentialsUsed": false,
     "tlsValidationBypassed": false
   },
