@@ -1,5 +1,5 @@
 {
-  "verifiedAtUtc": "2026-11-23T09:15:05Z",
+  "verifiedAtUtc": "2026-11-23T09:18:00Z",
   "sourceCommit": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
   "branch": "feature/wave-2-a",
   "windowsAcceptanceWorkflowRunId": 45141812779,
@@ -41,6 +41,17 @@
     "installerSha256VerifiedOnTarget": "d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f",
     "buildCommitVerifiedOnTarget": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
     "stagingPath": "C:\\Users\\Codex-3\\AppData\\Local\\Temp\\Ventio-Acceptance-45b9\\Ventio-Setup-0.1.24.exe"
+  },
+  "preInstallTargetState": {
+    "checkedAtUtc": "2026-11-23T09:18:00Z",
+    "computer": "TEST-02",
+    "ipv4": "192.168.1.104",
+    "ventioHostService": "RUNNING",
+    "ventioPostgresService": "RUNNING",
+    "localMachineExecutionPolicy": "Restricted",
+    "policyChanged": false,
+    "hostHealth": 200,
+    "anonymousSession": 401
   },
   "physicalInstallOnThisCandidate": "PENDING_ACTION_TIME_CONFIRMATION",
   "releaseSigning": "DEFERRED_OWNER_PREREQUISITE; no signature policy bypassed"

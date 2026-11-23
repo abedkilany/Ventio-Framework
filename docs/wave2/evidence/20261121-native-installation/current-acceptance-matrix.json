@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-23T09:15:05Z",
+  "snapshotUtc": "2026-11-23T09:18:00Z",
   "engineeringSource": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -49,7 +49,7 @@
     "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
     "test02CurrentHostReadiness": "PASS read-only live probe of the installed 474c3a4 Host at 192.168.1.104: pinned TLS 1.3 certificate and TEST-02 hostname validated, a deliberately wrong pin was rejected, /healthz returned 200, and anonymous session returned 401. No trust store change or TLS bypass. See test02-readonly-host-probe-20261123-rerun.json.",
     "test01LocalDraftPersistence": "PASS subset on the installed 474c3a4 Client: a local declarative extension draft remained DRAFT / LOCAL ONLY after normal Client restart. The test DocType ID began lowercase and was correctly rejected; its helper text omitted the uppercase-initial rule. A current-source guidance fix and regression are in progress. No publish or Host sync is claimed. See test01-local-extension-draft-persistence-20261123.json.",
-    "latestCiOnEvidenceHead": "PASS: all 10 PR-triggered workflows for source 45b9a148ea8e5251ff7c7d51ada50139f39a60fa completed successfully. Runs: Native Flutter 45141812629; Windows Acceptance Package 45141812779; Host API 45141812554; Host Persistence 45141812506; Durable Commands 45141812925; Core Foundation 45141812551; Host Engineering Gate 45141812662; Host Crash Recovery 45141812740; Credential Lifecycle 45141812675; Host Security Investigation 45141812684. wave2-resume was skipped by workflow conditions.",
+    "latestCiOnEvidenceHead": "PASS: all 10 PR-triggered workflows for product source 45b9a148ea8e5251ff7c7d51ada50139f39a60fa completed successfully. Runs: Native Flutter 45141812629; Windows Acceptance Package 45141812779; Host API 45141812554; Host Persistence 45141812506; Durable Commands 45141812925; Core Foundation 45141812551; Host Engineering Gate 45141812662; Host Crash Recovery 45141812740; Credential Lifecycle 45141812675; Host Security Investigation 45141812684. All 10 also passed on latest evidence-only head 89e28ae. wave2-resume was skipped by workflow conditions.",
     "latestReproducibleCandidate": "PASS build and integrity: run 45141812779, artifact 14802134409, source 45b9a14. ZIP SHA-256 dc1c8ab8636be7cb55516dc6fefaaf3a154a8a4421521d587b12ba64730326db; installer SHA-256 d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f. Target TEST-02 transfer and hash verification passed. Authenticode is NotSigned; signing is deferred. Physical installation is pending action-time confirmation. See candidate-45b9a14-package-verification.json.",
     "currentCandidate": "Previously installed 474c3a4 remains on TEST-01 and TEST-02 with Host/PostgreSQL readiness verified. Latest 45b9a14 candidate is staged and hash-verified on TEST-02, but not installed yet."
   },
@@ -288,5 +288,5 @@
       "remaining": "None for the bounded API contract: actual authenticated requests and installed rejection of unknown routes/handlers/executable properties/oversize/spoofed scope/outbound metadata verified. Global installer/device/recovery gates remain open."
     }
   ],
-  "branchHead": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa"
+  "branchHead": "89e28aec4fae732f078780d2fc4deff81d3584d5"
 }
