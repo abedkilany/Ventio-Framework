@@ -1,0 +1,36 @@
+{
+  "case": "TEST02_CANDIDATE_45B9A14_PHYSICAL_INSTALL_AND_READINESS",
+  "testedAtUtc": "2026-11-23T16:08:15Z",
+  "target": {
+    "computer": "TEST-02",
+    "ipv4": "192.168.1.104",
+    "installer": "C:\\Users\\Codex-3\\AppData\\Local\\Temp\\Ventio-Acceptance-45b9\\Ventio-Setup-0.1.24.exe",
+    "installerSha256": "d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f"
+  },
+  "installation": {
+    "ownerCompletedNativeUacApproval": true,
+    "clientFileVersion": "0.1.24+25",
+    "clientLastWriteUtc": "2026-11-23T06:56:26Z",
+    "hostPayloadSourceCommit": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+    "ventioHostService": "RUNNING",
+    "ventioPostgresService": "RUNNING",
+    "windowsDefenderService": "RUNNING",
+    "effectiveExecutionPolicy": "Restricted",
+    "executionPolicyScopes": "all Undefined; effective policy remains Restricted",
+    "tlsOrExecutionPolicyBypassUsed": false
+  },
+  "readiness": {
+    "probeOrigin": "BAHAA",
+    "hostNameValidated": "TEST-02",
+    "resolvedAddressPinnedForProbe": "192.168.1.104",
+    "certificateSource": "host-lan-certificate.pem retrieved over the existing pinned TEST-02 SSH identity",
+    "certificatePemSha256": "25de6624eb6b083576ddef1e073ba00dd68b8c45a001d1a03004524dff0a2a43",
+    "curlCertificateVerificationResult": 0,
+    "healthz": 200,
+    "anonymousSession": 401,
+    "credentialsUsed": false,
+    "tlsValidationBypassed": false
+  },
+  "result": "PASS_INSTALLED_SOURCE_IDENTITY_AND_READ_ONLY_HOST_READINESS",
+  "limits": "This confirms the source-bound installation and read-only Host readiness only. It does not close the 22-capability matrix, prove fresh two-device sync/conflict on this candidate, or execute P001-P006."
+}

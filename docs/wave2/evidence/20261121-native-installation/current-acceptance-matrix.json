@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-23T09:18:00Z",
+  "snapshotUtc": "2026-11-23T16:08:15Z",
   "engineeringSource": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -10,9 +10,9 @@
     "PASS": 1
   },
   "authoritativeScope": "../../WAVE_2_SCOPE_AND_ACCEPTANCE.md",
-  "installedSources": {
-    "client": "474c3a4e2824c86ea5267d9ed9370d3986197983",
-    "host": "474c3a4e2824c86ea5267d9ed9370d3986197983"
+    "installedSources": {
+    "client": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+    "host": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa"
   },
   "installedHttpUniquePassed": 54,
   "automatedLedger": {
@@ -47,11 +47,11 @@
     "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass.",
     "test02OlderClientDigest": "TEST-02 Client source 81661f7 used exportBundle for local digest; current source 5374496+ uses retained installed bundle. Stored bundle Dart canonical roundtrip and authenticated approved/record query digests all equal a0f9d3b7...; old installed UI denial must be rechecked after corrected Client install.",
     "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
-    "test02CurrentHostReadiness": "PASS read-only live probe of the installed 474c3a4 Host at 192.168.1.104: pinned TLS 1.3 certificate and TEST-02 hostname validated, a deliberately wrong pin was rejected, /healthz returned 200, and anonymous session returned 401. No trust store change or TLS bypass. See test02-readonly-host-probe-20261123-rerun.json.",
+    "test02CurrentHostReadiness": "PASS read-only live probe after physical installation of source 45b9a14: Host and PostgreSQL services RUNNING, effective Windows execution policy Restricted, Defender RUNNING, certificate retrieved over pinned SSH and then validated by curl with TEST-02 hostname validation (verification result 0), /healthz 200 and anonymous session 401. No credentials or TLS/policy bypass. See test02-candidate-45b9a14-postinstall-20261123.json.",
     "test01LocalDraftPersistence": "PASS subset on the installed 474c3a4 Client: a local declarative extension draft remained DRAFT / LOCAL ONLY after normal Client restart. The test DocType ID began lowercase and was correctly rejected; its helper text omitted the uppercase-initial rule. A current-source guidance fix and regression are in progress. No publish or Host sync is claimed. See test01-local-extension-draft-persistence-20261123.json.",
     "latestCiOnEvidenceHead": "PASS: all 10 PR-triggered workflows for product source 45b9a148ea8e5251ff7c7d51ada50139f39a60fa completed successfully. Runs: Native Flutter 45141812629; Windows Acceptance Package 45141812779; Host API 45141812554; Host Persistence 45141812506; Durable Commands 45141812925; Core Foundation 45141812551; Host Engineering Gate 45141812662; Host Crash Recovery 45141812740; Credential Lifecycle 45141812675; Host Security Investigation 45141812684. All 10 also passed on latest evidence-only head 89e28ae. wave2-resume was skipped by workflow conditions.",
-    "latestReproducibleCandidate": "PASS build and integrity: run 45141812779, artifact 14802134409, source 45b9a14. ZIP SHA-256 dc1c8ab8636be7cb55516dc6fefaaf3a154a8a4421521d587b12ba64730326db; installer SHA-256 d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f. Target TEST-02 transfer and hash verification passed. Authenticode is NotSigned; signing is deferred. Physical installation is pending action-time confirmation. See candidate-45b9a14-package-verification.json.",
-    "currentCandidate": "Previously installed 474c3a4 remains on TEST-01 and TEST-02 with Host/PostgreSQL readiness verified. Latest 45b9a14 candidate is staged and hash-verified on TEST-02, but not installed yet."
+    "latestReproducibleCandidate": "PASS build and integrity: run 45141812779, artifact 14802134409, source 45b9a14. ZIP SHA-256 dc1c8ab8636be7cb55516dc6fefaaf3a154a8a4421521d587b12ba64730326db; installer SHA-256 d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f. Physical installation on TEST-02 and exact Host payload source verification passed. Authenticode is NotSigned; signing is deferred. TEST-01 upgrade remains pending. See candidate-45b9a14-package-verification.json and test02-candidate-45b9a14-postinstall-20261123.json.",
+    "currentCandidate": "Source-bound installer 45b9a14 (0.1.24+25) physically installed on TEST-02; Host payload manifest reports the exact source commit, Host/PostgreSQL are RUNNING and anonymous Host access is denied. TEST-01 remains on 474c3a4 pending its candidate upgrade and fresh two-device acceptance."
   },
   "capabilities": [
     {

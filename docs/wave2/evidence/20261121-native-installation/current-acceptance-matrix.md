@@ -82,6 +82,14 @@ The recovery VM's live eight-rule Hyper-V extended ACL now exactly matches the r
 A fresh read-only check confirms candidate `0.1.24+25` is present on both TEST-01 and TEST-02, both Host and PostgreSQL services are running under their expected service identities, and both Host health endpoints return 200. The physical upgrade and PostgreSQL identity-preservation evidence remains [here](two-device-candidate-45050058552-upgrade-20261123.json). No fresh sync/conflict run on this candidate is claimed. The local RDP windows are minimized and cannot currently be observed by the computer-use surface, so the revised Clients' full UI acceptance has not resumed.
 
 The 22-capability matrix remains **1 PASS / 21 BLOCKED**. P001–P006 remain **NOT EXECUTED**: the lab is now isolated and reachable, but the installed acceptance scripts are unsigned and the owner deferred the approved signing identity. No policy bypass was used. PR #6 remains Draft and **NOT READY**.
+
+## 2026-11-23 — source 45b9a14 installed on TEST-02
+
+The owner ran the verified `Ventio-Setup-0.1.24.exe` on TEST-02 and approved the native UAC prompt. The staged installer SHA-256 remained `d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f`; the installed Client reports `0.1.24+25`, and the installed Host payload manifest reports source `45b9a148ea8e5251ff7c7d51ada50139f39a60fa`. VentioHost, VentioPostgres and Windows Defender are RUNNING; effective PowerShell execution policy remains `Restricted`.
+
+A read-only request from BAHAA retrieved TEST-02's Host certificate over its already pinned SSH identity, then used curl with that certificate and explicit `TEST-02` hostname resolution to `192.168.1.104`. Certificate verification succeeded (`verify_result=0`), `/healthz` returned 200, and anonymous `/api/v1/session` returned 401. No credentials or validation bypass were used. See [physical install and readiness evidence](test02-candidate-45b9a14-postinstall-20261123.json).
+
+This upgrades TEST-02 only. TEST-01's Client and Host remain on the earlier source pending upgrade, and no fresh two-device sync/conflict run is claimed. The matrix remains **1 PASS / 21 BLOCKED**; P001–P006 remain **NOT EXECUTED**; PR #6 remains Draft and **NOT READY**.
 ## 2026-11-23 — source 04a9874 CI and Windows artifact verification
 
 Branch feature/wave-2-a is at 04a9874eff3d62f4bc6296766fb62642efd5cb8b, matching origin. Every non-skipped PR check on this exact source revision completed successfully, including architecture contracts, Dart core, native Windows/Android client, Host API, durable commands, credential lifecycle, Host recovery, PostgreSQL adapter, Host engineering gate, reproduction and Windows acceptance package. wave2-resume was skipped by workflow conditions.
