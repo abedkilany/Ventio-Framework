@@ -13,6 +13,14 @@
     "docTypes": 0
   },
   "schemaEditorObservation": "A new DocType form accepted its ID, display name and description, but the Add field action did not open the field editor through the RDP interaction. The unsaved form was abandoned; no DocType was created.",
+  "sourceRegression": {
+    "sourceCommit": "04a9874eff3d62f4bc6296766fb62642efd5cb8b",
+    "command": "flutter test test/extension_studio_test.dart --plain-name \"Builder creates, previews, activates and runs a generated DocType\" --no-pub --reporter expanded",
+    "flutter": "3.44.1",
+    "dart": "3.12.1",
+    "result": "PASS (1 test)",
+    "limit": "Widget regression on current source; it does not replace the incomplete installed UI interaction on TEST-01."
+  },
   "result": "PASS_LOCAL_DRAFT_PERSISTS_ACROSS_CLIENT_RESTART",
   "limits": [
     "This proves only local SQLite-backed draft persistence on TEST-01.",

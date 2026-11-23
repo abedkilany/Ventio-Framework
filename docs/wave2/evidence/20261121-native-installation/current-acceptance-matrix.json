@@ -1,5 +1,5 @@
 {
-  "snapshotUtc": "2026-11-22T23:47:29Z",
+  "snapshotUtc": "2026-11-23T08:43:31Z",
   "engineeringSource": "04a9874eff3d62f4bc6296766fb62642efd5cb8b",
   "branch": "feature/wave-2-a",
   "pr": 6,
@@ -49,6 +49,7 @@
     "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
     "test02CurrentHostReadiness": "PASS read-only live probe of the installed 474c3a4 Host at 192.168.1.104: pinned TLS 1.3 certificate and TEST-02 hostname validated, a deliberately wrong pin was rejected, /healthz returned 200, and anonymous session returned 401. No trust store change or TLS bypass. See test02-readonly-host-probe-20261123-rerun.json.",
     "test01LocalDraftPersistence": "PASS subset on the installed 474c3a4 Client: a local declarative extension draft remained DRAFT / LOCAL ONLY after normal Client restart. Schema editor interaction did not complete field addition; no publish or Host sync is claimed. See test01-local-extension-draft-persistence-20261123.json.",
+    "latestCiOnEvidenceHead": "PASS: all 10 PR-triggered workflows associated with evidence-only commit a217f05 completed successfully, including the full Native Flutter Client and Windows Extension Builder suite, Host API, Host Persistence, Durable Commands, Core Foundation, Windows Acceptance Package, Host Engineering, Host Crash Recovery, Credential Lifecycle and Host Security Investigation. Product source is unchanged from 04a9874. No 04a9874 installer was physically installed.",
     "latestReproducibleCandidate": "PASS build and integrity only: run 45082307385, artifact 14778440325, source 04a9874. ZIP SHA-256 006df3ec109258490ce20bafab3e26177c685eb1d4ba1f347f3f9cae4967cbc4; installer SHA-256 a1ea50c1d01048990d392d1b658bd8349ecfb18340f686f1016a1859ec6af0a2. Authenticode is NotSigned; release signing remains deferred. Not physically installed.",
     "currentCandidate": "PASS historical 474c3a4 candidate remains physically installed on TEST-01 and TEST-02 with both Host/PostgreSQL readiness and identity continuity verified. This does not apply to newer 04a9874 installer."
   },
@@ -287,5 +288,5 @@
       "remaining": "None for the bounded API contract: actual authenticated requests and installed rejection of unknown routes/handlers/executable properties/oversize/spoofed scope/outbound metadata verified. Global installer/device/recovery gates remain open."
     }
   ],
-  "branchHead": "04a9874eff3d62f4bc6296766fb62642efd5cb8b"
+  "branchHead": "a217f05e040a0577eb1ad6d5c87f77bc9c545e2a"
 }
