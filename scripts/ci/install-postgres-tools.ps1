@@ -15,6 +15,12 @@ foreach ($name in @('GITHUB_ENV', 'GITHUB_PATH', 'RUNNER_TEMP', 'RUNNER_TOOL_CAC
 
 $toolCache = [IO.Path]::GetFullPath($env:RUNNER_TOOL_CACHE)
 $toolRoot = Join-Path $toolCache "ventio-postgresql-$version-x64"
+$tempRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+$verifiedArchivePath = [IO.Path]::GetFullPath((Join-Path $tempRoot $archiveName))
+if (-not $verifiedArchivePath.StartsWith($tempRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Refusing to read a PostgreSQL archive cache path outside RUNNER_TEMP.'
+}
+$archiveCacheHit = $false
 $binDirectory = Join-Path $toolRoot 'pgsql\bin'
 $postgresExe = Join-Path $binDirectory 'postgres.exe'
 $requiredTools = @('postgres.exe', 'initdb.exe', 'pg_ctl.exe', 'psql.exe', 'pg_dump.exe', 'pg_dumpall.exe', 'pg_restore.exe', 'createdb.exe', 'pg_isready.exe')
@@ -38,62 +44,81 @@ if (-not (Test-PostgresToolDirectory)) {
         Remove-Item -LiteralPath $resolvedToolRoot -Recurse -Force
     }
 
-    $tempRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
     $workRoot = Join-Path $tempRoot "ventio-postgres-install-$PID"
     $resolvedWorkRoot = [IO.Path]::GetFullPath($workRoot)
     if (-not $resolvedWorkRoot.StartsWith($tempRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Refusing to create PostgreSQL installation files outside RUNNER_TEMP.'
     }
-    $archivePath = Join-Path $workRoot $archiveName
+    $downloadArchivePath = Join-Path $workRoot $archiveName
     $extractRoot = Join-Path $workRoot 'expanded'
     New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
 
     try {
-        $checksum = (Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -TimeoutSec 60).Content.Trim()
-        if ($checksum -notmatch '^([0-9a-fA-F]{64})\s+\S+$' -or $Matches[1].ToLowerInvariant() -ne $expectedSha256) {
-            throw 'The PostgreSQL binary archive checksum metadata did not match the pinned EDB release.'
+        if (Test-Path -LiteralPath $verifiedArchivePath -PathType Leaf) {
+            $resolvedArchivePath = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $verifiedArchivePath).Path)
+            if (-not $resolvedArchivePath.StartsWith($tempRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'Refusing a PostgreSQL archive cache file that resolves outside RUNNER_TEMP.'
+            }
+            $cachedArchive = Get-Item -LiteralPath $verifiedArchivePath
+            if ($cachedArchive.Length -eq $expectedLength) {
+                $cachedHash = (Get-FileHash -LiteralPath $verifiedArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+                $archiveCacheHit = ($cachedHash -eq $expectedSha256)
+            }
+        }
+        if (-not $archiveCacheHit) {
+            if (Test-Path -LiteralPath $verifiedArchivePath) {
+                if (-not (Test-Path -LiteralPath $verifiedArchivePath -PathType Leaf)) {
+                    throw 'The PostgreSQL archive cache path exists but is not a regular file.'
+                }
+                Remove-Item -LiteralPath $verifiedArchivePath -Force
+            }
+            $checksum = (Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -TimeoutSec 60).Content.Trim()
+            if ($checksum -notmatch '^([0-9a-fA-F]{64})\s+\S+$' -or $Matches[1].ToLowerInvariant() -ne $expectedSha256) {
+                throw 'The PostgreSQL binary archive checksum metadata did not match the pinned EDB release.'
+            }
+
+            $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+            $chunkCount = 8
+            $chunkSize = [Math]::Ceiling($expectedLength / $chunkCount)
+            $downloads = @()
+            for ($index = 0; $index -lt $chunkCount; $index++) {
+                $start = [long]$index * $chunkSize
+                $end = [Math]::Min($expectedLength - 1, $start + $chunkSize - 1)
+                $chunkPath = Join-Path $workRoot "archive-$index.part"
+                $arguments = '--fail --location --silent --show-error --range {0}-{1} --output "{2}" "{3}"' -f $start, $end, $chunkPath, $archiveUrl
+                $downloads += [pscustomobject]@{
+                    Index = $index
+                    Start = $start
+                    End = $end
+                    Path = $chunkPath
+                    Process = Start-Process -FilePath $curl -ArgumentList $arguments -PassThru -WindowStyle Hidden
+                }
+            }
+            foreach ($download in $downloads) { $download.Process.WaitForExit() }
+            foreach ($download in $downloads) {
+                if ($download.Process.ExitCode -ne 0 -or
+                    -not (Test-Path -LiteralPath $download.Path) -or
+                    (Get-Item -LiteralPath $download.Path).Length -ne ($download.End - $download.Start + 1)) {
+                    throw 'A PostgreSQL archive range failed to download completely from EDB.'
+                }
+            }
+            $archiveStream = [IO.File]::Open($downloadArchivePath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+            try {
+                foreach ($download in ($downloads | Sort-Object Index)) {
+                    $chunkStream = [IO.File]::OpenRead($download.Path)
+                    try { $chunkStream.CopyTo($archiveStream) } finally { $chunkStream.Dispose() }
+                }
+            }
+            finally { $archiveStream.Dispose() }
+            if ((Get-Item -LiteralPath $downloadArchivePath).Length -ne $expectedLength) {
+                throw 'The downloaded PostgreSQL archive length did not match the pinned EDB artifact.'
+            }
+            $actualSha256 = (Get-FileHash -LiteralPath $downloadArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualSha256 -ne $expectedSha256) { throw 'The downloaded PostgreSQL binary archive failed SHA-256 verification.' }
+            Move-Item -LiteralPath $downloadArchivePath -Destination $verifiedArchivePath
         }
 
-        $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
-        $chunkCount = 8
-        $chunkSize = [Math]::Ceiling($expectedLength / $chunkCount)
-        $downloads = @()
-        for ($index = 0; $index -lt $chunkCount; $index++) {
-            $start = [long]$index * $chunkSize
-            $end = [Math]::Min($expectedLength - 1, $start + $chunkSize - 1)
-            $chunkPath = Join-Path $workRoot "archive-$index.part"
-            $arguments = '--fail --location --silent --show-error --range {0}-{1} --output "{2}" "{3}"' -f $start, $end, $chunkPath, $archiveUrl
-            $downloads += [pscustomobject]@{
-                Index = $index
-                Start = $start
-                End = $end
-                Path = $chunkPath
-                Process = Start-Process -FilePath $curl -ArgumentList $arguments -PassThru -WindowStyle Hidden
-            }
-        }
-        foreach ($download in $downloads) { $download.Process.WaitForExit() }
-        foreach ($download in $downloads) {
-            if ($download.Process.ExitCode -ne 0 -or
-                -not (Test-Path -LiteralPath $download.Path) -or
-                (Get-Item -LiteralPath $download.Path).Length -ne ($download.End - $download.Start + 1)) {
-                throw 'A PostgreSQL archive range failed to download completely from EDB.'
-            }
-        }
-        $archiveStream = [IO.File]::Open($archivePath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-        try {
-            foreach ($download in ($downloads | Sort-Object Index)) {
-                $chunkStream = [IO.File]::OpenRead($download.Path)
-                try { $chunkStream.CopyTo($archiveStream) } finally { $chunkStream.Dispose() }
-            }
-        }
-        finally { $archiveStream.Dispose() }
-        if ((Get-Item -LiteralPath $archivePath).Length -ne $expectedLength) {
-            throw 'The downloaded PostgreSQL archive length did not match the pinned EDB artifact.'
-        }
-        $actualSha256 = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-        if ($actualSha256 -ne $expectedSha256) { throw 'The downloaded PostgreSQL binary archive failed SHA-256 verification.' }
-
-        Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
+        Expand-Archive -LiteralPath $verifiedArchivePath -DestinationPath $extractRoot -Force
         $extractedPostgres = Join-Path $extractRoot 'pgsql\bin\postgres.exe'
         if (-not (Test-Path -LiteralPath $extractedPostgres -PathType Leaf)) {
             throw 'The verified PostgreSQL archive did not contain the expected pgsql/bin layout.'
@@ -115,4 +140,4 @@ if (-not (Test-PostgresToolDirectory)) {
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [IO.File]::AppendAllText($env:GITHUB_ENV, "VENTIO_TEST_POSTGRES_BIN_DIR=$binDirectory`n", $utf8NoBom)
 [IO.File]::AppendAllText($env:GITHUB_PATH, "$binDirectory`n", $utf8NoBom)
-Write-Output "Using EDB PostgreSQL $version binaries from the verified runner tool cache."
+Write-Output "Using EDB PostgreSQL $version binaries from the verified runner tool cache; archive cache hit: $archiveCacheHit."

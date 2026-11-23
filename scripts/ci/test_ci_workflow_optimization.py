@@ -3,7 +3,8 @@ import unittest
 from pathlib import Path
 
 
-WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 REQUIRED_CONTEXTS = {
     "core-foundation.yml": ("dart-core", "architecture-contracts"),
     "credential-lifecycle.yml": ("credential-lifecycle",),
@@ -79,6 +80,14 @@ class WorkflowOptimizationTests(unittest.TestCase):
         self.assertEqual(text.count("persist-credentials:"), 1)
         self.assertIn("persist-credentials: false", text)
 
+    def test_windows_acceptance_caches_flutter_pub_and_hash_pinned_postgres_archive(self):
+        text = (REPO_ROOT / ".github/workflows/wave2-b-windows-acceptance-package.yml").read_text()
+        self.assertIn("pub-cache: true", text)
+        self.assertIn("uses: actions/cache@v4", text)
+        self.assertIn("windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f", text)
+        installer = (REPO_ROOT / "scripts/ci/install-postgres-tools.ps1").read_text()
+        self.assertIn("$cachedHash -eq $expectedSha256", installer)
+        self.assertIn("$actualSha256 -ne $expectedSha256", installer)
 
 if __name__ == "__main__":
     unittest.main()

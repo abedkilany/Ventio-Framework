@@ -23,14 +23,14 @@ class ChangeSelectionTests(unittest.TestCase):
         self.assertTrue(result.docs_only)
         self.assertEqual(result.suites, {name: False for name in SUITE_OUTPUTS})
 
-    def test_flutter_changes_select_native_and_package_checks(self):
+    def test_flutter_changes_select_native_tests_without_release_packaging(self):
         result = classify_paths(["packages/ventio_native_client/lib/src/main.dart"])
         self.assertTrue(result.suites["native_client"])
-        self.assertTrue(result.suites["windows_acceptance_package"])
+        self.assertFalse(result.suites["windows_acceptance_package"])
         self.assertFalse(result.suites["host_api"])
         self.assertFalse(result.docs_only)
 
-    def test_host_changes_select_host_suites_and_packaging(self):
+    def test_host_changes_select_host_suites_without_release_packaging(self):
         result = classify_paths(["packages/ventio_host_api/lib/src/host_api.dart"])
         for name in (
             "credential_lifecycle",
@@ -39,11 +39,21 @@ class ChangeSelectionTests(unittest.TestCase):
             "host_engineering_gate",
             "postgres_adapter",
             "host_recovery",
-            "windows_acceptance_package",
         ):
             self.assertTrue(result.suites[name], name)
+        self.assertFalse(result.suites["windows_acceptance_package"])
         self.assertFalse(result.suites["host_security_investigation"])
         self.assertFalse(result.suites["native_client"])
+
+    def test_installer_and_database_schema_changes_still_build_release_candidate(self):
+        for path in (
+            "installer/windows/ventio.iss",
+            "scripts/windows/build-host-payload.ps1",
+            "migrations/postgres/042_example.sql",
+            "security/postgres/bootstrap.sql",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(classify_paths([path]).suites["windows_acceptance_package"])
 
     def test_database_security_changes_select_database_and_host_acceptance(self):
         result = classify_paths(["security/postgres/pairing.sql", "migrations/postgres/041_example.sql"])

@@ -50,6 +50,7 @@ NO_SUITES = {name: False for name in SUITE_OUTPUTS}
 # an expected source mismatch, so normal component suites cover product edits.
 ALL_PRODUCT_SUITES = dict(ALL_SUITES)
 ALL_PRODUCT_SUITES["host_security_investigation"] = False
+ALL_PRODUCT_SUITES["windows_acceptance_package"] = False
 
 HOST_SUITES = (
     "credential_lifecycle",
@@ -58,7 +59,6 @@ HOST_SUITES = (
     "host_engineering_gate",
     "postgres_adapter",
     "host_recovery",
-    "windows_acceptance_package",
 )
 DATABASE_SUITES = (
     "credential_lifecycle",
@@ -134,7 +134,6 @@ def classify_paths(paths: list[str] | tuple[str, ...], force_full: bool = False)
                 continue
             if owner == "packages/ventio_native_client":
                 selected["native_client"] = True
-                selected["windows_acceptance_package"] = True
                 continue
             if owner == "packages/ventio_postgres":
                 for name in DATABASE_SUITES:
@@ -154,7 +153,6 @@ def classify_paths(paths: list[str] | tuple[str, ...], force_full: bool = False)
 
         if lower.startswith("packages/ventio_native_client/"):
             selected["native_client"] = True
-            selected["windows_acceptance_package"] = True
             continue
 
         if lower.startswith(("installer/windows/", "scripts/windows/")):
@@ -167,7 +165,6 @@ def classify_paths(paths: list[str] | tuple[str, ...], force_full: bool = False)
             "scripts/test_check_localization_gate.py",
         }:
             selected["native_client"] = True
-            selected["windows_acceptance_package"] = True
             continue
 
         # Recognized source areas are handled above. Everything else is

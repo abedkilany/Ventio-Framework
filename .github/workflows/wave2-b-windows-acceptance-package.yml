@@ -53,6 +53,11 @@ jobs:
         uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.13.7
+      - name: Cache verified PostgreSQL archive
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip
+          key: windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f
       - name: Set up .NET SDK for the Windows Host services
         uses: actions/setup-dotnet@v4
         with:
@@ -76,6 +81,7 @@ jobs:
           flutter-version: '3.44.1'
           channel: stable
           cache: true
+          pub-cache: true
       - name: Generate native Windows runner scaffolding
         shell: pwsh
         run: ./scripts/prepare_native_client_platforms.ps1
