@@ -1,0 +1,22 @@
+{
+  "case": "TEST01_INSTALLED_CLIENT_LOCAL_EXTENSION_DRAFT_RESTART_PERSISTENCE",
+  "observedAfterRestartLocal": "2026-11-23 10:28 Beirut time (minute precision)",
+  "target": "TEST-01",
+  "installedClientCandidate": "474c3a4e2824c86ea5267d9ed9370d3986197983",
+  "operation": "Created a declarative extension in the installed Client, closed the Client normally, relaunched it, and reopened the extension in Builder.",
+  "fixture": {
+    "moduleId": "com.example.new_extension",
+    "displayName": "Wave 2 local draft persistence check",
+    "version": "0.1.0",
+    "stateBeforeRestart": "DRAFT / LOCAL ONLY",
+    "stateAfterRestart": "DRAFT / LOCAL ONLY",
+    "docTypes": 0
+  },
+  "schemaEditorObservation": "A new DocType form accepted its ID, display name and description, but the Add field action did not open the field editor through the RDP interaction. The unsaved form was abandoned; no DocType was created.",
+  "result": "PASS_LOCAL_DRAFT_PERSISTS_ACROSS_CLIENT_RESTART",
+  "limits": [
+    "This proves only local SQLite-backed draft persistence on TEST-01.",
+    "It does not prove publication, Host approval, cross-device synchronization, or acceptance of any Wave 2 capability end-to-end.",
+    "The installed Client is the earlier 474c3a4 candidate, not the current 04a9874 release candidate."
+  ]
+}

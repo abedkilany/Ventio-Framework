@@ -91,6 +91,14 @@ The Windows package workflow 45082307385 completed on that source revision. Arti
 This 04a9874 installer has not been physically installed. The older 474c3a4 candidate remains the one physically installed and readiness-checked on TEST-01 and TEST-02. During the latest attempt, TEST-01 displayed the Windows lock screen; TEST-02's RDP window was minimized and could not be activated through the supported control API. Therefore no latest-candidate upgrade, fresh UI behavior, or new two-device sync/conflict result is claimed. Historical installed upgrade and offline/conflict evidence remains in the sections above.
 
 The capability matrix remains 1 PASS / 21 BLOCKED. P001–P006 remain NOT EXECUTED; signing remains deferred. PR #6 stays Draft and NOT READY pending latest-candidate physical acceptance, remaining capability cases and genuine Recovery-Lab execution.
+
+## 2026-11-23 — resumed TEST-01 and TEST-02 runtime checks
+
+TEST-02's current address is `192.168.1.104`. A fresh read-only probe from BAHAA validated the exact previously recorded certificate SHA-256 pin and `TEST-02` hostname over TLS 1.3; a deliberately incorrect pin was rejected, `/healthz` returned 200, and anonymous `/api/v1/session` returned 401 with a Bearer challenge. No credentials, trust-store changes, or TLS bypass were used. This confirms the installed `474c3a4` Host only; see [the rerun evidence](test02-readonly-host-probe-20261123-rerun.json).
+
+On TEST-01, the installed `474c3a4` Client reopened a locally created declarative extension after a normal close/relaunch and displayed it as `DRAFT / LOCAL ONLY`. This proves local draft persistence only. A test DocType form accepted its ID, display name, and description, but `Add field` did not open the field editor through the RDP interaction; the unsaved form was abandoned and no DocType was created. No publication, Host approval, or cross-device extension synchronization is claimed. See [the local persistence evidence](test01-local-extension-draft-persistence-20261123.json).
+
+These checks do not exercise source `04a9874` or produce a fresh two-device sync/conflict result. The 22-capability matrix remains **1 PASS / 21 BLOCKED**; P001–P006 remain **NOT EXECUTED**, and PR #6 remains Draft and **NOT READY**.
 ## 2026-11-23 — TEST-02 Host liveness check
 
 A fresh read-only probe from BAHAA resolved TEST-02 to 192.168.1.100. TLS 1.3 succeeded only after the server certificate matched the previously recorded out-of-band SHA-256 pin and the TEST-02 name check passed. Host /healthz returned 200 and anonymous /api/v1/session returned 401 with Bearer challenge. BAHAA's ordinary system trust reports an untrusted root; no trust-store change or TLS bypass was made. This confirms the previously installed 474c3a4 Host is live and denies anonymous session access. It does not verify the uninstalled 04a9874 candidate. See test02-readonly-host-probe-20261123.json.

@@ -37,7 +37,7 @@
   },
   "releaseGates": {
     "fullUnifiedInstallerUpgrade": "PASS for the previously installed 474c3a4 candidate on both disposable Windows systems. The newer source-bound 04a9874 candidate has a verified Windows artifact but has not yet been installed physically; see candidate-04a9874-package-verification.json.",
-    "twoPhysicalDeviceOfflineRestartSyncConflict": "PARTIAL: physical offline persistence/restart/reconnect/exactly-once sync and stale-revision conflict were proven on earlier installed clients. Candidate 474c3a4 remains installed on both devices; no fresh behavior run exists for source 04a9874. TEST-01 is currently at the Windows lock screen and TEST-02 RDP is minimized, so revised-client UI tests could not resume.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "PARTIAL: physical offline persistence/restart/reconnect/exactly-once sync and stale-revision conflict were proven on earlier installed clients. Candidate 474c3a4 remains installed on both devices; no fresh behavior run exists for source 04a9874. On 2026-11-23 TEST-01 was available and an installed-client local draft survived restart; this does not prove a fresh two-device sync/conflict run.",
     "installedRecoveryP001_P006": "NOT_EXECUTED: disposable Recovery-Lab VM is admitted and effectively isolated, but P001-P006 acceptance scripts remain unsigned under AllSigned and the owner has deferred the signing identity. Do not bypass policy. Backup/restore may be tested through supported installed UI/API workflows if available; the six named acceptance cases remain open until genuine case evidence exists.",
     "recoveryVmAccess": "PASS: pinned SSH access to verified VENTIO-W2-VM01 works from BAHAA. The exact reviewed eight-rule Hyper-V ACL plan is applied and matches live vNIC ACLs; SSH from BAHAA remains reachable and guest outbound HTTPS timed out as expected. Evidence: recovery-15fa-hosted/isolation-execution-20261123.json.",
     "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
@@ -47,7 +47,8 @@
     "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass.",
     "test02OlderClientDigest": "TEST-02 Client source 81661f7 used exportBundle for local digest; current source 5374496+ uses retained installed bundle. Stored bundle Dart canonical roundtrip and authenticated approved/record query digests all equal a0f9d3b7...; old installed UI denial must be rechecked after corrected Client install.",
     "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
-    "test02CurrentHostReadiness": "PASS read-only live probe of the installed 474c3a4 Host: pinned TLS 1.3 certificate matched the previously recorded SHA-256 and TEST-02 DNS name, /healthz returned 200, anonymous session returned 401. Standard trust on BAHAA reports untrusted root; no trust store change or TLS bypass. See test02-readonly-host-probe-20261123.json.",
+    "test02CurrentHostReadiness": "PASS read-only live probe of the installed 474c3a4 Host at 192.168.1.104: pinned TLS 1.3 certificate and TEST-02 hostname validated, a deliberately wrong pin was rejected, /healthz returned 200, and anonymous session returned 401. No trust store change or TLS bypass. See test02-readonly-host-probe-20261123-rerun.json.",
+    "test01LocalDraftPersistence": "PASS subset on the installed 474c3a4 Client: a local declarative extension draft remained DRAFT / LOCAL ONLY after normal Client restart. Schema editor interaction did not complete field addition; no publish or Host sync is claimed. See test01-local-extension-draft-persistence-20261123.json.",
     "latestReproducibleCandidate": "PASS build and integrity only: run 45082307385, artifact 14778440325, source 04a9874. ZIP SHA-256 006df3ec109258490ce20bafab3e26177c685eb1d4ba1f347f3f9cae4967cbc4; installer SHA-256 a1ea50c1d01048990d392d1b658bd8349ecfb18340f686f1016a1859ec6af0a2. Authenticode is NotSigned; release signing remains deferred. Not physically installed.",
     "currentCandidate": "PASS historical 474c3a4 candidate remains physically installed on TEST-01 and TEST-02 with both Host/PostgreSQL readiness and identity continuity verified. This does not apply to newer 04a9874 installer."
   },
@@ -80,7 +81,8 @@
       "status": "BLOCKED",
       "evidence": [
         "nov21-checkpoint.json",
-        "test01-test02-client-host-sync-20261122.json"
+        "test01-test02-client-host-sync-20261122.json",
+        "test01-local-extension-draft-persistence-20261123.json"
       ],
       "remaining": "Native offline draft reopen, submit, independent approval and registry install passed; multi-identity edit/retry/conflict and package-compatible rebase remain."
     },
