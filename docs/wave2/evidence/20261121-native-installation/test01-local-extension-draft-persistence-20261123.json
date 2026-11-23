@@ -12,14 +12,14 @@
     "stateAfterRestart": "DRAFT / LOCAL ONLY",
     "docTypes": 0
   },
-  "schemaEditorObservation": "A new DocType form accepted its ID, display name and description, but the Add field action did not open the field editor through the RDP interaction. The unsaved form was abandoned; no DocType was created.",
+  "schemaEditorObservation": "The test DocType ID w2_acceptance_record began with a lowercase letter, so Add field correctly rejected it under the uppercase-initial identifier rule. The form's helper text did not disclose that rule. No DocType was created in this installed UI session.",
   "sourceRegression": {
-    "sourceCommit": "04a9874eff3d62f4bc6296766fb62642efd5cb8b",
+    "sourceCommit": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
     "command": "flutter test test/extension_studio_test.dart --plain-name \"Builder creates, previews, activates and runs a generated DocType\" --no-pub --reporter expanded",
     "flutter": "3.44.1",
     "dart": "3.12.1",
     "result": "PASS (1 test)",
-    "limit": "Widget regression on current source; it does not replace the incomplete installed UI interaction on TEST-01."
+    "limit": "The updated widget regression will verify that lowercase initial IDs are denied with accurate guidance and uppercase IDs proceed to the field editor. It does not replace installed UI acceptance."
   },
   "result": "PASS_LOCAL_DRAFT_PERSISTS_ACROSS_CLIENT_RESTART",
   "limits": [

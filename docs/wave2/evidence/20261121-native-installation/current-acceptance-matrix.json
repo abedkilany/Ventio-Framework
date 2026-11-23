@@ -1,6 +1,6 @@
 {
-  "snapshotUtc": "2026-11-23T08:43:31Z",
-  "engineeringSource": "04a9874eff3d62f4bc6296766fb62642efd5cb8b",
+  "snapshotUtc": "2026-11-23T09:15:05Z",
+  "engineeringSource": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
   "branch": "feature/wave-2-a",
   "pr": 6,
   "prRequiredState": "DRAFT_UNMERGED",
@@ -48,10 +48,10 @@
     "test02OlderClientDigest": "TEST-02 Client source 81661f7 used exportBundle for local digest; current source 5374496+ uses retained installed bundle. Stored bundle Dart canonical roundtrip and authenticated approved/record query digests all equal a0f9d3b7...; old installed UI denial must be rechecked after corrected Client install.",
     "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
     "test02CurrentHostReadiness": "PASS read-only live probe of the installed 474c3a4 Host at 192.168.1.104: pinned TLS 1.3 certificate and TEST-02 hostname validated, a deliberately wrong pin was rejected, /healthz returned 200, and anonymous session returned 401. No trust store change or TLS bypass. See test02-readonly-host-probe-20261123-rerun.json.",
-    "test01LocalDraftPersistence": "PASS subset on the installed 474c3a4 Client: a local declarative extension draft remained DRAFT / LOCAL ONLY after normal Client restart. Schema editor interaction did not complete field addition; no publish or Host sync is claimed. See test01-local-extension-draft-persistence-20261123.json.",
-    "latestCiOnEvidenceHead": "PASS: all 10 PR-triggered workflows associated with evidence-only commit a217f05 completed successfully, including the full Native Flutter Client and Windows Extension Builder suite, Host API, Host Persistence, Durable Commands, Core Foundation, Windows Acceptance Package, Host Engineering, Host Crash Recovery, Credential Lifecycle and Host Security Investigation. Product source is unchanged from 04a9874. No 04a9874 installer was physically installed.",
-    "latestReproducibleCandidate": "PASS build and integrity only: run 45082307385, artifact 14778440325, source 04a9874. ZIP SHA-256 006df3ec109258490ce20bafab3e26177c685eb1d4ba1f347f3f9cae4967cbc4; installer SHA-256 a1ea50c1d01048990d392d1b658bd8349ecfb18340f686f1016a1859ec6af0a2. Authenticode is NotSigned; release signing remains deferred. Not physically installed.",
-    "currentCandidate": "PASS historical 474c3a4 candidate remains physically installed on TEST-01 and TEST-02 with both Host/PostgreSQL readiness and identity continuity verified. This does not apply to newer 04a9874 installer."
+    "test01LocalDraftPersistence": "PASS subset on the installed 474c3a4 Client: a local declarative extension draft remained DRAFT / LOCAL ONLY after normal Client restart. The test DocType ID began lowercase and was correctly rejected; its helper text omitted the uppercase-initial rule. A current-source guidance fix and regression are in progress. No publish or Host sync is claimed. See test01-local-extension-draft-persistence-20261123.json.",
+    "latestCiOnEvidenceHead": "PASS: all 10 PR-triggered workflows for source 45b9a148ea8e5251ff7c7d51ada50139f39a60fa completed successfully. Runs: Native Flutter 45141812629; Windows Acceptance Package 45141812779; Host API 45141812554; Host Persistence 45141812506; Durable Commands 45141812925; Core Foundation 45141812551; Host Engineering Gate 45141812662; Host Crash Recovery 45141812740; Credential Lifecycle 45141812675; Host Security Investigation 45141812684. wave2-resume was skipped by workflow conditions.",
+    "latestReproducibleCandidate": "PASS build and integrity: run 45141812779, artifact 14802134409, source 45b9a14. ZIP SHA-256 dc1c8ab8636be7cb55516dc6fefaaf3a154a8a4421521d587b12ba64730326db; installer SHA-256 d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f. Target TEST-02 transfer and hash verification passed. Authenticode is NotSigned; signing is deferred. Physical installation is pending action-time confirmation. See candidate-45b9a14-package-verification.json.",
+    "currentCandidate": "Previously installed 474c3a4 remains on TEST-01 and TEST-02 with Host/PostgreSQL readiness verified. Latest 45b9a14 candidate is staged and hash-verified on TEST-02, but not installed yet."
   },
   "capabilities": [
     {
@@ -288,5 +288,5 @@
       "remaining": "None for the bounded API contract: actual authenticated requests and installed rejection of unknown routes/handlers/executable properties/oversize/spoofed scope/outbound metadata verified. Global installer/device/recovery gates remain open."
     }
   ],
-  "branchHead": "a217f05e040a0577eb1ad6d5c87f77bc9c545e2a"
+  "branchHead": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa"
 }
