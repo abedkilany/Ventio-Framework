@@ -25,6 +25,11 @@ jobs:
         run: |
           $p = Start-Process -FilePath "$env:RUNNER_TEMP/wave2-inputs/vc_redist.x64.exe" -ArgumentList '/install /quiet /norestart' -Wait -PassThru -WindowStyle Hidden
           if ($p.ExitCode -notin 0,1638,3010) { throw 'VC runtime installation failed' }
+      - name: Cache verified PostgreSQL archive
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip
+          key: windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f
       - name: Resolve pinned dependencies and build actual Host payload
         run: |
           foreach ($package in @('packages/ventio_host_api','packages/ventio_postgres')) {

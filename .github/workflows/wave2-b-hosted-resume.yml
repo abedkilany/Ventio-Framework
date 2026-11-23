@@ -84,6 +84,12 @@ jobs:
         if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
         with:
           sdk: '3.13.7'
+      - name: Cache verified PostgreSQL archive
+        if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip
+          key: windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f
       - name: Compile only the actual migration runner
         if: inputs.scope != 'recovery-signing' && inputs.scope != 'recovery-identity'
         working-directory: packages/ventio_postgres
@@ -149,6 +155,11 @@ jobs:
         if: inputs.scope == 'windows-runtime'
         with:
           dotnet-version: '10.0.404'
+      - name: Cache verified PostgreSQL archive
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip
+          key: windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f
       - name: Stage reviewed PostgreSQL 16.16 archive
         shell: pwsh
         run: ./scripts/ci/install-postgres-tools.ps1
@@ -199,6 +210,11 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '10.0.404'
+      - name: Cache verified PostgreSQL archive
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip
+          key: windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f
       - name: Build native private-file runtime for actual Dart fixtures
         run: ./scripts/ci/prepare-native-private-file-runtime.ps1
       - name: Build Host before Flutter changes Dart PATH

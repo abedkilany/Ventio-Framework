@@ -83,7 +83,18 @@ class WorkflowOptimizationTests(unittest.TestCase):
     def test_windows_acceptance_caches_flutter_pub_and_hash_pinned_postgres_archive(self):
         text = (REPO_ROOT / ".github/workflows/wave2-b-windows-acceptance-package.yml").read_text()
         self.assertIn("pub-cache: true", text)
+        self.assert_postgres_archive_cache(text)
+
+    def test_every_windows_workflow_consumer_caches_postgres_archive(self):
+        for workflow in sorted(WORKFLOWS.glob("*.yml")):
+            text = workflow.read_text(encoding="utf-8")
+            if "install-postgres-tools.ps1" in text:
+                with self.subTest(workflow=workflow.name):
+                    self.assert_postgres_archive_cache(text)
+
+    def assert_postgres_archive_cache(self, text):
         self.assertIn("uses: actions/cache@v4", text)
+        self.assertIn("${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip", text)
         self.assertIn("windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f", text)
         installer = (REPO_ROOT / "scripts/ci/install-postgres-tools.ps1").read_text()
         self.assertIn("$cachedHash -eq $expectedSha256", installer)

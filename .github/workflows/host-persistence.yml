@@ -64,6 +64,11 @@ jobs:
       - run: dart pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
+      - name: Cache verified PostgreSQL archive
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip
+          key: windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f
       - name: Install verified PostgreSQL 16 test tools
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-postgres-tools.ps1
       - name: Start private PostgreSQL 16 test instance
