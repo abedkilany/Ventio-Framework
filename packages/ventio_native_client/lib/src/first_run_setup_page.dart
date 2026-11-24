@@ -48,8 +48,8 @@ class FirstRunSetupPage extends StatelessWidget {
               if (onOwnerSetup != null)
                 TextButton(
                   onPressed: onOwnerSetup,
-                  child: const Text(
-                    'Initialize, migrate or recover an organization Owner on this Host',
+                  child: const VentioText(
+                    'native.ui.account_initialize_migrate_or_recover_an_organization_owner_on_this_host',
                   ),
                 ),
               const SizedBox(height: 16),

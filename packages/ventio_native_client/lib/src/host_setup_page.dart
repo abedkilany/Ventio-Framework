@@ -638,13 +638,13 @@ class _HostSetupPageState extends State<HostSetupPage> {
           const SizedBox(height: 8),
           const VentioText('native.ui.host_setup_scope_explanation'),
           const SizedBox(height: 12),
-          const Text(
-            'Organization Owner account — choose a username and a password of at least 15 characters.',
+          const VentioText(
+            'native.ui.account_organization_owner_account_choose_a_username_and_a_password_of_at_least_15_characters',
           ),
           TextField(
             controller: _ownerUsername,
             enabled: !_busy,
-            decoration: const InputDecoration(labelText: 'Owner username'),
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_owner_username')),
           ),
           TextField(
             controller: _ownerPassword,
@@ -652,7 +652,7 @@ class _HostSetupPageState extends State<HostSetupPage> {
             obscureText: true,
             enableSuggestions: false,
             autocorrect: false,
-            decoration: const InputDecoration(labelText: 'Owner password'),
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_owner_password')),
           ),
           TextField(
             controller: _ownerConfirm,
@@ -660,8 +660,8 @@ class _HostSetupPageState extends State<HostSetupPage> {
             obscureText: true,
             enableSuggestions: false,
             autocorrect: false,
-            decoration: const InputDecoration(
-              labelText: 'Confirm Owner password',
+            decoration: InputDecoration(
+              labelText: context.ventioText('native.ui.account_confirm_owner_password'),
             ),
           ),
           const SizedBox(height: 12),

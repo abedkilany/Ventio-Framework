@@ -1,3 +1,5 @@
+import 'app_localization.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -70,20 +72,20 @@ class _AccountLoginSettingsPageState extends State<AccountLoginSettingsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('My organization account')),
+    appBar: AppBar(title: const VentioText('native.ui.account_my_organization_account')),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            const Text(
-              'Changing your login requires the online Host. Enter your chosen username and current password. All online sessions are invalidated after the change. Existing offline sessions expire within eight hours.',
+            const VentioText(
+              'native.ui.account_changing_your_login_requires_the_online_host_enter_your_chosen_username_and_current_passwo',
             ),
             TextField(
               controller: username,
               enabled: !busy,
-              decoration: const InputDecoration(labelText: 'Username'),
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.account_username')),
             ),
             TextField(
               controller: current,
@@ -91,7 +93,7 @@ class _AccountLoginSettingsPageState extends State<AccountLoginSettingsPage> {
               obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
-              decoration: const InputDecoration(labelText: 'Current password'),
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.account_current_password')),
             ),
             TextField(
               controller: password,
@@ -99,8 +101,8 @@ class _AccountLoginSettingsPageState extends State<AccountLoginSettingsPage> {
               obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'New password (at least 15 characters)',
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.account_new_password_at_least_15_characters'),
               ),
             ),
             TextField(
@@ -109,14 +111,14 @@ class _AccountLoginSettingsPageState extends State<AccountLoginSettingsPage> {
               obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Confirm new password',
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.account_confirm_new_password'),
               ),
             ),
             if (error != null) Text(error!),
             FilledButton(
               onPressed: busy ? null : save,
-              child: const Text('Change login and lock Ventio'),
+              child: const VentioText('native.ui.account_change_login_and_lock_ventio'),
             ),
           ],
         ),
@@ -297,7 +299,7 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Organization sign in')),
+    appBar: AppBar(title: const VentioText('native.ui.account_organization_sign_in')),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -305,14 +307,14 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
           shrinkWrap: true,
           padding: const EdgeInsets.all(24),
           children: [
-            Text('Organization: ${widget.signIn.profile.tenantId}'),
-            const Text(
-              'Use this organization’s account on an enrolled Host or Client. Offline access expires eight hours after online sign-in. Changes and revocations are checked on reconnect.',
+            VentioText('native.ui.account_organization', params: {'tenant': widget.signIn.profile.tenantId}),
+            const VentioText(
+              'native.ui.account_use_this_organization_s_account_on_an_enrolled_host_or_client_offline_access_expires_eight',
             ),
             TextField(
               controller: username,
               enabled: !busy,
-              decoration: const InputDecoration(labelText: 'Username'),
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.account_username')),
               autofillHints: const [AutofillHints.username],
             ),
             TextField(
@@ -321,7 +323,7 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
               obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
-              decoration: const InputDecoration(labelText: 'Password'),
+              decoration: InputDecoration(labelText: context.ventioText('native.ui.account_password')),
               onSubmitted: (_) => busy ? null : submit(false),
             ),
             if (error != null)
@@ -331,19 +333,19 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
               ),
             FilledButton(
               onPressed: busy ? null : () => submit(false),
-              child: const Text('Sign in through Host'),
+              child: const VentioText('native.ui.account_sign_in_through_host'),
             ),
             OutlinedButton(
               onPressed: busy ? null : () => submit(true),
-              child: const Text('Sign in offline'),
+              child: const VentioText('native.ui.account_sign_in_offline'),
             ),
             TextButton(
               onPressed: busy ? null : initialize,
-              child: const Text('Finish first Owner setup'),
+              child: const VentioText('native.ui.account_finish_first_owner_setup'),
             ),
             OutlinedButton(
               onPressed: busy ? null : widget.onEnroll,
-              child: const Text('Enroll another account or organization'),
+              child: const VentioText('native.ui.account_enroll_another_account_or_organization'),
             ),
             TextButton(
               onPressed: busy
@@ -359,10 +361,10 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
                         }
                       }
                     },
-              child: const Text('Local Host Owner setup and recovery'),
+              child: const VentioText('native.ui.account_local_host_owner_setup_and_recovery'),
             ),
-            const Text(
-              'Existing installation without an Owner: use “Ventio Organization Owner setup and recovery” on the Host with Windows administrator authorization. This preserves organization data.',
+            const VentioText(
+              'native.ui.account_existing_installation_without_an_owner_use_ventio_organization_owner_setup_and_recovery_on',
             ),
             if (busy) const LinearProgressIndicator(),
           ],

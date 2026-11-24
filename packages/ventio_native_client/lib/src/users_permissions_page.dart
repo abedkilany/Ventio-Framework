@@ -75,7 +75,7 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
     final selected = await showDialog<HostScopeGrant>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: const Text('Manage users in branch'),
+        title: const VentioText('native.ui.account_manage_users_in_branch'),
         children: [
           for (final scope in scopes)
             SimpleDialogOption(
@@ -323,7 +323,7 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
             IconButton(
               onPressed: _selectBranch,
               icon: const Icon(Icons.account_tree_outlined),
-              tooltip: 'Choose branch for user permissions',
+              tooltip: context.ventioText('native.ui.account_choose_branch_for_user_permissions'),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -388,7 +388,7 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
           IconButton(
             onPressed: _selectBranch,
             icon: const Icon(Icons.account_tree_outlined),
-            tooltip: 'Choose branch for user permissions',
+            tooltip: context.ventioText('native.ui.account_choose_branch_for_user_permissions'),
           ),
         IconButton(
           tooltip: context.ventioText('native.ui.refresh_users'),
@@ -629,7 +629,7 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
               user.actorId == widget.client.verifiedIdentity.actorId)
             const PopupMenuItem(
               value: 'login',
-              child: Text('Set username and password'),
+              child: VentioText('native.ui.account_set_username_and_password'),
             ),
           if (_owner && !user.isOwner)
             PopupMenuItem(
@@ -643,7 +643,7 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
           if (_owner && !user.isOwner)
             const PopupMenuItem(
               value: 'revokeSessions',
-              child: Text('Revoke active sign-in sessions'),
+              child: VentioText('native.ui.account_revoke_active_sign_in_sessions'),
             ),
           if (!user.isOwner && user.state == HostManagedUserState.active)
             PopupMenuItem(
@@ -747,18 +747,18 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Organization account login'),
+    title: const VentioText('native.ui.account_organization_account_login'),
     content: SizedBox(
       width: 420,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Use at least 15 characters. Password changes revoke online sessions; offline clients may retain access until their eight-hour lease expires.',
+          const VentioText(
+            'native.ui.account_use_at_least_15_characters_password_changes_revoke_online_sessions_offline_clients_may_ret',
           ),
           TextField(
             controller: username,
-            decoration: const InputDecoration(labelText: 'Username'),
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_username')),
           ),
           if (widget.self)
             TextField(
@@ -766,8 +766,8 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
               obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Current password (if already configured)',
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.account_current_password_if_already_configured'),
               ),
             ),
           TextField(
@@ -775,14 +775,14 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
             obscureText: true,
             enableSuggestions: false,
             autocorrect: false,
-            decoration: const InputDecoration(labelText: 'New password'),
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_new_password')),
           ),
           TextField(
             controller: confirm,
             obscureText: true,
             enableSuggestions: false,
             autocorrect: false,
-            decoration: const InputDecoration(labelText: 'Confirm password'),
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_confirm_password')),
           ),
           if (error != null) Text(error!),
         ],
@@ -791,7 +791,7 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const VentioText('native.ui.account_cancel'),
       ),
       FilledButton(
         onPressed: () {
@@ -811,7 +811,7 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
             if (widget.self) 'currentPassword': current.text,
           });
         },
-        child: const Text('Save login'),
+        child: const VentioText('native.ui.account_save_login'),
       ),
     ],
   );

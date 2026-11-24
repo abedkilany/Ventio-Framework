@@ -801,7 +801,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               IconButton(
                 onPressed: widget.onAccountSettings,
                 icon: const Icon(Icons.manage_accounts_outlined),
-                tooltip: 'My username and password',
+                tooltip: context.ventioText('native.ui.account_my_username_and_password'),
               ),
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -1180,7 +1180,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
             IconButton(
               onPressed: widget.onSignOut,
               icon: const Icon(Icons.logout),
-              tooltip: 'Lock organization',
+              tooltip: context.ventioText('native.ui.account_lock_organization'),
             ),
           IconButton(
             onPressed:

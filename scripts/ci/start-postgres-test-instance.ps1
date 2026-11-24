@@ -80,6 +80,7 @@ try {
     $controlOutput=Join-Path $fixtureRoot 'pg-control-start.txt'
     $controlError=Join-Path $fixtureRoot 'pg-control-start-error.txt'
     $control=Start-Process -FilePath $pgCtl -ArgumentList @('-D',('"'+$dataDirectory+'"'),'-l',('"'+$logFile+'"'),'-o',('"'+$pgOptions+'"'),'-w','-t','60','start') -WindowStyle Hidden -PassThru -RedirectStandardOutput $controlOutput -RedirectStandardError $controlError
+    $null = $control.Handle
     $control.WaitForExit()
     if ($control.ExitCode -ne 0) { throw 'PostgreSQL did not start within one minute.' }
 

@@ -103,6 +103,9 @@ for dart_file in PKG.rglob('*.dart'):
       flags=re.M,
   ):
     if path.startswith('dart:'): continue
+    if path.startswith('package:cryptography/'):
+      assert re.search(r'(?m)^  cryptography:\s*\S+', (PKG/'pubspec.yaml').read_text(encoding='utf-8')), 'cryptography dependency is not declared'
+      continue
     if path.startswith('package:ventio_core/'):
       candidate = PKG/'lib'/path.removeprefix('package:ventio_core/')
     else:
