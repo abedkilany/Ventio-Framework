@@ -37,6 +37,9 @@ class HostSessionIdentity {
   final bool persistent;
   final bool roleAdministrationAvailable;
   final List<HostScopeGrant> scopes;
+
+  bool get isOwner =>
+      persistent && scopes.any((scope) => scope.permissions.contains('*'));
 }
 
 class HostSessionIdentityException implements Exception {

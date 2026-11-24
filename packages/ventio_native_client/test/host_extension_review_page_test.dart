@@ -130,7 +130,7 @@ void main() {
     expect(find.text('Candidate APPROVED.'), findsOneWidget);
   });
 
-  testWidgets('Candidate submitter cannot approve from the review UI', (
+  testWidgets('Candidate submitter with review access can approve in the UI', (
     tester,
   ) async {
     final client = _ReviewClient(_submission('publisher'));
@@ -148,17 +148,11 @@ void main() {
     final approve = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, 'Approve'),
     );
-    final reject = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Reject'),
-    );
-    expect(approve.onPressed, isNull);
-    expect(reject.onPressed, isNull);
-    expect(
-      find.text(
-        'You submitted this candidate. A different authorized administrator must review it.',
-      ),
-      findsOneWidget,
-    );
-    expect(client.decision, isNull);
+    expect(approve.onPressed, isNotNull);
+    await tester.tap(find.widgetWithText(FilledButton, 'Approve'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Approve').last);
+    await tester.pumpAndSettle();
+    expect(client.decision, 'APPROVE');
   });
 }

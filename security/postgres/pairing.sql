@@ -22,6 +22,12 @@ BEGIN
     WHERE c.token_digest=p_digest AND c.tenant_id=p_tenant
       AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
       AND u.disabled_at IS NULL AND d.revoked_at IS NULL;
+  IF FOUND AND EXISTS (SELECT FROM public.ventio_identity_users u
+      WHERE u.tenant_id=credential_row.tenant_id AND u.actor_id=credential_row.actor_id AND u.is_owner)
+      AND EXISTS (SELECT FROM public.ventio_identity_branches b
+        WHERE b.tenant_id=p_tenant AND b.company_id=p_company AND b.branch_id=p_branch) THEN
+    RETURN true;
+  END IF;
   IF NOT FOUND OR credential_row.allowed_scopes IS NULL OR NOT EXISTS (
       SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
       WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
@@ -356,6 +362,12 @@ BEGIN
     WHERE c.token_digest=p_digest AND c.tenant_id=p_tenant
       AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
       AND u.disabled_at IS NULL AND d.revoked_at IS NULL;
+  IF FOUND AND EXISTS (SELECT FROM public.ventio_identity_users u
+      WHERE u.tenant_id=credential_row.tenant_id AND u.actor_id=credential_row.actor_id AND u.is_owner)
+      AND EXISTS (SELECT FROM public.ventio_identity_branches b
+        WHERE b.tenant_id=p_tenant AND b.company_id=p_company AND b.branch_id=p_branch) THEN
+    RETURN true;
+  END IF;
   IF NOT FOUND OR credential_row.allowed_scopes IS NULL OR NOT EXISTS (
       SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
       WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch

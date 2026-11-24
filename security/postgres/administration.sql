@@ -265,7 +265,7 @@ BEGIN
       FROM unnest(ARRAY[
         'host.status.read','host.diagnostics.read','identity.users.manage',
         'identity.devices.manage','identity.pairing.manage','identity.roles.manage',
-        'extension.package.review'
+        'extension.package.read','extension.package.submit','extension.package.review'
       ]::text[]) AS permissions(permission);
       INSERT INTO public.ventio_identity_credentials
         (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes)
@@ -274,13 +274,15 @@ BEGIN
         jsonb_build_array(jsonb_build_object('companyId',company,'branchId',branch,
           'permissions',jsonb_build_array('host.status.read','host.diagnostics.read',
             'identity.users.manage','identity.devices.manage','identity.pairing.manage',
-            'identity.roles.manage','extension.package.review'))));
+            'identity.roles.manage','extension.package.read','extension.package.submit',
+            'extension.package.review'))));
       subject := actor;
       details := jsonb_build_object('companyId',company,'branchId',branch,
         'deviceId',device,'credentialId',credential,
         'permissions',jsonb_build_array('host.status.read','host.diagnostics.read',
           'identity.users.manage','identity.devices.manage','identity.pairing.manage',
-          'identity.roles.manage','extension.package.review'),'expiresAt',p->>'expiresAt');
+          'identity.roles.manage','extension.package.read','extension.package.submit',
+          'extension.package.review'),'expiresAt',p->>'expiresAt');
     ELSE
     IF operation = 'DEVICE_REVOKED' THEN
       SELECT actor_id INTO actor FROM public.ventio_identity_devices WHERE tenant_id = tenant AND device_id = device;
@@ -426,7 +428,8 @@ DECLARE tenant text := p->>'tenantId'; actor text := p->>'actorId';
   operator_label text := p->>'operatorLabel'; v_expires_at timestamptz := (p->>'expiresAt')::timestamptz;
   permissions text[] := ARRAY['host.status.read','host.diagnostics.read',
     'identity.users.manage','identity.devices.manage','identity.pairing.manage',
-    'identity.roles.manage','extension.package.review'];
+    'identity.roles.manage','extension.package.read','extension.package.submit',
+    'extension.package.review'];
 BEGIN
   PERFORM pg_catalog.pg_advisory_xact_lock(86744321);
   IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') THEN
@@ -465,7 +468,7 @@ BEGIN
   IF EXISTS (SELECT FROM public.ventio_identity_users) THEN
     IF EXISTS (
         SELECT FROM public.ventio_identity_users u
-        WHERE u.tenant_id=tenant AND u.actor_id=actor) AND
+        WHERE u.tenant_id=tenant AND u.actor_id=actor AND u.is_owner) AND
         NOT EXISTS (
           SELECT FROM public.ventio_identity_users u
           WHERE u.tenant_id IS DISTINCT FROM tenant OR
@@ -489,7 +492,8 @@ BEGIN
           FROM public.ventio_identity_grants g
           WHERE g.tenant_id=tenant AND g.actor_id=actor AND
             g.company_id=company AND g.branch_id=branch)=
-          ARRAY['extension.package.review','host.diagnostics.read','host.status.read',
+          ARRAY['extension.package.read','extension.package.review',
+            'extension.package.submit','host.diagnostics.read','host.status.read',
             'identity.devices.manage','identity.pairing.manage',
             'identity.roles.manage','identity.users.manage']::text[] AND
         EXISTS (
@@ -507,8 +511,8 @@ BEGIN
     RAISE EXCEPTION 'Initial administrator has already been provisioned'
       USING ERRCODE='42501';
   END IF;
-  INSERT INTO public.ventio_identity_users(tenant_id,actor_id)
-    VALUES (tenant,actor);
+  INSERT INTO public.ventio_identity_users(tenant_id,actor_id,is_owner)
+    VALUES (tenant,actor,true);
   INSERT INTO public.ventio_identity_branches(tenant_id,company_id,branch_id)
     VALUES (tenant,company,branch) ON CONFLICT DO NOTHING;
   INSERT INTO public.ventio_identity_devices(tenant_id,actor_id,device_id)
@@ -556,6 +560,12 @@ BEGIN
       AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
       AND u.disabled_at IS NULL AND d.revoked_at IS NULL
     FOR SHARE OF c,u,d;
+  IF FOUND AND EXISTS (SELECT FROM public.ventio_identity_users u
+      WHERE u.tenant_id=credential_row.tenant_id AND u.actor_id=credential_row.actor_id AND u.is_owner)
+      AND EXISTS (SELECT FROM public.ventio_identity_branches b
+        WHERE b.tenant_id=p_tenant AND b.company_id=p_company AND b.branch_id=p_branch) THEN
+    RETURN true;
+  END IF;
   IF NOT FOUND OR (credential_row.allowed_scopes IS NOT NULL AND NOT EXISTS (
       SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
       WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
@@ -744,6 +754,12 @@ BEGIN
       AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
       AND u.disabled_at IS NULL AND d.revoked_at IS NULL
     FOR SHARE OF c,u,d;
+  IF FOUND AND EXISTS (SELECT FROM public.ventio_identity_users u
+      WHERE u.tenant_id=credential_row.tenant_id AND u.actor_id=credential_row.actor_id AND u.is_owner)
+      AND EXISTS (SELECT FROM public.ventio_identity_branches b
+        WHERE b.tenant_id=p_tenant AND b.company_id=p_company AND b.branch_id=p_branch) THEN
+    RETURN true;
+  END IF;
   IF NOT FOUND OR credential_row.allowed_scopes IS NULL OR NOT EXISTS (
       SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
       WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
@@ -906,7 +922,7 @@ SET search_path = pg_catalog, ventio_security, pg_temp AS $fn$
 DECLARE credential_row public.ventio_identity_credentials%ROWTYPE;
         operation text := p_change->>'action'; target_actor text := p_change->>'actorId';
         permission_name text := p_change->>'permission'; target_disabled timestamptz;
-        change jsonb;
+        change jsonb; caller_owner boolean := false;
 BEGIN
   IF NOT pg_has_role(session_user,'ventio_identity_api','MEMBER') OR
       pg_has_role(session_user,'ventio_identity_admin','MEMBER') OR
@@ -933,8 +949,7 @@ BEGIN
       (operation IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
         (permission_name IS NULL OR
          permission_name !~ '^[a-z][a-z0-9_.]+$' OR
-         length(permission_name)>256 OR
-         permission_name ~ '^(identity|host|system|security|recovery|authorization)\.')) OR
+         length(permission_name)>256)) OR
       (operation NOT IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
         p_change ? 'permission') THEN
     RAISE EXCEPTION 'Invalid scoped user administration request' USING ERRCODE='22023';
@@ -963,6 +978,17 @@ BEGIN
   IF NOT FOUND OR NOT ventio_security.identity_users_manager_allowed(
       p_digest,credential_row.tenant_id,p_company,p_branch) THEN
     RAISE EXCEPTION 'User management denied' USING ERRCODE='42501';
+  END IF;
+
+  SELECT is_owner INTO caller_owner FROM public.ventio_identity_users
+    WHERE tenant_id=credential_row.tenant_id AND actor_id=credential_row.actor_id;
+  IF operation IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') AND
+      permission_name ~ '^(identity|host|system|security|recovery|authorization)\.' AND NOT caller_owner THEN
+    RAISE EXCEPTION 'Only Owner may manage administrative permissions' USING ERRCODE='42501';
+  END IF;
+  IF NOT caller_owner AND EXISTS (SELECT FROM public.ventio_identity_users
+      WHERE tenant_id=credential_row.tenant_id AND actor_id=target_actor AND is_owner) THEN
+    RAISE EXCEPTION 'Owner account cannot be managed by another user' USING ERRCODE='42501';
   END IF;
 
   IF operation='USER_CREATED' THEN
@@ -1039,6 +1065,20 @@ BEGIN
     'operatorActorId',credential_row.actor_id,
     'companyId',p_company,'branchId',p_branch);
   PERFORM ventio_security.admin_change(change);
+  -- An explicit Owner decision updates existing credentials for this same
+  -- branch, so the user does not need to enroll again after each new grant.
+  IF caller_owner AND operation IN ('PERMISSION_GRANTED','PERMISSION_REVOKED') THEN
+    UPDATE public.ventio_identity_credentials c SET allowed_scopes=(
+      SELECT jsonb_agg(CASE WHEN s->>'companyId'=p_company AND s->>'branchId'=p_branch
+        THEN jsonb_set(s,'{permissions}',(SELECT coalesce(jsonb_agg(v ORDER BY v),'[]'::jsonb)
+          FROM (SELECT DISTINCT v FROM (
+            SELECT jsonb_array_elements_text(s->'permissions') v
+            UNION SELECT permission_name WHERE operation='PERMISSION_GRANTED'
+          ) permission_values WHERE operation='PERMISSION_GRANTED' OR v<>permission_name) unique_values))
+        ELSE s END) FROM jsonb_array_elements(c.allowed_scopes) s)
+      WHERE c.tenant_id=credential_row.tenant_id AND c.actor_id=target_actor
+        AND c.allowed_scopes IS NOT NULL AND c.revoked_at IS NULL;
+  END IF;
   IF operation='USER_CREATED' THEN RETURN target_actor; END IF;
   RETURN NULL;
 END $fn$;

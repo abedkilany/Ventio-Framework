@@ -492,14 +492,14 @@ BEGIN
       SELECT * FROM public.ventio_extension_packages
       WHERE tenant_id=p_tenant AND submitted_company_id=p_company
         AND submitted_branch_id=p_branch AND status='SUBMITTED'
-        AND submitted_by IS DISTINCT FROM identity->>'actorId'
       ORDER BY submitted_at,module_id,version LIMIT p_limit
     ) candidate;
   RETURN jsonb_build_object('status','OK','entries',entries);
 END $fn$;
 
 -- Mutations are re-authorized against the current credential and scope inside
--- the admitted transaction. A submitter cannot review their own candidate.
+-- the admitted transaction. Review permission is sufficient, including for
+-- the actor who submitted the candidate.
 CREATE OR REPLACE FUNCTION ventio_security.review_extension_submission(
     p_digest text, p_tenant text, p_company text, p_branch text,
     p_module text, p_version text, p_sha256 text, p_decision text, p_reason text)
@@ -539,9 +539,6 @@ BEGIN
   IF NOT FOUND OR candidate.status<>'SUBMITTED' OR
       candidate.package_sha256 IS DISTINCT FROM p_sha256 THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','CANDIDATE_CHANGED');
-  END IF;
-  IF candidate.submitted_by=identity->>'actorId' THEN
-    RETURN jsonb_build_object('status','REJECTED','reasonCode','SELF_REVIEW_FORBIDDEN');
   END IF;
   PERFORM ventio_security.admin_change(jsonb_build_object(
     'tenantId',p_tenant,'operatorLabel',identity->>'actorId',

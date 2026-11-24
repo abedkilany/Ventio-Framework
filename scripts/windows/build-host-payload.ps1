@@ -45,6 +45,28 @@ foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoo
   if (-not (Test-Path -LiteralPath $path)) { throw "Required Host payload input is missing: $path" }
 }
 
+# Match migrationChecksum in the Dart runner: migration identity uses LF on
+# every platform, rather than the raw bytes of a Windows checkout.
+$schemaProfile = [IO.File]::ReadAllText((Join-Path $securityDirectory 'schema_profile.sql'))
+$reviewedProfile = $schemaProfile.Split(@('    legacy(name,sha256) AS (VALUES'), [StringSplitOptions]::None)[0]
+$reviewedMigrations = @{}
+foreach ($entry in [regex]::Matches($reviewedProfile, "\('([^']+)','([a-f0-9]{64})'\)")) {
+  $name = $entry.Groups[1].Value
+  if ($reviewedMigrations.ContainsKey($name)) { throw "Duplicate schema manifest migration: $name" }
+  $reviewedMigrations[$name] = $entry.Groups[2].Value
+}
+$sourceMigrations = @(Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.sql' -File)
+if ($reviewedMigrations.Count -ne $sourceMigrations.Count) { throw 'Schema manifest does not list every migration.' }
+foreach ($migration in $sourceMigrations) {
+  $canonicalSql = [IO.File]::ReadAllText($migration.FullName).Replace("`r`n", "`n").Replace("`r", "`n")
+  $hasher = [Security.Cryptography.SHA256]::Create()
+  try {
+    $checksum = ([BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonicalSql)))).Replace('-', '').ToLowerInvariant()
+  } finally { $hasher.Dispose() }
+  if ($reviewedMigrations[$migration.Name] -cne $checksum) { throw "Schema manifest checksum mismatch: $($migration.Name)" }
+}
+Write-Output 'Canonical migration checksums match the approved schema manifest.'
+
 $tempDirectory = Join-Path (Split-Path -Parent $OutputDirectory) ('.host-payload-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
 try {

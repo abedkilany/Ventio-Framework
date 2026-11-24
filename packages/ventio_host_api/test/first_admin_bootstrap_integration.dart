@@ -281,11 +281,12 @@ Future<void> main() async {
             'identity.devices.manage',
             'identity.pairing.manage',
             'identity.roles.manage',
+            'extension.package.read',
+            'extension.package.submit',
+            'extension.package.review',
           }) &&
-          initialPermissions.length == 6 &&
-          !initialPermissions.contains('extension.package.read') &&
-          !initialPermissions.contains('extension.package.submit'),
-      'Fresh first administrator receives only the initial six exact-branch management permissions in grants and credential ceiling',
+          initialPermissions.length == 9,
+      'Fresh first administrator receives all nine Host management and extension package permissions in grants and exact-branch credential ceiling',
     );
     final initialCredentialDigest = (await audit.execute(
       pg.Sql.named('''

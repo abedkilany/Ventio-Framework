@@ -751,12 +751,6 @@ Future<void> main() async {
       'A user cannot read packages outside the granted company/branch pair',
     );
 
-    final selfReview = await reviewSubmission(primaryToken, package, 'APPROVE');
-    expect(
-      selfReview.status == 403 &&
-          selfReview.body['error']['code'] == 'SELF_REVIEW_FORBIDDEN',
-      'A submitter cannot approve their own Host candidate',
-    );
     final pending = await listSubmissions(reviewerToken);
     expect(
       pending.status == 200 &&
@@ -793,6 +787,35 @@ Future<void> main() async {
           approved.body['packageResult']['status'] == 'APPROVED' &&
           approved.body['packageResult']['packageSha256'] == hash(package),
       'Operator approval makes only the reviewed digest available to scoped clients',
+    );
+    final selfReviewPackage = bundle('com.example.self_review', '1.0.0');
+    expect(
+      (await submitPackage(primaryToken, selfReviewPackage)).status == 202,
+      'A reviewer can submit a package for self-review',
+    );
+    final ownPending = await listSubmissions(primaryToken);
+    expect(
+      ownPending.status == 200 &&
+          (ownPending.body['submissions'] as List).any(
+            (entry) => entry['moduleId'] == selfReviewPackage.moduleId,
+          ),
+      'A reviewer can see their own pending package',
+    );
+    final selfReview = await reviewSubmission(
+      primaryToken,
+      selfReviewPackage,
+      'APPROVE',
+    );
+    expect(
+      selfReview.status == 200 &&
+          selfReview.body['review']['status'] == 'APPROVED',
+      'A submitter with review permission can approve their own Host candidate',
+    );
+    await packageAdmin.revoke(
+      moduleId: selfReviewPackage.moduleId,
+      version: selfReviewPackage.version,
+      packageSha256: hash(selfReviewPackage),
+      reason: 'Self-review fixture completed; preserve registry pagination fixtures.',
     );
     final secondPackage = bundle('com.example.registry_extra', '1.0.0');
     expect(
@@ -2746,7 +2769,7 @@ Future<void> main() async {
             ),
             parameters: {'tenant': tenant},
           )).single[0] ==
-          9,
+          11,
       'Approval and revocation events remain in the operator audit ledger',
     );
     final fieldPackage = bundle(

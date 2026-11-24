@@ -385,7 +385,7 @@ class HostUserManagementClient {
     required String permission,
   }) async {
     _validateIdentifier(actorId, 'actorId');
-    if (!isGrantableNonManagementPermission(permission)) {
+    if (!canGrantPermission(permission)) {
       throw const HostUserManagementException('PERMISSION_NOT_GRANTABLE');
     }
     await _mutate('grant', {
@@ -399,7 +399,7 @@ class HostUserManagementClient {
     required String permission,
   }) async {
     _validateIdentifier(actorId, 'actorId');
-    if (!isGrantableNonManagementPermission(permission)) {
+    if (!canGrantPermission(permission)) {
       throw const HostUserManagementException('PERMISSION_NOT_REVOCABLE_HERE');
     }
     await _mutate('revoke', {
@@ -428,6 +428,10 @@ class HostUserManagementClient {
         'recovery.',
         'authorization.',
       ].any(value.startsWith);
+
+  bool canGrantPermission(String value) =>
+      _validPermissionSyntax(value) &&
+      (verifiedIdentity.isOwner || isGrantableNonManagementPermission(value));
 
   Future<String?> _mutate(String action, Map<String, Object?> values) async {
     final response = await _post(action, values);

@@ -274,6 +274,27 @@ void main() {
       },
     );
 
+    test('Owner can grant and revoke administrative permissions', () async {
+      final exchange = _FakeExchange()
+        ..respond = (_) => _success({'userOperation': {'status': 'APPLIED'}});
+      final client = await _newClient(
+        exchange,
+        identity: _identity(permissions: const {'*', 'identity.users.manage'}),
+      );
+      expect(client.verifiedIdentity.isOwner, isTrue);
+      expect(client.canGrantPermission('identity.users.manage'), isTrue);
+      expect(client.canGrantPermission('*'), isFalse);
+      await client.grantPermission(
+        actorId: 'user-1',
+        permission: 'identity.users.manage',
+      );
+      await client.revokePermission(
+        actorId: 'user-1',
+        permission: 'identity.users.manage',
+      );
+      expect(exchange.requests.length, 2);
+    });
+
     test(
       'blocks direct management permission grants and revocations',
       () async {

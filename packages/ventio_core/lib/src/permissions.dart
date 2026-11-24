@@ -55,7 +55,8 @@ class Principal {
       scopeGrants.any(
         (scope) =>
             scope.matches(companyId, branchId) &&
-            scope.permissions.contains(permission),
+            (scope.permissions.contains('*') ||
+                scope.permissions.contains(permission)),
       );
 
   bool hasScope(String companyId, String branchId) =>

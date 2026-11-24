@@ -12,8 +12,8 @@ import 'recovery_authority.dart';
 const extensionPackageReviewPermission = 'extension.package.review';
 
 /// Authenticated review operations use the restricted Identity API login.
-/// PostgreSQL revalidates the scoped grant, candidate digest, submitter, and
-/// decision inside the same Recovery Authority-admitted transaction.
+/// PostgreSQL revalidates the scoped grant, candidate digest, and decision
+/// inside the same Recovery Authority-admitted transaction.
 class PostgresExtensionPackageReviewGateway
     implements AuthoritativeExtensionPackageReviewGateway {
   const PostgresExtensionPackageReviewGateway({

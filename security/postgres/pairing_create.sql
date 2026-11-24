@@ -109,7 +109,9 @@ BEGIN
           AND a.company_id=p_company AND a.branch_id=p_branch
           AND rp.permission !~ '^(identity|host|system|security|recovery|authorization)\.'
     ) target_effective;
-  IF NOT target_permissions <@ caller_permissions THEN
+  IF NOT target_permissions <@ caller_permissions AND NOT EXISTS (
+      SELECT FROM public.ventio_identity_users u WHERE u.tenant_id=credential_row.tenant_id
+        AND u.actor_id=credential_row.actor_id AND u.is_owner) THEN
     RAISE EXCEPTION 'Pairing target exceeds caller authority' USING ERRCODE='42501';
   END IF;
 

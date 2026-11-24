@@ -354,7 +354,9 @@ BEGIN
             'companyId',p_company,'branchId',p_branch,'permissions',
             to_jsonb(ARRAY['host.status.read','host.diagnostics.read',
               'identity.users.manage','identity.devices.manage',
-              'identity.pairing.manage','identity.roles.manage']::text[])))) OR
+              'identity.pairing.manage','identity.roles.manage',
+              'extension.package.read','extension.package.submit',
+              'extension.package.review']::text[])))) OR
       NOT EXISTS (
         SELECT FROM public.ventio_identity_audit a
         WHERE a.tenant_id=p_tenant AND a.action='INITIAL_ADMIN_BOOTSTRAPPED' AND

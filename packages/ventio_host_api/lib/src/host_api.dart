@@ -231,7 +231,7 @@ class HostApi {
       );
     } on ExtensionPackageReviewException catch (error) {
       final status = switch (error.code) {
-        'PERMISSION_DENIED' || 'SELF_REVIEW_FORBIDDEN' => 403,
+        'PERMISSION_DENIED' => 403,
         'CANDIDATE_NOT_FOUND' => 404,
         'CANDIDATE_CHANGED' => 409,
         'INVALID_REVIEW' => 400,
@@ -1742,9 +1742,10 @@ class HostApi {
       if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission)) {
         throw const _ApiError(400, 'INVALID_REQUEST');
       }
-      if (RegExp(
-        r'^(identity|host|system|security|recovery|authorization)\.',
-      ).hasMatch(permission)) {
+      if (!session.principal.permissions.contains('*') &&
+          RegExp(
+            r'^(identity|host|system|security|recovery|authorization)\.',
+          ).hasMatch(permission)) {
         throw const _ApiError(422, 'RESERVED_PERMISSION');
       }
       change['permission'] = permission;

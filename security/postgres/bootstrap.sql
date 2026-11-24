@@ -159,6 +159,41 @@ BEGIN
   IF NOT FOUND OR d.revoked_at IS NOT NULL THEN RETURN NULL; END IF;
   SELECT * INTO c FROM public.ventio_identity_credentials WHERE token_digest = p_digest FOR SHARE;
   IF NOT FOUND OR c.revoked_at IS NOT NULL OR c.expires_at <= clock_timestamp() THEN RETURN NULL; END IF;
+  -- Owner authority is read from the protected user row, never from a token
+  -- claim or a caller-supplied permission. New approved packages are included
+  -- on every request; the original credential ceiling does not freeze Owner.
+  IF u.is_owner THEN
+    SELECT array_agg(DISTINCT permission ORDER BY permission) INTO permissions
+    FROM (
+      SELECT unnest(ARRAY['*','host.status.read','host.diagnostics.read',
+        'identity.users.manage','identity.devices.manage','identity.pairing.manage',
+        'identity.roles.manage','extension.package.read','extension.package.submit',
+        'extension.package.review']) AS permission
+      UNION SELECT create_permission FROM ventio_security.command_bindings
+      UNION SELECT read_permission FROM ventio_security.command_bindings
+      UNION SELECT permission FROM public.ventio_identity_grants WHERE tenant_id=c.tenant_id
+      UNION SELECT permission FROM public.ventio_identity_role_permissions WHERE tenant_id=c.tenant_id
+      UNION SELECT value #>> '{}' FROM public.ventio_extension_packages p
+        CROSS JOIN LATERAL jsonb_path_query(p.package_json, '$.** ? (@.type() == "string")') value
+        WHERE p.tenant_id=c.tenant_id AND p.status='APPROVED'
+          AND (value #>> '{}') ~ '^extension\.[a-z0-9_.]+$'
+    ) known WHERE permission IS NOT NULL;
+    FOR g IN SELECT company_id,branch_id FROM public.ventio_identity_branches b
+      WHERE b.tenant_id=c.tenant_id
+        AND (p_company IS NULL OR b.company_id=p_company)
+        AND (p_branch IS NULL OR b.branch_id=p_branch)
+      ORDER BY company_id,branch_id
+    LOOP
+      companies := array_append(companies,g.company_id);
+      branches := array_append(branches,g.branch_id);
+      SELECT scope_grants || coalesce(jsonb_agg(jsonb_build_object(
+        'companyId',g.company_id,'branchId',g.branch_id,'permission',permission)), '[]'::jsonb)
+        INTO scope_grants FROM unnest(permissions) permission;
+    END LOOP;
+    RETURN jsonb_build_object('tenantId',c.tenant_id,'actorId',c.actor_id,'deviceId',c.device_id,
+      'companyIds',companies,'branchIds',branches,'permissions',permissions,
+      'scopeGrants',scope_grants,'roles','[]'::jsonb,'isOwner',true);
+  END IF;
   -- Locks prevent an in-flight command from racing a role or grant revocation.
   PERFORM 1 FROM public.ventio_identity_grants
     WHERE tenant_id=c.tenant_id AND actor_id=c.actor_id FOR SHARE;

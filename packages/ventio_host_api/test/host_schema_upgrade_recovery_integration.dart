@@ -379,7 +379,15 @@ Future<void> main() async {
       upgradedLedger.single[0] == migrationFiles.length &&
           afterFingerprint != beforeFingerprint &&
           restoredReviewFunction.single.every((value) => value == true),
-      'Recovery-coordinated upgrade applies 031-036, restores scoped review access without PUBLIC execution, and advances the database fingerprint',
+      'Recovery-coordinated upgrade applies the current migrations, restores scoped review access without PUBLIC execution, and advances the database fingerprint',
+    );
+    final upgradedOwner = await migration.execute(
+      pg.Sql.named('SELECT is_owner FROM public.ventio_identity_users WHERE tenant_id=@tenant AND actor_id=@actor'),
+      parameters: {'tenant': tenant, 'actor': actor},
+    );
+    check(
+      upgradedOwner.single[0] == true,
+      'The real schema upgrade promotes the persisted initial account to Owner from its bootstrap audit receipt',
     );
     check(
       identityBeforeSuccess == identityAfterSuccess,

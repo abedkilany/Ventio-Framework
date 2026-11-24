@@ -13,6 +13,8 @@ const List<String> initialHostAdministratorPermissions = [
   'identity.devices.manage',
   'identity.pairing.manage',
   'identity.roles.manage',
+  'extension.package.read',
+  'extension.package.submit',
   'extension.package.review',
 ];
 

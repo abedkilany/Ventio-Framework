@@ -221,7 +221,6 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
 
   Widget _candidateCard(HostExtensionSubmission submission) {
     final bundle = submission.bundle;
-    final isSelf = submission.submittedBy == widget.actorId;
     final busy = _busyHash == submission.packageSha256;
     return Card(
       margin: const EdgeInsets.only(top: 12),
@@ -269,17 +268,12 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
                 params: {'version': bundle.manifest.minPlatformApi},
               ),
             ),
-            if (isSelf)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: VentioText('native.ui.extension_self_review_blocked'),
-              ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: isSelf || busy || _busyHash != null
+                  onPressed: busy || _busyHash != null
                       ? null
                       : () => _review(submission, 'APPROVE'),
                   icon: busy
@@ -292,7 +286,7 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
                   label: const VentioText('native.ui.approve'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: isSelf || busy || _busyHash != null
+                  onPressed: busy || _busyHash != null
                       ? null
                       : () => _review(submission, 'REJECT'),
                   icon: const Icon(Icons.block_outlined),

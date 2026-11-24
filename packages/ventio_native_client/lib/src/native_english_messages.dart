@@ -345,7 +345,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.enter_actor_id': 'Enter a user ID.',
   'native.ui.enter_display_name': 'Enter a display name.',
   'native.ui.permission_not_grantable_to_users':
-      'Enter a valid non-management permission key. Identity, Host, system, security and recovery permissions cannot be granted here.',
+      'Enter a valid permission key that this account can grant.',
   'native.ui.new_user_is_unprivileged':
       'The new user starts with no permissions or roles.',
   'native.ui.user_management_denied_by_host':
@@ -1224,8 +1224,6 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.extension_name': 'Name: {name}',
   'native.ui.document_types': 'Document types: {types}',
   'native.ui.minimum_platform_api': 'Minimum platform API: {version}',
-  'native.ui.extension_self_review_blocked':
-      'You submitted this candidate. A different authorized administrator must review it.',
   'native.ui.disable_on_device': 'Disable on device',
   'native.ui.activate_on_device': 'Activate on device',
 };

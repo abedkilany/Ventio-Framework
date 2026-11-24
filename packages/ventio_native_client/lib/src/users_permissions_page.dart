@@ -193,7 +193,8 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
   Future<void> _grantPermission(HostManagedUser user) async {
     final permission = await showDialog<String>(
       context: context,
-      builder: (context) => const _PermissionDialog(),
+      builder: (context) =>
+          _PermissionDialog(canGrant: widget.client.canGrantPermission),
     );
     if (permission == null || !mounted) return;
     await _mutate(
@@ -507,7 +508,12 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
             ? Icons.person_outline
             : Icons.person_off_outlined,
       ),
-      title: Text(_displayIdentity(user.actorId)),
+      title: Text(
+        user.actorId == widget.client.verifiedIdentity.actorId &&
+                widget.client.verifiedIdentity.isOwner
+            ? '${_displayIdentity(user.actorId)} · Owner'
+            : _displayIdentity(user.actorId),
+      ),
       subtitle: SelectableText(
         '${_displayIdentity(user.actorId)} · ${context.ventioText(user.state == HostManagedUserState.active ? 'native.ui.user_active' : 'native.ui.user_disabled_state')}',
       ),
@@ -555,9 +561,7 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
                   onDeleted:
                       !_saving &&
                           widget.client.canManageUsers &&
-                          HostUserManagementClient.isGrantableNonManagementPermission(
-                            permission,
-                          )
+                          widget.client.canGrantPermission(permission)
                       ? () => _revokePermission(user, permission)
                       : null,
                 ),
@@ -595,7 +599,9 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
 }
 
 class _PermissionDialog extends StatefulWidget {
-  const _PermissionDialog();
+  const _PermissionDialog({required this.canGrant});
+
+  final bool Function(String) canGrant;
 
   @override
   State<_PermissionDialog> createState() => _PermissionDialogState();
@@ -625,9 +631,7 @@ class _PermissionDialogState extends State<_PermissionDialog> {
         ),
         validator: (value) {
           final permission = value?.trim() ?? '';
-          if (!HostUserManagementClient.isGrantableNonManagementPermission(
-            permission,
-          )) {
+          if (!widget.canGrant(permission)) {
             return context.ventioText(
               'native.ui.permission_not_grantable_to_users',
             );
