@@ -83,6 +83,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if(args.Length==1 && args[0]=="--owner-recovery") {
+            if(!IsAdministrator())return 3;
+            ApplicationConfiguration.Initialize();
+            Application.Run(new OwnerRecoveryDialog());
+            return 0;
+        }
         if (args.Length == 1 && args[0] is "--check-installer-clients-closed" or "--prepare-installer-upgrade" or "--complete-installer-upgrade" or "--resume-installer-upgrade" or "--resume-installer-postgres")
             return RunInstallerMaintenance(args[0]);
         Request request;

@@ -69,8 +69,11 @@ BEGIN
     ('038_wave2_administration.sql','d40ba99f2112be227fedf83b949b8769259c20b2470d3df60727f35c038cf32c'),
     ('039_wave2_operation_execution.sql','6998e6088b2601c75e941ae44141b2927fb0a2b89677c6dc2c5a43b0db502498'),
     ('040_wave2_job_archival.sql','796758054c43002ae237d3db0bbd0b41857e4f18972e8a9826091160f5f3e64a'),
-    ('041_wave2_customization_validation.sql','309bdf4f245adf9e2a41a6d054ed02e899ffea667c8f9ee703229d4788649d47')),
+    ('041_wave2_customization_validation.sql','309bdf4f245adf9e2a41a6d054ed02e899ffea667c8f9ee703229d4788649d47'),
+    ('042_organization_accounts.sql','77474221c42fc6592e419f1e794aa699906aea2accc389104520c914d5232cfd')),
     legacy(name,sha256) AS (VALUES
+      ('037_extension_submitter_review.sql','d17d39218a3aad2d84638a74d55bf1a17a691fc04559e5e1ff4d458afff9bdf3'),
+      ('038_initial_account_owner.sql','1efbeeb2f39163dfe08808a8b40a6b5886e96a3a8b3d74b7f4cdbefa66ce389b'),
       ('026_identity_pairing.sql','af5f7a72fd9affc38c1ead156ca607dd89308998035985fa0259ae4e2cf39421'),
       ('027_identity_pairings.sql','a7ef70e7f6ea623e39dd668b5506bc5a1ddd641a0fee8d99aba2f9273541c9c6'),
       ('028_identity_pairing_rate_index.sql','6c975a92942a3e53abe50da9441f94b9fb7b68f2bda5932792c610814dcd6f68'))

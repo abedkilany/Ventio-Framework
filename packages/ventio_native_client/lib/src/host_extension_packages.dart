@@ -1063,12 +1063,35 @@ class HostExtensionPackageClient {
     );
   }
 
+  Future<Map<String, dynamic>> account(
+    String action,
+    Map<String, Object?> body, {
+    bool enrollment = false,
+  }) async {
+    final token = enrollment
+        ? await credentials.readEnrollment(endpoint)
+        : null;
+    final response = await _request(
+      'POST',
+      '/api/v1/accounts/$action',
+      body,
+      token,
+    );
+    if (response.statusCode != HttpStatus.ok) throw _responseError(response);
+    final result = response.body['account'];
+    if (result is! Map) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+    return Map<String, dynamic>.from(result);
+  }
+
   Future<_HostResponse> _request(
     String method,
     String path, [
     Map<String, Object?>? body,
+    String? tokenOverride,
   ]) async {
-    final token = await credentials.read(endpoint);
+    final token = tokenOverride ?? await credentials.read(endpoint);
     if (token == null) {
       throw const HostPackageTransportException('HOST_CREDENTIAL_MISSING');
     }

@@ -130,7 +130,8 @@ internal static class Program
             }, (command, callerSid, cancellationToken) =>
                 ExecuteTrustedPairingAsync(command, callerSid, bootstrapEnvironment, cancellationToken),
                 (command, callerSid, cancellationToken) =>
-                    ExecuteTrustedCredentialReissueAsync(command, callerSid, bootstrapEnvironment, cancellationToken));
+                    ExecuteTrustedCredentialReissueAsync(command, callerSid, bootstrapEnvironment, cancellationToken),
+                (command, callerSid, cancellationToken) => ExecuteOwnerRecoveryAsync(command,callerSid,bootstrapEnvironment,cancellationToken));
             brokerCancellation = new CancellationTokenSource();
             var brokerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _startupStage = "BOOTSTRAP_BROKER_START";
@@ -511,6 +512,41 @@ internal static class Program
                 root.TryGetProperty("actorId", out var actor) && actor.GetString() == expectedActorId;
         }
         catch { return false; }
+    }
+
+    private static async Task<JsonElement> ExecuteOwnerRecoveryAsync(BootstrapCommand command,string callerSid,
+        Dictionary<string,string>? protectedEnvironment,CancellationToken cancellationToken)
+    {
+        var executable=Path.Combine(AppContext.BaseDirectory,"ventio_trusted_owner_recovery.exe");
+        if(protectedEnvironment is null || !File.Exists(executable) || command.RequestId is null)
+            throw new TrustedPairingOperationException("HOST_OWNER_RECOVERY_UNAVAILABLE");
+        var start=new ProcessStartInfo {FileName=executable,WorkingDirectory=AppContext.BaseDirectory,UseShellExecute=false,
+            CreateNoWindow=true,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
+        start.Environment.Clear(); CopyRequiredSystemEnvironment(start.Environment);
+        foreach(var pair in protectedEnvironment) start.Environment[pair.Key]=pair.Value;
+        var bytes=JsonSerializer.SerializeToUtf8Bytes(new {tenantId=command.TenantId,companyId=command.CompanyId,
+            branchId=command.BranchId,actorId=command.TargetActorId,mode=command.OwnerMode,username=command.Username,password=command.Password,
+            windowsAdminSid=callerSid,windowsAdminTag=CreateWindowsAdminTag(callerSid,command.RequestId)},new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var process=new Process {StartInfo=start};
+        try {
+            if(!process.Start())throw new InvalidOperationException();
+            start.Environment.Clear();
+            var stdout=ReadBoundedAsync(process.StandardOutput.BaseStream,8192,cancellationToken);
+            var stderr=process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.StandardInput.BaseStream.WriteAsync(bytes,cancellationToken).ConfigureAwait(false);
+            process.StandardInput.Close();
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            var output=await stdout.ConfigureAwait(false); _=await stderr.ConfigureAwait(false);
+            try {
+                using var result=JsonDocument.Parse(output);
+                if(process.ExitCode!=0 || result.RootElement.GetProperty("status").GetString()!="created")
+                    throw new TrustedPairingOperationException("HOST_OWNER_RECOVERY_DENIED");
+                return result.RootElement.GetProperty("owner").Clone();
+            } finally {CryptographicOperations.ZeroMemory(output);}
+        } catch(TrustedPairingOperationException){throw;}
+        catch {try{if(!process.HasExited)process.Kill(entireProcessTree:true);}catch{}
+            throw new TrustedPairingOperationException("HOST_OWNER_RECOVERY_FAILED");}
+        finally {CryptographicOperations.ZeroMemory(bytes);start.Environment.Clear();}
     }
 
     private static async Task<TrustedPairingResult> ExecuteTrustedPairingAsync(

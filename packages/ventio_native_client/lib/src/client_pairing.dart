@@ -124,6 +124,8 @@ class ClientPairingClient {
     // Check local persistence before consuming the single-use Host code.
     final previousProfile = await _readExistingProfile();
     final previousCredential = await _readPreviousCredential();
+    final previousEnrollment = await credentials.readEnrollment(endpoint);
+    final previousOffline = await credentials.readOfflineAccount(endpoint);
     final previousCertificate = await credentials.readTrustedCertificate(
       endpoint,
     );
@@ -184,7 +186,7 @@ class ClientPairingClient {
     // A Host credential is replaced only after the complete Host response has
     // passed version, shape, role, scope, expiry, and token validation.
     try {
-      await credentials.save(endpoint, enrollment.credential);
+      await credentials.replaceEnrollment(endpoint, enrollment.credential);
       if (trustedCertificateDer != null) {
         await credentials.saveTrustedCertificate(
           endpoint,
@@ -197,7 +199,14 @@ class ClientPairingClient {
         if (previousCredential == null) {
           await credentials.delete(endpoint);
         } else {
+          await credentials.replaceEnrollment(
+            endpoint,
+            previousEnrollment ?? previousCredential,
+          );
           await credentials.save(endpoint, previousCredential);
+          if (previousOffline != null) {
+            await credentials.writeOfflineAccount(endpoint, previousOffline);
+          }
         }
         if (trustedCertificateDer != null) {
           if (previousCertificate == null) {

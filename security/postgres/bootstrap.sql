@@ -781,6 +781,7 @@ GRANT SELECT, INSERT ON public.ventio_document_number_series TO ventio_runtime;
 GRANT UPDATE (next_number) ON public.ventio_document_number_series TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
+\ir accounts.sql
 \ir pairing.sql
 \ir schema_profile.sql
 \ir credential_reissues.sql
@@ -855,6 +856,10 @@ GRANT EXECUTE ON FUNCTION
 -- bootstrap login even though the extension is assigned to ventio_owner. Reset
 -- the temporary SET ROLE before hardening their ACLs. Only SECURITY DEFINER
 -- functions owned by ventio_owner need to call these crypto primitives.
+GRANT EXECUTE ON FUNCTION ventio_security.account_login_material(text,text,text),
+  ventio_security.account_login_issue(text,text,text,text,text,text,boolean),
+  ventio_security.account_current_hash(text),ventio_security.account_change(text,jsonb),
+  ventio_security.local_owner_recover(jsonb) TO ventio_identity_api;
 RESET ROLE;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_crypto
   FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;

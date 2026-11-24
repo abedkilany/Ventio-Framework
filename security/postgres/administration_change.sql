@@ -28,6 +28,11 @@ BEGIN
   IF role_name IS NOT NULL AND length(trim(role_name)) NOT BETWEEN 1 AND 120 THEN
     RAISE EXCEPTION 'Invalid role display name';
   END IF;
+  IF actor IS NOT NULL AND EXISTS (SELECT FROM public.ventio_identity_users
+      WHERE tenant_id=tenant AND actor_id=actor AND is_owner) AND
+      operation IN ('USER_DISABLED','USER_ENABLED','PERMISSION_REVOKED','ROLE_UNASSIGNED') THEN
+    RAISE EXCEPTION 'Organization Owner is protected' USING ERRCODE='42501';
+  END IF;
   IF operation = 'USER_CREATED' THEN
     IF actor IS NULL THEN RAISE EXCEPTION 'User is required'; END IF;
     INSERT INTO public.ventio_identity_users (tenant_id, actor_id) VALUES (tenant, actor);
@@ -390,7 +395,7 @@ BEGIN
       IF changed = 0 THEN RETURN; END IF;
       subject := credential;
     WHEN 'USER_DISABLED' THEN
-      UPDATE public.ventio_identity_users SET disabled_at = clock_timestamp()
+      UPDATE public.ventio_identity_users SET disabled_at = clock_timestamp(), password_version=password_version+1
         WHERE tenant_id = tenant AND actor_id = actor AND disabled_at IS NULL;
       GET DIAGNOSTICS changed = ROW_COUNT;
       IF changed = 0 THEN RETURN; END IF;

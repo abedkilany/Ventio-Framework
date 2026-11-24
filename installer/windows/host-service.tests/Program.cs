@@ -16,6 +16,28 @@ if (args.Length > 0 && args[0].StartsWith("--pg-maintenance-", StringComparison.
     return;
 }
 
+if(args.SequenceEqual(new[]{"--owner-account-contract"}))
+{
+    var payload="{\"operation\":\"owner-recovery\",\"tenantId\":\"tenant\",\"companyId\":\"company\",\"branchId\":\"branch\",\"actorId\":\"legacy\",\"mode\":\"MIGRATE\",\"username\":\"owner\",\"password\":\"a long password phrase\",\"requestId\":\"0123456789abcdef0123456789abcdef\"}";
+    var command=FirstAdminBootstrapBroker.ParseCommand(Encoding.UTF8.GetBytes(payload));
+    if(command.Operation!="owner-recovery" || command.OwnerMode!="MIGRATE" || command.Password!="a long password phrase")throw new Exception("Owner recovery request contract failed");
+    if(command.ToString().Contains(command.Password,StringComparison.Ordinal))throw new Exception("Command logging exposes a password");
+    foreach(var invalid in new[]{payload.Replace("MIGRATE","PROMOTE"),payload.Replace("a long password phrase","short"),payload.Replace("\"username\":\"owner\"","\"username\":\"bad username\""),payload.Replace("\"tenantId\":\"tenant\"","\"tenantId\":\"\""),payload.Replace("\"operation\":", "\"extra\":\"x\",\"operation\":")})
+    {
+        try {FirstAdminBootstrapBroker.ParseCommand(Encoding.UTF8.GetBytes(invalid));throw new Exception("Invalid Owner request accepted");}
+        catch(InvalidDataException){}
+    }
+    var ownerTagMethod=Assembly.Load("VentioHostService").GetType("Program")!.GetMethod("CreateWindowsAdminTag",BindingFlags.NonPublic|BindingFlags.Static)!;
+    var ownerTag=(string)ownerTagMethod.Invoke(null,["S-1-5-21-111-222-333-1000","0123456789abcdef0123456789abcdef"])!;
+    if(!System.Text.RegularExpressions.Regex.IsMatch(ownerTag,"^[0-9a-f]{16}$"))throw new Exception("Owner recovery audit-tag contract failed");
+    var acl=FirstAdminBootstrapBroker.CreatePipeSecurity("S-1-5-80-1-2-3-4-5");
+    var rules=acl.GetAccessRules(true,false,typeof(SecurityIdentifier)).Cast<PipeAccessRule>().ToArray();
+    if(!acl.AreAccessRulesProtected || !rules.Any(r=>r.IdentityReference.Value=="S-1-5-2"&&r.AccessControlType==AccessControlType.Deny) ||
+      !rules.Any(r=>r.IdentityReference.Value=="S-1-5-32-544"&&r.AccessControlType==AccessControlType.Allow))throw new Exception("Owner recovery local pipe ACL failed");
+    Console.WriteLine("PASS: Owner recovery parse, mode, password, username, tenant, unexpected-field, secret-redaction and local admin-only pipe ACL checks (9)");
+    return;
+}
+
 var serviceProgram = Assembly.Load("VentioHostService").GetType("Program")
     ?? throw new InvalidOperationException("Host service entry point was not found.");
 var helperTimeoutField = serviceProgram.GetField(

@@ -20,7 +20,11 @@ internal sealed record BootstrapCommand(
     string? PermissionsCsv = null,
     string? DeviceId = null,
     string? SourceCredentialId = null,
-    string? ApprovedRemovalsCsv = null);
+    string? ApprovedRemovalsCsv = null,
+    string? OwnerMode = null, string? Username = null, string? Password = null)
+{
+    public override string ToString() => $"BootstrapCommand {{ Operation = {Operation} }}";
+}
 
 internal sealed record TrustedPairingResult(
     string PairingId,
@@ -58,7 +62,8 @@ internal sealed record BootstrapReply(
     string? FailureCode = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] BootstrapScope? Scope = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TrustedPairingResult? Pairing = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TrustedCredentialReissueResult? CredentialReissue = null);
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TrustedCredentialReissueResult? CredentialReissue = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] JsonElement? OwnerRecovery = null);
 
 internal sealed record BootstrapScope(string TenantId, string CompanyId, string BranchId);
 
@@ -88,12 +93,16 @@ internal sealed class FirstAdminBootstrapBroker
     private readonly Func<BootstrapCommand, string, CancellationToken, Task<TrustedPairingResult>> _executeTrustedPairing;
     private readonly Func<BootstrapCommand, string, CancellationToken, Task<TrustedCredentialReissueResult>> _executeTrustedCredentialReissue;
 
+    private readonly Func<BootstrapCommand,string,CancellationToken,Task<JsonElement>>? _executeOwnerRecovery;
+
     internal FirstAdminBootstrapBroker(
         BootstrapReceiptCoordinator coordinator,
         Func<BootstrapReceipt, CancellationToken, Task> executeBootstrap,
         Func<BootstrapCommand, string, CancellationToken, Task<TrustedPairingResult>> executeTrustedPairing,
-        Func<BootstrapCommand, string, CancellationToken, Task<TrustedCredentialReissueResult>> executeTrustedCredentialReissue)
+        Func<BootstrapCommand, string, CancellationToken, Task<TrustedCredentialReissueResult>> executeTrustedCredentialReissue,
+        Func<BootstrapCommand,string,CancellationToken,Task<JsonElement>>? executeOwnerRecovery = null)
     {
+        _executeOwnerRecovery = executeOwnerRecovery;
         _coordinator = coordinator;
         _executeBootstrap = executeBootstrap;
         _executeTrustedPairing = executeTrustedPairing;
@@ -137,6 +146,8 @@ internal sealed class FirstAdminBootstrapBroker
                             RequestId: command.RequestId,
                             CredentialReissue: await _executeTrustedCredentialReissue(
                                 command, callerSid, operationTimeout.Token).ConfigureAwait(false)),
+                        "owner-recovery" when _executeOwnerRecovery is not null => new BootstrapReply(
+                            true,"created",OwnerRecovery: await _executeOwnerRecovery(command,callerSid,operationTimeout.Token).ConfigureAwait(false)),
                         "acknowledge" => _coordinator.Acknowledge(command, callerSid),
                         "status" => _coordinator.InspectStatus(callerSid),
                         _ => throw new InvalidDataException(),
@@ -188,12 +199,22 @@ internal sealed class FirstAdminBootstrapBroker
             if (fields.ContainsKey(property.Name) || property.Value.ValueKind != JsonValueKind.String)
                 throw new InvalidDataException();
             var value = property.Value.GetString();
-            var maximumFieldLength = property.Name == "permissions" ? 4096 : 256;
+            var maximumFieldLength = property.Name == "permissions" ? 4096 : property.Name == "password" ? 1024 : 256;
             if (value is null || value.Length > maximumFieldLength) throw new InvalidDataException();
             fields.Add(property.Name, value);
         }
 
         if (!fields.TryGetValue("operation", out var operation)) throw new InvalidDataException();
+        if(operation == "owner-recovery" && fields.Count == 9 && fields.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(
+            ["operation","tenantId","companyId","branchId","actorId","mode","username","password","requestId"]))
+        {
+            if(fields["mode"] is not ("INITIALIZE" or "BOOTSTRAP" or "MIGRATE" or "RECOVER") || fields["password"].Length < 15 ||
+                !Regex.IsMatch(fields["username"],"^[A-Za-z0-9][A-Za-z0-9_.@-]{2,63}$",RegexOptions.CultureInvariant) ||
+                !Regex.IsMatch(fields["requestId"],"^[0-9a-f]{32}$",RegexOptions.CultureInvariant)) throw new InvalidDataException();
+            return new BootstrapCommand(operation,TenantId:ValidateIdentifier(fields["tenantId"]),
+                CompanyId:fields["companyId"],BranchId:fields["branchId"],TargetActorId:fields["actorId"],
+                RequestId:fields["requestId"],OwnerMode:fields["mode"],Username:fields["username"],Password:fields["password"]);
+        }
         if (operation == "status" && fields.Count == 1) return new BootstrapCommand(operation);
         if (operation == "bootstrap" &&
             fields.Count == 4 &&

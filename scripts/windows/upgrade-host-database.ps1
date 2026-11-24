@@ -830,7 +830,7 @@ SELECT jsonb_build_array(
     throw 'HOST_CREDENTIAL_REISSUE_CONTRACT_VERIFICATION_FAILED'
   }
   Set-HostBackupStage 'DATABASE_MIGRATION_LEDGER_VERIFICATION' 'HOST_DATABASE_MIGRATION_LEDGER_INVALID'
-  $ledger = Invoke-HostDatabaseTool $psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,'-d',$databaseName,'-Atc','SET ROLE ventio_owner; SELECT count(*) FROM public.ventio_schema_migrations') $envVars 30000 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' -TestMode:$TestMode
+  $ledger = Invoke-HostDatabaseTool $psql @('-X','-w','-h','127.0.0.1','-p',[string]$Port,'-U',$migrationRole,'-d',$databaseName,'-Atc',"SET ROLE ventio_owner; SELECT count(*) FROM public.ventio_schema_migrations WHERE name NOT IN ('037_extension_submitter_review.sql','038_initial_account_owner.sql')") $envVars 30000 'HOST_DATABASE_MIGRATION_LEDGER_INVALID' -TestMode:$TestMode
   $ledgerCounts = @($ledger -split "`r?`n" | Where-Object { $_ -match '^\d+$' })
   if ($ledgerCounts.Count -ne 1 -or [int]$ledgerCounts[0] -ne $migrationFiles.Count) {
     throw 'HOST_DATABASE_MIGRATION_LEDGER_INVALID'

@@ -8,6 +8,7 @@ import 'package:postgres/postgres.dart' as pg;
 import 'package:ventio_core/ventio_core.dart';
 
 import 'authentication.dart';
+import 'accounts.dart';
 import 'command_validation.dart';
 import 'credential_reissue.dart';
 import 'device_administration.dart';
@@ -50,6 +51,7 @@ class HostApi {
   final AuthoritativeIdentityCredentialReissueGateway? _credentialReissues;
   final HostReadinessProvider? _readinessProvider;
   final AuthoritativeWave2Gateway? _wave2;
+  final PostgresAccounts? _accounts;
   final ManagementDiagnosticSink _diagnostics;
   final int maxBodyBytes;
   final int maxConcurrentRequests;
@@ -75,6 +77,7 @@ class HostApi {
     this._credentialReissues,
     this._readinessProvider,
     this._wave2,
+    this._accounts,
     this._diagnostics,
     this.maxBodyBytes,
     this.maxConcurrentRequests,
@@ -106,6 +109,7 @@ class HostApi {
     AuthoritativeIdentityCredentialReissueGateway? credentialReissues,
     HostReadinessProvider? readinessProvider,
     AuthoritativeWave2Gateway? wave2,
+    PostgresAccounts? accounts,
     ManagementDiagnosticSink? diagnostics,
     InternetAddress? listenAddress,
     SecurityContext? tlsContext,
@@ -170,6 +174,7 @@ class HostApi {
       credentialReissues,
       readinessProvider,
       wave2,
+      accounts,
       diagnostics ?? ManagementDiagnosticBuffer(),
       maxBodyBytes,
       maxConcurrentRequests,
@@ -431,6 +436,40 @@ class HostApi {
         throw const _ApiError(405, 'METHOD_NOT_ALLOWED');
       }
       _json(request, 200, {'apiVersion': 1, 'status': 'alive'});
+      return;
+    }
+    if (request.uri.path == '/api/v1/accounts/login' ||
+        request.uri.path == '/api/v1/accounts/manage') {
+      if (_accounts == null) throw const _ApiError(404, 'NOT_FOUND');
+      if (request.method != 'POST')
+        throw const _ApiError(405, 'METHOD_NOT_ALLOWED');
+      final authorization = request.headers[HttpHeaders.authorizationHeader];
+      if (authorization == null ||
+          authorization.length != 1 ||
+          !RegExp(
+            r'^Bearer [A-Za-z0-9_-]{43,128}$',
+            caseSensitive: false,
+          ).hasMatch(authorization.single)) {
+        throw const _ApiError(401, 'UNAUTHENTICATED');
+      }
+      if (request.uri.path.endsWith('/login') &&
+          !_pairingRedeemRateLimiter.allow(
+            'account:' +
+                (request.connectionInfo?.remoteAddress.address ?? 'unknown'),
+          )) {
+        throw const _ApiError(429, 'SIGN_IN_RATE_LIMITED');
+      }
+      final json = await _readJsonBody(request, iterator, firstChunk);
+      try {
+        final result = await _accounts.handle(
+          request.uri.path.endsWith('/login') ? 'login' : 'manage',
+          authorization.single.substring(7),
+          json,
+        );
+        _json(request, 200, {'apiVersion': 1, 'account': result});
+      } on AccountException catch (error) {
+        throw _ApiError(error.status, error.code);
+      }
       return;
     }
     final pairingRedeemRoute =
@@ -1776,9 +1815,10 @@ class HostApi {
       if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission)) {
         throw const _ApiError(400, 'INVALID_REQUEST');
       }
-      if (RegExp(
-        r'^(identity|host|system|security|recovery|authorization)\.',
-      ).hasMatch(permission)) {
+      if (!session.principal.permissions.contains('*') &&
+          RegExp(
+            r'^(identity|host|system|security|recovery|authorization)\.',
+          ).hasMatch(permission)) {
         throw const _ApiError(422, 'RESERVED_PERMISSION');
       }
       change['permission'] = permission;

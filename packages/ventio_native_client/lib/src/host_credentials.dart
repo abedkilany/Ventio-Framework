@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -27,6 +28,54 @@ class HostCredentialVault {
   static final _fingerprintPattern = RegExp(r'^[0-9a-f]{64}$');
 
   final HostCredentialBackend _backend;
+  final _authorizationInvalidations = StreamController<void>.broadcast(
+    sync: true,
+  );
+  Stream<void> get authorizationInvalidations =>
+      _authorizationInvalidations.stream;
+
+  String _accountKey(Uri endpoint, String kind) =>
+      'ventio.account.v1.$kind.${sha256.convert(utf8.encode(normalizeEndpoint(endpoint).toString()))}';
+
+  Future<String?> readEnrollment(Uri endpoint) async =>
+      await _backend.read(_accountKey(endpoint, 'enrollment')) ??
+      await read(endpoint);
+
+  Future<void> preserveEnrollment(Uri endpoint) async {
+    if (await _backend.read(_accountKey(endpoint, 'enrollment')) != null) {
+      return;
+    }
+    final token = await read(endpoint);
+    if (token != null) {
+      await _backend.write(_accountKey(endpoint, 'enrollment'), token);
+    }
+  }
+
+  Future<void> replaceEnrollment(Uri endpoint, String token) async {
+    if (!_tokenPattern.hasMatch(token)) {
+      throw ArgumentError('Invalid enrollment');
+    }
+    await _backend.write(_accountKey(endpoint, 'enrollment'), token);
+    await clearOfflineAccount(endpoint);
+    await save(endpoint, token);
+  }
+
+  Future<void> writeOfflineAccount(Uri endpoint, Map<String, dynamic> value) =>
+      _backend.write(_accountKey(endpoint, 'offline'), jsonEncode(value));
+
+  Future<Map<String, dynamic>?> readOfflineAccount(Uri endpoint) async {
+    final raw = await _backend.read(_accountKey(endpoint, 'offline'));
+    if (raw == null) return null;
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      await clearOfflineAccount(endpoint);
+      return null;
+    }
+  }
+
+  Future<void> clearOfflineAccount(Uri endpoint) =>
+      _backend.delete(_accountKey(endpoint, 'offline'));
 
   Future<void> save(Uri endpoint, String token) async {
     if (!_tokenPattern.hasMatch(token)) {
@@ -175,7 +224,10 @@ class HostCredentialVault {
       throw StateError('Staged Host credential is unavailable.');
     }
     await _backend.write(_storageKey(endpoint), staged.token);
+    await _backend.write(_accountKey(endpoint, 'enrollment'), staged.token);
+    await clearOfflineAccount(endpoint);
     await _backend.delete(_reissueStageStorageKey(endpoint));
+    _authorizationInvalidations.add(null);
   }
 
   Future<void> clearStagedCredentialReissue(Uri endpoint) =>
@@ -315,7 +367,11 @@ class HostCredentialVault {
     String deviceId,
   ) => _backend.delete(_reissueRequestStorageKey(endpoint, deviceId));
 
-  Future<void> delete(Uri endpoint) => _backend.delete(_storageKey(endpoint));
+  Future<void> delete(Uri endpoint) async {
+    await _backend.delete(_storageKey(endpoint));
+    await _backend.delete(_accountKey(endpoint, 'enrollment'));
+    await clearOfflineAccount(endpoint);
+  }
 
   Future<void> saveTrustedCertificate(Uri endpoint, List<int> der) async {
     if (der.isEmpty) throw ArgumentError('Host TLS certificate is empty.');

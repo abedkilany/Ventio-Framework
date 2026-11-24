@@ -93,6 +93,13 @@ try {
   }
   finally { Pop-Location }
 
+  $ownerRecoveryExe = Join-Path $tempDirectory 'ventio_trusted_owner_recovery.exe'
+  Push-Location $hostRoot
+  try {
+    & dart compile exe bin/trusted_windows_owner_recovery.dart -o $ownerRecoveryExe
+    if ($LASTEXITCODE -ne 0) { throw 'Trusted Owner recovery compilation failed.' }
+  } finally { Pop-Location }
+
   $identityBootstrapExe = Join-Path $tempDirectory 'ventio_identity_bootstrap.exe'
   Push-Location $hostRoot
   try {
@@ -224,6 +231,7 @@ try {
     trustedPairingExecutable = 'ventio_trusted_pairing.exe'
     trustedCredentialReissueExecutable = 'ventio_trusted_credential_reissue.exe'
     trustedHostUpgradeExecutable = 'ventio_trusted_host_upgrade.exe'
+    trustedOwnerRecoveryExecutable = 'ventio_trusted_owner_recovery.exe'
     serviceExecutable = 'VentioHostService.exe'
     setupBrokerExecutable = 'VentioSetupBroker.exe'
     postgresVersion = '16.16'

@@ -61,6 +61,7 @@ if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.16' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
     $manifest.trustedHostUpgradeExecutable -ne 'ventio_trusted_host_upgrade.exe' -or
+    $manifest.trustedOwnerRecoveryExecutable -ne 'ventio_trusted_owner_recovery.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
     ($manifest.postgresIncludedComponents -join ',') -ne 'bin,lib,share,*.txt' -or
@@ -92,6 +93,9 @@ foreach ($entry in $manifest.verifiedFiles) {
       (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$entry.sha256) {
     throw 'A critical Host payload hash differs from its manifest.'
   }
+}
+if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_owner_recovery.exe' }).Count) {
+  throw 'Trusted Owner recovery helper is not covered by the critical payload manifest.'
 }
 if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'VentioSetupBroker.exe' }).Count) {
   throw 'Host setup broker is not covered by the critical payload manifest.'

@@ -155,6 +155,8 @@ class ExtensionStudioPage extends StatefulWidget {
     required this.store,
     required this.queue,
     this.credentialVault,
+    this.onSignOut,
+    this.onAccountSettings,
     this.hostPackageClientFactory,
     this.diagnosticEventSource,
     this.scope = const RecordScope(
@@ -168,6 +170,8 @@ class ExtensionStudioPage extends StatefulWidget {
   final LocalExtensionStore store;
   final LocalCommandQueue queue;
   final HostCredentialVault? credentialVault;
+  final VoidCallback? onSignOut;
+  final VoidCallback? onAccountSettings;
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final DiagnosticEventSource? diagnosticEventSource;
   final RecordScope scope;
@@ -359,6 +363,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           companyId: profile.companyId,
           branchId: profile.branchId,
           actorId: identity.actorId,
+          isOwner: identity.scopes.any((s) => s.permissions.contains('*')),
         ),
       ),
     );
@@ -792,6 +797,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
             ),
           ),
           actions: [
+            if (widget.onAccountSettings != null)
+              IconButton(
+                onPressed: widget.onAccountSettings,
+                icon: const Icon(Icons.manage_accounts_outlined),
+                tooltip: 'My username and password',
+              ),
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const VentioText('native.ui.cancel'),
@@ -1165,6 +1176,12 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       appBar: AppBar(
         title: const VentioText('native.ui.ventio_extension_builder'),
         actions: [
+          if (widget.onSignOut != null)
+            IconButton(
+              onPressed: widget.onSignOut,
+              icon: const Icon(Icons.logout),
+              tooltip: 'Lock organization',
+            ),
           IconButton(
             onPressed:
                 _hostProfile?.actorId != null &&

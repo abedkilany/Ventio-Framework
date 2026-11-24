@@ -28,3 +28,5 @@ export 'src/wave2_platform.dart';
 export 'src/command_validation.dart';
 
 export 'src/windows_operations_delivery.dart';
+
+export 'src/accounts.dart';

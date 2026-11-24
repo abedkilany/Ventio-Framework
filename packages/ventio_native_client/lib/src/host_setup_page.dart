@@ -7,6 +7,7 @@ import 'package:ventio_core/ventio_core.dart';
 
 import 'app_localization.dart';
 import 'host_setup.dart';
+import 'host_extension_packages.dart';
 import 'host_setup_windows.dart';
 import 'local_diagnostics.dart';
 import 'performance_probe.dart';
@@ -37,6 +38,9 @@ class _HostSetupPageState extends State<HostSetupPage> {
   late final HostSetupPlatform _platform =
       widget.platform ?? createHostSetupPlatform();
   late final HostSetupCredentialStore _credentialStore = widget.credentialStore;
+  final _ownerUsername = TextEditingController();
+  final _ownerPassword = TextEditingController();
+  final _ownerConfirm = TextEditingController();
   final _tenantId = TextEditingController();
   final _companyId = TextEditingController();
   final _branchId = TextEditingController();
@@ -70,6 +74,9 @@ class _HostSetupPageState extends State<HostSetupPage> {
     _tenantId.removeListener(_scopeChanged);
     _companyId.removeListener(_scopeChanged);
     _branchId.removeListener(_scopeChanged);
+    _ownerUsername.dispose();
+    _ownerPassword.dispose();
+    _ownerConfirm.dispose();
     _tenantId.dispose();
     _companyId.dispose();
     _branchId.dispose();
@@ -168,6 +175,12 @@ class _HostSetupPageState extends State<HostSetupPage> {
       _diagnosticPersistenceFailed = false;
     });
     try {
+      if (_credentialStore is LocalHostSetupCredentialStore &&
+          (!AccountPassword.validUsername(_ownerUsername.text.trim()) ||
+              !AccountPassword.validPassword(_ownerPassword.text) ||
+              _ownerPassword.text != _ownerConfirm.text)) {
+        throw ArgumentError('Owner login is invalid');
+      }
       final scope = HostSetupScope(
         tenantId: _tenantId.text.trim(),
         companyId: _companyId.text.trim(),
@@ -181,6 +194,25 @@ class _HostSetupPageState extends State<HostSetupPage> {
         },
       );
       await coordinator.run(scope);
+      final store = _credentialStore;
+      if (store is LocalHostSetupCredentialStore) {
+        final endpoint = Uri.parse(hostSetupEndpoint);
+        final client = HostExtensionPackageClient(
+          endpoint: endpoint,
+          credentials: store.credentials,
+        );
+        final self = await client.account('manage', {'action': 'SELF'});
+        if (self['isOwner'] == true && self['needsPassword'] == true) {
+          await store.credentials.preserveEnrollment(endpoint);
+          await client.account('manage', {
+            'action': 'SET_LOGIN',
+            'username': _ownerUsername.text.trim(),
+            'password': _ownerPassword.text,
+          });
+        }
+        _ownerPassword.clear();
+        _ownerConfirm.clear();
+      }
       if (!mounted) return;
       setState(() {
         _busy = false;
@@ -605,6 +637,33 @@ class _HostSetupPageState extends State<HostSetupPage> {
           const VentioText('native.ui.host_setup_scope_title'),
           const SizedBox(height: 8),
           const VentioText('native.ui.host_setup_scope_explanation'),
+          const SizedBox(height: 12),
+          const Text(
+            'Organization Owner account — choose a username and a password of at least 15 characters.',
+          ),
+          TextField(
+            controller: _ownerUsername,
+            enabled: !_busy,
+            decoration: const InputDecoration(labelText: 'Owner username'),
+          ),
+          TextField(
+            controller: _ownerPassword,
+            enabled: !_busy,
+            obscureText: true,
+            enableSuggestions: false,
+            autocorrect: false,
+            decoration: const InputDecoration(labelText: 'Owner password'),
+          ),
+          TextField(
+            controller: _ownerConfirm,
+            enabled: !_busy,
+            obscureText: true,
+            enableSuggestions: false,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: 'Confirm Owner password',
+            ),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _tenantId,

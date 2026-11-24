@@ -498,7 +498,7 @@ BEGIN
       SELECT * FROM public.ventio_extension_packages
       WHERE tenant_id=p_tenant AND submitted_company_id=p_company
         AND submitted_branch_id=p_branch AND status='SUBMITTED'
-        AND submitted_by IS DISTINCT FROM identity->>'actorId'
+        AND (submitted_by IS DISTINCT FROM identity->>'actorId' OR identity->'permissions' ? '*')
       ORDER BY submitted_at,module_id,version LIMIT p_limit
     ) candidate;
   RETURN jsonb_build_object('status','OK','entries',entries);
@@ -546,7 +546,7 @@ BEGIN
       candidate.package_sha256 IS DISTINCT FROM p_sha256 THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','CANDIDATE_CHANGED');
   END IF;
-  IF candidate.submitted_by=identity->>'actorId' THEN
+  IF candidate.submitted_by=identity->>'actorId' AND NOT identity->'permissions' ? '*' THEN
     RETURN jsonb_build_object('status','REJECTED','reasonCode','SELF_REVIEW_FORBIDDEN');
   END IF;
   PERFORM ventio_security.admin_change(jsonb_build_object(

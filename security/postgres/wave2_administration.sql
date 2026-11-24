@@ -4,8 +4,8 @@ CREATE OR REPLACE FUNCTION ventio_security.wave2_allowed(identity jsonb, company
 RETURNS boolean LANGUAGE sql SECURITY DEFINER
 SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
  SELECT identity IS NOT NULL AND EXISTS(SELECT FROM jsonb_array_elements(identity->'scopeGrants') g(item)
-   WHERE item->>'companyId'=company AND item->>'branchId'=branch AND item->>'permission'=permission)
- AND (permission NOT IN ('platform.organizations.manage','platform.configuration.manage',
+   WHERE item->>'companyId'=company AND item->>'branchId'=branch AND item->>'permission' IN ('*',permission))
+ AND (identity->'permissions' ? '*' OR permission NOT IN ('platform.organizations.manage','platform.configuration.manage',
    'platform.customizations.manage','platform.operations.manage') OR EXISTS(
    SELECT FROM public.ventio_identity_grants g WHERE g.tenant_id=identity->>'tenantId'
     AND g.actor_id=identity->>'actorId' AND g.company_id=company AND g.branch_id=branch AND g.permission=permission))
@@ -53,9 +53,9 @@ BEGIN
  IF identity IS NULL THEN RETURN NULL; END IF;
  SELECT coalesce(jsonb_agg(item ORDER BY item->>'companyId',item->>'branchId',item->>'permission'),'[]') INTO grants
  FROM jsonb_array_elements(identity->'scopeGrants') g(item)
- WHERE ventio_security.wave2_scope_active(identity->>'tenantId',item->>'companyId',item->>'branchId');
+ WHERE identity->'permissions' ? '*' OR ventio_security.wave2_scope_active(identity->>'tenantId',item->>'companyId',item->>'branchId');
  SELECT coalesce(jsonb_agg(item),'[]') INTO roles FROM jsonb_array_elements(coalesce(identity->'roles','[]')) r(item)
- WHERE ventio_security.wave2_scope_active(identity->>'tenantId',item->>'companyId',item->>'branchId');
+ WHERE identity->'permissions' ? '*' OR ventio_security.wave2_scope_active(identity->>'tenantId',item->>'companyId',item->>'branchId');
  RETURN identity || jsonb_build_object('scopeGrants',grants,'roles',roles,
   'companyIds',(SELECT coalesce(jsonb_agg(DISTINCT item->>'companyId'),'[]') FROM jsonb_array_elements(grants) g(item)),
   'branchIds',(SELECT coalesce(jsonb_agg(DISTINCT item->>'branchId'),'[]') FROM jsonb_array_elements(grants) g(item)),

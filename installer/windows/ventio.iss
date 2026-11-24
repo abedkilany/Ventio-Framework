@@ -71,6 +71,7 @@ Source: "{#VCRuntimeModulePath}"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#HostPayload}\VentioSetupBroker.exe"; DestName: "VentioSetupMaintenance.exe"; Flags: dontcopy
 
 [Icons]
+Name: "{autoprograms}\Ventio Organization Owner setup and recovery"; Filename: "{app}\host-payload\VentioSetupBroker.exe"; Parameters: "--owner-recovery"; WorkingDir: "{app}\host-payload"
 Name: "{autoprograms}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\Ventio"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 

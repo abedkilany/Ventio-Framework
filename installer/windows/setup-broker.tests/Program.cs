@@ -1,5 +1,29 @@
 using BrokerProgram = Ventio.HostSetupBroker.Program;
 
+if(args.Length==3 && args[0]=="--owner-package-contract")
+{
+    using var previous=System.Text.Json.JsonDocument.Parse(File.ReadAllText(args[1]));
+    using var current=System.Text.Json.JsonDocument.Parse(File.ReadAllText(args[2]));
+    if(!Ventio.HostSetupBroker.NativeHostInstallation.IsReviewedCriticalOnlyLegacyManifest(previous.RootElement))throw new Exception("Expected the published critical-only Owner payload");
+    var obsolete=Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(previous.RootElement,current.RootElement);
+    if(!obsolete.ContainsKey("migrations/038_initial_account_owner.sql"))throw new Exception("Legacy Owner SQL was not reconciled");
+    var approved=Ventio.HostSetupBroker.NativeHostInstallation.ReviewedLegacyRuntime;
+    if(approved.Count!=1639)throw new Exception("Official legacy runtime closure is incomplete");
+    var root=Path.GetDirectoryName(Path.GetFullPath(args[1]))!;
+    var listed=previous.RootElement.GetProperty("verifiedFiles").EnumerateArray().Select(e=>e.GetProperty("path").GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var actual=Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(root,listed,approved);
+    if(actual.Count+listed.Count!=previous.RootElement.GetProperty("payloadFileCount").GetInt32())throw new Exception("Installed legacy closure does not match the declared inventory");
+    var forged=System.Text.Json.Nodes.JsonNode.Parse(previous.RootElement.GetRawText())!;
+    forged["payloadFileCount"]=previous.RootElement.GetProperty("payloadFileCount").GetInt32()+1;
+    using(var invalid=System.Text.Json.JsonDocument.Parse(forged.ToJsonString())){
+      try{Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(invalid.RootElement,current.RootElement);throw new Exception("Unknown legacy inventory accepted");}
+      catch(InvalidOperationException){}
+    }
+    Console.WriteLine($"PASS: legacy Owner manifest recognition, obsolete SQL reconciliation, official runtime inventory, {actual.Count} installed unlisted-runtime hashes and unknown-inventory refusal (5 checks). No installed files or services changed.");
+    return;
+}
+
+
 using (var initializerPipe = Ventio.HostSetupBroker.NativeHostInstallation.CreateInitializerPipe("Ventio.Initdb.Test." + Guid.NewGuid().ToString("N")))
 {
     var security = System.IO.Pipes.PipesAclExtensions.GetAccessControl(initializerPipe);

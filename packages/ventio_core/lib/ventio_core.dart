@@ -22,3 +22,5 @@ export 'src/customization.dart';
 export 'src/data_transfer.dart';
 export 'src/workspace.dart';
 export 'src/platform_administration.dart';
+
+export 'src/account_password.dart';

@@ -11,6 +11,35 @@ import 'extension_store.dart';
 import 'host_credentials.dart';
 import 'host_setup.dart';
 
+Future<void> launchOwnerRecovery() async {
+  if (!Platform.isWindows) {
+    throw const HostSetupException('HOST_OWNER_RECOVERY_WINDOWS_REQUIRED');
+  }
+  final programFiles = Platform.environment['ProgramFiles'];
+  if (programFiles == null) {
+    throw const HostSetupException('HOST_SETUP_BROKER_UNAVAILABLE');
+  }
+  final executable = File(
+    '$programFiles\\Ventio\\host-payload\\VentioSetupBroker.exe',
+  );
+  if (!executable.existsSync()) {
+    throw const HostSetupException('HOST_SETUP_BROKER_UNAVAILABLE');
+  }
+  using((arena) {
+    final result = ShellExecute(
+      HWND(nullptr),
+      PCWSTR('runas'.toNativeUtf16(allocator: arena)),
+      PCWSTR(executable.path.toNativeUtf16(allocator: arena)),
+      PCWSTR('--owner-recovery'.toNativeUtf16(allocator: arena)),
+      PCWSTR(executable.parent.path.toNativeUtf16(allocator: arena)),
+      SW_SHOWNORMAL,
+    );
+    if (result.address <= 32) {
+      throw const HostSetupException('HOST_OWNER_RECOVERY_CANCELLED');
+    }
+  });
+}
+
 class WindowsHostSetupPlatform implements HostSetupPlatform {
   static const _serviceNames = {'VentioPostgres', 'VentioHost'};
   static const _allowedPhases = {

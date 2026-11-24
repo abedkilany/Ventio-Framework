@@ -13,7 +13,8 @@ BEGIN
     EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC,ventio_runtime,ventio_identity_admin,ventio_identity_api',table_name);
   END LOOP;
 END $protection$;
-\ir administration_change.sql
+\ir administration.sql
+\ir accounts.sql
 \ir wave2.sql
 \ir wave2_customization_041.sql
 \ir wave2_identity_base.sql

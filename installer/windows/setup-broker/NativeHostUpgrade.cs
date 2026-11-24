@@ -82,7 +82,7 @@ internal static partial class NativeHostInstallation
             .Select(entry => entry.GetProperty("path").GetString() ?? throw Failure("PAYLOAD_MANIFEST_INVALID"))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (alreadyApproved is not null) listed.UnionWith(alreadyApproved);
-        return SelectPinnedResidue(Payload, listed, LegacyPg1615Residue);
+        return SelectPinnedResidue(Payload, listed, IsReviewedCriticalOnlyLegacyManifest(manifest.RootElement) ? ReviewedLegacyRuntime : LegacyPg1615Residue);
     }
 
     internal static void AssertProcessNotRunning(string processName)
@@ -308,7 +308,7 @@ internal static partial class NativeHostInstallation
                 await Task.Delay(500);
             }
             if (!completed || ServiceState(HostService) != 4) throw Failure("SCHEMA_UPGRADE_TIMEOUT");
-            var ledger = await SqlAsync(password, "ventio_migrator_app", "ventio_host", "SET ROLE ventio_owner; SELECT count(*) FROM public.ventio_schema_migrations");
+            var ledger = await SqlAsync(password, "ventio_migrator_app", "ventio_host", "SET ROLE ventio_owner; SELECT ventio_security.assert_schema(); SELECT count(*) FROM public.ventio_schema_migrations WHERE name NOT IN ('037_extension_submitter_review.sql','038_initial_account_owner.sql')");
             var count = ledger.Split('\n').Last().Trim();
             if (count != Directory.GetFiles(Path.Combine(Payload, "migrations"), "*.sql").Length.ToString(System.Globalization.CultureInfo.InvariantCulture)) throw Failure("DATABASE_MIGRATION_LEDGER_INVALID");
             await StopServiceAsync(HostService);
@@ -359,6 +359,7 @@ internal static partial class NativeHostInstallation
                     length < 0 || !System.Text.RegularExpressions.Regex.IsMatch(sha256, "\\A[0-9a-f]{64}\\z") ||
                     !files.TryAdd(relative, new PayloadMember(length, sha256))) throw Failure("PAYLOAD_MANIFEST_INVALID");
             }
+            if (files.Count != root.GetProperty("payloadFileCount").GetInt32()) ExpandReviewedLegacyManifest(root, files);
             if (files.Count < 1 || files.Count > 20_000 || files.Count != root.GetProperty("payloadFileCount").GetInt32())
                 throw Failure("PAYLOAD_MANIFEST_INVALID");
             return files;

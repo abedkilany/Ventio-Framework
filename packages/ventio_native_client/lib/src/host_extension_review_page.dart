@@ -9,6 +9,7 @@ class HostExtensionReviewPage extends StatefulWidget {
     required this.companyId,
     required this.branchId,
     required this.actorId,
+    this.isOwner = false,
     super.key,
   });
 
@@ -16,6 +17,7 @@ class HostExtensionReviewPage extends StatefulWidget {
   final String companyId;
   final String branchId;
   final String actorId;
+  final bool isOwner;
 
   @override
   State<HostExtensionReviewPage> createState() =>
@@ -221,7 +223,7 @@ class _HostExtensionReviewPageState extends State<HostExtensionReviewPage> {
 
   Widget _candidateCard(HostExtensionSubmission submission) {
     final bundle = submission.bundle;
-    final isSelf = submission.submittedBy == widget.actorId;
+    final isSelf = submission.submittedBy == widget.actorId && !widget.isOwner;
     final busy = _busyHash == submission.packageSha256;
     return Card(
       margin: const EdgeInsets.only(top: 12),

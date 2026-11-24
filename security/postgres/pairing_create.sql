@@ -60,7 +60,7 @@ BEGIN
     WHERE tenant_id=credential_row.tenant_id AND actor_id=p_actor
     FOR UPDATE;
   IF NOT FOUND OR target_disabled IS NOT NULL OR
-      (NOT EXISTS (SELECT FROM public.ventio_identity_grants g
+      (NOT EXISTS(SELECT FROM public.ventio_identity_users WHERE tenant_id=credential_row.tenant_id AND actor_id=p_actor AND (is_owner OR organization_wide)) AND NOT EXISTS (SELECT FROM public.ventio_identity_grants g
           WHERE g.tenant_id=credential_row.tenant_id AND g.actor_id=p_actor
             AND g.company_id=p_company AND g.branch_id=p_branch) AND
        NOT EXISTS (SELECT FROM public.ventio_identity_role_assignments a
@@ -75,43 +75,16 @@ BEGIN
     RAISE EXCEPTION 'Pairing target unavailable' USING ERRCODE='P0002';
   END IF;
 
-  SELECT coalesce(array_agg(permission ORDER BY permission),'{}'::text[])
-    INTO caller_permissions FROM (
-      SELECT g.permission FROM public.ventio_identity_grants g
-        WHERE g.tenant_id=credential_row.tenant_id
-          AND g.actor_id=credential_row.actor_id
-          AND g.company_id=p_company AND g.branch_id=p_branch
-          AND EXISTS (
-            SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
-            WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
-              AND s->'permissions' ? g.permission)
-      UNION
-      SELECT rp.permission FROM public.ventio_identity_role_assignments a
-        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
-        WHERE a.tenant_id=credential_row.tenant_id
-          AND a.actor_id=credential_row.actor_id
-          AND a.company_id=p_company AND a.branch_id=p_branch
-          AND rp.permission !~ '^(identity|host|system|security|recovery|authorization)\.'
-          AND EXISTS (
-            SELECT FROM jsonb_array_elements(credential_row.allowed_scopes) s
-            WHERE s->>'companyId'=p_company AND s->>'branchId'=p_branch
-              AND s->'permissions' ? rp.permission)
-    ) caller_effective;
-  SELECT coalesce(array_agg(permission ORDER BY permission),'{}'::text[])
-    INTO target_permissions FROM (
-      SELECT g.permission FROM public.ventio_identity_grants g
-        WHERE g.tenant_id=credential_row.tenant_id
-          AND g.actor_id=p_actor AND g.company_id=p_company AND g.branch_id=p_branch
-      UNION
-      SELECT rp.permission FROM public.ventio_identity_role_assignments a
-        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
-        WHERE a.tenant_id=credential_row.tenant_id AND a.actor_id=p_actor
-          AND a.company_id=p_company AND a.branch_id=p_branch
-          AND rp.permission !~ '^(identity|host|system|security|recovery|authorization)\.'
-    ) target_effective;
-  IF NOT target_permissions <@ caller_permissions THEN
-    RAISE EXCEPTION 'Pairing target exceeds caller authority' USING ERRCODE='42501';
-  END IF;
+  SELECT coalesce(array_agg(DISTINCT item->>'permission'),'{}'::text[]) INTO caller_permissions
+    FROM jsonb_array_elements(ventio_security.identity_snapshot(p_digest,p_company,p_branch)->'scopeGrants') g(item);
+  target_permissions:=ventio_security.account_user_permissions(credential_row.tenant_id,p_actor,p_company,p_branch);
+  IF NOT EXISTS(SELECT FROM public.ventio_identity_users WHERE tenant_id=credential_row.tenant_id
+      AND actor_id=credential_row.actor_id AND is_owner) AND
+    (NOT target_permissions <@ caller_permissions OR EXISTS(SELECT FROM public.ventio_identity_users
+      WHERE tenant_id=credential_row.tenant_id AND actor_id=p_actor AND is_owner) OR EXISTS(
+      SELECT FROM unnest(target_permissions) p WHERE p ~ '^(identity|host|system|security|recovery|authorization)\.'
+       OR p ~ '^platform\..*\.manage$')) THEN
+    RAISE EXCEPTION 'Pairing target exceeds caller authority' USING ERRCODE='42501'; END IF;
 
   IF (SELECT count(*) FROM public.ventio_identity_pairings p
       WHERE p.tenant_id=credential_row.tenant_id

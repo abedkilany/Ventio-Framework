@@ -241,6 +241,9 @@ Future<void> runLocalHost({
       wave2: wave2,
       identityRoleAdministration: roleAdministration,
       identityUserAdministration: userAdministration,
+      accounts: hasIdentityApi
+          ? PostgresAccounts(pool: identityApiPool!, authority: admission)
+          : null,
       identityPairing: pairingAdministration,
       identityDeviceAdministration: deviceAdministration,
       credentialReissues: credentialReissues,
@@ -278,6 +281,9 @@ Future<void> runLocalHost({
         wave2: wave2,
         identityRoleAdministration: roleAdministration,
         identityUserAdministration: userAdministration,
+        accounts: hasIdentityApi
+            ? PostgresAccounts(pool: identityApiPool!, authority: admission)
+            : null,
         identityPairing: pairingAdministration,
         identityDeviceAdministration: deviceAdministration,
         credentialReissues: credentialReissues,

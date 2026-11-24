@@ -37,13 +37,13 @@ Future<void> _submitMinimalHostSetup(WidgetTester tester) async {
   final list = find.byType(ListView);
   for (
     var attempt = 0;
-    attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+    attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
     attempt++
   ) {
     await tester.drag(list, const Offset(0, -300));
     await tester.pumpAndSettle();
   }
-  final fields = find.byType(TextField);
+  final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
   await tester.enterText(fields.at(0), 'tenant-lan-test');
   await tester.enterText(fields.at(1), 'company-lan-test');
   await tester.enterText(fields.at(2), 'branch-lan-test');
@@ -648,13 +648,13 @@ void main() {
     final list = find.byType(ListView);
     for (
       var attempt = 0;
-      attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+      attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
       attempt++
     ) {
       await tester.drag(list, const Offset(0, -300));
       await tester.pumpAndSettle();
     }
-    final fields = find.byType(TextField);
+    final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
     await tester.enterText(fields.at(0), 'tenant-ui');
     await tester.enterText(fields.at(1), 'company-ui');
     await tester.enterText(fields.at(2), 'branch-ui');
@@ -705,13 +705,13 @@ void main() {
       final list = find.byType(ListView);
       for (
         var attempt = 0;
-        attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+        attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
         attempt++
       ) {
         await tester.drag(list, const Offset(0, -300));
         await tester.pumpAndSettle();
       }
-      final fields = find.byType(TextField);
+      final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
       await tester.enterText(fields.at(0), 'tenant-ui');
       await tester.enterText(fields.at(1), 'company-ui');
       await tester.enterText(fields.at(2), 'branch-ui');
@@ -849,13 +849,13 @@ void main() {
       final list = find.byType(ListView);
       for (
         var attempt = 0;
-        attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+        attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
         attempt++
       ) {
         await tester.drag(list, const Offset(0, -300));
         await tester.pumpAndSettle();
       }
-      final fields = find.byType(TextField);
+      final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
       await tester.enterText(fields.at(0), 'tenant-ui');
       await tester.enterText(fields.at(1), 'company-ui');
       await tester.enterText(fields.at(2), 'branch-ui');
@@ -927,7 +927,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byType(TextField), findsNothing);
+    expect(find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256), findsNothing);
 
     platform.pendingReadGate!.complete(pending);
     await tester.pumpAndSettle();
@@ -935,14 +935,14 @@ void main() {
     final list = find.byType(ListView);
     for (
       var attempt = 0;
-      attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+      attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
       attempt++
     ) {
       await tester.drag(list, const Offset(0, -300));
       await tester.pumpAndSettle();
     }
     final fields = tester
-        .widgetList<TextField>(find.byType(TextField))
+        .widgetList<TextField>(find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256))
         .toList();
     expect(fields, hasLength(3));
     expect(fields.every((field) => field.enabled == false), isTrue);
