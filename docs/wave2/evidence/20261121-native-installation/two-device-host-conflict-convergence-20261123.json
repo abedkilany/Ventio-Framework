@@ -1,0 +1,28 @@
+{
+  "case": "TWO_DEVICE_HOST_CONFLICT_WINNER_CONVERGENCE",
+  "testedAtDate": "2026-11-23",
+  "candidate": {
+    "sourceCommit": "974b2e9553355b5188d13d4c82f78301e2138f8f",
+    "installerSha256": "33b5cea7649e42e0ee5133340fce9428c8a9179b522e29cdea02d83c18bbbe00"
+  },
+  "host": "TEST-02",
+  "client": "TEST-01",
+  "doctype": "Asset",
+  "record": "test02 online wins conflict 20261122",
+  "hostRevision": 2,
+  "observations": [
+    {
+      "device": "TEST-02",
+      "status": "Revision 2 · confirmed by Host"
+    },
+    {
+      "device": "TEST-01",
+      "status": "Revision 2 · confirmed by Host"
+    }
+  ],
+  "result": "PASS_RECORD_CONVERGED_TO_HOST_CONFIRMED_REVISION",
+  "limitations": [
+    "Evidence is visual and supplied by the operator; application audit timestamps were not captured in these screenshots.",
+    "This case covers one conflict winner and record convergence, not the full offline/restart/revocation matrix."
+  ]
+}

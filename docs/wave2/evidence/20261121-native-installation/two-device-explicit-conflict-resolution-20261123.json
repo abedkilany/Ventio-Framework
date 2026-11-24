@@ -1,0 +1,43 @@
+{
+  "case": "TWO_DEVICE_EXPLICIT_CONFLICT_RESOLUTION_KEEP_LOCAL",
+  "testedAtDate": "2026-11-23",
+  "candidate": {
+    "sourceCommit": "974b2e9553355b5188d13d4c82f78301e2138f8f",
+    "installerSha256": "33b5cea7649e42e0ee5133340fce9428c8a9179b522e29cdea02d83c18bbbe00"
+  },
+  "host": "TEST-02",
+  "client": "TEST-01",
+  "doctype": "Asset",
+  "record": "conflict-probe-20261123",
+  "conflict": {
+    "localValue": "client-value",
+    "hostValue": "host-value",
+    "localRevision": 2,
+    "hostRevision": 2,
+    "hostReasonCode": "REVISION_CONFLICT",
+    "resolution": "Keep local value; submitted as new command against Host revision 2"
+  },
+  "resolutionReceipt": {
+    "device": "TEST-01",
+    "pendingCommandsAfterRetry": 0,
+    "hostConfirmedCommands": 6,
+    "conflicts": 2,
+    "latestAttemptUtc": "2026-11-23T22:01:19.580511Z",
+    "result": "PASS_EXPLICIT_CONFLICT_RESOLUTION_ACCEPTED_BY_HOST"
+  },
+  "convergence": {
+    "device": "TEST-02",
+    "secret": "client-value",
+    "localRevision": 3,
+    "hostRevision": 3,
+    "status": "HOST_ACCEPTED",
+    "result": "PASS_RESOLVED_VALUE_CONVERGED_TO_HOST_DEVICE",
+    "clientDevice": "TEST-01",
+    "clientSecret": "client-value",
+    "clientLocalRevision": 3,
+    "clientHostRevision": 3,
+    "clientStatus": "HOST_ACCEPTED"
+  },
+  "result": "PASS_TWO_DEVICE_CONFLICT_RESOLUTION_AND_HOST_CONVERGENCE",
+  "evidence": "Operator-provided screenshots in this conversation show TEST-01 and TEST-02 with client-value, local revision 3, Host revision 3, and HOST_ACCEPTED."
+}

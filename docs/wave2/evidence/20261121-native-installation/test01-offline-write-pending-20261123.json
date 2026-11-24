@@ -1,0 +1,48 @@
+{
+  "case": "TEST01_OFFLINE_LOCAL_WRITE_QUEUED",
+  "testedAtDate": "2026-11-23",
+  "candidate": {
+    "sourceCommit": "974b2e9553355b5188d13d4c82f78301e2138f8f",
+    "installerSha256": "33b5cea7649e42e0ee5133340fce9428c8a9179b522e29cdea02d83c18bbbe00"
+  },
+  "client": "TEST-01",
+  "host": "TEST-02",
+  "hostRemainedOnline": true,
+  "clientWasDisconnected": true,
+  "doctype": "Asset",
+  "recordName": "offline-sync-probe-20261123",
+  "operation": "create",
+  "observed": {
+    "localSaveShown": true,
+    "pendingCommands": 1
+  },
+  "restartCheck": {
+    "clientRestartedWhileOffline": true,
+    "recordStillVisible": true,
+    "pendingStatePersisted": true,
+    "result": "PASS_OFFLINE_QUEUE_SURVIVED_CLIENT_RESTART"
+  },
+  "reconnectCheck": {
+    "clientReconnected": true,
+    "retryPendingPressedOnce": true,
+    "pendingCommandsAfterSync": 0,
+    "hostConfirmedCommandsAfterSync": 4,
+    "rejectedCommands": 0,
+    "conflicts": 1,
+    "latestAttemptUtc": "2026-11-23T21:20:41.575035Z",
+    "result": "PASS_OFFLINE_COMMAND_ACCEPTED_BY_HOST"
+  },
+  "hostDeviceConvergenceCheck": {
+    "device": "TEST-02",
+    "recordVisible": true,
+    "recordName": "offline-sync-probe-20261123",
+    "revision": 1,
+    "status": "confirmed by Host",
+    "result": "PASS_RECORD_CONVERGED_TO_HOST_DEVICE"
+  },
+  "result": "PASS_OFFLINE_WRITE_DURABLE_RESTART_AND_HOST_ACK",
+  "nextChecks": [
+    "Restart TEST-01 client while it remains offline and confirm the record and pending count persist.",
+    "Reconnect TEST-01 and verify Host confirmation and convergence on TEST-02."
+  ]
+}
