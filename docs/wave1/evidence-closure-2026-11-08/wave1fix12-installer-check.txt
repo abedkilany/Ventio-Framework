@@ -1,0 +1,5 @@
+2026-11-09T09:20:06Z
+ARTIFACT=artifacts/ventio-windows-acceptance-0.1.18-wave1fix11-20261109/installers/unified/Ventio-Setup-0.1.18.exe
+SHA256=89d36270ce0d595286d09eed5fe030182e3a3e2c9b1750a52abe3410790bb568
+MANIFEST_MATCH=True
+AUTHENTICODE_STATUS=NotSigned

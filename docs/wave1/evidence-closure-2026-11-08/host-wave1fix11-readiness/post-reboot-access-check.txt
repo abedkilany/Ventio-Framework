@@ -1,0 +1,7 @@
+Post-reboot access probes from Development after `shutdown /r /t 8 /f` on Host:
+TCP 22 (SSH): closed/unreachable
+TCP 3389 (RDP): open
+TCP 8443 (Ventio HTTPS): closed/unreachable
+SSH hostname query: connection timed out
+Client certificate-pinned HTTPS health check: curl exit 28 (connection timed out)
+Computer Use could read RDP windows but could not activate the minimized Host/Client windows; visible Host Overview was not inspected.

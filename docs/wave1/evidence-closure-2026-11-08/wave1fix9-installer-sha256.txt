@@ -1,0 +1,6 @@
+
+Algorithm : SHA256
+Hash      : EE8FF4E5EA2106F91F703FD557ECE54546BEA37F1669846F7FF0BD6B8E4F0DAF
+Path      : C:\Users\User\Desktop\Ventio Framework\artifacts\ventio-windows-acceptance-0.1.18-wave1fix9-20261109\installers\unified\Ventio-Setup-0.1.18.exe
+
+

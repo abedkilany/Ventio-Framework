@@ -1,0 +1,5 @@
+Artifact: artifacts/ventio-windows-acceptance-0.1.18-wave1fix15-20261109/installers/unified/Ventio-Setup-0.1.18.exe
+SHA-256: 8e921367a6a7139a232fdf0a9f5fd3d1d61703bbf53d25c3ca705991d446b284
+Manifest SHA-256: 8e921367a6a7139a232fdf0a9f5fd3d1d61703bbf53d25c3ca705991d446b284
+Hash match: True
+Authenticode: NotSigned
