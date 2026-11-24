@@ -204,21 +204,36 @@ Future<void> main() async {
       authority: authority,
       bootstrapConnection: bootstrapConnection,
     );
-    var otherTenantBootstrapDenied = false;
+    final otherTenantOwner = await otherTenantOperator
+        .bootstrapFirstAdministrator(
+          companyId: companyA,
+          branchId: branchA,
+          deviceId: 'other-tenant-first-device',
+          credentialId: 'other-tenant-first-credential',
+          expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+        );
+    check(
+      otherTenantOwner.actorId != initialAdmin.actorId &&
+          OpaqueToken.isValid(otherTenantOwner.token) &&
+          otherTenantOwner.token != initialAdmin.token,
+      'A separate organization receives its own independent Owner credential',
+    );
+
+    var otherTenantDuplicateDenied = false;
     try {
       await otherTenantOperator.bootstrapFirstAdministrator(
         companyId: companyA,
         branchId: branchA,
-        deviceId: 'other-tenant-first-device',
-        credentialId: 'other-tenant-first-credential',
+        deviceId: 'other-tenant-second-device',
+        credentialId: 'other-tenant-second-credential',
         expiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
       );
-    } catch (_) {
-      otherTenantBootstrapDenied = true;
+    } on pg.ServerException catch (error) {
+      otherTenantDuplicateDenied = error.code == '42501';
     }
     check(
-      otherTenantBootstrapDenied,
-      'A second tenant cannot invoke the one-time first-Host-administrator bootstrap',
+      otherTenantDuplicateDenied,
+      'A second bootstrap for the same organization is denied',
     );
     await operator.registerBranch(companyA, branchA);
     await operator.registerBranch(companyB, branchB);
@@ -373,6 +388,21 @@ Future<void> main() async {
       !jsonEncode(httpInventory.body).contains(managerToken),
       'The real Host user inventory response contains no credential material',
     );
+    final otherInventory = await userApi(otherTenantOwner.token, 'list');
+    check(
+      otherInventory.status == 200,
+      'The second organization Owner can list its own users',
+    );
+    final otherUsers = otherInventory.body['users'] as Map<String, dynamic>;
+    check(
+      otherUsers['tenantId'] == '$tenant-other' &&
+          jsonEncode(otherUsers['items']).contains(otherTenantOwner.actorId) &&
+          !jsonEncode(otherUsers['items']).contains(initialAdmin.actorId) &&
+          !jsonEncode(otherUsers['items']).contains('user-manager-a') &&
+          !jsonEncode(httpUsers['items']).contains(otherTenantOwner.actorId),
+      'User inventories remain isolated between organizations sharing company and branch identifiers',
+    );
+
     final httpReaderDenied = await userApi(readerToken, 'list');
     check(
       httpReaderDenied.status == 403 &&
