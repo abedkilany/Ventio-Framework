@@ -732,7 +732,7 @@ Future<void> main() async {
         },
       );
     } on IdentityUserAdministrationException catch (error) {
-      managementGrantDenied = error.statusCode == 422;
+      managementGrantDenied = error.statusCode == 403;
     }
     check(
       managementGrantDenied,
