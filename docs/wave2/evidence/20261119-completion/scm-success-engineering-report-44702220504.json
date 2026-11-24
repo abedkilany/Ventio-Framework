@@ -1,0 +1,61 @@
+{
+  "status": "TARGETED_WINDOWS_RUNTIME_ENGINEERING_PASSED_PHYSICAL_WAVE2_ACCEPTANCE_PENDING",
+  "testedSourceCommit": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a",
+  "branch": "feature/wave-2-a",
+  "runId": "44702220504",
+  "jobId": "136173093804",
+  "conclusion": "success",
+  "runUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44702220504",
+  "jobUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44702220504/job/136173093804",
+  "artifactId": 14613402659,
+  "artifactBytes": 5308,
+  "artifactSha256": "d60cdb12dc8dffadffb0d23639d518f20616eab1dcc206b45d37c278bb1b3b2a",
+  "toolchain": {
+    "dotnetSdk": "10.0.404",
+    "postgres": "postgres (PostgreSQL) 16.16",
+    "runner": "GitHub-hosted windows-2025"
+  },
+  "counts": {
+    "runtimeProgramsPassed": 3,
+    "runtimeProgramsFailed": 0,
+    "maintenanceAssertionsPassed": 51,
+    "maintenanceAssertionsFailed": 0,
+    "workerJobRightsProbesMatched": 4
+  },
+  "countingBoundary": "The 51 assertions are nested within PG-SINGLE-USER-RECOVERY; the three programs and four rights probes are not additional Wave 2 stable case IDs or physical P passes.",
+  "validatedBehavior": [
+    "Real SCM service runs the bounded single-user worker under the existing PostgreSQL virtual account.",
+    "Both new application-role passwords authenticate; both old passwords are denied; restricted role flags and existing data survive.",
+    "Real SQL migration-ledger/profile validator runs before and after rotation; direct migrator ledger reads and a missing ledger row are denied.",
+    "Private operation lease rejects concurrency and READY does not alter ImagePath before the backup boundary.",
+    "Injected failure after ImagePath replacement and coordinator crashes at JournalDurable, ImageChanged, WorkerReady and RequestDelivered restore the exact original service configuration.",
+    "A real live postgres --single backend is terminated through the owned job after hard SCM worker failure before service ImagePath restoration.",
+    "The service worker can query/assign the job but cannot set attributes, terminate it or change its DACL.",
+    "Missing-role rotation rolls back the first password change; malformed requests and unsafe service arguments are denied; error diagnostics redact passwords.",
+    "Cluster/HBA ACLs, authentication rules, service security descriptor and external sentinel remain unchanged; fixture cleanup completed."
+  ],
+  "limitations": [
+    "P001-P006 were not executed by this hosted fixture and remain outside this PASS.",
+    "No installed TEST-01, TEST-02 or Ventio-Recovery-Lab acceptance, two-device synchronization, real backup scheduling or controlled installed restore is established.",
+    "The migration ledger is an actual SQL table seeded with source-file names and SHA256 values for validator coverage; this is not full schema migration or upgrade execution.",
+    "The external authority preservation assertion uses a sentinel file; actual Recovery Authority reconciliation is not established by that assertion.",
+    "Windows reboot recovery and installer/provisioning PowerShell orchestration were not executed as part of this native maintenance fixture.",
+    "A final installer built from the corrected source and final full-scope CI require their own exact-revision evidence."
+  ],
+  "physicalMachinesTouched": false,
+  "retainedFixture": false,
+  "sourceApplicability": {
+    "headObserved": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "changedPathsSinceTestedSource": [
+      "scripts/ci/package-wave2-acceptance.ps1"
+    ],
+    "statement": "Only packaging-date source differs at this observed head; this does not turn the targeted run into final full-scope validation."
+  },
+  "files": [
+    "scm-success-runtime-results-7a378ba.json",
+    "scm-success-maintenance-cases-7a378ba.json",
+    "scm-success-worker-job-rights-7a378ba.json",
+    "scm-success-transport-verification-44702220504.json",
+    "scm-success-defender-44702220504.json"
+  ]
+}

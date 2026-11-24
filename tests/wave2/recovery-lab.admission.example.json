@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "fixtureOnly": true,
+  "ownerApproved": false,
+  "observerProfileApproved": false,
+  "networkEffectiveVerified": false,
+  "operatorSystemPolicyVerified": false,
+  "guest": {
+    "machineName": "VENTIO-W2-VM01",
+    "machineGuid": "5cb98737-7141-4486-9a87-08484566e292",
+    "smbiosUuid": "BBFBFFD7-D087-4E7C-9D65-D7884CAE0420",
+    "adapterMac": "00155D016805"
+  },
+  "management": {
+    "machineName": "BAHAA",
+    "machineGuid": "206b0dfe-e035-49c5-8b38-3d1d19ceadf7",
+    "disposable": false,
+    "vmId": "99aba626-2cc9-486e-86ab-af7966848126"
+  },
+  "ssh": {"ed25519Fingerprint": "SHA256:2apYDxmYxd9YL51EUuqWJRKYAF6grFa/pE1wbds7b0I"},
+  "publisherThumbprint": "PENDING_OWNER_SIGNING_IDENTITY",
+  "networkPlanSha256": "PENDING_APPROVED_PLAN",
+  "networkEvidenceSha256": "PENDING_EFFECTIVE_ISOLATION",
+  "signingEvidenceSha256": "PENDING_OPERATOR_AND_SYSTEM_PROBES"
+}

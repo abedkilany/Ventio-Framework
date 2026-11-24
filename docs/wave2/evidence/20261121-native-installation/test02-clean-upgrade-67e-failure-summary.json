@@ -1,0 +1,14 @@
+{
+  "case": "TEST02-CLEAN-INSTALLED-UPGRADE",
+  "candidateSourceCommit": "67e7240f02b1c485afde4b8e3320f60c441ff6af",
+  "candidateRunId": 45000545052,
+  "installedPreviousHostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "baselineHostPayloadManifest": "CLEAN: 1729 manifest files, 1730 actual files including the manifest, zero unlisted entries",
+  "preinstallScan": "PASS: TEST-02 Defender scan start and completion events verified",
+  "upgradeResult": "test02-clean-upgrade-67e-result.json",
+  "installerExitCode": 5,
+  "actualCause": "The Client process was open in Windows session 1, distinct from the elevated installer session. Restart Manager reported Session Mismatch. Inno could not replace flutter_secure_storage_windows_plugin.dll (DeleteFile error 5), rolled back the application payload, and returned exit 5.",
+  "postFailure": "VentioPostgres was running. The installed older maintenance helper resumed VentioHost but left host-payload-previous.manifest.json. Read-only verification showed this marker was byte-identical to the installed payload manifest, no policy snapshot or schema request existed, and Recovery Authority witness pending was false. The broker's supported resume operation returned 0 and both services are now running.",
+  "correctiveSource": "474c3a4 adds an elevated native all-session Client process guard before service stop and installer replacement, plus exact-identity retirement of stale manifest markers only when both services are running and no policy/schema/witness work is pending.",
+  "acceptance": "Old candidate failure is recorded; source correction is pending hosted verification, candidate rebuild, and installed retry."
+}

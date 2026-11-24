@@ -1,0 +1,33 @@
+00:00 +0: loading C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/extension_studio_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: Dynamic records read from Host and stay branch scoped
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Host-authoritative records": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///C:/Users/User/.codex/worktrees/wave-two-a/Ventio%20Framework/packages/ventio_native_client/test/extension_studio_test.dart:2826:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/User/.codex/worktrees/wave-two-a/Ventio%20Framework/packages/ventio_native_client/test/extension_studio_test.dart line 2826
+The test description was:
+  Dynamic records read from Host and stay branch scoped
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +0 -1: Dynamic records read from Host and stay branch scoped [E]
+  Test failed. See exception logs above.
+  The test description was: Dynamic records read from Host and stay branch scoped
+  
+00:03 +0 -1: (tearDownAll)
+00:03 +0 -1: Some tests failed.
+
+Failing tests:
+  C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/extension_studio_test.dart: Dynamic records read from Host and stay branch scoped

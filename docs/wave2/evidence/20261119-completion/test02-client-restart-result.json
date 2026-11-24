@@ -1,0 +1,17 @@
+﻿{
+    "case":  "TEST02-NATIVE-CLIENT-PROCESS-RESTART",
+    "utc":  "2026-11-20T13:55:08.2719921Z",
+    "sourceCommit":  "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "status":  "PASS_PROCESS_RESTART_ONLY",
+    "priorKilledPid":  4524,
+    "process":  {
+                    "ProcessId":  6544,
+                    "SessionId":  2,
+                    "ExecutablePath":  "C:\\Program Files\\Ventio\\ventio_native_client.exe"
+                },
+    "launchMethod":  "Temporary native-only task under the already logged-on user, Interactive/Limited",
+    "normalUserRunLevel":  true,
+    "noPolicyOverride":  true,
+    "uiRenderingVerified":  false,
+    "temporaryTaskRemoved":  true
+}

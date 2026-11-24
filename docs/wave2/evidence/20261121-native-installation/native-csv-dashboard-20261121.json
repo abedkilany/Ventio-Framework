@@ -1,0 +1,29 @@
+{
+    "case":  "NATIVE-UI-CSV-MAPPING-PREVIEW-DURABLE-JOB-AND-DASHBOARD",
+    "status":  "PASS",
+    "checkedAtUtc":  "2026-11-21T14:21:51.1326427Z",
+    "actualInstalledClient":  true,
+    "clientSource":  "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "actualInstalledHost":  true,
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "nativeUiJobId":  "23836c20-d945-48a9-b647-919a3a43648d",
+    "authoritativeJobState":  "SUCCEEDED",
+    "validAuthoritativeRecords":  [
+                                      {
+                                          "revision":  1,
+                                          "name":  "Native CSV, first",
+                                          "recordId":  "native-csv-20261121-a"
+                                      },
+                                      {
+                                          "revision":  1,
+                                          "name":  "Native CSV \"quoted\"",
+                                          "recordId":  "native-csv-20261121-b"
+                                      }
+                                  ],
+    "invalidPreviewRowAbsent":  true,
+    "dashboardId":  "home",
+    "dashboardRevision":  1,
+    "directSqlUsed":  false,
+    "verification":  "Native UI input, mapping, Host preview, submit, dashboard publish; independent read-only authenticated API verification.",
+    "limitation":  "Additional revocation, two-device conflict, restart and release compatibility gates remain."
+}

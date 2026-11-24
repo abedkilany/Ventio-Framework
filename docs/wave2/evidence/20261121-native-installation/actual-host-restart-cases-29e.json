@@ -1,0 +1,31 @@
+﻿{
+    "recordedAtUtc":  "2026-11-21T09:09:08.4299205Z",
+    "machine":  "TEST-02",
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "actualInstalledHost":  true,
+    "actualScmServiceRestart":  true,
+    "databaseDirectlyModified":  false,
+    "credentialContentsRecorded":  false,
+    "cases":  [
+                  {
+                      "id":  "IAPI035",
+                      "description":  "Queued job and scoped definitions survive actual installed Host service restart",
+                      "status":  "PASS",
+                      "elapsedMs":  6833
+                  },
+                  {
+                      "id":  "IAPI036",
+                      "description":  "Persisted job executes after restart and retry preserves one original command receipt",
+                      "status":  "PASS",
+                      "elapsedMs":  3003
+                  },
+                  {
+                      "id":  "IAPI037",
+                      "description":  "Revoking a queued job execution permission prevents the real worker from creating a record",
+                      "status":  "PASS",
+                      "elapsedMs":  10092
+                  }
+              ],
+    "twoDeviceOfflineAcceptanceClaimed":  false,
+    "P001_P006Executed":  false
+}

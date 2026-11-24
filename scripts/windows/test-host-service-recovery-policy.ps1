@@ -81,7 +81,7 @@ function Invoke-PreinstallFailureDiagnosticTest {
   $stderrPath = Join-Path $testRoot 'stderr.txt'
   $invalidPayload = Join-Path $testRoot 'intentionally-invalid-payload'
   $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $stopPath + '" -PayloadDirectory "' + $invalidPayload + '" -FailureCodePath "' + $failurePath + '"'
+  $arguments = '-NoLogo -NoProfile -NonInteractive -File "' + $stopPath + '" -PayloadDirectory "' + $invalidPayload + '" -FailureCodePath "' + $failurePath + '"'
   try {
     $process = Start-Process -FilePath $windowsPowerShell -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     Assert-RecoveryTest ($process.ExitCode -ne 0) 'windows_powershell_51_helper_failure_exit_is_nonzero'
@@ -196,7 +196,7 @@ class VentioScmFailureFixture {
     $source = $source.Replace('__SERVICE__', $serviceName).Replace('__LOG__', $logPath.Replace('\', '\\'))
     $project = @'
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained><PublishSingleFile>true</PublishSingleFile><ImplicitUsings>disable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained><PublishSingleFile>true</PublishSingleFile><ImplicitUsings>disable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
 </Project>
 '@
     [IO.File]::WriteAllText((Join-Path $projectDirectory 'Program.cs'), $source, [Text.UTF8Encoding]::new($false))

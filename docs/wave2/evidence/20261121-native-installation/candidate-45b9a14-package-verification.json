@@ -1,0 +1,58 @@
+{
+  "verifiedAtUtc": "2026-11-23T09:18:00Z",
+  "sourceCommit": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+  "branch": "feature/wave-2-a",
+  "windowsAcceptanceWorkflowRunId": 45141812779,
+  "artifactId": 14802134409,
+  "artifactName": "ventio-wave2-windows-acceptance-45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+  "artifactZip": {
+    "bytes": 107778204,
+    "sha256": "dc1c8ab8636be7cb55516dc6fefaaf3a154a8a4421521d587b12ba64730326db",
+    "githubDigestMatched": true,
+    "members": [
+      "Ventio-Setup-0.1.24.exe",
+      "Ventio-Setup-SHA256SUMS.txt",
+      "wave2-build-evidence.txt"
+    ]
+  },
+  "installer": {
+    "file": "Ventio-Setup-0.1.24.exe",
+    "bytes": 108299990,
+    "sha256": "d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f",
+    "innerChecksumMatched": true,
+    "authenticode": "NotSigned"
+  },
+  "buildIdentity": {
+    "testedCommit": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+    "hostSourceCommit": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+    "hostDart": "3.13.7",
+    "clientDart": "3.12.1",
+    "flutter": "3.44.1",
+    "postgres": "16.16",
+    "dotnet": "10.0.404",
+    "innoSetup": "6.7.4",
+    "vcRuntime": "14.52.37029.0"
+  },
+  "targetTransfer": {
+    "computer": "TEST-02",
+    "ipv4": "192.168.1.104",
+    "transfer": "SCP over SSH with the existing TEST-02 host key pinned as 192.168.1.107",
+    "hostnameVerified": "TEST-02",
+    "installerSha256VerifiedOnTarget": "d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f",
+    "buildCommitVerifiedOnTarget": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+    "stagingPath": "C:\\Users\\Codex-3\\AppData\\Local\\Temp\\Ventio-Acceptance-45b9\\Ventio-Setup-0.1.24.exe"
+  },
+  "preInstallTargetState": {
+    "checkedAtUtc": "2026-11-23T09:18:00Z",
+    "computer": "TEST-02",
+    "ipv4": "192.168.1.104",
+    "ventioHostService": "RUNNING",
+    "ventioPostgresService": "RUNNING",
+    "localMachineExecutionPolicy": "Restricted",
+    "policyChanged": false,
+    "hostHealth": 200,
+    "anonymousSession": 401
+  },
+  "physicalInstallOnThisCandidate": "PENDING_ACTION_TIME_CONFIRMATION",
+  "releaseSigning": "DEFERRED_OWNER_PREREQUISITE; no signature policy bypassed"
+}

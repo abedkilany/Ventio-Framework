@@ -1,11 +1,24 @@
 param(
-  [string] $PostgresBinDirectory = (Join-Path $env:LOCALAPPDATA 'VentioFramework\postgresql-16.15-tools\pgsql\bin'),
-  [string] $OutputDirectory
+  [string] $PostgresBinDirectory = (Join-Path $env:LOCALAPPDATA 'VentioFramework\postgresql-16.16-tools\pgsql\bin'),
+  [string] $OutputDirectory,
+  [string] $SigningCertificateThumbprint,
+  [string] $SigningTimestampServer,
+  [switch] $RequireSignedScripts
 )
 
 $ErrorActionPreference = 'Stop'
+if($RequireSignedScripts -and (-not $SigningCertificateThumbprint -or -not $SigningTimestampServer)){throw 'HOST_PAYLOAD_SIGNING_IDENTITY_REQUIRED'}
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $hostRoot = Join-Path $repoRoot 'packages\ventio_host_api'
+# Capture the Host compiler before a later Flutter setup changes PATH.
+$hostCompilerVersion = (& dart --version 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Unable to identify the Host Dart compiler.' }
+$sourceCommit = (& git -C $repoRoot rev-parse HEAD | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $sourceCommit -notmatch '^[0-9a-f]{40}$') {
+  throw 'Unable to identify the Host source commit.'
+}
+$hostLockfileSha256 = (Get-FileHash -LiteralPath (Join-Path $hostRoot 'pubspec.lock') -Algorithm SHA256).Hash.ToLowerInvariant()
+$sourceHasTrackedChanges = -not [string]::IsNullOrWhiteSpace((& git -C $repoRoot status --porcelain --untracked-files=no | Out-String))
 $defaultOutput = Join-Path $hostRoot 'build\windows\host-payload'
 if (-not $OutputDirectory) { $OutputDirectory = $defaultOutput }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
@@ -26,8 +39,8 @@ foreach ($name in $requiredPostgres) {
   }
 }
 $versionOutput = (& (Join-Path $postgresBin 'postgres.exe') --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $versionOutput -ne 'postgres (PostgreSQL) 16.15') {
-  throw 'Host payload requires the verified PostgreSQL 16.15 Windows tools.'
+if ($LASTEXITCODE -ne 0 -or $versionOutput -ne 'postgres (PostgreSQL) 16.16') {
+  throw 'Host payload requires the verified PostgreSQL 16.16 Windows tools.'
 }
 
 $migrationDirectory = Join-Path $repoRoot 'migrations\postgres'
@@ -44,6 +57,28 @@ $setupBrokerProject = Join-Path $repoRoot 'installer\windows\setup-broker\Ventio
 foreach ($path in @($migrationDirectory, $securityDirectory, (Join-Path $hostRoot 'bin\local_host.dart'), $migrationSource, $identityBootstrapSource, $trustedPairingSource, $trustedCredentialReissueSource, $trustedHostUpgradeSource, $serviceProject, $setupBrokerProject)) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Required Host payload input is missing: $path" }
 }
+
+# Match migrationChecksum in the Dart runner: migration identity uses LF on
+# every platform, rather than the raw bytes of a Windows checkout.
+$schemaProfile = [IO.File]::ReadAllText((Join-Path $securityDirectory 'schema_profile.sql'))
+$reviewedProfile = $schemaProfile.Split(@('    legacy(name,sha256) AS (VALUES'), [StringSplitOptions]::None)[0]
+$reviewedMigrations = @{}
+foreach ($entry in [regex]::Matches($reviewedProfile, "\('([^']+)','([a-f0-9]{64})'\)")) {
+  $name = $entry.Groups[1].Value
+  if ($reviewedMigrations.ContainsKey($name)) { throw "Duplicate schema manifest migration: $name" }
+  $reviewedMigrations[$name] = $entry.Groups[2].Value
+}
+$sourceMigrations = @(Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.sql' -File)
+if ($reviewedMigrations.Count -ne $sourceMigrations.Count) { throw 'Schema manifest does not list every migration.' }
+foreach ($migration in $sourceMigrations) {
+  $canonicalSql = [IO.File]::ReadAllText($migration.FullName).Replace("`r`n", "`n").Replace("`r", "`n")
+  $hasher = [Security.Cryptography.SHA256]::Create()
+  try {
+    $checksum = ([BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonicalSql)))).Replace('-', '').ToLowerInvariant()
+  } finally { $hasher.Dispose() }
+  if ($reviewedMigrations[$migration.Name] -cne $checksum) { throw "Schema manifest checksum mismatch: $($migration.Name)" }
+}
+Write-Output 'Canonical migration checksums match the approved schema manifest.'
 
 $tempDirectory = Join-Path (Split-Path -Parent $OutputDirectory) ('.host-payload-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
@@ -79,6 +114,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Recovery-aware Host upgrade helper compilation failed with exit code $LASTEXITCODE." }
   }
   finally { Pop-Location }
+
+  $ownerRecoveryExe = Join-Path $tempDirectory 'ventio_trusted_owner_recovery.exe'
+  Push-Location $hostRoot
+  try {
+    & dart compile exe bin/trusted_windows_owner_recovery.dart -o $ownerRecoveryExe
+    if ($LASTEXITCODE -ne 0) { throw 'Trusted Owner recovery compilation failed.' }
+  } finally { Pop-Location }
 
   $identityBootstrapExe = Join-Path $tempDirectory 'ventio_identity_bootstrap.exe'
   Push-Location $hostRoot
@@ -141,7 +183,8 @@ try {
   foreach ($scriptName in @(
     'provision-host-installation.ps1', 'provision-postgres-service.ps1',
     'initialize-host-database.ps1', 'register-host-service.ps1',
-    'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1', 'HostServiceRecoveryPolicy.psm1',
+    'RecoveryLabAdmission.psm1', 'RecoveryLabObserver.psm1',
+    'write-host-service-config.ps1', 'HostMigrationCredential.psm1', 'HostProductDataRoot.psm1', 'HostServiceRecoveryPolicy.psm1', 'HostBackupIntegrity.psm1','HostOperationStorage.psm1','manage-host-operations.ps1',
     'enable-host-lan-listener.ps1',
     'recover-host-database-credentials.ps1',
     'upgrade-host-database.ps1', 'stop-host-services.ps1',
@@ -155,10 +198,19 @@ try {
     Copy-Item -LiteralPath $scriptPath -Destination $setupDirectory
   }
 
+  $signingEvidence=$null
+  if($SigningCertificateThumbprint){
+    Import-Module (Join-Path $PSScriptRoot 'SignHostScripts.psm1') -Force
+    $signingEvidence=Set-VentioStagedScriptSignatures -Root $setupDirectory -CertificateThumbprint $SigningCertificateThumbprint -TimestampServer $SigningTimestampServer
+    [IO.File]::WriteAllText((Join-Path $tempDirectory 'script-signing-evidence.json'),($signingEvidence|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
+  }
   $payloadFiles = Get-ChildItem -LiteralPath $tempDirectory -File -Recurse
   $migrationRoot = Join-Path $tempDirectory 'migrations'
   $securityRoot = Join-Path $tempDirectory 'security'
+  # Native provisioning pins the complete executable/SQL/runtime closure, including
+  # DLLs and PostgreSQL share files, before any privileged mutation.
   $verifiedFiles = @(
+    $payloadFiles
     Get-Item -LiteralPath $hostExe
     Get-Item -LiteralPath $migrationExe
     Get-Item -LiteralPath $identityBootstrapExe
@@ -189,19 +241,26 @@ try {
   }
   $manifest = [ordered]@{
     formatVersion = 1
+    sourceCommit = $sourceCommit
+    scriptSigningRequired = [bool]$RequireSignedScripts
+    scriptSigning = $signingEvidence
+    sourceHasTrackedChanges = $sourceHasTrackedChanges
+    hostCompilerVersion = $hostCompilerVersion
+    hostLockfileSha256 = $hostLockfileSha256
     hostExecutable = 'ventio_host.exe'
     migrationExecutable = 'ventio_migrate.exe'
     identityBootstrapExecutable = 'ventio_identity_bootstrap.exe'
     trustedPairingExecutable = 'ventio_trusted_pairing.exe'
     trustedCredentialReissueExecutable = 'ventio_trusted_credential_reissue.exe'
     trustedHostUpgradeExecutable = 'ventio_trusted_host_upgrade.exe'
+    trustedOwnerRecoveryExecutable = 'ventio_trusted_owner_recovery.exe'
     serviceExecutable = 'VentioHostService.exe'
     setupBrokerExecutable = 'VentioSetupBroker.exe'
-    postgresVersion = '16.15'
+    postgresVersion = '16.16'
     postgresIncludedComponents = @('bin', 'lib', 'share', '*.txt')
     postgresExcludedComponents = @('doc', 'include', 'pgAdmin 4', 'StackBuilder')
-    postgresSourceArchiveSha256 = '43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281'
-    postgresSourceArchiveLength = 373254386
+    postgresSourceArchiveSha256 = '5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f'
+    postgresSourceArchiveLength = 378078504
     migrationsDirectory = 'migrations'
     securityDirectory = 'security'
     credentialsIncluded = $false

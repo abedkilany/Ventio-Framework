@@ -1,0 +1,11 @@
+{
+  "commit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+  "runId": "44912845335",
+  "attempt": "2",
+  "mode": "initialize",
+  "suites": [],
+  "expectedUnexecuted": {
+    "P": "BLOCKED_PREREQUISITE: separately provisioned installed Windows VM and normal local approval required"
+  },
+  "manualAcceptance": "W2-M001..M006 remain unexecuted; CI does not establish physical two-device or owner acceptance"
+}

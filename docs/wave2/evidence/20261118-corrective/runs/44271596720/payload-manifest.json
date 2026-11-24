@@ -1,0 +1,508 @@
+{
+  "formatVersion": 1,
+  "sourceCommit": "50d4d2bb41891d8d598d9e6f2408773411dc97b1",
+  "sourceHasTrackedChanges": false,
+  "hostCompilerVersion": "Dart SDK version: 3.13.7 (stable) (Thu Oct 22 14:28:57 2026 -0700) on \"windows_x64\"",
+  "hostLockfileSha256": "6d3b773f37ff2c23b82ef39474c19ef9c145d338e7925038fefe5a7160db7066",
+  "hostExecutable": "ventio_host.exe",
+  "migrationExecutable": "ventio_migrate.exe",
+  "identityBootstrapExecutable": "ventio_identity_bootstrap.exe",
+  "trustedPairingExecutable": "ventio_trusted_pairing.exe",
+  "trustedCredentialReissueExecutable": "ventio_trusted_credential_reissue.exe",
+  "trustedHostUpgradeExecutable": "ventio_trusted_host_upgrade.exe",
+  "serviceExecutable": "VentioHostService.exe",
+  "setupBrokerExecutable": "VentioSetupBroker.exe",
+  "postgresVersion": "16.16",
+  "postgresIncludedComponents": [
+    "bin",
+    "lib",
+    "share",
+    "*.txt"
+  ],
+  "postgresExcludedComponents": [
+    "doc",
+    "include",
+    "pgAdmin 4",
+    "StackBuilder"
+  ],
+  "postgresSourceArchiveSha256": "5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f",
+  "postgresSourceArchiveLength": 378078504,
+  "migrationsDirectory": "migrations",
+  "securityDirectory": "security",
+  "credentialsIncluded": false,
+  "databaseIncluded": false,
+  "payloadFileCount": 1727,
+  "payloadBytes": 325200665.0,
+  "verifiedFiles": [
+    {
+      "path": "migrations/001_records.sql",
+      "length": 636,
+      "sha256": "8ec1d1c4dc9e7d4b9879067b3420254c5158b2bd66bd6fe6be50847d720f8c56"
+    },
+    {
+      "path": "migrations/002_command_journal.sql",
+      "length": 413,
+      "sha256": "8938a1df4d2e5b9fbfd26203409f62eb52ebc0dd776b70a60a14a3dd16dc7692"
+    },
+    {
+      "path": "migrations/003_audit.sql",
+      "length": 403,
+      "sha256": "71426b05e127f033251a6e8581cec9c7e3c6b1489d7a906288e8827c0759c7fa"
+    },
+    {
+      "path": "migrations/004_outbox.sql",
+      "length": 399,
+      "sha256": "1f9a97e14ce1ae532f3ada2246c3ecafc441bd9ab413b968948d940f303610c4"
+    },
+    {
+      "path": "migrations/005_outbox_index.sql",
+      "length": 127,
+      "sha256": "d25e73626ef3e95d6d8445a07fc7eeee93d981e0fa1c3037599ed74dba3fbe67"
+    },
+    {
+      "path": "migrations/006_identity_users.sql",
+      "length": 322,
+      "sha256": "a257a7620b4aedc2742e6cedec26afd336306d592898164613f434423a1220c0"
+    },
+    {
+      "path": "migrations/007_identity_devices.sql",
+      "length": 440,
+      "sha256": "279c6665c82f4846d25f31de36fd33fb0dbfdd4a5e2fe840b0156d66dbe22514"
+    },
+    {
+      "path": "migrations/008_identity_credentials.sql",
+      "length": 637,
+      "sha256": "cce276a66efb240f60cb7f1c198ffc9e5dc7d94b8a7c6b01ec9e2a2807868447"
+    },
+    {
+      "path": "migrations/009_identity_branches.sql",
+      "length": 330,
+      "sha256": "d542439ce7f9bca89f4a81c70eb69f072cbb7547b3b4612396475e8cd8a800c3"
+    },
+    {
+      "path": "migrations/010_identity_grants.sql",
+      "length": 547,
+      "sha256": "b03e2e7f9194acc00cc53b1cb65e923455abe9a13833513698e690e41c4f4cf2"
+    },
+    {
+      "path": "migrations/011_identity_audit.sql",
+      "length": 354,
+      "sha256": "63a6453bd708b469780ea591a75b007c556e6ab32bd921d9a5e9e47f010d34f5"
+    },
+    {
+      "path": "migrations/012_credential_scopes.sql",
+      "length": 149,
+      "sha256": "81a55e735c8d41966a1a8f60819d7cc3ad7156735496680d74b04ef2add04063"
+    },
+    {
+      "path": "migrations/013_extension_packages.sql",
+      "length": 1762,
+      "sha256": "bde6043a9f3688d4df5b58af4e2be61b30c8b3d7920818075bcf7d910406c579"
+    },
+    {
+      "path": "migrations/014_extension_package_events.sql",
+      "length": 948,
+      "sha256": "a43172acb1f3de4aca7eed1556beb39397a3f4a3d6148c6c0530802a6a15b86b"
+    },
+    {
+      "path": "migrations/015_scope_cursor_index.sql",
+      "length": 1174,
+      "sha256": "5d5424d4aba22dd634fe41c764210adfd5ed88ee452cc92dca98ca0043b03f7d"
+    },
+    {
+      "path": "migrations/016_module_scoped_records.sql",
+      "length": 799,
+      "sha256": "e9bdc7925d5d173f9ef6cb5c9ae2f54ee68f500b858af1b28784760b96b385a6"
+    },
+    {
+      "path": "migrations/017_identity_roles.sql",
+      "length": 394,
+      "sha256": "78782cc70943f085996061524cb0fac53f24e5633ccdc1c046c36bb8c9ae1260"
+    },
+    {
+      "path": "migrations/018_identity_role_permissions.sql",
+      "length": 346,
+      "sha256": "fe282378b5bbd8ff8e5a238d31966073b1f9ba5ad042c5e1133f9b5466831e85"
+    },
+    {
+      "path": "migrations/019_identity_role_assignments.sql",
+      "length": 570,
+      "sha256": "1e0c85b7e983d1e95174f08d7033b60068a99123fd050c12fa0253accffc81d3"
+    },
+    {
+      "path": "migrations/020_approved_extension_registry.sql",
+      "length": 152,
+      "sha256": "f624467ddcc95234fc072a4257a14d5e52eae39bb133928996dc6d3e56549985"
+    },
+    {
+      "path": "migrations/021_extension_update_compatibility.sql",
+      "length": 17309,
+      "sha256": "197f1f42fd80dffebf1acff0d0a4b763180008a99abb07e321a2ea1d9459bc2a"
+    },
+    {
+      "path": "migrations/022_record_data_gin_index.sql",
+      "length": 131,
+      "sha256": "ebca574fc7a265182c12e2964d8316a0a1ad151d13f85cb9c7282d1c95bf0dce"
+    },
+    {
+      "path": "migrations/023_governed_document_state.sql",
+      "length": 202,
+      "sha256": "50d4f8f647b0497cd2d8ef862182753f1b37d42cac12d5e2ead0617c2a207fa5"
+    },
+    {
+      "path": "migrations/024_document_number_series.sql",
+      "length": 713,
+      "sha256": "9d56dfd8e131ee78a01f6483e2ccfec9b661928511f4d701084cc81d2ad7c3c7"
+    },
+    {
+      "path": "migrations/025_identity_audit_scope_index.sql",
+      "length": 367,
+      "sha256": "83edec696e8123faaba066105b71167e8273c0b7ecabbb0f08317ce55ac2ffa3"
+    },
+    {
+      "path": "migrations/026_identity_pairing.sql",
+      "length": 259,
+      "sha256": "137ddd18dbff5aaba19584df430ea0fcbc12fd3c81b23238a1edec64aa67383e"
+    },
+    {
+      "path": "migrations/027_identity_pairings.sql",
+      "length": 1556,
+      "sha256": "4e2c3f9d9c68a664384774c41438ad1827bd2cd66597f80beea6b4305457d578"
+    },
+    {
+      "path": "migrations/028_identity_pairing_rate_index.sql",
+      "length": 164,
+      "sha256": "9660f2cab04217561c3accf2479ad0b86129ff8d7b689d359d5b0dbdada66ec5"
+    },
+    {
+      "path": "migrations/029_identity_device_activity.sql",
+      "length": 412,
+      "sha256": "259613973bbaf15a3f060b20b894152bbf28e6ffaf4dd7878069a01befb7cc2f"
+    },
+    {
+      "path": "migrations/030_identity_user_enable.sql",
+      "length": 243,
+      "sha256": "a540baddc06cc358de9ec9a0ecfa20025abcf244ee4102a84be9144ceb07078c"
+    },
+    {
+      "path": "migrations/031_identity_credential_reissues.sql",
+      "length": 1335,
+      "sha256": "5587c8f25b45231aea20bbfec13d1071828a9b92c943050c7e373d1cedde8a4e"
+    },
+    {
+      "path": "migrations/032_identity_credential_reissue_pending.sql",
+      "length": 169,
+      "sha256": "ba8028e3d640d707ddc348bcbf627665865fea67dd210f721b17b4cbfdf61cb0"
+    },
+    {
+      "path": "migrations/033_host_schema_upgrade_receipts.sql",
+      "length": 1000,
+      "sha256": "acda7fa3df9ce6dc2cdf644b9200b9b234f5e209f0f36aa76e874a22ce354b54"
+    },
+    {
+      "path": "migrations/034_extension_package_rejection.sql",
+      "length": 1823,
+      "sha256": "f556525cb7d9da92c894830e47380120891b686cd74ef78cb693aad8fcc7d9c7"
+    },
+    {
+      "path": "migrations/035_scoped_extension_approval.sql",
+      "length": 17625,
+      "sha256": "38278fcbea262c2217a34eab1fd64309bbffef3bcc522ce59ad845503de9aed3"
+    },
+    {
+      "path": "migrations/036_scoped_extension_runtime.sql",
+      "length": 32549,
+      "sha256": "dcb945745918e696877119f585ae702206b0c7340e7d306f9c252495de40c1c9"
+    },
+    {
+      "path": "migrations/037_wave2_platform.sql",
+      "length": 3725,
+      "sha256": "fdc35baf0ca5e3abd5773283fd791366f9c64aa2894fac13637fe5b9dc033b45"
+    },
+    {
+      "path": "migrations/038_wave2_administration.sql",
+      "length": 5107,
+      "sha256": "2ae9a53be2333b16889a526876156e8fdf8e777180f6a5c2b96dbf1f8f76ef81"
+    },
+    {
+      "path": "migrations/039_wave2_operation_execution.sql",
+      "length": 679,
+      "sha256": "6f925cc861beb211daa260ce669d62055b60c330247f4a69062188561d080c5f"
+    },
+    {
+      "path": "migrations/040_wave2_job_archival.sql",
+      "length": 842,
+      "sha256": "28f8bed05917636c8c34cf1387a7d428f95d09c78472830b22fd437fdbbf5fbe"
+    },
+    {
+      "path": "migrations/041_wave2_customization_validation.sql",
+      "length": 12119,
+      "sha256": "90a872cbc8a094670b2e70e075f9944e93f6ec85614ffd02778cfbad57be034e"
+    },
+    {
+      "path": "postgresql/bin/createdb.exe",
+      "length": 143480,
+      "sha256": "7c187eafddd80f619dbf209b1d7973ed876b70009cfc221aec7db5efdfc3b63f"
+    },
+    {
+      "path": "postgresql/bin/initdb.exe",
+      "length": 242808,
+      "sha256": "203a06fa85207b7c9f8d2560c93b93ca03f2b958f62b5d642a407532281d6ed5"
+    },
+    {
+      "path": "postgresql/bin/pg_controldata.exe",
+      "length": 111736,
+      "sha256": "3ef7779942f51433d69f4efbd827526571d1adc84286c713e16f191e31f6129c"
+    },
+    {
+      "path": "postgresql/bin/pg_ctl.exe",
+      "length": 135288,
+      "sha256": "36fb8721a5b0fc017e2e5d47112223e457f6f401cf66ddcf61d5377de772e193"
+    },
+    {
+      "path": "postgresql/bin/pg_isready.exe",
+      "length": 138360,
+      "sha256": "a1e6fd317b1e53194226d52466d2c06830df5c573d2e9d6a78d2476a42682305"
+    },
+    {
+      "path": "postgresql/bin/postgres.exe",
+      "length": 8737912,
+      "sha256": "b2c24e922b8f9598ddae1ca1a056c5143a8c62087d94ab3dd76dc06f811e621f"
+    },
+    {
+      "path": "postgresql/bin/psql.exe",
+      "length": 634488,
+      "sha256": "8d02ae59505a2671a0103e1917379b710632fba0b0ea108685f3387c16b32f3b"
+    },
+    {
+      "path": "security/administration_change.sql",
+      "length": 25623,
+      "sha256": "ec4208329cf70e9f8fe758b9ffa28311e3a7dc51200ed29f1c3c2122f883a28b"
+    },
+    {
+      "path": "security/administration.sql",
+      "length": 32624,
+      "sha256": "da37e9c7d33ef96c4a78bbe6f703813dd9f64cba76283b707e8ae2acad112594"
+    },
+    {
+      "path": "security/bootstrap.sql",
+      "length": 52591,
+      "sha256": "3d481182256cd82858e293bcd6975b42ad0ccb30a24ba081f002f8469b9ec154"
+    },
+    {
+      "path": "security/credential_reissues.sql",
+      "length": 29297,
+      "sha256": "6bbdd6af0e68edd511a1dc369f02f9488b09c267f588a599b3b729affc305cc7"
+    },
+    {
+      "path": "security/extensions.sql",
+      "length": 32222,
+      "sha256": "11cdd28a565d09d718befcc6d186ec1afb1ccfa9348fc301ff064fc3ac75c0a1"
+    },
+    {
+      "path": "security/pairing_create.sql",
+      "length": 7850,
+      "sha256": "92cc60a06beccd025ed4e1ff8b9045826ba6e4cd8941537826eef2236f4e3f2e"
+    },
+    {
+      "path": "security/pairing.sql",
+      "length": 36911,
+      "sha256": "3dfd5a8d5f4586f887b3484113fd7359d082ac0eb0d3d2c3d867ccfcfb3dc0b8"
+    },
+    {
+      "path": "security/recovery.sql",
+      "length": 18795,
+      "sha256": "e22540dcc2a5595f466a4822d7106ae93c2dc021ce2e7fbe362b1ff16b4deda7"
+    },
+    {
+      "path": "security/runtime_check.sql",
+      "length": 9711,
+      "sha256": "a61b69a73f69f1f4dda0098e820165176d65d87277beba566d99990a74437565"
+    },
+    {
+      "path": "security/schema_profile.sql",
+      "length": 6583,
+      "sha256": "9fea1e7ecc57a07743441b3d50b141c53697e9e7d795248f35b3f1b06e255040"
+    },
+    {
+      "path": "security/test_logins.sql",
+      "length": 1002,
+      "sha256": "a13d35a2223c929f21afc62e53291cf9ac1aabf4aa3dcec13dc2ea9970a6861f"
+    },
+    {
+      "path": "security/wave2_activity.sql",
+      "length": 11038,
+      "sha256": "53396da63a8c02ad9d826e51eb3c964ea4b3dac957b9e0554bfe187feeff7f4e"
+    },
+    {
+      "path": "security/wave2_administration.sql",
+      "length": 16812,
+      "sha256": "7bcb641763644d2a2dff4c23d0cde9ba33672fa88a9c690a3503d7c49cc3d431"
+    },
+    {
+      "path": "security/wave2_customization_041.sql",
+      "length": 11735,
+      "sha256": "d37b5b4035be66650f5ad2a1156c0794f7f334fdbb4b858e1eead4957b50805d"
+    },
+    {
+      "path": "security/wave2_customization_rebase.sql",
+      "length": 11755,
+      "sha256": "5565fe793d3153d77fa082d496dd624beae037921838ed792afa7e96341903ec"
+    },
+    {
+      "path": "security/wave2_identity_base.sql",
+      "length": 4901,
+      "sha256": "e29d5f39c49747e09b8f96699a014943d7aabcaa561b4bddead86257d8a4b1c5"
+    },
+    {
+      "path": "security/wave2_operations.sql",
+      "length": 14904,
+      "sha256": "95f7251ecf4e88bbc68d90580ec4d6b9861889f6c397f1f2a3a76397880b4941"
+    },
+    {
+      "path": "security/wave2_schema_migration.sql",
+      "length": 18211,
+      "sha256": "9d2c4b4550eb4c56a5b7386123a3e75c78177d137001d71bbd103356224f4e69"
+    },
+    {
+      "path": "security/wave2_upgrade.sql",
+      "length": 5361,
+      "sha256": "af3970cc63c265fea64c6f958506dc6147d327e5af0f7b2258f64b989e224031"
+    },
+    {
+      "path": "security/wave2.sql",
+      "length": 35063,
+      "sha256": "a78ed123afa62627c0aa3fc3939358df292efe6bdfe588ecc01d311dc7e62d77"
+    },
+    {
+      "path": "setup/enable-host-lan-listener.ps1",
+      "length": 30712,
+      "sha256": "cc48b6bf2e58261c448f7212d2d62fe193b477c5567a992d664726aeeeecfda4"
+    },
+    {
+      "path": "setup/HostBackupIntegrity.psm1",
+      "length": 3464,
+      "sha256": "b864d9226b741b7d4613a579df0f17d919ddb1c3b47569b59f8ba42c4123c8ab"
+    },
+    {
+      "path": "setup/HostMigrationCredential.psm1",
+      "length": 9538,
+      "sha256": "c30dbb517d532a5f3ad6986ea7d05256fad6f95bad642a56a2a0bec57f777b05"
+    },
+    {
+      "path": "setup/HostOperationStorage.psm1",
+      "length": 5289,
+      "sha256": "05d0edac0902e40b06ab3b3a81a9af46006e352a4d2b9dcffb6606a459f44754"
+    },
+    {
+      "path": "setup/HostProductDataRoot.psm1",
+      "length": 2970,
+      "sha256": "4fabfb83907b37904db5f0d06d4f8e395b41aa17fc53f25f25b1e7d60ab9d34a"
+    },
+    {
+      "path": "setup/HostServiceRecoveryPolicy.psm1",
+      "length": 30889,
+      "sha256": "19145fce26b00676765a9f1b9c1a2f927663969caf3fe5f4fba28663cc02bf69"
+    },
+    {
+      "path": "setup/initialize-host-database.ps1",
+      "length": 16343,
+      "sha256": "cc826cb3b97900e397759f5e31b58d715afcb361eac4513ba22870a5b490eb66"
+    },
+    {
+      "path": "setup/manage-host-operations.ps1",
+      "length": 19890,
+      "sha256": "6449339bd74e7b96752ef84960839a645d254dc3d030ae636ba52d56f25ba70e"
+    },
+    {
+      "path": "setup/provision-host-installation.ps1",
+      "length": 27162,
+      "sha256": "3f4ac1cbd4b0ff954246c4555ea7cc62a1d01a5e5263dc689453fa56bbc07241"
+    },
+    {
+      "path": "setup/provision-postgres-service.ps1",
+      "length": 26956,
+      "sha256": "96cea158cabfa366ea720e492f34f427b5b5d752427cf609516997c46728de91"
+    },
+    {
+      "path": "setup/reactivate-retained-host.ps1",
+      "length": 5693,
+      "sha256": "86aec58b96ca8c7b6e99a7aece4f5e298e55467b7975f8589806601a4361ed4f"
+    },
+    {
+      "path": "setup/recover-host-database-credentials.ps1",
+      "length": 27326,
+      "sha256": "0506bc568daf86b8518451002b717f5d28f7d8198d98005f79650231e2003633"
+    },
+    {
+      "path": "setup/register-host-service.ps1",
+      "length": 8474,
+      "sha256": "880b84240fdda8ddc7d9565a5c23411ccf69bfec19f8de80890de030504fd79d"
+    },
+    {
+      "path": "setup/remove-host-installation.ps1",
+      "length": 33780,
+      "sha256": "47f254aeef7366056d4a0b5885257dca3e5a5d78e58cfa6bc53bb57b94ea4214"
+    },
+    {
+      "path": "setup/restore-host-upgrade-backup.ps1",
+      "length": 12439,
+      "sha256": "dee5e02efd834903ccdf2b6145d41f755552e9175ace37b0551580808d0b2491"
+    },
+    {
+      "path": "setup/stop-host-services.ps1",
+      "length": 15648,
+      "sha256": "38b8976d2d0e01dc4ff28ab26b6c8ea5be24f9547eec57e76ad7d4a40da5e6cd"
+    },
+    {
+      "path": "setup/upgrade-host-database.ps1",
+      "length": 49944,
+      "sha256": "400c98b05c68700d89cf24e7980b6aff11cfba9d5efcc8882f09a537a6f05115"
+    },
+    {
+      "path": "setup/write-host-service-config.ps1",
+      "length": 11845,
+      "sha256": "1329b79d7aef8bc5a8ed8f63243559eac3d7dbfee38ba53884838c8911c219fe"
+    },
+    {
+      "path": "ventio_host.exe",
+      "length": 8806400,
+      "sha256": "056d434333f57c2bb6288617cc1c2fd256d06a44e8e016b58c62ddabd1af6cc1"
+    },
+    {
+      "path": "ventio_identity_bootstrap.exe",
+      "length": 7622656,
+      "sha256": "bda41c1a687fd4ccc9c11318a82a4cf71f7a0fe4385bef1e8922993730d0f35f"
+    },
+    {
+      "path": "ventio_migrate.exe",
+      "length": 7537664,
+      "sha256": "a24cba27929ded2d29d4f59b33fd54516256188c981b9d772181fd58b5117156"
+    },
+    {
+      "path": "ventio_trusted_credential_reissue.exe",
+      "length": 7684096,
+      "sha256": "fd2e6295ff4a28f8886b92d9dfc57c3c27207b15560b3e4ce260a2c3a072ec83"
+    },
+    {
+      "path": "ventio_trusted_host_upgrade.exe",
+      "length": 7711232,
+      "sha256": "64cfae5cc4084942d715772bee8db677c9f73884bf3bf18d2a779391684d8eb8"
+    },
+    {
+      "path": "ventio_trusted_pairing.exe",
+      "length": 7678976,
+      "sha256": "3b98f4435de5e149a4da4cfa67fe38fad996899b625ce492ec3bebce713dfeb4"
+    },
+    {
+      "path": "VentioHostService.exe",
+      "length": 73672489,
+      "sha256": "57f6ebab05d5e655897b0040a04aa062d83f61b9d5c5351f7c4f8e2daeb42e06"
+    },
+    {
+      "path": "VentioSetupBroker.exe",
+      "length": 73627433,
+      "sha256": "60ab875770d5cf697a00f269d3ce1e5a423e1eacae3dd2a45982922e3fc208bb"
+    }
+  ]
+}

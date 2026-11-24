@@ -1,0 +1,22 @@
+{
+  "case": "NATIVE-CURRENT-READ-REVOCATION-AND-RESTORATION",
+  "status": "PASS",
+  "actualInstalledClient": true,
+  "clientSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "actualInstalledHost": true,
+  "hostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "machine": "TEST-02",
+  "permission": "extension.com_example_wave2.asset.read",
+  "revokedThroughAuthenticatedManagementApiAtUtc": "2026-11-21T19:02:33.4623113Z",
+  "nativeRefreshDeniedWith": "PERMISSION_DENIED",
+  "previouslyDisplayedRecordsCleared": true,
+  "restoredThroughAuthenticatedManagementApiAtUtc": "2026-11-21T19:02:51.9402849Z",
+  "nativeRefreshAfterRestorationReturnedBothExpectedRecords": true,
+  "directSqlUsed": false,
+  "securityPolicyChanged": false,
+  "limitation": "Explicit refresh on one installed Client; immediate push invalidation and two-device convergence are not established.",
+  "screenshots": [
+    "test02-native-current-read-revocation-cleared-records.png",
+    "test02-native-read-restored-results-returned.png"
+  ]
+}

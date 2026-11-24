@@ -1,0 +1,292 @@
+{
+  "snapshotUtc": "2026-11-23T16:08:15Z",
+  "engineeringSource": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+  "branch": "feature/wave-2-a",
+  "pr": 6,
+  "prRequiredState": "DRAFT_UNMERGED",
+  "mergeRecommendation": "NOT_READY",
+  "counts": {
+    "BLOCKED": 21,
+    "PASS": 1
+  },
+  "authoritativeScope": "../../WAVE_2_SCOPE_AND_ACCEPTANCE.md",
+    "installedSources": {
+    "client": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+    "host": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa"
+  },
+  "installedHttpUniquePassed": 54,
+  "automatedLedger": {
+    "stableUniquePassed": 158,
+    "windows": {
+      "run": 44912845335,
+      "attempt": 2,
+      "source": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+      "passed": 72
+    },
+    "linux": {
+      "run": 44911145739,
+      "source": "537449689d815aa92ddd69cf8344b9a0c503fbfa",
+      "passed": 86
+    },
+    "applicability": "Prior 72 Windows and 86 Linux stable results are recorded at their exact revisions. Source 89a17a5 additionally introduces exact-hash retirement of nine verified PostgreSQL 16.15 residue files after a physical 67e upgrade denial. Hosted and installed reruns of this correction remain pending; older counts are not final-head acceptance.",
+    "separateCountsNotAddedToStable158": {
+      "clientRegressions": 88,
+      "nativeNhiCases": 14,
+      "installedIapiCases": 54
+    }
+  },
+  "releaseGates": {
+    "fullUnifiedInstallerUpgrade": "PASS for the previously installed 474c3a4 candidate on both disposable Windows systems. The newer source-bound 04a9874 candidate has a verified Windows artifact but has not yet been installed physically; see candidate-04a9874-package-verification.json.",
+    "twoPhysicalDeviceOfflineRestartSyncConflict": "PARTIAL: physical offline persistence/restart/reconnect/exactly-once sync and stale-revision conflict were proven on earlier installed clients. Candidate 474c3a4 remains installed on both devices; no fresh behavior run exists for source 04a9874. On 2026-11-23 TEST-01 was available and an installed-client local draft survived restart; this does not prove a fresh two-device sync/conflict run.",
+    "installedRecoveryP001_P006": "NOT_EXECUTED: disposable Recovery-Lab VM is admitted and effectively isolated, but P001-P006 acceptance scripts remain unsigned under AllSigned and the owner has deferred the signing identity. Do not bypass policy. Backup/restore may be tested through supported installed UI/API workflows if available; the six named acceptance cases remain open until genuine case evidence exists.",
+    "recoveryVmAccess": "PASS: pinned SSH access to verified VENTIO-W2-VM01 works from BAHAA. The exact reviewed eight-rule Hyper-V ACL plan is applied and matches live vNIC ACLs; SSH from BAHAA remains reachable and guest outbound HTTPS timed out as expected. Evidence: recovery-15fa-hosted/isolation-execution-20261123.json.",
+    "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
+    "wave2C": "NOT_STARTED_PENDING_B_ACCEPTANCE_AND_FINAL_OWNER_APPROVAL",
+    "fullFa080ArtifactVerified": "PASS authenticated artifact transport, source archive match and complete 1767 member inventory for superseded fa080 revision; current 474c3a4 candidate independently verified as test02-candidate-45050058552-acceptance.json.",
+    "nativeJobAndReportSubset": "PASS older installed Client actual Host jobs 2/2 accepted, permission-denied row, cancelled row and six-row Host dashboard report; corrected Client/full release gate remains.",
+    "secondClientEnrollment": "PASS subset; see test01-second-client-pairing-20261121.json; first IP certificate name denial preserved, DNS hostname correction succeeded without TLS bypass.",
+    "test02OlderClientDigest": "TEST-02 Client source 81661f7 used exportBundle for local digest; current source 5374496+ uses retained installed bundle. Stored bundle Dart canonical roundtrip and authenticated approved/record query digests all equal a0f9d3b7...; old installed UI denial must be rechecked after corrected Client install.",
+    "test01ApprovedPackageAndRead": "PASS subset: Host-approved Wave 2 fixture imported and activated in actual TEST-01 Client; native Workspace read six Host rows, then seven after its first accepted command. See test01-test02-client-host-sync-20261122.json",
+    "test02CurrentHostReadiness": "PASS read-only live probe after physical installation of source 45b9a14: Host/PostgreSQL services RUNNING, PostgreSQL accepting on configured local port 54329, prior database system identifier preserved, effective Windows execution policy Restricted, Defender RUNNING, Host certificate retrieved over pinned SSH and then validated by curl with TEST-02 hostname validation (verification result 0), /healthz 200 and anonymous session 401. No credentials or TLS/policy bypass. See test02-candidate-45b9a14-postinstall-20261123.json.",
+    "test01LocalDraftPersistence": "PASS subset on the installed 474c3a4 Client: a local declarative extension draft remained DRAFT / LOCAL ONLY after normal Client restart. The test DocType ID began lowercase and was correctly rejected; its helper text omitted the uppercase-initial rule. A current-source guidance fix and regression are in progress. No publish or Host sync is claimed. See test01-local-extension-draft-persistence-20261123.json.",
+    "latestCiOnEvidenceHead": "PASS: all 10 PR-triggered workflows for product source 45b9a148ea8e5251ff7c7d51ada50139f39a60fa completed successfully. Runs: Native Flutter 45141812629; Windows Acceptance Package 45141812779; Host API 45141812554; Host Persistence 45141812506; Durable Commands 45141812925; Core Foundation 45141812551; Host Engineering Gate 45141812662; Host Crash Recovery 45141812740; Credential Lifecycle 45141812675; Host Security Investigation 45141812684. All 10 also passed on latest evidence-only head 89e28ae. wave2-resume was skipped by workflow conditions.",
+    "latestReproducibleCandidate": "PASS build and integrity: run 45141812779, artifact 14802134409, source 45b9a14. ZIP SHA-256 dc1c8ab8636be7cb55516dc6fefaaf3a154a8a4421521d587b12ba64730326db; installer SHA-256 d28316383c1d9eff08b891c7360a7f399042d5cbf77655c7ae4e254af15bac6f. Physical installation on TEST-02 and exact Host payload source verification passed. Authenticode is NotSigned; signing is deferred. TEST-01 upgrade remains pending. See candidate-45b9a14-package-verification.json and test02-candidate-45b9a14-postinstall-20261123.json.",
+    "currentCandidate": "Source-bound installer 45b9a14 (0.1.24+25) physically installed on TEST-02; Host payload manifest reports the exact source commit, Host/PostgreSQL are RUNNING, PostgreSQL accepts connections and database system identity is preserved, and anonymous Host access is denied. TEST-01 remains on 474c3a4 pending its candidate upgrade and fresh two-device acceptance."
+  },
+  "capabilities": [
+    {
+      "id": "A12",
+      "requiredImplementation": "Governed optional custom fields, versioned definitions, safe upgrade restrictions",
+      "authoritativeAcceptance": "Create/read/update custom fields across two clients; unauthorized and stale revisions denied; old records survive",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Corrected installed form customization, custom data across both native Clients, old-record survival and current denials."
+    },
+    {
+      "id": "A11",
+      "requiredImplementation": "Supported label/layout property overlays, deterministic base merge",
+      "authoritativeAcceptance": "Deterministic merge; invalid properties and destructive changes rejected; explicit base digest mismatch",
+      "status": "BLOCKED",
+      "evidence": [
+        "actual-host-customization-cases-29e.json",
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Corrected installed empty-layout editor and published label/layout presentation; invalid/destructive/stale/base-digest installed denials already passed."
+    },
+    {
+      "id": "K09",
+      "requiredImplementation": "Owner-scoped drafts, versioned Host synchronization and package-compatible overlays",
+      "authoritativeAcceptance": "Reopen drafts offline; publish/retry/conflict; approved package remains byte-identical",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json",
+        "test01-local-extension-draft-persistence-20261123.json"
+      ],
+      "remaining": "Native offline draft reopen, submit, independent approval and registry install passed; multi-identity edit/retry/conflict and package-compatible rebase remain."
+    },
+    {
+      "id": "D08",
+      "requiredImplementation": "Permission-aware CSV export and import access",
+      "authoritativeAcceptance": "Negative read/create/field grants, revocation mid-transfer and cross-scope attempts",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test01-cross-device-read-revocation-20261122.json"
+      ],
+      "remaining": "Installed operation/field grant denials, mid-export revocation and cross-device native read-revocation/restoration passed; full native transfer/hidden-field presentation and two-device role coverage remain."
+    },
+    {
+      "id": "J01",
+      "requiredImplementation": "Bounded declarative CSV mapping/preview/validation and authoritative row writes",
+      "authoritativeAcceptance": "Quoting/newlines/BOM/invalid UTF-8; data types, required fields, row errors, batch bounds",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Installed native mapping, quoted CSV, row errors and actual durable valid-row import passed; complete installed data-type/UTF-8 edge matrix remains."
+    },
+    {
+      "id": "J03",
+      "requiredImplementation": "Import duplicate detection, per-row stable command IDs, retries/progress",
+      "authoritativeAcceptance": "Duplicate IDs, lost receipt, worker restart/lease race; existing-record conflict and partial failures",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Stable real row commands, receipt identities, actual service restart and cancellation passed; lost-response/lease-race/existing-record conflict/partial failure acceptance remains."
+    },
+    {
+      "id": "K08",
+      "requiredImplementation": "Reuse query pagination for bounded field-safe export; metadata-compatible transfer",
+      "authoritativeAcceptance": "Query/export equivalence, stable page boundaries, permissions changed between pages",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native saved query/export equality and sort/columns, API pagination revocation passed; complete installed stable-page projection/filter/sort denial coverage remains."
+    },
+    {
+      "id": "M01",
+      "requiredImplementation": "Governed organization/company/branch administration within existing identity trust",
+      "authoritativeAcceptance": "Exact scope, branch membership, parent hierarchy, concurrent updates and audit",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test02-organization-archive-roundtrip-20261122.json"
+      ],
+      "remaining": "Native company update and installed parent/CAS/current-scope/no-implicit-branch-grant denials passed. TEST-02 installed Host created, archived and reactivated a branch with revisions 1-3, rejecting a stale update. Membership and audit acceptance remain."
+    },
+    {
+      "id": "M02",
+      "requiredImplementation": "Bounded scoped configuration and operational settings",
+      "authoritativeAcceptance": "Persist/reopen; unauthorized edits denied; secret redaction; configuration effect",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Actual scoped settings persistence, job pause effect and invalid executable/outbound fields passed; native edit/reopen, role switch and secret presentation remain."
+    },
+    {
+      "id": "M05",
+      "requiredImplementation": "Backup policy/schedule, trusted execution, integrity metadata and retention",
+      "authoritativeAcceptance": "Private ACLs, quiesced cluster consistency/checksums, schedule failure, retention safety, tamper detection",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "P001-P005 genuine installed backup/schedule/retention/tamper acceptance remains unexecuted. Exact Recovery-Lab identity, isolation plan and outbound-denial probe now pass; trusted signed recovery operations remain deferred pending approved signing identity."
+    },
+    {
+      "id": "M09",
+      "requiredImplementation": "Controlled restore planning/execution and safeguards, operational audit and diagnostics",
+      "authoritativeAcceptance": "Disposable restore only in B; stale witness rejection; compatibility and identity recovery; no automatic production restore",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "P006 real restore/receipt/witness preservation and Recovery Authority reconciliation remain unexecuted. Recovery-Lab admission/isolation now pass; no automatic production restore is permitted."
+    },
+    {
+      "id": "B09",
+      "requiredImplementation": "Persistent user-owned saved searches/filters and record views",
+      "authoritativeAcceptance": "Persist/reopen, change scope/user, revoke permission; filter/sort/columns round trip",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native saved view revision 2, query/export equivalence and explicit-refresh read revocation passed; restart, actor/scope switch and concurrent edits remain."
+    },
+    {
+      "id": "C08",
+      "requiredImplementation": "Permission-aware module/workspace organization",
+      "authoritativeAcceptance": "Different roles/scopes; no-data, offline, denial and stale-session states",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json",
+        "test01-cross-device-read-revocation-20261122.json"
+      ],
+      "remaining": "Second physical Client read authorized module and Host records; TEST-02 Host read revocation/restoration hid and restored TEST-01 Asset navigation. Different roles/scopes, stale-session and denied states on corrected final Client remain."
+    },
+    {
+      "id": "C09",
+      "requiredImplementation": "User-owned density/theme/navigation preferences",
+      "authoritativeAcceptance": "Upgrade old DB, restart, switch actor/Host, Windows/Android narrow layout",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json"
+      ],
+      "remaining": "Installed TEST-01 local command and package/profile survived actual Client restart during Host outage; old-DB full upgrade, actor/Host separation and Android/narrow presentation remain."
+    },
+    {
+      "id": "C12",
+      "requiredImplementation": "Declarative native dashboard presentation",
+      "authoritativeAcceptance": "Report cards, denied filters/fields, bounded tables, loading/error/empty states",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test01-dashboard-report-restart-20261122.json"
+      ],
+      "remaining": "Native TEST-01 dashboard card sync to revision 1, persistence across Client process restart and current nine-row Host report passed; complete loading/error/empty and current field/filter revocation presentation remain."
+    },
+    {
+      "id": "F05",
+      "requiredImplementation": "Workspace integration with installed approved report metadata",
+      "authoritativeAcceptance": "Report compatibility across releases, revocation and unavailable package",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test01-dashboard-report-restart-20261122.json"
+      ],
+      "remaining": "Installed approved report works from TEST-01 after dashboard sync and Client restart; undeclared filter denied earlier. Actual cross-release/dependency/package unavailable and revocation compatibility remain."
+    },
+    {
+      "id": "H04",
+      "requiredImplementation": "Document history and audit-oriented activity UI",
+      "authoritativeAcceptance": "Revision chronology, deleted/restricted records, cross-tenant denial, redaction",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Native revision 1/2 chronology, exact command IDs, metadata-only activity and read-revocation clearing/restoration passed; deleted/restricted/cross-scope and cross-record effects remain."
+    },
+    {
+      "id": "B02",
+      "requiredImplementation": "Published versioned developer platform interfaces",
+      "authoritativeAcceptance": "Old packages still load; unknown new contract versions rejected",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Unknown contract versions rejected and legacy approved package loaded; corrected installed legacy query/print/conflict paths and full upgrade/version compatibility remain."
+    },
+    {
+      "id": "K10",
+      "requiredImplementation": "Reusable governed APIs, safe lifecycle behaviors",
+      "authoritativeAcceptance": "Existing submit/cancel/amend/governed operations preserved; malformed extensions rejected",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Existing governed business create/update and declarative handler refusal passed; installed submit/cancel/amend/calculation/numbering and malformed operation matrix remains."
+    },
+    {
+      "id": "L01",
+      "requiredImplementation": "Host-owned durable jobs, identity/state/retry/cancel/audit/visibility",
+      "authoritativeAcceptance": "Concurrent workers/crashes, stable IDs, revocation, bounded retries/cancellation and audit",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json"
+      ],
+      "remaining": "Real Host jobs, per-row receipts, cancellation, actual SCM restart durability and execution-grant revocation passed; multi-worker/crash/lease-fencing/complete diagnostics remain."
+    },
+    {
+      "id": "D09",
+      "requiredImplementation": "Bounded compatibility evaluation; reuse existing identity",
+      "authoritativeAcceptance": "Documented accepted/deferred scope and denial coverage; no auth bypass",
+      "status": "BLOCKED",
+      "evidence": [
+        "nov21-checkpoint.json",
+        "test01-test02-client-host-sync-20261122.json"
+      ],
+      "remaining": "Actual native Host provisioning, DPAPI handoff, pairing, business credentials, TLS matching/wrong pin and current permission denial passed; post-restore identity/credential acceptance remains a release gate."
+    },
+    {
+      "id": "J04",
+      "requiredImplementation": "Bounded transfer/contract integration only",
+      "authoritativeAcceptance": "Reject unknown routes, handlers, executable fields, oversize payloads and tenant spoofing",
+      "status": "PASS",
+      "evidence": [
+        "actual-host-business-cases-29e.json",
+        "actual-host-negative-cases-29e.json",
+        "actual-host-bounded-integration-cases-29e.json"
+      ],
+      "remaining": "None for the bounded API contract: actual authenticated requests and installed rejection of unknown routes/handlers/executable properties/oversize/spoofed scope/outbound metadata verified. Global installer/device/recovery gates remain open."
+    }
+  ],
+  "branchHead": "89e28aec4fae732f078780d2fc4deff81d3584d5"
+}

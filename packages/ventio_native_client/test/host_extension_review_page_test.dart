@@ -161,4 +161,32 @@ void main() {
     );
     expect(client.decision, isNull);
   });
+  testWidgets('Organization Owner can review their own submitted module', (
+    tester,
+  ) async {
+    final client = _ReviewClient(_submission('owner'));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HostExtensionReviewPage(
+          client: client,
+          companyId: 'CD',
+          branchId: 'EF',
+          actorId: 'owner',
+          isOwner: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Approve'))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Approve'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Approve').last);
+    await tester.pumpAndSettle();
+    expect(client.decision, 'APPROVE');
+  });
 }

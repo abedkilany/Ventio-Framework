@@ -1,0 +1,14 @@
+[
+  {
+    "Name": "VentioPostgres",
+    "StartName": "NT SERVICE\\VentioPostgres",
+    "State": "Running",
+    "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w"
+  },
+  {
+    "Name": "VentioHost",
+    "StartName": "NT SERVICE\\VentioHost",
+    "State": "Running",
+    "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\""
+  }
+]

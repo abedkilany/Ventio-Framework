@@ -1,0 +1,21 @@
+{
+  "case": "NATIVE-DRAFT-TO-INDEPENDENT-HOST-PUBLICATION",
+  "status": "PASS",
+  "utc": "2026-11-21T20:21:15.3934134Z",
+  "moduleId": "com.example.new_extension",
+  "version": "0.1.0",
+  "packageSha256": "b1cd0ad560c7589debe3724bd0cf3a2ff6101810aa5dd3be22a681784e8ab327",
+  "nativeSubmitter": "usr_7e40e0d4e2482e224a0ce5e4d1544ec7",
+  "independentReviewer": "usr_St9xPJ8Mj9prLtzuRh3TxdapbtST50uoAinxqO9wyhc",
+  "candidateHiddenBeforeApproval": true,
+  "businessReviewDenied": true,
+  "approvedExactDigest": true,
+  "approvedReadbackMatched": true,
+  "clientSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "hostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "nativeInstallFromHost": "PASS_OBSERVED_UI",
+  "capabilityComplete": false,
+  "directSqlUsed": false,
+  "nativeInstallationScreenshot": "test02-native-approved-draft-installed.png",
+  "localInstalledHashIndependentlyMeasured": false
+}

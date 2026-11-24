@@ -1,0 +1,25 @@
+00:00 +0: loading C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart
+00:00 +0: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +1: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +2: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +3: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +4: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +5: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +6: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +7: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:00 +8: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:01 +9: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: (setUpAll)
+00:01 +9: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: redeems exact v1 route without bearer auth and saves one Host scope
+00:01 +10: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: rejects HTTP even for loopback endpoints
+00:01 +11: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: invalid or expired pairing code exposes safe code and correlation only
+00:01 +12: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: validates version, CLIENT role, exact-scope shape, and credential before saving
+00:01 +13: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: success UI never displays or exports pairing code or credential
+00:02 +14: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: expired token error is useful and records redacted local diagnostics
+00:03 +15: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/client_pairing_test.dart: (tearDownAll)
+00:04 +15: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_transport_test.dart: Sends the canonical command with bearer auth and parses a receipt
+00:04 +16: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_transport_test.dart: A valid Host rejection receipt remains a Host response
+00:04 +17: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_transport_test.dart: Redirect responses are not followed
+00:04 +18: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_transport_test.dart: Authenticated Host errors retain validated correlation references
+00:04 +19: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_transport_test.dart: Mismatched Host correlation references invalidate the response
+00:04 +20: C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_transport_test.dart: Remote cleartext endpoints are rejected before a request
+00:05 +21: All tests passed!

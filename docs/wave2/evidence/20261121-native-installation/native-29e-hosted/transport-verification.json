@@ -1,0 +1,36 @@
+{
+  "artifactId": 14699242661,
+  "metadata": {
+    "id": 14699242661,
+    "node_id": "MDg6QXJ0aWZhY3QxNDY5OTI0MjY2MQ==",
+    "name": "wave2-native-installation-29e36a84875228baf518a2a7030a86bbcb164908-44883747805",
+    "size_in_bytes": 4900,
+    "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14699242661",
+    "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14699242661/zip",
+    "expired": false,
+    "digest": "sha256:85b297b38efce927b32e3b7666930cdf8450df9332af8f72e5b3506398456127",
+    "created_at": "2026-11-21T08:21:10Z",
+    "updated_at": "2026-11-21T08:21:10Z",
+    "expires_at": "2026-12-21T08:21:09Z",
+    "workflow_run": {
+      "id": 44883747805,
+      "repository_id": 1431395537,
+      "head_repository_id": 1431395537,
+      "head_branch": "feature/wave-2-a",
+      "head_sha": "29e36a84875228baf518a2a7030a86bbcb164908"
+    }
+  },
+  "verifiedSha256": "85b297b38efce927b32e3b7666930cdf8450df9332af8f72e5b3506398456127",
+  "members": [
+    "_temp/wave2-defender-enablement.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/host-health.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/installed-session-authorization.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/legacy-policy-denial.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/native-attempt-status.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/native-status.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/native-upgrade-backup.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/policy-probe.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/results.json",
+    "ventio-framework/ventio-framework/test-results/wave2-native-installation/services.json"
+  ]
+}

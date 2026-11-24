@@ -44,3 +44,6 @@ if (Test-Path -LiteralPath $fixtureRoot) {
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
     Write-Output "Removed disposable PostgreSQL fixture for Actions run $($env:VENTIO_CI_RUN_LABEL)."
 }
+# pg_ctl status correctly returns 3 after shutdown. Do not leak that expected
+# native status as a failed Actions step after all cleanup guards succeeded.
+exit 0

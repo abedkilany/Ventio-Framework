@@ -1,0 +1,19 @@
+{
+  "allTargetsEffectivelyNotExcluded": true,
+  "checks": [
+    {
+      "attempt": 0,
+      "utc": "2026-11-18T08:43:06.4594482Z",
+      "path": "D:\\a\\_temp\\wave2-package",
+      "exitCode": 1,
+      "output": "D:\\a\\_temp\\wave2-package [\\Device\\HarddiskVolume5\\a\\_temp\\wave2-package] is not excluded. Exit code is 1."
+    },
+    {
+      "attempt": 0,
+      "utc": "2026-11-18T08:43:06.4811798Z",
+      "path": "D:\\a\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip",
+      "exitCode": 1,
+      "output": "D:\\a\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip [\\Device\\HarddiskVolume5\\a\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261118-50d4d2bb4189-gh44267441630-a1.zip] is not excluded. Exit code is 1."
+    }
+  ]
+}

@@ -805,7 +805,7 @@ Future<Map<String, String>> manifest(pg.Connection db) async {
     "SELECT schemaname, sequencename, sequenceowner, data_type, start_value, min_value, max_value, increment_by, cycle, cache_size, last_value FROM pg_sequences WHERE schemaname IN ('public','ventio_security') ORDER BY 1,2",
     relationSecuritySql,
     "SELECT schemaname,tablename,policyname,permissive,roles::text,cmd,qual,with_check FROM pg_policies WHERE schemaname IN ('public','ventio_security') ORDER BY 1,2,3",
-    "SELECT n.nspname,p.proname,pg_get_userbyid(p.proowner),p.prosecdef,p.proconfig::text,p.proacl::text,replace(replace(pg_get_functiondef(p.oid),E'\\r\\n',E'\\n'),E'\\r',E'\\n') FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ventio_security' ORDER BY 1,2",
+    "SELECT n.nspname,p.proname,pg_get_userbyid(p.proowner),p.prosecdef,p.proconfig::text,p.proacl::text,replace(replace(pg_get_functiondef(p.oid),E'\\r\\n',E'\\n'),E'\\r',E'\\n') FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ventio_security' ORDER BY 1,2,pg_get_function_identity_arguments(p.oid)",
     "SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolbypassrls,rolconnlimit,rolvaliduntil::text,rolconfig::text FROM pg_roles WHERE rolname LIKE 'ventio%' ORDER BY 1",
     "SELECT r.rolname,m.rolname,pg_get_userbyid(a.grantor),a.admin_option,a.inherit_option,a.set_option FROM pg_auth_members a JOIN pg_roles r ON r.oid=a.roleid JOIN pg_roles m ON m.oid=a.member WHERE r.rolname LIKE 'ventio%' ORDER BY 1,2",
     "SELECT datname,pg_get_userbyid(datdba),datacl::text FROM pg_database WHERE datname='ventio_host_test'",

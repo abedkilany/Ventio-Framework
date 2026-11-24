@@ -1,0 +1,40 @@
+{
+  "verifiedAtUtc": "2026-11-22T23:36:20Z",
+  "sourceCommit": "04a9874eff3d62f4bc6296766fb62642efd5cb8b",
+  "branch": "feature/wave-2-a",
+  "workflowRunId": 45082307385,
+  "artifactBuildJobId": 137393014621,
+  "artifactId": 14778440325,
+  "artifactName": "ventio-wave2-windows-acceptance-04a9874eff3d62f4bc6296766fb62642efd5cb8b",
+  "artifactZip": {
+    "bytes": 107777310,
+    "sha256": "006df3ec109258490ce20bafab3e26177c685eb1d4ba1f347f3f9cae4967cbc4",
+    "githubDigestMatched": true,
+    "members": [
+      "Ventio-Setup-0.1.24.exe",
+      "Ventio-Setup-SHA256SUMS.txt",
+      "wave2-build-evidence.txt"
+    ]
+  },
+  "installer": {
+    "file": "Ventio-Setup-0.1.24.exe",
+    "bytes": 108299075,
+    "sha256": "a1ea50c1d01048990d392d1b658bd8349ecfb18340f686f1016a1859ec6af0a2",
+    "innerChecksumMatched": true,
+    "authenticode": "NotSigned"
+  },
+  "buildIdentity": {
+    "testedCommit": "04a9874eff3d62f4bc6296766fb62642efd5cb8b",
+    "hostSourceCommit": "04a9874eff3d62f4bc6296766fb62642efd5cb8b",
+    "hostDart": "3.13.7",
+    "clientDart": "3.12.1",
+    "flutter": "3.44.1",
+    "postgres": "16.16",
+    "dotnet": "10.0.404",
+    "innoSetup": "6.7.4",
+    "vcRuntime": "14.52.37029.0"
+  },
+  "physicalInstallOnThisCandidate": "NOT_PERFORMED",
+  "reason": "TEST-01 is at the Windows lock screen. TEST-02 is available for Ventio testing, but no authenticated automation session is currently available to install the verified artifact. The prior 474c3a4 candidate remains physically installed.",
+  "releaseSigning": "DEFERRED_OWNER_PREREQUISITE; no signature policy bypassed"
+}

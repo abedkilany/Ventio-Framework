@@ -1,0 +1,12 @@
+{
+    "case":  "NATIVE-COMPANY-UPDATE",
+    "status":  "PASS",
+    "checkedAtUtc":  "2026-11-21T19:14:49.9295876Z",
+    "actualInstalledClient":  true,
+    "actualInstalledHost":  true,
+    "companyId":  "installed-company",
+    "displayName":  "Native acceptance company",
+    "revision":  2,
+    "directSqlUsed":  false,
+    "limitation":  "Hierarchy, membership, archival and concurrency remain separate gates."
+}

@@ -1,0 +1,27 @@
+PASS W2-J001 [J03,L01] Jobs accept one and twenty-five commands and remain cancellable before dispatch
+PASS W2-J002 [J03,J04] Empty twenty-six-command and oversized wire jobs are rejected
+PASS W2-J003 [J03,L01] Duplicate command IDs in one job are refused by SQL
+PASS W2-J004 [B02,J04] Direct job envelopes receive strict HTTP command-shape validation
+PASS W2-J005 [D08,D09,J03] Job tenant actor device scope dependencies and delete restrictions are enforced
+PASS W2-J006 [J03,L01] Lost submit-response retries preserve identity; changed payload or source labels conflict
+PASS W2-J007 [J03] Source-row labels must match commands be unique integers and retain original range
+PASS W2-J008 [L01,D08] Public job listing redacts command payloads digests and lease tokens
+PASS W2-J009 [L01] Concurrent real transactions cannot claim the same runnable job twice
+PASS W2-J010 [L01,J03] Expired lease is reclaimed and stale completion is fenced
+PASS W2-J011 [L01,J03] Retry transition retains row identity backoff and original source correlation
+PASS W2-J012 [L01] Five failed attempts produce bounded terminal rejection without an effect
+PASS W2-J013 [L01,J03] Cancellation before claim prevents execution and is idempotent
+PASS W2-J014 [L01,J03] In-flight acceptance survives cancellation with original source row
+PASS W2-J015 [L01,J03] Cancellation during ambiguous retry records unknown outcome without automatic replay
+PASS W2-J016 [D09,L01] Revocation before claim prevents execution under the stored credential
+PASS W2-J017 [D08,D09,L01] Authority is rechecked inside effect after claim even with a stale session
+PASS W2-J018 [M02,L01] Scoped jobsPaused and maintenanceMode prevent claims until cleared
+PASS W2-J019 [L01,J03,M02] Terminal archival scrubs executable state and keeps IDs hashes totals labels and outcomes
+PASS W2-J020 [J03,L01] Real timed worker executes rows and retains nonconsecutive CSV source labels
+PASS W2-J021 [J03,L01] Commit-before-finish recovery replays the journal receipt instead of duplicating effect
+PASS W2-J022 [L01,J03] Two real workers finish one job without duplicate journal audit or outbox effects
+PASS W2-J023 [L01,D09] Missing independent recovery witness fails closed and records safe worker diagnostics
+PASS W2-J024 [L01,D08] Job visibility and cancellation respect actor ownership and tenant
+PASS W2-J025 [L01] Twenty-active-job ceiling is per actor and does not silently discard jobs
+PASS W2-J026 [K10,L01,J04] Undeclared governed operation cannot acquire an executable handler through a job
+PASS W2-J027 [L01,J03] An actually terminated worker with a committed claim is recovered by a fresh process exactly once

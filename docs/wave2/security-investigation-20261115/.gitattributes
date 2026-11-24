@@ -1,0 +1,2 @@
+# Preserve collected evidence bytes so inventory hashes survive checkout.
+* -text

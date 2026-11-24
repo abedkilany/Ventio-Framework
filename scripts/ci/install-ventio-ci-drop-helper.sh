@@ -11,6 +11,16 @@ test "$(id -un)" = runner
 test "$(id -u runner)" = 1001
 test -f "$source_helper"
 
+# Some hosted images create this root-owned include with an overly broad mode.
+# Tighten only that known include before global visudo validation; never ignore a
+# failed validation or relax sudoers permissions to make the audit run.
+if sudo test -e /etc/sudoers.d/runner; then
+  sudo test ! -L /etc/sudoers.d/runner
+  test "$(sudo stat -c %u /etc/sudoers.d/runner)" = 0
+  sudo stat -c 'Hosted runner sudoers before: %u:%g %a %n' /etc/sudoers.d/runner
+  sudo chmod 0440 /etc/sudoers.d/runner
+fi
+
 # Install reviewed checkout code as data. Never execute the checkout copy as root.
 sudo install -d -o root -g root -m 0755 /usr/local/libexec
 sudo install -o root -g root -m 0755 "$source_helper" "$installed_helper"

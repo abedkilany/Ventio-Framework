@@ -61,6 +61,8 @@ BEGIN
     'ventio_identity_pairings','ventio_identity_device_activity',
     'ventio_identity_credential_reissues','host_schema_upgrade_receipts',
     'ventio_extension_package_events','ventio_document_number_series',
+    'ventio_wave2_organizations','ventio_wave2_companies','ventio_wave2_branches','ventio_wave2_admin_requests','ventio_wave2_operations','ventio_wave2_customization_rebases',
+    'ventio_wave2_definitions','ventio_wave2_revisions','ventio_wave2_jobs','ventio_wave2_events',
     'ventio_schema_migrations'] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO ventio_owner', t);
   END LOOP;
@@ -119,6 +121,8 @@ BEGIN
     'public.host_schema_upgrade_receipts',
     'public.ventio_extension_packages',
     'public.ventio_extension_package_events','public.ventio_document_number_series',
+    'public.ventio_wave2_organizations','public.ventio_wave2_companies','public.ventio_wave2_branches','public.ventio_wave2_admin_requests','public.ventio_wave2_operations','public.ventio_wave2_customization_rebases',
+    'public.ventio_wave2_definitions','public.ventio_wave2_revisions','public.ventio_wave2_jobs','public.ventio_wave2_events',
     'public.ventio_schema_migrations','ventio_security.command_bindings'] LOOP
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
@@ -372,6 +376,14 @@ BEGIN
   RETURN jsonb_build_object('identity',identity,'policy',policy);
 END $fn$;
 
+\ir wave2.sql
+\ir wave2_customization_041.sql
+\ir wave2_identity_base.sql
+\ir wave2_administration.sql
+\ir wave2_customization_rebase.sql
+\ir wave2_activity.sql
+\ir wave2_schema_migration.sql
+\ir wave2_operations.sql
 \ir extensions.sql
 
 -- Legacy command bindings re-read identity in policy evaluation. Extension
@@ -769,6 +781,7 @@ GRANT SELECT, INSERT ON public.ventio_document_number_series TO ventio_runtime;
 GRANT UPDATE (next_number) ON public.ventio_document_number_series TO ventio_runtime;
 GRANT USAGE ON SEQUENCE public.ventio_audit_entries_audit_id_seq, public.ventio_outbox_outbox_id_seq TO ventio_runtime;
 \ir administration.sql
+\ir accounts.sql
 \ir pairing.sql
 \ir schema_profile.sql
 \ir credential_reissues.sql
@@ -786,7 +799,20 @@ GRANT EXECUTE ON FUNCTION ventio_security.resolve_identity(text,text,text,text,i
   ventio_security.identity_roles_snapshot(text,text,text),
   ventio_security.identity_users_snapshot(text,text,text),
   ventio_security.identity_users_audit_snapshot(text,text,text),
-  ventio_security.identity_devices_snapshot(text,text,text)
+  ventio_security.identity_devices_snapshot(text,text,text),
+  ventio_security.wave2_history(text,text,text,text,text,text,text,bigint,integer),
+  ventio_security.wave2_history(text,text,text,text,text,text,text),
+  ventio_security.wave2_record_activity(text,text,text,text,text,text,text,text,bigint,text),
+  ventio_security.wave2_rebase_candidate(text,text,text,text,text,text,text),
+  ventio_security.wave2_settings_for_scope(text,text,text),
+  ventio_security.wave2_command_admission(text,text,text,boolean),
+  ventio_security.wave2_operations_list(text,text,text),
+  ventio_security.wave2_organization_snapshot(text,text,text),
+  ventio_security.wave2_definitions(text,text,text,text),
+  ventio_security.wave2_jobs_list(text,text,text),
+  ventio_security.wave2_submit_job(text,text,text,text,jsonb,text,jsonb),
+  ventio_security.wave2_submit_job(text,text,text,text,jsonb),
+  ventio_security.wave2_cancel_job(text,text,text,text)
   TO ventio_runtime;
 GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
   ventio_security.admit_recovery(text,text),
@@ -796,6 +822,14 @@ GRANT EXECUTE ON FUNCTION ventio_security.admin_change(jsonb),
   public.ventio_validate_extension_schema_upgrade(text,text,text),
   ventio_security.assert_schema() TO ventio_identity_admin;
 GRANT EXECUTE ON FUNCTION
+  ventio_security.wave2_prepare_operation(text,text,text,text,text,jsonb),
+  ventio_security.wave2_operation_offers(),
+  ventio_security.wave2_operation_result(text,text,jsonb),
+  ventio_security.wave2_prepare_rebase(text,text,text,text,text,text,text,bigint,jsonb),
+  ventio_security.wave2_organization_change(text,text,text,jsonb),
+  ventio_security.wave2_save_definition(text,text,text,text,text,bigint,text,jsonb),
+  ventio_security.wave2_claim_job(),
+  ventio_security.wave2_finish_job(text,text,text,jsonb,boolean),
   ventio_security.scoped_admin_change(text,text,text,jsonb),
   ventio_security.scoped_user_admin_change(text,text,text,jsonb),
   ventio_security.scoped_pairing_create(text,text,text,text,text,text),
@@ -822,6 +856,10 @@ GRANT EXECUTE ON FUNCTION
 -- bootstrap login even though the extension is assigned to ventio_owner. Reset
 -- the temporary SET ROLE before hardening their ACLs. Only SECURITY DEFINER
 -- functions owned by ventio_owner need to call these crypto primitives.
+GRANT EXECUTE ON FUNCTION ventio_security.account_login_material(text,text,text),
+  ventio_security.account_login_issue(text,text,text,text,text,text,boolean),
+  ventio_security.account_current_hash(text),ventio_security.account_change(text,jsonb),
+  ventio_security.local_owner_recover(jsonb) TO ventio_identity_api;
 RESET ROLE;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ventio_crypto
   FROM PUBLIC, ventio_runtime, ventio_identity_admin, ventio_identity_api;

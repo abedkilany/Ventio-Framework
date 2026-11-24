@@ -1,0 +1,9 @@
+{
+  "AMProductVersion": "4.18.26100.4",
+  "AMEngineVersion": "1.1.26100.4",
+  "AntivirusSignatureVersion": "1.463.317.0",
+  "AntivirusSignatureLastUpdated": "2026-11-15T13:40:02+00:00",
+  "AntivirusEnabled": true,
+  "RealTimeProtectionEnabled": false,
+  "AMServiceEnabled": true
+}

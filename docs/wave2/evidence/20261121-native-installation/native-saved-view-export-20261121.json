@@ -1,0 +1,21 @@
+{
+    "case":  "NATIVE-SAVED-VIEW-SEARCH-SORT-CUSTOM-COLUMN-EXPORT",
+    "status":  "PASS",
+    "checkedAtUtc":  "2026-11-21T19:01:54.2458910Z",
+    "actualInstalledClient":  true,
+    "actualInstalledHost":  true,
+    "clientSource":  "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "viewId":  "installed-assets",
+    "revision":  2,
+    "search":  "Native CSV",
+    "sortField":  "name",
+    "descending":  true,
+    "columns":  [
+                    "name",
+                    "custom_note"
+                ],
+    "matchingQueryAndExportRows":  2,
+    "directSqlUsed":  false,
+    "limitation":  "Restart, scope switching, concurrent edits and device acceptance remain separate gates."
+}

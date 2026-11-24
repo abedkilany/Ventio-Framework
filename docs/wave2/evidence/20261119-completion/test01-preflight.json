@@ -1,0 +1,78 @@
+{
+  "capturedUtc": "2026-11-19T21:25:21.1032387Z",
+  "machine": "VENTIO-TEST-01",
+  "account": "VENTIO-TEST-01\\Codex-1",
+  "elevated": true,
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26300",
+    "BuildNumber": "26300"
+  },
+  "executionPolicies": [
+    {
+      "scope": "MachinePolicy",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "UserPolicy",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "Process",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "CurrentUser",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "LocalMachine",
+      "policy": "Undefined"
+    }
+  ],
+  "effectivePolicy": "Restricted",
+  "services": [
+    {
+      "Name": "VentioHost",
+      "State": "Stopped",
+      "StartName": "NT SERVICE\\VentioHost",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\"",
+      "StartMode": "Auto"
+    },
+    {
+      "Name": "VentioPostgres",
+      "State": "Running",
+      "StartName": "NT SERVICE\\VentioPostgres",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w",
+      "StartMode": "Auto"
+    }
+  ],
+  "clientPresent": true,
+  "client": {
+    "version": "0.1.18+19",
+    "sha256": "cd9dfa98cd03a76c2cfc7f8cad4c570fb963e141b91fd5d19124a4c3206d6bd4"
+  },
+  "hostExecutablePresent": false,
+  "hostSha256": null,
+  "productDataPresent": true,
+  "defender": {
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "AntivirusSignatureVersion": "1.463.376.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "threats": [
+    {
+      "ThreatName": "Trojan:Win32/Bearfoos.A!ml",
+      "IsActive": false
+    }
+  ],
+  "interactiveSessions": [
+    " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+    " codex-1               rdp-tcp#0           1  Active          2  11/19/2026 10:06 PM"
+  ],
+  "testActions": "Read-only observation; no service/data/policy changes",
+  "target": "test01",
+  "status": "OBSERVED"
+}

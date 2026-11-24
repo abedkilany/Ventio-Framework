@@ -1,0 +1,13 @@
+{
+  "timestampUtc": "2026-11-21T08:36:33.0972287Z",
+  "machine": "TEST-02",
+  "sourceCommit": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "actualInstalledHelper": true,
+  "readerHeldOpenThroughBoundedPipeBackpressure": true,
+  "readerExitCode": 0,
+  "readerSnapshotIntact": true,
+  "writerExitCode": 0,
+  "sharingViolation": false,
+  "currentFileIsReplacement": true,
+  "businessDataTouched": false
+}

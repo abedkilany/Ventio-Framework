@@ -1,0 +1,18 @@
+{
+  "case": "M01-INSTALLED-ORGANIZATION-ARCHIVE-REACTIVATE",
+  "machine": "TEST-02",
+  "sourceCommit": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "startedAtUtc": "2026-11-22T12:02:29.7804180Z",
+  "completedAtUtc": "2026-11-22T12:02:35.1221527Z",
+  "status": "PASS_SUBSET",
+  "branchId": "w2-archive-20261122",
+  "cases": [
+    {"id": "M01-AR01", "status": "PASS", "observed": "create revision 1"},
+    {"id": "M01-AR02", "status": "PASS", "observed": "archived revision 2 in Host list"},
+    {"id": "M01-AR03", "status": "PASS", "observed": "stale revision rejected"},
+    {"id": "M01-AR04", "status": "PASS", "observed": "active revision 3 in Host list"}
+  ],
+  "credentialsRecorded": false,
+  "directSqlUsed": false,
+  "evidenceProvenance": "Exact JSON output from an OpenSSH PowerShell invocation of the installed TEST-02 Host; the executed script is retained beside this evidence. No P001-P006 result is claimed."
+}

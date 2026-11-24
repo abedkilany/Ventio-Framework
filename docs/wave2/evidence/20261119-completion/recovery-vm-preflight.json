@@ -1,0 +1,55 @@
+{
+  "capturedUtc": "2026-11-19T21:25:27.2306013Z",
+  "machine": "DESKTOP-CJVPE84",
+  "account": "DESKTOP-CJVPE84\\VM-TEST",
+  "elevated": true,
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26300",
+    "BuildNumber": "26300"
+  },
+  "executionPolicies": [
+    {
+      "scope": "MachinePolicy",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "UserPolicy",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "Process",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "CurrentUser",
+      "policy": "Undefined"
+    },
+    {
+      "scope": "LocalMachine",
+      "policy": "Undefined"
+    }
+  ],
+  "effectivePolicy": "Restricted",
+  "services": [],
+  "clientPresent": false,
+  "client": null,
+  "hostExecutablePresent": false,
+  "hostSha256": null,
+  "productDataPresent": false,
+  "defender": {
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "AntivirusSignatureVersion": "1.463.368.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "threats": [],
+  "interactiveSessions": [
+    " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+    " vm-test                                   2  Disc         4:46  11/19/2026 5:02 AM"
+  ],
+  "testActions": "Read-only observation; no service/data/policy changes",
+  "target": "recovery-vm",
+  "status": "OBSERVED"
+}

@@ -1,0 +1,9 @@
+Set-Content : The process cannot access the file 
+'D:\a\Ventio-Framework\Ventio-Framework\test-results\recovery-admission\observer-progress.json' because it is being 
+used by another process.
+At D:\a\Ventio-Framework\Ventio-Framework\scripts\ci\test-recovery-lab-observer.ps1:8 char:144
++ ... ConvertTo-Json|Set-Content (Join-Path $out 'observer-progress.json')}
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Set-Content], IOException
+    + FullyQualifiedErrorId : System.IO.IOException,Microsoft.PowerShell.Commands.SetContentCommand
+ 

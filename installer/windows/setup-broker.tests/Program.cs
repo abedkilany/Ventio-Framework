@@ -1,5 +1,177 @@
 using BrokerProgram = Ventio.HostSetupBroker.Program;
 
+if(args.Length==3 && args[0]=="--owner-package-contract")
+{
+    using var previous=System.Text.Json.JsonDocument.Parse(File.ReadAllText(args[1]));
+    using var current=System.Text.Json.JsonDocument.Parse(File.ReadAllText(args[2]));
+    if(!Ventio.HostSetupBroker.NativeHostInstallation.IsReviewedCriticalOnlyLegacyManifest(previous.RootElement))throw new Exception("Expected the published critical-only Owner payload");
+    var obsolete=Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(previous.RootElement,current.RootElement);
+    if(!obsolete.ContainsKey("migrations/038_initial_account_owner.sql"))throw new Exception("Legacy Owner SQL was not reconciled");
+    var approved=Ventio.HostSetupBroker.NativeHostInstallation.ReviewedLegacyRuntime;
+    if(approved.Count!=1639)throw new Exception("Official legacy runtime closure is incomplete");
+    var root=Path.GetDirectoryName(Path.GetFullPath(args[1]))!;
+    var listed=previous.RootElement.GetProperty("verifiedFiles").EnumerateArray().Select(e=>e.GetProperty("path").GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var actual=Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(root,listed,approved);
+    if(actual.Count+listed.Count!=previous.RootElement.GetProperty("payloadFileCount").GetInt32())throw new Exception("Installed legacy closure does not match the declared inventory");
+    var forged=System.Text.Json.Nodes.JsonNode.Parse(previous.RootElement.GetRawText())!;
+    forged["payloadFileCount"]=previous.RootElement.GetProperty("payloadFileCount").GetInt32()+1;
+    using(var invalid=System.Text.Json.JsonDocument.Parse(forged.ToJsonString())){
+      try{Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(invalid.RootElement,current.RootElement);throw new Exception("Unknown legacy inventory accepted");}
+      catch(InvalidOperationException){}
+    }
+    Console.WriteLine($"PASS: legacy Owner manifest recognition, obsolete SQL reconciliation, official runtime inventory, {actual.Count} installed unlisted-runtime hashes and unknown-inventory refusal (5 checks). No installed files or services changed.");
+    return;
+}
+
+
+using (var initializerPipe = Ventio.HostSetupBroker.NativeHostInstallation.CreateInitializerPipe("Ventio.Initdb.Test." + Guid.NewGuid().ToString("N")))
+{
+    var security = System.IO.Pipes.PipesAclExtensions.GetAccessControl(initializerPipe);
+    var user = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+    var rules = security.GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier));
+    if (!security.AreAccessRulesProtected || security.GetOwner(typeof(System.Security.Principal.SecurityIdentifier))?.Value != user.Value ||
+        rules.Count != 1 || rules[0] is not System.IO.Pipes.PipeAccessRule rule ||
+        rule.IdentityReference.Value != user.Value || rule.AccessControlType != System.Security.AccessControl.AccessControlType.Allow ||
+        rule.PipeAccessRights != System.IO.Pipes.PipeAccessRights.FullControl)
+        throw new InvalidOperationException("Initializer password pipe is not restricted to the actual user SID.");
+}
+
+var originalRestorePrivilege = OwnershipPrivilegeProbe.Enabled();
+Ventio.HostSetupBroker.NativeHostInstallation.WithRestorePrivilege(() =>
+{
+    if (!OwnershipPrivilegeProbe.Enabled()) throw new InvalidOperationException("Required ownership privilege was not scoped to the operation.");
+});
+if (OwnershipPrivilegeProbe.Enabled() != originalRestorePrivilege)
+    throw new InvalidOperationException("Native ownership operation leaked a token privilege.");
+try
+{
+    Ventio.HostSetupBroker.NativeHostInstallation.WithRestorePrivilege(() => throw new ApplicationException("injected ownership failure"));
+    throw new InvalidOperationException("Ownership failure did not propagate.");
+}
+catch (ApplicationException) { }
+if (OwnershipPrivilegeProbe.Enabled() != originalRestorePrivilege)
+    throw new InvalidOperationException("Failed native ownership operation leaked a token privilege.");
+
+foreach (var path in new[] { "../outside.exe", "/absolute.exe", "C:/outside.exe", "setup//x.ps1", "setup/./x", "postgresql\\bin\\postgres.exe", "migrations/NUL.sql", "setup/file.", "setup/x:stream", "setup/*" })
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(path))
+        throw new InvalidOperationException("Native installation accepted an unsafe payload member path.");
+foreach (var path in new[] { "postgresql/bin/postgres.exe", "security/bootstrap.sql", "migrations/041_wave2.sql" })
+    if (!Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(path))
+        throw new InvalidOperationException("Native installation rejected a canonical payload member path.");
+if (!Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.15", true) ||
+    Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.15", false) ||
+    !Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.16", false) ||
+    Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("16.14", true) ||
+    Ventio.HostSetupBroker.NativeHostInstallation.IsSupportedPayloadPostgres("17.0", true))
+    throw new InvalidOperationException("Previous PostgreSQL minor compatibility widened the new-payload contract.");
+
+static System.Text.Json.JsonDocument PayloadManifest(params string[] paths) => System.Text.Json.JsonDocument.Parse(
+    System.Text.Json.JsonSerializer.Serialize(new {
+        formatVersion = 1, credentialsIncluded = false, databaseIncluded = false,
+        payloadFileCount = paths.Length,
+        verifiedFiles = paths.Select(path => new { path, length = 3, sha256 = new string('a', 64) }).ToArray()
+    }));
+var requiredPayload = new[] { "VentioSetupBroker.exe", "VentioHostService.exe", "ventio_host.exe", "ventio_migrate.exe", "postgresql/bin/postgres.exe" };
+using (var oldPayload = PayloadManifest([.. requiredPayload, "postgresql/bin/obsolete.dll"]))
+using (var newPayload = PayloadManifest(requiredPayload))
+{
+    var obsolete = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(oldPayload.RootElement, newPayload.RootElement);
+    if (obsolete.Count != 1 || !obsolete.TryGetValue("postgresql/bin/obsolete.dll", out var member) ||
+        member.Length != 3 || member.Sha256 != new string('a', 64))
+        throw new InvalidOperationException("Verified old-only payload member was not identified for retirement.");
+    var same = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(newPayload.RootElement, newPayload.RootElement);
+    if (same.Count != 0) throw new InvalidOperationException("Same-version payload generated an obsolete deletion.");
+}
+foreach (var invalid in new[] { "../outside.dll", "postgresql/bin/x:stream", "postgresql/bin/obsolete." })
+{
+    using var oldPayload = PayloadManifest([.. requiredPayload, invalid]);
+    using var newPayload = PayloadManifest(requiredPayload);
+    try { _ = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(oldPayload.RootElement, newPayload.RootElement); throw new InvalidOperationException("Unsafe obsolete payload path accepted."); }
+    catch (InvalidOperationException exception) when (exception.Message != "Unsafe obsolete payload path accepted.") { }
+}
+using (var oldPayload = PayloadManifest([.. requiredPayload, "postgresql/bin/obsolete.dll", "postgresql/bin/obsolete.dll"]))
+using (var newPayload = PayloadManifest(requiredPayload))
+{
+    try { _ = Ventio.HostSetupBroker.NativeHostInstallation.ComputeObsoletePayloadMembers(oldPayload.RootElement, newPayload.RootElement); throw new InvalidOperationException("Duplicate old payload member accepted."); }
+    catch (InvalidOperationException exception) when (exception.Message != "Duplicate old payload member accepted.") { }
+}
+
+// Pin legacy repair to the verified 16.15 artifact and reject changed bytes.
+var legacy = Ventio.HostSetupBroker.NativeHostInstallation.LegacyPg1615Residue;
+if (legacy.Count != 9) throw new InvalidOperationException("Legacy PostgreSQL residue allowlist changed size.");
+var evidenceRoot = new DirectoryInfo(Directory.GetCurrentDirectory());
+while (evidenceRoot is not null && !File.Exists(Path.Combine(evidenceRoot.FullName,
+    "docs", "wave2", "evidence", "20261118-7218c1c", "SHA256SUMS.txt"))) evidenceRoot = evidenceRoot.Parent;
+if (evidenceRoot is null) throw new InvalidOperationException("Verified previous release hash evidence is unavailable.");
+var previousHashes = File.ReadAllLines(Path.Combine(evidenceRoot.FullName, "docs", "wave2", "evidence", "20261118-7218c1c", "SHA256SUMS.txt"))
+    .Where(line => line.Contains("  HostPayload/", StringComparison.Ordinal))
+    .Select(line => line.Split("  HostPayload/", 2, StringSplitOptions.None))
+    .ToDictionary(parts => parts[1], parts => parts[0], StringComparer.OrdinalIgnoreCase);
+foreach (var (relative, member) in legacy)
+    if (!previousHashes.TryGetValue(relative, out var digest) || digest != member.Sha256 ||
+        !Ventio.HostSetupBroker.NativeHostInstallation.SafeRelativePath(relative) || member.Length <= 0)
+        throw new InvalidOperationException("Legacy residue pin differs from verified 16.15 release evidence.");
+
+var residueRoot = Path.Combine(Path.GetTempPath(), "VentioLegacyResidueTest-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(Path.Combine(residueRoot, "postgresql", "bin"));
+try
+{
+    const string relative = "postgresql/bin/legacy.dll";
+    var file = Path.Combine(residueRoot, "postgresql", "bin", "legacy.dll");
+    var original = System.Text.Encoding.UTF8.GetBytes("verified previous release bytes");
+    File.WriteAllBytes(file, original);
+    var pin = new Ventio.HostSetupBroker.NativeHostInstallation.PayloadMember(original.Length,
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant());
+    var fixturePins = new Dictionary<string, Ventio.HostSetupBroker.NativeHostInstallation.PayloadMember> { [relative] = pin };
+    var selected = Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string>(), fixturePins);
+    if (selected.Count != 1 || selected[relative] != pin)
+        throw new InvalidOperationException("Exact legacy residue was not admitted.");
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string> { relative }, fixturePins).Count != 0)
+        throw new InvalidOperationException("Listed current payload was classified as residue.");
+    File.WriteAllBytes(file, System.Text.Encoding.UTF8.GetBytes("untrusted replacement"));
+    try
+    {
+        _ = Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+            new HashSet<string>(), fixturePins);
+        throw new InvalidOperationException("Changed residue bytes were accepted.");
+    }
+    catch (InvalidOperationException exception) when (exception.Message == "HOST_NATIVE_PAYLOAD_OBSOLETE_HASH_INVALID") { }
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string> { relative }, fixturePins).Count != 0)
+        throw new InvalidOperationException("A previous manifest's own verified member was overridden by a legacy pin.");
+    File.Delete(file);
+    if (Ventio.HostSetupBroker.NativeHostInstallation.SelectPinnedResidue(residueRoot,
+        new HashSet<string>(), fixturePins).Count != 0)
+        throw new InvalidOperationException("Missing legacy residue was required for a clean installation.");
+}
+finally { Directory.Delete(residueRoot, true); }
+
+var absentProcess = "ventio-never-running-" + Guid.NewGuid().ToString("N");
+Ventio.HostSetupBroker.NativeHostInstallation.AssertProcessNotRunning(absentProcess);
+try
+{
+    Ventio.HostSetupBroker.NativeHostInstallation.AssertProcessNotRunning(
+        System.Diagnostics.Process.GetCurrentProcess().ProcessName);
+    throw new InvalidOperationException("A running process was not detected before Host maintenance.");
+}
+catch (InvalidOperationException exception) when (exception.Message == "HOST_NATIVE_CLIENT_RUNNING_CLOSE_BEFORE_UPGRADE") { }
+
+var unchangedManifest = System.Text.Encoding.UTF8.GetBytes("verified installed payload manifest");
+var changedManifest = System.Text.Encoding.UTF8.GetBytes("different payload manifest");
+bool SafeStaleManifest(bool running, bool policy, bool schema, bool witness, byte[] prior, byte[] installed) =>
+    Ventio.HostSetupBroker.NativeHostInstallation.CanRetireStalePreviousManifest(
+        prior, installed, running, policy, schema, witness);
+if (!SafeStaleManifest(true, false, false, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, false, false, unchangedManifest, changedManifest) ||
+    SafeStaleManifest(false, false, false, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, true, false, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, true, false, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, false, true, unchangedManifest, unchangedManifest) ||
+    SafeStaleManifest(true, false, false, false, [], []))
+    throw new InvalidOperationException("Stale upgrade marker retirement did not enforce exact unchanged state.");
+
 var secret = System.Text.Encoding.UTF8.GetBytes("isolated-bootstrap-handoff-test");
 var expectedSecret = secret.ToArray();
 var entropy = System.Text.Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef");
@@ -132,3 +304,26 @@ foreach (var request in rejected)
 }
 
 Console.WriteLine("Host setup broker validation passed: read-only and write-capable ACL rights, fixed new-host operation, scope allowlist, caller SID, GUID operation ID, and arbitrary argument rejection.");
+
+internal static class OwnershipPrivilegeProbe
+{
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct Luid { internal uint Low; internal int High; }
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct PrivilegeSet { internal uint Count, Control; internal Luid Luid; internal uint Attributes; }
+    internal static bool Enabled()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), 8, out var token)) throw new InvalidOperationException("Token query failed.");
+        using (token)
+        {
+            if (!LookupPrivilegeValueW(null, "SeRestorePrivilege", out var luid)) throw new InvalidOperationException("Privilege lookup failed.");
+            var set = new PrivilegeSet { Count = 1, Control = 1, Luid = luid, Attributes = 2 };
+            if (!PrivilegeCheck(token, ref set, out var enabled)) throw new InvalidOperationException("Privilege query failed.");
+            return enabled;
+        }
+    }
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint rights, out Microsoft.Win32.SafeHandles.SafeAccessTokenHandle token);
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)] private static extern bool LookupPrivilegeValueW(string? system, string name, out Luid luid);
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)] private static extern bool PrivilegeCheck(Microsoft.Win32.SafeHandles.SafeAccessTokenHandle token, ref PrivilegeSet set, out bool result);
+}

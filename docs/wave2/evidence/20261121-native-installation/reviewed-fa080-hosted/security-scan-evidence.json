@@ -1,0 +1,61 @@
+{
+  "identity": "Ventio-W2B-0.1.24+25-20261121-fa080fcd5072-gh44912845335-a2",
+  "commit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+  "status": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+  "securityClearance": "NOT_ESTABLISHED",
+  "scanRootsExcluded": false,
+  "scanEvents": [
+    {
+      "Id": 1001,
+      "RecordId": 655,
+      "TimeCreated": "2026-11-21T19:07:30.6077786+00:00",
+      "Message": "Microsoft Defender Antivirus scan has finished.\r\n \tScan ID: {973D39E8-4635-487A-AB39-A849626494A8}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Time: 0:01:59"
+    },
+    {
+      "Id": 1000,
+      "RecordId": 654,
+      "TimeCreated": "2026-11-21T19:05:31.1134521+00:00",
+      "Message": "Microsoft Defender Antivirus scan has started.\r\n \tScan ID: {973D39E8-4635-487A-AB39-A849626494A8}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tScan Resources: file:_D:\\a\\_temp\\wave2-delivery\\Ventio-W2B-0.1.24+25-20261121-fa080fcd5072-gh44912845335-a2.zip\r\n  \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Trigger: On demand\r\n \tScan Only If Idle: Enabled\r\n \tLow CPU Priority for Scans: Disabled\r\n \tThread Priority: 7"
+    },
+    {
+      "Id": 1001,
+      "RecordId": 653,
+      "TimeCreated": "2026-11-21T19:05:31.0961034+00:00",
+      "Message": "Microsoft Defender Antivirus scan has finished.\r\n \tScan ID: {310C49F9-0C06-47F2-BE76-30F309B97759}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Time: 0:00:46"
+    },
+    {
+      "Id": 1000,
+      "RecordId": 652,
+      "TimeCreated": "2026-11-21T19:04:44.8047228+00:00",
+      "Message": "Microsoft Defender Antivirus scan has started.\r\n \tScan ID: {310C49F9-0C06-47F2-BE76-30F309B97759}\r\n \tScan Type: Antimalware\r\n \tScan Parameters: Custom Scan\r\n \tScan Resources: folder:_D:\\a\\_temp\\wave2-package\r\n  \tUser: NT AUTHORITY\\LOCAL SERVICE\r\n \tScan Trigger: On demand\r\n \tScan Only If Idle: Enabled\r\n \tLow CPU Priority for Scans: Disabled\r\n \tThread Priority: 7"
+    }
+  ],
+  "limitations": [
+    "Clean scans and matching hashes do not establish malware absence or product acceptance"
+  ],
+  "protectionBefore": {
+    "AMRunningMode": "Normal",
+    "AMServiceEnabled": true,
+    "AntivirusEnabled": true,
+    "RealTimeProtectionEnabled": true,
+    "BehaviorMonitorEnabled": true,
+    "IoavProtectionEnabled": true,
+    "IsTamperProtected": false,
+    "AntivirusSignatureVersion": "1.463.404.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "exclusions": {
+    "ExclusionPath": null,
+    "ExclusionExtension": null,
+    "ExclusionProcess": null,
+    "DisableArchiveScanning": false
+  },
+  "protectionAfter": {
+    "AMRunningMode": "Normal",
+    "RealTimeProtectionEnabled": true,
+    "AntivirusEnabled": true,
+    "AntivirusSignatureVersion": "1.463.404.0",
+    "DefenderSignaturesOutOfDate": false
+  },
+  "threats": []
+}

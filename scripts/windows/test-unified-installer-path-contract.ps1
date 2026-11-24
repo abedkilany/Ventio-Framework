@@ -45,9 +45,9 @@ Assert-Contract ($installerSource.Contains('Source: "{#VCRedistPath}"; DestDir: 
 Assert-Contract ($installerSource.Contains("ExtractTemporaryFile('vc_redist.x64.exe')")) 'VC_RUNTIME_PACKAGE_MUST_BE_EXTRACTED_BEFORE_APP_LAUNCH'
 Assert-Contract ($installerSource.Contains('Check: IsVentioRuntimeReady')) 'VENTIO_AUTO_LAUNCH_MUST_REQUIRE_VERIFIED_RUNTIME'
 $runtimePrecheckIndex = $installerSource.IndexOf('Result := EnsureVCRuntime();', [StringComparison]::Ordinal)
-$serviceDetectionIndex = $installerSource.IndexOf("HasHostService := RegKeyExists", $runtimePrecheckIndex, [StringComparison]::Ordinal)
+$serviceDetectionIndex = $installerSource.IndexOf("ExistingHostServiceFound := RegKeyExists", $runtimePrecheckIndex, [StringComparison]::Ordinal)
 Assert-Contract ($runtimePrecheckIndex -ge 0 -and $serviceDetectionIndex -gt $runtimePrecheckIndex) 'VC_RUNTIME_MUST_BE_READY_BEFORE_HOST_UPGRADE_SERVICE_CHANGES'
-Assert-Contract ($installerSource.Contains('No Ventio application files or Host services were changed.')) 'VC_RUNTIME_FAILURE_MUST_ABORT_BEFORE_PRODUCT_MUTATION'
+Assert-Contract ($installerSource.Contains('Setup stopped before changing Ventio files or services.')) 'VC_RUNTIME_FAILURE_MUST_ABORT_BEFORE_PRODUCT_MUTATION'
 Assert-Contract ($runtimePrerequisite.Contains('RegistryView]::Registry64') -and $runtimePrerequisite.Contains('Runtimes\x64')) 'VC_RUNTIME_DETECTION_MUST_USE_THE_NATIVE_X64_REGISTRY_VIEW'
 Assert-Contract ($runtimePrerequisite.Contains('/install /quiet /norestart')) 'VC_RUNTIME_INSTALL_MUST_BE_SILENT_AND_SUPPRESS_AUTOMATIC_REBOOT'
 Assert-Contract ($runtimeHelper.Contains('exit 3010') -and $runtimePrerequisite.Contains("'RestartRequired'")) 'VC_RUNTIME_REBOOT_REQUIRED_STATE_MUST_PROPAGATE_TO_SETUP'
@@ -63,35 +63,21 @@ Assert-Contract ($installerSource -match '(?m)^Filename: "\{app\}\\\{#AppExeName
 Assert-Contract ($runnerManifest -match '<requestedExecutionLevel\s+level="asInvoker"\s+uiAccess="false"\s*/>') 'FLUTTER_APPLICATION_MUST_DECLARE_AS_INVOKER_EXECUTION_LEVEL'
 Assert-Contract ($setupBrokerManifest -match '<requestedExecutionLevel\s+level="requireAdministrator"\s+uiAccess="false"\s*/>' -and $setupBrokerProject.Contains('<ApplicationManifest>VentioSetupBroker.manifest</ApplicationManifest>')) 'SETUP_BROKER_MUST_DECLARE_ITS_ADMINISTRATOR_BOUNDARY'
 Assert-Contract ($hostSetupCoordinator.Contains('currentProcessIsElevated') -and $hostSetupCoordinator.Contains('HOST_SETUP_APPLICATION_ELEVATED')) 'HOST_SETUP_MUST_REFUSE_TO_RUN_INSIDE_AN_ELEVATED_FLUTTER_PROCESS'
-Assert-Contract ($installerSource -match '(?s)function PrepareToInstall.*?stop-host-services\.ps1.*?Exec\(PowerShell, Parameters') 'HOST_UPGRADE_MUST_STOP_SERVICES_BEFORE_REPLACING_PAYLOAD'
-Assert-Contract ($installerSource.Contains("ExtractTemporaryFile('stop-host-services.ps1')")) 'HOST_PREINSTALL_STOP_HELPER_MUST_USE_THE_CURRENT_INSTALLER_PAYLOAD'
-Assert-Contract ($installerSource.Contains('ventio-preinstall-failure.txt') -and
-  $installerSource.Contains('IsSafePreinstallFailureCode') -and $installerSource.Contains('IsSafePreinstallFailureStage') -and
-  $installerSource.Contains('No application files were replaced.')) 'HOST_PREINSTALL_FAILURE_MUST_REPORT_VALIDATED_SAFE_CODE_AND_STAGE'
-Assert-Contract ($installerSource.Contains("ExtractTemporaryFile('HostServiceRecoveryPolicy.psm1')") -and $installerSource.Contains("Source: `"{#HostPayload}\setup\HostServiceRecoveryPolicy.psm1`"; Flags: dontcopy")) 'HOST_RECOVERY_POLICY_MODULE_MUST_BE_AVAILABLE_BEFORE_PAYLOAD_REPLACEMENT'
-Assert-Contract ($installerSource.Contains('-AllowPostgresOnlyRecovery')) 'HOST_PREINSTALL_MUST_ALLOW_ONLY_REVIEWED_POSTGRES_ONLY_RECOVERY'
-Assert-Contract ($installerSource -match '(?s)procedure DeinitializeSetup.*?-ResumePostgresOnly') 'HOST_INSTALL_FAILURE_MUST_RESTART_THE_VERIFIED_POSTGRES_SERVICE'
-Assert-Contract ($installerSource.Contains('-KeepHostRecoveryPolicySuppressed') -and $installerSource.Contains('-RestoreHostFailureActions')) 'HOST_RECOVERY_POLICY_MUST_STAY_SUPPRESSED_THROUGH_UPGRADE_AND_RESTORE_AT_COMPLETION'
+$nativeInstallation = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\NativeHostInstallation.cs') -Raw
+$nativeUpgrade = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\windows\setup-broker\NativeHostUpgrade.cs') -Raw
+Assert-Contract ($installerSource -match '(?s)function PrepareToInstall.*?--prepare-installer-upgrade.*?Exec\(NativeMaintenanceHelper') 'HOST_UPGRADE_MUST_DRAIN_SERVICES_BEFORE_PAYLOAD_REPLACEMENT'
+Assert-Contract ($installerSource.Contains('MaintenanceBrokerSha256') -and $installerSource.Contains("ExtractTemporaryFile('VentioSetupMaintenance.exe')") -and $installerSource.Contains('NativeCreateDirectory') -and $installerSource.Contains('O:BAG:BAD:P(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)')) 'NATIVE_PREINSTALL_HELPER_MUST_BE_CURRENT_HASH_PINNED_AND_ATOMICALLY_PROTECTED'
+Assert-Contract ($installerSource.Contains('No application files were replaced.') -and $installerSource.Contains('HOST_PREINSTALL_NATIVE_MAINTENANCE_FAILED')) 'HOST_PREINSTALL_FAILURE_MUST_BE_CLASSIFIED_AND_FAIL_CLOSED'
+Assert-Contract ($nativeUpgrade.Contains('RecoveryNative.Change(HostService, disabled)') -and $nativeUpgrade.Contains('quietSeconds') -and $nativeUpgrade.Contains('RestoreRecoveryPolicy()') -and $nativeUpgrade.Contains('PolicySnapshot')) 'NATIVE_UPGRADE_MUST_JOURNAL_DRAIN_AND_RESTORE_ORIGINAL_RECOVERY_POLICY'
+Assert-Contract ($installerSource.Contains('--resume-installer-postgres') -and $installerSource.Contains('not HostFilesUpdateStarted') -and $installerSource.Contains('and not HostDatabaseUpgradeFailed')) 'FAILED_OR_INTERRUPTED_PAYLOAD_UPDATE_MUST_NOT_RESTART_HOST_BEFORE_SCHEMA_RECONCILIATION'
+Assert-Contract ($installerSource.Contains('--complete-installer-upgrade') -and $nativeUpgrade.Contains('CreateStoppedBackup("upgrade")') -and $nativeUpgrade.Contains('schema-upgrade.request.dpapi') -and $nativeUpgrade.Contains('SCHEMA_UPGRADE_FAILED_OR_UNKNOWN')) 'NATIVE_DATABASE_UPGRADE_MUST_BACK_UP_AND_REQUIRE_THE_SERVICE_AUTHORITY_RESULT'
+Assert-Contract ($nativeUpgrade.Contains('recoveryAuthorityIncluded = false') -and $nativeUpgrade.Contains('BACKUP_CONTENT_MISMATCH') -and $nativeUpgrade.Contains('DATABASE_MIGRATION_LEDGER_INVALID')) 'NATIVE_UPGRADE_MUST_VERIFY_BACKUP_INTEGRITY_AND_MIGRATION_LEDGER_WITHOUT_COPYING_AUTHORITY'
+Assert-Contract ($nativeUpgrade.IndexOf('CreateStoppedBackup("upgrade")') -lt $nativeUpgrade.IndexOf('max_prepared_transactions = 1')) 'NATIVE_UPGRADE_MUST_COMMIT_BACKUP_BEFORE_POSTGRES_CONFIGURATION_MUTATION'
+Assert-Contract ($nativeUpgrade.Contains('await StopServiceAsync(HostService)') -and $nativeUpgrade.Contains('await ConfigureUpgradedLanAsync()') -and $nativeUpgrade.Contains('await StartServiceAsync(HostService)')) 'NATIVE_UPGRADE_MUST_REQUIRE_STOPPED_HOST_FOR_GUARDED_LAN_CONFIGURATION'
+Assert-Contract ($nativeInstallation.Contains('FIREWALL_EFFECTIVE_POLICY_BLOCKED') -and $nativeInstallation.Contains('LocalPolicyModifyState') -and $nativeInstallation.Contains('LocalSubnet') -and $nativeInstallation.Contains('profiles & ~3')) 'NATIVE_HOST_MUST_KEEP_EFFECTIVE_FIREWALL_PROTECTION_AND_TRUSTED_LOCAL_SUBNET_SCOPE'
+Assert-Contract ($setupBroker.Contains('NativeHostInstallation.InstallAsync') -and $setupBroker -notmatch 'paths.PowerShell|paths.ProvisioningScript') 'FIRST_RUN_HOST_SETUP_MUST_USE_FIXED_NATIVE_PROVISIONING'
+Assert-Contract ($nativeInstallation -notmatch 'ExecutionPolicy|powershell.exe|ScriptBlock|System.Management.Automation') 'NATIVE_PROVISIONING_MUST_NOT_WRAP_OR_BYPASS_SCRIPT_POLICY'
 Assert-Contract ($installerSource -notmatch 'provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_MUST_NOT_RUN_FIRST_RUN_PROVISIONING_OR_RECOVERY'
-$existingUpgradeStart = $installerSource.IndexOf('procedure CurStepChanged(CurrentStep: TSetupStep);', [StringComparison]::Ordinal)
-$upgradeBody = if ($existingUpgradeStart -ge 0) { $installerSource.Substring($existingUpgradeStart) } else { '' }
-$resumePostgresIndex = $upgradeBody.IndexOf('-ResumePostgresOnly', [StringComparison]::Ordinal)
-$databaseUpgradeIndex = $upgradeBody.IndexOf('upgrade-host-database.ps1', [StringComparison]::Ordinal)
-$postUpgradeHostStopIndex = $upgradeBody.IndexOf("stop-host-services.ps1", $databaseUpgradeIndex, [StringComparison]::Ordinal)
-$postUpgradeHostStopModeIndex = $upgradeBody.IndexOf('-ResumePostgresOnly -KeepHostRecoveryPolicySuppressed', $databaseUpgradeIndex, [StringComparison]::Ordinal)
-$lanRestartIndex = $upgradeBody.IndexOf('-RestartServices', [StringComparison]::Ordinal)
-Assert-Contract ($resumePostgresIndex -ge 0 -and $databaseUpgradeIndex -gt $resumePostgresIndex -and $lanRestartIndex -gt $databaseUpgradeIndex -and $upgradeBody.Contains('-Apply')) 'EXISTING_HOST_UPGRADE_MUST_START_POSTGRES_APPLY_AND_VERIFY_DATABASE_UPGRADE_BEFORE_HOST_RESTART'
-Assert-Contract ($postUpgradeHostStopIndex -gt $databaseUpgradeIndex -and $postUpgradeHostStopModeIndex -gt $postUpgradeHostStopIndex -and $lanRestartIndex -gt $postUpgradeHostStopModeIndex) 'EXISTING_HOST_UPGRADE_MUST_STOP_HOST_AFTER_RECOVERY_AUTHORITY_UPGRADE_BEFORE_LAN_CONFIGURATION'
-Assert-Contract ($upgradeBody.Contains('HostDatabaseUpgradeFailed := True') -and $installerSource.Contains('and not HostDatabaseUpgradeFailed') -and $installerSource.Contains('-ResumePostgresOnly')) 'FAILED_DATABASE_UPGRADE_MUST_KEEP_HOST_STOPPED_AND_ALLOW_POSTGRES_ONLY_RECOVERY'
-Assert-Contract ($installerSource -match '(?s)procedure CurStepChanged.*?enable-host-lan-listener\.ps1.*?-RestartServices') 'EXISTING_HOST_UPDATE_MUST_CONFIGURE_THE_LAN_LISTENER_AFTER_DATABASE_UPGRADE'
-Assert-Contract ($databaseUpgrade.Contains('HOST_PAIRING_CONTRACT_VERIFICATION_FAILED') -and $databaseUpgrade.Contains('HOST_DATABASE_BACKUP_INVENTORY_MISMATCH') -and $databaseUpgrade.Contains('HOST_DATABASE_MIGRATION_RESULT_INVALID')) 'INSTALLER_DATABASE_UPGRADE_MUST_REQUIRE_VERIFIED_BACKUP_MIGRATIONS_AND_PAIRING_CONTRACT'
-Assert-Contract ($databaseUpgrade.Contains('Invoke-HostSchemaUpgradeService') -and $databaseUpgrade.Contains('ventio_trusted_host_upgrade.exe')) 'PRODUCTION_HOST_UPGRADE_MUST_USE_THE_RECOVERY_AUTHORITY_AWARE_SERVICE_HELPER'
-Assert-Contract ($databaseUpgrade.Contains('SHOW max_prepared_transactions') -and $databaseUpgrade.Contains('max_prepared_transactions = 1')) 'HOST_UPGRADE_MUST_VERIFY_BOUNDED_POSTGRES_PREPARED_TRANSACTION_SUPPORT'
-$backupCommitIndex = $databaseUpgrade.IndexOf('$backupRoot = Complete-HostPostgresBackup $dataDirectory $stableInventory', [StringComparison]::Ordinal)
-$preparedSettingIndex = $databaseUpgrade.IndexOf('Ventio Recovery Authority upgrade coordinator v1', [StringComparison]::Ordinal)
-Assert-Contract ($backupCommitIndex -ge 0 -and $preparedSettingIndex -gt $backupCommitIndex) 'HOST_UPGRADE_MUST_VERIFY_RESTRICTED_BACKUP_BEFORE_CHANGING_POSTGRES_COORDINATION_SETTINGS'
-Assert-Contract ($installerSource.Contains('-FailureCodePath') -and $installerSource.Contains('IsSafeHostLanFailureCode') -and $installerSource.Contains('IsSafeHostDatabaseUpgradeFailureCode') -and $installerSource.Contains('HOST_DATABASE_') -and $installerSource.Contains('Error code: ')) 'HOST_UPGRADE_FAILURE_MUST_SURFACE_ONLY_A_VALIDATED_SAFE_FAILURE_CODE'
-Assert-Contract ($installerSource -notmatch '(?s)procedure CurStepChanged.*?provision-host-installation\.ps1|initialize-host-database\.ps1|recover-host-database-credentials\.ps1') 'INSTALLER_UPGRADE_MUST_NOT_RUN_FIRST_RUN_PROVISIONING_OR_RECOVERY'
 $firstRunLan = $hostProvisioning.IndexOf('& $hostLanListener -PayloadDirectory $payload', [StringComparison]::Ordinal)
 $firstRunStart = $hostProvisioning.LastIndexOf('Start-Service -Name $hostServiceName', [StringComparison]::Ordinal)
 Assert-Contract ($firstRunLan -ge 0 -and $firstRunStart -gt $firstRunLan -and
@@ -108,7 +94,7 @@ Assert-Contract ($hostCertificateTrust.Contains('ventio-pinned-tls.psm1') -and
   $hostPinnedTls.Contains('Test-VentioPinnedCertificateEndpoint') -and
   $hostPinnedTls.Contains('1.3.6.1.5.5.7.3.1') -and
   -not $hostCertificateTrust.Contains('ServerCertificateValidationCallback')) 'CLIENT_HOST_CERTIFICATE_TRUST_MUST_VALIDATE_EXACT_PIN_SAN_VALIDITY_AND_SERVER_AUTH'
-Assert-Contract ($installerSource.Contains('Private or authenticated Domain network') -and $installerSource.Contains('Public networks are not enabled')) 'UPGRADE_FAILURE_MESSAGE_MUST_EXPLAIN_TRUSTED_NETWORK_REQUIREMENTS'
+Assert-Contract ($nativeInstallation.Contains('LAN_TRUSTED_NETWORK_REQUIRED') -and $nativeInstallation.Contains('FIREWALL_BASELINE_UNSAFE')) 'NATIVE_UPGRADE_MUST_REQUIRE_PROTECTED_TRUSTED_NETWORKS'
 Assert-Contract ($hostLanListener.Contains("'DomainAuthenticated' { if (-not `$profiles.Contains('Domain'))") -and $hostLanListener.Contains("'Private' { if (-not `$profiles.Contains('Private'))")) 'HOST_LAN_MUST_SUPPORT_DOMAIN_AND_PRIVATE_NETWORK_CATEGORIES'
 Assert-Contract ($hostLanListener.Contains("throw 'HOST_LAN_TRUSTED_NETWORK_REQUIRED'") -and $hostLanListener.Contains('-RemoteAddress LocalSubnet') -and $hostLanListener.Contains("-Profile (`$FirewallProfiles -join ',')")) 'HOST_LAN_FIREWALL_MUST_REJECT_PUBLIC_ONLY_NETWORKS_AND_STAY_LOCAL_SUBNET_SCOPED'
 Assert-Contract ($hostLanListener.Contains('function Write-LanFailureCode') -and $hostLanListener.Contains('ventio-host-lan-failure.txt') -and $hostLanListener.Contains('HOST_LAN_[A-Z0-9_]{1,96}')) 'HOST_LAN_FAILURE_DIAGNOSTIC_MUST_PERSIST_ONLY_A_CLASSIFIED_CODE'
@@ -134,8 +120,8 @@ Assert-Contract ($hostProvisioning.Contains('[switch] $NewHostOnly')) 'HOST_NEW_
 Assert-Contract ($hostProvisioning.Contains('HOST_EXISTING_SERVICES_REQUIRE_RECOVERY')) 'HOST_NEW_SETUP_MUST_REFUSE_EXISTING_SERVICES'
 Assert-Contract ($hostProvisioning.Contains('HOST_SETUP_PHASE:$phase')) 'HOST_PROVISIONING_MUST_REPORT_ALLOWLISTED_PHASE_MARKERS'
 Assert-Contract ($setupBroker.Contains('"--setup-new-host"')) 'SETUP_BROKER_MUST_EXPOSE_ONLY_THE_NEW_HOST_OPERATION'
-Assert-Contract ($setupBroker.Contains('"-NewHostOnly"')) 'SETUP_BROKER_MUST_NEVER_INVOKE_HOST_RECOVERY'
-Assert-Contract ($setupBroker.Contains('UseShellExecute = false')) 'SETUP_BROKER_MUST_NOT_USE_SHELL_COMMAND_INTERPRETATION'
+Assert-Contract ($nativeInstallation.Contains('AssertFreshInstallation();') -and $nativeInstallation.Contains('EXISTING_SERVICES_REQUIRE_RECOVERY') -and $nativeInstallation.Contains('EXISTING_DATA_REQUIRES_REPAIR')) 'FIRST_RUN_NATIVE_SETUP_MUST_REJECT_EXISTING_SERVICES_AND_DATA'
+Assert-Contract ($nativeInstallation.Contains('UseShellExecute = false') -and $nativeInstallation.Contains('info.ArgumentList.Add(argument)')) 'SETUP_BROKER_MUST_NOT_USE_SHELL_COMMAND_INTERPRETATION'
 Assert-Contract ($setupBroker.Contains('Global\Ventio.HostSetup.v1')) 'SETUP_BROKER_MUST_SERIALIZE_HOST_PROVISIONING'
 Assert-Contract ($setupBroker.Contains('SetupStatus')) 'SETUP_BROKER_MUST_WRITE_A_SANITIZED_PROGRESS_RECORD'
 Assert-Contract ($setupBroker.Contains('SerializeSetupStatus') -and $setupBroker.Contains('PipeJsonOptions')) 'SETUP_STATUS_JSON_MUST_MATCH_THE_FLUTTER_CAMEL_CASE_CONTRACT'
@@ -264,3 +250,9 @@ if (-not $postgresRoot.StartsWith($programFiles.TrimEnd('\') + '\', [StringCompa
 Write-Output 'UNIFIED_INSTALLER_HOST_PROGRAM_FILES_PATH_CONTRACT_PASS'
 Write-Output 'UNIFIED_INSTALLER_SHARED_FLUTTER_FIRST_RUN_HOST_CLIENT_CHOICES_PASS'
 Write-Output 'UNIFIED_INSTALLER_HOST_PROVISIONING_DEFERRED_TO_FLUTTER_PASS'
+
+Assert-Contract ($installerSource -notmatch '(?i)-ExecutionPolicy') 'INSTALLER_MUST_RESPECT_EFFECTIVE_SCRIPT_POLICY'
+Assert-Contract ($installerSource.Contains('HKLM64') -and $installerSource.Contains('ComparePackedVersion')) 'NATIVE_VC_RUNTIME_MUST_VERIFY_X64_VERSION_WITHOUT_POWERSHELL'
+Assert-Contract ($installerSource.Contains('GetSHA256OfFile(RuntimeInstaller)') -and $installerSource.Contains('{#VCRuntimeSha256}')) 'NATIVE_VC_RUNTIME_MUST_PIN_EXTRACTED_PACKAGE_HASH'
+Assert-Contract ($installerSource.Contains("Exec(RuntimeInstaller, '/install /quiet /norestart'") -and $installerSource.Contains('IsVCRuntimeSufficient()')) 'NATIVE_VC_RUNTIME_MUST_RECHECK_INSTALLED_VERSION'
+Assert-Contract ($installerSource.Contains('ResultCode = 1638') -and $installerSource.Contains('ResultCode = 3010') -and $installerSource.Contains('ResultCode = 1641')) 'NATIVE_VC_RUNTIME_MUST_HANDLE_NEWER_PACKAGE_AND_REBOOT'

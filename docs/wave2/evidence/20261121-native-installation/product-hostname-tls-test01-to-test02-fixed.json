@@ -1,0 +1,15 @@
+{
+    "recordedAtUtc":  "2026-11-21T13:34:39.808247Z",
+    "clientMachine":  "VENTIO-TEST-01",
+    "endpoint":  "https://test-02:8443",
+    "productTlsImplementation":  true,
+    "wrongPinDenied":  true,
+    "standardHostnameAndTimeValidation":  true,
+    "healthStatus":  "alive",
+    "osTrustStoreChanged":  false,
+    "credentialOrProfileWritten":  false,
+    "twoDeviceOfflineAcceptanceClaimed":  false,
+    "naturalProcessExit":  true,
+    "elapsedMs":  876,
+    "probeSource":  "Product TLS code matching d1e9dec; standalone transport probe, not installed native Client acceptance"
+}

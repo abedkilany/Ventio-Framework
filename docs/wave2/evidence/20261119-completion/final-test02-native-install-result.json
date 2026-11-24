@@ -1,0 +1,16 @@
+﻿{
+    "case":  "TEST02-FRESH-NATIVE-INSTALL",
+    "sourceCommit":  "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "runId":  "44703269459",
+    "computer":  "TEST-02",
+    "startedAtUtc":  "2026-11-20T14:41:50.1887645Z",
+    "status":  "PASS",
+    "installerSha256":  "bde048b4fbc7f8cd6041eea33ef5fd48fae9587fb567efedfba7521a75c58137",
+    "installerExitCode":  0,
+    "clientPresent":  true,
+    "services":  [
+
+                 ],
+    "policy":  "Restricted",
+    "completedAtUtc":  "2026-11-20T14:42:09.8591579Z"
+}

@@ -1,0 +1,23 @@
+﻿{
+    "recordedAtUtc":  "2026-11-21T20:36:43.5042865Z",
+    "machine":  "TEST-02",
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "actualInstalledHost":  true,
+    "directSqlUsed":  false,
+    "cases":  [
+                  {
+                      "id":  "IAPI053",
+                      "description":  "Installed settings reject arbitrary outbound endpoints without executing them",
+                      "status":  "PASS",
+                      "elapsedMs":  505
+                  },
+                  {
+                      "id":  "IAPI054",
+                      "description":  "Installed extension metadata rejects webhook executable fields",
+                      "status":  "PASS",
+                      "elapsedMs":  389
+                  }
+              ],
+    "capabilityCompletionClaimed":  false,
+    "P001_P006Executed":  false
+}

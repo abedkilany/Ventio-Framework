@@ -3,39 +3,45 @@ name: Ventio Host API
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/host-api.yml'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_host/**'
-      - 'packages/ventio_host_api/**'
-      - 'packages/ventio_postgres/**'
-      - 'migrations/postgres/**'
-      - 'security/postgres/**'
-      - 'spec/v1.2/examples/**'
-      - 'scripts/ci/**'
   pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/host-api.yml'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_host/**'
-      - 'packages/ventio_host_api/**'
-      - 'packages/ventio_postgres/**'
-      - 'migrations/postgres/**'
-      - 'security/postgres/**'
-      - 'spec/v1.2/examples/**'
-      - 'scripts/ci/**'
+  workflow_call:
+    inputs:
+      ci_run_scope:
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 
 jobs:
-  host-api:
+  select-changes:
+    uses: ./.github/workflows/ci-change-selector.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      event_name: ${{ github.event_name }}
+      event_action: ${{ github.event.action || '' }}
+      head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+      before_sha: ${{ github.event.before || '' }}
+      pr_number: ${{ github.event.pull_request.number || 0 }}
+      ref_name: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      ci_force_full: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
+      ci_run_scope: ${{ inputs.ci_run_scope || '' }}
+  host-api-suite:
+    needs: select-changes
+    if: needs.select-changes.outputs.run_host_api == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     env:
@@ -58,21 +64,33 @@ jobs:
           path: ~\AppData\Local\Pub\Cache
           key: windows-pub-${{ hashFiles('packages/**/pubspec.lock', 'packages/**/pubspec.yaml') }}
       - run: dart pub get --enforce-lockfile
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.404'
+      - name: Build native private-file test runtime
+        shell: pwsh
+        run: ./scripts/ci/prepare-native-private-file-runtime.ps1
+        working-directory: .
       - run: dart format --output=none --set-exit-if-changed lib bin test
       - run: dart analyze .
       - name: Prepare and verify private Windows test storage
         env:
           VENTIO_PRIVATE_FILES_DIAGNOSTICS: '1'
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/prepare_private_test_storage.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/prepare_private_test_storage.dart
       - name: Verify Windows ACL-backed private files and durable diagnostics
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/private_files_windows.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/private_files_windows.dart
+      - name: Cache verified PostgreSQL archive
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/postgresql-16.16-1-windows-x64-binaries.zip
+          key: windows-postgresql-16.16-1-5c0d06f3d26a929ecb36dd931409f1e51a4181355794a259b90aae8bffc57a9f
       - name: Install verified PostgreSQL 16 test tools
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\install-postgres-tools.ps1
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\install-postgres-tools.ps1
       - name: Start private PostgreSQL 16 test instance
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\start-postgres-test-instance.ps1
-      - run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/api_tests.dart
-      - run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_users_api_test.dart
-      - run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_devices_api_test.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\start-postgres-test-instance.ps1
+      - run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/api_tests.dart
+      - run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_users_api_test.dart
+      - run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_devices_api_test.dart
       - name: Install database security profile in disposable PostgreSQL
         env:
           VENTIO_MIGRATIONS_DIR: ../../migrations/postgres
@@ -84,21 +102,41 @@ jobs:
           psql -X -h 127.0.0.1 -p %VENTIO_TEST_POSTGRES_PORT% -U ventio -d ventio_host_test -f ..\..\security\postgres\test_logins.sql
       # Run the first-admin bootstrap before tenant-owned integration fixtures.
       - name: Run first-administrator and scoped user administration integration tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_users_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/management_users_integration.dart
       - name: Run isolated HTTP and PostgreSQL integration tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/api_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/api_integration.dart
       - name: Run persistent identity and revocation integration tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/identity_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/identity_integration.dart
       - name: Run direct SQL, least-privilege and RLS isolation tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/database_security_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/database_security_integration.dart
       - name: Run scoped role administration tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/role_administration_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/role_administration_integration.dart
       - name: Run secure device pairing and enrollment integration tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/pairing_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/pairing_integration.dart
       - name: Run extension package approval, scope and recovery integration tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/extension_package_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/extension_package_integration.dart
       - name: Run trusted same-device credential reissue integration tests
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/credential_reissue_integration.dart
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\run-windows-dart-test.ps1 run test/credential_reissue_integration.dart
       - name: Remove disposable PostgreSQL test instance
         if: always()
-        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ..\..\scripts\ci\stop-postgres-test-instance.ps1
+        run: powershell.exe -NoLogo -NoProfile -File ..\..\scripts\ci\stop-postgres-test-instance.ps1
+  host-api:
+    needs: [select-changes, host-api-suite]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the required check context and report suite result
+        env:
+          SELECTOR_RESULT: ${{ needs.select-changes.result }}
+          SHOULD_RUN: ${{ needs.select-changes.outputs.run_host_api }}
+          SUITE_RESULT: ${{ needs.host-api-suite.result }}
+        run: |
+          if [[ "$SELECTOR_RESULT" != "success" ]]; then
+            echo "CI change selection or documentation validation failed." >&2
+            exit 1
+          fi
+          if [[ "$SHOULD_RUN" == "true" && "$SUITE_RESULT" != "success" ]]; then
+            echo "The selected verification suite did not succeed (result: $SUITE_RESULT)." >&2
+            exit 1
+          fi
+          echo "Required check passed; selected suite result: $SUITE_RESULT."

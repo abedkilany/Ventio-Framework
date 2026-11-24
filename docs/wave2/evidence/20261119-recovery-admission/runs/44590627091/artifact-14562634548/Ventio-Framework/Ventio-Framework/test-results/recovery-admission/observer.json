@@ -1,0 +1,14 @@
+{
+    "sourceCommit":  "caaa3ef614dab8c1840bf368976c32bf2543ed68",
+    "runId":  "44590627091",
+    "postgresVersion":  "16.16",
+    "cases":  [
+                  {
+                      "status":  "FAILED",
+                      "id":  "OBS-FIXTURE-SETUP",
+                      "reason":  "RECOVERY_OBSERVER_HBA_ACL_PRESERVATION_FAILED"
+                  }
+              ],
+    "installedRecoveryTestsExecuted":  false,
+    "physicalVmTouched":  false
+}

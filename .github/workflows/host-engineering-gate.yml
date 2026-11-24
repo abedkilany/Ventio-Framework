@@ -2,45 +2,43 @@ name: Ventio Host Engineering Gate
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/host-engineering-gate.yml'
-      - '.github/workflows/host-api.yml'
-      - 'scripts/ci/**'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_host/**'
-      - 'packages/ventio_host_api/lib/src/**'
-      - 'packages/ventio_host_api/test/engineering_audit.dart'
-      - 'packages/ventio_host_api/test/recovery/**'
-      - 'packages/ventio_host_api/test/test_support.dart'
-      - 'packages/ventio_postgres/**'
-      - 'migrations/postgres/**'
-      - 'security/postgres/**'
-      - 'spec/v1.2/examples/**'
   pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/host-engineering-gate.yml'
-      - '.github/workflows/host-api.yml'
-      - 'scripts/ci/**'
-      - 'packages/ventio_core/**'
-      - 'packages/ventio_host/**'
-      - 'packages/ventio_host_api/lib/src/**'
-      - 'packages/ventio_host_api/test/engineering_audit.dart'
-      - 'packages/ventio_host_api/test/recovery/**'
-      - 'packages/ventio_host_api/test/test_support.dart'
-      - 'packages/ventio_postgres/**'
-      - 'migrations/postgres/**'
-      - 'security/postgres/**'
-      - 'spec/v1.2/examples/**'
+  workflow_call:
+    inputs:
+      ci_run_scope:
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 jobs:
-  host-engineering-gate:
+  select-changes:
+    uses: ./.github/workflows/ci-change-selector.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      event_name: ${{ github.event_name }}
+      event_action: ${{ github.event.action || '' }}
+      head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+      before_sha: ${{ github.event.before || '' }}
+      pr_number: ${{ github.event.pull_request.number || 0 }}
+      ref_name: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      ci_force_full: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
+      ci_run_scope: ${{ inputs.ci_run_scope || '' }}
+  host-engineering-gate-suite:
+    needs: select-changes
+    if: needs.select-changes.outputs.run_host_engineering_gate == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -152,3 +150,23 @@ jobs:
           name: host-engineering-benchmark
           path: /tmp/ventio-host-audit-results.json
           if-no-files-found: warn
+  host-engineering-gate:
+    needs: [select-changes, host-engineering-gate-suite]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the required check context and report suite result
+        env:
+          SELECTOR_RESULT: ${{ needs.select-changes.result }}
+          SHOULD_RUN: ${{ needs.select-changes.outputs.run_host_engineering_gate }}
+          SUITE_RESULT: ${{ needs.host-engineering-gate-suite.result }}
+        run: |
+          if [[ "$SELECTOR_RESULT" != "success" ]]; then
+            echo "CI change selection or documentation validation failed." >&2
+            exit 1
+          fi
+          if [[ "$SHOULD_RUN" == "true" && "$SUITE_RESULT" != "success" ]]; then
+            echo "The selected verification suite did not succeed (result: $SUITE_RESULT)." >&2
+            exit 1
+          fi
+          echo "Required check passed; selected suite result: $SUITE_RESULT."

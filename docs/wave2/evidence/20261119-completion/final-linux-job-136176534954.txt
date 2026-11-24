@@ -1,0 +1,644 @@
+﻿2026-11-20T08:31:52.6653618Z Current runner version: '2.338.2'
+2026-11-20T08:31:52.6672187Z ##[group]Runner Image Provisioner
+2026-11-20T08:31:52.6672763Z Hosted Compute Agent
+2026-11-20T08:31:52.6673176Z Version: 20261111.635
+2026-11-20T08:31:52.6673552Z Commit: b8a594ea514ff44cadb5342986c68b1eac6e22ed
+2026-11-20T08:31:52.6673994Z Build Date: 2026-11-11T01:49:01Z
+2026-11-20T08:31:52.6674468Z Worker ID: {1ac9c1cc-77eb-4c1a-9aee-05aa4b0bf5b1}
+2026-11-20T08:31:52.6674875Z Region: southcentralus
+2026-11-20T08:31:52.6675265Z Cloud: Azure
+2026-11-20T08:31:52.6675586Z ##[endgroup]
+2026-11-20T08:31:52.6676405Z ##[group]Operating System
+2026-11-20T08:31:52.6676804Z Ubuntu
+2026-11-20T08:31:52.6677377Z 24.04.5
+2026-11-20T08:31:52.6677725Z LTS
+2026-11-20T08:31:52.6678037Z ##[endgroup]
+2026-11-20T08:31:52.6678358Z ##[group]Runner Image
+2026-11-20T08:31:52.6678814Z Image: ubuntu-24.04
+2026-11-20T08:31:52.6679152Z Version: 20261116.376.1
+2026-11-20T08:31:52.6679941Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261116.376/images/ubuntu/Ubuntu2404-Readme.md
+2026-11-20T08:31:52.6681111Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261116.376
+2026-11-20T08:31:52.6681669Z ##[endgroup]
+2026-11-20T08:31:52.6682330Z ##[group]GITHUB_TOKEN Permissions
+2026-11-20T08:31:52.6683740Z Actions: read
+2026-11-20T08:31:52.6684080Z Contents: read
+2026-11-20T08:31:52.6684488Z Metadata: read
+2026-11-20T08:31:52.6684818Z ##[endgroup]
+2026-11-20T08:31:52.6686144Z Secret source: Actions
+2026-11-20T08:31:52.6686756Z Cache mode: write
+2026-11-20T08:31:52.6687410Z Prepare workflow directory
+2026-11-20T08:31:52.6940612Z Prepare all required actions
+2026-11-20T08:31:52.7017108Z Getting action download info
+2026-11-20T08:31:52.9880068Z Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-20T08:31:53.0744271Z Download action repository 'dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b' (SHA:2286a0c042b44434fe26d292bbce8d34f7ec662b)
+2026-11-20T08:31:53.3974352Z Download action repository 'subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885' (SHA:3d804929922b667a63a229bc59037807f969e885)
+2026-11-20T08:31:53.6868135Z Download action repository 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-11-20T08:31:53.9362596Z Getting action download info
+2026-11-20T08:31:54.0326741Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2026-11-20T08:31:54.2078107Z Uses: abedkilany/Ventio-Framework/.github/workflows/wave2-b-hosted-resume.yml@refs/heads/feature/wave-2-a (81661f7f2f10844d0132a5f3b91ab14580ec9a52)
+2026-11-20T08:31:54.2082022Z ##[group] Inputs
+2026-11-20T08:31:54.2082588Z   scope: all
+2026-11-20T08:31:54.2083084Z   candidate_run_id: 
+2026-11-20T08:31:54.2083803Z   wave2_resume: true
+2026-11-20T08:31:54.2084338Z   wave2_scope: all
+2026-11-20T08:31:54.2084846Z ##[endgroup]
+2026-11-20T08:31:54.2085455Z Complete job name: wave2-resume / linux-integration
+2026-11-20T08:31:54.2724598Z ##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+2026-11-20T08:31:54.2725563Z with:
+2026-11-20T08:31:54.2726078Z   persist-credentials: false
+2026-11-20T08:31:54.2726668Z   fetch-depth: 0
+2026-11-20T08:31:54.2727368Z   repository: abedkilany/Ventio-Framework
+2026-11-20T08:31:54.2732255Z   token: ***
+2026-11-20T08:31:54.2732857Z   ssh-strict: true
+2026-11-20T08:31:54.2733391Z   ssh-user: git
+2026-11-20T08:31:54.2733897Z   clean: true
+2026-11-20T08:31:54.2734436Z   sparse-checkout-cone-mode: true
+2026-11-20T08:31:54.2735061Z   fetch-tags: false
+2026-11-20T08:31:54.2735594Z   show-progress: true
+2026-11-20T08:31:54.2736131Z   lfs: false
+2026-11-20T08:31:54.2736645Z   submodules: false
+2026-11-20T08:31:54.2737323Z   set-safe-directory: true
+2026-11-20T08:31:54.2737925Z   allow-unsafe-pr-checkout: false
+2026-11-20T08:31:54.2738645Z ##[endgroup]
+2026-11-20T08:31:54.5085761Z Syncing repository: abedkilany/Ventio-Framework
+2026-11-20T08:31:54.5088191Z ##[group]Getting Git version info
+2026-11-20T08:31:54.5089092Z Working directory is '/home/runner/work/Ventio-Framework/Ventio-Framework'
+2026-11-20T08:31:54.5090392Z [command]/usr/bin/git version
+2026-11-20T08:31:54.5155198Z git version 2.56.1
+2026-11-20T08:31:54.5172805Z ##[endgroup]
+2026-11-20T08:31:54.5180137Z Temporarily overriding HOME='/home/runner/work/_temp/427ff290-ce6a-433d-b78f-235b87a3e95b' before making global git config changes
+2026-11-20T08:31:54.5182619Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-20T08:31:54.5184723Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Ventio-Framework/Ventio-Framework
+2026-11-20T08:31:54.5254465Z Deleting the contents of '/home/runner/work/Ventio-Framework/Ventio-Framework'
+2026-11-20T08:31:54.5257398Z ##[group]Initializing the repository
+2026-11-20T08:31:54.5258896Z [command]/usr/bin/git init /home/runner/work/Ventio-Framework/Ventio-Framework
+2026-11-20T08:31:54.6256639Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-20T08:31:54.6258563Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-20T08:31:54.6259686Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-20T08:31:54.6260776Z hint: call:
+2026-11-20T08:31:54.6261297Z hint:
+2026-11-20T08:31:54.6261917Z hint: 	git config --global init.defaultBranch <name>
+2026-11-20T08:31:54.6262588Z hint:
+2026-11-20T08:31:54.6263228Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-20T08:31:54.6264244Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-20T08:31:54.6265043Z hint:
+2026-11-20T08:31:54.6265598Z hint: 	git branch -m <name>
+2026-11-20T08:31:54.6266132Z hint:
+2026-11-20T08:31:54.6266828Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-20T08:31:54.6268150Z Initialized empty Git repository in /home/runner/work/Ventio-Framework/Ventio-Framework/.git/
+2026-11-20T08:31:54.6270729Z [command]/usr/bin/git remote add origin https://github.com/abedkilany/Ventio-Framework
+2026-11-20T08:31:54.6346782Z ##[endgroup]
+2026-11-20T08:31:54.6347892Z ##[group]Disabling automatic garbage collection
+2026-11-20T08:31:54.6349313Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-20T08:31:54.6387275Z ##[endgroup]
+2026-11-20T08:31:54.6388093Z ##[group]Setting up auth
+2026-11-20T08:31:54.6392021Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-20T08:31:54.6428730Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-20T08:31:54.6759269Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-20T08:31:54.6796173Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-20T08:31:54.6984005Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-20T08:31:54.7021096Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-20T08:31:54.7227305Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-20T08:31:54.7272121Z ##[endgroup]
+2026-11-20T08:31:54.7273457Z ##[group]Fetching the repository
+2026-11-20T08:31:54.7282368Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+2026-11-20T08:31:55.6269411Z From https://github.com/abedkilany/Ventio-Framework
+2026-11-20T08:31:55.6270657Z  * [new branch]      codex/extension-platform -> origin/codex/extension-platform
+2026-11-20T08:31:55.6271869Z  * [new branch]      codex/fix-host-engineering-gate-after-merge -> origin/codex/fix-host-engineering-gate-after-merge
+2026-11-20T08:31:55.6272648Z  * [new branch]      codex/github-hosted-runners -> origin/codex/github-hosted-runners
+2026-11-20T08:31:55.6273328Z  * [new branch]      codex/windows-self-hosted-runner -> origin/codex/windows-self-hosted-runner
+2026-11-20T08:31:55.6273881Z  * [new branch]      feature/host-engine-v0.1 -> origin/feature/host-engine-v0.1
+2026-11-20T08:31:55.6274442Z  * [new branch]      feature/native-flutter-offline-proof -> origin/feature/native-flutter-offline-proof
+2026-11-20T08:31:55.6274976Z  * [new branch]      feature/wave-2-a -> origin/feature/wave-2-a
+2026-11-20T08:31:55.6275527Z  * [new branch]      main             -> origin/main
+2026-11-20T08:31:55.6275865Z  * [new tag]         v0.2.0           -> v0.2.0
+2026-11-20T08:31:55.6280002Z [command]/usr/bin/git branch --list --remote origin/feature/wave-2-a
+2026-11-20T08:31:55.6321174Z   origin/feature/wave-2-a
+2026-11-20T08:31:55.6328376Z [command]/usr/bin/git rev-parse refs/remotes/origin/feature/wave-2-a
+2026-11-20T08:31:55.6356418Z 81661f7f2f10844d0132a5f3b91ab14580ec9a52
+2026-11-20T08:31:55.6359869Z ##[endgroup]
+2026-11-20T08:31:55.6360307Z ##[group]Determining the checkout info
+2026-11-20T08:31:55.6361037Z ##[endgroup]
+2026-11-20T08:31:55.6364616Z [command]/usr/bin/git sparse-checkout disable
+2026-11-20T08:31:55.6528656Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-20T08:31:55.6562400Z ##[group]Checking out the ref
+2026-11-20T08:31:55.6565170Z [command]/usr/bin/git checkout --progress --force -B feature/wave-2-a refs/remotes/origin/feature/wave-2-a
+2026-11-20T08:31:55.7323263Z Switched to a new branch 'feature/wave-2-a'
+2026-11-20T08:31:55.7326157Z branch 'feature/wave-2-a' set up to track 'origin/feature/wave-2-a'.
+2026-11-20T08:31:55.7340417Z ##[endgroup]
+2026-11-20T08:31:55.7386757Z [command]/usr/bin/git log -1 --format=%H
+2026-11-20T08:31:55.7417480Z 81661f7f2f10844d0132a5f3b91ab14580ec9a52
+2026-11-20T08:31:55.7424686Z ##[group]Removing auth
+2026-11-20T08:31:55.7427139Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-20T08:31:55.7458474Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-20T08:31:55.7644036Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-20T08:31:55.7673342Z http.https://github.com/.extraheader
+2026-11-20T08:31:55.7678159Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-20T08:31:55.7712107Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-20T08:31:55.7897603Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-20T08:31:55.7929914Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-20T08:31:55.8108775Z ##[endgroup]
+2026-11-20T08:31:55.8280351Z ##[group]Run dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b
+2026-11-20T08:31:55.8280610Z with:
+2026-11-20T08:31:55.8280745Z   sdk: 3.13.7
+2026-11-20T08:31:55.8280888Z   problem-matcher: true
+2026-11-20T08:31:55.8281043Z ##[endgroup]
+2026-11-20T08:31:55.8848710Z Installing the linux-x64 Dart SDK version 3.13.7 from the stable (release) channel.
+2026-11-20T08:31:55.8851648Z https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-linux-x64-release.zip ...
+2026-11-20T08:31:56.6586465Z [command]/usr/bin/unzip -o -q /home/runner/work/_temp/dartsdk-linux-x64-release.zip
+2026-11-20T08:32:05.1491007Z [command]/opt/hostedtoolcache/dart/3.13.7/x64/bin/dart --version
+2026-11-20T08:32:05.1544442Z Dart SDK version: 3.13.7 (stable) (Thu Oct 22 14:28:57 2026 -0700) on "linux_x64"
+2026-11-20T08:32:05.1710295Z ##[group]Run python3 tests/wave2/run_hosted_tests.py initialize
+2026-11-20T08:32:05.1710617Z [36;1mpython3 tests/wave2/run_hosted_tests.py initialize[0m
+2026-11-20T08:32:05.1729947Z shell: /usr/bin/bash -e {0}
+2026-11-20T08:32:05.1730084Z env:
+2026-11-20T08:32:05.1730211Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:32:05.1730383Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:32:05.1730521Z ##[endgroup]
+2026-11-20T08:32:05.2120835Z ##[group]Run set -euo pipefail
+2026-11-20T08:32:05.2121029Z [36;1mset -euo pipefail[0m
+2026-11-20T08:32:05.2121168Z [36;1mcd packages/ventio_host_api[0m
+2026-11-20T08:32:05.2121322Z [36;1mdart pub get --enforce-lockfile[0m
+2026-11-20T08:32:05.2121472Z [36;1mcd ../ventio_postgres[0m
+2026-11-20T08:32:05.2121614Z [36;1mdart pub get --enforce-lockfile[0m
+2026-11-20T08:32:05.2121751Z [36;1mcd ../..[0m
+2026-11-20T08:32:05.2121904Z [36;1mbash scripts/ci/install-ventio-ci-drop-helper.sh[0m
+2026-11-20T08:32:05.2122111Z [36;1mdocker pull postgres:16.16-bookworm[0m
+2026-11-20T08:32:05.2122286Z [36;1mdocker tag postgres:16.16-bookworm postgres:16[0m
+2026-11-20T08:32:05.2138242Z shell: /usr/bin/bash -e {0}
+2026-11-20T08:32:05.2138374Z env:
+2026-11-20T08:32:05.2138501Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:32:05.2138668Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:32:05.2138806Z ##[endgroup]
+2026-11-20T08:32:05.2289443Z Resolving dependencies...
+2026-11-20T08:32:05.3811420Z Downloading packages...
+2026-11-20T08:32:05.4874705Z   crypto 3.0.7 (3.0.8 available)
+2026-11-20T08:32:05.4875007Z   postgres 3.5.20 (3.6.0 available)
+2026-11-20T08:32:05.4875233Z Got dependencies!
+2026-11-20T08:32:05.4875509Z 2 packages have newer versions incompatible with dependency constraints.
+2026-11-20T08:32:05.4875871Z Try `dart pub outdated` for more information.
+2026-11-20T08:32:05.5071018Z Resolving dependencies...
+2026-11-20T08:32:05.5148653Z Downloading packages...
+2026-11-20T08:32:05.5153349Z   crypto 3.0.7 (3.0.8 available)
+2026-11-20T08:32:05.5153606Z   postgres 3.5.20 (3.6.0 available)
+2026-11-20T08:32:05.5153841Z Got dependencies!
+2026-11-20T08:32:05.5154128Z 2 packages have newer versions incompatible with dependency constraints.
+2026-11-20T08:32:05.5154479Z Try `dart pub outdated` for more information.
+2026-11-20T08:32:05.5473613Z Hosted runner sudoers before: 0:0 644 /etc/sudoers.d/runner
+2026-11-20T08:32:05.6092943Z /tmp/ventio-ci-drop-to-nobody.sudoers: parsed OK
+2026-11-20T08:32:05.6220368Z /etc/sudoers: parsed OK
+2026-11-20T08:32:05.6220593Z /etc/sudoers.d/90-cloud-init-users: parsed OK
+2026-11-20T08:32:05.6220780Z /etc/sudoers.d/README: parsed OK
+2026-11-20T08:32:05.6220931Z /etc/sudoers.d/runner: parsed OK
+2026-11-20T08:32:05.6221117Z /etc/sudoers.d/ventio-ci-drop-to-nobody: parsed OK
+2026-11-20T08:32:05.6315461Z Matching Defaults entries for runner on runnervmeozm8:
+2026-11-20T08:32:05.6315857Z     env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
+2026-11-20T08:32:05.6316145Z 
+2026-11-20T08:32:05.6316292Z User runner may run the following commands on runnervmeozm8:
+2026-11-20T08:32:05.6316503Z     (ALL) NOPASSWD: ALL
+2026-11-20T08:32:05.6316698Z     (root) NOPASSWD: /usr/local/libexec/ventio-ci-drop-to-nobody ""
+2026-11-20T08:32:05.6318521Z VENTIO_CI_HELPER_INSTALLED
+2026-11-20T08:32:06.3318881Z 16.16-bookworm: Pulling from library/postgres
+2026-11-20T08:32:06.5249526Z dd051e1b8c92: Pulling fs layer
+2026-11-20T08:32:06.5249746Z 6a4532185442: Pulling fs layer
+2026-11-20T08:32:06.5249922Z e01b8211445d: Pulling fs layer
+2026-11-20T08:32:06.5250102Z b10b97dfa536: Pulling fs layer
+2026-11-20T08:32:06.5250243Z fbbfe9fcbe50: Pulling fs layer
+2026-11-20T08:32:06.5250378Z dc6bf56a234d: Pulling fs layer
+2026-11-20T08:32:06.5250509Z d77f9a0500e9: Pulling fs layer
+2026-11-20T08:32:06.5250639Z 00b8083222f2: Pulling fs layer
+2026-11-20T08:32:06.5250839Z 749d6e80e5ad: Pulling fs layer
+2026-11-20T08:32:06.5251173Z 4e54a2d32bcb: Pulling fs layer
+2026-11-20T08:32:06.5251300Z 043a89842d5e: Pulling fs layer
+2026-11-20T08:32:06.5251428Z dc6bf56a234d: Waiting
+2026-11-20T08:32:06.5251551Z 2b352a837bac: Pulling fs layer
+2026-11-20T08:32:06.5251855Z 8c64053f5050: Pulling fs layer
+2026-11-20T08:32:06.5252036Z d77f9a0500e9: Waiting
+2026-11-20T08:32:06.5252198Z b10b97dfa536: Waiting
+2026-11-20T08:32:06.5252358Z 00b8083222f2: Waiting
+2026-11-20T08:32:06.5252524Z 2b352a837bac: Waiting
+2026-11-20T08:32:06.5252874Z 749d6e80e5ad: Waiting
+2026-11-20T08:32:06.5253037Z 4e54a2d32bcb: Waiting
+2026-11-20T08:32:06.5253199Z 8c64053f5050: Waiting
+2026-11-20T08:32:06.5253357Z 043a89842d5e: Waiting
+2026-11-20T08:32:06.5253536Z fbbfe9fcbe50: Waiting
+2026-11-20T08:32:06.7105444Z 6a4532185442: Download complete
+2026-11-20T08:32:06.7797285Z e01b8211445d: Verifying Checksum
+2026-11-20T08:32:06.7797591Z e01b8211445d: Download complete
+2026-11-20T08:32:06.8925079Z dd051e1b8c92: Verifying Checksum
+2026-11-20T08:32:06.8928026Z dd051e1b8c92: Download complete
+2026-11-20T08:32:06.9257623Z b10b97dfa536: Verifying Checksum
+2026-11-20T08:32:06.9257905Z b10b97dfa536: Download complete
+2026-11-20T08:32:07.0675387Z fbbfe9fcbe50: Verifying Checksum
+2026-11-20T08:32:07.0675730Z fbbfe9fcbe50: Download complete
+2026-11-20T08:32:07.0874368Z d77f9a0500e9: Verifying Checksum
+2026-11-20T08:32:07.0875090Z d77f9a0500e9: Download complete
+2026-11-20T08:32:07.1289433Z dc6bf56a234d: Verifying Checksum
+2026-11-20T08:32:07.1289745Z dc6bf56a234d: Download complete
+2026-11-20T08:32:07.2310166Z 00b8083222f2: Download complete
+2026-11-20T08:32:07.2865333Z 4e54a2d32bcb: Verifying Checksum
+2026-11-20T08:32:07.2865829Z 4e54a2d32bcb: Download complete
+2026-11-20T08:32:07.3891605Z 043a89842d5e: Download complete
+2026-11-20T08:32:07.4369982Z 2b352a837bac: Verifying Checksum
+2026-11-20T08:32:07.4370455Z 2b352a837bac: Download complete
+2026-11-20T08:32:07.5551602Z 8c64053f5050: Verifying Checksum
+2026-11-20T08:32:07.5552066Z 8c64053f5050: Download complete
+2026-11-20T08:32:07.6335232Z 749d6e80e5ad: Verifying Checksum
+2026-11-20T08:32:07.6335450Z 749d6e80e5ad: Download complete
+2026-11-20T08:32:08.0699802Z dd051e1b8c92: Pull complete
+2026-11-20T08:32:08.4794202Z 6a4532185442: Pull complete
+2026-11-20T08:32:13.3569011Z e01b8211445d: Pull complete
+2026-11-20T08:32:13.4271147Z b10b97dfa536: Pull complete
+2026-11-20T08:32:13.8061731Z fbbfe9fcbe50: Pull complete
+2026-11-20T08:32:13.8767461Z dc6bf56a234d: Pull complete
+2026-11-20T08:32:13.8848551Z d77f9a0500e9: Pull complete
+2026-11-20T08:32:13.8918435Z 00b8083222f2: Pull complete
+2026-11-20T08:32:17.6529997Z 749d6e80e5ad: Pull complete
+2026-11-20T08:32:17.6615039Z 4e54a2d32bcb: Pull complete
+2026-11-20T08:32:17.6712716Z 043a89842d5e: Pull complete
+2026-11-20T08:32:17.7019579Z 2b352a837bac: Pull complete
+2026-11-20T08:32:17.7081106Z 8c64053f5050: Pull complete
+2026-11-20T08:32:17.7109484Z Digest: sha256:ce3efec6bc404f6b15ebf5d9bed6b45a9d4655aea238d7dacc3467ccb05a1175
+2026-11-20T08:32:17.7122125Z Status: Downloaded newer image for postgres:16.16-bookworm
+2026-11-20T08:32:17.7128868Z docker.io/library/postgres:16.16-bookworm
+2026-11-20T08:32:17.7477564Z ##[group]Run python3 tests/wave2/run_hosted_tests.py linux
+2026-11-20T08:32:17.7477827Z [36;1mpython3 tests/wave2/run_hosted_tests.py linux[0m
+2026-11-20T08:32:17.7493218Z shell: /usr/bin/bash -e {0}
+2026-11-20T08:32:17.7493349Z env:
+2026-11-20T08:32:17.7493487Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:32:17.7493655Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:32:17.7493793Z ##[endgroup]
+2026-11-20T08:32:21.7681509Z Starting suite H
+2026-11-20T08:32:38.0324225Z PASS W2-H001 [D09,J04] Platform routes reject missing and invalid bearer credentials
+2026-11-20T08:32:38.1547142Z PASS W2-H002 [D09,B02] Real session discovery resolves current authoritative actor and scope
+2026-11-20T08:32:38.3476042Z PASS W2-H003 [J04,B02] Platform methods content type versions and unknown properties fail strictly
+2026-11-20T08:32:38.4690871Z PASS W2-H004 [J04] Malformed UTF-8 oversized bodies and excessive nesting fail before gateway execution
+2026-11-20T08:32:40.2235520Z PASS W2-H005 [M02,D09] A stale authenticated snapshot cannot retain revoked configuration authority
+2026-11-20T08:32:41.7387286Z PASS W2-H006 [M02,D09] Later user grants cannot widen a credential ceiling
+2026-11-20T08:32:42.4854458Z PASS W2-H007 [C09,K09] Definition publication retries are idempotent and request reuse with different content conflicts
+2026-11-20T08:32:42.9615350Z PASS W2-H008 [B09,C09,K09] Concurrent same-revision saves yield exactly one winner
+2026-11-20T08:32:43.7017644Z PASS W2-H009 [B09,C08,C09] User-owned definitions stay separate for actors and tenants
+2026-11-20T08:32:44.0810431Z PASS W2-H010 [C09,M02] Company branch pairs are checked exactly and shared settings remain scoped
+2026-11-20T08:33:10.7118710Z PASS W2-H011 [B09,C09] Hundred-definition owner bound refuses the next save without dropping content
+2026-11-20T08:33:11.2979014Z PASS W2-H012 [M02] Configuration persists through HTTP reassembly and denied writes have no effect
+2026-11-20T08:33:11.6855630Z PASS W2-H013 [A11,A12] SQL and Core effective overlays agree while approved package bytes stay immutable
+2026-11-20T08:33:12.0505684Z PASS W2-H014 [A12,K09] Wrong base digest and destructive field conversion fail without advancing revision
+2026-11-20T08:33:12.2703887Z PASS W2-H015 [A12,D08] Authoritative record writes use effective custom fields and preserve old records
+2026-11-20T08:33:13.9764028Z PASS W2-H016 [D08,J01] Import preview requires current create and field-write grants
+2026-11-20T08:33:14.1037104Z PASS W2-H017 [J01,J03] Preview preserves sparse source rows and detects readable existing IDs
+2026-11-20T08:33:14.7283554Z PASS W2-H018 [M02,J01] Configured import row bound is consumed by the real gateway
+2026-11-20T08:33:15.0504053Z PASS W2-H019 [K08,D08] Export projection matches query and safely escapes formula strings
+2026-11-20T08:33:15.2751555Z PASS W2-H020 [K08,B09,D08] Hidden fields cannot be used to filter or sort visible exports
+2026-11-20T08:33:16.0122005Z PASS W2-H021 [K08,B09] Query cursors bind pagination to filter sort limit release and scope
+2026-11-20T08:33:16.3009484Z PASS W2-H022 [H04] History is ordered metadata-only activity and command replay creates no duplicate event
+2026-11-20T08:33:17.0003768Z PASS W2-H023 [H04] History cursor and deleted-ID lookup stay record and tenant bound
+2026-11-20T08:33:17.8022628Z PASS W2-H024 [M01] Organization CAS retries do not duplicate entities or confer grants
+2026-11-20T08:33:18.3064413Z PASS W2-H025 [M01,D09] Current scope cannot be archived and unauthorized hierarchy changes are denied
+2026-11-20T08:33:18.5308417Z PASS W2-H026 [C12,F05] Dashboard report query uses approved metadata and rejects unknown filters/report IDs
+2026-11-20T08:33:18.6407046Z PASS W2-H027 [M05,M09] HTTP operation requests do not execute local operations when not provisioned
+2026-11-20T08:33:28.9463198Z PASS W2-H028 [A12,K09] Rebase agrees with Core and requires every affected scope atomically before approval
+2026-11-20T08:33:29.2908992Z PASS W2-H029 [F05,C08,D09] Release revocation denies metadata queries and dashboard reports despite stored local definitions
+2026-11-20T08:33:32.2240697Z Starting suite J
+2026-11-20T08:33:49.4868170Z PASS W2-J001 [J03,L01] Jobs accept one and twenty-five commands and remain cancellable before dispatch
+2026-11-20T08:33:49.6054505Z PASS W2-J002 [J03,J04] Empty twenty-six-command and oversized wire jobs are rejected
+2026-11-20T08:33:49.6796693Z PASS W2-J003 [J03,L01] Duplicate command IDs in one job are refused by SQL
+2026-11-20T08:33:49.7587542Z PASS W2-J004 [B02,J04] Direct job envelopes receive strict HTTP command-shape validation
+2026-11-20T08:33:49.9955925Z PASS W2-J005 [D08,D09,J03] Job tenant actor device scope dependencies and delete restrictions are enforced
+2026-11-20T08:33:50.3874888Z PASS W2-J006 [J03,L01] Lost submit-response retries preserve identity; changed payload or source labels conflict
+2026-11-20T08:33:50.6283599Z PASS W2-J007 [J03] Source-row labels must match commands be unique integers and retain original range
+2026-11-20T08:33:50.8567354Z PASS W2-J008 [L01,D08] Public job listing redacts command payloads digests and lease tokens
+2026-11-20T08:33:51.2672393Z PASS W2-J009 [L01] Concurrent real transactions cannot claim the same runnable job twice
+2026-11-20T08:33:51.7095331Z PASS W2-J010 [L01,J03] Expired lease is reclaimed and stale completion is fenced
+2026-11-20T08:33:52.2235941Z PASS W2-J011 [L01,J03] Retry transition retains row identity backoff and original source correlation
+2026-11-20T08:33:53.1343818Z PASS W2-J012 [L01] Five failed attempts produce bounded terminal rejection without an effect
+2026-11-20T08:33:53.4700489Z PASS W2-J013 [L01,J03] Cancellation before claim prevents execution and is idempotent
+2026-11-20T08:33:53.8508804Z PASS W2-J014 [L01,J03] In-flight acceptance survives cancellation with original source row
+2026-11-20T08:33:54.1923216Z PASS W2-J015 [L01,J03] Cancellation during ambiguous retry records unknown outcome without automatic replay
+2026-11-20T08:33:59.0719830Z PASS W2-J016 [D09,L01] Revocation before claim prevents execution under the stored credential
+2026-11-20T08:34:03.7065564Z PASS W2-J017 [D08,D09,L01] Authority is rechecked inside effect after claim even with a stale session
+2026-11-20T08:34:05.1549248Z PASS W2-J018 [M02,L01] Scoped jobsPaused and maintenanceMode prevent claims until cleared
+2026-11-20T08:34:05.4096525Z PASS W2-J019 [L01,J03,M02] Terminal archival scrubs executable state and keeps IDs hashes totals labels and outcomes
+2026-11-20T08:34:05.9538265Z PASS W2-J020 [J03,L01] Real timed worker executes rows and retains nonconsecutive CSV source labels
+2026-11-20T08:34:06.4760988Z PASS W2-J021 [J03,L01] Commit-before-finish recovery replays the journal receipt instead of duplicating effect
+2026-11-20T08:34:06.9803612Z PASS W2-J022 [L01,J03] Two real workers finish one job without duplicate journal audit or outbox effects
+2026-11-20T08:34:07.5519436Z PASS W2-J023 [L01,D09] Missing independent recovery witness fails closed and records safe worker diagnostics
+2026-11-20T08:34:07.9076607Z PASS W2-J024 [L01,D08] Job visibility and cancellation respect actor ownership and tenant
+2026-11-20T08:34:15.3279044Z PASS W2-J025 [L01] Twenty-active-job ceiling is per actor and does not silently discard jobs
+2026-11-20T08:34:15.7294793Z PASS W2-J026 [K10,L01,J04] Undeclared governed operation cannot acquire an executable handler through a job
+2026-11-20T08:34:19.6601676Z PASS W2-J027 [L01,J03] An actually terminated worker with a committed claim is recovered by a fresh process exactly once
+2026-11-20T08:34:22.6696146Z Starting suite D
+2026-11-20T08:34:39.9530169Z PASS W2-D001 [B02,M01,M02,L01] All forty-one migration identities match canonical repository sources
+2026-11-20T08:34:39.9747908Z PASS W2-D002 [B02] Applying the same migration directory is idempotent
+2026-11-20T08:34:39.9772580Z PASS W2-D003 [M01,A12,L01,M05,M09] Every new private Wave 2 table has owner RLS FORCE RLS and no public grants
+2026-11-20T08:34:40.0506530Z PASS W2-D004 [D08,M01,L01] Operational roles cannot directly read or mutate private Wave 2 storage
+2026-11-20T08:34:40.0782013Z PASS W2-D005 [L01,M05,M09] Runtime cannot claim finish or manufacture trusted local-operation outcomes
+2026-11-20T08:34:40.2453028Z PASS W2-D006 [D08,D09,H04] Forged tenant and actor GUCs do not create an RLS proof
+2026-11-20T08:34:40.9132833Z PASS W2-D007 [B09,C09,D08] SQL-level saved definitions derive tenant from real digest and remain actor isolated
+2026-11-20T08:34:43.1589099Z PASS W2-D008 [M01,M02,A12] Platform administration permission cannot be manufactured through a business role
+2026-11-20T08:34:43.1816309Z PASS W2-D009 [B02] A later failed migration rolls back earlier new DDL and ledger entries
+2026-11-20T08:34:43.1977568Z PASS W2-D010 [B02,D09] Modified applied checksum is rejected before additional migrations execute
+2026-11-20T08:34:45.7578445Z PASS W2-D011 [M09,J03,L01,D09] Logical restore retains Wave 2 data and receipts but cannot resurrect revoked authority
+2026-11-20T08:34:48.9210197Z Starting suite O
+2026-11-20T08:35:05.0131012Z PASS W2-O001 [M05] SQL prepares no scheduled operation before an explicit approved policy outcome
+2026-11-20T08:35:05.1713249Z PASS W2-O002 [M05,M09,D09] Operation identity is idempotent and tenant-bound; unauthorized callers cannot prepare
+2026-11-20T08:35:05.2920886Z PASS W2-O003 [M05] SQL approved-policy transition produces one daily offer with stable request identity
+2026-11-20T08:35:05.6464259Z PASS W2-O004 [M05] SQL schedule retry requires known retryable failure backoff and bounded attempt count
+2026-11-20T08:35:06.2591835Z PASS W2-O005 [M05,M02] Changing or disabling policy invalidates old approval instead of silently rearming
+2026-11-20T08:35:06.5145824Z PASS W2-O006 [M05,M09] Trusted outcome inputs are fenced by offer identity exact scope and terminal immutability
+2026-11-20T08:35:06.7809725Z PASS W2-O007 [M09] SQL restore preparation requires a recent successful exact backup plan
+2026-11-20T08:35:07.1355669Z PASS W2-O008 [M05,D09] Expired pending requests and revoked credentials lose executable offers
+2026-11-20T08:35:10.0101265Z Starting suite U
+2026-11-20T08:35:27.9221502Z PASS W2-U001 [B02,M01] Materialize exact accepted baseline and seed representative legacy records and identity
+2026-11-20T08:35:28.3443914Z PASS W2-U002 [B02,M01,M02,A12,L01] Witness-aware 036/040-to-041 transitions preserve data and reapply real security contracts
+2026-11-20T08:35:28.5313065Z PASS W2-U003 [B02,M09] Replaying the same completed transition does not run its migration callback again
+2026-11-20T08:35:31.5720316Z Starting suite U
+2026-11-20T08:35:49.7528241Z PASS W2-U001 [B02,M01] Materialize exact accepted baseline and seed representative legacy records and identity
+2026-11-20T08:35:50.3639853Z PASS W2-U002 [B02,M01,M02,A12,L01] Witness-aware 036/040-to-041 transitions preserve data and reapply real security contracts
+2026-11-20T08:35:50.5412699Z PASS W2-U003 [B02,M09] Replaying the same completed transition does not run its migration callback again
+2026-11-20T08:35:58.1444103Z Starting suite R
+2026-11-20T08:35:59.7997760Z PASS: Audit subprocess really runs under the separate nobody OS identity
+2026-11-20T08:36:01.0472699Z PASS: Recovery witness matches database after initial identity setup
+2026-11-20T08:36:01.2302431Z PASS: Remote Host rejects group-readable TLS private keys
+2026-11-20T08:36:01.3898011Z PASS: Same-UID Host cannot claim independently protected witness ownership (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+2026-11-20T08:36:01.3898725Z )
+2026-11-20T08:36:01.5287504Z PASS: Wrong configured witness owner is rejected (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+2026-11-20T08:36:01.5287922Z )
+2026-11-20T08:36:01.6791399Z PASS: Writable witness directory is rejected even when the file is read-only (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+2026-11-20T08:36:01.6791787Z )
+2026-11-20T08:36:01.7355436Z PASS: Host OS account cannot overwrite, unlink, rename witness or read admin connection secrets
+2026-11-20T08:36:01.9777132Z PASS: Recovery witness tracks the temporary unknown migration
+2026-11-20T08:36:02.0375196Z PASS: Unknown migration ledger entry blocks startup (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+2026-11-20T08:36:02.0375558Z )
+2026-11-20T08:36:02.2764096Z PASS: Recovery witness matches database after migration test cleanup
+2026-11-20T08:36:02.8880472Z PASS W2-R001 [B02,D09,J04] WB-CI-02: a changed manifest returns an actual 503 HOST_UNAVAILABLE without transport substitution or effects
+2026-11-20T08:36:02.9916777Z PASS W2-R002 [B02,D09] WB-CI-02: removing the fixture mutation restores admission on the same process
+2026-11-20T08:36:03.0463526Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:03.0475279Z PASS: Liveness remains distinct from security/database readiness
+2026-11-20T08:36:03.1382887Z PASS: FIFO input is rejected before a blocking open can hang the helper
+2026-11-20T08:36:14.5108260Z PASS: Timed-out private-file helper is killed and reaped
+2026-11-20T08:36:15.0366747Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.0402537Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.0858953Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.0884109Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.1360554Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.1388911Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.1858524Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.1887768Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.2382394Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.2410627Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.2947254Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.2980230Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.3483836Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.3514819Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.4039436Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:15.4074378Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:15.5044583Z BENCHMARK: {"fixtureUsers":10,"fixtureAudit":100,"actualRows":{"users":11,"devices":21,"credentials":21,"grants":11,"audit":105},"fingerprintMs":{"min":0.449,"median":0.677,"p95":1.374,"max":1.374},"httpConcurrency":4,"httpSamples":8,"httpMs":{"min":82.387,"median":97.282,"p95":167.973,"max":167.973},"httpAcceptedWithoutRetry":8,"rlsReadLimit":20,"rlsReadRows":10,"rlsReadMs":53.079,"rlsReadSqlState":null}
+2026-11-20T08:36:15.5045539Z PASS: Bounded small-profile acceptance: eight accepted commands, p95 below ten seconds, scoped read completes
+2026-11-20T08:36:16.1763522Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.1790099Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.2258079Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.2285319Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.2756533Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.2780444Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.3260416Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.3291555Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.3789854Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.3819217Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.4349571Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.4382731Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.4909571Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.4946580Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.5484680Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:16.5517727Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:16.6292987Z BENCHMARK: {"fixtureUsers":100,"fixtureAudit":5000,"actualRows":{"users":101,"devices":201,"credentials":201,"grants":101,"audit":5005},"fingerprintMs":{"min":0.401,"median":0.457,"p95":2.037,"max":2.037},"httpConcurrency":4,"httpSamples":8,"httpMs":{"min":79.151,"median":87.25,"p95":97.493,"max":97.493},"httpAcceptedWithoutRetry":8,"rlsReadLimit":20,"rlsReadRows":18,"rlsReadMs":50.645,"rlsReadSqlState":null}
+2026-11-20T08:36:19.3792699Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.3815523Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.4289909Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.4317651Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.4804071Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.4826104Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.5295909Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.5321606Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.5815911Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.5841807Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.6341688Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.6368074Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.6840793Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.6863876Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.7343741Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:19.7367584Z PASS: Concurrent profile reconciles one complete effect per command
+2026-11-20T08:36:19.8101653Z BENCHMARK: {"fixtureUsers":1000,"fixtureAudit":20000,"actualRows":{"users":1001,"devices":2001,"credentials":2001,"grants":1001,"audit":20005},"fingerprintMs":{"min":0.49,"median":0.519,"p95":2.248,"max":2.248},"httpConcurrency":4,"httpSamples":8,"httpMs":{"min":71.271,"median":77.783,"p95":86.844,"max":86.844},"httpAcceptedWithoutRetry":8,"rlsReadLimit":20,"rlsReadRows":20,"rlsReadMs":47.506,"rlsReadSqlState":null}
+2026-11-20T08:36:20.0143239Z PASS: Pending authority closes new command admission during administrative commit
+2026-11-20T08:36:20.1069518Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:25.1346301Z PASS: Database lock timeout produces no false acceptance
+2026-11-20T08:36:25.1874164Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:25.1899665Z PASS: Lock-timeout retry does not duplicate command effects
+2026-11-20T08:36:25.2588832Z PASS: SIGTERM drains the admitted real PostgreSQL command
+2026-11-20T08:36:25.2635628Z PASS: OS-separated production launcher exits after its drain
+2026-11-20T08:36:25.4176017Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:25.4209916Z PASS: OS-separated Host shuts down cleanly
+2026-11-20T08:36:25.4244092Z PASS: Post-shutdown replay retains exactly one durable effect
+2026-11-20T08:36:28.1385320Z PASS: Witness-only rollback is denied against current identity state (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+2026-11-20T08:36:28.1387166Z )
+2026-11-20T08:36:28.2620186Z PASS: Database-only rollback is denied against latest independent witness (exit=2; diagnostic=Local Host startup failed. Check private server configuration.
+2026-11-20T08:36:28.2621723Z )
+2026-11-20T08:36:28.4463971Z PASS: Audited launcher accepts a scoped durable command (http=200, receipt=ACCEPTED, reason=null)
+2026-11-20T08:36:28.4464398Z PASS: Known production blocker reproduced: rolling back BOTH trusted copies cannot prove freshness locally
+2026-11-20T08:36:28.4490246Z PASS: OS-separated Host shuts down cleanly
+2026-11-20T08:36:28.4653779Z ENVIRONMENT: {"dart":"3.13.7","postgres":"16.16 (Debian 16.16-1.pgdg12+1)","visibleLogicalProcessors":4,"os":"linux","architecture":"x86_64"}
+2026-11-20T08:36:28.4654273Z RESULT: 78 engineering audit assertions passed
+2026-11-20T08:36:28.9894679Z ##[group]Run subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885
+2026-11-20T08:36:28.9894916Z with:
+2026-11-20T08:36:28.9895121Z   flutter-version: 3.44.1
+2026-11-20T08:36:28.9895268Z   channel: stable
+2026-11-20T08:36:28.9895376Z   cache: false
+2026-11-20T08:36:28.9895486Z   architecture: X64
+2026-11-20T08:36:28.9895606Z   pub-cache-path: default
+2026-11-20T08:36:28.9895728Z env:
+2026-11-20T08:36:28.9895852Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:36:28.9896026Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:36:28.9896168Z ##[endgroup]
+2026-11-20T08:36:28.9943013Z ##[start-action display=Make setup script executable;id=__subosito_flutter-action.__run]
+2026-11-20T08:36:28.9959413Z ##[group]Run chmod +x "$GITHUB_ACTION_PATH/setup.sh"
+2026-11-20T08:36:28.9959627Z [36;1mchmod +x "$GITHUB_ACTION_PATH/setup.sh"[0m
+2026-11-20T08:36:28.9976440Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-11-20T08:36:28.9976620Z env:
+2026-11-20T08:36:28.9976780Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:36:28.9977135Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:36:28.9977278Z ##[endgroup]
+2026-11-20T08:36:29.0023580Z ##[end-action id=__subosito_flutter-action.__run;outcome=success;conclusion=success;duration_ms=7]
+2026-11-20T08:36:29.0025077Z ##[start-action display=Set action inputs;id=__subosito_flutter-action.flutter-action]
+2026-11-20T08:36:29.0036766Z ##[group]Run $GITHUB_ACTION_PATH/setup.sh -p \
+2026-11-20T08:36:29.0037197Z [36;1m$GITHUB_ACTION_PATH/setup.sh -p \[0m
+2026-11-20T08:36:29.0037355Z [36;1m  -n '3.44.1' \[0m
+2026-11-20T08:36:29.0037477Z [36;1m  -f '' \[0m
+2026-11-20T08:36:29.0037589Z [36;1m  -a 'X64' \[0m
+2026-11-20T08:36:29.0037702Z [36;1m  -k '' \[0m
+2026-11-20T08:36:29.0037807Z [36;1m  -c '' \[0m
+2026-11-20T08:36:29.0037914Z [36;1m  -l '' \[0m
+2026-11-20T08:36:29.0038025Z [36;1m  -d 'default' \[0m
+2026-11-20T08:36:29.0038146Z [36;1m  stable[0m
+2026-11-20T08:36:29.0051724Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-11-20T08:36:29.0051902Z env:
+2026-11-20T08:36:29.0052029Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:36:29.0052195Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:36:29.0052340Z ##[endgroup]
+2026-11-20T08:36:29.1820293Z ##[end-action id=__subosito_flutter-action.flutter-action;outcome=success;conclusion=success;duration_ms=179]
+2026-11-20T08:36:29.1823797Z ##[start-action display=Cache Flutter;id=__subosito_flutter-action.__actions_cache]
+2026-11-20T08:36:29.1828731Z ##[end-action id=__subosito_flutter-action.__actions_cache;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-11-20T08:36:29.1829996Z ##[start-action display=Cache pub dependencies;id=__subosito_flutter-action.__actions_cache_2]
+2026-11-20T08:36:29.1832003Z ##[end-action id=__subosito_flutter-action.__actions_cache_2;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-11-20T08:36:29.1832978Z ##[start-action display=Run setup script;id=__subosito_flutter-action.__run_2]
+2026-11-20T08:36:29.1861961Z ##[group]Run $GITHUB_ACTION_PATH/setup.sh \
+2026-11-20T08:36:29.1862152Z [36;1m$GITHUB_ACTION_PATH/setup.sh \[0m
+2026-11-20T08:36:29.1862304Z [36;1m  -n '3.44.1' \[0m
+2026-11-20T08:36:29.1862570Z [36;1m  -a 'x64' \[0m
+2026-11-20T08:36:29.1862733Z [36;1m  -c '/opt/hostedtoolcache/flutter/stable-3.44.1-x64' \[0m
+2026-11-20T08:36:29.1862909Z [36;1m  stable[0m
+2026-11-20T08:36:29.1878444Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-11-20T08:36:29.1878622Z env:
+2026-11-20T08:36:29.1878749Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:36:29.1878918Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:36:29.1879057Z ##[endgroup]
+2026-11-20T08:36:29.3550277Z   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2026-11-20T08:36:29.3550689Z                                  Dload  Upload   Total   Spent    Left  Speed
+2026-11-20T08:36:29.3550883Z 
+2026-11-20T08:36:30.2012403Z   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2026-11-20T08:36:31.2059501Z  16 1470M   16  246M    0     0   291M      0  0:00:05 --:--:--  0:00:05  290M
+2026-11-20T08:36:32.2006282Z  43 1470M   43  637M    0     0   344M      0  0:00:04  0:00:01  0:00:03  344M
+2026-11-20T08:36:33.2002974Z  72 1470M   72 1063M    0     0   373M      0  0:00:03  0:00:02  0:00:01  373M
+2026-11-20T08:36:33.2022927Z  99 1470M   99 1469M    0     0   382M      0  0:00:03  0:00:03 --:--:--  381M
+2026-11-20T08:36:33.2023291Z 100 1470M  100 1470M    0     0   382M      0  0:00:03  0:00:03 --:--:--  382M
+2026-11-20T08:37:11.4489201Z ##[end-action id=__subosito_flutter-action.__run_2;outcome=success;conclusion=success;duration_ms=42265]
+2026-11-20T08:37:11.5504479Z ##[group]Run flutter pub get --enforce-lockfile
+2026-11-20T08:37:11.5504845Z [36;1mflutter pub get --enforce-lockfile[0m
+2026-11-20T08:37:11.5522219Z shell: /usr/bin/bash -e {0}
+2026-11-20T08:37:11.5522359Z env:
+2026-11-20T08:37:11.5522485Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:37:11.5522654Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:37:11.5522835Z   FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.44.1-x64
+2026-11-20T08:37:11.5523014Z ##[endgroup]
+2026-11-20T08:37:14.7298503Z Resolving dependencies...
+2026-11-20T08:37:15.1239745Z Downloading packages...
+2026-11-20T08:37:15.9857466Z   archive 4.5.2 (4.7.1 available)
+2026-11-20T08:37:15.9857788Z   clock 1.1.2 (1.1.3 available)
+2026-11-20T08:37:15.9858002Z   code_assets 1.2.1 (2.2.0 available)
+2026-11-20T08:37:15.9858230Z   crypto 3.0.6 (3.0.8 available)
+2026-11-20T08:37:15.9858440Z   hooks 2.0.2 (2.2.0 available)
+2026-11-20T08:37:15.9858636Z   image 4.12.0 (4.13.1 available)
+2026-11-20T08:37:15.9858931Z   jni 1.1.0 (1.2.1 available)
+2026-11-20T08:37:15.9859127Z   jni_flutter 1.0.4+1 (1.1.0 available)
+2026-11-20T08:37:15.9859346Z   matcher 0.12.19 (0.12.20 available)
+2026-11-20T08:37:15.9859590Z   material_color_utilities 0.13.0 (0.13.1 available)
+2026-11-20T08:37:15.9859843Z   meta 1.18.0 (1.19.0 available)
+2026-11-20T08:37:15.9859993Z   native_toolchain_c 0.19.2 (0.19.6 available)
+2026-11-20T08:37:15.9860150Z   objective_c 9.5.0 (9.6.4 available)
+2026-11-20T08:37:15.9860294Z   petitparser 7.0.2 (7.1.0 available)
+2026-11-20T08:37:15.9860446Z   posix 6.5.3 (6.5.4 available)
+2026-11-20T08:37:15.9860584Z   postgres 3.5.20 (3.6.0 available)
+2026-11-20T08:37:15.9860722Z   qr 3.0.2 (4.0.1 available)
+2026-11-20T08:37:15.9860852Z   record_use 0.6.0 (1.1.1 available)
+2026-11-20T08:37:15.9860987Z   sqflite 2.4.5 (2.4.6 available)
+2026-11-20T08:37:15.9861123Z   sqflite_android 2.4.5 (2.4.6 available)
+2026-11-20T08:37:15.9861270Z   sqflite_common 2.5.14 (2.5.17 available)
+2026-11-20T08:37:15.9861422Z   sqflite_common_ffi 2.4.5 (2.4.7 available)
+2026-11-20T08:37:15.9861570Z   sqflite_darwin 2.4.4+1 (2.4.6 available)
+2026-11-20T08:37:15.9861729Z   sqflite_platform_interface 2.4.3 (2.4.4 available)
+2026-11-20T08:37:15.9861885Z   sqlite3 3.5.2 (3.9.1 available)
+2026-11-20T08:37:15.9862019Z   stack_trace 1.12.1 (1.12.2 available)
+2026-11-20T08:37:15.9862159Z   synchronized 3.5.0 (3.6.1+1 available)
+2026-11-20T08:37:15.9862299Z   test_api 0.7.11 (0.7.15 available)
+2026-11-20T08:37:15.9862434Z   vector_math 2.2.0 (2.4.4 available)
+2026-11-20T08:37:15.9862760Z   web 1.1.1 (1.1.2 available)
+2026-11-20T08:37:15.9862883Z   xml 7.0.1 (7.1.0 available)
+2026-11-20T08:37:15.9864225Z Got dependencies!
+2026-11-20T08:37:15.9864485Z 31 packages have newer versions incompatible with dependency constraints.
+2026-11-20T08:37:15.9864824Z Try `flutter pub outdated` for more information.
+2026-11-20T08:37:16.2139965Z ##[group]Run python3 tests/wave2/run_hosted_tests.py offline
+2026-11-20T08:37:16.2140376Z [36;1mpython3 tests/wave2/run_hosted_tests.py offline[0m
+2026-11-20T08:37:16.2161463Z shell: /usr/bin/bash -e {0}
+2026-11-20T08:37:16.2161676Z env:
+2026-11-20T08:37:16.2161878Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:37:16.2162147Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:37:16.2162433Z   FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.44.1-x64
+2026-11-20T08:37:16.2162706Z ##[endgroup]
+2026-11-20T08:37:22.0004649Z Starting suite E
+2026-11-20T08:37:24.2626041Z {"protocolVersion":"0.1.1","runnerVersion":null,"pid":11645,"type":"start","time":0}
+2026-11-20T08:37:24.3434801Z {"suite":{"id":0,"platform":"vm","path":"/home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"suite","time":0}
+2026-11-20T08:37:24.3441899Z {"test":{"id":1,"name":"loading /home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart","suiteID":0,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":0}
+2026-11-20T08:37:24.3474757Z {"count":1,"time":4,"type":"allSuites"}
+2026-11-20T08:37:32.5372499Z 
+2026-11-20T08:37:32.5373197Z [{"event":"test.startedProcess","params":{"vmServiceUri":null}}]
+2026-11-20T08:37:32.8180853Z {"testID":1,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":8474}
+2026-11-20T08:37:32.8193006Z {"group":{"id":2,"suiteID":0,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":6,"line":null,"column":null,"url":null},"type":"group","time":8476}
+2026-11-20T08:37:32.8196072Z {"test":{"id":3,"name":"(setUpAll)","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":104,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":8476}
+2026-11-20T08:37:50.6284346Z {"testID":3,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":26285}
+2026-11-20T08:37:50.6289282Z {"test":{"id":4,"name":"W2-E001 [K09,C09,J03] offline queued intent survives reopen and reconnect gets a real Host receipt","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":134,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":26285}
+2026-11-20T08:37:50.8419298Z {"testID":4,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":26498}
+2026-11-20T08:37:50.8422306Z {"test":{"id":5,"name":"W2-E002 [J03,K09,L01] real lost response after commit is recovered without duplicate effects","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":160,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":26499}
+2026-11-20T08:37:51.1556230Z {"testID":5,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":26811}
+2026-11-20T08:37:51.1557836Z {"test":{"id":6,"name":"W2-E003 [K09,J03,D08] two identities conflict and explicitly reconcile while old receipts remain immutable","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":197,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":26812}
+2026-11-20T08:37:51.5463047Z {"testID":6,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":27203}
+2026-11-20T08:37:51.5465888Z {"test":{"id":7,"name":"W2-E004 [K09,D09] reconciliation cannot redirect a terminal draft to another owner scope record or device","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":251,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":27203}
+2026-11-20T08:37:51.8351107Z {"testID":7,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":27491}
+2026-11-20T08:37:51.8354441Z {"test":{"id":8,"name":"W2-E005 [A12,K09] effective-schema queue receipts never project into the immutable base-package cache","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":292,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":27492}
+2026-11-20T08:37:51.9608267Z {"testID":8,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":27617}
+2026-11-20T08:37:51.9609993Z {"test":{"id":9,"name":"W2-E006 [D08,D09,K09] revocation prevents queued offline work from becoming Host-confirmed","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":330,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":27617}
+2026-11-20T08:37:56.2879358Z {"testID":9,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":31944}
+2026-11-20T08:37:56.2883391Z {"test":{"id":10,"name":"(tearDownAll)","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":110,"column":3,"url":"file:///home/runner/work/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_offline_integration.dart"},"type":"testStart","time":31945}
+2026-11-20T08:37:56.2977561Z {"testID":10,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":31954}
+2026-11-20T08:37:56.3173296Z {"success":true,"type":"done","time":31974}
+2026-11-20T08:37:56.8454205Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+2026-11-20T08:37:56.8454428Z with:
+2026-11-20T08:37:56.8454617Z   name: wave2-hosted-linux-81661f7f2f10844d0132a5f3b91ab14580ec9a52-44703269459-1
+2026-11-20T08:37:56.8454844Z   path: test-results/wave2/*
+2026-11-20T08:37:56.8454979Z   if-no-files-found: error
+2026-11-20T08:37:56.8455103Z   retention-days: 30
+2026-11-20T08:37:56.8455220Z   compression-level: 6
+2026-11-20T08:37:56.8455338Z   overwrite: false
+2026-11-20T08:37:56.8455457Z   include-hidden-files: false
+2026-11-20T08:37:56.8455580Z env:
+2026-11-20T08:37:56.8455698Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:37:56.8455863Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:37:56.8456039Z   FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.44.1-x64
+2026-11-20T08:37:56.8456224Z ##[endgroup]
+2026-11-20T08:37:56.9595772Z (node:12438) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-20T08:37:56.9596477Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-20T08:37:56.9647589Z With the provided path, there will be 21 files uploaded
+2026-11-20T08:37:56.9649757Z Artifact name is valid!
+2026-11-20T08:37:56.9650186Z Root directory input is valid!
+2026-11-20T08:37:57.2349818Z Beginning upload of artifact content to blob storage
+2026-11-20T08:37:57.2634003Z (node:12438) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-20T08:37:57.4365327Z Uploaded bytes 23884
+2026-11-20T08:37:57.4753280Z Finished uploading artifact content to blob storage!
+2026-11-20T08:37:57.4753849Z SHA256 digest of uploaded artifact zip is 06097bde5f0a77c7f996a5fa7935e969bf5f0180994a46a493dfd7a3ad463194
+2026-11-20T08:37:57.4754830Z Finalizing artifact upload
+2026-11-20T08:37:58.2102604Z Artifact wave2-hosted-linux-81661f7f2f10844d0132a5f3b91ab14580ec9a52-44703269459-1.zip successfully finalized. Artifact ID 14614620519
+2026-11-20T08:37:58.2103586Z Artifact wave2-hosted-linux-81661f7f2f10844d0132a5f3b91ab14580ec9a52-44703269459-1 has been successfully uploaded! Final size is 23884 bytes. Artifact ID is 14614620519
+2026-11-20T08:37:58.2108151Z Artifact download URL: https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459/artifacts/14614620519
+2026-11-20T08:37:58.2246498Z ##[group]Run python3 tests/wave2/run_hosted_tests.py verify-linux
+2026-11-20T08:37:58.2246768Z [36;1mpython3 tests/wave2/run_hosted_tests.py verify-linux[0m
+2026-11-20T08:37:58.2262837Z shell: /usr/bin/bash -e {0}
+2026-11-20T08:37:58.2262972Z env:
+2026-11-20T08:37:58.2263101Z   DART_HOME: /opt/hostedtoolcache/dart/3.13.7/x64
+2026-11-20T08:37:58.2263275Z   PUB_CACHE: /home/runner/.pub-cache
+2026-11-20T08:37:58.2263473Z   FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.44.1-x64
+2026-11-20T08:37:58.2263891Z ##[endgroup]
+2026-11-20T08:37:58.2546543Z {
+2026-11-20T08:37:58.2546830Z   "applicableSuitesNotPassed": []
+2026-11-20T08:37:58.2547234Z }
+2026-11-20T08:37:58.2672363Z Post job cleanup.
+2026-11-20T08:37:58.2712243Z Post job cleanup.
+2026-11-20T08:37:58.3270457Z [command]/usr/bin/git version
+2026-11-20T08:37:58.3334038Z git version 2.56.1
+2026-11-20T08:37:58.3361008Z Temporarily overriding HOME='/home/runner/work/_temp/9b6d9a9e-6f2c-4874-99b7-49aaf819696e' before making global git config changes
+2026-11-20T08:37:58.3361735Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-20T08:37:58.3364970Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Ventio-Framework/Ventio-Framework
+2026-11-20T08:37:58.3401310Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-20T08:37:58.3433983Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-20T08:37:58.3649429Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-20T08:37:58.3686190Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-20T08:37:58.3894181Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-20T08:37:58.3932569Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-20T08:37:58.4250298Z Cleaning up orphan processes
+2026-11-20T08:37:58.4497084Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

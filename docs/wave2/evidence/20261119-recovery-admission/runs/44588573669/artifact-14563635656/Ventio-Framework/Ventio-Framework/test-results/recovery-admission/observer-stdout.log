@@ -1,0 +1,7 @@
+OBS-FIXTURE stage-tool-layout
+OBS-FIXTURE initialize-observer
+OBS-FIXTURE initdb-completed-observer
+OBS-FIXTURE start-isolated-cluster
+OBS-FIXTURE production-initializer-observer
+OBS-FIXTURE initializer-completed-observer
+OBS-FIXTURE seed-real-records

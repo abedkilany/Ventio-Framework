@@ -1,0 +1,10 @@
+00:00 +0: loading C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart
+00:00 +0: real TLS pin probes reject wrong trust and release both socket halves
+00:08 +0 -1: real TLS pin probes reject wrong trust and release both socket halves [E]
+  TimeoutException after 0:00:08.000000: Future not completed
+  dart:async  _startMicrotaskLoop
+  
+00:08 +0 -1: Some tests failed.
+
+Failing tests:
+  C:/Users/User/.codex/worktrees/wave-two-a/Ventio Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves

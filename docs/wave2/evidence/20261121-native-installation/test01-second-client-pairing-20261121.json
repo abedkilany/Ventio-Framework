@@ -1,0 +1,32 @@
+{
+  "case": "TEST01_SECOND_NATIVE_CLIENT_ENROLLMENT_TO_TEST02_HOST",
+  "status": "PASS_ENROLLMENT_SUBSET",
+  "test01Client": "installed Ventio 0.1.24+25 files verified from fa080fc in local 7fb hybrid upgrade; TEST-01 Host upgrade remains failed and stopped",
+  "test02HostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "secondActorId": "usr_9f8a1211de4060e456aa148c13cdc712",
+  "firstAttempt": {
+    "status": "FAIL_EXPECTED_TLS_NAME_VALIDATION",
+    "clientLocalDiagnostic": "HOST_TLS_VALIDATION_FAILED",
+    "correlationId": "cor_32697c085fe86deb07291f30fd418627",
+    "cause": "Host certificate SAN contains DNS TEST-02 and old IP 192.168.1.108, not current IP 192.168.1.100; fingerprint matched but endpoint-name validation correctly denied the new IP."
+  },
+  "safeCorrection": "TEST-01 resolved DNS TEST-02 to 192.168.1.100; second pairing used https://TEST-02:8443 and the same out-of-band certificate SHA-256 fingerprint with a fresh single-use code.",
+  "secondAttempt": {
+    "status": "PASS",
+    "ownerEnteredPairingInRealNativeUI": true,
+    "clientScreen": "Client enrolled; exact company w2-company and branch w2-branch; credential stored securely",
+    "clientCorrelationId": "cor_9975ac24dff2dcc8cbb978801974446f",
+    "clientCredentialExpiresUtc": "2026-12-21T22:29:55Z",
+    "nativeHostProfileSelected": true,
+    "hostApprovedRegistryListedTwoPackages": true
+  },
+  "security": {
+    "rawPairingCodeRecorded": false,
+    "rawCredentialRecorded": false,
+    "temporaryNotesDeleted": 2,
+    "noteProcessesClosed": 2,
+    "tlsValidationBypassed": false,
+    "trustStoreChanged": false
+  },
+  "acceptanceLimit": "Enrollment and authenticated package-list subset only; two-device offline, restart, sync and conflict cases are not yet executed."
+}

@@ -1,0 +1,94 @@
+00:00 +0: loading D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_tls_probe_test.dart
+00:00 +0: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_tls_probe_test.dart: real TLS pin probes reject wrong trust and release both socket halves
+00:01 +1: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: Credentials are keyed by normalized Host origin and can be removed
+00:01 +2: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: Plain HTTP is limited to exact loopback origins
+00:01 +3: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: Endpoint paths, user info and query strings are rejected
+00:01 +4: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: Only opaque token-shaped credentials are stored
+00:01 +5: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: Staged replacements leave the active credential intact and survive expiry
+00:01 +6: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: Pending operator operation reference stores no credential material
+00:01 +7: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: TLS certificate pins are keyed by origin and integrity checked
+00:01 +8: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_credentials_test.dart: corrupt TLS pin fails closed instead of using system roots
+00:02 +9: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: (setUpAll)
+00:02 +9: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: redeems exact v1 route without bearer auth and saves one Host scope
+00:02 +10: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: rejects HTTP even for loopback endpoints
+00:03 +11: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: invalid or expired pairing code exposes safe code and correlation only
+00:03 +12: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: validates version, CLIENT role, exact-scope shape, and credential before saving
+00:03 +13: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: success UI never displays or exports pairing code or credential
+00:04 +14: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: expired token error is useful and records redacted local diagnostics
+00:05 +15: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/client_pairing_test.dart: (tearDownAll)
+00:08 +15: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_transport_test.dart: Sends the canonical command with bearer auth and parses a receipt
+00:08 +16: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_transport_test.dart: A valid Host rejection receipt remains a Host response
+00:08 +17: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_transport_test.dart: Redirect responses are not followed
+00:08 +18: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_transport_test.dart: Authenticated Host errors retain validated correlation references
+00:08 +19: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_transport_test.dart: Mismatched Host correlation references invalidate the response
+00:08 +20: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/host_transport_test.dart: Remote cleartext endpoints are rejected before a request
+00:12 +21: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: (setUpAll)
+00:12 +21: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder exports, reviews and installs a declarative package locally
+00:13 +22: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder exports, reviews and installs a declarative package locally
+00:13 +23: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder exports, reviews and installs a declarative package locally
+00:13 +24: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder exports, reviews and installs a declarative package locally
+00:14 +25: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Removal is blocked by unresolved extension commands
+00:14 +26: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Removal is blocked by unresolved extension commands
+00:14 +27: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Removal is blocked by unresolved extension commands
+00:14 +28: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_workspace_store_test.dart: W2-S003 [K09,C09] a newer Host definition marks conflict without replacing local intent
+00:14 +29: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a bounded report
+00:15 +30: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a bounded report
+00:15 +31: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a bounded report
+00:15 +32: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a bounded report
+00:15 +33: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a bounded report
+00:15 +34: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a bounded report
+00:15 +35: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_workspace_store_test.dart: W2-S009 [B09,C08,C09] owner isolation covers endpoint tenant company branch and actor
+00:15 +36: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a declarative print format
+00:15 +37: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a declarative print format
+00:16 +38: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a declarative print format
+00:16 +39: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a declarative print format
+00:16 +40: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a declarative print format
+00:16 +41: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a declarative print format
+00:16 +42: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Extension Studio builds and exports a declarative print format
+00:16 +43: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_workspace_store_test.dart: W2-S016 [M05,M09] discarding a local retry cannot discard another owner operation
+00:17 +44: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Generated form round-trips long text and table rows
+00:17 +45: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Generated form round-trips long text and table rows
+00:17 +46: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_workspace_store_test.dart: W2-S018 [J03,C09] workspace v2 to v3 preserves import correlation and commands exactly
+00:17 +47: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Typed child grid edits rows and queues the parent atomically
+00:17 +48: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Typed child grid edits rows and queues the parent atomically
+00:17 +49: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Typed child grid edits rows and queues the parent atomically
+00:17 +50: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Typed child grid edits rows and queues the parent atomically
+00:18 +51: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Typed child grid edits rows and queues the parent atomically
+00:19 +52: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/wave2_workspace_store_test.dart: W2-S023 [C08,F05,B09] additive v12 upgrade preserves metadata and projected tampering fails closed
+00:19 +53: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Generated form shows and queues provisional document names
+00:21 +54: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Generated form applies defaults and enforces field precision
+00:21 +55: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder verifies Host and saves an exact granted scope
+00:22 +56: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Users administration entry depends on the Host user permission, not device mode
+00:22 +57: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Host overview and role admin entries require exact scoped permissions
+00:23 +58: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Host device entry follows scoped user permissions, independent of device role
+00:24 +59: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: local diagnostics and Host settings are available before authentication
+00:25 +60: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Host Settings binds a legacy profile to the authenticated admin device
+00:26 +61: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Host Settings rejects a mismatched saved device identity
+00:27 +62: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Client enrollment entry is available without deriving permissions from device role
+00:27 +63: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: durable synchronization queue is available in the integrated app
+00:28 +64: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Changed Host profile identity stops sync before queue attempts
+00:28 +65: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder browses scoped approved packages and installs a draft
+00:29 +66: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder creates, previews, activates and runs a generated DocType
+00:30 +67: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Field editor configures Host-granted field permissions
+00:32 +68: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: DocType Builder authors a validated migration step
+00:32 +69: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: DocType Builder saves declarative numbering settings
+00:32 +70: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Governed operation commands persist and recover from the local queue
+00:33 +71: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: DocType Builder authors a typed child DocType
+00:35 +72: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Conflict review seeds a merge from the selected Host values
+00:35 +73: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Dynamic records read from Host and stay branch scoped
+00:35 +74: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Offline record saves enqueue a durable Host command
+00:36 +75: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Host read denial hides cached records until an authorized refresh succeeds
+00:36 +76: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Host field masks hide details and persist per identity
+00:36 +77: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Startup recovers a saved record missing its queued command
+00:37 +78: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder saves an explicitly selected extension dependency
+00:37 +79: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Builder saves configured list columns and form order
+00:39 +80: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Generated details follow the configured detail fields
+00:39 +81: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Printing refreshes an accepted record from its exact Host scope
+Helvetica-Bold has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:39 +82: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Amend queues a local draft copy for a cancelled document
+00:40 +83: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: The full builder setup flow fits a phone-sized viewport
+00:41 +84: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Generated record list and form fit a phone-sized viewport
+00:41 +85: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: Generated forms follow configured order and preserve hidden values
+00:41 +86: D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/test/extension_studio_test.dart: (tearDownAll)
+00:41 +86: All tests passed!

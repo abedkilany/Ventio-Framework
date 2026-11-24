@@ -1,0 +1,93 @@
+{
+  "case": "PHYSICAL_TEST01_CLIENT_TO_TEST02_HOST_CREATE_OFFLINE_RESTART_SYNC",
+  "observedAtUtc": "2026-11-21T23:17:05.709595+00:00",
+  "branch": "feature/wave-2-a",
+  "engineeringSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+  "installedSources": {
+    "test01Client": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+    "test02Host": "29e36a84875228baf518a2a7030a86bbcb164908",
+    "test02Client": "81661f7f2f10844d0132a5f3b91ab14580ec9a52"
+  },
+  "devices": {
+    "client": "TEST-01 at 192.168.1.106",
+    "authoritativeHost": "TEST-02 at 192.168.1.100"
+  },
+  "scope": {
+    "moduleId": "com.example.wave2",
+    "version": "1.0.0",
+    "companyId": "w2-company",
+    "branchId": "w2-branch"
+  },
+  "approvedPackageSha256": "a0f9d3b7ab560fa4ccc52b4550f6eedb73e4b5d5882275c0823864b66eb195a7",
+  "actualUiAndStorage": [
+    {
+      "phase": "approved_package_on_test01",
+      "result": "PASS",
+      "observed": "Native Install from Host saved Wave 2 fixture 1.0.0 as DRAFT; native Activate on device changed it to ACTIVE_LOCAL; read-only installed SQLite confirmed state."
+    },
+    {
+      "phase": "second_client_host_read",
+      "result": "PASS",
+      "observed": "TEST-01 native Workspace Asset list rendered six actual Host records from TEST-02; authenticated TEST-02 Host query returned six and the approved package digest."
+    },
+    {
+      "phase": "first_client_create_and_sync",
+      "result": "PASS",
+      "observed": "TEST-01 Workspace saved test01 wave2 client record1 to durable local_commands as PENDING, attempt 0; native Sync pending changed it to ACCEPTED, attempt 1 with Host receipt revision 1. TEST-02 authoritative query rose from six to seven and returned the record; TEST-01 native Asset list then displayed seven."
+    },
+    {
+      "phase": "physical_host_outage",
+      "result": "PASS",
+      "observed": "Stopped only VentioHost SCM service on TEST-02 at 2026-11-21T23:10:28Z; VentioPostgres remained Running and TEST-01 TCP TEST-02:8443 was unreachable at 23:11:06Z."
+    },
+    {
+      "phase": "offline_save",
+      "result": "PASS",
+      "observed": "With Host unavailable, TEST-01 native Workspace form saved test01 offline host stopped 20261122. Installed local_commands contained one new extension.record.create PENDING, attempt 0, with no receipt. Native Host-backed list showed HOST_REQUEST_TIMEOUT and no stale Host rows."
+    },
+    {
+      "phase": "client_restart_persistence",
+      "result": "PASS",
+      "observed": "Closed and relaunched installed Ventio Client on TEST-01 while Host remained stopped. Host profile and ACTIVE_LOCAL package reappeared; read-only SQLite main/WAL/SHM copy still contained the same pending command, attempt 0."
+    },
+    {
+      "phase": "host_restart_before_sync",
+      "result": "PASS",
+      "observed": "Started only VentioHost on TEST-02 at 2026-11-21T23:14:33Z, PostgreSQL remained Running. Authenticated Host query still showed exactly seven records and no offline record."
+    },
+    {
+      "phase": "reconnect_sync",
+      "result": "PASS",
+      "observed": "After native Sync pending on TEST-01, the same command became ACCEPTED, attempt 1, receipt revision 1 at 2026-11-21T23:14:58Z. Host query rose to eight and included exactly one test01 offline host stopped 20261122 row."
+    },
+    {
+      "phase": "repeat_sync_no_duplicate",
+      "result": "PASS",
+      "observed": "A second native Sync pending left both local commands ACCEPTED at one attempt each, Host record count eight, and the offline name appearing once."
+    },
+    {
+      "phase": "second_installed_client_convergence",
+      "result": "PASS",
+      "observed": "TEST-02 installed native Workspace Asset displayed all eight authoritative Host records, including both TEST-01 creates after reconnect. This was observed in the actual TEST-02 RDP UI; current source Client version remains uninstalled on TEST-02."
+    }
+  ],
+  "localCommandIds": [
+    "19ee90f1-849b-4634-8b6c-2516cde583c3",
+    "bf01eb53-00dd-4fe2-a2e2-ac5d53d6d966"
+  ],
+  "credentialValuesRecorded": false,
+  "limits": [
+    "Outage used a stopped Host service, not a detached client network adapter.",
+    "TEST-02 native Client is older 81661f7. Its Workspace Asset view converged to eight Host records, but its separate Extension Studio record view still has the pre-5374496 package digest denial. Fresh corrected Client install and retest remain.",
+    "No completed concurrent conflict, permission revocation or full installer upgrade is established by this case."
+  ],
+  "test02OlderClientDigestAnalysis": {
+    "status": "FIX_PRESENT_IN_SOURCE_PENDING_INSTALLED_RETEST",
+    "observedOldUi": "LOCAL_PACKAGE_DIFFERS_FROM_HOST_APPROVED_RELEASE on TEST-02 old Client 81661f7",
+    "storedInstalledBundleSha256": "a0f9d3b7ab560fa4ccc52b4550f6eedb73e4b5d5882275c0823864b66eb195a7",
+    "dartFromJsonToJsonCanonicalRoundtripEqual": true,
+    "authenticatedHostApprovedAndRecordQuerySha256": "a0f9d3b7ab560fa4ccc52b4550f6eedb73e4b5d5882275c0823864b66eb195a7",
+    "sourceFinding": "81661f7 DynamicDocTypePage calculated digest from exportBundle; 5374496 and current 17fa source calculate from readInstalledBundle, preserving approved package identity.",
+    "conclusion": "The old UI denial cannot be explained by a different approved package; corrected installed Client acceptance remains pending."
+  }
+}

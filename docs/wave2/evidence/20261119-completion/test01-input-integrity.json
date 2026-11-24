@@ -1,0 +1,21 @@
+{
+  "case": "TEST01-STAGED-INSTALLER-INTEGRITY",
+  "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+  "runId": "44619230172",
+  "startedAtUtc": "2026-11-20T13:41:29.2451164Z",
+  "status": "PASS_STAGED_INPUT_BYTES_ONLY",
+  "members": [
+    {
+      "name": "Ventio-Setup-0.1.23.exe",
+      "bytes": 108097385,
+      "sha256": "e1b45bf246ed1414fa8de19fe0ecd8d009007be1038982414d59330bbfe1364b"
+    },
+    {
+      "name": "installed-files-44619230172.json",
+      "bytes": 489543,
+      "sha256": "660cd85897a8f1d29aefe9340c4d0eaad43fe0ed97ebdf50d568335ef20d31bc"
+    }
+  ],
+  "nativeInstallerExecuted": false,
+  "completedAtUtc": "2026-11-20T13:41:31.9035621Z"
+}

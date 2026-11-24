@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'app_localization.dart';
 import 'host_user_management.dart';
+import 'host_extension_packages.dart';
+import 'account_sign_in.dart';
 
 /// Host-authoritative user administration for one verified exact branch scope.
 class UsersPermissionsPage extends StatefulWidget {
@@ -14,6 +16,93 @@ class UsersPermissionsPage extends StatefulWidget {
 }
 
 class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
+  bool get _owner => widget.client.verifiedIdentity.scopes.any(
+    (s) => s.permissions.contains('*'),
+  );
+  HostExtensionPackageClient get _accountClient => HostExtensionPackageClient(
+    endpoint: widget.client.endpoint,
+    credentials: widget.client.credentials,
+  );
+
+  Future<void> _accountAction(HostManagedUser user, String action) async {
+    try {
+      if (action == 'login') {
+        final values = await showDialog<Map<String, String>>(
+          context: context,
+          builder: (context) => _AccountLoginDialog(
+            username: user.username ?? '',
+            self: user.actorId == widget.client.verifiedIdentity.actorId,
+          ),
+        );
+        if (values == null) return;
+        await _accountClient.account('manage', {
+          'action': 'SET_LOGIN',
+          'actorId': user.actorId,
+          'companyId': widget.client.companyId,
+          'branchId': widget.client.branchId,
+          ...values,
+        });
+        if (user.actorId == widget.client.verifiedIdentity.actorId) {
+          await widget.client.credentials.clearOfflineAccount(
+            widget.client.endpoint,
+          );
+          accountSessionInvalidated.value++;
+        }
+      } else {
+        await _accountClient.account('manage', {
+          'action': action == 'organization'
+              ? 'SET_ORGANIZATION_ACCESS'
+              : 'REVOKE_SESSIONS',
+          'actorId': user.actorId,
+          if (action == 'organization') 'enabled': !user.organizationWide,
+        });
+      }
+      if (mounted) {
+        await _load();
+        _message(
+          'Account updated. Password changes invalidate existing sign-in sessions.',
+        );
+      }
+    } on HostPackageTransportException catch (e) {
+      if (mounted) _message(e.code);
+    } catch (_) {
+      if (mounted) _message('Account update unavailable.');
+    }
+  }
+
+  Future<void> _selectBranch() async {
+    final scopes = widget.client.verifiedIdentity.scopes;
+    final selected = await showDialog<HostScopeGrant>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const VentioText('native.ui.account_manage_users_in_branch'),
+        children: [
+          for (final scope in scopes)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, scope),
+              child: Text('${scope.companyId} / ${scope.branchId}'),
+            ),
+        ],
+      ),
+    );
+    if (selected == null || !mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => UsersPermissionsPage(
+          client: HostUserManagementClient(
+            endpoint: widget.client.endpoint,
+            credentials: widget.client.credentials,
+            verifiedIdentity: widget.client.verifiedIdentity,
+            companyId: selected.companyId,
+            branchId: selected.branchId,
+          ),
+        ),
+      ),
+    );
+    if (mounted) await _load();
+  }
+
   HostManagedUserSnapshot? _snapshot;
   HostUserAuditSnapshot? _auditSnapshot;
   String? _createdActorId;
@@ -230,6 +319,12 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
           ),
         ),
         actions: [
+          if (_owner)
+            IconButton(
+              onPressed: _selectBranch,
+              icon: const Icon(Icons.account_tree_outlined),
+              tooltip: context.ventioText('native.ui.account_choose_branch_for_user_permissions'),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text(context.ventioText('native.ui.cancel')),
@@ -289,6 +384,12 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
     appBar: AppBar(
       title: const VentioText('native.ui.users_permissions'),
       actions: [
+        if (_owner)
+          IconButton(
+            onPressed: _selectBranch,
+            icon: const Icon(Icons.account_tree_outlined),
+            tooltip: context.ventioText('native.ui.account_choose_branch_for_user_permissions'),
+          ),
         IconButton(
           tooltip: context.ventioText('native.ui.refresh_users'),
           onPressed: _loading || _saving || !widget.client.canManageUsers
@@ -507,7 +608,9 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
             ? Icons.person_outline
             : Icons.person_off_outlined,
       ),
-      title: Text(_displayIdentity(user.actorId)),
+      title: Text(
+        '${user.username ?? _displayIdentity(user.actorId)}${user.isOwner ? ' · Organization Owner' : ''}',
+      ),
       subtitle: SelectableText(
         '${_displayIdentity(user.actorId)} · ${context.ventioText(user.state == HostManagedUserState.active ? 'native.ui.user_active' : 'native.ui.user_disabled_state')}',
       ),
@@ -517,14 +620,37 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
         onSelected: (action) {
           if (action == 'disable') _disableUser(user);
           if (action == 'enable') _enableUser(user);
+          if (['login', 'organization', 'revokeSessions'].contains(action)) {
+            _accountAction(user, action);
+          }
         },
         itemBuilder: (context) => [
-          if (user.state == HostManagedUserState.active)
+          if (!user.isOwner ||
+              user.actorId == widget.client.verifiedIdentity.actorId)
+            const PopupMenuItem(
+              value: 'login',
+              child: VentioText('native.ui.account_set_username_and_password'),
+            ),
+          if (_owner && !user.isOwner)
+            PopupMenuItem(
+              value: 'organization',
+              child: Text(
+                user.organizationWide
+                    ? 'Limit access to assigned branches'
+                    : 'Grant organization-wide branch access',
+              ),
+            ),
+          if (_owner && !user.isOwner)
+            const PopupMenuItem(
+              value: 'revokeSessions',
+              child: VentioText('native.ui.account_revoke_active_sign_in_sessions'),
+            ),
+          if (!user.isOwner && user.state == HostManagedUserState.active)
             PopupMenuItem(
               value: 'disable',
               child: Text(context.ventioText('native.ui.disable_user')),
             )
-          else
+          else if (!user.isOwner)
             PopupMenuItem(
               value: 'enable',
               child: Text(context.ventioText('native.ui.enable_user')),
@@ -553,15 +679,17 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
                     'native.ui.revoke_permission',
                   ),
                   onDeleted:
-                      !_saving &&
+                      !user.isOwner &&
+                          !_saving &&
                           widget.client.canManageUsers &&
-                          HostUserManagementClient.isGrantableNonManagementPermission(
-                            permission,
-                          )
+                          (_owner ||
+                              HostUserManagementClient.isGrantableNonManagementPermission(
+                                permission,
+                              ))
                       ? () => _revokePermission(user, permission)
                       : null,
                 ),
-              if (user.state == HostManagedUserState.active)
+              if (!user.isOwner && user.state == HostManagedUserState.active)
                 ActionChip(
                   avatar: const Icon(Icons.add, size: 18),
                   label: const VentioText('native.ui.grant_permission'),
@@ -591,6 +719,101 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
         ),
       ],
     ),
+  );
+}
+
+class _AccountLoginDialog extends StatefulWidget {
+  const _AccountLoginDialog({required this.username, required this.self});
+  final String username;
+  final bool self;
+  @override
+  State<_AccountLoginDialog> createState() => _AccountLoginDialogState();
+}
+
+class _AccountLoginDialogState extends State<_AccountLoginDialog> {
+  late final username = TextEditingController(text: widget.username);
+  final password = TextEditingController(),
+      confirm = TextEditingController(),
+      current = TextEditingController();
+  String? error;
+  @override
+  void dispose() {
+    username.dispose();
+    password.dispose();
+    confirm.dispose();
+    current.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const VentioText('native.ui.account_organization_account_login'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const VentioText(
+            'native.ui.account_use_at_least_15_characters_password_changes_revoke_online_sessions_offline_clients_may_ret',
+          ),
+          TextField(
+            controller: username,
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_username')),
+          ),
+          if (widget.self)
+            TextField(
+              controller: current,
+              obscureText: true,
+              enableSuggestions: false,
+              autocorrect: false,
+              decoration: InputDecoration(
+                labelText: context.ventioText('native.ui.account_current_password_if_already_configured'),
+              ),
+            ),
+          TextField(
+            controller: password,
+            obscureText: true,
+            enableSuggestions: false,
+            autocorrect: false,
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_new_password')),
+          ),
+          TextField(
+            controller: confirm,
+            obscureText: true,
+            enableSuggestions: false,
+            autocorrect: false,
+            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_confirm_password')),
+          ),
+          if (error != null) Text(error!),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const VentioText('native.ui.account_cancel'),
+      ),
+      FilledButton(
+        onPressed: () {
+          if (password.text != confirm.text ||
+              password.text.runes.length < 15 ||
+              !RegExp(
+                r'^[A-Za-z0-9][A-Za-z0-9_.@-]{2,63}$',
+              ).hasMatch(username.text.trim())) {
+            setState(
+              () => error = 'Check username, password length and confirmation.',
+            );
+            return;
+          }
+          Navigator.pop(context, {
+            'username': username.text.trim(),
+            'password': password.text,
+            if (widget.self) 'currentPassword': current.text,
+          });
+        },
+        child: const VentioText('native.ui.account_save_login'),
+      ),
+    ],
   );
 }
 
@@ -625,9 +848,8 @@ class _PermissionDialogState extends State<_PermissionDialog> {
         ),
         validator: (value) {
           final permission = value?.trim() ?? '';
-          if (!HostUserManagementClient.isGrantableNonManagementPermission(
-            permission,
-          )) {
+          if (!RegExp(r'^[a-z][a-z0-9_.]+$').hasMatch(permission) ||
+              permission.length > 256) {
             return context.ventioText(
               'native.ui.permission_not_grantable_to_users',
             );

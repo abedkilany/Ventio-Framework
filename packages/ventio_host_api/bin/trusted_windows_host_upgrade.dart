@@ -211,6 +211,7 @@ Future<void> _applyContracts(Uri database, Directory security) async {
   for (final contract in [
     'pairing.sql',
     'credential_reissues.sql',
+    'wave2_upgrade.sql',
     'schema_profile.sql',
   ]) {
     final path = File('${security.path}${Platform.pathSeparator}$contract');
@@ -278,7 +279,7 @@ Future<void> _verifyUpgrade(
 ) async {
   await connection.execute('SELECT ventio_security.assert_schema()');
   final count = await connection.execute(
-    'SELECT count(*) FROM public.ventio_schema_migrations',
+    "SELECT count(*) FROM public.ventio_schema_migrations WHERE name NOT IN ('037_extension_submitter_review.sql','038_initial_account_owner.sql')",
   );
   final expected = await migrations
       .list(followLinks: false)

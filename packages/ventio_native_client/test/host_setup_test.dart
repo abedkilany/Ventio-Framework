@@ -37,13 +37,13 @@ Future<void> _submitMinimalHostSetup(WidgetTester tester) async {
   final list = find.byType(ListView);
   for (
     var attempt = 0;
-    attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+    attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
     attempt++
   ) {
     await tester.drag(list, const Offset(0, -300));
     await tester.pumpAndSettle();
   }
-  final fields = find.byType(TextField);
+  final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
   await tester.enterText(fields.at(0), 'tenant-lan-test');
   await tester.enterText(fields.at(1), 'company-lan-test');
   await tester.enterText(fields.at(2), 'branch-lan-test');
@@ -230,6 +230,51 @@ void main() {
         ),
       );
     });
+
+    test(
+      'preserves the Host response when bootstrap session validation fails',
+      () async {
+        final store = await LocalExtensionStore.open(
+          factory: databaseFactoryFfi,
+          path: ':memory:',
+        );
+        addTearDown(store.close);
+        final backend = _MemoryHostCredentialBackend();
+        final vault = HostCredentialVault(backend);
+        final endpoint = Uri.parse(hostSetupEndpoint);
+        final profile = HostConnectionProfile(
+          endpoint: hostSetupEndpoint,
+          tenantId: 'tenant-one',
+          companyId: 'company-one',
+          branchId: 'branch-one',
+          actorId: _actorId,
+        );
+        final credentials = LocalHostSetupCredentialStore(
+          credentials: vault,
+          store: store,
+          sessionLoader: (_) async => throw const HostPackageTransportException(
+            'HOST_CREDENTIAL_EXPIRED',
+            statusCode: 401,
+          ),
+        );
+
+        await expectLater(
+          credentials.saveCredentialAndProfile(
+            endpoint: endpoint,
+            token: _token,
+            profile: profile,
+          ),
+          throwsA(
+            isA<HostSetupException>().having(
+              (error) => error.code,
+              'code',
+              'HOST_CREDENTIAL_EXPIRED',
+            ),
+          ),
+        );
+        expect(await vault.read(endpoint), isNull);
+      },
+    );
   });
 
   group('HostSetupCoordinator', () {
@@ -603,13 +648,13 @@ void main() {
     final list = find.byType(ListView);
     for (
       var attempt = 0;
-      attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+      attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
       attempt++
     ) {
       await tester.drag(list, const Offset(0, -300));
       await tester.pumpAndSettle();
     }
-    final fields = find.byType(TextField);
+    final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
     await tester.enterText(fields.at(0), 'tenant-ui');
     await tester.enterText(fields.at(1), 'company-ui');
     await tester.enterText(fields.at(2), 'branch-ui');
@@ -660,13 +705,13 @@ void main() {
       final list = find.byType(ListView);
       for (
         var attempt = 0;
-        attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+        attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
         attempt++
       ) {
         await tester.drag(list, const Offset(0, -300));
         await tester.pumpAndSettle();
       }
-      final fields = find.byType(TextField);
+      final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
       await tester.enterText(fields.at(0), 'tenant-ui');
       await tester.enterText(fields.at(1), 'company-ui');
       await tester.enterText(fields.at(2), 'branch-ui');
@@ -804,13 +849,13 @@ void main() {
       final list = find.byType(ListView);
       for (
         var attempt = 0;
-        attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+        attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
         attempt++
       ) {
         await tester.drag(list, const Offset(0, -300));
         await tester.pumpAndSettle();
       }
-      final fields = find.byType(TextField);
+      final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
       await tester.enterText(fields.at(0), 'tenant-ui');
       await tester.enterText(fields.at(1), 'company-ui');
       await tester.enterText(fields.at(2), 'branch-ui');
@@ -882,7 +927,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byType(TextField), findsNothing);
+    expect(find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256), findsNothing);
 
     platform.pendingReadGate!.complete(pending);
     await tester.pumpAndSettle();
@@ -890,14 +935,14 @@ void main() {
     final list = find.byType(ListView);
     for (
       var attempt = 0;
-      attempt < 8 && find.byType(TextField).evaluate().isEmpty;
+      attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
       attempt++
     ) {
       await tester.drag(list, const Offset(0, -300));
       await tester.pumpAndSettle();
     }
     final fields = tester
-        .widgetList<TextField>(find.byType(TextField))
+        .widgetList<TextField>(find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256))
         .toList();
     expect(fields, hasLength(3));
     expect(fields.every((field) => field.enabled == false), isTrue);

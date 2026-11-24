@@ -1,0 +1,31 @@
+{
+    "version":  "5.1.26100.33822",
+    "sid":  "S-1-5-21-3414932011-3134797172-3625386099-500",
+    "policy":  "AllSigned",
+    "utc":  "2026-11-19T18:57:59.4978890Z",
+    "machineName":  "runnervmbpeip",
+    "scopes":  [
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "MachinePolicy"
+                   },
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "UserPolicy"
+                   },
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "Process"
+                   },
+                   {
+                       "policy":  "Undefined",
+                       "scope":  "CurrentUser"
+                   },
+                   {
+                       "policy":  "AllSigned",
+                       "scope":  "LocalMachine"
+                   }
+               ],
+    "scriptSha256":  "d963f3f5c7b20a47af0793a5861fbd83906486bac736ffa1c2dc4a7eeb11aefc",
+    "value":  "signed-probe-ran"
+}

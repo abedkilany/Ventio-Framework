@@ -1,0 +1,577 @@
+[
+  {
+    "path": ".gitattributes",
+    "bytes": 9,
+    "sha256": "8b9c3028d6467ff3be7c793141927841d70f47f52d0590677438f488ca154992"
+  },
+  {
+    "path": "actual-host-business-cases-29e.json",
+    "bytes": 6476,
+    "sha256": "f952470807fff9a07ca2375d9c6270c8d09cda22015d6eb93639af9055f79de1"
+  },
+  {
+    "path": "actual-host-negative-cases-29e-initial.json",
+    "bytes": 3789,
+    "sha256": "755b81007f05bd0e5dbf46b8153f288bd2bdcfcdc89fb06c34657ddd1bf203ab"
+  },
+  {
+    "path": "actual-host-negative-cases-29e.json",
+    "bytes": 3403,
+    "sha256": "a98cbf1e3138ffc398aabdf107cd2b2d108973494f3e364b92c1141beb1d5544"
+  },
+  {
+    "path": "actual-host-readonly-cases-246.json",
+    "bytes": 2695,
+    "sha256": "4cc96692462b07341c7891f975700c2a946fb07a95a10d0bf61fe8b572f3a03f"
+  },
+  {
+    "path": "actual-host-restart-cases-29e.json",
+    "bytes": 1319,
+    "sha256": "e3962b43fe45ceec74726753e889a218fa9a8164cce1f59f34c6568f27310b17"
+  },
+  {
+    "path": "actual-native-concurrent-reader-29e.json",
+    "bytes": 414,
+    "sha256": "84b74fb71b0f43c1618630fad345530c87de5500a304a81eb0d4b545ec425d6c"
+  },
+  {
+    "path": "customization-layout-after-fix.log",
+    "bytes": 364,
+    "sha256": "b8bbc2b7a8b519ddf6432bac6581864139f8673138508ce83efceb4f6ae730ee"
+  },
+  {
+    "path": "customization-layout-before-fix.log",
+    "bytes": 4547,
+    "sha256": "110715e774a24fd4401359e5ce11e95b818a02fb46fe2d209fbc0dde06e1aa19"
+  },
+  {
+    "path": "github-native-92f2503-job-136660085092.log",
+    "bytes": 30768,
+    "sha256": "800d3b77d371278528b214bd76e518e152fbddc18254600aad56b768f902c2cc"
+  },
+  {
+    "path": "installed-test02-observations.json",
+    "bytes": 4190,
+    "sha256": "27b29d07a3cb7aa33762d55d9dba948b5d4419d3901047bd4944b7a5637f5969"
+  },
+  {
+    "path": "linux-1f-hosted/host-audit-results.json",
+    "bytes": 2296,
+    "sha256": "c1107379db2b5b09a144490b25349cd6a68a59cb1286e0c7eded1beea2f5eb0c"
+  },
+  {
+    "path": "linux-1f-hosted/initial-case-ledger.json",
+    "bytes": 143674,
+    "sha256": "4feeae5a779a357335e52730829275f5249510990c7e4ae408c472e6c3ff05be"
+  },
+  {
+    "path": "linux-1f-hosted/initialize-results.json",
+    "bytes": 406,
+    "sha256": "b7da52de3de2f1a3ccb0c7211087aaa74f176538918716cd546f2b074a1f2bdc"
+  },
+  {
+    "path": "linux-1f-hosted/linux-D.log",
+    "bytes": 1096,
+    "sha256": "eecd570d4e4e3cd08224af5d9df49a35570d42fe444469526d1678a07ae0b696"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-0.json",
+    "bytes": 279,
+    "sha256": "b3e814f955dd09fef1e059825e82eb52148963e5abc6f1386a0f7868478d548f"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-1.json",
+    "bytes": 279,
+    "sha256": "6d41a7fcf576f75741ff78d7078ab3d86ad95a1888c2f7318ecd4fd43dd128f8"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-2.json",
+    "bytes": 279,
+    "sha256": "fef5adfb402000a8f18b2c83bb749010522fc9a7aaf4d75c8f904725baa10763"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-3.json",
+    "bytes": 279,
+    "sha256": "0191be8042ec06040be14735b9d354bc828e053d7f09203a0c93dc9ee0ab1f09"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-4.json",
+    "bytes": 279,
+    "sha256": "73f03084cc8403acf2765922220bdd05fcb2baef3b06a5456762f4c1d58479fd"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-5.json",
+    "bytes": 279,
+    "sha256": "a7f31cf043bc037d702de6e90faab9140cffb17fbdba5cdccb5d5b071a86b3d6"
+  },
+  {
+    "path": "linux-1f-hosted/linux-fixture-6.json",
+    "bytes": 279,
+    "sha256": "c8de6aea8b9a4b03bac42c25bdabde3fd0ce45eefeb902d5faacb8ad5d7e7b02"
+  },
+  {
+    "path": "linux-1f-hosted/linux-H.log",
+    "bytes": 2815,
+    "sha256": "8f7aa9655d9fe283baf6cc9713dea3e6dc6435e5514f16c903cb82afa4b87250"
+  },
+  {
+    "path": "linux-1f-hosted/linux-J.log",
+    "bytes": 2655,
+    "sha256": "2b7a59fe67f44b4372260d577d1962492ef32bae854ffdf63ba1b76a570a938b"
+  },
+  {
+    "path": "linux-1f-hosted/linux-O.log",
+    "bytes": 825,
+    "sha256": "ba141bf866f55286286d052c5bfdddd8caf994cdd357dcc2649425850e0cc01c"
+  },
+  {
+    "path": "linux-1f-hosted/linux-R.log",
+    "bytes": 8354,
+    "sha256": "e934e757990c5583f2787ce074d069237f986d9008bca3ebd50e65acf1d33d76"
+  },
+  {
+    "path": "linux-1f-hosted/linux-results.json",
+    "bytes": 10884,
+    "sha256": "3742e079f55c0efd661dd5aa0ba7172c0b6ad144e7d2d6acde9509580d90039f"
+  },
+  {
+    "path": "linux-1f-hosted/linux-U-040-to-041.log",
+    "bytes": 342,
+    "sha256": "f41d7229a21ec5faf211cf5ef5800a33ba4fa0eb62b38550207bca42d63474bd"
+  },
+  {
+    "path": "linux-1f-hosted/linux-U.log",
+    "bytes": 342,
+    "sha256": "f41d7229a21ec5faf211cf5ef5800a33ba4fa0eb62b38550207bca42d63474bd"
+  },
+  {
+    "path": "linux-1f-hosted/offline-E.log",
+    "bytes": 4634,
+    "sha256": "4682eea148ebd9ce8d5ad52279e5e66e89db39b92691a4d742993a968ff557ce"
+  },
+  {
+    "path": "linux-1f-hosted/offline-fixture-0.json",
+    "bytes": 279,
+    "sha256": "c25c830a422140679b6e5fe9ad7e3cff016b1f332fd671594dc4a335f807c6d1"
+  },
+  {
+    "path": "linux-1f-hosted/offline-results.json",
+    "bytes": 1318,
+    "sha256": "bdf7327b3845db8b81e5b55989c63129c53885888d3fbbbdb40cd05d8449d14a"
+  },
+  {
+    "path": "linux-1f-hosted/transport-verification.json",
+    "bytes": 1627,
+    "sha256": "9918f35d4b793fe1efbf2eaff7db4b10e026b626a686f1ddb012035abdfc9b74"
+  },
+  {
+    "path": "linux-537-offline-results.json",
+    "bytes": 1318,
+    "sha256": "8abe68e11db9b4cc975e1f591af0839883e3cd220aff6be6021f830d1ad0de0a"
+  },
+  {
+    "path": "linux-537-results.json",
+    "bytes": 10884,
+    "sha256": "5f0b3fa736702d405991af2e9acb3c05cf8e3f082c6ce0b41bd98d3c0c132bc8"
+  },
+  {
+    "path": "linux-537-transport-verification.json",
+    "bytes": 1627,
+    "sha256": "3c1d3e99bd0d2bd5d19e37bb85caa243a3ee37e1224e5cbca0815f9bf51ce672"
+  },
+  {
+    "path": "native-246-hosted/_temp/wave2-defender-enablement.json",
+    "bytes": 1242,
+    "sha256": "b8c6247b0ac662279a2d2d0a449c6b5844668b20b283c83dc32fe1639f6a6e48"
+  },
+  {
+    "path": "native-246-hosted/transport-verification.json",
+    "bytes": 2043,
+    "sha256": "e16595260179a1eb8b87c980a3ca656b3c3ba38eae552b0fd15051836a7f5f61"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/host-health.json",
+    "bytes": 47,
+    "sha256": "7088bb45a5fa65fbf28c4476c9b31af414d468e42817a64920160e3609544fa3"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/installed-session-authorization.json",
+    "bytes": 114,
+    "sha256": "112a843c522b477e372f9193face4f137f2801ffbc60e43a1e38b417fdb3b869"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/legacy-policy-denial.json",
+    "bytes": 461,
+    "sha256": "ae58b33e048371d700ef66749fc6437241d762e0352df0fc91026d8655a92c91"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-attempt-status.json",
+    "bytes": 182,
+    "sha256": "68ef7c6882e4e50c9cc52f576db379a6eced8499742fa948c5e3244fbfc564e1"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-status.json",
+    "bytes": 216,
+    "sha256": "7a13c921f12923be52e08681008f87308018cf8933b284c34db5a6ac772d91f2"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-upgrade-backup.json",
+    "bytes": 147,
+    "sha256": "fe2254dbc0945b6720c79336ddfa6d1babb277d749ac1a1b18f0b1530362a408"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/policy-probe.json",
+    "bytes": 66,
+    "sha256": "43697c184a91e7093e230968f110b8dc88c371d5754b2879ed82161fba2b43d4"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/results.json",
+    "bytes": 1790,
+    "sha256": "a3b2d7cf4d616de91dbee8ef240e76a5b39e56a3eb6f7862f5b262ff71bcf811"
+  },
+  {
+    "path": "native-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/services.json",
+    "bytes": 490,
+    "sha256": "74c726c789704bd5a00d07d1d119cdca09e8048d6e52c86a6b82a479d074f38a"
+  },
+  {
+    "path": "native-29e-hosted/_temp/wave2-defender-enablement.json",
+    "bytes": 1242,
+    "sha256": "30f7d398817656ae5dc01f815916ca95d2706ca29f67e40dfb900a223ee4f2b2"
+  },
+  {
+    "path": "native-29e-hosted/transport-verification.json",
+    "bytes": 2043,
+    "sha256": "99f7bf981ae294735531dc68f2e16235a526f0e35837f4ff755da4e54b75246d"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/host-health.json",
+    "bytes": 47,
+    "sha256": "7088bb45a5fa65fbf28c4476c9b31af414d468e42817a64920160e3609544fa3"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/installed-session-authorization.json",
+    "bytes": 114,
+    "sha256": "112a843c522b477e372f9193face4f137f2801ffbc60e43a1e38b417fdb3b869"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/legacy-policy-denial.json",
+    "bytes": 461,
+    "sha256": "ae58b33e048371d700ef66749fc6437241d762e0352df0fc91026d8655a92c91"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-attempt-status.json",
+    "bytes": 182,
+    "sha256": "658d77b200c3c3204f51c3045872a78f3f42dc4c469a5ccfb956af14877b95be"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-status.json",
+    "bytes": 216,
+    "sha256": "85eb13d0fc9d3a3bf2805d739ce5baa14e85447478ef1af469c68347ffaeace8"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/native-upgrade-backup.json",
+    "bytes": 147,
+    "sha256": "55f87b6a7e97da8121d7a6ac713404e479d0cd4dfc212eac98ac61559ffeee70"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/policy-probe.json",
+    "bytes": 66,
+    "sha256": "43697c184a91e7093e230968f110b8dc88c371d5754b2879ed82161fba2b43d4"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/results.json",
+    "bytes": 1790,
+    "sha256": "b40c7e60f64c73ab800f9e83871a6c637b622fc933f0b7ff3f1766750dd1d25b"
+  },
+  {
+    "path": "native-29e-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-native-installation/services.json",
+    "bytes": 490,
+    "sha256": "74c726c789704bd5a00d07d1d119cdca09e8048d6e52c86a6b82a479d074f38a"
+  },
+  {
+    "path": "native-29e-payload-verification.json",
+    "bytes": 501,
+    "sha256": "d2afce5a06a56300381813e674534460656bac1588abf95a7377d4be1076f164"
+  },
+  {
+    "path": "native-business-offline-20261121.json",
+    "bytes": 1633,
+    "sha256": "dc9adab73cf5e23958eab5ccfc11c14bc72313c2fffc5b35af68ff0c63170974"
+  },
+  {
+    "path": "native-business-update-20261121.json",
+    "bytes": 1000,
+    "sha256": "54be3d1504ced76897b388d45e91bac68694609e96297495c5e3abc35551f36c"
+  },
+  {
+    "path": "native-csv-dashboard-20261121.json",
+    "bytes": 1522,
+    "sha256": "2057519ce651984d0bf5773d7be4606f0f00d1b1310e7935a84f364117253857"
+  },
+  {
+    "path": "native-job-136784450815.log",
+    "bytes": 57207,
+    "sha256": "b10ce4aa66660d37edcc7e79f60aae9003378e82c13d2aadf670ae93efc7dbca"
+  },
+  {
+    "path": "native-local-draft-offline-restart-29e.json",
+    "bytes": 738,
+    "sha256": "a9593b13d7427ab8de45af733881612a5061660f3c4a4494e4632d69b44294c2"
+  },
+  {
+    "path": "native-upgrade-246-to-29e.json",
+    "bytes": 1299,
+    "sha256": "c3c573cdd64cbf510777cca736e8c0db34ffaaa20175f81b6e0548120e2f6a93"
+  },
+  {
+    "path": "native-upgrade-backup-29e-verification.json",
+    "bytes": 595,
+    "sha256": "50569ffacc360ef3da373ac57840c99266e1c6edfc137b010d687a657575bfac"
+  },
+  {
+    "path": "nov21-checkpoint.json",
+    "bytes": 6033,
+    "sha256": "d5ecf5498b4e657c1664f0786a889901e44f00e299c32c24f51fadebbb1880d2"
+  },
+  {
+    "path": "package-identity-after-fix.log",
+    "bytes": 13512,
+    "sha256": "5d64ed4c878c44b2f89681bf71633244cbef56274db51bb08d030c317a19fbc2"
+  },
+  {
+    "path": "package-identity-before-fix.log",
+    "bytes": 2326,
+    "sha256": "a66413186d3c8d9b46a69d10c704759bb975001e7fa220ba5a4bbef22fddef0d"
+  },
+  {
+    "path": "product-hostname-tls-test01-to-test02-fixed.json",
+    "bytes": 605,
+    "sha256": "94372eff546a43d3ad98e70f3fcd875a0020a10d6d22a8faf5788f4420e53b85"
+  },
+  {
+    "path": "reproduction/actual-host-business-cases-test02.ps1",
+    "bytes": 14211,
+    "sha256": "6b2530be6f61e3ed0ed163ffd56fe4d827a44e9a885e7998e52e8bf8c512ff2c"
+  },
+  {
+    "path": "reproduction/actual-host-negative-cases-test02.ps1",
+    "bytes": 11812,
+    "sha256": "45d7bce814b781acf76ad35f94c343b3b37a412d44ac5901ead6bec5a084ce72"
+  },
+  {
+    "path": "reproduction/actual-host-restart-cases-test02.ps1",
+    "bytes": 11502,
+    "sha256": "e5e5fc56818ad411a7d8b87429b69f3fa3fb464f970ac9819e52395ed9b3013a"
+  },
+  {
+    "path": "reproduction/probe-native-read-replace-test02.ps1",
+    "bytes": 3808,
+    "sha256": "6186fa3da745505359e804d4ee074d44ba356663f39687ddb5e7a150fefc400a"
+  },
+  {
+    "path": "reproduction/test01-pinned-host-tls.ps1",
+    "bytes": 2366,
+    "sha256": "fb460d5a92a452c2bd96314c3986f88b783ee279a5ff5592ae125d119852b6a2"
+  },
+  {
+    "path": "reproduction/verify-native-csv-dashboard-test02.ps1",
+    "bytes": 3647,
+    "sha256": "146d8ad6a78723fc48777a6184d961505a281e289ebd1747fe664f5d6c9b134b"
+  },
+  {
+    "path": "reproduction/verify-native-offline-acceptance-test02.ps1",
+    "bytes": 3040,
+    "sha256": "b0a0767012fb4f72d5286d970fc4ba140c172fb23753920ed040bb43b766f578"
+  },
+  {
+    "path": "reproduction/verify-native-update-test02.ps1",
+    "bytes": 3168,
+    "sha256": "70cf31cf1c2d6e39e77d1aab245ab9f86e8c0281247ba4dbf3dedd8a91f49cc2"
+  },
+  {
+    "path": "runtime-246-hosted/_temp/wave2-defender-enablement.json",
+    "bytes": 1242,
+    "sha256": "851f66431287122c95285b683c3dc4cd457b2aa6d361903381f68fc898ae5b10"
+  },
+  {
+    "path": "runtime-246-hosted/transport-verification.json",
+    "bytes": 1675,
+    "sha256": "8e77c07ee7129ddad980d1bdd9ad319f2856c9ffe47e0b9c08a87d3dc4e1f0cb"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/NET-HOST-SERVICE.log",
+    "bytes": 1445,
+    "sha256": "06b20537c50d694f500827fe84551dba295a981e0e1626bcd10ee817e805c4cf"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/NET-SETUP-BROKER.log",
+    "bytes": 186,
+    "sha256": "96e29d965593a073ab2502d6ceea8fb644479bfd1e4535accc752fad5542fa7b"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/PG-SINGLE-USER-RECOVERY.log",
+    "bytes": 2780,
+    "sha256": "67638fc2a23108cd0eb450c519bb7cac7699a68a193723b147175147f810dde6"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/postgres-maintenance-cases.json",
+    "bytes": 5518,
+    "sha256": "c9513be019406f54527125dc4d062ee9fa6db8b45e9c3e3e3e8aa30b53553f8b"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/postgres-worker-job-rights.json",
+    "bytes": 180,
+    "sha256": "39123839a78b5c2416d3a3531309c9f88bf56a55fba2299733816e880daece2b"
+  },
+  {
+    "path": "runtime-246-hosted/Ventio-Framework/Ventio-Framework/test-results/wave2-runtime/runtime-results.json",
+    "bytes": 629,
+    "sha256": "fb4e32b75b8633cb805c8cea396f66951ab504f0336a495a9b015142fa45cf6e"
+  },
+  {
+    "path": "test02-approved-install-record-query-rejected.png",
+    "bytes": 79189,
+    "sha256": "e2ffedaca02b5bfbcdcffbe5b80cd39288c81187f754975987dde368841456a8"
+  },
+  {
+    "path": "test02-client-authenticated-host-ready.png",
+    "bytes": 92103,
+    "sha256": "e2c2c6507632b3c59354fafda3a6e568766d1c08d18ae722b8d7c0b61b090bd0"
+  },
+  {
+    "path": "test02-native-business-enrolled-owner.png",
+    "bytes": 149561,
+    "sha256": "6d73514795d71a7dd846ff1ff028c79564caeca4f2852010777cd482ba7b0271"
+  },
+  {
+    "path": "test02-native-csv-job-running.png",
+    "bytes": 68936,
+    "sha256": "3969568145cc94719e9126ddffa051c43b681288814324b1dc84a683db475317"
+  },
+  {
+    "path": "test02-native-csv-job-succeeded-two-rows.png",
+    "bytes": 69247,
+    "sha256": "b84ef9bdae3ca50842d827db29c156a5119748da83dea8b3ddab4811392ed2d4"
+  },
+  {
+    "path": "test02-native-csv-original-row-receipts.png",
+    "bytes": 82599,
+    "sha256": "ed3cb43363641b4f29934ab723fd793ec3bbbee3411c78d5644e8a59ca4d727f"
+  },
+  {
+    "path": "test02-native-csv-preview-valid-and-required-rejection.png",
+    "bytes": 92760,
+    "sha256": "00add888ccebdb38e3b1f3026b485e768ee5a346efd15cd926ae25c319f25351"
+  },
+  {
+    "path": "test02-native-customization-empty-layout-crash.png",
+    "bytes": 44571,
+    "sha256": "d89f05931c6490134c6a49c7db07fa27c4cc4f3670d8f20508045d3558f67558"
+  },
+  {
+    "path": "test02-native-dark-preference-after-restart.png",
+    "bytes": 44472,
+    "sha256": "348106632b08307198e08d9f4a62c4273ad65315b5732b3813483a932e86866c"
+  },
+  {
+    "path": "test02-native-dashboard-published-revision-one.png",
+    "bytes": 48221,
+    "sha256": "f985d4a5166cb8eb385385578ad5b2816f758b94328cc8e1a0d7e72da202bd27"
+  },
+  {
+    "path": "test02-native-document-activity-original-create.png",
+    "bytes": 61959,
+    "sha256": "5a6ce3ea703c16909de55a637312852edfe6e35359b4eb52fbde64f28170afbb"
+  },
+  {
+    "path": "test02-native-draft-after-restart-host-stopped.png",
+    "bytes": 160385,
+    "sha256": "c7c808a6da2736ea98f974d356c6103da78f44d56c189b7c5a0d4cd0e187f778"
+  },
+  {
+    "path": "test02-native-draft-doctype-created.png",
+    "bytes": 87639,
+    "sha256": "33788d00013a346419504824d2f14f45aec944de0ad4109508df9e972118c1a2"
+  },
+  {
+    "path": "test02-native-draft-submission-denied-403.png",
+    "bytes": 163994,
+    "sha256": "5fc02fd515f695f29cf74b1bb78c812cea9d83c8c077f940c56ee6f8779a16b0"
+  },
+  {
+    "path": "test02-native-generated-form-host-stopped.png",
+    "bytes": 124795,
+    "sha256": "97533a108ec2c9101913501e5181e2f4ee5b5b62c8d2590b3dce5ec4767c2d43"
+  },
+  {
+    "path": "test02-native-host-confirmed-original-offline-command.png",
+    "bytes": 76398,
+    "sha256": "310e75cc9fa598ddfb4c2c51b012c57c291e19205cb42a025b3413173ae7d87f"
+  },
+  {
+    "path": "test02-native-offline-created-record-now-visible.png",
+    "bytes": 54959,
+    "sha256": "3c89785cd8dedbf05c4c22ad4c5157a87925d3ea74af2e729c6548ae844d9ea8"
+  },
+  {
+    "path": "test02-native-pending-command-survived-restart.png",
+    "bytes": 73080,
+    "sha256": "5817dfe3485fd7b6a0ce6e8cc5c84f05261463d52026e0d0f07c4df17d72226c"
+  },
+  {
+    "path": "test02-native-report-authoritative-four-records.png",
+    "bytes": 65323,
+    "sha256": "39e2ee06f75ab2da8faf35402bdccd0b4484d8509265a4f24d116d73bea4bfd2"
+  },
+  {
+    "path": "test02-native-required-name-denied.png",
+    "bytes": 59587,
+    "sha256": "1a13629d795e85ccb660f4fafab80ea7b99d170c1785638fa0a5f35f85390447"
+  },
+  {
+    "path": "test02-native-saved-with-host-unreachable.png",
+    "bytes": 41470,
+    "sha256": "7699d4b375754f2286d57743b464afe5a8fc06392a705a01dc9f7e1cfe7326bc"
+  },
+  {
+    "path": "test02-native-unavailable-retry-retained-pending.png",
+    "bytes": 71058,
+    "sha256": "a2e41e315e2b06fcd79429e210f02abb4f79d78481a940745f15e0f9365e88d5"
+  },
+  {
+    "path": "test02-native-update-host-confirmed.png",
+    "bytes": 81396,
+    "sha256": "5a235891aa46f546072589dcb7d9a1c324cb1f4a4adfb462e336c7d3a9a2bb81"
+  },
+  {
+    "path": "test02-native-update-pending-command.png",
+    "bytes": 78741,
+    "sha256": "ee51fe4708c6a2675a8fd04dccb0050b38953cf4a3ddef560a16d4c435184fae"
+  },
+  {
+    "path": "test02-native-workspace-actual-host-records.png",
+    "bytes": 50276,
+    "sha256": "f485052b528fbb8c3809e1322146984824ca461fd811a4cdc46627784bf21a27"
+  },
+  {
+    "path": "tls-regression-after-fix.log",
+    "bytes": 4584,
+    "sha256": "5429cdba31248491dda79416fab3ef6b313d55fd13cd6f94eaa2cce736f8688e"
+  },
+  {
+    "path": "tls-regression-before-fix.log",
+    "bytes": 653,
+    "sha256": "8af89f3d22f0745f8bb708473b6d7186309ffa51858f9ff79430386cdc91e4d8"
+  },
+  {
+    "path": "windows-44883758259-attempt2-annotations.json",
+    "bytes": 466,
+    "sha256": "1a27d717385af47a5859f0819b7d961a827ab56a4a515ffa1204ac73310b9910"
+  },
+  {
+    "path": "windows-537-client-trust-tests.log",
+    "bytes": 16002,
+    "sha256": "3f52194c6d277a4802d942534244c68e84c8f1f37fb2e5c05bd56432d62e27a1"
+  }
+]

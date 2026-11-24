@@ -1,0 +1,7 @@
+{
+  "status": "FAILED",
+  "elapsedSeconds": 26.1739293,
+  "runId": "44587707476",
+  "stage": "production-initializer-normal",
+  "sourceCommit": "2ae0188db9ee783c6ca7b5328f792768f71a3c41"
+}

@@ -1,0 +1,393 @@
+﻿2026-11-19T18:36:08.3166916Z Current runner version: '2.338.2'
+2026-11-19T18:36:08.3194011Z ##[group]Runner Image Provisioner
+2026-11-19T18:36:08.3194875Z Hosted Compute Agent
+2026-11-19T18:36:08.3195746Z Version: 20261103.629
+2026-11-19T18:36:08.3196373Z Commit: 15dbd9ccb5dbf34fae002b6ed1a2670f52df37bc
+2026-11-19T18:36:08.3197099Z Build Date: 2026-11-03T17:26:59Z
+2026-11-19T18:36:08.3197752Z Worker ID: {46964bb3-3e47-4aa5-b575-ec4127fd8501}
+2026-11-19T18:36:08.3198417Z Region: northcentralus
+2026-11-19T18:36:08.3199201Z Cloud: Azure
+2026-11-19T18:36:08.3199779Z ##[endgroup]
+2026-11-19T18:36:08.3201205Z ##[group]Operating System
+2026-11-19T18:36:08.3201961Z Microsoft Windows Server 2025
+2026-11-19T18:36:08.3202529Z 10.0.26100
+2026-11-19T18:36:08.3203033Z Datacenter
+2026-11-19T18:36:08.3203526Z ##[endgroup]
+2026-11-19T18:36:08.3204032Z ##[group]Runner Image
+2026-11-19T18:36:08.3204606Z Image: windows-2025-vs2026
+2026-11-19T18:36:08.3205206Z Version: 20261103.298.1
+2026-11-19T18:36:08.3206682Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261103.298/images/windows/Windows2025-VS2026-Readme.md
+2026-11-19T18:36:08.3208291Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261103.298
+2026-11-19T18:36:08.3209269Z ##[endgroup]
+2026-11-19T18:36:08.3210432Z ##[group]GITHUB_TOKEN Permissions
+2026-11-19T18:36:08.3212336Z Actions: read
+2026-11-19T18:36:08.3212907Z Contents: read
+2026-11-19T18:36:08.3213457Z Metadata: read
+2026-11-19T18:36:08.3213994Z ##[endgroup]
+2026-11-19T18:36:08.3216366Z Secret source: Actions
+2026-11-19T18:36:08.3217273Z Cache mode: write
+2026-11-19T18:36:08.3218512Z Prepare workflow directory
+2026-11-19T18:36:08.3611838Z Prepare all required actions
+2026-11-19T18:36:08.3669766Z Getting action download info
+2026-11-19T18:36:08.5983606Z Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-19T18:36:08.7594768Z Download action repository 'dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b' (SHA:2286a0c042b44434fe26d292bbce8d34f7ec662b)
+2026-11-19T18:36:09.0368311Z Download action repository 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-11-19T18:36:09.4049423Z Uses: abedkilany/Ventio-Framework/.github/workflows/wave2-b-hosted-resume.yml@refs/heads/feature/wave-2-a (4ff79a4a4b8e1663164e7d96678617caa0926276)
+2026-11-19T18:36:09.4054796Z ##[group] Inputs
+2026-11-19T18:36:09.4055350Z   scope: recovery-observer
+2026-11-19T18:36:09.4055859Z   candidate_run_id: 
+2026-11-19T18:36:09.4056675Z   wave2_resume: true
+2026-11-19T18:36:09.4057174Z   wave2_scope: recovery-observer
+2026-11-19T18:36:09.4057702Z ##[endgroup]
+2026-11-19T18:36:09.4058293Z Complete job name: wave2-resume / recovery-admission-engineering
+2026-11-19T18:36:09.5823902Z ##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+2026-11-19T18:36:09.5825293Z with:
+2026-11-19T18:36:09.5825773Z   persist-credentials: false
+2026-11-19T18:36:09.5826312Z   repository: abedkilany/Ventio-Framework
+2026-11-19T18:36:09.5830401Z   token: ***
+2026-11-19T18:36:09.5830831Z   ssh-strict: true
+2026-11-19T18:36:09.5831269Z   ssh-user: git
+2026-11-19T18:36:09.5831703Z   clean: true
+2026-11-19T18:36:09.5832126Z   sparse-checkout-cone-mode: true
+2026-11-19T18:36:09.5832655Z   fetch-depth: 1
+2026-11-19T18:36:09.5833067Z   fetch-tags: false
+2026-11-19T18:36:09.5833499Z   show-progress: true
+2026-11-19T18:36:09.5833933Z   lfs: false
+2026-11-19T18:36:09.5834323Z   submodules: false
+2026-11-19T18:36:09.5834753Z   set-safe-directory: true
+2026-11-19T18:36:09.5835251Z   allow-unsafe-pr-checkout: false
+2026-11-19T18:36:09.5836446Z ##[endgroup]
+2026-11-19T18:36:09.7742812Z Syncing repository: abedkilany/Ventio-Framework
+2026-11-19T18:36:09.7747719Z ##[group]Getting Git version info
+2026-11-19T18:36:09.7749485Z Working directory is 'D:\a\Ventio-Framework\Ventio-Framework'
+2026-11-19T18:36:09.8823746Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-11-19T18:36:10.5548605Z git version 2.56.0.windows.4
+2026-11-19T18:36:10.5616678Z ##[endgroup]
+2026-11-19T18:36:10.5643646Z Temporarily overriding HOME='D:\a\_temp\942fcd43-d8b0-400b-b95b-971c17c39a96' before making global git config changes
+2026-11-19T18:36:10.5646734Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-19T18:36:10.5658840Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Ventio-Framework\Ventio-Framework
+2026-11-19T18:36:10.8543969Z Deleting the contents of 'D:\a\Ventio-Framework\Ventio-Framework'
+2026-11-19T18:36:10.8550421Z ##[group]Initializing the repository
+2026-11-19T18:36:10.8559570Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\Ventio-Framework\Ventio-Framework
+2026-11-19T18:36:11.9642810Z Initialized empty Git repository in D:/a/Ventio-Framework/Ventio-Framework/.git/
+2026-11-19T18:36:11.9705456Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/abedkilany/Ventio-Framework
+2026-11-19T18:36:12.1603299Z ##[endgroup]
+2026-11-19T18:36:12.1604074Z ##[group]Disabling automatic garbage collection
+2026-11-19T18:36:12.1614030Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-11-19T18:36:12.2143565Z ##[endgroup]
+2026-11-19T18:36:12.2144355Z ##[group]Setting up auth
+2026-11-19T18:36:12.2145632Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-11-19T18:36:12.2569685Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-11-19T18:36:14.0439582Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-19T18:36:14.0834596Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-11-19T18:36:14.6636361Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-19T18:36:14.7033057Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-11-19T18:36:15.3230122Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-11-19T18:36:15.3637381Z ##[endgroup]
+2026-11-19T18:36:15.3638197Z ##[group]Fetching the repository
+2026-11-19T18:36:15.3654953Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +4ff79a4a4b8e1663164e7d96678617caa0926276:refs/remotes/origin/feature/wave-2-a
+2026-11-19T18:36:16.5914544Z From https://github.com/abedkilany/Ventio-Framework
+2026-11-19T18:36:16.5915449Z  * [new ref]         4ff79a4a4b8e1663164e7d96678617caa0926276 -> origin/feature/wave-2-a
+2026-11-19T18:36:16.5961636Z ##[endgroup]
+2026-11-19T18:36:16.5962408Z ##[group]Determining the checkout info
+2026-11-19T18:36:16.5964775Z ##[endgroup]
+2026-11-19T18:36:16.5974787Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-11-19T18:36:16.6497719Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-11-19T18:36:16.6883442Z ##[group]Checking out the ref
+2026-11-19T18:36:16.6896572Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B feature/wave-2-a refs/remotes/origin/feature/wave-2-a
+2026-11-19T18:36:17.0397657Z Switched to a new branch 'feature/wave-2-a'
+2026-11-19T18:36:17.0486906Z branch 'feature/wave-2-a' set up to track 'origin/feature/wave-2-a'.
+2026-11-19T18:36:17.0541630Z ##[endgroup]
+2026-11-19T18:36:17.1049641Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-11-19T18:36:17.1449469Z 4ff79a4a4b8e1663164e7d96678617caa0926276
+2026-11-19T18:36:17.1495850Z ##[group]Removing auth
+2026-11-19T18:36:17.1504536Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-11-19T18:36:17.1904472Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-11-19T18:36:17.7793024Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-19T18:36:17.8174537Z http.https://github.com/.extraheader
+2026-11-19T18:36:17.8232012Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-11-19T18:36:17.8814777Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-11-19T18:36:18.4733414Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-19T18:36:18.5136562Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-11-19T18:36:19.0843937Z ##[endgroup]
+2026-11-19T18:36:19.1292478Z ##[group]Run ./scripts/ci/enable-wave2-defender.ps1
+2026-11-19T18:36:19.1292979Z [36;1m./scripts/ci/enable-wave2-defender.ps1[0m
+2026-11-19T18:36:19.2081653Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-11-19T18:36:19.2082130Z ##[endgroup]
+2026-11-19T18:36:26.6873022Z {
+2026-11-19T18:36:26.6873813Z   "protectionDisabledByThisScript": false,
+2026-11-19T18:36:26.6874314Z   "exclusionsAdded": [],
+2026-11-19T18:36:26.6874713Z   "removedHostedImageExclusions": [
+2026-11-19T18:36:26.6875177Z     "C:\\",
+2026-11-19T18:36:26.6875439Z     "D:\\"
+2026-11-19T18:36:26.6875690Z   ],
+2026-11-19T18:36:26.6875960Z   "utc": "2026-11-19T18:36:19.5936694Z",
+2026-11-19T18:36:26.6876377Z   "before": {
+2026-11-19T18:36:26.6876674Z     "AMRunningMode": "Normal",
+2026-11-19T18:36:26.6877061Z     "AMServiceEnabled": true,
+2026-11-19T18:36:26.6877616Z     "AntivirusEnabled": true,
+2026-11-19T18:36:26.6878155Z     "RealTimeProtectionEnabled": false,
+2026-11-19T18:36:26.6878805Z     "BehaviorMonitorEnabled": false,
+2026-11-19T18:36:26.6879514Z     "IoavProtectionEnabled": false,
+2026-11-19T18:36:26.6879992Z     "IsTamperProtected": false,
+2026-11-19T18:36:26.6880408Z     "AntivirusSignatureVersion": "1.463.374.0"
+2026-11-19T18:36:26.6880832Z   },
+2026-11-19T18:36:26.6881091Z   "exclusionsBefore": {
+2026-11-19T18:36:26.6881456Z     "ExclusionPath": [
+2026-11-19T18:36:26.6881761Z       "C:\\",
+2026-11-19T18:36:26.6882018Z       "D:\\"
+2026-11-19T18:36:26.6882292Z     ],
+2026-11-19T18:36:26.6882611Z     "ExclusionExtension": null,
+2026-11-19T18:36:26.6883003Z     "ExclusionProcess": null,
+2026-11-19T18:36:26.6883393Z     "DisableArchiveScanning": true
+2026-11-19T18:36:26.6883807Z   },
+2026-11-19T18:36:26.6884045Z   "after": {
+2026-11-19T18:36:26.6884335Z     "AMRunningMode": "Normal",
+2026-11-19T18:36:26.6884749Z     "AMServiceEnabled": true,
+2026-11-19T18:36:26.6885122Z     "AntivirusEnabled": true,
+2026-11-19T18:36:26.6885530Z     "RealTimeProtectionEnabled": true,
+2026-11-19T18:36:26.6885997Z     "BehaviorMonitorEnabled": true,
+2026-11-19T18:36:26.6886515Z     "IoavProtectionEnabled": true,
+2026-11-19T18:36:26.6886960Z     "IsTamperProtected": false,
+2026-11-19T18:36:26.6887417Z     "AntivirusSignatureVersion": "1.463.374.0",
+2026-11-19T18:36:26.6887899Z     "DefenderSignaturesOutOfDate": false
+2026-11-19T18:36:26.6888296Z   },
+2026-11-19T18:36:26.6888575Z   "exclusionsAfter": {
+2026-11-19T18:36:26.6888899Z     "ExclusionPath": null,
+2026-11-19T18:36:26.6889564Z     "ExclusionExtension": null,
+2026-11-19T18:36:26.6889976Z     "ExclusionProcess": null,
+2026-11-19T18:36:26.6890357Z     "DisableArchiveScanning": false
+2026-11-19T18:36:26.6890727Z   },
+2026-11-19T18:36:26.6891005Z   "status": "ENABLED_WITHOUT_EXCLUSIONS"
+2026-11-19T18:36:26.6891396Z }
+2026-11-19T18:36:29.1976835Z ##[group]Run dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b
+2026-11-19T18:36:29.1977290Z with:
+2026-11-19T18:36:29.1977462Z   sdk: 3.13.7
+2026-11-19T18:36:29.1977644Z   problem-matcher: true
+2026-11-19T18:36:29.1977844Z ##[endgroup]
+2026-11-19T18:36:29.3909810Z Installing the windows-x64 Dart SDK version 3.13.7 from the stable (release) channel.
+2026-11-19T18:36:29.3923430Z https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-x64-release.zip ...
+2026-11-19T18:36:31.9052586Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp/dartsdk-windows-x64-release.zip', 'D:\a\_temp\8854aa26-76d9-460f-9da6-e154931834ab', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp/dartsdk-windows-x64-release.zip' -DestinationPath 'D:\a\_temp\8854aa26-76d9-460f-9da6-e154931834ab' -Force } else { throw $_ } } ;"
+2026-11-19T18:36:36.8723980Z [command]C:\hostedtoolcache\windows\dart\3.13.7\x64\bin\dart.exe --version
+2026-11-19T18:36:36.8955171Z Dart SDK version: 3.13.7 (stable) (Thu Oct 22 14:28:57 2026 -0700) on "windows_x64"
+2026-11-19T18:36:36.9314610Z ##[group]Run dart pub get --enforce-lockfile
+2026-11-19T18:36:36.9315053Z [36;1mdart pub get --enforce-lockfile[0m
+2026-11-19T18:36:36.9315487Z [36;1mif ($LASTEXITCODE) { throw 'Locked migration dependencies failed' }[0m
+2026-11-19T18:36:36.9316020Z [36;1mdart compile exe bin/migrate.dart -o "$env:RUNNER_TEMP/observer-migrate.exe"[0m
+2026-11-19T18:36:36.9316561Z [36;1mif ($LASTEXITCODE) { throw 'Migration runner compile failed' }[0m
+2026-11-19T18:36:36.9393290Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-11-19T18:36:36.9393649Z env:
+2026-11-19T18:36:36.9393885Z   DART_HOME: C:\hostedtoolcache\windows\dart\3.13.7\x64
+2026-11-19T18:36:36.9394233Z   PUB_CACHE: C:\Users\runneradmin/.pub-cache
+2026-11-19T18:36:36.9394504Z ##[endgroup]
+2026-11-19T18:36:37.4360403Z Resolving dependencies...
+2026-11-19T18:36:37.9630126Z Downloading packages...
+2026-11-19T18:36:39.1068194Z   crypto 3.0.7 (3.0.8 available)
+2026-11-19T18:36:39.1069271Z   postgres 3.5.20 (3.6.0 available)
+2026-11-19T18:36:39.1069961Z Got dependencies!
+2026-11-19T18:36:39.1075357Z 2 packages have newer versions incompatible with dependency constraints.
+2026-11-19T18:36:39.1086917Z Try `dart pub outdated` for more information.
+2026-11-19T18:36:45.1359098Z Generated: d:\a\_temp\observer-migrate.exe
+2026-11-19T18:36:45.6927958Z ##[group]Run ./scripts/ci/install-postgres-tools.ps1
+2026-11-19T18:36:45.6928681Z [36;1m./scripts/ci/install-postgres-tools.ps1[0m
+2026-11-19T18:36:45.7008302Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-11-19T18:36:45.7008651Z env:
+2026-11-19T18:36:45.7008885Z   DART_HOME: C:\hostedtoolcache\windows\dart\3.13.7\x64
+2026-11-19T18:36:45.7009211Z   PUB_CACHE: C:\Users\runneradmin/.pub-cache
+2026-11-19T18:36:45.7009481Z ##[endgroup]
+2026-11-19T18:39:16.3069358Z Using EDB PostgreSQL 16.16-1 binaries from the verified runner tool cache.
+2026-11-19T18:39:16.4260352Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+2026-11-19T18:39:16.4261075Z with:
+2026-11-19T18:39:16.4261592Z   name: recovery-admission-pre-sql-4ff79a4a4b8e1663164e7d96678617caa0926276-44589523473-1
+2026-11-19T18:39:16.4262401Z   path: test-results/recovery-admission/*
+2026-11-19T18:39:16.4262748Z   if-no-files-found: warn
+2026-11-19T18:39:16.4263041Z   retention-days: 30
+2026-11-19T18:39:16.4263312Z   compression-level: 6
+2026-11-19T18:39:16.4263559Z   overwrite: false
+2026-11-19T18:39:16.4263808Z   include-hidden-files: false
+2026-11-19T18:39:16.4264108Z env:
+2026-11-19T18:39:16.4264636Z   DART_HOME: C:\hostedtoolcache\windows\dart\3.13.7\x64
+2026-11-19T18:39:16.4265021Z   PUB_CACHE: C:\Users\runneradmin/.pub-cache
+2026-11-19T18:39:16.4265617Z   VENTIO_TEST_POSTGRES_BIN_DIR: C:\hostedtoolcache\windows\ventio-postgresql-16.16-1-x64\pgsql\bin
+2026-11-19T18:39:16.4266272Z ##[endgroup]
+2026-11-19T18:39:17.7643707Z (node:1788) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T18:39:17.7645142Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T18:39:17.7718804Z ##[warning]No files were found with the provided path: test-results/recovery-admission/*. No artifacts will be uploaded.
+2026-11-19T18:39:17.8222719Z ##[group]Run ./scripts/ci/run-recovery-observer-fixture.ps1
+2026-11-19T18:39:17.8223605Z [36;1m./scripts/ci/run-recovery-observer-fixture.ps1[0m
+2026-11-19T18:39:17.8299802Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-11-19T18:39:17.8300207Z env:
+2026-11-19T18:39:17.8300493Z   DART_HOME: C:\hostedtoolcache\windows\dart\3.13.7\x64
+2026-11-19T18:39:17.8300882Z   PUB_CACHE: C:\Users\runneradmin/.pub-cache
+2026-11-19T18:39:17.8301408Z   VENTIO_TEST_POSTGRES_BIN_DIR: C:\hostedtoolcache\windows\ventio-postgresql-16.16-1-x64\pgsql\bin
+2026-11-19T18:39:17.8301935Z ##[endgroup]
+2026-11-19T18:39:21.5677655Z OBSERVER-PHASE initialize-observer
+2026-11-19T18:39:25.5921819Z OBSERVER-PHASE start-isolated-cluster
+2026-11-19T18:39:26.5979934Z OBSERVER-PHASE production-initializer-observer
+2026-11-19T18:39:31.6261354Z OBSERVER-PHASE OBS03-base-record-denied
+2026-11-19T18:39:32.6362894Z OBSERVER-PHASE OBS24-temp-object-denied
+2026-11-19T18:39:33.6389496Z OBSERVER-PHASE OBS16-observer-survives-nondestructive-physical-copy
+2026-11-19T18:39:44.7024461Z OBSERVER-PHASE start-isolated-cluster
+2026-11-19T18:39:45.7069912Z OBSERVER-PHASE initialize-normal
+2026-11-19T18:39:50.7408221Z OBSERVER-PHASE start-isolated-cluster
+2026-11-19T18:39:51.7576403Z OBSERVER-PHASE production-initializer-normal
+2026-11-19T18:39:54.7698383Z OBSERVER-PHASE OBS19-failed-profile-ddl-rolls-back
+2026-11-19T18:39:55.7708346Z OBSERVER-PHASE initialize-failed-hba
+2026-11-19T18:39:58.7867197Z OBSERVER-PHASE start-isolated-cluster
+2026-11-19T18:39:59.7998424Z OBSERVER-PHASE production-initializer-failed-hba
+2026-11-19T18:40:03.8579727Z OBSERVER-PHASE initialize-preexisting-observer
+2026-11-19T18:40:07.9058956Z OBSERVER-PHASE start-isolated-cluster
+2026-11-19T18:40:08.9199271Z OBSERVER-PHASE OBS27-existing-observer-is-not-modified
+2026-11-19T18:40:12.8606025Z OBS-FIXTURE stage-tool-layout
+2026-11-19T18:40:12.8606687Z OBS-FIXTURE initialize-observer
+2026-11-19T18:40:12.8607310Z OBS-FIXTURE initdb-completed-observer
+2026-11-19T18:40:12.8607846Z OBS-FIXTURE start-isolated-cluster
+2026-11-19T18:40:12.8608384Z OBS-FIXTURE production-initializer-observer
+2026-11-19T18:40:12.8609032Z OBS-FIXTURE initializer-completed-observer
+2026-11-19T18:40:12.8609642Z OBS-FIXTURE seed-real-records
+2026-11-19T18:40:12.8610210Z OBS-FIXTURE OBS01-fixed-sentinel-view
+2026-11-19T18:40:12.8610827Z PASS OBS01-fixed-sentinel-view
+2026-11-19T18:40:12.8611437Z OBS-FIXTURE OBS02-original-receipt-view
+2026-11-19T18:40:12.8613035Z PASS OBS02-original-receipt-view
+2026-11-19T18:40:12.8613535Z OBS-FIXTURE OBS03-base-record-denied
+2026-11-19T18:40:12.8614188Z PASS OBS03-base-record-denied
+2026-11-19T18:40:12.8614991Z OBS-FIXTURE OBS04-base-journal-denied
+2026-11-19T18:40:12.8615421Z PASS OBS04-base-journal-denied
+2026-11-19T18:40:12.8615829Z OBS-FIXTURE OBS05-write-after-readwrite-denied
+2026-11-19T18:40:12.8616297Z PASS OBS05-write-after-readwrite-denied
+2026-11-19T18:40:12.8618624Z OBS-FIXTURE OBS06-view-write-denied
+2026-11-19T18:40:12.8619502Z PASS OBS06-view-write-denied
+2026-11-19T18:40:12.8620006Z OBS-FIXTURE OBS07-set-owner-role-denied
+2026-11-19T18:40:12.8620751Z PASS OBS07-set-owner-role-denied
+2026-11-19T18:40:12.8621311Z OBS-FIXTURE OBS08-private-recovery-schema-denied
+2026-11-19T18:40:12.8621808Z PASS OBS08-private-recovery-schema-denied
+2026-11-19T18:40:12.8622169Z OBS-FIXTURE OBS09-create-role-denied
+2026-11-19T18:40:12.8622483Z PASS OBS09-create-role-denied
+2026-11-19T18:40:12.8622785Z OBS-FIXTURE OBS10-create-object-denied
+2026-11-19T18:40:12.8623094Z PASS OBS10-create-object-denied
+2026-11-19T18:40:12.8623432Z OBS-FIXTURE OBS23-identity-admin-function-denied
+2026-11-19T18:40:12.8623815Z PASS OBS23-identity-admin-function-denied
+2026-11-19T18:40:12.8624149Z OBS-FIXTURE OBS24-temp-object-denied
+2026-11-19T18:40:12.8624450Z PASS OBS24-temp-object-denied
+2026-11-19T18:40:12.8624751Z OBS-FIXTURE OBS11-wrong-database-hba-denied
+2026-11-19T18:40:12.8627578Z PASS OBS11-wrong-database-hba-denied
+2026-11-19T18:40:12.8627978Z OBS-FIXTURE OBS12-wrong-secret-denied
+2026-11-19T18:40:12.8628261Z PASS OBS12-wrong-secret-denied
+2026-11-19T18:40:12.8628517Z OBS-FIXTURE OBS13-bootstrap-retired
+2026-11-19T18:40:12.8628781Z PASS OBS13-bootstrap-retired
+2026-11-19T18:40:12.8629083Z OBS-FIXTURE OBS14-unchanged-runtime-security-profile
+2026-11-19T18:40:12.8629437Z PASS OBS14-unchanged-runtime-security-profile
+2026-11-19T18:40:12.8629783Z OBS-FIXTURE OBS15-role-membership-and-view-barriers
+2026-11-19T18:40:12.8630132Z PASS OBS15-role-membership-and-view-barriers
+2026-11-19T18:40:12.8630523Z OBS-FIXTURE OBS16-observer-survives-nondestructive-physical-copy
+2026-11-19T18:40:12.8630999Z OBS-FIXTURE copying to fresh secondary directory; original remains live
+2026-11-19T18:40:12.8631393Z OBS-FIXTURE start-isolated-cluster
+2026-11-19T18:40:12.8631720Z PASS OBS16-observer-survives-nondestructive-physical-copy
+2026-11-19T18:40:12.8632109Z OBS-FIXTURE OBS17-expired-login-denied
+2026-11-19T18:40:12.8632389Z PASS OBS17-expired-login-denied
+2026-11-19T18:40:12.8632640Z OBS-FIXTURE initialize-normal
+2026-11-19T18:40:12.8632886Z OBS-FIXTURE initdb-completed-normal
+2026-11-19T18:40:12.8633154Z OBS-FIXTURE start-isolated-cluster
+2026-11-19T18:40:12.8633425Z OBS-FIXTURE production-initializer-normal
+2026-11-19T18:40:12.8633717Z OBS-FIXTURE initializer-completed-normal
+2026-11-19T18:40:12.8634020Z OBS-FIXTURE OBS18-ordinary-setup-has-no-observer
+2026-11-19T18:40:12.8634341Z PASS OBS18-ordinary-setup-has-no-observer
+2026-11-19T18:40:12.8634649Z OBS-FIXTURE OBS19-failed-profile-ddl-rolls-back
+2026-11-19T18:40:12.8634968Z PASS OBS19-failed-profile-ddl-rolls-back
+2026-11-19T18:40:12.8635252Z OBS-FIXTURE initialize-failed-hba
+2026-11-19T18:40:12.8635513Z OBS-FIXTURE initdb-completed-failed-hba
+2026-11-19T18:40:12.8635811Z OBS-FIXTURE start-isolated-cluster
+2026-11-19T18:40:12.8636122Z OBS-FIXTURE production-initializer-failed-hba
+2026-11-19T18:40:12.8636445Z OBS-FIXTURE initializer-completed-failed-hba
+2026-11-19T18:40:12.8636793Z OBS-FIXTURE OBS20-initializer-failure-retires-authority
+2026-11-19T18:40:12.8637151Z PASS OBS20-initializer-failure-retires-authority
+2026-11-19T18:40:12.8637453Z OBS-FIXTURE OBS21-expiry-boundaries
+2026-11-19T18:40:12.8637713Z PASS OBS21-expiry-boundaries
+2026-11-19T18:40:12.8638053Z OBS-FIXTURE OBS22-weak-secret-and-wrong-user-denied
+2026-11-19T18:40:12.8638456Z PASS OBS22-weak-secret-and-wrong-user-denied
+2026-11-19T18:40:12.8639264Z OBS-FIXTURE OBS25-hba-preserves-original-and-acl
+2026-11-19T18:40:12.8640396Z FAIL OBS25-hba-preserves-original-and-acl HBA contents/ACL changed unexpectedly
+2026-11-19T18:40:12.8641246Z OBS-FIXTURE OBS26-high-level-requires-new-host-only
+2026-11-19T18:40:12.8641868Z PASS OBS26-high-level-requires-new-host-only
+2026-11-19T18:40:12.8642196Z OBS-FIXTURE initialize-preexisting-observer
+2026-11-19T18:40:12.8642526Z OBS-FIXTURE initdb-completed-preexisting-observer
+2026-11-19T18:40:12.8643104Z OBS-FIXTURE start-isolated-cluster
+2026-11-19T18:40:12.8643425Z OBS-FIXTURE production-initializer-preexisting-observer
+2026-11-19T18:40:12.8643804Z OBS-FIXTURE initializer-completed-preexisting-observer
+2026-11-19T18:40:12.8644162Z OBS-FIXTURE OBS27-existing-observer-is-not-modified
+2026-11-19T18:40:12.8644495Z PASS OBS27-existing-observer-is-not-modified
+2026-11-19T18:40:12.8644707Z 
+2026-11-19T18:40:12.8644834Z Recovery observer security tests failed
+2026-11-19T18:40:12.8645314Z At D:\a\Ventio-Framework\Ventio-Framework\scripts\ci\test-recovery-lab-observer.ps1:182 char:56
+2026-11-19T18:40:12.8645911Z + ... -eq 'FAILED').Count){throw 'Recovery observer security tests failed'}
+2026-11-19T18:40:12.8646314Z +                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-11-19T18:40:12.8646863Z     + CategoryInfo          : OperationStopped: (Recovery observer security tests failed:String) [], RuntimeException
+2026-11-19T18:40:12.8647458Z     + FullyQualifiedErrorId : Recovery observer security tests failed
+2026-11-19T18:40:12.8648481Z  
+2026-11-19T18:40:12.8648618Z 
+2026-11-19T18:40:13.0698818Z [31;1mException: [0mD:\a\Ventio-Framework\Ventio-Framework\scripts\ci\run-recovery-observer-fixture.ps1:39[0m
+2026-11-19T18:40:13.0700079Z [31;1m[0m[36;1mLine |[0m
+2026-11-19T18:40:13.0702136Z [31;1m[0m[36;1m[36;1m  39 | [0m if($failed){[36;1mthrow 'Observer fixture process failed; see phase, case a[0m …[0m
+2026-11-19T18:40:13.0704249Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+2026-11-19T18:40:13.0706093Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mObserver fixture process failed; see phase, case and bounded logs[0m
+2026-11-19T18:40:13.0939109Z ##[error]Process completed with exit code 1.
+2026-11-19T18:40:13.1496360Z ##[group]Run & ./scripts/windows/test-host-new-install-state.ps1
+2026-11-19T18:40:13.1497253Z [36;1m& ./scripts/windows/test-host-new-install-state.ps1[0m
+2026-11-19T18:40:13.1498024Z [36;1m& ./scripts/windows/test-unified-installer-path-contract.ps1[0m
+2026-11-19T18:40:13.1595295Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-11-19T18:40:13.1595998Z env:
+2026-11-19T18:40:13.1596356Z   DART_HOME: C:\hostedtoolcache\windows\dart\3.13.7\x64
+2026-11-19T18:40:13.1596891Z   PUB_CACHE: C:\Users\runneradmin/.pub-cache
+2026-11-19T18:40:13.1597695Z   VENTIO_TEST_POSTGRES_BIN_DIR: C:\hostedtoolcache\windows\ventio-postgresql-16.16-1-x64\pgsql\bin
+2026-11-19T18:40:13.1598492Z ##[endgroup]
+2026-11-19T18:40:13.9454962Z Current and legacy Host setup status metadata do not make an otherwise fresh installation look like an existing Host.
+2026-11-19T18:40:14.0339901Z Host new-install state tests passed: fresh state accepted, existing services/data/backups and out-of-bound paths rejected.
+2026-11-19T18:40:14.7690752Z UNIFIED_INSTALLER_HOST_PROGRAM_FILES_PATH_CONTRACT_PASS
+2026-11-19T18:40:14.7692915Z UNIFIED_INSTALLER_SHARED_FLUTTER_FIRST_RUN_HOST_CLIENT_CHOICES_PASS
+2026-11-19T18:40:14.7695856Z UNIFIED_INSTALLER_HOST_PROVISIONING_DEFERRED_TO_FLUTTER_PASS
+2026-11-19T18:40:14.8397847Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+2026-11-19T18:40:14.8398608Z with:
+2026-11-19T18:40:14.8399188Z   name: recovery-admission-4ff79a4a4b8e1663164e7d96678617caa0926276-44589523473-1
+2026-11-19T18:40:14.8400209Z   path: test-results/recovery-admission/*
+D:\a\_temp/wave2-defender-enablement.json
+
+2026-11-19T18:40:14.8400948Z   if-no-files-found: error
+2026-11-19T18:40:14.8401298Z   retention-days: 30
+2026-11-19T18:40:14.8401620Z   compression-level: 6
+2026-11-19T18:40:14.8401944Z   overwrite: false
+2026-11-19T18:40:14.8402263Z   include-hidden-files: false
+2026-11-19T18:40:14.8402621Z env:
+2026-11-19T18:40:14.8402966Z   DART_HOME: C:\hostedtoolcache\windows\dart\3.13.7\x64
+2026-11-19T18:40:14.8403523Z   PUB_CACHE: C:\Users\runneradmin/.pub-cache
+2026-11-19T18:40:14.8404672Z   VENTIO_TEST_POSTGRES_BIN_DIR: C:\hostedtoolcache\windows\ventio-postgresql-16.16-1-x64\pgsql\bin
+2026-11-19T18:40:14.8405530Z ##[endgroup]
+2026-11-19T18:40:15.0539100Z (node:10184) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T18:40:15.0539995Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T18:40:15.0634491Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-11-19T18:40:15.0638544Z The least common ancestor is D:\a. This will be the root directory of the artifact
+2026-11-19T18:40:15.0639362Z With the provided path, there will be 7 files uploaded
+2026-11-19T18:40:15.0645098Z Artifact name is valid!
+2026-11-19T18:40:15.0646637Z Root directory input is valid!
+2026-11-19T18:40:15.3513856Z Beginning upload of artifact content to blob storage
+2026-11-19T18:40:15.4148690Z (node:10184) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-19T18:40:15.5290225Z Uploaded bytes 4792
+2026-11-19T18:40:15.5657594Z Finished uploading artifact content to blob storage!
+2026-11-19T18:40:15.5659005Z SHA256 digest of uploaded artifact zip is 9e5eedb9e6936d73c35b0952d633e71876656871b3de140cae87afb540e27cd8
+2026-11-19T18:40:15.5661495Z Finalizing artifact upload
+2026-11-19T18:40:15.9229890Z Artifact recovery-admission-4ff79a4a4b8e1663164e7d96678617caa0926276-44589523473-1.zip successfully finalized. Artifact ID 14562906760
+2026-11-19T18:40:15.9232681Z Artifact recovery-admission-4ff79a4a4b8e1663164e7d96678617caa0926276-44589523473-1 has been successfully uploaded! Final size is 4792 bytes. Artifact ID is 14562906760
+2026-11-19T18:40:15.9244744Z Artifact download URL: https://github.com/abedkilany/Ventio-Framework/actions/runs/44589523473/artifacts/14562906760
+2026-11-19T18:40:15.9993715Z Post job cleanup.
+2026-11-19T18:40:16.3519800Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-11-19T18:40:16.6659483Z git version 2.56.0.windows.4
+2026-11-19T18:40:16.6735042Z Temporarily overriding HOME='D:\a\_temp\50882f89-61b7-40b6-985e-37dc9b4c4ad5' before making global git config changes
+2026-11-19T18:40:16.6736231Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-19T18:40:16.6747711Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Ventio-Framework\Ventio-Framework
+2026-11-19T18:40:16.7279754Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-11-19T18:40:16.7856407Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-11-19T18:40:18.4571142Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-19T18:40:18.5102447Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-11-19T18:40:19.2986148Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-19T18:40:19.3507409Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-11-19T18:40:20.1635342Z Cleaning up orphan processes
+2026-11-19T18:40:20.2358125Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,0 +1,28 @@
+{
+    "computer":  "VENTIO-TEST-01",
+    "utc":  "2026-11-15T21:33:15.8477296Z",
+    "source":  "fb341a78eca1bb897e2ce09f1271dae39bbd7d11",
+    "archiveSha256":  "1f277870f77dd62c981ddbd6f1af53a9eddde9114d804654bfae60c2708e4dd6",
+    "binarySha256":  "02F627259CC4C96B13E87D98912A0E5A09AB3E663786C6B7F94D56E08059824B",
+    "binaryExecuted":  false,
+    "defender":  {
+                     "AMProductVersion":  "4.18.26100.4",
+                     "AMEngineVersion":  "1.1.26100.4",
+                     "AntivirusSignatureVersion":  "1.463.317.0",
+                     "AntivirusSignatureLastUpdated":  "\/Date(1794750002000)\/",
+                     "AntivirusEnabled":  true,
+                     "RealTimeProtectionEnabled":  true,
+                     "AMServiceEnabled":  true
+                 },
+    "submissionPolicy":  {
+                             "SubmitSamplesConsent":  1,
+                             "MAPSReporting":  2
+                         },
+    "scanExit":  0,
+    "scan":  [
+                 "Scan starting...",
+                 "Scan finished.",
+                 "Scanning C:\\Users\\codex-1\\AppData\\Local\\VentioFramework\\SecurityInvestigation\\c47dc6a\\host-1.exe found no threats."
+             ],
+    "existsAfter":  true
+}

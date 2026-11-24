@@ -1,0 +1,49 @@
+{
+  "recordedUtc": "2026-11-21T22:10:48.927453+00:00",
+  "case": "TEST01_REAL_FULL_INSTALLER_OLD_POSTGRES_PAYLOAD_UPGRADE",
+  "status": "FAIL_CONFIRMED_PRODUCT_DEFECT",
+  "candidateClass": "LOCAL_REPACK_ENGINEERING_TEST_ONLY_NOT_GITHUB_RELEASE_CANDIDATE",
+  "inputBinariesSource": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+  "installerCodeSource": "7fbab322a42430d989c6031d998ce7cd4f12a427",
+  "innoCompiler": "6.7.3 local",
+  "firstDefectPreviouslyFixed": "Preinstall copied helper protected ACL passed; installer reached postinstall Host upgrade and replaced all expected application files.",
+  "actualFailure": "HOST_NATIVE_PAYLOAD_UNLISTED_FILE",
+  "cause": "Nine older PostgreSQL DLLs absent from the new complete Host manifest remained in Program Files; strict native PinPayload correctly rejected unknown files.",
+  "observedSilentInstallerBehavior": "Unattended installer displayed a non-suppressible [Code] MsgBox in session 0 after Host upgrade failure. The exact pinned process was terminated after failure evidence was preserved; wrapper recorded exit -1.",
+  "newClientFilesMatched": 1746,
+  "oldServicesStopped": true,
+  "witnessPending": false,
+  "databaseReset": false,
+  "defenderEnabled": true,
+  "systemPolicyChanged": false,
+  "unlistedPaths": [
+    "postgresql/bin/libwinpthread-1.dll",
+    "postgresql/bin/wxbase3211u_net_vc_x64_custom.dll",
+    "postgresql/bin/wxbase3211u_vc_x64_custom.dll",
+    "postgresql/bin/wxbase3211u_xml_vc_x64_custom.dll",
+    "postgresql/bin/wxmsw3211u_adv_vc_x64_custom.dll",
+    "postgresql/bin/wxmsw3211u_aui_vc_x64_custom.dll",
+    "postgresql/bin/wxmsw3211u_core_vc_x64_custom.dll",
+    "postgresql/bin/wxmsw3211u_html_vc_x64_custom.dll",
+    "postgresql/bin/wxmsw3211u_xrc_vc_x64_custom.dll"
+  ],
+  "evidence": {
+    "result": {
+      "file": "test01-local-acl-upgrade-result.json",
+      "sha256": "6d64dbd6bf158421d3fa9a13a94e0b3d64839650cf7e7a9609a783cdd8e1e102"
+    },
+    "diagnostic": {
+      "file": "test01-local-acl-maintenance-failure.json",
+      "sha256": "bd2d1eae524c66fd19288e4097282aeb128801af144e8f32ffea732aa4979263"
+    },
+    "scan": {
+      "file": "test01-local-acl-defender-scan.json",
+      "sha256": "d580fe3df2aca0c78958b2b1267cc01170ddbfa4c33723847286ecff1c335231"
+    },
+    "inventory": {
+      "file": "test01-local-acl-unlisted-hostpayload.json",
+      "sha256": "8477bc69cd201900c2dc509da015ef781c66b08369ce77a7b608264c489ce8f3"
+    }
+  },
+  "acceptanceLimit": "The test failed. Corrected old-inventory retirement and silent nonzero exit require new compiled candidate and practical retest."
+}

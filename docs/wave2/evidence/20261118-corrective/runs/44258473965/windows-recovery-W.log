@@ -1,0 +1,9 @@
+PASS W2-W001 [M05] Real nested backup inventory contains sorted per-file lengths and SHA-256
+PASS W2-W002 [M05,M09] Same-size one-byte corruption is detected
+PASS W2-W003 [M05,M09] Missing files cannot pass inventory verification
+PASS W2-W004 [M05,M09] Unexpected files cannot pass inventory verification
+PASS W2-W005 [M05,M09] Manifest path traversal absolute paths duplicate names invalid hashes and negative lengths fail
+PASS W2-W006 [M05,M09] Junction ancestors are rejected and their target remains intact
+PASS W2-W007 [M05,M09] Staged backup copies must match original content before acceptance
+FAIL W2-W008 [M05,M09] Protected operation JSON is replaced atomically with no temporary residue
+[31;1mParentContainsErrorRecordException: [31;1mException calling "Replace" with "3" argument(s): "The path is empty. (Parameter 'path')"[0m

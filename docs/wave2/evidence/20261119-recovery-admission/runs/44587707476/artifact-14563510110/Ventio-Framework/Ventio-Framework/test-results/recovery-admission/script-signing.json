@@ -1,0 +1,81 @@
+{
+    "sourceCommit":  "2ae0188db9ee783c6ca7b5328f792768f71a3c41",
+    "runId":  "44587707476",
+    "fixtureOnly":  true,
+    "releasePublisherTrusted":  false,
+    "cases":  [
+                  {
+                      "id":  "SIG01-release-needs-timestamp",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG02-source-tree-refused",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-valid",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-unsigned",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-tampered",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-untrusted",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-module-valid",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-module-unsigned",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-module-tampered",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-operator-module-untrusted",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-valid",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-unsigned",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-tampered",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-untrusted",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-module-valid",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-module-unsigned",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-module-tampered",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "SIG-SYSTEM-module-untrusted",
+                      "status":  "PASSED"
+                  }
+              ],
+    "physicalVmTouched":  false
+}

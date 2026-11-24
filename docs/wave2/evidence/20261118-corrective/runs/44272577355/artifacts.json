@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 14413606097,
+      "node_id": "MDg6QXJ0aWZhY3QxNDQxMzYwNjA5Nw==",
+      "name": "wave2-candidate-evidence-44272577355-1",
+      "size_in_bytes": 209825,
+      "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14413606097",
+      "archive_download_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/artifacts/14413606097/zip",
+      "expired": false,
+      "digest": "sha256:8b10313bd6d080ab92819cbdfef1ba2caa01f7e8fb4ede13b89131ca1c681448",
+      "created_at": "2026-11-18T09:05:40Z",
+      "updated_at": "2026-11-18T09:05:40Z",
+      "expires_at": "2026-12-18T09:05:39Z",
+      "workflow_run": {
+        "id": 44272577355,
+        "repository_id": 1431395537,
+        "head_repository_id": 1431395537,
+        "head_branch": "feature/wave-2-a",
+        "head_sha": "440151bcfd9f5abeff396e319170d8cd9a8e43d6"
+      }
+    }
+  ]
+}

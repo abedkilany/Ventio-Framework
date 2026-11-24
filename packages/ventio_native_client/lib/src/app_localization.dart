@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:ventio_core/ventio_core.dart';
 
@@ -71,6 +74,12 @@ class VentioLocalizationController extends ChangeNotifier
   );
 
   String extensionMetadataText(String key, String englishFallback) {
+    // Custom labels belong to a separately versioned overlay. Keep previous
+    // renderings and immutable base-package catalog entries deterministic when
+    // a customization owner changes a label during the same application run.
+    if (key.startsWith('extension.') && key.contains('.custom.')) {
+      key = '$key.v_${sha256.convert(utf8.encode(englishFallback))}';
+    }
     catalog.registerFallback(key, englishFallback);
     return catalog.text(key, locale: _locale.toLanguageTag());
   }

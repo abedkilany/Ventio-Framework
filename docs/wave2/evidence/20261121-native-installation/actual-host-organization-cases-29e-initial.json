@@ -1,0 +1,63 @@
+﻿{
+    "recordedAtUtc":  "2026-11-21T19:25:47.6422676Z",
+    "machine":  "TEST-02",
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "actualInstalledHost":  true,
+    "directSqlUsed":  false,
+    "credentialContentsRecorded":  false,
+    "cases":  [
+                  {
+                      "id":  "IAPI038",
+                      "description":  "Installed organization CAS denies a stale company edit and preserves the native update",
+                      "status":  "PASS",
+                      "elapsedMs":  1355
+                  },
+                  {
+                      "id":  "IAPI039",
+                      "description":  "Installed current company cannot be archived while in use",
+                      "status":  "FAIL",
+                      "safeFailure":  "CURRENT_COMPANY_ARCHIVAL_NOT_DENIED",
+                      "elapsedMs":  942
+                  },
+                  {
+                      "id":  "IAPI040",
+                      "description":  "Installed current branch cannot archive its active scope",
+                      "status":  "FAIL",
+                      "safeFailure":  "CURRENT_BRANCH_ARCHIVAL_NOT_DENIED",
+                      "elapsedMs":  938
+                  },
+                  {
+                      "id":  "IAPI041",
+                      "description":  "Installed branch creation rejects an unavailable company parent",
+                      "status":  "FAIL",
+                      "safeFailure":  "MISSING_PARENT_WAS_ADMITTED",
+                      "elapsedMs":  1084
+                  },
+                  {
+                      "id":  "IAPI042",
+                      "description":  "Installed platform denies an ungranted branch binding",
+                      "status":  "PASS",
+                      "elapsedMs":  178
+                  },
+                  {
+                      "id":  "IAPI043",
+                      "description":  "Authorized installed branch creation persists a valid parent hierarchy",
+                      "status":  "PASS",
+                      "elapsedMs":  1305
+                  },
+                  {
+                      "id":  "IAPI044",
+                      "description":  "Creating a branch grants no implicit business membership or credential scope",
+                      "status":  "PASS",
+                      "elapsedMs":  174
+                  },
+                  {
+                      "id":  "IAPI045",
+                      "description":  "Installed branch creation retry preserves its original revision receipt",
+                      "status":  "PASS",
+                      "elapsedMs":  1015
+                  }
+              ],
+    "capabilityCompletionClaimed":  false,
+    "P001_P006Executed":  false
+}

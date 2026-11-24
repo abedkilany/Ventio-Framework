@@ -1,0 +1,114 @@
+{
+    "sourceCommit":  "4ff79a4a4b8e1663164e7d96678617caa0926276",
+    "cases":  [
+                  {
+                      "id":  "OBS01-fixed-sentinel-view",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS02-original-receipt-view",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS03-base-record-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS04-base-journal-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS05-write-after-readwrite-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS06-view-write-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS07-set-owner-role-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS08-private-recovery-schema-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS09-create-role-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS10-create-object-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS23-identity-admin-function-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS24-temp-object-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS11-wrong-database-hba-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS12-wrong-secret-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS13-bootstrap-retired",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS14-unchanged-runtime-security-profile",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS15-role-membership-and-view-barriers",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS16-observer-survives-nondestructive-physical-copy",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS17-expired-login-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS18-ordinary-setup-has-no-observer",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS19-failed-profile-ddl-rolls-back",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS20-initializer-failure-retires-authority",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS21-expiry-boundaries",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS22-weak-secret-and-wrong-user-denied",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "status":  "FAILED",
+                      "id":  "OBS25-hba-preserves-original-and-acl",
+                      "reason":  "HBA contents/ACL changed unexpectedly"
+                  },
+                  {
+                      "id":  "OBS26-high-level-requires-new-host-only",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "OBS27-existing-observer-is-not-modified",
+                      "status":  "PASSED"
+                  }
+              ]
+}

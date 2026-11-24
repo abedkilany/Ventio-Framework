@@ -75,8 +75,14 @@ try {
     Remove-Item -LiteralPath $passwordFile -Force
 
     $pgOptions = "-h 127.0.0.1 -p $port -c listen_addresses=127.0.0.1 -c logging_collector=off -c max_prepared_transactions=1"
-    & $pgCtl -D $dataDirectory -l $logFile -o $pgOptions -w -t 60 start
-    if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not start within one minute.' }
+    # Do not inherit PowerShell's captured stdout handles into the background
+    # postmaster. A repair-focused local runner may redirect its complete log.
+    $controlOutput=Join-Path $fixtureRoot 'pg-control-start.txt'
+    $controlError=Join-Path $fixtureRoot 'pg-control-start-error.txt'
+    $control=Start-Process -FilePath $pgCtl -ArgumentList @('-D',('"'+$dataDirectory+'"'),'-l',('"'+$logFile+'"'),'-o',('"'+$pgOptions+'"'),'-w','-t','60','start') -WindowStyle Hidden -PassThru -RedirectStandardOutput $controlOutput -RedirectStandardError $controlError
+    $null = $control.Handle
+    $control.WaitForExit()
+    if ($control.ExitCode -ne 0) { throw 'PostgreSQL did not start within one minute.' }
 
     $env:PGPASSWORD = $postgresPassword
     $ready = $false

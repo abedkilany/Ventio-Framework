@@ -1,0 +1,58 @@
+{
+  "artifactId": 14615661415,
+  "runId": 44703269459,
+  "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "sourceTree": "d3959d1808dbe6b261be6606ab4c459997866e46",
+  "identity": "Ventio-W2B-0.1.23+24-20261120-81661f7f2f10-gh44703269459-a1",
+  "outerBytes": 276573780,
+  "outerSha256": "4ea93590ae677d660bc4ea3e5d69da233170da44f2297e734fd7425378bb3e0f",
+  "innerBytes": 277467992,
+  "innerSha256": "d89880da5064fe976750c1e9225f1201f2186324242b851ca987bc74d13773c7",
+  "membersVerified": 1767,
+  "completeInventoryEntriesVerified": 1765,
+  "sourceArchiveMatchedGit": true,
+  "sourceArchiveMembersVerified": 1299,
+  "sourceArchiveContainerBytesIdentical": false,
+  "hostedSecurityStatus": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+  "importantFiles": {
+    "Ventio-Setup-0.1.23.exe": {
+      "bytes": 108101482,
+      "sha256": "bde048b4fbc7f8cd6041eea33ef5fd48fae9587fb567efedfba7521a75c58137"
+    },
+    "Client/ventio_native_client.exe": {
+      "bytes": 92160,
+      "sha256": "2544a41e5fe475351437906edc6afff93406a956cae5b6381eea87a4e41c5daa"
+    },
+    "HostPayload/VentioHostService.exe": {
+      "bytes": 73705257,
+      "sha256": "6ab890472ab1e0b7be043bc79701308d70f8672fa65bf4394098f1192f0aa5e6"
+    },
+    "HostPayload/VentioSetupBroker.exe": {
+      "bytes": 73627433,
+      "sha256": "50e70531e639ed993d60a29f8f1253e3528d499d3f13f4394b693399ee3e9e3c"
+    },
+    "HostPayload/ventio_host.exe": {
+      "bytes": 8806400,
+      "sha256": "056d434333f57c2bb6288617cc1c2fd256d06a44e8e016b58c62ddabd1af6cc1"
+    },
+    "HostPayload/ventio_migrate.exe": {
+      "bytes": 7537664,
+      "sha256": "a24cba27929ded2d29d4f59b33fd54516256188c981b9d772181fd58b5117156"
+    },
+    "Prerequisites/vc_redist.x64.exe": {
+      "bytes": 18731856,
+      "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c"
+    },
+    "Client/data/app.so": {
+      "bytes": 10650512,
+      "sha256": "d41f35895c6a78389d80711015656f58b5fdc3816cd08cd7ee92cd80168efa25"
+    }
+  },
+  "payload": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\candidate-44703269459-extracted\\Payload",
+  "innerZip": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\candidate-44703269459-extracted\\transport\\_temp\\wave2-delivery\\Ventio-W2B-0.1.23+24-20261120-81661f7f2f10-gh44703269459-a1.zip",
+  "limitations": [
+    "No installed acceptance is established by integrity checks",
+    "Bit-identical binary rebuild is not established",
+    "Source ZIP container bytes differ between Git environments; every member path/content and commit comment matched"
+  ]
+}

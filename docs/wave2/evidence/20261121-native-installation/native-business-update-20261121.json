@@ -1,0 +1,20 @@
+{
+    "case":  "NATIVE-UI-CREATE-UPDATE-HOST-CONFIRMATION",
+    "status":  "PASS",
+    "checkedAtUtc":  "2026-11-21T14:09:48.1946178Z",
+    "actualInstalledClient":  true,
+    "clientSource":  "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "actualInstalledHost":  true,
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "recordId":  "f176a984-67a7-4365-a224-fda35ecd5451",
+    "authoritativeMatchingRecords":  1,
+    "authoritativeRevision":  2,
+    "createCommandId":  "88913750-b329-4f0e-b463-4a29f5e0411c",
+    "updateCommandId":  "296ffa13-170c-46b9-9bc6-631f67e8f2e2",
+    "bothCommandsInAuthoritativeHistory":  true,
+    "nativeUiHostConfirmed":  2,
+    "nativeUiPending":  0,
+    "nativeUiUpdateAttempts":  1,
+    "verification":  "Independent read-only authenticated Host API query/history after native UI Save and Retry; no direct database writes",
+    "limitation":  "Single installed Client; multi-device conflicts and convergence remain separate."
+}

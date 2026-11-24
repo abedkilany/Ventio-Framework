@@ -1,0 +1,42 @@
+﻿{
+    "case":  "TEST02-CLIENT-OPEN-UPGRADE-PRECHECK",
+    "machine":  "TEST-02",
+    "source":  "474c3a4e2824c86ea5267d9ed9370d3986197983",
+    "startedAtUtc":  "2026-11-22T18:42:24.7953996Z",
+    "status":  "PASS_SAFE_PRECHECK_DENIAL",
+    "clientBefore":  {
+                         "ProcessId":  7636,
+                         "SessionId":  1
+                     },
+    "clientHashBefore":  "2544a41e5fe475351437906edc6afff93406a956cae5b6381eea87a4e41c5daa",
+    "servicesBefore":  [
+                           {
+                               "Name":  "VentioHost",
+                               "Status":  4
+                           },
+                           {
+                               "Name":  "VentioPostgres",
+                               "Status":  4
+                           }
+                       ],
+    "installerHash":  "3d3c550717597f87063cce029913537a2b4b5f4acd630057c35151c489c33585",
+    "installerExitCode":  7,
+    "clientAfter":  {
+                        "ProcessId":  7636,
+                        "SessionId":  1
+                    },
+    "clientHashAfter":  "2544a41e5fe475351437906edc6afff93406a956cae5b6381eea87a4e41c5daa",
+    "servicesAfter":  [
+                          {
+                              "Name":  "VentioHost",
+                              "Status":  4
+                          },
+                          {
+                              "Name":  "VentioPostgres",
+                              "Status":  4
+                          }
+                      ],
+    "precheckMessagePresent":  true,
+    "policyAfter":  "Restricted",
+    "completedAtUtc":  "2026-11-22T18:42:36.8939673Z"
+}

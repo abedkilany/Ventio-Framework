@@ -79,6 +79,10 @@ BEGIN
     RAISE EXCEPTION 'Credential reissue operator denied' USING ERRCODE='42501';
   END IF;
 
+  IF EXISTS(SELECT FROM public.ventio_identity_users WHERE tenant_id=p_tenant AND actor_id=p_target_actor AND is_owner)
+      AND p_operator_actor<>p_target_actor THEN
+    RAISE EXCEPTION 'Organization Owner credential is protected' USING ERRCODE='42501'; END IF;
+
   -- Stable operation references reconcile lost responses. A duplicate request
   -- never creates a second transition and never returns a newly generated token.
   SELECT * INTO prior_row FROM public.ventio_identity_credential_reissues r
@@ -109,7 +113,7 @@ BEGIN
     JOIN public.ventio_identity_users u USING (tenant_id,actor_id)
     WHERE d.tenant_id=p_tenant AND d.device_id=p_device
       AND d.revoked_at IS NULL AND u.disabled_at IS NULL
-      AND ((EXISTS (SELECT FROM public.ventio_identity_grants g
+      AND (u.is_owner OR u.organization_wide OR (EXISTS (SELECT FROM public.ventio_identity_grants g
           WHERE g.tenant_id=d.tenant_id AND g.actor_id=d.actor_id
             AND g.company_id=p_company AND g.branch_id=p_branch)) OR
         (EXISTS (SELECT FROM public.ventio_identity_role_assignments a
@@ -124,7 +128,7 @@ BEGIN
       AND c.device_id=p_device AND c.credential_id=p_source_credential_id
       AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
     FOR UPDATE;
-  IF NOT FOUND OR source_row.allowed_scopes IS NULL OR
+  IF NOT FOUND OR source_row.login_parent_id IS NOT NULL OR source_row.allowed_scopes IS NULL OR
       jsonb_typeof(source_row.allowed_scopes)<>'array' OR
       jsonb_array_length(source_row.allowed_scopes)<>1 OR
       source_row.allowed_scopes->0->>'companyId' IS DISTINCT FROM p_company OR
@@ -132,16 +136,7 @@ BEGIN
       jsonb_typeof(source_row.allowed_scopes->0->'permissions')<>'array' THEN
     RAISE EXCEPTION 'Source credential unavailable or out of scope' USING ERRCODE='42501';
   END IF;
-  SELECT coalesce(array_agg(DISTINCT permission ORDER BY permission),'{}'::text[])
-    INTO current_permissions FROM (
-      SELECT g.permission FROM public.ventio_identity_grants g
-        WHERE g.tenant_id=p_tenant AND g.actor_id=device_row.actor_id
-          AND g.company_id=p_company AND g.branch_id=p_branch
-      UNION
-      SELECT rp.permission FROM public.ventio_identity_role_assignments a
-        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
-        WHERE a.tenant_id=p_tenant AND a.actor_id=device_row.actor_id
-          AND a.company_id=p_company AND a.branch_id=p_branch) effective;
+  current_permissions:=ventio_security.account_user_permissions(p_tenant,device_row.actor_id,p_company,p_branch);
   SELECT coalesce(array_agg(DISTINCT permission ORDER BY permission),'{}'::text[])
     INTO source_permissions FROM jsonb_array_elements_text(
       source_row.allowed_scopes->0->'permissions') permission;
@@ -158,7 +153,7 @@ BEGIN
     INTO additions FROM unnest(p_permissions) permission
     WHERE NOT permission=ANY(source_permissions);
   IF EXISTS (SELECT FROM unnest(additions) permission WHERE
-      permission ~ '^(identity|host|system|security|recovery|authorization)\.') THEN
+      permission ~ '^(identity|host|system|security|recovery|authorization)\.') AND NOT EXISTS(SELECT FROM public.ventio_identity_users WHERE tenant_id=p_tenant AND actor_id=p_operator_actor AND is_owner) THEN
     RAISE EXCEPTION 'New management permissions require a separate authorization' USING ERRCODE='42501';
   END IF;
   INSERT INTO public.ventio_identity_audit
@@ -241,7 +236,15 @@ BEGIN
     WHERE c.token_digest=p_source_digest AND c.revoked_at IS NULL
       AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL
       AND d.revoked_at IS NULL FOR SHARE OF c,u,d;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Credential unavailable' USING ERRCODE='42501'; END IF;
+  IF NOT FOUND OR NOT ventio_security.account_credential_valid(p_source_digest) THEN
+    RAISE EXCEPTION 'Credential unavailable' USING ERRCODE='42501'; END IF;
+  IF source_row.login_parent_id IS NOT NULL THEN
+    SELECT c.* INTO source_row FROM public.ventio_identity_credentials c
+      WHERE c.tenant_id=source_row.tenant_id AND c.actor_id=source_row.actor_id
+        AND c.device_id=source_row.device_id AND c.credential_id=source_row.login_parent_id
+        AND c.login_parent_id IS NULL AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() FOR SHARE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Credential unavailable' USING ERRCODE='42501'; END IF;
+  END IF;
   SELECT r.* INTO reissue_row FROM public.ventio_identity_credential_reissues r
     WHERE r.operation_id=p_operation_id AND r.tenant_id=source_row.tenant_id
       AND r.actor_id=source_row.actor_id AND r.device_id=source_row.device_id
@@ -257,16 +260,7 @@ BEGIN
           AND u.disabled_at IS NULL) THEN
     RAISE EXCEPTION 'Credential reissue target unavailable' USING ERRCODE='P0002';
   END IF;
-  SELECT coalesce(array_agg(DISTINCT permission ORDER BY permission),'{}'::text[])
-    INTO current_permissions FROM (
-      SELECT g.permission FROM public.ventio_identity_grants g
-        WHERE g.tenant_id=reissue_row.tenant_id AND g.actor_id=reissue_row.actor_id
-          AND g.company_id=reissue_row.company_id AND g.branch_id=reissue_row.branch_id
-      UNION
-      SELECT rp.permission FROM public.ventio_identity_role_assignments a
-        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
-        WHERE a.tenant_id=reissue_row.tenant_id AND a.actor_id=reissue_row.actor_id
-          AND a.company_id=reissue_row.company_id AND a.branch_id=reissue_row.branch_id) effective;
+  current_permissions:=ventio_security.account_user_permissions(reissue_row.tenant_id,reissue_row.actor_id,reissue_row.company_id,reissue_row.branch_id);
   IF NOT (reissue_row.allowed_permissions <@ current_permissions) THEN
     RAISE EXCEPTION 'Credential reissue no longer authorized' USING ERRCODE='42501';
   END IF;
@@ -308,7 +302,15 @@ BEGIN
     WHERE c.token_digest=p_source_digest AND c.revoked_at IS NULL
       AND c.expires_at>clock_timestamp() AND u.disabled_at IS NULL
       AND d.revoked_at IS NULL FOR SHARE OF c,u,d;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Credential unavailable' USING ERRCODE='42501'; END IF;
+  IF NOT FOUND OR NOT ventio_security.account_credential_valid(p_source_digest) THEN
+    RAISE EXCEPTION 'Credential unavailable' USING ERRCODE='42501'; END IF;
+  IF source_row.login_parent_id IS NOT NULL THEN
+    SELECT c.* INTO source_row FROM public.ventio_identity_credentials c
+      WHERE c.tenant_id=source_row.tenant_id AND c.actor_id=source_row.actor_id
+        AND c.device_id=source_row.device_id AND c.credential_id=source_row.login_parent_id
+        AND c.login_parent_id IS NULL AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() FOR SHARE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Credential unavailable' USING ERRCODE='42501'; END IF;
+  END IF;
   SELECT r.operation_id INTO operation_id_value
     FROM public.ventio_identity_credential_reissues r
     WHERE r.tenant_id=source_row.tenant_id AND r.actor_id=source_row.actor_id
@@ -388,16 +390,7 @@ BEGIN
       WHERE operation_id=p_operation_id;
     RETURN jsonb_build_object('operationId',p_operation_id,'state','REJECTED');
   END IF;
-  SELECT coalesce(array_agg(DISTINCT permission ORDER BY permission),'{}'::text[])
-    INTO current_permissions FROM (
-      SELECT g.permission FROM public.ventio_identity_grants g
-        WHERE g.tenant_id=reissue_row.tenant_id AND g.actor_id=reissue_row.actor_id
-          AND g.company_id=reissue_row.company_id AND g.branch_id=reissue_row.branch_id
-      UNION
-      SELECT rp.permission FROM public.ventio_identity_role_assignments a
-        JOIN public.ventio_identity_role_permissions rp USING (tenant_id,role_id)
-        WHERE a.tenant_id=reissue_row.tenant_id AND a.actor_id=reissue_row.actor_id
-          AND a.company_id=reissue_row.company_id AND a.branch_id=reissue_row.branch_id) effective;
+  current_permissions:=ventio_security.account_user_permissions(reissue_row.tenant_id,reissue_row.actor_id,reissue_row.company_id,reissue_row.branch_id);
   IF NOT (reissue_row.allowed_permissions <@ current_permissions) THEN
     UPDATE public.ventio_identity_credential_reissues
       SET state='REJECTED',delivery_ciphertext=NULL

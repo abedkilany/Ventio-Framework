@@ -1,0 +1,105 @@
+{"protocolVersion":"0.1.1","runnerVersion":null,"pid":3536,"type":"start","time":0}
+{"suite":{"id":0,"platform":"vm","path":"D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"suite","time":0}
+{"test":{"id":1,"name":"loading D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart","suiteID":0,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":1}
+{"count":1,"time":5,"type":"allSuites"}
+√ Built build\windows\x64\runner\Debug\ventio_native_client.exe
+
+[{"event":"test.startedProcess","params":{"vmServiceUri":"http://127.0.0.1:51328/71pDc52-oVg=/"}}]
+{"testID":1,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":76571}
+{"group":{"id":2,"suiteID":0,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":7,"line":null,"column":null,"url":null},"type":"group","time":76573}
+{"test":{"id":3,"name":"(setUpAll)","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":38,"column":3,"url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":76574}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":80410}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":83408}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":86348}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":89167}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":92054}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":95003}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":97832}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":100615}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":103423}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":106198}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":108972}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":111794}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":114586}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":117362}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":120133}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":122931}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":125668}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":128489}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":131990}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":134987}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":137769}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":140542}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":143304}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":146051}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":148825}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":151692}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":154477}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":157351}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":160291}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":163087}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":166046}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":168891}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":171738}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":174549}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":177374}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":180176}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":182976}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":185790}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":189185}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":192529}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":195371}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":198559}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":201310}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":204086}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":206843}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":209681}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":213030}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":216462}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":219258}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":222050}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":224968}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":227817}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":230588}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":233347}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":236109}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":238880}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":241798}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":244647}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":247590}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":250520}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":253331}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":256113}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":258971}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":261773}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":264606}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":267548}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":270348}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":273687}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":278398}
+{"testID":3,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":280685}
+{"test":{"id":4,"name":"W2-G001 [C08,F05,B09] workspace exposes only current approved installed modules and native navigation","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":158,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":280686}
+{"testID":4,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":295267}
+{"test":{"id":5,"name":"W2-G002 [C08,D09] locally installed metadata grants no navigation without current package authority","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":174,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":295268}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":295900}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":298788}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":301682}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":304477}
+{"testID":5,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":307908}
+{"testID":5,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":317622}
+{"test":{"id":6,"name":"W2-G003 [C08,F05] a local package digest mismatch contributes no authorized workspace links","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":196,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":317622}
+{"testID":6,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":330330}
+{"test":{"id":7,"name":"W2-G004 [C08,C09,C12] narrow large-text workspace navigation has no overflow or uncaught rendering error","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":223,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":330330}
+{"testID":7,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":342385}
+{"test":{"id":8,"name":"W2-G005 [A11,A12,K09] repeated Host customization labels refresh in the same app session","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":241,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":342385}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":344301}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":361169}
+{"testID":8,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":376144}
+{"test":{"id":9,"name":"W2-G006 [C12,F05] a saved dashboard card opens a real current-authorized Host report","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":281,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":376145}
+{"testID":3,"messageType":"print","message":"Windows private-file helper: create_file MethodInvocationException 0x80131501","type":"print","time":378737}
+{"testID":9,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":396089}
+{"test":{"id":10,"name":"W2-G007 [H04,D08] native document activity renders real command identity without protected values","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":314,"root_column":3,"root_url":"file:///D:/a/Ventio-Framework/Ventio-Framework/packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart"},"type":"testStart","time":396089}
+{"testID":10,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":399400}
+{"test":{"id":11,"name":"(tearDownAll)","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":50,"column":5,"url":"package:integration_test/integration_test.dart"},"type":"testStart","time":399400}
+{"testID":11,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":399415}
+{"success":true,"type":"done","time":399444}

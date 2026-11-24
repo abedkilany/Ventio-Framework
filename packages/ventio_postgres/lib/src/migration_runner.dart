@@ -4,6 +4,15 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:postgres/postgres.dart' as pg;
 
+// Published pre-Wave-2 development migrations are retained in the ledger.
+// Only these exact reviewed bodies can bridge to the canonical Wave 2 chain.
+const retainedOrganizationMigrationChecksums = <String, String>{
+  '037_extension_submitter_review.sql':
+      'd17d39218a3aad2d84638a74d55bf1a17a691fc04559e5e1ff4d458afff9bdf3',
+  '038_initial_account_owner.sql':
+      '1efbeeb2f39163dfe08808a8b40a6b5886e96a3a8b3d74b7f4cdbefa66ce389b',
+};
+
 /// Migration identity is independent of checkout line endings on each OS.
 String canonicalMigrationSql(String source) =>
     source.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
@@ -94,6 +103,11 @@ class PostgresMigrationRunner {
     final known = <String>{};
     for (final row in ledger) {
       final name = row[0] as String;
+      if (!checksums.containsKey(name) &&
+          retainedOrganizationMigrationChecksums[name] == row[1]) {
+        known.add(name);
+        continue;
+      }
       if (!checksums.containsKey(name) ||
           !migrationChecksumIsAccepted(
             filename: name,
@@ -105,6 +119,10 @@ class PostgresMigrationRunner {
         );
       }
       known.add(name);
+    }
+    if (known.contains('038_initial_account_owner.sql') &&
+        !known.contains('037_extension_submitter_review.sql')) {
+      throw StateError('Incomplete legacy organization migration chain');
     }
     for (final entry in sources.entries) {
       if (known.contains(entry.key)) continue;

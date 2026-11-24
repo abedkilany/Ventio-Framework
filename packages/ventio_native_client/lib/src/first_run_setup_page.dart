@@ -6,10 +6,12 @@ class FirstRunSetupPage extends StatelessWidget {
   const FirstRunSetupPage({
     required this.onSetUpHost,
     required this.onConnectClient,
+    this.onOwnerSetup,
     super.key,
   });
 
   final VoidCallback onSetUpHost;
+  final VoidCallback? onOwnerSetup;
   final ValueChanged<BuildContext> onConnectClient;
 
   @override
@@ -43,6 +45,13 @@ class FirstRunSetupPage extends StatelessWidget {
                 actionKey: 'native.ui.first_run_continue',
                 onPressed: onSetUpHost,
               ),
+              if (onOwnerSetup != null)
+                TextButton(
+                  onPressed: onOwnerSetup,
+                  child: const VentioText(
+                    'native.ui.account_initialize_migrate_or_recover_an_organization_owner_on_this_host',
+                  ),
+                ),
               const SizedBox(height: 16),
               _ChoiceCard(
                 icon: Icons.devices_outlined,

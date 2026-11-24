@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "environment": {
+    "dart": "3.13.7",
+    "postgres": "16.16 (Debian 16.16-1.pgdg12+1)",
+    "visibleLogicalProcessors": 4,
+    "os": "linux",
+    "architecture": "x86_64"
+  },
+  "profiles": [
+    {
+      "fixtureUsers": 10,
+      "fixtureAudit": 100,
+      "actualRows": {
+        "users": 11,
+        "devices": 21,
+        "credentials": 21,
+        "grants": 11,
+        "audit": 105
+      },
+      "fingerprintMs": {
+        "min": 0.604,
+        "median": 0.678,
+        "p95": 1.971,
+        "max": 1.971
+      },
+      "httpConcurrency": 4,
+      "httpSamples": 8,
+      "httpMs": {
+        "min": 95.892,
+        "median": 117.353,
+        "p95": 218.96,
+        "max": 218.96
+      },
+      "httpAcceptedWithoutRetry": 8,
+      "rlsReadLimit": 20,
+      "rlsReadRows": 10,
+      "rlsReadMs": 59.632,
+      "rlsReadSqlState": null
+    },
+    {
+      "fixtureUsers": 100,
+      "fixtureAudit": 5000,
+      "actualRows": {
+        "users": 101,
+        "devices": 201,
+        "credentials": 201,
+        "grants": 101,
+        "audit": 5005
+      },
+      "fingerprintMs": {
+        "min": 0.573,
+        "median": 0.608,
+        "p95": 2.092,
+        "max": 2.092
+      },
+      "httpConcurrency": 4,
+      "httpSamples": 8,
+      "httpMs": {
+        "min": 93.913,
+        "median": 100.549,
+        "p95": 112.565,
+        "max": 112.565
+      },
+      "httpAcceptedWithoutRetry": 8,
+      "rlsReadLimit": 20,
+      "rlsReadRows": 18,
+      "rlsReadMs": 83.414,
+      "rlsReadSqlState": null
+    },
+    {
+      "fixtureUsers": 1000,
+      "fixtureAudit": 20000,
+      "actualRows": {
+        "users": 1001,
+        "devices": 2001,
+        "credentials": 2001,
+        "grants": 1001,
+        "audit": 20005
+      },
+      "fingerprintMs": {
+        "min": 0.659,
+        "median": 0.821,
+        "p95": 3.058,
+        "max": 3.058
+      },
+      "httpConcurrency": 4,
+      "httpSamples": 8,
+      "httpMs": {
+        "min": 94.031,
+        "median": 101.417,
+        "p95": 161.286,
+        "max": 161.286
+      },
+      "httpAcceptedWithoutRetry": 8,
+      "rlsReadLimit": 20,
+      "rlsReadRows": 20,
+      "rlsReadMs": 56.558,
+      "rlsReadSqlState": null
+    }
+  ],
+  "smallProfileGate": "passed",
+  "productionReadiness": "blocked",
+  "qualityScore": null
+}

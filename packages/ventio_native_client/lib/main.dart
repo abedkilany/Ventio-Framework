@@ -13,6 +13,8 @@ import 'src/extension_studio_page.dart';
 import 'src/client_pairing_page.dart';
 import 'src/first_run_setup_page.dart';
 import 'src/host_credentials.dart';
+import 'src/account_sign_in.dart';
+import 'src/host_setup_windows.dart';
 import 'src/host_setup.dart';
 import 'src/host_setup_page.dart';
 import 'src/local_command_queue.dart';
@@ -180,6 +182,8 @@ class VentioClientApp extends StatefulWidget {
 }
 
 class _VentioClientAppState extends State<VentioClientApp> {
+  final GlobalKey<NavigatorState> _accountNavigatorKey =
+      GlobalKey<NavigatorState>();
   final NavigatorObserver _navigatorObserver = _ProbeNavigatorObserver();
   late final VentioLocalizationController _localizations =
       widget.localizations ?? VentioLocalizationController();
@@ -190,6 +194,9 @@ class _VentioClientAppState extends State<VentioClientApp> {
   @override
   void initState() {
     super.initState();
+    accountSessionInvalidated.addListener(_signOut);
+    _enrollmentChanges = widget.credentialVault?.authorizationInvalidations
+        .listen((_) => _signOut());
     _loadStartupState();
   }
 
@@ -198,7 +205,8 @@ class _VentioClientAppState extends State<VentioClientApp> {
     var showFirstRun = false;
     if (!widget.forceHostSetup) {
       try {
-        showFirstRun = await widget.extensionStore.getHostProfile() == null;
+        _accountProfile = await widget.extensionStore.getHostProfile();
+        showFirstRun = _accountProfile == null;
       } on Object {
         showFirstRun = true;
       }
@@ -216,22 +224,75 @@ class _VentioClientAppState extends State<VentioClientApp> {
     _showHostSetup = true;
   });
 
-  void _finishHostSetup() => setState(() {
-    _showHostSetup = false;
-    _showFirstRun = false;
-  });
+  void _finishHostSetup() {
+    setState(() {
+      _showHostSetup = false;
+      _showFirstRun = false;
+    });
+    _loadStartupState();
+  }
+
+  HostConnectionProfile? _accountProfile;
+  StreamSubscription<void>? _enrollmentChanges;
+  DateTime? _signedInUntil;
+  Timer? _leaseTimer;
+  DateTime? _lastLeaseClock;
+
+  void _signedIn(DateTime expiry) {
+    _leaseTimer?.cancel();
+    _lastLeaseClock = DateTime.now().toUtc();
+    setState(() => _signedInUntil = expiry);
+    _leaseTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      final now = DateTime.now().toUtc();
+      if (!now.isBefore(expiry) ||
+          (_lastLeaseClock != null && now.isBefore(_lastLeaseClock!))) {
+        _signOut();
+        return;
+      }
+      _lastLeaseClock = now;
+      final profile = _accountProfile;
+      if (profile != null) {
+        final endpoint = Uri.parse(profile.endpoint);
+        final cache = await widget.credentialVault?.readOfflineAccount(
+          endpoint,
+        );
+        if (cache != null) {
+          cache['lastSeen'] = now.toIso8601String();
+          await widget.credentialVault?.writeOfflineAccount(endpoint, cache);
+        }
+      }
+    });
+  }
+
+  void _signOut() {
+    _leaseTimer?.cancel();
+    _navigatorObserver.navigator?.popUntil((route) => route.isFirst);
+    if (mounted) setState(() => _signedInUntil = null);
+  }
+
+  @override
+  void dispose() {
+    _leaseTimer?.cancel();
+    _enrollmentChanges?.cancel();
+    accountSessionInvalidated.removeListener(_signOut);
+    super.dispose();
+  }
 
   Future<void> _connectClient(BuildContext context) async {
     final vault = widget.credentialVault;
     if (vault == null) return;
-    final enrolled = await Navigator.of(context).push<bool>(
+    final enrolled = await _accountNavigatorKey.currentState!.push<bool>(
       MaterialPageRoute<bool>(
         builder: (context) =>
             ClientPairingPage(store: widget.extensionStore, credentials: vault),
       ),
     );
     if (enrolled == true && mounted) {
-      setState(() => _showFirstRun = false);
+      setState(() {
+        _showFirstRun = false;
+        _signedInUntil = null;
+      });
+      await _loadStartupState();
     }
   }
 
@@ -240,6 +301,7 @@ class _VentioClientAppState extends State<VentioClientApp> {
     return AnimatedBuilder(
       animation: _localizations,
       builder: (context, child) => MaterialApp(
+        navigatorKey: _accountNavigatorKey,
         navigatorObservers: [_navigatorObserver],
         title: _localizations.text('native.app.title'),
         locale: _localizations.locale,
@@ -273,11 +335,36 @@ class _VentioClientAppState extends State<VentioClientApp> {
             : _showFirstRun
             ? FirstRunSetupPage(
                 onSetUpHost: _beginHostSetup,
+                onOwnerSetup: () => launchOwnerRecovery(),
                 onConnectClient: _connectClient,
+              )
+            : _accountProfile != null &&
+                  widget.credentialVault != null &&
+                  _signedInUntil == null
+            ? AccountSignInPage(
+                signIn: AccountSignIn(
+                  credentials: widget.credentialVault!,
+                  profile: _accountProfile!,
+                ),
+                onSignedIn: _signedIn,
+                onEnroll: () => _connectClient(context),
               )
             : ExtensionStudioPage(
                 store: widget.extensionStore,
                 queue: widget.queue,
+                onSignOut: _signOut,
+                onAccountSettings: _accountProfile == null
+                    ? null
+                    : () => _accountNavigatorKey.currentState!.push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AccountLoginSettingsPage(
+                            signIn: AccountSignIn(
+                              credentials: widget.credentialVault!,
+                              profile: _accountProfile!,
+                            ),
+                          ),
+                        ),
+                      ),
                 credentialVault: widget.credentialVault,
                 diagnosticEventSource: widget.diagnosticEventSource,
               ),

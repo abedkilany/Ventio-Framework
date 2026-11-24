@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "runId": 44883747805,
+  "artifactId": 14699590157,
+  "bytes": 133807612,
+  "sha256": "de1bc3ed5001ad8b3b060a0cd5c6ad05ade6d1d55c420d2e05a8a01adaaabee7",
+  "manifestSha256": "ee90769295436818e99be886ab90fec1ae1dfeb42023f2fcee21e96d04b54e46",
+  "verifiedMembers": 1730,
+  "payload": "C:\\Users\\User\\.codex\\tmp\\ventio-wave2-completion\\native-44883747805\\HostPayload",
+  "verifiedAgainstAuthenticatedGitHubDigest": true
+}

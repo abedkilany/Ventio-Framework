@@ -54,13 +54,14 @@ if (-not (Test-Path -LiteralPath (Join-Path $hostPayload 'payload-manifest.json'
 }
 
 $manifest = Get-Content -LiteralPath (Join-Path $hostPayload 'payload-manifest.json') -Raw | ConvertFrom-Json
-if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.15' -or
+if ($manifest.formatVersion -ne 1 -or $manifest.postgresVersion -ne '16.16' -or
     $manifest.hostExecutable -ne 'ventio_host.exe' -or
     $manifest.migrationExecutable -ne 'ventio_migrate.exe' -or
     $manifest.identityBootstrapExecutable -ne 'ventio_identity_bootstrap.exe' -or
     $manifest.trustedPairingExecutable -ne 'ventio_trusted_pairing.exe' -or
     $manifest.trustedCredentialReissueExecutable -ne 'ventio_trusted_credential_reissue.exe' -or
     $manifest.trustedHostUpgradeExecutable -ne 'ventio_trusted_host_upgrade.exe' -or
+    $manifest.trustedOwnerRecoveryExecutable -ne 'ventio_trusted_owner_recovery.exe' -or
     $manifest.serviceExecutable -ne 'VentioHostService.exe' -or
     $manifest.setupBrokerExecutable -ne 'VentioSetupBroker.exe' -or
     ($manifest.postgresIncludedComponents -join ',') -ne 'bin,lib,share,*.txt' -or
@@ -92,6 +93,9 @@ foreach ($entry in $manifest.verifiedFiles) {
       (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$entry.sha256) {
     throw 'A critical Host payload hash differs from its manifest.'
   }
+}
+if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'ventio_trusted_owner_recovery.exe' }).Count) {
+  throw 'Trusted Owner recovery helper is not covered by the critical payload manifest.'
 }
 if (-not @($manifest.verifiedFiles | Where-Object { $_.path -ceq 'VentioSetupBroker.exe' }).Count) {
   throw 'Host setup broker is not covered by the critical payload manifest.'
@@ -129,7 +133,7 @@ if ((Test-Path -LiteralPath $artifact) -or (Test-Path -LiteralPath $manifestPath
   throw 'Installer output already exists; choose a new isolated output directory to preserve existing artifacts.'
 }
 [void](New-Item -ItemType Directory -Force -Path $installerOutput)
-& $iscc "/DAppVersion=$version" "/DBuildOutput=$releaseDir" "/DHostPayload=$hostPayload" "/DInstallerOutput=$installerOutput" "/DVCRedistPath=$VCRedistPath" "/DVCRuntimeHelperPath=$vcRuntimeHelper" "/DVCRuntimeModulePath=$vcRuntimeModule" "/DVCRuntimeMinimumVersion=$vcRuntimeMinimumVersion" $installerSource
+& $iscc "/DAppVersion=$version" "/DBuildOutput=$releaseDir" "/DHostPayload=$hostPayload" "/DInstallerOutput=$installerOutput" "/DVCRedistPath=$VCRedistPath" "/DVCRuntimeHelperPath=$vcRuntimeHelper" "/DVCRuntimeModulePath=$vcRuntimeModule" "/DVCRuntimeMinimumVersion=$vcRuntimeMinimumVersion" "/DVCRuntimeSha256=$($vcRuntimeManifest.sha256)" $installerSource
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed with exit code $LASTEXITCODE." }
 
 if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { throw 'Unified installer artifact was not created.' }

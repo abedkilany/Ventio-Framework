@@ -5,8 +5,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $workRoot = [IO.Path]::GetFullPath($WorkRoot)
-$archiveUrl = 'https://get.enterprisedb.com/postgresql/postgresql-16.15-5-windows-x64-binaries.zip'
-$expectedLength = 373254386L
+$archiveUrl = 'https://get.enterprisedb.com/postgresql/postgresql-16.16-1-windows-x64-binaries.zip'
+$expectedLength = 378078504L
 $chunkSize = [long][Math]::Ceiling($expectedLength / 8)
 $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
 if (-not (Test-Path -LiteralPath $workRoot -PathType Container)) { throw 'Resumable PostgreSQL download directory is missing.' }

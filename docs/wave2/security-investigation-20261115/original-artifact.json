@@ -1,0 +1,11 @@
+{
+  "runId": 43605015043,
+  "artifactId": 14117789094,
+  "commit": "fb341a78eca1bb897e2ce09f1271dae39bbd7d11",
+  "zipBytes": 103796488,
+  "zipSha256": "0c83cd20dab447e6d024fe3d62dd5e9588499deb417a986820bf10d6a13114ae",
+  "installerBytes": 104319695,
+  "installerSha256": "5413f65d86235633d40e1912767dd576303ecb0a7216d4a5e846c977f955977b",
+  "buildEvidence": "testedCommit=fb341a78eca1bb897e2ce09f1271dae39bbd7d11\r\ntriggerCommit=f6496b8ee8628f35e77126e20c05fd6401bd70b8\r\nrunnerOS=Microsoft Windows NT 10.0.26100.0\r\ndart=Dart SDK version: 3.12.1 (stable) (Tue May 26 01:02:21 2026 -0700) on \"windows_x64\"\r\nflutter=3.44.1\r\npostgres=postgres (PostgreSQL) 16.15\r\ndotnet=10.0.403\r\ninnoSetup=6.7.4\r\nvcRuntime=14.51.36247.0\r\ninstaller=Ventio-Setup-0.1.18.exe\r\ninstallerBytes=104319695\r\ninstallerSha256=5413f65d86235633d40e1912767dd576303ecb0a7216d4a5e846c977f955977b\r\n",
+  "checksumFile": "5413f65d86235633d40e1912767dd576303ecb0a7216d4a5e846c977f955977b  Ventio-Setup-0.1.18.exe\r\n"
+}

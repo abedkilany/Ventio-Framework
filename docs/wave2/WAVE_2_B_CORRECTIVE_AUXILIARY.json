@@ -1,0 +1,103 @@
+{
+  "status": "PARTIAL_VERIFICATION_BLOCKED",
+  "scope": "Auxiliary programs/checks are separate from the 164 stable-ID case ledger; do not add these counts to capability coverage as if equivalent cases.",
+  "checks": [
+    {
+      "id": "NET-HOST-SERVICE",
+      "exitCode": 0,
+      "status": "PASSED",
+      "log": "NET-HOST-SERVICE.log",
+      "executionCommit": "09dbc9222124a1f41caaf348bb90cf9dc768c6ba",
+      "runId": "44260885899",
+      "evidence": "evidence/20261118-corrective/runs/44260885899/NET-HOST-SERVICE.log"
+    },
+    {
+      "id": "NET-SETUP-BROKER",
+      "exitCode": 0,
+      "status": "PASSED",
+      "log": "NET-SETUP-BROKER.log",
+      "executionCommit": "09dbc9222124a1f41caaf348bb90cf9dc768c6ba",
+      "runId": "44260885899",
+      "evidence": "evidence/20261118-corrective/runs/44260885899/NET-SETUP-BROKER.log"
+    },
+    {
+      "id": "PG-SINGLE-USER-RECOVERY",
+      "exitCode": 1,
+      "status": "FAILED",
+      "log": "PG-SINGLE-USER-RECOVERY.log",
+      "executionCommit": "09dbc9222124a1f41caaf348bb90cf9dc768c6ba",
+      "runId": "44260885899",
+      "evidence": "evidence/20261118-corrective/runs/44260885899/PG-SINGLE-USER-RECOVERY.log",
+      "classification": "CONFIRMED_FIXTURE_SETUP_FAILURE_WITH_SOURCE_IDENTIFIED_PRODUCTION_LAUNCH_CONCERN",
+      "executedSubchecks": [
+        "Backup collision handling",
+        "Failure classification"
+      ],
+      "unexecutedBehavior": [
+        "Credential rotation",
+        "Post-rotation migration validation",
+        "Installed service-owned cluster recovery"
+      ],
+      "reason": "postgres --single refuses elevated administrative token during fixture database creation; the same direct launch is used by the production normal-mode recovery function but was not exercised end to end on an installed cluster",
+      "introducedByRuntimeUpdate": "NOT_ESTABLISHED"
+    },
+    {
+      "id": "PG-PHYSICAL-MINOR-UPDATE",
+      "commit": "3bf00486e94a7e5c69d74cc909d00486cec964ea",
+      "runId": "44262789016",
+      "status": "PASSED",
+      "oldVersion": "16.15",
+      "newVersion": "16.16",
+      "freshUpstreamOnly": true,
+      "physicalMachinesTouched": false,
+      "recoveryAuthorityClaim": "NOT_ESTABLISHED_BY_THIS_STORAGE_LAYER_TEST",
+      "oldArchiveSha256": "43bb45f173a6f08cf1d29a97a6d8deb119e8e8093a24c00d2d1001a0ccaa8281",
+      "actualNewVersion": "16.16",
+      "storageAndRlsPreserved": true,
+      "evidence": "evidence/20261118-corrective/runs/44262789016/postgres-minor-update.json",
+      "limitations": [
+        "Storage-layer data/RLS compatibility only",
+        "No installed Host, Recovery Authority or production rollback acceptance",
+        "Later cleanup-failure hardening was statically reviewed; its abnormal-stop branch has not executed"
+      ]
+    }
+  ],
+  "installedVm": {
+    "status": "BLOCKED_PREREQUISITE",
+    "ownerResponse": "No VM available; prepare the fixture and provisioning runbook",
+    "sourcePrepared": [
+      "tests/wave2/prepare_installed_vm_fixture.ps1",
+      "docs/wave2/WAVE_2_B_DISPOSABLE_VM_RUNBOOK.md"
+    ],
+    "testPreparationCommit": "51dbb1815d651de6f099f7667c81dd0b0a4dd0a0",
+    "schedulerCompletionAssertions": "SOURCE_REVIEWED_NOT_EXECUTED",
+    "executed": false,
+    "remainingPrerequisites": [
+      "New trusted isolated Windows VM",
+      "Normal installed Host/operator/package fixture",
+      "Supported dedicated observer access; no protected service credential extraction",
+      "Reviewed local operations and disposable restore authorization"
+    ]
+  },
+  "physicalAcceptance": {
+    "status": "MANUAL_UNEXECUTED",
+    "cases": [
+      "W2-M001",
+      "W2-M002",
+      "W2-M003",
+      "W2-M004",
+      "W2-M005",
+      "W2-M006"
+    ],
+    "physicalMachinesAccessedOrModified": false
+  },
+  "staticValidation": {
+    "testsExecutedLocally": 0,
+    "changedPowerShellFilesParsed": 25,
+    "workflowYamlDuplicateKeyCheck": "COMPLETED",
+    "originalPreparedCaseIdsPreserved": 161,
+    "currentSourceCaseCount": 164,
+    "sourceCapabilities": 22,
+    "staticFormattingIsNotTestExecution": true
+  }
+}

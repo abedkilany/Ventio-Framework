@@ -1,0 +1,9 @@
+Host service startup tests passed: readiness, pre-readiness process exit, bootstrap state, stop during bootstrap, and successful bootstrap completion.
+Host service configuration tests passed: safe defaults, setting allowlist, identity-admin credential rejection, invalid port, TLS path, external TLS requirement, and broad ACL rejection.
+HOST_LAN_CERTIFICATE_READY 4EB775F315E7C8061F88B596A0CD458EE32AC4E6F3A7B37B26930D250527AD25
+HOST_LAN_CERTIFICATE_READY 4EB775F315E7C8061F88B596A0CD458EE32AC4E6F3A7B37B26930D250527AD25
+Host LAN certificate tests passed: DNS/IP SAN, stable retry, public endpoint metadata, and restrictive private-key ACL.
+HOST_LAN_CERTIFICATE_READY E8DA67D458DEEF6DA7819B3FFCF75D4B7C71DDD757882EA85BFE00D94A5AD87D
+Host LAN service-owner test passed: elevated SeRestorePrivilege was scoped to ACL writes, and the private key owner/DACL matched the VentioHost policy.
+Host first-administrator reply delivery passed: delayed client reads before server disconnect.
+Host first-administrator broker tests passed: protected local pipe ACL, strict protocol validation, operation timeout exceeds helper timeout, safe failure-code validation, durable same-caller retries, caller/request binding, acknowledgement redaction, and DPAPI receipt confidentiality.

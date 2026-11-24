@@ -7,8 +7,9 @@ param(
     [switch] $HostProcessIntegration,
     [switch] $HostDiagnosticsProcessIntegration,
     [switch] $HostSchemaUpgradeIntegration,
-    [ValidateSet('api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart', 'credential_reissue_integration.dart', 'recovery_integration.dart')]
-    [string] $OnlyHostSuite
+    [ValidateSet('organization_accounts_integration.dart', 'api_integration.dart', 'first_admin_bootstrap_integration.dart', 'database_security_integration.dart', 'identity_integration.dart', 'management_users_integration.dart', 'role_administration_integration.dart', 'pairing_integration.dart', 'extension_package_integration.dart', 'credential_reissue_integration.dart', 'recovery_integration.dart')]
+    [string] $OnlyHostSuite,
+    [string] $NativePrivateFileHelper
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,8 +27,8 @@ if (-not (Test-Path -LiteralPath $postgres -PathType Leaf)) {
     throw 'The supplied PostgreSQL binary directory is incomplete.'
 }
 $version = (& $postgres --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.15') {
-    throw 'The disposable test runner requires verified PostgreSQL 16.15 binaries.'
+if ($LASTEXITCODE -ne 0 -or $version -ne 'postgres (PostgreSQL) 16.16') {
+    throw 'The disposable test runner requires verified PostgreSQL 16.16 binaries.'
 }
 
 $runId = ([DateTime]::UtcNow.ToString('yyyyMMddHHmmss') +
@@ -224,7 +225,14 @@ try {
                 if ($suite.StartsWith('..')) {
                     & dart run $suite
                 } else {
-                    & dart run "test\$suite"
+                    if($NativePrivateFileHelper) {
+                        if(-not $OnlyHostSuite -or -not(Test-Path -LiteralPath $NativePrivateFileHelper -PathType Leaf)){throw 'A targeted suite and built native helper are required.'}
+                        $targetedExecutable=Join-Path $runnerTemp 'targeted-suite.exe'
+                        & dart compile exe "test\$suite" -o $targetedExecutable
+                        if($LASTEXITCODE -ne 0){throw 'Targeted suite compilation failed.'}
+                        Copy-Item -LiteralPath $NativePrivateFileHelper -Destination (Join-Path $runnerTemp 'VentioHostService.exe')
+                        & $targetedExecutable
+                    } else { & dart run "test\$suite" }
                 }
                 $testExitCode = $LASTEXITCODE
                 if ($testExitCode -ne 0) { break }

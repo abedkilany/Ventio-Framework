@@ -1,0 +1,31 @@
+﻿{
+    "machine":  "TEST-02",
+    "sourceBefore":  "246172799a44e16a4214f16ff0c2f6efdafc42bf",
+    "sourceAfter":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "verifiedMembers":  1730,
+    "transportSha256":  "de1bc3ed5001ad8b3b060a0cd5c6ad05ade6d1d55c420d2e05a8a01adaaabee7",
+    "manifestSha256":  "ee90769295436818e99be886ab90fec1ae1dfeb42023f2fcee21e96d04b54e46",
+    "startedAtUtc":  "2026-11-21T08:34:13.7718553Z",
+    "policyBefore":  "Restricted",
+    "archive":  "C:\\Ventio-Acceptance\\upgrade-246-to-29e-cd571762d7474e78a2e1527132d24606",
+    "phase":  "COMPLETE",
+    "completedAtUtc":  "2026-11-21T08:35:41.9738617Z",
+    "policyAfter":  "Restricted",
+    "witnessPending":  false,
+    "services":  [
+                     {
+                         "Name":  "VentioPostgres",
+                         "State":  "Running",
+                         "StartName":  "NT SERVICE\\VentioPostgres"
+                     },
+                     {
+                         "Name":  "VentioHost",
+                         "State":  "Running",
+                         "StartName":  "NT SERVICE\\VentioHost"
+                     }
+                 ],
+    "health":  {
+                   "apiVersion":  1,
+                   "status":  "alive"
+               }
+}

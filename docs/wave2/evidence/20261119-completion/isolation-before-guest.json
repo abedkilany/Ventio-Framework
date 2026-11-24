@@ -1,0 +1,1 @@
+{"phase":"before-isolation","probe":"guest-to-public-ipv4-tcp443","connected":false,"machine":"VENTIO-W2-VM01","machineGuid":"5cb98737-7141-4486-9a87-08484566e292","smbiosUuid":"BBFBFFD7-D087-4E7C-9D65-D7884CAE0420","sshConnection":"172.19.240.1 59620 172.19.254.220 22","pendingFileRenames":1,"utc":"2026-11-19T21:41:10.5677913Z"}

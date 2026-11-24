@@ -1,0 +1,36 @@
+{
+  "case": "TEST02_READ_ONLY_HOST_READINESS_FROM_BAHAA",
+  "testedAtUtc": "2026-11-22T23:47:29Z",
+  "target": {
+    "computer": "TEST-02",
+    "dnsName": "TEST-02",
+    "ipv4": "192.168.1.100",
+    "port": 8443
+  },
+  "installedHostCandidate": "474c3a4e2824c86ea5267d9ed9370d3986197983",
+  "transport": {
+    "tlsProtocol": "TLS 1.3",
+    "pinnedCertificateSha256": "fc5c6bdf70d631a5863897d4af6620642cfff4875a53a3b433a3b2eb0083f4cc",
+    "pinMatched": true,
+    "hostnameMatched": true,
+    "systemTrustError": "RemoteCertificateChainErrors",
+    "systemTrustStoreChanged": false,
+    "tlsValidationBypassed": false
+  },
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/session",
+      "status": 401,
+      "wwwAuthenticate": "Bearer"
+    }
+  ],
+  "credentialsUsed": false,
+  "result": "PASS_READ_ONLY_HOST_LIVENESS_AND_ANONYMOUS_DENIAL",
+  "notes": "Ordinary system trust validation on BAHAA reports SEC_E_UNTRUSTED_ROOT. Requests were made only after exact match to the previously recorded out-of-band leaf certificate SHA-256 and TEST-02 hostname validation; no trust store was changed and no unverified connection was accepted."
+}

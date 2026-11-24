@@ -194,6 +194,10 @@ try {
       Protect-HostProductDataRoot
     }
     Set-PrivateDirectoryAcl $OutputDirectory $serviceSid $serviceSid
+    $operationsDirectory=Join-Path $OutputDirectory 'Operations'
+    Assert-PrivateAncestors $operationsDirectory
+    Assert-PrivateAncestors $OutputDirectory
+    Set-PrivateDirectoryAcl $operationsDirectory $serviceSid $serviceSid
     $targetPath = Join-Path $OutputDirectory $configName
     $tempPath = Join-Path $OutputDirectory ('.service-config-' + [guid]::NewGuid().ToString('N') + '.tmp')
     $replacementBackup = $targetPath + '.' + [guid]::NewGuid().ToString('N') + '.replace-backup'

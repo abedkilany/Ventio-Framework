@@ -1,0 +1,42 @@
+{
+  "case": "TEST01-NATIVE-UPGRADE-PREFLIGHT",
+  "startedAtUtc": "2026-11-20T08:43:59.2973612Z",
+  "status": "BLOCKED",
+  "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+  "candidateRun": "44619230172",
+  "sshStrictHostKeyChecking": true,
+  "machine": "VENTIO-TEST-01",
+  "machineGuid": "e1bd301b-05eb-4b3f-9b40-2c899ae39ae8",
+  "smbiosUuid": "9EB7F117-F40D-11DE-81D0-B9F76E398C6C",
+  "normalAdminToken": true,
+  "installDirectory": "C:\\Program Files\\Ventio",
+  "client": {
+    "sha256": "cd9dfa98cd03a76c2cfc7f8cad4c570fb963e141b91fd5d19124a4c3206d6bd4",
+    "bytes": 92160,
+    "version": "0.1.18+19"
+  },
+  "appSo": {
+    "sha256": "f6a6496237f8e6ec05dc210fac2306176f3f8d0a75505cc32c40b999c1b395d3",
+    "bytes": 10634128
+  },
+  "services": [
+    {
+      "Name": "VentioHost",
+      "State": "Stopped",
+      "StartName": "NT SERVICE\\VentioHost",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\VentioHostService.exe\"",
+      "ProcessId": 0,
+      "StartMode": "Auto"
+    },
+    {
+      "Name": "VentioPostgres",
+      "State": "Running",
+      "StartName": "NT SERVICE\\VentioPostgres",
+      "PathName": "\"C:\\Program Files\\Ventio\\host-payload\\postgresql\\bin\\pg_ctl.exe\" runservice -N \"VentioPostgres\" -D \"C:\\ProgramData\\Ventio\\PostgreSQL\\data\" -w",
+      "ProcessId": 4780,
+      "StartMode": "Auto"
+    }
+  ],
+  "reason": "Cannot overwrite variable Host because it is read-only or constant.",
+  "completedAtUtc": "2026-11-20T08:44:01.4194790Z"
+}

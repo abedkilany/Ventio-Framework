@@ -1,0 +1,30 @@
+{
+  "case": "TEST01_INSTALLED_CLIENT_LOCAL_EXTENSION_DRAFT_RESTART_PERSISTENCE",
+  "observedAfterRestartLocal": "2026-11-23 10:28 Beirut time (minute precision)",
+  "target": "TEST-01",
+  "installedClientCandidate": "474c3a4e2824c86ea5267d9ed9370d3986197983",
+  "operation": "Created a declarative extension in the installed Client, closed the Client normally, relaunched it, and reopened the extension in Builder.",
+  "fixture": {
+    "moduleId": "com.example.new_extension",
+    "displayName": "Wave 2 local draft persistence check",
+    "version": "0.1.0",
+    "stateBeforeRestart": "DRAFT / LOCAL ONLY",
+    "stateAfterRestart": "DRAFT / LOCAL ONLY",
+    "docTypes": 0
+  },
+  "schemaEditorObservation": "The test DocType ID w2_acceptance_record began with a lowercase letter, so Add field correctly rejected it under the uppercase-initial identifier rule. The form's helper text did not disclose that rule. No DocType was created in this installed UI session.",
+  "sourceRegression": {
+    "sourceCommit": "45b9a148ea8e5251ff7c7d51ada50139f39a60fa",
+    "command": "flutter test test/extension_studio_test.dart --plain-name \"Builder creates, previews, activates and runs a generated DocType\" --no-pub --reporter expanded",
+    "flutter": "3.44.1",
+    "dart": "3.12.1",
+    "result": "PASS (1 test)",
+    "limit": "The updated widget regression will verify that lowercase initial IDs are denied with accurate guidance and uppercase IDs proceed to the field editor. It does not replace installed UI acceptance."
+  },
+  "result": "PASS_LOCAL_DRAFT_PERSISTS_ACROSS_CLIENT_RESTART",
+  "limits": [
+    "This proves only local SQLite-backed draft persistence on TEST-01.",
+    "It does not prove publication, Host approval, cross-device synchronization, or acceptance of any Wave 2 capability end-to-end.",
+    "The installed Client is the earlier 474c3a4 candidate, not the current 04a9874 release candidate."
+  ]
+}

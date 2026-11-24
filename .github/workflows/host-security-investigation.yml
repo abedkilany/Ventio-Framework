@@ -1,0 +1,90 @@
+name: Host Security Investigation
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ci_run_scope:
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ci_run_scope || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+jobs:
+  select-changes:
+    uses: ./.github/workflows/ci-change-selector.yml
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    with:
+      event_name: ${{ github.event_name }}
+      event_action: ${{ github.event.action || '' }}
+      head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+      before_sha: ${{ github.event.before || '' }}
+      pr_number: ${{ github.event.pull_request.number || 0 }}
+      ref_name: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      ci_force_full: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
+      ci_run_scope: ${{ inputs.ci_run_scope || '' }}
+  reproduce-suite:
+    needs: select-changes
+    if: needs.select-changes.outputs.run_host_security_investigation == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b
+        with:
+          sdk: 3.13.7
+      - name: Reproduce frozen Host and collect Defender evidence without executing Host
+        shell: pwsh
+        run: ./scripts/ci/investigate-host-binary.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: host-security-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/ventio-host-security/evidence/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: host-security-reproduction-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/ventio-host-security/host-*.exe
+          if-no-files-found: error
+          retention-days: 7
+  reproduce:
+    needs: [select-changes, reproduce-suite]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the required check context and report suite result
+        env:
+          SELECTOR_RESULT: ${{ needs.select-changes.result }}
+          SHOULD_RUN: ${{ needs.select-changes.outputs.run_host_security_investigation }}
+          SUITE_RESULT: ${{ needs.reproduce-suite.result }}
+        run: |
+          if [[ "$SELECTOR_RESULT" != "success" ]]; then
+            echo "CI change selection or documentation validation failed." >&2
+            exit 1
+          fi
+          if [[ "$SHOULD_RUN" == "true" && "$SUITE_RESULT" != "success" ]]; then
+            echo "The selected verification suite did not succeed (result: $SUITE_RESULT)." >&2
+            exit 1
+          fi
+          echo "Required check passed; selected suite result: $SUITE_RESULT."

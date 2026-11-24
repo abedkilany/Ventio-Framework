@@ -19,17 +19,25 @@ class HostManagedUser {
     required this.state,
     required Iterable<String> directPermissions,
     Iterable<String> roles = const [],
+    this.username,
+    this.isOwner = false,
+    this.organizationWide = false,
   }) : directPermissions = Set.unmodifiable(directPermissions),
        roles = List.unmodifiable(roles);
 
   final String actorId;
+  final String? username;
+  final bool isOwner;
+  final bool organizationWide;
 
   /// New Host-generated IDs are opaque and safe to display. Older operator
   /// supplied identifiers may contain private data, so expose only a generic
   /// label here; the page adds a temporary per-session discriminator.
-  String get displayName => RegExp(r'^usr_[0-9a-f]{32}$').hasMatch(actorId)
-      ? actorId
-      : 'Legacy identity';
+  String get displayName =>
+      username ??
+      (RegExp(r'^usr_[0-9a-f]{32}$').hasMatch(actorId)
+          ? actorId
+          : 'Legacy identity');
   final HostManagedUserState state;
   final Set<String> directPermissions;
   final List<String> roles;
@@ -214,13 +222,25 @@ class HostUserManagementClient {
         .map((rawUser) {
           if (rawUser is! Map) throw _invalidResponse(response);
           final user = Map<String, dynamic>.from(rawUser);
-          const keys = {'actorId', 'state', 'directPermissions', 'roles'};
+          const keys = {
+            'actorId',
+            'state',
+            'directPermissions',
+            'roles',
+            'username',
+            'isOwner',
+            'organizationWide',
+          };
           // `roles` is optional for Hosts that do not expose role assignment
           // projections in the users endpoint yet.
           if (user.keys.any((key) => !keys.contains(key)) ||
-              user.length < 4 ||
-              user.length > 5 ||
-              !user.keys.toSet().containsAll(keys.difference({'roles'})) ||
+              user.length < 3 ||
+              user.length > 7 ||
+              !user.keys.toSet().containsAll({
+                'actorId',
+                'state',
+                'directPermissions',
+              }) ||
               (user.containsKey('roles') && user['roles'] is! List) ||
               user['directPermissions'] is! List ||
               (user['directPermissions'] as List).any(
@@ -258,6 +278,9 @@ class HostUserManagementClient {
           }
           return HostManagedUser(
             actorId: actorId,
+            username: user['username'] as String?,
+            isOwner: user['isOwner'] == true,
+            organizationWide: user['organizationWide'] == true,
             state: state,
             directPermissions: rawPermissions,
             roles: rawRoles.cast<String>(),
@@ -385,7 +408,9 @@ class HostUserManagementClient {
     required String permission,
   }) async {
     _validateIdentifier(actorId, 'actorId');
-    if (!isGrantableNonManagementPermission(permission)) {
+    if (!(verifiedIdentity.scopes.any((s) => s.permissions.contains('*')) &&
+            _validPermissionSyntax(permission)) &&
+        !isGrantableNonManagementPermission(permission)) {
       throw const HostUserManagementException('PERMISSION_NOT_GRANTABLE');
     }
     await _mutate('grant', {
@@ -399,7 +424,9 @@ class HostUserManagementClient {
     required String permission,
   }) async {
     _validateIdentifier(actorId, 'actorId');
-    if (!isGrantableNonManagementPermission(permission)) {
+    if (!(verifiedIdentity.scopes.any((s) => s.permissions.contains('*')) &&
+            _validPermissionSyntax(permission)) &&
+        !isGrantableNonManagementPermission(permission)) {
       throw const HostUserManagementException('PERMISSION_NOT_REVOCABLE_HERE');
     }
     await _mutate('revoke', {

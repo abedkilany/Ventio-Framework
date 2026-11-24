@@ -1,0 +1,8 @@
+﻿{
+    "case":  "POST_UPGRADE_DATABASE_IDENTITY",
+    "capturedAtUtc":  "2026-11-22T22:06:17.9145418Z",
+    "machine":  "TEST-02",
+    "databaseSystemIdentifier":  "7710532368768573384",
+    "noCredentialsRead":  true,
+    "databaseModified":  false
+}

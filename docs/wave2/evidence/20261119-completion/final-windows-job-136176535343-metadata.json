@@ -1,0 +1,212 @@
+{
+  "id": 136176535343,
+  "run_id": 44703269459,
+  "workflow_name": "Native Flutter Client and Extension Builder",
+  "head_branch": "feature/wave-2-a",
+  "run_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/runs/44703269459",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOVVFc0c8AAAAftMEHLw",
+  "head_sha": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "url": "https://api.github.com/repos/abedkilany/Ventio-Framework/actions/jobs/136176535343",
+  "html_url": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459/job/136176535343",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-11-20T08:31:50Z",
+  "started_at": "2026-11-20T08:31:52Z",
+  "completed_at": "2026-11-20T09:00:41Z",
+  "name": "wave2-resume / windows-candidate",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-11-20T08:31:53Z",
+      "completed_at": "2026-11-20T08:31:54Z"
+    },
+    {
+      "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-11-20T08:31:54Z",
+      "completed_at": "2026-11-20T08:32:02Z"
+    },
+    {
+      "name": "Establish enabled Defender without image-wide exclusions",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-11-20T08:32:02Z",
+      "completed_at": "2026-11-20T08:32:31Z"
+    },
+    {
+      "name": "Stage fresh SHA-256-pinned tools; capture hosted provenance",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 4,
+      "started_at": "2026-11-20T08:32:31Z",
+      "completed_at": "2026-11-20T08:32:51Z"
+    },
+    {
+      "name": "Enforce CRT compatibility of the pinned runtime",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 5,
+      "started_at": "2026-11-20T08:32:51Z",
+      "completed_at": "2026-11-20T08:32:53Z"
+    },
+    {
+      "name": "Initialize unexecuted case ledger",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 6,
+      "started_at": "2026-11-20T08:32:53Z",
+      "completed_at": "2026-11-20T08:32:54Z"
+    },
+    {
+      "name": "Run actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 7,
+      "started_at": "2026-11-20T08:32:54Z",
+      "completed_at": "2026-11-20T08:33:42Z"
+    },
+    {
+      "name": "Build Host before Flutter changes Dart PATH",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 8,
+      "started_at": "2026-11-20T08:33:42Z",
+      "completed_at": "2026-11-20T08:37:05Z"
+    },
+    {
+      "name": "Run subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 9,
+      "started_at": "2026-11-20T08:37:05Z",
+      "completed_at": "2026-11-20T08:41:45Z"
+    },
+    {
+      "name": "Build Client and unified installer from this checkout only",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 10,
+      "started_at": "2026-11-20T08:41:45Z",
+      "completed_at": "2026-11-20T08:46:44Z"
+    },
+    {
+      "name": "Package complete candidate, manifests, source and security evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 11,
+      "started_at": "2026-11-20T08:46:44Z",
+      "completed_at": "2026-11-20T08:52:26Z"
+    },
+    {
+      "name": "Resolve only prerequisites for selected Windows test reruns",
+      "status": "completed",
+      "conclusion": "skipped",
+      "number": 12,
+      "started_at": "2026-11-20T08:52:26Z",
+      "completed_at": "2026-11-20T08:52:26Z"
+    },
+    {
+      "name": "Prepare actual private Windows fixture storage",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 13,
+      "started_at": "2026-11-20T08:52:26Z",
+      "completed_at": "2026-11-20T08:52:35Z"
+    },
+    {
+      "name": "Execute Core, SQLite and Windows integrity cases",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 14,
+      "started_at": "2026-11-20T08:52:35Z",
+      "completed_at": "2026-11-20T08:52:58Z"
+    },
+    {
+      "name": "Prepare separate disposable PostgreSQL for desktop integration",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 15,
+      "started_at": "2026-11-20T08:52:58Z",
+      "completed_at": "2026-11-20T08:53:09Z"
+    },
+    {
+      "name": "Execute native desktop cases against the real fixture",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 16,
+      "started_at": "2026-11-20T08:53:09Z",
+      "completed_at": "2026-11-20T09:00:22Z"
+    },
+    {
+      "name": "Stop only this runner's disposable PostgreSQL",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 17,
+      "started_at": "2026-11-20T09:00:22Z",
+      "completed_at": "2026-11-20T09:00:23Z"
+    },
+    {
+      "name": "Retain immutable candidate and case-level evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 18,
+      "started_at": "2026-11-20T09:00:23Z",
+      "completed_at": "2026-11-20T09:00:33Z"
+    },
+    {
+      "name": "Enforce applicable Windows results",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 19,
+      "started_at": "2026-11-20T09:00:33Z",
+      "completed_at": "2026-11-20T09:00:34Z"
+    },
+    {
+      "name": "Post Run subosito/flutter-action@3d804929922b667a63a229bc59037807f969e885",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 36,
+      "started_at": "2026-11-20T09:00:34Z",
+      "completed_at": "2026-11-20T09:00:34Z"
+    },
+    {
+      "name": "Post Run actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 37,
+      "started_at": "2026-11-20T09:00:34Z",
+      "completed_at": "2026-11-20T09:00:35Z"
+    },
+    {
+      "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 38,
+      "started_at": "2026-11-20T09:00:35Z",
+      "completed_at": "2026-11-20T09:00:38Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 39,
+      "started_at": "2026-11-20T09:00:39Z",
+      "completed_at": "2026-11-20T09:00:39Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/abedkilany/Ventio-Framework/check-runs/136176535343",
+  "labels": [
+    "windows-2025"
+  ],
+  "runner_id": 1000004224,
+  "runner_name": "GitHub Actions 1000004224",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

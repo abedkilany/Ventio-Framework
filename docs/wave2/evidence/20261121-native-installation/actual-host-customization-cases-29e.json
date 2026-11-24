@@ -1,0 +1,54 @@
+﻿{
+    "recordedAtUtc":  "2026-11-21T20:29:24.3989236Z",
+    "machine":  "TEST-02",
+    "hostSource":  "29e36a84875228baf518a2a7030a86bbcb164908",
+    "actualInstalledHost":  true,
+    "directSqlUsed":  false,
+    "cases":  [
+                  {
+                      "id":  "IAPI046",
+                      "description":  "Installed Host rejects a customization pinned to another base digest",
+                      "status":  "PASS",
+                      "elapsedMs":  365
+                  },
+                  {
+                      "id":  "IAPI047",
+                      "description":  "Stored custom fields cannot be removed without an explicit migration",
+                      "status":  "PASS",
+                      "elapsedMs":  1141
+                  },
+                  {
+                      "id":  "IAPI048",
+                      "description":  "Stored custom field constraints cannot change destructively",
+                      "status":  "PASS",
+                      "elapsedMs":  1113
+                  },
+                  {
+                      "id":  "IAPI049",
+                      "description":  "Customizations cannot weaken field operation permissions",
+                      "status":  "PASS",
+                      "elapsedMs":  190
+                  },
+                  {
+                      "id":  "IAPI050",
+                      "description":  "Unknown fields cannot be injected into generated presentation layouts",
+                      "status":  "PASS",
+                      "elapsedMs":  331
+                  },
+                  {
+                      "id":  "IAPI051",
+                      "description":  "Required custom fields cannot invalidate historical records",
+                      "status":  "PASS",
+                      "elapsedMs":  182
+                  },
+                  {
+                      "id":  "IAPI052",
+                      "description":  "Stale customization revision cannot overwrite a current definition",
+                      "status":  "PASS",
+                      "elapsedMs":  1146
+                  }
+              ],
+    "deniedOperationsLeftDefinitionUnchanged":  true,
+    "capabilityCompletionClaimed":  false,
+    "P001_P006Executed":  false
+}

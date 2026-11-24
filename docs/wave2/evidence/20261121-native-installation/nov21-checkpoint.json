@@ -1,0 +1,183 @@
+{
+  "recordedDate": "2026-11-21",
+  "engineeringHead": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+  "installedHostSource": "29e36a84875228baf518a2a7030a86bbcb164908",
+  "installedClientSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "native29eHosted": {
+    "runId": 44883747805,
+    "jobId": 136784450815,
+    "conclusion": "success",
+    "installedCasesPassed": 14,
+    "nativeConcurrentReaderRegressionPassed": true,
+    "actualDartNativePrivateFileIntegrationPassed": true
+  },
+  "linux": {
+    "sourceCommit": "537449689d815aa92ddd69cf8344b9a0c503fbfa",
+    "runId": 44911145739,
+    "jobId": 136867035648,
+    "jobConclusion": "success",
+    "distinctPassedCaseCount": 86,
+    "executions": 89,
+    "applicability": "Changes 5374496..fa080fc affect the native customization editor, its widget regression, Windows test selection and evidence only. Host, Core, PostgreSQL and offline integration implementation unchanged. Native UI regression separately passed; installed rerun pending."
+  },
+  "installedTest02": {
+    "installationOperationId": "922f550e4a5f40dca7764ec180899718",
+    "nativeStatus": "complete / HOST_READINESS",
+    "effectivePolicy": "Restricted",
+    "clientActualProtectedHandoffConsumed": true,
+    "clientPendingJournalCleared": true,
+    "observedAuthenticatedHostOverview": {
+      "overall": "READY",
+      "authenticatedApi": "READY",
+      "postgres": "READY",
+      "schemaAndRuntimeProfile": "READY",
+      "recoveryAuthority": "READY",
+      "checkedAtUtc": "2026-11-21T08:26:39Z",
+      "correlationId": "cor_5b5a7dcd4530d89c8ea7120a8202f8ad"
+    },
+    "actualBusinessActorCreatedThroughHostApi": true,
+    "actualBusinessScopedGrants": 15,
+    "actualBusinessPairingOperation": "174403218483413f8cd6b95594fc0178",
+    "oneTimeEnrollmentRedeemedAndCurrentUserDpapiPersisted": true,
+    "rawCredentialsRecorded": false,
+    "readOnlyHttpCasesPassed": 9,
+    "businessCrudExecuted": true,
+    "interruptedOldFixture": {
+      "priorSource": "735399049d841a9dae0d0437b5f6640a0f8266ee",
+      "observedResponse": "503 RECOVERY_AUTHORITY_UNAVAILABLE",
+      "pendingWitness": true,
+      "archive": "C:\\Ventio-Acceptance\\interrupted-735-90413bb7f5e04d178ddd0b953b1e6733",
+      "witnessSha256": "ec53be7a1f846903677768b0f95786d2c2f4aa878fee93cb0299f4258c617650",
+      "witnessRewritten": false,
+      "supportedNativeServiceDrainAndAuthorizedDisposableFixtureReset": true
+    },
+    "confirmedNativeIoDefect": {
+      "timestampUtc": "2026-11-21T08:10:54.4036918Z",
+      "actualInstalledHelper": true,
+      "readerHeldOpenThroughBoundedPipeBackpressure": true,
+      "readerSnapshotIntact": true,
+      "writerExitCode": 2,
+      "diagnostic": "replace_file:IOException:0x80070020",
+      "businessDataTouched": false,
+      "fixedIn": "29e36a84875228baf518a2a7030a86bbcb164908",
+      "fixedPhysicalRerun": "PASS; actual-native-concurrent-reader-29e.json"
+    },
+    "installedHttpCases": {
+      "distinctPassed": 54,
+      "reports": [
+        "actual-host-business-cases-29e.json",
+        "actual-host-negative-cases-29e.json",
+        "actual-host-restart-cases-29e.json",
+        "actual-host-organization-cases-29e.json",
+        "actual-host-customization-cases-29e.json",
+        "actual-host-bounded-integration-cases-29e.json"
+      ],
+      "initialHarnessFailuresRetained": "actual-host-negative-cases-29e-initial.json",
+      "harnessCorrections": [
+        "explicit UTF-8 HTTP encoding",
+        "standard non-Expect100Continue request transport",
+        "400 INVALID_COMMAND for unknown platform routes",
+        "definition reads use the authorized host.status.read identity"
+      ],
+      "productChangesForHarnessCorrections": false,
+      "stableWave2IdsOrCompleteCapabilityAcceptanceClaimed": false
+    },
+    "nativePayloadUpgrade": "PASS; native-upgrade-246-to-29e.json",
+    "upgradeBackupIntegrity": "PASS; native-upgrade-backup-29e-verification.json; all 1437 members checked on device",
+    "nativeLocalDraftRestartWithHostStopped": "PASS; native-local-draft-offline-restart-29e.json and screenshots; full offline sync not claimed"
+  },
+  "actualTest01ToTest02Tls": {
+    "timestampUtc": "2026-11-21T08:24:52.0297159Z",
+    "endpoint": "https://192.168.1.108:8443",
+    "certificateSha256": "fc5c6bdf70d631a5863897d4af6620642cfff4875a53a3b433a3b2eb0083f4cc",
+    "matchingPinHealthSucceeded": true,
+    "wrongPinDenied": true,
+    "osTrustStoreChanged": false,
+    "offlineSyncAcceptanceClaimed": false
+  },
+  "remaining": {
+    "correctedPhysicalPayloadDownload": "VERIFIED_AND_INSTALLED",
+    "fullWindows29eCandidateRun": 44883758259,
+    "fullWindows29eCandidateStatus": "Superseded. fa080fc run 44912845335 attempt 2 succeeded: 72 Windows stable cases and 88 separate Client regressions. Verified installer failed actual pre-install upgrade on both devices; exact copied-file ACL cause fixed in 7fbab32; physical and hosted actual Inno fixture passed.",
+    "all22Capabilities": "REQUIRED_INSTALLED_ACCEPTANCE_INCOMPLETE",
+    "twoDeviceOfflineSynchronization": "NOT_EXECUTED",
+    "P001_P006": "NOT_EXECUTED",
+    "releaseSigning": "DEFERRED_OWNER_PREREQUISITE",
+    "recoveryLabSsh": "PASS pinned SSH and exact VM/guest identity after owner-updated single-source firewall rule; recovery-vm-ssh-preflight-20261121.json. Hyper-V vNIC ACL not applied; effective isolation and P001-P006 still unexecuted.",
+    "currentDeviceAccess": "2026-11-21: TEST-01 .106 and TEST-02 .100 SSH and RDP reachable; owner completed TEST-01 first-run settings.",
+    "currentWindowsCandidateRun": 44955810614,
+    "currentWindowsCandidateSource": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+    "currentWindowsCandidateStatus": "17fa1b7 full GitHub Windows candidate run 44955810614 in progress at exact head; verified artifact and physical upgrade pending. Superseded 7fb run 44945607457 was cancelled.",
+    "fullFa080Artifact": "PASS authenticated GitHub outer digest, inner digest, 1767 payload members, 1508 exact Git source entries, metadata/source tree, and protected security scan; package-verification-44912845335.json. Its full installer failed both practical upgrades before file replacement.",
+    "recoveryIsolationPlan": "Exact current management address 172.20.160.1 pinned in source 15fa989; 8-rule read-only plan exported and current/old/extra-allow guards exercised locally. BAHAA non-elevated; no Hyper-V ACL applied or effective isolation claimed.",
+    "latestConfirmedPhysicalDefect": "TEST-01 local hybrid installer (fa080 binaries plus 7fb Inno) passed protected copied helper and copied 1746 files, then failed HOST_NATIVE_PAYLOAD_UNLISTED_FILE on nine old-only PostgreSQL 16.15 DLLs. Fail-closed services stopped; database/witness preserved. See test01-local-acl-upgrade-failure-summary.json.",
+    "correctionUnderTest": "17fa1b7 captures the exact old Host manifest privately before replacement, verifies and retires only exact old-only hashes, and returns a bounded nonzero silent Inno failure. Targeted hosted run 44955685351 SUCCESS: 14 actual native installation cases, broker regressions and actual Inno pass/fail exit 0/9; installed old-payload rerun pending."
+  },
+  "mergeRecommendation": "NOT_READY",
+  "pr6DraftRequired": true,
+  "nativeBusinessUi": {
+    "enrollment": "PASS; owner screenshot",
+    "offlineCreateRestartAndReconnect": "PASS_SINGLE_CLIENT; native-business-offline-20261121.json",
+    "update": "PASS; native-business-update-20261121.json",
+    "csvAndDashboard": "PASS; native-csv-dashboard-20261121.json",
+    "customizationEditor": "Installed failure reproduced; fixed in fa080fc; empty and partial overlay widget regressions passed; installed corrected rerun pending",
+    "savedViewEdit": "PASS; synced revision 2, query/export equivalence and sort/columns verified; native-saved-view-export-20261121.json",
+    "twoDeviceAcceptance": "NOT_EXECUTED",
+    "currentReadRevocation": "PASS; rows cleared on explicit refresh, restored after grant; native-current-read-revocation-20261121.json",
+    "companyUpdate": "PASS; revision 2 verified independently; native-company-update-20261121.json",
+    "draftPublication": "PASS_SUBSET; native submit, hidden pending, denied self review, independent exact-digest approval and native registry install; native-draft-publication-20261121.json",
+    "documentActivity": "PASS_SUBSET; two revisions/commands, read revocation clears and restoration returns; native-document-activity-20261121.json",
+    "jobsAndReport": "PASS_SUBSET older installed Client: native job 2/2 accepted, separate permission-denied row, cancelled job visible, synced dashboard report with 6 rows; native-jobs-dashboard-report-20261121.json."
+  },
+  "recordedAtUtc": "2026-11-21T21:38:24.372027+00:00",
+  "windows": {
+    "sourceCommit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+    "runId": 44912845335,
+    "attempt": 2,
+    "jobId": 136948421367,
+    "conclusion": "success",
+    "stablePassed": 72,
+    "separateClientRegressionsPassed": 88,
+    "applicability": "7fb changes only installer ACL, its real Inno fixture, CI and evidence. Client/Host/Core/PostgreSQL implementation unchanged. New installer itself requires rebuilt candidate and physical rerun."
+  },
+  "native7fb": {
+    "runId": 44945604042,
+    "conclusion": "success",
+    "stableNativeCasesPassed": 14,
+    "innoAclRegression": "PASS; actual production include compiled with hosted pinned Inno and executed",
+    "artifactId": 14723751103,
+    "artifactSha256": "6921566fd42600acd7481fef35bff79820fb743b2bbc06271c5522facf00d1ca",
+    "notRecoveryPCaseAcceptance": true
+  },
+  "physicalFullInstallerUpgrade": {
+    "sourceCommit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+    "test01": "FAIL_POSTINSTALL_HOST_NATIVE_PAYLOAD_UNLISTED_FILE with verified hybrid 7fb installer; old-only PostgreSQL DLLs retained, both services stopped, data preserved; test01-local-acl-upgrade-failure-summary.json.",
+    "test02": "FAIL_PREINSTALL_EXIT_7_NO_APPLICATION_FILES_REPLACED",
+    "cause": "Copied private maintenance helper inherits safe ACL but lacks DACL protection demanded by unchanged broker security contract",
+    "fixedIn": "7fbab322a42430d989c6031d998ce7cd4f12a427",
+    "actualProductionInnoFunctionTest02": "PASS; actual-inno-maintenance-acl-20261121.json",
+    "hostedPinnedInnoRegression": "PASS; native-7fb-hosted",
+    "fullCorrectedInstallerPhysicalRerun": "PENDING at 17fa1b7"
+  },
+  "native17fa": {
+    "runId": 44955685351,
+    "sourceCommit": "17fa1b73e1a9aeb411e22f752041a4b5a7194cd3",
+    "conclusion": "success",
+    "stableNativeInstallationCases": 14,
+    "actualInnoSilentPostinstallFixture": "PASS success exit 0 and guarded failure exit 9 in under 30 seconds",
+    "artifactId": 14727840715,
+    "artifactSha256": "93db1fcca04b288c405b5198b2452534e8a10563d0a3181542ecba82855812ed",
+    "evidenceDirectory": "native-17fa-hosted",
+    "physicalOldPayloadUpgradeExecuted": false
+  },
+  "secondDeviceEnrollment": {
+    "test01ToTest02Host": "PASS native enrollment and authenticated approved registry list",
+    "firstFailure": "HOST_TLS_VALIDATION_FAILED because dynamic IP 192.168.1.100 absent from certificate SAN",
+    "correction": "DNS TEST-02 resolves to current IP and matches SAN; fresh one-time pairing code redeemed by owner in native UI",
+    "separateActorId": "usr_9f8a1211de4060e456aa148c13cdc712",
+    "rawCodeRecorded": false,
+    "temporaryNotesRemoved": 2,
+    "evidence": "test01-second-client-pairing-20261121.json",
+    "offlineSyncAndConflict": "NOT_EXECUTED"
+  }
+}

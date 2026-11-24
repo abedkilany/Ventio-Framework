@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "managementHost": "BAHAA",
+  "managementHostMachineGuid": "206b0dfe-e035-49c5-8b38-3d1d19ceadf7",
+  "vmId": "99aba626-2cc9-486e-86ab-af7966848126",
+  "vmName": "Ventio-Recovery-Lab",
+  "adapterMac": "00155D016805",
+  "switchId": "c08cb7b8-9b3c-408e-8e30-5e16a3aeb444",
+  "requireEmptyPriorAcl": true,
+  "rules": [
+    {
+      "weight": 200,
+      "remoteIPAddress": "172.19.240.1",
+      "remotePort": "",
+      "direction": "Inbound",
+      "action": "Allow",
+      "localPort": "22",
+      "protocol": "TCP",
+      "stateful": true
+    },
+    {
+      "weight": 190,
+      "remoteIPAddress": "255.255.255.255",
+      "remotePort": "67",
+      "direction": "Outbound",
+      "action": "Allow",
+      "localPort": "68",
+      "protocol": "UDP",
+      "stateful": false
+    },
+    {
+      "weight": 180,
+      "remoteIPAddress": "172.19.240.1",
+      "remotePort": "67",
+      "direction": "Outbound",
+      "action": "Allow",
+      "localPort": "68",
+      "protocol": "UDP",
+      "stateful": false
+    },
+    {
+      "weight": 170,
+      "remoteIPAddress": "172.19.240.1",
+      "remotePort": "67",
+      "direction": "Inbound",
+      "action": "Allow",
+      "localPort": "68",
+      "protocol": "UDP",
+      "stateful": false
+    },
+    {
+      "weight": 10,
+      "remoteIPAddress": "0.0.0.0/0",
+      "remotePort": "",
+      "direction": "Inbound",
+      "action": "Deny",
+      "localPort": "",
+      "protocol": "",
+      "stateful": false
+    },
+    {
+      "weight": 9,
+      "remoteIPAddress": "0.0.0.0/0",
+      "remotePort": "",
+      "direction": "Outbound",
+      "action": "Deny",
+      "localPort": "",
+      "protocol": "",
+      "stateful": false
+    },
+    {
+      "weight": 8,
+      "remoteIPAddress": "::/0",
+      "remotePort": "",
+      "direction": "Inbound",
+      "action": "Deny",
+      "localPort": "",
+      "protocol": "",
+      "stateful": false
+    },
+    {
+      "weight": 7,
+      "remoteIPAddress": "::/0",
+      "remotePort": "",
+      "direction": "Outbound",
+      "action": "Deny",
+      "localPort": "",
+      "protocol": "",
+      "stateful": false
+    }
+  ],
+  "rollback": "REMOVE_EXACT_PLAN_RULES_ONLY",
+  "effectiveEnforcementVerified": false
+}

@@ -1,0 +1,2960 @@
+{
+  "schemaVersion": 1,
+  "snapshotUtc": "2026-11-20T14:56:24.191277+00:00",
+  "status": "INCOMPLETE_WAVE_2_B_ACCEPTANCE",
+  "mergeRecommendation": "NOT_READY",
+  "branch": "feature/wave-2-a",
+  "pullRequest": {
+    "number": 6,
+    "url": "https://github.com/abedkilany/Ventio-Framework/pull/6",
+    "requiredState": "DRAFT_UNMERGED"
+  },
+  "capabilityStatusCounts": {
+    "PASS": 0,
+    "FAIL": 0,
+    "BLOCKED": 22
+  },
+  "sourceIdentity": {
+    "currentEngineeringHeadAtSnapshot": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "engineeringChangesSinceC32691c": [
+      "docs/wave2/WAVE_2_B_CANDIDATE_DEPLOYMENT.md",
+      "installer/windows/host-service.tests/PostgresCredentialMaintenanceFixture.cs",
+      "installer/windows/host-service.tests/Program.cs",
+      "installer/windows/host-service/HostPostgresCredentialMaintenance.cs",
+      "installer/windows/host-service/Program.cs",
+      "scripts/ci/package-wave2-acceptance.ps1",
+      "scripts/windows/provision-host-installation.ps1",
+      "scripts/windows/recover-host-database-credentials.ps1",
+      "scripts/windows/test-postgres-single-user-recovery.ps1"
+    ],
+    "pendingWorkingTreeCorrection": false,
+    "historicalSourceApplicabilityAnchor": {
+      "commit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+      "tree": "286750a5b86d5400a643d0fe799f42967561ae52"
+    },
+    "limit": "Final hosted stable-ID cases passed on 81661f7 and its complete Windows artifact/source inventory is verified. The final Client is now installed and its native installation, installed files, process launch and local-file retention are verified on TEST-02. Successful Host setup, business/device and recovery acceptance remain incomplete. TEST-01 upgrade and earlier UI/restart observations use c32691c and are identified separately.",
+    "validatedScmEngineeringSource": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a",
+    "changesFromScmTestSourceToFinalHead": [
+      "scripts/ci/package-wave2-acceptance.ps1"
+    ],
+    "finalWindowsCandidateSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "earlierInstalledClientTestCandidateSource": "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "installedClientTestCandidateSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52"
+  },
+  "historicalEvidence": {
+    "automatedPreparedUniqueIds": 164,
+    "recordedProductPassed": 158,
+    "recordedInstalledBlockedUnexecuted": 6,
+    "manualCasesSeparate": 6,
+    "passedByExecutionCommit": {
+      "50d4d2bb41891d8d598d9e6f2408773411dc97b1": 72,
+      "e56fbe3304ea60bf534933be1f1fd70ec5fed5f3": 86
+    },
+    "ledger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+    "ledgerSha256AtC32691c": "24695ffab65089ca6e912258186e1b07402101ef3a07bec53f15680626b74187",
+    "auxiliaryRecoveryLab": {
+      "recordedPassed": 74,
+      "recordedFailed": 0,
+      "ledger": "../../WAVE_2_B_RECOVERY_LAB_RESULTS.json",
+      "countsAsProductOrPCaseAcceptance": false
+    }
+  },
+  "sourceApplicabilityAtC32691c": {
+    "comparedDeclaredMappedPaths": 41,
+    "passedCasesWithAllDeclaredMappedBytesEqual": 102,
+    "passedCasesWithChangedDeclaredMappedBytes": 56,
+    "equalCasesByExecutionCommit": {
+      "50d4d2bb41891d8d598d9e6f2408773411dc97b1": 72,
+      "e56fbe3304ea60bf534933be1f1fd70ec5fed5f3": 30
+    },
+    "selectedSubtreeComparisons": [
+      {
+        "path": "packages/ventio_core",
+        "gitTreeSha1": {
+          "reviewedSource": "bf4252d041e76b280edcb566fafc1a6648cf237e",
+          "windowsCandidate": "bf4252d041e76b280edcb566fafc1a6648cf237e",
+          "linuxExecution": "bf4252d041e76b280edcb566fafc1a6648cf237e"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": true
+      },
+      {
+        "path": "packages/ventio_host",
+        "gitTreeSha1": {
+          "reviewedSource": "b0618ac5ce43cbfdf7460831da7dfb20d6484c83",
+          "windowsCandidate": "b0618ac5ce43cbfdf7460831da7dfb20d6484c83",
+          "linuxExecution": "b0618ac5ce43cbfdf7460831da7dfb20d6484c83"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": true
+      },
+      {
+        "path": "packages/ventio_host_api",
+        "gitTreeSha1": {
+          "reviewedSource": "69a673c032ba0d232a1866be11a779c866e6b78a",
+          "windowsCandidate": "69a673c032ba0d232a1866be11a779c866e6b78a",
+          "linuxExecution": "078fbbeba159f811090d1acb4a4ce8cdc30e1c56"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": false
+      },
+      {
+        "path": "packages/ventio_native_client",
+        "gitTreeSha1": {
+          "reviewedSource": "1e35f5350891076d6940b1c2da9a421f62090fab",
+          "windowsCandidate": "1e35f5350891076d6940b1c2da9a421f62090fab",
+          "linuxExecution": "66b6b9dce1efd60b6f7c470aec0460028830457d"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": false
+      },
+      {
+        "path": "packages/ventio_postgres",
+        "gitTreeSha1": {
+          "reviewedSource": "bca96c1f75451295559b02d964c966288ec57df9",
+          "windowsCandidate": "bca96c1f75451295559b02d964c966288ec57df9",
+          "linuxExecution": "bca96c1f75451295559b02d964c966288ec57df9"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": true
+      },
+      {
+        "path": "migrations/postgres",
+        "gitTreeSha1": {
+          "reviewedSource": "cb464d121162ce4053b256d627746dcf079e3cb2",
+          "windowsCandidate": "cb464d121162ce4053b256d627746dcf079e3cb2",
+          "linuxExecution": "cb464d121162ce4053b256d627746dcf079e3cb2"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": true
+      },
+      {
+        "path": "security/postgres",
+        "gitTreeSha1": {
+          "reviewedSource": "330743503757755ba2c838c90fedc2b421d97777",
+          "windowsCandidate": "330743503757755ba2c838c90fedc2b421d97777",
+          "linuxExecution": "330743503757755ba2c838c90fedc2b421d97777"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": true
+      },
+      {
+        "path": "contracts",
+        "gitTreeSha1": {
+          "reviewedSource": "7de15a99619f2ba50200f646828ce44e88efecc2",
+          "windowsCandidate": "7de15a99619f2ba50200f646828ce44e88efecc2",
+          "linuxExecution": "7de15a99619f2ba50200f646828ce44e88efecc2"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": true
+      },
+      {
+        "path": "installer/windows",
+        "gitTreeSha1": {
+          "reviewedSource": "e74c20ab81e72a4496285108842ebc97f1b3e975",
+          "windowsCandidate": "e74c20ab81e72a4496285108842ebc97f1b3e975",
+          "linuxExecution": "4c155af18f317746d5e34375880db6cdd3c2eb0d"
+        },
+        "sameAsWindowsCandidate": true,
+        "sameAsLinuxExecution": false
+      },
+      {
+        "path": "scripts/windows",
+        "gitTreeSha1": {
+          "reviewedSource": "a88ad70246bd7644ed433f0f6973466d7369df21",
+          "windowsCandidate": "8df471808cf3aaf0fb450a33a0572783626153b6",
+          "linuxExecution": "39eb2aaa68175396bfd0a7eff4ababae96b8d167"
+        },
+        "sameAsWindowsCandidate": false,
+        "sameAsLinuxExecution": false
+      }
+    ],
+    "limits": [
+      "Exact Git blob/tree comparisons only; not semantic equivalence or exhaustive transitive dependency closure.",
+      "No historical case is relabelled as run at c32691c or f2d076c.",
+      "All five packages and migrations/security/contracts/installer trees match the Windows candidate at c32691c; scripts/windows does not."
+    ]
+  },
+  "currentCiSnapshot": [
+    {
+      "runId": "44703269459",
+      "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "platform": "WINDOWS",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "jobId": 136176535343,
+      "jobUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459/job/136176535343",
+      "passedUniqueProductIds": 72,
+      "caseEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "runId": "44703269459",
+      "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "platform": "LINUX",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "jobId": 136176534954,
+      "jobUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459/job/136176534954",
+      "passedUniqueProductIds": 86,
+      "caseEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "runId": "44702220504",
+      "sourceCommit": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a",
+      "platform": "WINDOWS_SCM_RUNTIME",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "programsPassed": 3,
+      "programsFailed": 0,
+      "nestedAssertionsPassed": 51,
+      "jobRightsProbes": 4,
+      "evidence": "scm-success-engineering-report-44702220504.json",
+      "countingBoundary": "The 51 assertions are nested within PG-SINGLE-USER-RECOVERY; the three programs and four rights probes are not additional Wave 2 stable case IDs or physical P passes."
+    }
+  ],
+  "installedDeviceEvidence": {
+    "candidateC326": {
+      "evidence": "fresh-package-verification.json",
+      "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+      "identity": "Ventio-W2B-0.1.23+24-20261118-c32691c30373-gh44619230172-a1",
+      "membersVerified": 1767,
+      "sourceMembersMatchedToGit": 1297,
+      "outerSha256": "e70e52f181f39138568a8673baa1a45cfecfc65325f6e83d493d04d5b7ef8483",
+      "innerSha256": "4fc856d4af8c58bde040e8c4753862800556415568c0558d47ece7895e602bec",
+      "limitation": "This installed-test candidate predates the SCM correction; it is not the final81661f7 release artifact."
+    },
+    "test02": {
+      "machine": "TEST-02",
+      "candidateSource": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "preinstallSecurityScan": {
+        "evidence": "final-test02-preinstall-scan.json",
+        "status": "PASS",
+        "scanStartedRecordId": 637,
+        "scanCompletedRecordId": 638,
+        "installerSignature": "NotSigned",
+        "defenderEnabledAndCurrent": true,
+        "exclusionAdded": false
+      },
+      "nativeInstall": {
+        "evidence": "final-test02-native-install-result.json",
+        "status": "PASS",
+        "exitCode": 0
+      },
+      "installedIntegrity": {
+        "evidence": "final-test02-installed-integrity.json",
+        "status": "PASS",
+        "matchedFiles": 1746,
+        "missingFiles": 0,
+        "changedFiles": 0,
+        "version": "0.1.23+24",
+        "defenderEnabledAndCurrent": true,
+        "detectionsSinceInstall": 0,
+        "vcRuntime": "v14.51.36247.00"
+      },
+      "clientProcessLaunch": {
+        "evidence": "final-test02-client-launch-result.json",
+        "status": "PASS_PROCESS_LAUNCH_AND_RETENTION_ONLY",
+        "pid": 11164,
+        "sessionId": 2,
+        "responding": true,
+        "runLevel": "Interactive/Limited",
+        "guiRenderingVerified": false,
+        "temporaryTaskRemoved": true
+      },
+      "clientOnlyUninstall": {
+        "evidence": "test02-native-uninstall-result.json",
+        "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+        "status": "PASS_CLIENT_ONLY_RETENTION",
+        "exitCode": 0,
+        "oldClientRemoved": true,
+        "userDataRetainedExactly": true,
+        "sharedVcRuntimeRetained": true,
+        "hostDataRetentionDeletionChoicesExercised": false
+      },
+      "userDataRetentionAcrossFinalReinstall": {
+        "evidence": "final-test02-client-launch-result.json",
+        "retainedExactly": true,
+        "limit": "Local SQLite/user-file retention only; no authenticated business offline/sync acceptance."
+      },
+      "hostProvisioning": {
+        "nativeCollectorEvidence": "final-test02-host-component-result.json",
+        "rawCollectorEvidence": "final-test02-host-component-raw.json",
+        "invocation": "Shipped final native setup broker under the existing authenticated Windows administrator SSH session; no UAC automation or policy override",
+        "nativeExitCode": 5,
+        "nativeReportedState": "failed",
+        "phase": "PAYLOAD_VALIDATION",
+        "failureCode": "HOST_SETUP_PROVISIONING_FAILED",
+        "servicesCreated": false,
+        "hostDataCreated": false,
+        "postgresDataCreated": false,
+        "confirmedDiagnosis": "Current Restricted policy blocks normal shipped PowerShell -File execution. The final native broker failed during PAYLOAD_VALIDATION; its read-only policy probe reported SecurityError/UnauthorizedAccess and execution disabled. The earlier c32691c actual -Apply -NewHostOnly invocation is directly recorded in event 4100/1254.",
+        "diagnosisEvidence": [
+          "final-test02-host-component-result.json",
+          "test02-host-policy-evidence.json"
+        ],
+        "collectorLimit": "Final native exit 5 is captured. The earlier c32691c collector exit remains null/uncaptured. The final normalized scriptPolicySecurityError name does not establish an exception class; raw output is retained."
+      },
+      "earlierC326Observations": {
+        "machine": "TEST-02",
+        "candidateSource": "c32691c3037361b5709cc5a517c956e417e18e7f",
+        "nativeInstall": {
+          "evidence": "native-install-result.json",
+          "status": "PASS",
+          "exitCode": 0
+        },
+        "installedIntegrity": {
+          "evidence": "installed-integrity.json",
+          "status": "PASS",
+          "matchedFiles": 1746,
+          "version": "0.1.23+24"
+        },
+        "englishFirstRunHostSetupUi": {
+          "evidence": "test02-host-setup-observed.jpg",
+          "status": "OBSERVED",
+          "guiDiagnostic": "HOST_SETUP_BROKER_UNAVAILABLE",
+          "uacDisplayed": true,
+          "guiUacApprovalOutcome": "UNCONFIRMED"
+        },
+        "hostProvisioning": {
+          "nativeCollectorEvidence": "test02-host-component-result.json",
+          "invocation": "Shipped native setup broker under the existing authenticated Windows administrator session; no UAC automation or policy override",
+          "nativeExitCode": null,
+          "nativeReportedState": "failed",
+          "phase": "PAYLOAD_VALIDATION",
+          "failureCode": "HOST_SETUP_PROVISIONING_FAILED",
+          "servicesCreated": false,
+          "hostDataCreated": false,
+          "postgresDataCreated": false,
+          "confirmedDiagnosis": "Normal shipped -File provision-host-installation.ps1 -Apply -NewHostOnly invocation was rejected by Restricted policy.",
+          "diagnosisEvidence": "test02-host-policy-evidence.json",
+          "policyEventId": 4100,
+          "policyEventRecord": 1254,
+          "rawClassifierLimit": "The collector captured no native exit code and its initial probe classifier was incomplete. The matching Apply event is authoritative for the policy diagnosis."
+        },
+        "clientProcessRestart": {
+          "evidence": "test02-client-restart-result.json",
+          "status": "PASS_PROCESS_RESTART_ONLY",
+          "priorKilledPid": 4524,
+          "newPid": 6544,
+          "uiRenderingAfterRestartVerified": false
+        },
+        "localDiagnosticPersistence": {
+          "evidence": "test02-diagnostics-restart-persistence.json",
+          "status": "PASS_DIAGNOSTICS_PERSISTENCE_ONLY",
+          "sqliteIntegrityCheck": "ok",
+          "retainedDiagnosticEvents": 1,
+          "retainedCode": "HOST_SETUP_BROKER_UNAVAILABLE",
+          "provesBusinessOfflineQueueOrSync": false
+        },
+        "policy": "Restricted",
+        "policyChanged": false
+      },
+      "policy": "Restricted",
+      "policyChanged": false,
+      "fullInstalledBusinessAcceptance": "BLOCKED",
+      "twoDeviceOfflineSyncProved": false
+    },
+    "test01": {
+      "evidence": "test01-upgrade-evidence-summary.json",
+      "candidateSource": "c32691c3037361b5709cc5a517c956e417e18e7f",
+      "nativeUpgradeResult": "FAIL_NOT_UPGRADED",
+      "nativeExitCode": 7,
+      "failureStage": "STOP_HOST_SERVICES",
+      "policyDenialEventId": 4100,
+      "policyDenialEventRecord": 167313,
+      "oldClientAndAppSoPreserved": true,
+      "postgresServicePidPreserved": 4780,
+      "postgresMainPidPreserved": 5484,
+      "denialHandling": "PASS_BASELINE_AND_PROTECTION_PRESERVED",
+      "newDefenderDetections": 0,
+      "rebootPerformed": false,
+      "policyChanged": false
+    },
+    "recoveryVm": {
+      "evidence": "recovery-lab-environment-result.json",
+      "vmName": "Ventio-Recovery-Lab",
+      "currentGuestName": "VENTIO-W2-VM01",
+      "sshAvailable": true,
+      "renameRebootIdentityPreservation": "VERIFIED",
+      "fixtureAdmitted": false,
+      "isolationApply": "PREVIOUS_APPLY_BLOCKED_BEFORE_WRITES; NETWORK_CHANGED_AND_OLD_PLAN_IS_STALE",
+      "effectiveIsolationVerified": false,
+      "negativePreIsolationProbes": "IPv4 public TCP443 and guest link-local IPv6 SSH were already unsuccessful; this does not demonstrate newly applied isolation.",
+      "latestNetworkObservation": {
+        "source": "Execution coordinator report, 2026-11-20 Beirut morning",
+        "state": "RUNNING",
+        "sameVmIdAndMac": true,
+        "guestIpv4": "172.19.34.137",
+        "managementDefaultSwitchGateway": "172.19.32.1",
+        "previousIsolationPlan": "STALE_ADDRESS_BINDINGS",
+        "effectiveIsolationVerified": false
+      }
+    },
+    "sharedBusinessHostAcceptance": "BLOCKED_NO_PERMITTED_TRUSTED_HOST_SCRIPT_EXECUTION_WORKFLOW",
+    "twoDeviceOfflineConflictAcceptance": "NOT_EXECUTED",
+    "installedRecoveryCases": "NOT_EXECUTED",
+    "releaseSigning": "Approved signing identity unavailable/deferred by owner; no policy weakening or helper-execution workaround is an accepted path."
+  },
+  "localEvidenceHashes": [
+    {
+      "path": "test01-preflight.json",
+      "sha256": "21f5b7fec440bf034c6424e4dc947efc6f987c0c98d93baf1c6f6825ba8472df"
+    },
+    {
+      "path": "test02-preflight.json",
+      "sha256": "1ff36296d916701097a0fba2cd3a94eb1a7573bbfd9896cb6947036dbffeb60c"
+    },
+    {
+      "path": "recovery-vm-preflight.json",
+      "sha256": "1e3dac26eddd4018e198597652fc916cc0830e053ecb5616ff1a5240ab63b0b4"
+    },
+    {
+      "path": "recovery-lab-environment-result.json",
+      "bytes": 1084,
+      "sha256": "9d914d237f7a698cb357872ed1586c5e1ee99b204c0845535467745be4141be9"
+    },
+    {
+      "path": "fresh-candidate-dispatch.json",
+      "sha256": "10bc3135b07e434168522398f0a659bd7a8e0d6c0a61a9a269f0b48e80de6f14"
+    },
+    {
+      "path": "recovery-runtime-dispatch.json",
+      "sha256": "a6ec4e56ff6ce782528f4617bcb149bd2b8dd31b3ffb0f69e78c49fb7685423e"
+    },
+    {
+      "path": "isolation-before-guest.json",
+      "sha256": "e2134ba56d9c42083f566b4731af9a2199e15c5cb7d8a360e75824c496296b87"
+    },
+    {
+      "path": "isolation-before-ipv6.json",
+      "sha256": "0f53e032f87aaea7d53fe390e8d371f0fe6b806115b0d26d4a9cdd462bc87977"
+    },
+    {
+      "path": "isolation-plan.json",
+      "sha256": "1f2b083029358e1bd52b1a3d701761b344abbb6d89a2dcbaa7e3c6f18c703774"
+    },
+    {
+      "path": "fresh-ci-case-results.json",
+      "sha256": "23e31c2a2d0932d7f8ee63f4680d91e0862ddc5f6dd473cefae8287f780a19ee"
+    },
+    {
+      "path": "runtime-results-e335.json",
+      "sha256": "edb9d02ed176a95366d5e4de52cac82f6cdeab6f8e8f16dfba7886248437fd69"
+    },
+    {
+      "path": "token-access-diagnostics-e335.json",
+      "sha256": "a9e1e46d72e5a51e0c7de4cd165e063e2da8284d9fdfe7839c9a894c6c547c6b"
+    },
+    {
+      "path": "runtime-e335-transport-verification.json",
+      "sha256": "f663c514217c5a0207652d543853cdbbcd8f0f11e83322bea551252f804adc57"
+    },
+    {
+      "path": "final-ci-case-results-81661f7.json",
+      "bytes": 140008,
+      "sha256": "533715513bc27115cf09f2b68e064b3263a4ebcb4db2a11f9019fd43cef11c6b"
+    },
+    {
+      "path": "final-ci-evidence-index-44703269459.json",
+      "bytes": 6128,
+      "sha256": "5c6c12496e0bfcb0ea04f47a4506e8b7644cc0668819b1703fda045fb9c43a21"
+    },
+    {
+      "path": "final-job-log-download-verification-44703269459.json",
+      "bytes": 1270,
+      "sha256": "faf238f9e8781ff1ceb0b0aa6c16799d6ad3337099515e2fd14424a4e325c364"
+    },
+    {
+      "path": "scm-success-engineering-report-44702220504.json",
+      "bytes": 4048,
+      "sha256": "be65b15ab540482a0b7b8d18b1ca2a9770a8c08d9a63c9309b1b217387320414"
+    },
+    {
+      "path": "scm-success-runtime-results-7a378ba.json",
+      "bytes": 629,
+      "sha256": "49e6fbec3197fa271030d6ae430ee52029d17624a0f65799286080035620e9ec"
+    },
+    {
+      "path": "scm-success-worker-job-rights-7a378ba.json",
+      "bytes": 180,
+      "sha256": "39123839a78b5c2416d3a3531309c9f88bf56a55fba2299733816e880daece2b"
+    },
+    {
+      "path": "fresh-package-verification.json",
+      "bytes": 2111,
+      "sha256": "b309585a723e6b4632ee5efe47a82ecb7a2a6b3a1f20e65af1757e96d5fb6531"
+    },
+    {
+      "path": "native-install-result.json",
+      "bytes": 537,
+      "sha256": "b224d4ff8c33b3e2ff86ad46f47b17f5f2b5ec7a0cd97e8fd8bcc7edd09a8571"
+    },
+    {
+      "path": "installed-integrity.json",
+      "bytes": 1821,
+      "sha256": "922f0114d795181c1b852e6a458ede33e25139501e98c0fbb1733a72185f67b1"
+    },
+    {
+      "path": "test02-host-setup-observed.jpg",
+      "bytes": 27274,
+      "sha256": "94a33808e004e3d3239aa5278b3e7083875426746f13e094b85f95ec137aa076"
+    },
+    {
+      "path": "test02-host-component-result.json",
+      "bytes": 1934,
+      "sha256": "dcc11d78a4a8387271d560a6ff520eda755073647db68ce0c49b5c0952b8b440"
+    },
+    {
+      "path": "test02-host-policy-evidence.json",
+      "bytes": 3263,
+      "sha256": "56095b1df5c9750838ab8dcd9f458ed85237e7780e9e1f1ecf7afeb88484a15f"
+    },
+    {
+      "path": "test02-client-restart-result.json",
+      "bytes": 704,
+      "sha256": "9fbbb3bb76df5bf7959b271261abf5c7429fe7cba57a6b8eb7a0806ffc6f1851"
+    },
+    {
+      "path": "test02-diagnostics-restart-persistence.json",
+      "bytes": 3221,
+      "sha256": "99010df8740fcf6356ca6dbd7395d5202b216bb6780d73513eab93e166205b2a"
+    },
+    {
+      "path": "test01-upgrade-evidence-summary.json",
+      "bytes": 4600,
+      "sha256": "4dcd73ca2132ca16ecbaaee176c7b0c068bb8004508a9687775bf11b28b2db31"
+    },
+    {
+      "path": "test01-native-upgrade-result.json",
+      "bytes": 4715,
+      "sha256": "c2bee5cc071445a7a884726e1e51852921e072f39878019d0ea7a8fcbfe921cb"
+    },
+    {
+      "path": "test01-native-upgrade.log.txt",
+      "bytes": 2230,
+      "sha256": "b04e4ae94eba8d8bcccb5de3d15cc43e7a8776415d22836920d57e5e9b511e5b"
+    },
+    {
+      "path": "test01-upgrade-policy-diagnostic.json",
+      "bytes": 1744,
+      "sha256": "cbbbac5314288c6e44ec3867f1516e1ddca4903d2c99e13095eb6f8457fb0a0f"
+    },
+    {
+      "path": "final-package-verification.json",
+      "bytes": 2625,
+      "sha256": "8f2ee0cb1e18241469fc6e772bd4cdcbdef9fe4584c6ba15de018687d78fd774"
+    },
+    {
+      "path": "final-transport-verification.json",
+      "bytes": 389,
+      "sha256": "540223ee023d18df6fb969a4f3ec33c1fbb5676772d10a4a0faf3b9453690ddb"
+    },
+    {
+      "path": "final-build-metadata.json",
+      "bytes": 9681,
+      "sha256": "8ff2ab6fb3d42d59dea9dd73e553a7704efe4b0dcfe2845d0c1a4d145ba234e8"
+    },
+    {
+      "path": "final-hosted-security-scan.json",
+      "bytes": 3033,
+      "sha256": "32b6db20a8a1db84cdb57566ccf33dadcf05d74771440a0bc43cb6e7887827c3"
+    }
+  ],
+  "capabilities": [
+    {
+      "capability": "A12",
+      "status": "BLOCKED",
+      "implementation": "Governed optional custom fields, versioned definitions, safe upgrade restrictions",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 18
+      },
+      "historicalCaseIds": [
+        "W2-C001",
+        "W2-C002",
+        "W2-C003",
+        "W2-C004",
+        "W2-C005",
+        "W2-C008",
+        "W2-C009",
+        "W2-C010",
+        "W2-C028",
+        "W2-H013",
+        "W2-H014",
+        "W2-H015",
+        "W2-H028",
+        "W2-D003",
+        "W2-D008",
+        "W2-U002",
+        "W2-E005",
+        "W2-G005"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 14,
+        "MAPPED_BYTES_DIFFER": 4
+      },
+      "requiredAcceptanceContract": "Create/read/update custom fields across two clients; unauthorized and stale revisions denied; old records survive",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed two-client custom-field create/read/update, old-record survival and current unauthorized/stale-revision denials; real presentation and restart/upgrade checks.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M003"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 10,
+        "linuxPassed": 8,
+        "uniqueUnionPassed": 18
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C001",
+        "W2-C002",
+        "W2-C003",
+        "W2-C004",
+        "W2-C005",
+        "W2-C008",
+        "W2-C009",
+        "W2-C010",
+        "W2-C028",
+        "W2-D003",
+        "W2-D008",
+        "W2-E005",
+        "W2-G005",
+        "W2-H013",
+        "W2-H014",
+        "W2-H015",
+        "W2-H028",
+        "W2-U002"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 10,
+        "linuxPassed": 8,
+        "uniquePassed": 18
+      },
+      "finalCiPassedIds": [
+        "W2-C001",
+        "W2-C002",
+        "W2-C003",
+        "W2-C004",
+        "W2-C005",
+        "W2-C008",
+        "W2-C009",
+        "W2-C010",
+        "W2-C028",
+        "W2-D003",
+        "W2-D008",
+        "W2-E005",
+        "W2-G005",
+        "W2-H013",
+        "W2-H014",
+        "W2-H015",
+        "W2-H028",
+        "W2-U002"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "A11",
+      "status": "BLOCKED",
+      "implementation": "Supported label/layout property overlays, deterministic base merge",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 5
+      },
+      "historicalCaseIds": [
+        "W2-C006",
+        "W2-C007",
+        "W2-C008",
+        "W2-H013",
+        "W2-G005"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 4,
+        "MAPPED_BYTES_DIFFER": 1
+      },
+      "requiredAcceptanceContract": "Deterministic merge; invalid properties and destructive changes rejected; explicit base digest mismatch",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed label/layout overlays with deterministic base merge, invalid/destructive/base-digest mismatch denials and real Windows/Android presentation.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M003"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 4,
+        "linuxPassed": 1,
+        "uniqueUnionPassed": 5
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C006",
+        "W2-C007",
+        "W2-C008",
+        "W2-G005",
+        "W2-H013"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 4,
+        "linuxPassed": 1,
+        "uniquePassed": 5
+      },
+      "finalCiPassedIds": [
+        "W2-C006",
+        "W2-C007",
+        "W2-C008",
+        "W2-G005",
+        "W2-H013"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "K09",
+      "status": "BLOCKED",
+      "implementation": "Owner-scoped drafts, versioned Host synchronization and package-compatible overlays",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 24
+      },
+      "historicalCaseIds": [
+        "W2-C005",
+        "W2-C009",
+        "W2-C010",
+        "W2-S002",
+        "W2-S003",
+        "W2-S004",
+        "W2-S005",
+        "W2-S006",
+        "W2-S007",
+        "W2-S008",
+        "W2-S011",
+        "W2-S017",
+        "W2-S019",
+        "W2-H007",
+        "W2-H008",
+        "W2-H014",
+        "W2-H028",
+        "W2-E001",
+        "W2-E002",
+        "W2-E003",
+        "W2-E004",
+        "W2-E005",
+        "W2-E006",
+        "W2-G005"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 20,
+        "MAPPED_BYTES_DIFFER": 4
+      },
+      "requiredAcceptanceContract": "Reopen drafts offline; publish/retry/conflict; approved package remains byte-identical",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed offline draft reopen, publication/retry/conflict across two identities/devices, restart and release rebase; immutable package digest proof.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M002"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 14,
+        "linuxPassed": 10,
+        "uniqueUnionPassed": 24
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C005",
+        "W2-C009",
+        "W2-C010",
+        "W2-E001",
+        "W2-E002",
+        "W2-E003",
+        "W2-E004",
+        "W2-E005",
+        "W2-E006",
+        "W2-G005",
+        "W2-H007",
+        "W2-H008",
+        "W2-H014",
+        "W2-H028",
+        "W2-S002",
+        "W2-S003",
+        "W2-S004",
+        "W2-S005",
+        "W2-S006",
+        "W2-S007",
+        "W2-S008",
+        "W2-S011",
+        "W2-S017",
+        "W2-S019"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 14,
+        "linuxPassed": 10,
+        "uniquePassed": 24
+      },
+      "finalCiPassedIds": [
+        "W2-C005",
+        "W2-C009",
+        "W2-C010",
+        "W2-E001",
+        "W2-E002",
+        "W2-E003",
+        "W2-E004",
+        "W2-E005",
+        "W2-E006",
+        "W2-G005",
+        "W2-H007",
+        "W2-H008",
+        "W2-H014",
+        "W2-H028",
+        "W2-S002",
+        "W2-S003",
+        "W2-S004",
+        "W2-S005",
+        "W2-S006",
+        "W2-S007",
+        "W2-S008",
+        "W2-S011",
+        "W2-S017",
+        "W2-S019"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "D08",
+      "status": "BLOCKED",
+      "implementation": "Permission-aware CSV export and import access",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 16
+      },
+      "historicalCaseIds": [
+        "W2-C015",
+        "W2-C031",
+        "W2-H015",
+        "W2-H016",
+        "W2-H019",
+        "W2-H020",
+        "W2-J005",
+        "W2-J008",
+        "W2-J017",
+        "W2-J024",
+        "W2-D004",
+        "W2-D006",
+        "W2-D007",
+        "W2-E003",
+        "W2-E006",
+        "W2-G007"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 3,
+        "MAPPED_BYTES_DIFFER": 13
+      },
+      "requiredAcceptanceContract": "Negative read/create/field grants, revocation mid-transfer and cross-scope attempts",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed CSV create/update/export with operation and field grants; current revocation mid-transfer, scope spoofing and protected-field presentation denials.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M002"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 13,
+        "uniqueUnionPassed": 16
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C015",
+        "W2-C031",
+        "W2-D004",
+        "W2-D006",
+        "W2-D007",
+        "W2-E003",
+        "W2-E006",
+        "W2-G007",
+        "W2-H015",
+        "W2-H016",
+        "W2-H019",
+        "W2-H020",
+        "W2-J005",
+        "W2-J008",
+        "W2-J017",
+        "W2-J024"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 13,
+        "uniquePassed": 16
+      },
+      "finalCiPassedIds": [
+        "W2-C015",
+        "W2-C031",
+        "W2-D004",
+        "W2-D006",
+        "W2-D007",
+        "W2-E003",
+        "W2-E006",
+        "W2-G007",
+        "W2-H015",
+        "W2-H016",
+        "W2-H019",
+        "W2-H020",
+        "W2-J005",
+        "W2-J008",
+        "W2-J017",
+        "W2-J024"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "J01",
+      "status": "BLOCKED",
+      "implementation": "Bounded declarative CSV mapping/preview/validation and authoritative row writes",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 13
+      },
+      "historicalCaseIds": [
+        "W2-C011",
+        "W2-C012",
+        "W2-C013",
+        "W2-C014",
+        "W2-C015",
+        "W2-C016",
+        "W2-C017",
+        "W2-C029",
+        "W2-C030",
+        "W2-C031",
+        "W2-H016",
+        "W2-H017",
+        "W2-H018"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 10,
+        "MAPPED_BYTES_DIFFER": 3
+      },
+      "requiredAcceptanceContract": "Quoting/newlines/BOM/invalid UTF-8; data types, required fields, row errors, batch bounds",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed CSV preview/mapping/import of structured/malformed/bounded inputs against the authoritative Host, with real row errors and completed processing.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 10,
+        "linuxPassed": 3,
+        "uniqueUnionPassed": 13
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C011",
+        "W2-C012",
+        "W2-C013",
+        "W2-C014",
+        "W2-C015",
+        "W2-C016",
+        "W2-C017",
+        "W2-C029",
+        "W2-C030",
+        "W2-C031",
+        "W2-H016",
+        "W2-H017",
+        "W2-H018"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 10,
+        "linuxPassed": 3,
+        "uniquePassed": 13
+      },
+      "finalCiPassedIds": [
+        "W2-C011",
+        "W2-C012",
+        "W2-C013",
+        "W2-C014",
+        "W2-C015",
+        "W2-C016",
+        "W2-C017",
+        "W2-C029",
+        "W2-C030",
+        "W2-C031",
+        "W2-H016",
+        "W2-H017",
+        "W2-H018"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "J03",
+      "status": "BLOCKED",
+      "implementation": "Import duplicate detection, per-row stable command IDs, retries/progress",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 28,
+        "BLOCKED_PREREQUISITE": 1
+      },
+      "historicalCaseIds": [
+        "W2-C014",
+        "W2-S011",
+        "W2-S012",
+        "W2-S013",
+        "W2-S014",
+        "W2-S017",
+        "W2-S018",
+        "W2-H017",
+        "W2-J001",
+        "W2-J002",
+        "W2-J003",
+        "W2-J005",
+        "W2-J006",
+        "W2-J007",
+        "W2-J010",
+        "W2-J011",
+        "W2-J013",
+        "W2-J014",
+        "W2-J015",
+        "W2-J019",
+        "W2-J020",
+        "W2-J021",
+        "W2-J022",
+        "W2-J027",
+        "W2-D011",
+        "W2-E001",
+        "W2-E002",
+        "W2-E003",
+        "W2-P006"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 10,
+        "MAPPED_BYTES_DIFFER": 18,
+        "NOT_EXECUTED": 1
+      },
+      "requiredAcceptanceContract": "Duplicate IDs, lost receipt, worker restart/lease race; existing-record conflict and partial failures",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed durable row/job/command identities across lost response, worker/restart/retry and two-device offline convergence/conflicts; P006 original receipt recovery.",
+      "relatedInstalledCaseIds": [
+        "W2-P006"
+      ],
+      "relatedManualCaseIds": [
+        "W2-M002"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 7,
+        "linuxPassed": 21,
+        "uniqueUnionPassed": 28
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C014",
+        "W2-D011",
+        "W2-E001",
+        "W2-E002",
+        "W2-E003",
+        "W2-H017",
+        "W2-J001",
+        "W2-J002",
+        "W2-J003",
+        "W2-J005",
+        "W2-J006",
+        "W2-J007",
+        "W2-J010",
+        "W2-J011",
+        "W2-J013",
+        "W2-J014",
+        "W2-J015",
+        "W2-J019",
+        "W2-J020",
+        "W2-J021",
+        "W2-J022",
+        "W2-J027",
+        "W2-S011",
+        "W2-S012",
+        "W2-S013",
+        "W2-S014",
+        "W2-S017",
+        "W2-S018"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 7,
+        "linuxPassed": 21,
+        "uniquePassed": 28
+      },
+      "finalCiPassedIds": [
+        "W2-C014",
+        "W2-D011",
+        "W2-E001",
+        "W2-E002",
+        "W2-E003",
+        "W2-H017",
+        "W2-J001",
+        "W2-J002",
+        "W2-J003",
+        "W2-J005",
+        "W2-J006",
+        "W2-J007",
+        "W2-J010",
+        "W2-J011",
+        "W2-J013",
+        "W2-J014",
+        "W2-J015",
+        "W2-J019",
+        "W2-J020",
+        "W2-J021",
+        "W2-J022",
+        "W2-J027",
+        "W2-S011",
+        "W2-S012",
+        "W2-S013",
+        "W2-S014",
+        "W2-S017",
+        "W2-S018"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "K08",
+      "status": "BLOCKED",
+      "implementation": "Reuse query pagination for bounded field-safe export; metadata-compatible transfer",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 4
+      },
+      "historicalCaseIds": [
+        "W2-C017",
+        "W2-H019",
+        "W2-H020",
+        "W2-H021"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 1,
+        "MAPPED_BYTES_DIFFER": 3
+      },
+      "requiredAcceptanceContract": "Query/export equivalence, stable page boundaries, permissions changed between pages",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed query/export equivalence, stable pagination and projection/filter/sort denials, including revocation between pages and formula escaping.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 3,
+        "uniqueUnionPassed": 4
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C017",
+        "W2-H019",
+        "W2-H020",
+        "W2-H021"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 3,
+        "uniquePassed": 4
+      },
+      "finalCiPassedIds": [
+        "W2-C017",
+        "W2-H019",
+        "W2-H020",
+        "W2-H021"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "M01",
+      "status": "BLOCKED",
+      "implementation": "Governed organization/company/branch administration within existing identity trust",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 9
+      },
+      "historicalCaseIds": [
+        "W2-C022",
+        "W2-H024",
+        "W2-H025",
+        "W2-D001",
+        "W2-D003",
+        "W2-D004",
+        "W2-D008",
+        "W2-U001",
+        "W2-U002"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 4,
+        "MAPPED_BYTES_DIFFER": 5
+      },
+      "requiredAcceptanceContract": "Exact scope, branch membership, parent hierarchy, concurrent updates and audit",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed organization/company/branch CRUD/archive/reactivate and CAS/audit; real cross-scope/parent/membership/ceiling denials without implicit grants.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 8,
+        "uniqueUnionPassed": 9
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C022",
+        "W2-D001",
+        "W2-D003",
+        "W2-D004",
+        "W2-D008",
+        "W2-H024",
+        "W2-H025",
+        "W2-U001",
+        "W2-U002"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 8,
+        "uniquePassed": 9
+      },
+      "finalCiPassedIds": [
+        "W2-C022",
+        "W2-D001",
+        "W2-D003",
+        "W2-D004",
+        "W2-D008",
+        "W2-H024",
+        "W2-H025",
+        "W2-U001",
+        "W2-U002"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "M02",
+      "status": "BLOCKED",
+      "implementation": "Bounded scoped configuration and operational settings",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 12
+      },
+      "historicalCaseIds": [
+        "W2-C023",
+        "W2-H005",
+        "W2-H006",
+        "W2-H010",
+        "W2-H012",
+        "W2-H018",
+        "W2-J018",
+        "W2-J019",
+        "W2-D001",
+        "W2-D008",
+        "W2-O005",
+        "W2-U002"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 7,
+        "MAPPED_BYTES_DIFFER": 5
+      },
+      "requiredAcceptanceContract": "Persist/reopen; unauthorized edits denied; secret redaction; configuration effect",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed scoped settings persist/reopen and visibly affect configuration/maintenance/job limits; unauthorized/secret/executable/path inputs rejected.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 11,
+        "uniqueUnionPassed": 12
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C023",
+        "W2-D001",
+        "W2-D008",
+        "W2-H005",
+        "W2-H006",
+        "W2-H010",
+        "W2-H012",
+        "W2-H018",
+        "W2-J018",
+        "W2-J019",
+        "W2-O005",
+        "W2-U002"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 11,
+        "uniquePassed": 12
+      },
+      "finalCiPassedIds": [
+        "W2-C023",
+        "W2-D001",
+        "W2-D008",
+        "W2-H005",
+        "W2-H006",
+        "W2-H010",
+        "W2-H012",
+        "W2-H018",
+        "W2-J018",
+        "W2-J019",
+        "W2-O005",
+        "W2-U002"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "M05",
+      "status": "BLOCKED",
+      "implementation": "Backup policy/schedule, trusted execution, integrity metadata and retention",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 24,
+        "BLOCKED_PREREQUISITE": 6
+      },
+      "historicalCaseIds": [
+        "W2-C024",
+        "W2-C025",
+        "W2-S015",
+        "W2-S016",
+        "W2-H027",
+        "W2-D003",
+        "W2-D005",
+        "W2-O001",
+        "W2-O002",
+        "W2-O003",
+        "W2-O004",
+        "W2-O005",
+        "W2-O006",
+        "W2-O008",
+        "W2-W001",
+        "W2-W002",
+        "W2-W003",
+        "W2-W004",
+        "W2-W005",
+        "W2-W006",
+        "W2-W007",
+        "W2-W008",
+        "W2-W009",
+        "W2-W010",
+        "W2-P001",
+        "W2-P002",
+        "W2-P003",
+        "W2-P004",
+        "W2-P005",
+        "W2-P006"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 19,
+        "MAPPED_BYTES_DIFFER": 5,
+        "NOT_EXECUTED": 6
+      },
+      "requiredAcceptanceContract": "Private ACLs, quiesced cluster consistency/checksums, schedule failure, retention safety, tamper detection",
+      "missingRequiredInstalledOrDeviceEvidence": "Real installed P001-P005 authentication/schedule/backup/retention/tamper evidence, private ACLs and consistency; UAC and disk/copy/interruption failure handling.",
+      "relatedInstalledCaseIds": [
+        "W2-P001",
+        "W2-P002",
+        "W2-P003",
+        "W2-P004",
+        "W2-P005",
+        "W2-P006"
+      ],
+      "relatedManualCaseIds": [
+        "W2-M004"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 14,
+        "linuxPassed": 10,
+        "uniqueUnionPassed": 24
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C024",
+        "W2-C025",
+        "W2-D003",
+        "W2-D005",
+        "W2-H027",
+        "W2-O001",
+        "W2-O002",
+        "W2-O003",
+        "W2-O004",
+        "W2-O005",
+        "W2-O006",
+        "W2-O008",
+        "W2-S015",
+        "W2-S016",
+        "W2-W001",
+        "W2-W002",
+        "W2-W003",
+        "W2-W004",
+        "W2-W005",
+        "W2-W006",
+        "W2-W007",
+        "W2-W008",
+        "W2-W009",
+        "W2-W010"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 14,
+        "linuxPassed": 10,
+        "uniquePassed": 24
+      },
+      "finalCiPassedIds": [
+        "W2-C024",
+        "W2-C025",
+        "W2-D003",
+        "W2-D005",
+        "W2-H027",
+        "W2-O001",
+        "W2-O002",
+        "W2-O003",
+        "W2-O004",
+        "W2-O005",
+        "W2-O006",
+        "W2-O008",
+        "W2-S015",
+        "W2-S016",
+        "W2-W001",
+        "W2-W002",
+        "W2-W003",
+        "W2-W004",
+        "W2-W005",
+        "W2-W006",
+        "W2-W007",
+        "W2-W008",
+        "W2-W009",
+        "W2-W010"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "M09",
+      "status": "BLOCKED",
+      "implementation": "Controlled restore planning/execution and safeguards, operational audit and diagnostics",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 21,
+        "BLOCKED_PREREQUISITE": 3
+      },
+      "historicalCaseIds": [
+        "W2-C025",
+        "W2-S015",
+        "W2-S016",
+        "W2-H027",
+        "W2-D003",
+        "W2-D005",
+        "W2-D011",
+        "W2-O002",
+        "W2-O006",
+        "W2-O007",
+        "W2-U003",
+        "W2-W002",
+        "W2-W003",
+        "W2-W004",
+        "W2-W005",
+        "W2-W006",
+        "W2-W007",
+        "W2-W008",
+        "W2-W009",
+        "W2-W010",
+        "W2-W011",
+        "W2-P001",
+        "W2-P005",
+        "W2-P006"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 13,
+        "MAPPED_BYTES_DIFFER": 8,
+        "NOT_EXECUTED": 3
+      },
+      "requiredAcceptanceContract": "Disposable restore only in B; stale witness rejection; compatibility and identity recovery; no automatic production restore",
+      "missingRequiredInstalledOrDeviceEvidence": "Hosted SCM credential rotation and failure handling passed at the recorded source. Real installed P001/P005/P006 restore, actual independent Recovery Authority/record/receipt preservation, stale-witness/credential denial and supported post-restore reconciliation remain unexecuted.",
+      "relatedInstalledCaseIds": [
+        "W2-P001",
+        "W2-P005",
+        "W2-P006"
+      ],
+      "relatedManualCaseIds": [
+        "W2-M004",
+        "W2-M005"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 13,
+        "linuxPassed": 8,
+        "uniqueUnionPassed": 21
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C025",
+        "W2-D003",
+        "W2-D005",
+        "W2-D011",
+        "W2-H027",
+        "W2-O002",
+        "W2-O006",
+        "W2-O007",
+        "W2-S015",
+        "W2-S016",
+        "W2-U003",
+        "W2-W002",
+        "W2-W003",
+        "W2-W004",
+        "W2-W005",
+        "W2-W006",
+        "W2-W007",
+        "W2-W008",
+        "W2-W009",
+        "W2-W010",
+        "W2-W011"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 13,
+        "linuxPassed": 8,
+        "uniquePassed": 21
+      },
+      "finalCiPassedIds": [
+        "W2-C025",
+        "W2-D003",
+        "W2-D005",
+        "W2-D011",
+        "W2-H027",
+        "W2-O002",
+        "W2-O006",
+        "W2-O007",
+        "W2-S015",
+        "W2-S016",
+        "W2-U003",
+        "W2-W002",
+        "W2-W003",
+        "W2-W004",
+        "W2-W005",
+        "W2-W006",
+        "W2-W007",
+        "W2-W008",
+        "W2-W009",
+        "W2-W010",
+        "W2-W011"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json",
+      "engineeringCorrectionEvidence": "scm-success-engineering-report-44702220504.json"
+    },
+    {
+      "capability": "B09",
+      "status": "BLOCKED",
+      "implementation": "Persistent user-owned saved searches/filters and record views",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 15
+      },
+      "historicalCaseIds": [
+        "W2-C018",
+        "W2-C019",
+        "W2-S008",
+        "W2-S009",
+        "W2-S020",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023",
+        "W2-H008",
+        "W2-H009",
+        "W2-H011",
+        "W2-H020",
+        "W2-H021",
+        "W2-D007",
+        "W2-G001"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 9,
+        "MAPPED_BYTES_DIFFER": 6
+      },
+      "requiredAcceptanceContract": "Persist/reopen, change scope/user, revoke permission; filter/sort/columns round trip",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed saved search/view filter/sort/column round trip across restart, user/scope/device changes, revocation and concurrent edits.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 9,
+        "linuxPassed": 6,
+        "uniqueUnionPassed": 15
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C018",
+        "W2-C019",
+        "W2-D007",
+        "W2-G001",
+        "W2-H008",
+        "W2-H009",
+        "W2-H011",
+        "W2-H020",
+        "W2-H021",
+        "W2-S008",
+        "W2-S009",
+        "W2-S020",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 9,
+        "linuxPassed": 6,
+        "uniquePassed": 15
+      },
+      "finalCiPassedIds": [
+        "W2-C018",
+        "W2-C019",
+        "W2-D007",
+        "W2-G001",
+        "W2-H008",
+        "W2-H009",
+        "W2-H011",
+        "W2-H020",
+        "W2-H021",
+        "W2-S008",
+        "W2-S009",
+        "W2-S020",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "C08",
+      "status": "BLOCKED",
+      "implementation": "Permission-aware module/workspace organization",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 12
+      },
+      "historicalCaseIds": [
+        "W2-S008",
+        "W2-S009",
+        "W2-S010",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023",
+        "W2-H009",
+        "W2-H029",
+        "W2-G001",
+        "W2-G002",
+        "W2-G003",
+        "W2-G004"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 10,
+        "MAPPED_BYTES_DIFFER": 2
+      },
+      "requiredAcceptanceContract": "Different roles/scopes; no-data, offline, denial and stale-session states",
+      "missingRequiredInstalledOrDeviceEvidence": "Earlier c32691c English first-run/Host setup UI and Client restart are observed on TEST-02; final 81661f7 Client install/integrity and responding Interactive/Limited process launch are verified. Current-role/scope module/workspace business navigation and offline/empty/denied/stale states remain unverified because Host provisioning is policy-blocked.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M001",
+        "W2-M003",
+        "W2-M006"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 10,
+        "linuxPassed": 2,
+        "uniqueUnionPassed": 12
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-G001",
+        "W2-G002",
+        "W2-G003",
+        "W2-G004",
+        "W2-H009",
+        "W2-H029",
+        "W2-S008",
+        "W2-S009",
+        "W2-S010",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 10,
+        "linuxPassed": 2,
+        "uniquePassed": 12
+      },
+      "finalCiPassedIds": [
+        "W2-G001",
+        "W2-G002",
+        "W2-G003",
+        "W2-G004",
+        "W2-H009",
+        "W2-H029",
+        "W2-S008",
+        "W2-S009",
+        "W2-S010",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json",
+      "installedSubsetEvidence": [
+        "native-install-result.json",
+        "installed-integrity.json",
+        "test02-host-setup-observed.jpg",
+        "test02-client-restart-result.json",
+        "final-test02-native-install-result.json",
+        "final-test02-installed-integrity.json",
+        "final-test02-client-launch-result.json",
+        "final-test02-host-component-result.json"
+      ]
+    },
+    {
+      "capability": "C09",
+      "status": "BLOCKED",
+      "implementation": "User-owned density/theme/navigation preferences",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 18
+      },
+      "historicalCaseIds": [
+        "W2-C020",
+        "W2-S001",
+        "W2-S002",
+        "W2-S003",
+        "W2-S009",
+        "W2-S014",
+        "W2-S017",
+        "W2-S018",
+        "W2-S019",
+        "W2-S020",
+        "W2-H007",
+        "W2-H008",
+        "W2-H009",
+        "W2-H010",
+        "W2-H011",
+        "W2-D007",
+        "W2-E001",
+        "W2-G004"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 14,
+        "MAPPED_BYTES_DIFFER": 4
+      },
+      "requiredAcceptanceContract": "Upgrade old DB, restart, switch actor/Host, Windows/Android narrow layout",
+      "missingRequiredInstalledOrDeviceEvidence": "Earlier c32691c Client process restart and a retained SQLite diagnostic with integrity_check=ok are proved; exact local user files survived Client-only uninstall and final 81661f7 reinstall. User/Host/scope preference behavior, old-DB business upgrade, legitimate offline queue/sync and actual Android layout remain unverified.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M002",
+        "W2-M003"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 11,
+        "linuxPassed": 7,
+        "uniqueUnionPassed": 18
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C020",
+        "W2-D007",
+        "W2-E001",
+        "W2-G004",
+        "W2-H007",
+        "W2-H008",
+        "W2-H009",
+        "W2-H010",
+        "W2-H011",
+        "W2-S001",
+        "W2-S002",
+        "W2-S003",
+        "W2-S009",
+        "W2-S014",
+        "W2-S017",
+        "W2-S018",
+        "W2-S019",
+        "W2-S020"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 11,
+        "linuxPassed": 7,
+        "uniquePassed": 18
+      },
+      "finalCiPassedIds": [
+        "W2-C020",
+        "W2-D007",
+        "W2-E001",
+        "W2-G004",
+        "W2-H007",
+        "W2-H008",
+        "W2-H009",
+        "W2-H010",
+        "W2-H011",
+        "W2-S001",
+        "W2-S002",
+        "W2-S003",
+        "W2-S009",
+        "W2-S014",
+        "W2-S017",
+        "W2-S018",
+        "W2-S019",
+        "W2-S020"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json",
+      "installedSubsetEvidence": [
+        "test02-client-restart-result.json",
+        "test02-diagnostics-restart-persistence.json",
+        "test02-native-uninstall-result.json",
+        "final-test02-client-launch-result.json"
+      ]
+    },
+    {
+      "capability": "C12",
+      "status": "BLOCKED",
+      "implementation": "Declarative native dashboard presentation",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 5
+      },
+      "historicalCaseIds": [
+        "W2-C021",
+        "W2-S020",
+        "W2-H026",
+        "W2-G004",
+        "W2-G006"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 4,
+        "MAPPED_BYTES_DIFFER": 1
+      },
+      "requiredAcceptanceContract": "Report cards, denied filters/fields, bounded tables, loading/error/empty states",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed dashboard/report cards and bounded results with loading/error/empty and current hidden-field/filter/report denials; actual native presentation.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M003"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 4,
+        "linuxPassed": 1,
+        "uniqueUnionPassed": 5
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C021",
+        "W2-G004",
+        "W2-G006",
+        "W2-H026",
+        "W2-S020"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 4,
+        "linuxPassed": 1,
+        "uniquePassed": 5
+      },
+      "finalCiPassedIds": [
+        "W2-C021",
+        "W2-G004",
+        "W2-G006",
+        "W2-H026",
+        "W2-S020"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "F05",
+      "status": "BLOCKED",
+      "implementation": "Workspace integration with installed approved report metadata",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 10
+      },
+      "historicalCaseIds": [
+        "W2-C021",
+        "W2-S010",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023",
+        "W2-H026",
+        "W2-H029",
+        "W2-G001",
+        "W2-G003",
+        "W2-G006"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 8,
+        "MAPPED_BYTES_DIFFER": 2
+      },
+      "requiredAcceptanceContract": "Report compatibility across releases, revocation and unavailable package",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed approved report/package compatibility across release/digest changes, unavailable dependencies/package and revocation/authorization denials.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M003"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 8,
+        "linuxPassed": 2,
+        "uniqueUnionPassed": 10
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C021",
+        "W2-G001",
+        "W2-G003",
+        "W2-G006",
+        "W2-H026",
+        "W2-H029",
+        "W2-S010",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 8,
+        "linuxPassed": 2,
+        "uniquePassed": 10
+      },
+      "finalCiPassedIds": [
+        "W2-C021",
+        "W2-G001",
+        "W2-G003",
+        "W2-G006",
+        "W2-H026",
+        "W2-H029",
+        "W2-S010",
+        "W2-S021",
+        "W2-S022",
+        "W2-S023"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "H04",
+      "status": "BLOCKED",
+      "implementation": "Document history and audit-oriented activity UI",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 4
+      },
+      "historicalCaseIds": [
+        "W2-H022",
+        "W2-H023",
+        "W2-D006",
+        "W2-G007"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "MAPPED_BYTES_DIFFER": 3,
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 1
+      },
+      "requiredAcceptanceContract": "Revision chronology, deleted/restricted records, cross-tenant denial, redaction",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed document source/target chronology, deleted/restricted record navigation, current field redaction and cross-tenant/module/DocType denials.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M003"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 3,
+        "uniqueUnionPassed": 4
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-D006",
+        "W2-G007",
+        "W2-H022",
+        "W2-H023"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 1,
+        "linuxPassed": 3,
+        "uniquePassed": 4
+      },
+      "finalCiPassedIds": [
+        "W2-D006",
+        "W2-G007",
+        "W2-H022",
+        "W2-H023"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "B02",
+      "status": "BLOCKED",
+      "implementation": "Published versioned developer platform interfaces",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 15
+      },
+      "historicalCaseIds": [
+        "W2-C026",
+        "W2-C027",
+        "W2-C028",
+        "W2-H002",
+        "W2-H003",
+        "W2-J004",
+        "W2-D001",
+        "W2-D002",
+        "W2-D009",
+        "W2-D010",
+        "W2-U001",
+        "W2-U002",
+        "W2-U003",
+        "W2-R001",
+        "W2-R002"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 11,
+        "MAPPED_BYTES_DIFFER": 4
+      },
+      "requiredAcceptanceContract": "Old packages still load; unknown new contract versions rejected",
+      "missingRequiredInstalledOrDeviceEvidence": "Final 81661f7 package/source identity, TEST-02 native Client install and all 1746 installed files are verified. Earlier Client-only uninstall retained exact user files/shared VC runtime; final reinstall retained user files. TEST-01 c32691c upgrade denial preserved the old installation. Successful installed Host upgrade, Host data retain/delete choices, same-session manual acceptance and old-client/package/version compatibility remain incomplete.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [
+        "W2-M006"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 12,
+        "uniqueUnionPassed": 15
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C026",
+        "W2-C027",
+        "W2-C028",
+        "W2-D001",
+        "W2-D002",
+        "W2-D009",
+        "W2-D010",
+        "W2-H002",
+        "W2-H003",
+        "W2-J004",
+        "W2-R001",
+        "W2-R002",
+        "W2-U001",
+        "W2-U002",
+        "W2-U003"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 12,
+        "uniquePassed": 15
+      },
+      "finalCiPassedIds": [
+        "W2-C026",
+        "W2-C027",
+        "W2-C028",
+        "W2-D001",
+        "W2-D002",
+        "W2-D009",
+        "W2-D010",
+        "W2-H002",
+        "W2-H003",
+        "W2-J004",
+        "W2-R001",
+        "W2-R002",
+        "W2-U001",
+        "W2-U002",
+        "W2-U003"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json",
+      "installedSubsetEvidence": [
+        "fresh-package-verification.json",
+        "native-install-result.json",
+        "installed-integrity.json",
+        "test01-upgrade-evidence-summary.json",
+        "final-package-verification.json",
+        "test02-native-uninstall-result.json",
+        "final-test02-native-install-result.json",
+        "final-test02-installed-integrity.json",
+        "final-test02-client-launch-result.json"
+      ]
+    },
+    {
+      "capability": "K10",
+      "status": "BLOCKED",
+      "implementation": "Reusable governed APIs, safe lifecycle behaviors",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 4
+      },
+      "historicalCaseIds": [
+        "W2-C027",
+        "W2-C029",
+        "W2-C031",
+        "W2-J026"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 3,
+        "MAPPED_BYTES_DIFFER": 1
+      },
+      "requiredAcceptanceContract": "Existing submit/cancel/amend/governed operations preserved; malformed extensions rejected",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed approved submit/cancel/amend/calculation/numbering/governed effects and malformed/executable/undeclared operation denial through the Host.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 1,
+        "uniqueUnionPassed": 4
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C027",
+        "W2-C029",
+        "W2-C031",
+        "W2-J026"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 1,
+        "uniquePassed": 4
+      },
+      "finalCiPassedIds": [
+        "W2-C027",
+        "W2-C029",
+        "W2-C031",
+        "W2-J026"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "L01",
+      "status": "BLOCKED",
+      "implementation": "Host-owned durable jobs, identity/state/retry/cancel/audit/visibility",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 30
+      },
+      "historicalCaseIds": [
+        "W2-J001",
+        "W2-J003",
+        "W2-J006",
+        "W2-J008",
+        "W2-J009",
+        "W2-J010",
+        "W2-J011",
+        "W2-J012",
+        "W2-J013",
+        "W2-J014",
+        "W2-J015",
+        "W2-J016",
+        "W2-J017",
+        "W2-J018",
+        "W2-J019",
+        "W2-J020",
+        "W2-J021",
+        "W2-J022",
+        "W2-J023",
+        "W2-J024",
+        "W2-J025",
+        "W2-J026",
+        "W2-J027",
+        "W2-D001",
+        "W2-D003",
+        "W2-D004",
+        "W2-D005",
+        "W2-D011",
+        "W2-U002",
+        "W2-E002"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "MAPPED_BYTES_DIFFER": 30
+      },
+      "requiredAcceptanceContract": "Concurrent workers/crashes, stable IDs, revocation, bounded retries/cancellation and audit",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed Host job submit/list/progress, multiple workers/crash/restart/lease fencing, bounded retry/cancel, revocation and current diagnostics/audit.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 0,
+        "linuxPassed": 30,
+        "uniqueUnionPassed": 30
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-D001",
+        "W2-D003",
+        "W2-D004",
+        "W2-D005",
+        "W2-D011",
+        "W2-E002",
+        "W2-J001",
+        "W2-J003",
+        "W2-J006",
+        "W2-J008",
+        "W2-J009",
+        "W2-J010",
+        "W2-J011",
+        "W2-J012",
+        "W2-J013",
+        "W2-J014",
+        "W2-J015",
+        "W2-J016",
+        "W2-J017",
+        "W2-J018",
+        "W2-J019",
+        "W2-J020",
+        "W2-J021",
+        "W2-J022",
+        "W2-J023",
+        "W2-J024",
+        "W2-J025",
+        "W2-J026",
+        "W2-J027",
+        "W2-U002"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 0,
+        "linuxPassed": 30,
+        "uniquePassed": 30
+      },
+      "finalCiPassedIds": [
+        "W2-D001",
+        "W2-D003",
+        "W2-D004",
+        "W2-D005",
+        "W2-D011",
+        "W2-E002",
+        "W2-J001",
+        "W2-J003",
+        "W2-J006",
+        "W2-J008",
+        "W2-J009",
+        "W2-J010",
+        "W2-J011",
+        "W2-J012",
+        "W2-J013",
+        "W2-J014",
+        "W2-J015",
+        "W2-J016",
+        "W2-J017",
+        "W2-J018",
+        "W2-J019",
+        "W2-J020",
+        "W2-J021",
+        "W2-J022",
+        "W2-J023",
+        "W2-J024",
+        "W2-J025",
+        "W2-J026",
+        "W2-J027",
+        "W2-U002"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    },
+    {
+      "capability": "D09",
+      "status": "BLOCKED",
+      "implementation": "Bounded compatibility evaluation; reuse existing identity",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 21,
+        "BLOCKED_PREREQUISITE": 1
+      },
+      "historicalCaseIds": [
+        "W2-S001",
+        "W2-H001",
+        "W2-H002",
+        "W2-H005",
+        "W2-H006",
+        "W2-H025",
+        "W2-H029",
+        "W2-J005",
+        "W2-J016",
+        "W2-J017",
+        "W2-J023",
+        "W2-D006",
+        "W2-D010",
+        "W2-D011",
+        "W2-O002",
+        "W2-O008",
+        "W2-R001",
+        "W2-R002",
+        "W2-E004",
+        "W2-E006",
+        "W2-G002",
+        "W2-P001"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 12,
+        "MAPPED_BYTES_DIFFER": 9,
+        "NOT_EXECUTED": 1
+      },
+      "requiredAcceptanceContract": "Documented accepted/deferred scope and denial coverage; no auth bypass",
+      "missingRequiredInstalledOrDeviceEvidence": "Final 81661f7 shipped Host broker exited 5 with failed/PAYLOAD_VALIDATION under current Restricted policy; no Host/PG services or data were created. Earlier actual -Apply -NewHostOnly policy denial is directly recorded, and UAC display was observed with GUI approval outcome unconfirmed. Authenticated bootstrap/login/pairing/TLS/reissue, scope/revocation and post-restore identity acceptance remain missing.",
+      "relatedInstalledCaseIds": [
+        "W2-P001"
+      ],
+      "relatedManualCaseIds": [
+        "W2-M001",
+        "W2-M005"
+      ],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 2,
+        "linuxPassed": 19,
+        "uniqueUnionPassed": 21
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-D006",
+        "W2-D010",
+        "W2-D011",
+        "W2-E004",
+        "W2-E006",
+        "W2-G002",
+        "W2-H001",
+        "W2-H002",
+        "W2-H005",
+        "W2-H006",
+        "W2-H025",
+        "W2-H029",
+        "W2-J005",
+        "W2-J016",
+        "W2-J017",
+        "W2-J023",
+        "W2-O002",
+        "W2-O008",
+        "W2-R001",
+        "W2-R002",
+        "W2-S001"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 2,
+        "linuxPassed": 19,
+        "uniquePassed": 21
+      },
+      "finalCiPassedIds": [
+        "W2-D006",
+        "W2-D010",
+        "W2-D011",
+        "W2-E004",
+        "W2-E006",
+        "W2-G002",
+        "W2-H001",
+        "W2-H002",
+        "W2-H005",
+        "W2-H006",
+        "W2-H025",
+        "W2-H029",
+        "W2-J005",
+        "W2-J016",
+        "W2-J017",
+        "W2-J023",
+        "W2-O002",
+        "W2-O008",
+        "W2-R001",
+        "W2-R002",
+        "W2-S001"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json",
+      "installedSubsetEvidence": [
+        "test02-host-setup-observed.jpg",
+        "test02-host-component-result.json",
+        "test02-host-policy-evidence.json",
+        "final-test02-host-component-result.json",
+        "final-test02-host-component-raw.json"
+      ]
+    },
+    {
+      "capability": "J04",
+      "status": "BLOCKED",
+      "implementation": "Bounded transfer/contract integration only",
+      "historicalAutomatedCaseCounts": {
+        "PASSED": 10
+      },
+      "historicalCaseIds": [
+        "W2-C019",
+        "W2-C026",
+        "W2-C028",
+        "W2-H001",
+        "W2-H003",
+        "W2-H004",
+        "W2-J002",
+        "W2-J004",
+        "W2-J026",
+        "W2-R001"
+      ],
+      "historicalEvidenceLedger": "../../WAVE_2_B_CORRECTIVE_RESULTS.json",
+      "historicalSourceApplicabilityAtC32691c": {
+        "ALL_DECLARED_MAPPED_BYTES_EQUAL": 9,
+        "MAPPED_BYTES_DIFFER": 1
+      },
+      "requiredAcceptanceContract": "Reject unknown routes, handlers, executable fields, oversize payloads and tenant spoofing",
+      "missingRequiredInstalledOrDeviceEvidence": "Installed bounded authenticated declarative requests; unknown route/method/type/auth/executable/outbound/oversize/spoofed scope rejection.",
+      "relatedInstalledCaseIds": [],
+      "relatedManualCaseIds": [],
+      "decisionBasis": "Hosted subsets passed at the final source. Required complete installed Host/business, multi-device, recovery and manual acceptance is not established; the actual partial Client/install/restart evidence below does not close the capability.",
+      "earlierMixedRevisionCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 7,
+        "uniqueUnionPassed": 10
+      },
+      "earlierMixedRevisionPassedIds": [
+        "W2-C019",
+        "W2-C026",
+        "W2-C028",
+        "W2-H001",
+        "W2-H003",
+        "W2-H004",
+        "W2-J002",
+        "W2-J004",
+        "W2-J026",
+        "W2-R001"
+      ],
+      "earlierMixedRevisionEvidence": "fresh-ci-case-results.json",
+      "finalCiCaseCounts": {
+        "windowsPassed": 3,
+        "linuxPassed": 7,
+        "uniquePassed": 10
+      },
+      "finalCiPassedIds": [
+        "W2-C019",
+        "W2-C026",
+        "W2-C028",
+        "W2-H001",
+        "W2-H003",
+        "W2-H004",
+        "W2-J002",
+        "W2-J004",
+        "W2-J026",
+        "W2-R001"
+      ],
+      "finalCiSourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+      "finalCiEvidence": "final-ci-case-results-81661f7.json"
+    }
+  ],
+  "installedRecoveryCases": [
+    {
+      "id": "W2-P001",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "requiredEvidence": "Real disposable installed Host authenticates the approved fixture identity"
+    },
+    {
+      "id": "W2-P002",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "M05"
+      ],
+      "requiredEvidence": "Supported Host authorization and elevated local approval arm the fixed SYSTEM schedule"
+    },
+    {
+      "id": "W2-P003",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "M05"
+      ],
+      "requiredEvidence": "Real scheduled backup verifies content and does not repeat a completed daily offer"
+    },
+    {
+      "id": "W2-P004",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "M05"
+      ],
+      "requiredEvidence": "Actual retention removes only eligible old copies and preserves pins foreign kinds and newest backup"
+    },
+    {
+      "id": "W2-P005",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "requiredEvidence": "Real restore planning detects same-size corruption before stopping Host"
+    },
+    {
+      "id": "W2-P006",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "M09",
+        "M05",
+        "J03"
+      ],
+      "requiredEvidence": "Disposable restoration preserves current cluster external witness and original record/receipt while leaving Host stopped"
+    }
+  ],
+  "manualCases": [
+    {
+      "id": "W2-M001",
+      "status": "PARTIAL",
+      "execution": "PARTIAL_WINDOWS_STEPS_OBSERVED",
+      "capabilities": [
+        "D09",
+        "C08"
+      ],
+      "requiredEvidence": "Owner-visible first-admin bootstrap, independent local login/pairing, TLS fingerprint verification and OS credential-store behavior on the final installed candidate",
+      "fullRequirementMet": false,
+      "completedSubset": "English first-run/Host setup UI and UAC display were observed on the earlier c32691c Client. The final 81661f7 Client is installed and launched. Its shipped broker was invoked under the legitimate existing administrator SSH session and exited 5 during PAYLOAD_VALIDATION; current Restricted policy blocks provisioning.",
+      "remaining": "GUI approval outcome, successful first-admin bootstrap, independent authentication/pairing/TLS pinning and credential-store acceptance remain unverified.",
+      "evidence": [
+        "test02-host-setup-observed.jpg",
+        "test02-host-component-result.json",
+        "test02-host-policy-evidence.json",
+        "final-test02-client-launch-result.json",
+        "final-test02-host-component-result.json"
+      ]
+    },
+    {
+      "id": "W2-M002",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "K09",
+        "J03",
+        "C09",
+        "D08"
+      ],
+      "requiredEvidence": "Two physical cleared devices, independent identities, real network disconnect/reboot/reconnect, conflict resolution and protected-field presentation",
+      "fullRequirementMet": false
+    },
+    {
+      "id": "W2-M003",
+      "status": "PARTIAL",
+      "execution": "PARTIAL_WINDOWS_STEPS_OBSERVED",
+      "capabilities": [
+        "C08",
+        "C09",
+        "C12",
+        "F05",
+        "A11",
+        "A12",
+        "H04"
+      ],
+      "requiredEvidence": "Windows keyboard/focus/high-DPI/narrow layout and Android tablet/320-400 px/rotation/accessibility acceptance; desktop size simulation is not Android acceptance",
+      "fullRequirementMet": false,
+      "completedSubset": "Actual English native first-run/Host setup UI observed on the earlier c32691c Client. The final 81661f7 Client process launched/responded under Interactive/Limited, but final post-launch GUI rendering was not verified.",
+      "remaining": "Full Windows keyboard/focus/high-DPI/narrow and generated business-form/workspace presentation plus Android rotation/accessibility acceptance remain unverified.",
+      "evidence": [
+        "test02-host-setup-observed.jpg",
+        "final-test02-client-launch-result.json"
+      ]
+    },
+    {
+      "id": "W2-M004",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "requiredEvidence": "Normal local UAC/approval UX, disk-full/copy/interruption/power-loss scenarios on disposable VM/storage, and review of uncertain physical operation journals",
+      "fullRequirementMet": false
+    },
+    {
+      "id": "W2-M005",
+      "status": "BLOCKED",
+      "execution": "NOT_EXECUTED",
+      "capabilities": [
+        "M09",
+        "D09"
+      ],
+      "requiredEvidence": "Supported post-restore Recovery Authority reconciliation and fresh authentication without adopting a stale witness or resurrecting credentials",
+      "fullRequirementMet": false
+    },
+    {
+      "id": "W2-M006",
+      "status": "PARTIAL",
+      "execution": "PARTIAL_WINDOWS_STEPS_OBSERVED",
+      "capabilities": [
+        "B02",
+        "C08"
+      ],
+      "requiredEvidence": "Final installed Windows first-run, upgrade/uninstall, data-retention choices and cleanup in the same interactive session",
+      "fullRequirementMet": false,
+      "completedSubset": "TEST-02 final 81661f7 native install exited 0 and all 1746 installed files matched; final Client launched/responded under Interactive/Limited. The earlier c32691c Client-only uninstall exited 0, retained exact local SQLite/user files and shared VC runtime, and final reinstall retained those files. Earlier first-run UI, Client crash/restart and retained local diagnostic were verified. TEST-01 c32691c upgrade exited 7 and preserved old Client/app.so/PG processes.",
+      "remaining": "Successful installed Host upgrade, Host data retain/delete choices and the complete required same-interactive-session acceptance remain incomplete; final post-launch GUI rendering was not verified.",
+      "evidence": [
+        "native-install-result.json",
+        "installed-integrity.json",
+        "test02-client-restart-result.json",
+        "test02-diagnostics-restart-persistence.json",
+        "test01-upgrade-evidence-summary.json",
+        "test02-native-uninstall-result.json",
+        "final-test02-native-install-result.json",
+        "final-test02-installed-integrity.json",
+        "final-test02-client-launch-result.json"
+      ]
+    }
+  ],
+  "interpretation": [
+    "All 158 unique executed product stable IDs passed on 81661f7 in run 44703269459: 72 Windows plus 86 Linux. None of those executed IDs is failed/skipped; the six prepared P IDs remain unexecuted.",
+    "The historical 158, earlier mixed-revision 158 and final 81661f7 158 cover the same stable IDs; do not add them together.",
+    "Historical 74 auxiliary recovery-lab cases remain separate. SCM runtime 3 programs contain 51 nested maintenance assertions, plus 4 rights probes; none adds a new product/P stable-ID pass.",
+    "Final 81661f7 package/source verification, TEST-02 native Client installation, all 1746 installed files, responding Interactive/Limited process launch and local-file retention are verified. Final GUI rendering was not established.",
+    "Earlier c32691c first-run/Host setup UI, Client crash/restart and retained SQLite diagnostic with integrity_check=ok remain source-labelled partial evidence. They do not prove business offline commands or synchronization.",
+    "M001/M003/M006 are PARTIAL because Windows subsets were executed. M002/M004/M005 and P001-P006 are unexecuted; no complete manual requirement is passed.",
+    "Final native Host broker exit 5 is captured. Its failed/PAYLOAD_VALIDATION result and policy probe support the current Restricted execution block. Earlier actual -Apply -NewHostOnly policy denial is directly recorded by event 4100/1254; that earlier collector native exit remains null.",
+    "TEST-01 c32691c upgrade exited 7 before file replacement; old Client/app.so and PG processes survived. This proves safe denial, not successful upgrade.",
+    "Client-only uninstall retained exact user files/shared VC runtime; final reinstall retained the user files. Host data retain/delete choices and successful installed Host upgrade are not established.",
+    "VM isolation remains stale/unverified and normal management elevation is needed; approved release signing is unavailable/deferred. Existing security controls are preserved.",
+    "All 22 full capabilities remain BLOCKED and PR #6 stays Draft/unmerged. Available independent testing in this execution has completed; full Wave 2 acceptance has not been achieved."
+  ],
+  "earlierMixedRevisionCiEvidence": {
+    "ledger": "fresh-ci-case-results.json",
+    "ledgerSha256": "23e31c2a2d0932d7f8ee63f4680d91e0862ddc5f6dd473cefae8287f780a19ee",
+    "evidenceKind": "Case outcomes parsed from authenticated GitHub job logs; installed device acceptance is separate",
+    "recordedAtUtc": "2026-11-19T22:13:00Z",
+    "windows": {
+      "sourceCommit": "c32691c3037361b5709cc5a517c956e417e18e7f",
+      "runId": 44619230172,
+      "jobId": 135896105746,
+      "jobConclusion": "success"
+    },
+    "linux": {
+      "sourceCommit": "f090a1b078c1aa3a9135dbecde3a583670bf3501",
+      "runId": 44624243560,
+      "jobId": 135913739055,
+      "jobConclusion": "success"
+    },
+    "windowsPassedUniqueIds": 72,
+    "linuxPassedUniqueIds": 86,
+    "passedUniqueUnion": 158,
+    "windowsPassedIds": [
+      "W2-C001",
+      "W2-C002",
+      "W2-C003",
+      "W2-C004",
+      "W2-C005",
+      "W2-C006",
+      "W2-C007",
+      "W2-C008",
+      "W2-C009",
+      "W2-C010",
+      "W2-C011",
+      "W2-C012",
+      "W2-C013",
+      "W2-C014",
+      "W2-C015",
+      "W2-C016",
+      "W2-C017",
+      "W2-C018",
+      "W2-C019",
+      "W2-C020",
+      "W2-C021",
+      "W2-C022",
+      "W2-C023",
+      "W2-C024",
+      "W2-C025",
+      "W2-C026",
+      "W2-C027",
+      "W2-C028",
+      "W2-C029",
+      "W2-C030",
+      "W2-C031",
+      "W2-G001",
+      "W2-G002",
+      "W2-G003",
+      "W2-G004",
+      "W2-G005",
+      "W2-G006",
+      "W2-G007",
+      "W2-S001",
+      "W2-S002",
+      "W2-S003",
+      "W2-S004",
+      "W2-S005",
+      "W2-S006",
+      "W2-S007",
+      "W2-S008",
+      "W2-S009",
+      "W2-S010",
+      "W2-S011",
+      "W2-S012",
+      "W2-S013",
+      "W2-S014",
+      "W2-S015",
+      "W2-S016",
+      "W2-S017",
+      "W2-S018",
+      "W2-S019",
+      "W2-S020",
+      "W2-S021",
+      "W2-S022",
+      "W2-S023",
+      "W2-W001",
+      "W2-W002",
+      "W2-W003",
+      "W2-W004",
+      "W2-W005",
+      "W2-W006",
+      "W2-W007",
+      "W2-W008",
+      "W2-W009",
+      "W2-W010",
+      "W2-W011"
+    ],
+    "linuxPassedIds": [
+      "W2-D001",
+      "W2-D002",
+      "W2-D003",
+      "W2-D004",
+      "W2-D005",
+      "W2-D006",
+      "W2-D007",
+      "W2-D008",
+      "W2-D009",
+      "W2-D010",
+      "W2-D011",
+      "W2-E001",
+      "W2-E002",
+      "W2-E003",
+      "W2-E004",
+      "W2-E005",
+      "W2-E006",
+      "W2-H001",
+      "W2-H002",
+      "W2-H003",
+      "W2-H004",
+      "W2-H005",
+      "W2-H006",
+      "W2-H007",
+      "W2-H008",
+      "W2-H009",
+      "W2-H010",
+      "W2-H011",
+      "W2-H012",
+      "W2-H013",
+      "W2-H014",
+      "W2-H015",
+      "W2-H016",
+      "W2-H017",
+      "W2-H018",
+      "W2-H019",
+      "W2-H020",
+      "W2-H021",
+      "W2-H022",
+      "W2-H023",
+      "W2-H024",
+      "W2-H025",
+      "W2-H026",
+      "W2-H027",
+      "W2-H028",
+      "W2-H029",
+      "W2-J001",
+      "W2-J002",
+      "W2-J003",
+      "W2-J004",
+      "W2-J005",
+      "W2-J006",
+      "W2-J007",
+      "W2-J008",
+      "W2-J009",
+      "W2-J010",
+      "W2-J011",
+      "W2-J012",
+      "W2-J013",
+      "W2-J014",
+      "W2-J015",
+      "W2-J016",
+      "W2-J017",
+      "W2-J018",
+      "W2-J019",
+      "W2-J020",
+      "W2-J021",
+      "W2-J022",
+      "W2-J023",
+      "W2-J024",
+      "W2-J025",
+      "W2-J026",
+      "W2-J027",
+      "W2-O001",
+      "W2-O002",
+      "W2-O003",
+      "W2-O004",
+      "W2-O005",
+      "W2-O006",
+      "W2-O007",
+      "W2-O008",
+      "W2-R001",
+      "W2-R002",
+      "W2-U001",
+      "W2-U002",
+      "W2-U003"
+    ],
+    "countsAsInstalledOrPCaseAcceptance": false,
+    "countsAsNewDistinctCoverageBeyondHistorical158": false,
+    "limit": "These are parsed literal PASS lines from authenticated hosted job logs at two separate commits; final installed/device acceptance and the newer recovery correction remain open."
+  },
+  "historicalRecoveryTokenDiagnostic": {
+    "sourceCommit": "e335ac826a512305ccb07057f6626bd9338f25f5",
+    "runId": "44697792249",
+    "processMasksCompared": [
+      "0x1000",
+      "0x400",
+      "0x1400"
+    ],
+    "tokenQuery": "ALLOWED under every compared process mask; expected service SID; token restricted=false.",
+    "tokenDuplicate": "DENIED (Win32 5) under every compared process mask, including requests for QUERY|DUPLICATE.",
+    "tokenSecurityDescriptorRead": "READ_CONTROL/SDDL unavailable (Win32 5); no token DACL change was made.",
+    "interpretation": "The observed pg_ctl service token is not restricted; changing only process QUERY rights does not remove the token-duplication denial. Do not claim a passing capture-based recovery implementation.",
+    "supportedCorrectionStatus": "Superseded by the successful SCM maintenance run44702220504 at 7a378ba; no token-DACL relaxation was used."
+  },
+  "finalExactRevisionCiEvidence": {
+    "ledger": "final-ci-case-results-81661f7.json",
+    "ledgerSha256": "533715513bc27115cf09f2b68e064b3263a4ebcb4db2a11f9019fd43cef11c6b",
+    "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "runId": 44703269459,
+    "runUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459",
+    "preparedAutomatedIds": 164,
+    "executedUniqueProductIds": 158,
+    "passedUniqueProductIds": 158,
+    "failedExecutedProductIds": 0,
+    "skippedExecutedProductIds": 0,
+    "unexecutedInstalledPIds": 6,
+    "windowsUniquePassed": 72,
+    "linuxUniquePassed": 86,
+    "outcomeEvents": 161,
+    "rawWindowsJob": "final-windows-job-136176535343.txt",
+    "rawLinuxJob": "final-linux-job-136176534954.txt",
+    "windowsJobId": 136176535343,
+    "linuxJobId": 136176534954,
+    "countingBoundary": {
+      "upgradeVariants": "U001-U003 each passed twice: the default baseline and 040-to-041. They remain three stable IDs, represented by six executions.",
+      "scmMaintenance": "The separate 51 assertions and 4 job-rights probes passed at 7a378ba in runtime run44702220504; they are not additional stable Wave2 IDs in this 158 count.",
+      "manual": "The six manual cases are outside the prepared 164 automated IDs."
+    },
+    "currentManualStatusCounts": {
+      "PASS": 0,
+      "PARTIAL": 3,
+      "NOT_EXECUTED": 3
+    },
+    "limits": [
+      "No skipped/failed product outcome was recorded among the executed 158; the six prepared P cases remain unexecuted.",
+      "The separately selected Windows runtime job is not rerun by this all-scope workflow; its successful exact-source SCM run is recorded separately.",
+      "The raw CI manual-inventory label predates the later installed-device observations; M001/M003/M006 are PARTIAL in this matrix.",
+      "Repeated historical/fresh/final runs cover the same stable IDs and are not added together."
+    ]
+  },
+  "scmRuntimeEngineering": {
+    "status": "TARGETED_WINDOWS_RUNTIME_ENGINEERING_PASSED_PHYSICAL_WAVE2_ACCEPTANCE_PENDING",
+    "testedSourceCommit": "7a378ba0ce58a1bb30ff107d2f7ed9de4b2f420a",
+    "runId": "44702220504",
+    "jobId": "136173093804",
+    "runUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44702220504",
+    "artifactId": 14613402659,
+    "artifactSha256": "d60cdb12dc8dffadffb0d23639d518f20616eab1dcc206b45d37c278bb1b3b2a",
+    "counts": {
+      "runtimeProgramsPassed": 3,
+      "runtimeProgramsFailed": 0,
+      "maintenanceAssertionsPassed": 51,
+      "maintenanceAssertionsFailed": 0,
+      "workerJobRightsProbesMatched": 4
+    },
+    "countingBoundary": "The 51 assertions are nested within PG-SINGLE-USER-RECOVERY; the three programs and four rights probes are not additional Wave 2 stable case IDs or physical P passes.",
+    "evidence": "scm-success-engineering-report-44702220504.json",
+    "sourceDifferenceAtFinalHead": [
+      "scripts/ci/package-wave2-acceptance.ps1"
+    ],
+    "countsAsProductOrInstalledPCasePass": false
+  },
+  "finalWindowsArtifact": {
+    "artifactId": 14615661415,
+    "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "sourceTree": "d3959d1808dbe6b261be6606ab4c459997866e46",
+    "runId": 44703269459,
+    "identity": "Ventio-W2B-0.1.23+24-20261120-81661f7f2f10-gh44703269459-a1",
+    "status": "INTEGRITY_VERIFIED_NATIVE_CLIENT_INSTALLED_FULL_ACCEPTANCE_PENDING",
+    "verificationEvidence": "final-package-verification.json",
+    "verificationPerformedBy": "Primary execution agent; completed report consumed by this matrix refresh",
+    "metadataVerifiedOnly": false,
+    "fullTransportHashVerifiedLocally": true,
+    "fullPayloadMembersVerifiedLocally": true,
+    "outerBytes": 276573780,
+    "outerSha256": "4ea93590ae677d660bc4ea3e5d69da233170da44f2297e734fd7425378bb3e0f",
+    "innerBytes": 277467992,
+    "innerSha256": "d89880da5064fe976750c1e9225f1201f2186324242b851ca987bc74d13773c7",
+    "membersVerified": 1767,
+    "inventoryEntriesVerified": 1765,
+    "sourceArchiveMembersMatchedToGit": 1299,
+    "sourceArchiveContainerBytesIdentical": false,
+    "hostedSecurityStatus": "COMPLETED_NO_NEW_DETECTIONS_REPORTED",
+    "importantFiles": {
+      "Ventio-Setup-0.1.23.exe": {
+        "bytes": 108101482,
+        "sha256": "bde048b4fbc7f8cd6041eea33ef5fd48fae9587fb567efedfba7521a75c58137"
+      },
+      "Client/ventio_native_client.exe": {
+        "bytes": 92160,
+        "sha256": "2544a41e5fe475351437906edc6afff93406a956cae5b6381eea87a4e41c5daa"
+      },
+      "HostPayload/VentioHostService.exe": {
+        "bytes": 73705257,
+        "sha256": "6ab890472ab1e0b7be043bc79701308d70f8672fa65bf4394098f1192f0aa5e6"
+      },
+      "HostPayload/VentioSetupBroker.exe": {
+        "bytes": 73627433,
+        "sha256": "50e70531e639ed993d60a29f8f1253e3528d499d3f13f4394b693399ee3e9e3c"
+      },
+      "HostPayload/ventio_host.exe": {
+        "bytes": 8806400,
+        "sha256": "056d434333f57c2bb6288617cc1c2fd256d06a44e8e016b58c62ddabd1af6cc1"
+      },
+      "HostPayload/ventio_migrate.exe": {
+        "bytes": 7537664,
+        "sha256": "a24cba27929ded2d29d4f59b33fd54516256188c981b9d772181fd58b5117156"
+      },
+      "Prerequisites/vc_redist.x64.exe": {
+        "bytes": 18731856,
+        "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c"
+      },
+      "Client/data/app.so": {
+        "bytes": 10650512,
+        "sha256": "d41f35895c6a78389d80711015656f58b5fdc3816cd08cd7ee92cd80168efa25"
+      }
+    },
+    "installedValidation": {
+      "machine": "TEST-02",
+      "nativeInstall": "PASS",
+      "nativeExitCode": 0,
+      "matchedInstalledFiles": 1746,
+      "missingFiles": 0,
+      "changedFiles": 0,
+      "clientProcessLaunch": "PASS_PROCESS_LAUNCH_AND_RETENTION_ONLY",
+      "hostSetup": "BLOCKED_POLICY_DENIAL",
+      "hostBrokerExitCode": 5,
+      "fullProductAcceptance": "NOT_ESTABLISHED",
+      "evidence": [
+        "final-test02-preinstall-scan.json",
+        "final-test02-native-install-result.json",
+        "final-test02-installed-integrity.json",
+        "final-test02-client-launch-result.json",
+        "final-test02-host-component-result.json"
+      ]
+    },
+    "limitations": [
+      "Package integrity, native Client installation and process launch do not establish authenticated Host/business, multi-device or recovery acceptance.",
+      "Bit-identical binary rebuild is not established.",
+      "Source ZIP container bytes differ between Git environments; every member path/content and commit comment matched.",
+      "Installer and shipped Host scripts are not release-signed; the approved signing identity is unavailable/deferred by the owner. Existing security policies remain in force."
+    ]
+  },
+  "manualStatusCounts": {
+    "PASS": 0,
+    "PARTIAL": 3,
+    "NOT_EXECUTED": 3
+  },
+  "installedRecoveryStatusCounts": {
+    "PASS": 0,
+    "FAIL": 0,
+    "NOT_EXECUTED": 6
+  }
+}

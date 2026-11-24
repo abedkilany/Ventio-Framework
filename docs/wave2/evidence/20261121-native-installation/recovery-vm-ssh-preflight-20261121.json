@@ -1,0 +1,129 @@
+{
+  "recordedUtc": "2026-11-21T21:31:21.866488+00:00",
+  "source": "7fbab322a42430d989c6031d998ce7cd4f12a427",
+  "method": "StrictHostKeyChecking=yes, pinned HostKeyAlias=172.19.254.220, public-key SSH, read-only PowerShell observations in guest; read-only Get-VM/adapter inspection on management host",
+  "pinnedSshEd25519Fingerprint": "SHA256:2apYDxmYxd9YL51EUuqWJRKYAF6grFa/pE1wbds7b0I",
+  "guestObservation": {
+    "utc": "2026-11-21T21:30:52.0182680Z",
+    "hostname": "VENTIO-W2-VM01",
+    "machineGuid": "5cb98737-7141-4486-9a87-08484566e292",
+    "smbiosUuid": "BBFBFFD7-D087-4E7C-9D65-D7884CAE0420",
+    "os": "Microsoft Windows 11 Pro",
+    "operator": "VENTIO-W2-VM01\\VM-TEST",
+    "isAdministrator": true,
+    "adapters": [
+      {
+        "Name": "Ethernet",
+        "MacAddress": "00-15-5D-01-68-05",
+        "InterfaceDescription": "Microsoft Hyper-V Network Adapter"
+      }
+    ],
+    "targetIp": [
+      {
+        "IPAddress": "172.20.162.145",
+        "PrefixLength": 20,
+        "InterfaceAlias": "Ethernet"
+      }
+    ],
+    "sshRule": {
+      "DisplayName": "Ventio Lab SSH from BAHAA",
+      "Direction": "Inbound",
+      "Action": "Allow",
+      "Enabled": "True",
+      "Profile": "Any",
+      "LocalAddress": "172.20.162.145",
+      "RemoteAddress": "172.20.160.1",
+      "Protocol": "TCP",
+      "LocalPort": "22",
+      "InterfaceAlias": "Ethernet"
+    },
+    "effectiveExecutionPolicy": "Restricted",
+    "executionPolicyScopes": [
+      {
+        "Scope": "MachinePolicy",
+        "Policy": "Undefined"
+      },
+      {
+        "Scope": "UserPolicy",
+        "Policy": "Undefined"
+      },
+      {
+        "Scope": "Process",
+        "Policy": "Undefined"
+      },
+      {
+        "Scope": "CurrentUser",
+        "Policy": "Undefined"
+      },
+      {
+        "Scope": "LocalMachine",
+        "Policy": "Undefined"
+      }
+    ],
+    "defender": {
+      "AMServiceEnabled": true,
+      "AntivirusEnabled": true,
+      "RealTimeProtectionEnabled": true
+    },
+    "services": [
+      {
+        "Name": "sshd",
+        "Status": "Running",
+        "StartType": "Automatic"
+      }
+    ],
+    "directories": [
+      {
+        "Path": "C:\\Program Files\\Ventio",
+        "Exists": false
+      },
+      {
+        "Path": "C:\\ProgramData\\Ventio",
+        "Exists": false
+      },
+      {
+        "Path": "C:\\Ventio-Acceptance",
+        "Exists": false
+      }
+    ]
+  },
+  "managementObservation": {
+    "Utc": "2026-11-21T21:30:54.7046802Z",
+    "ManagementHost": "BAHAA",
+    "ManagementMachineGuid": "206b0dfe-e035-49c5-8b38-3d1d19ceadf7",
+    "ManagementIsAdministrator": false,
+    "VmName": "Ventio-Recovery-Lab",
+    "VmId": "99aba626-2cc9-486e-86ab-af7966848126",
+    "VmState": "Running",
+    "Generation": 2,
+    "AdapterMac": "00155D016805",
+    "SwitchId": "c08cb7b8-9b3c-408e-8e30-5e16a3aeb444",
+    "StandardAclCount": 0,
+    "ExtendedAclCount": 0,
+    "ManagementSwitchAddress": [
+      {
+        "IPAddress": "172.20.160.1",
+        "PrefixLength": 20,
+        "InterfaceAlias": "vEthernet (Default Switch)"
+      }
+    ]
+  },
+  "checks": {
+    "guestMachineGuidPinned": true,
+    "guestSmbiosPinned": true,
+    "guestNamePinned": true,
+    "vmIdPinned": true,
+    "managementHostPinned": true,
+    "singleAdapterPinned": true,
+    "switchPinned": true,
+    "sshSingleManagementSource": true,
+    "defenderEnabled": true,
+    "hostNotYetInstalled": true,
+    "noAdapterAclApplied": true
+  },
+  "result": "IDENTITY_AND_SCOPED_SSH_PASS",
+  "recoveryAdmission": "BLOCKED_NOT_EXECUTED",
+  "effectiveNetworkIsolation": "NOT_ESTABLISHED_NO_VNIC_ACL",
+  "signing": "OWNER_DEFERRED_NO_APPROVED_IDENTITY",
+  "P001_P006": "NOT_EXECUTED"
+}

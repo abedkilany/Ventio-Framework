@@ -1,0 +1,1458 @@
+[
+  {
+    "path": "Ventio-Setup-0.1.24.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "                    ",
+    "sha256": "bc9f81e9d1171455a499474dfc68d8dd83396fb102f1d2f04282024a320eeaa0"
+  },
+  {
+    "path": "Client/dartjni.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "976ae34a45e1f07e0a60335c618ce4c91c173c73a61dc80cf27699025f38b438"
+  },
+  {
+    "path": "Client/flutter_secure_storage_windows_plugin.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "342148e102d5161bdcbe270f60cd002a088bc15c94e2c6fdfbf63600ae933125"
+  },
+  {
+    "path": "Client/flutter_windows.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "a147927018fcc1a843fb3938ead58838d2e185ce7d840bc4191a7a1b90c21015"
+  },
+  {
+    "path": "Client/pdfium.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "106.0.5200.0",
+    "sha256": "0c88ebacc0393fd45fc3e7b35e31e72c9e55b633a846a7ecf4085694dba68abd"
+  },
+  {
+    "path": "Client/printing_plugin.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "afae367044f499c7db74175a681b5af8f9cd13d78faee84426a9c27511be6cee"
+  },
+  {
+    "path": "Client/sqlite3.dll",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "2bf39f2aadafdc59a90b260f582a8fccebc5b89eb94175fdbaa9148c1e1f084d"
+  },
+  {
+    "path": "Client/ventio_native_client.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "0.1.24+25",
+    "sha256": "e2f23c1fc0c0bf739504767fa6eefcf731c3bd149fbc1613f9956db3e2e74505"
+  },
+  {
+    "path": "HostPayload/ventio_host.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "6cf635dde415b4673899130cef04a35c8ad0d3ecb6f14e6a3944747d135c6daf"
+  },
+  {
+    "path": "HostPayload/ventio_identity_bootstrap.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "2d635c1c93256669b41ebb5a3384ffbfb748f117d3c643fefbabc589e38f22d8"
+  },
+  {
+    "path": "HostPayload/ventio_migrate.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "a24cba27929ded2d29d4f59b33fd54516256188c981b9d772181fd58b5117156"
+  },
+  {
+    "path": "HostPayload/ventio_trusted_credential_reissue.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "ac49107cf49b58862f81769843428eedc5948f558b9881c7192d73a109a27436"
+  },
+  {
+    "path": "HostPayload/ventio_trusted_host_upgrade.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "5af9d8fda6b22ed77bc2699fc059bc271bf7d686c1dea7dfeba3297fb75b8577"
+  },
+  {
+    "path": "HostPayload/ventio_trusted_pairing.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": null,
+    "sha256": "da16fefa9e6b8b5783c03626b25efa5c8365e7c2637ec5cf74ff1ae85237adb5"
+  },
+  {
+    "path": "HostPayload/VentioHostService.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.0.0.0",
+    "sha256": "2a8307d90909deb4f694958914f89f175d076b131f1f6276fb4640d88d84d80a"
+  },
+  {
+    "path": "HostPayload/VentioSetupBroker.exe",
+    "status": "NotSigned",
+    "publisher": null,
+    "fileVersion": "1.0.0.0",
+    "sha256": "5a3bdfca34c6fe5243cb7a57da796d40c7d28f1244695972ca61a8057a082242"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/clusterdb.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "63307503ecccdc50b3312df8678a1761040adbf7908682af01d28a90d18a8dff"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/createdb.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "7c187eafddd80f619dbf209b1d7973ed876b70009cfc221aec7db5efdfc3b63f"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/createuser.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "e1d7708ca0ddc26bdc23a216db1b377f8e6f47c5280aa14d3cbc3ca5c14dcd0a"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/dropdb.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "87dc9de55a955e4e4b5e0445c1d73c55c03ad7235fb9e2ef33071951a828b934"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/dropuser.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1c9553c989e6357ef5208ccb0bff130614f5f4eb006357f158ebc2a307bff840"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/ecpg.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "81fc2d939736d1acd8afbb3ec44869c13fd84156c26a6d9983f5d76dad9137d7"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icudt67.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "6d485b89262a7d0facc96f7f2b48e685439a9a71c8373861db8431525e39827a"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icuin67.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "8e6b510a2a89a28561a3a43ab765d803fb3ddb8f83257b364789b4f370122de6"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icuio67.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "d7682b36d19655b523ac040e139f627e1f63e5b72dd6c39c7fb1b7df5aff5784"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icutu67.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": null,
+    "sha256": "72d959d3a9af1bbca6584722075943e07979b48aff6af4f174e02c2ac99c9e4b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/icuuc67.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "67, 1, 0, 0",
+    "sha256": "c5f864c1831a3201cbe3fe1177e9c2f9f9f3ad5479136de0f931c379f9cecdc6"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/initdb.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "203a06fa85207b7c9f8d2560c93b93ca03f2b958f62b5d642a407532281d6ed5"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/isolationtester.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "a80e343e5945bd3c29fe577e224774704f7a4405942db3f744f0ed086e0dd70d"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libcrypto-3-x64.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.5.9",
+    "sha256": "557e61527b395ae1e21db4e172c3bb0925513746dc0b718c9853c203bea42847"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libcurl.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "8.23.0",
+    "sha256": "35e28bafda0867619cb5c33b852ec953e9ce1780032b8770aca66f457187ce7c"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libecpg_compat.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "bec37f44ddedd2bb85216b34b8cf9a592819554cf8eae7b41946d928ad3510fd"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libecpg.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "96545c6a8ce187916c0e1163fee8391cd490b2cfd5d65a9ccc4f1d2f1ab05390"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libiconv-2.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "1.15",
+    "sha256": "e16248f7218200b0c53820be214acfced522560cc97e0c0f0bc3253f6f1c5f41"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libintl-9.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "0.19.8",
+    "sha256": "c05143a171cfc7ab8ddd16339e8fc242496b90478de3f8f2a3a9c263dd083bda"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/liblz4.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "1.11.1",
+    "sha256": "db7d00324cedbbc05d5128efdc4189d72bedf74225e34157178e48466dc3e0d2"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpgtypes.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "2200281fd5377703571d93f79250a8ba60d4bd3cebc2c69d85ad43e1a0c5c843"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq_pipeline.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "a434cb6605c0e1c9d2ae2eb4452bf7b7229366e7507950e1531b12e6b413f7e4"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq_testclient.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "67ced442def82a006db2850c831291875fffebf9cd726acbaf6e0a90c4e3e5b3"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq_uri_regress.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "29081b73142209c1fb9661ccd9a9d0d4e23c341d5ca2bddb928e58de7be4d24b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libpq.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1025308fed43ab3eb9f3ed954321de0ee79488ca08353b551c97ac83d7320727"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libssl-3-x64.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.5.9",
+    "sha256": "7a19b9a85802670e7378450ca056ca1b056be7b25b17f34d94dfa4f728625bb0"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libxml2.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "2.15.4",
+    "sha256": "4683d93bc22360ac64a5cafe903c90a2e3884f6d070836a07aa75e200deba735"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libxslt.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": null,
+    "sha256": "0962171e4a40e3b7286e5fc0f6f1188eb4ed7cb556dcdeb26c49ec06771571a7"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/libzstd.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "1.5.7",
+    "sha256": "10aebca3c378fc27fb944375db1334e4c6acc366d2707676a29eabfdfc393f7b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/oid2name.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "37d954247b2d0ba297af032506c78f068a8594664e4648a3a27ce3a3bd3c2f04"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_amcheck.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "3aee51e7f376e6dc724036a073c5cafa6cdf3766b6e1592270024e7c37bf0ff1"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_archivecleanup.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "49d2f1100e91d9c35b9c0f42fc47eb70a3fa9bc12919ffaa8a54c0a009acab47"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_basebackup.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "03f076b608911c2600e231cb78ac617247af9b6a0a0508566b0bd8a3c82d4ed8"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_checksums.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "b5cb750ae45e167f02129bc7488570fed5c2486fa60f4cf33b3a3ed434e26775"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_config.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1416dcda31528b6ca7dc8b73cb17465fec56d679b6d0b7bb07a718d0c4ed84d7"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_controldata.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "3ef7779942f51433d69f4efbd827526571d1adc84286c713e16f191e31f6129c"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_ctl.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "36fb8721a5b0fc017e2e5d47112223e457f6f401cf66ddcf61d5377de772e193"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_dump.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "e57339906c7162ee3a5a86b6c7120001bede2f3d459b26c8ac1aec58a179a534"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_dumpall.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "2fa8b7df7bb385cc3bddbc0865f2c5dfcf448b14f9beda0f9872373da6eb159a"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_isolation_regress.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "d97ef56dda0c307f81c609471d496025c39541d5b50f42b7c8242f16e57e9cdf"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_isready.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "a1e6fd317b1e53194226d52466d2c06830df5c573d2e9d6a78d2476a42682305"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_receivewal.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "45938d4185cb14987accdc8079065c2e1d6e8b23eb23f64ff3944b2364b146e8"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_recvlogical.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "b2069bb1b9d0a0e1c5b28c81d3c6a993dc32b2cfd9eca50a88b2b6c260caa40d"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_regress_ecpg.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1d19e13ecb2a7c6ec2501eaa26b5ef8b04d5925dc9d96c79a37847cef0720141"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_regress.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "90509c1d904656cc8bbf3905062908d602464527917137b0f18578b7c9ef3678"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_resetwal.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "124435195246729d5be935ba4c0f268cca1d757e84e8f1b5a8c4232e4e93511c"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_restore.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "6c22e49a750a7ab8157f4b03d15b9b5ca523bb866fe4af0f3ac8610dd06c826d"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_rewind.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "8b89bad94f94928f7f0a5f67e441fc7b691423039087abcd1b4aa2922058f462"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_test_fsync.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "37cacfcf9cbc508c2bedea3458f7a4fbc1e4f892c2a38f8892a533e840c20f3d"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_test_timing.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "9223552e518b37bfe4784fe4d121d5d411d7d424601fe7334537f296c8711b69"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_upgrade.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "223c96b254f7ccd3dd511d33aa6b9f379be2d71b3650c80bae846495799e2054"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_verifybackup.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "81d5afe791b43cfdd6149fd124e3cfd397ec6a75880a289597083e43671ab2a8"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pg_waldump.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "80ad0da297b180286c4ec0b15535986634e42255d6f76aec8fd8ca780e5b9fcb"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/pgbench.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "5ce64d632463b5a77faef6a675fe0746679dad566cda5791f9443282e32dfca1"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/postgres.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "b2c24e922b8f9598ddae1ca1a056c5143a8c62087d94ab3dd76dc06f811e621f"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/psql.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "8d02ae59505a2671a0103e1917379b710632fba0b0ea108685f3387c16b32f3b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/reindexdb.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "0d434adbb4ceb8776a211ffdc9ad1cd2fa04c77461f248c584d40f57956af3ca"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/test_cloexec.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "86ab4dc5f97c673bd6e3f8278de239194911270ce39d4a76987447bf98d0151b"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/testplug.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": null,
+    "sha256": "2f61ec59284051deee5cfa079b974a74e98190f21b123574de8d60a3642bdc7f"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/vacuumdb.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "af1305ad666846f05e903f30e51067d59c2d2c377eb69aafc748658caf156999"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/vacuumlo.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "d96143e23f249466368705b7cb254f91d399eff9d964d0231430ae758f8c2f9e"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxbase3212u_net_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "5dc2cd0bd5620b781300b2eaf762500747d4f9570a1be6246484b2994be7d734"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxbase3212u_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "277a9a748685684d65616fbb6550de3d2c975b84f509e8ad1d74bb6bf3d425bd"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxbase3212u_xml_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "dfd1b4701aacccdf92d8635864dc553533261011d8e452d5c700c372aa473b88"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3212u_adv_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "748394ede4eaa7339f2da3c4e8dd8535fe7b4dbc7a7fa82bbfd3dddd6bdadc28"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3212u_aui_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "5ed131f81e1c6e1d030f8391430b258fee620095bc46d7a28e9b43b00725992d"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3212u_core_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "77c7d90c6a720a78210ce72b0100ab9aa9aec413a839298bd883132a1c7f3fe4"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3212u_html_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "e8d02320d243d649ae61321f33164d9987a1646b4bbf079379be78902a373916"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/wxmsw3212u_xrc_vc_x64_custom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "3.2.12",
+    "sha256": "81d708b8596c4249f82460465918e3dc7720c2aecd148499dcc599a6f881b775"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/zic.exe",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "c6a36d1b22fc8e9dda51a32556f1c1757b3ebddcd6f1601218c802bb6d81eb46"
+  },
+  {
+    "path": "HostPayload/postgresql/bin/zlib1.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "1.4",
+    "sha256": "94c1cf0e3b6f967f6586ba865868254440fa1f41799b4a30e16dec58ffaf6032"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/_int.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "32e643c15f699b123ce944e3e22eb6db0c651ced80611ca0fc1ec6d785e14346"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/adminpack.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "fe322fbe43d772c8b98ebfd5b13ebd9cc74fe9aa66abea7bed4281a4089483d4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/amcheck.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "538c68acf0368a59893cf8cfc36e4e619593f47fd7167ce34c46c6538fb693e0"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/auth_delay.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "51bdb42d9dde8fcd271cfeed91178572dcb64de6ee3801eb0840f4b7e16a0c76"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/auto_explain.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1609c02cc971da17a52f7c82ce75c583973df1894dcac6bc649367fcc0aea95c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/autoinc.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "c1b5c6acc316fc1fbf15c97d945de68bee7c2e5079c7885e229f48166a17b442"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/basebackup_to_shell.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "0b05476a4c97a41a87b190b240eae46309a091ba45511b1e13fadc43d1726248"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/basic_archive.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "32d625704b83ccb8718f75b1fae75b280907567bc601587a3338d24331f4a66e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/bloom.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "224dd345f48745e571c5ac8b2bd0538080e269f39c4bd482de287deeac3f4e98"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/bool_plperl.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "df626a0a212bb829c827f1ee78a792090173e409fed04bbab5b8aac832d20cfb"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/btree_gin.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "5bf08cb4c5ccb62001d6aafe858d055730f478d134a25fe1d22b06010b7a4eff"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/btree_gist.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "781ad117128cbe241d86bb9c66f5f27a9feb75d0754cf254196da979833f5d7a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/citext.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "9222cc2073c0e73a8b77eb21ca4abe5846618b6009b05c88591a66f74d75f54c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/cube.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "124b2492ff75510b91327eb787e8ba80707791912c762a0ec409cad38da88496"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/cyrillic_and_mic.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "2261040135fdf932aeff130ca94b9f8f02bdb058663380b5d5af75607300389e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dblink.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "0b0e813b4d2a50f26251306387b67ad90f77dba87b19a9689aed2ed58d7bd48e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/delay_execution.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "56085d297235341e529635e0f025fd867c5564a74a75554c2e391af029f8136b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dict_int.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "d0eceecc539c25f5bcac1cf14114b4e4bb75e002e947b654ec793d3e2500a913"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dict_snowball.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "3340f5ec2bb61bf6fae449ad537f49a93acaa8d2fea685427ea9cb1a2a51cf65"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dict_xsyn.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "82594d339252c3ffccd5555f9ae9d5d82452ec29274f70e547549b306e72aa1d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dummy_index_am.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "8f04510ceeab294525e80ce74b42d0edf1b7e6d5bbbd5dc0fd7116de03e289c8"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/dummy_seclabel.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "2ae42ded96190f362f73df9189911727e7bd4c053297899941536db3d91ce551"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/earthdistance.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "13f01b04e963196d1630dffd369957439cce5133f128a792bee7a34c5259d8c4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_cn_and_mic.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "2ea272560b44519908ce03e64ac458a053fd33d1ce590c1fb0fd28671c96ea71"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_jp_and_sjis.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "dc2350ac61d6a0e012a22d1fcba40a93e566b3bffcb246fc1f63e497b81dea00"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_kr_and_mic.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "fbf8365552eabacdbdc6d5300acff35a7eb1c7cb684b6e9f4b71614969979c22"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc_tw_and_big5.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "87298c3e48bdfc95a0565f646e79de295b59697f5e6e92ec12f3f098564de5c6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/euc2004_sjis2004.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "6ea9e76f6d913c3024a0cce156ab8d3204cc9a3da81bff3b7c3d0ba1336d1442"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/file_fdw.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "3a3f9259eb63492e725a9cd0d045b6319c99f23186868d1dab2941a7a11964b6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/fuzzystrmatch.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "16792028cab6f11f41c50890d338360a7e309023b956e2d7682004b260249a58"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/hstore_plperl.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "ec544aea1553ab26e3907c6a3b34ec2b471677f890b78ddf0811deb0e0ea93d5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/hstore_plpython3.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "fd2630db3e4a4fe35e60e60c4307f67af878007345a1a12dbdf2df2a9480e5c3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/hstore.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "727bc7af6732d2635168267a074123c149e7edd671ea247a07e5d44096fe9efe"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/insert_username.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "09222a86d21c01ca69ecca0f596f466e9b22bfe96a7148fa8ec070f7669d0898"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/isn.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "12efa4bba99e04c9b8867cea288c755cd582af9d68f579833015009f110073bf"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/jsonb_plperl.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "041678e5a98729a2952af91e3b7513905b775762b3c46bdbc319ee27c9d43b38"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/jsonb_plpython3.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "89a57c6d1914b981c80ca32af0058e5770bfb8aa15711e99d9c37383f19cb5a2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/latin_and_mic.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1443ac1476c6721dbcffd3ef2939078fbaace4103e7adf538f3e8f0a98827f70"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/latin2_and_win1250.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "a366d970b43f7c55e3d326553b18755e6fce9b8d455218ecc93537b4f78da48d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ldap_password_func.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "b0618b33101dd42d77c3d3ccbabe9b6bba8d2f3064eaf46d560382612ae5b7dc"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libecpg_compat.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "bc984d84ccea91e5ff4a83adda616f1df28047645ab70f9dff8236e07c9e38e5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libecpg.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "de7a13940e1b572c95c4f686f6ead83bc206b5e4d9bea29cd40cd9f23216c49e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libpgtypes.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1dde974b5454c0d2a1213132480aa101e38b3801a0757701e26fe6ef1582faa0"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libpq.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "11d5e7d72c0a70ffbc71fa001f706476fa26a214dc8ead1fd22c5a5aefc9f95f"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/libpqwalreceiver.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "00fdd714d29c4749aaf4f7fb8191c19f9ce67011cc0bc775b1d72234464be28d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/lo.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "8ca929b6880e510128a8b67f77b16e2cf2fa77da7b71354c801064486dd88e35"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ltree_plpython3.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "cb5a1e93f8af01e9727af00fdbcd4e3d5a6bba7eb7e4752a61cc0957a466b85c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ltree.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "00a7e78b4a3d8aeb613511b767fee61e9ffb98ec02c6a4b56df44386f6163162"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/moddatetime.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "0a41e0ec9fd27d635e1d1df25711072e162e5457dafca21a9871cbac19df3a5b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/old_snapshot.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "7eaff688d735d0eef6e97d8a0d832c7b173bf9d9558c59773f662783af5a718c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pageinspect.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "c72f13b4ae9eda88ddaf45c026d51bdd4f125dbb56a0718587d8b5a0c9fb2857"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/passwordcheck.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "8dd15598bec08203d0e2829a0446cc5917d2beae9b8eba8beb2074b578b75715"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_buffercache.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "94614b9eb4a874c147d25f1385ed889fc6db3dfa56ac5e520ed007d99ba1d010"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_freespacemap.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "fde7e3fa5a01356be72e1af59a3f540fb87e41d5b05ee6cff9b23017cf485cb9"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_prewarm.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "764cf80bebafeaa986d283c527237cf470c9bc88e38cc9cfd206007c416bd078"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_stat_statements.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "d25289987f45780cd990ad7777787b0aa1a5babe72be6c93c0c0aae674bfabf2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_surgery.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "98e345010912af0100a677d33289afd14e3759272c49aa9d6b464efdcb7db3ce"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_trgm.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "b3bb1ae16269df26d606b62107cf9a6ee1ecc137c0d99876bc264d0c011c83e8"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_visibility.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "962a7def9b472a5cc8005902a3a566c2a113cd26c2f386a7e202e24075a33ec0"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pg_walinspect.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "fa6b622695ba9d300efaa325cf3e9b746ea18d8dd27b4405e21e0a3f8403260c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgcrypto.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "16511b90d9b7b7213f63976f16872812e5987af9834032fad41fba17c66d07b6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgevent.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "b83bcfecaeca87b21015ba6c8f02760ce113720c89b44926d3dec4aa82661e44"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgoutput.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "9eb89c5e4fd4831358758feda4201fc3717cbbd061b9972a1825c86750175d50"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgrowlocks.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "57cc869417eadafc740a48bdfe40460f4bee725b8e6b6c9735c866cde0402028"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgstattuple.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "0219728e98148a0a1f2f815294b18ee66406e2c6c292d0cf8afbe7c04afabaf9"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pgxml.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "45d41432d68f4f7adc9168ffb01a46d881e8128d03b76c5546f7b4560eaeca74"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plperl.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "64ee6e60155615096242687124fad8cfa82fc07a787953f7b5722f565c0dffe8"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plpgsql.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "37ccd7ae6eae28a6d3b5b0699396d8d9e6cf94b7ae2005eb7fe2aea3a3c519db"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plpython3.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "cc68f98b63bf2f2f44ddb08fb89d3100d29d724661ae5fae3e0cc804b8b25f2d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plsample.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "37719912186a427a2a5c033b2a0520ba133b680d9bdc32b0c350c6c701f5976d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/pltcl.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "cc0cb8015fdfd61509a6dd167b1a2d38c8388bac3f5f3e019858840a0561acec"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/plugin_debugger.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": null,
+    "sha256": "4df331599dae3087fc2e139a8c4b5a0d43eafdc148283734a14cddc93f686beb"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/postgres_fdw.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "61107fa84420a78735bbea597f4211119dfa8606c9c89cc49070a321174ed806"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/refint.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "5c1f83ee116fe5d8dea2490f4268edf23b69485dd32bcb16b52abdff8ccfa9c4"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/regress.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "fea4953045dbb4711af793abb2c4a3e45ea74f6bff67c1a99baae2d5da72a335"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/seg.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "0a87a71225c40d5e7504ba379c27063ac100b96435badbb56f41245caf87f2bf"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/spgist_name_ops.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "f3ffd33a2b1306ef593d63237b506bbb94595580dc0c361b5ca8d15c04021aba"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/ssl_passphrase_func.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "000aace2ccbaa2815bb433502b8663f5bc6a662bcb4221c9398212dbcadcec89"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/sslinfo.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "5f1c323d7cf6e75b24e5cc87c62b7c68d132966e4b22fe55d5438aabd03656f5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/system_stats.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": null,
+    "sha256": "8ccced74bf12cf64f9a166678314e30d73449f6dba0c8a9dd23a1eab716c0b68"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tablefunc.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "8f6ce2c40c0641f029880af4b2dcbe3c3b44b05656941b8dcae1c9f0dd55f28c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tcn.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "da990b0dc4f786e969d29c2d56172ee78aab93aeccf981fc75d538d72f9745aa"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_bloomfilter.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "6033a97ce88d9797612ca829922f3c18abd3d0c4a5b266fdef6cf1b1e9495316"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_copy_callbacks.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "726b3aee29b52fd5c46d12559f077fd384ae251974b06893ed655cd9ef9eacff"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_custom_rmgrs.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1c6dab03a2f749e301668208959c9155b421fbdfe8af9a59d78a6438c337d6c5"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_custom_types.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "651e046acb04c6d6524e4117f40d340e1dd7e343bc96d2f806ffb8a056673dd7"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_ddl_deparse.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "1e461101e4f26374e30579f4f3537917973e0e904938e2c617e4621be0228225"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_decoding.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "6e6d2b7848946665f51ff11d8f0814b6750631e25d921483f179186028bad55a"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_ginpostinglist.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "ee49af706697e85b91a87ab3ccb02893f345c1896b2f124e1310018e9c3ac343"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_integerset.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "890aa66dfcdf796ca9fe4f3c577a585a62b02f20e84180bbc542ae56061b3c4e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_lfind.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "7231b5f0601d0077ff1b7080eb571608c80bb37ee3d572a1f027dbe5f52911fe"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_oat_hooks.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "143129d4edba874dfb8a86ce5871bb3f961f38d3aca529e2c0c9a6ae1dfee321"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_parser.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "3aeb8493332f9dab3900566497455294a5400540d8c99b247bdb067376e0e75b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_predtest.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "88c4b4d39acc5bee7115d837f66da0112ddae19ae8c91888192794c606a81909"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_rbtree.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "f55b8ae89babc58873a0379412c18af104e08533ca6d0596d7e6cb91ccb84017"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_regex.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "f5aeb0bb6c2a6a6f2241c3e30d41b6ea677785a1b2cbc62979d86651368d9c1b"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_rls_hooks.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "dc16b868a19e611e07271b2e1d0d6523fa12aa33cb8fcacb57040812b181dfe6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_shm_mq.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "a5daf1a48d3fb7a8dfc08c8cb3f95289915c88b96d947754cf51360fb1a4b6e2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/test_slru.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "ac3e327ea03c1e417bb68333200b2be80d2ac0b11d414bed862a9ca61cf3debf"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tsm_system_rows.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "4e8e3cbf52fa3ee4cccb4b97d190b6397bedf43c35ea3a742cc7afe23fcaadcb"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/tsm_system_time.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "f286d70e04d6f6f9975aef4fb0224b6649b5fb943a631864fa1c9bfa62cb30d3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/unaccent.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "6fbc47f6759a1fe22a9d86e87cac5423dfaa0ebdd3f1159568dc85ce05df89bb"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_big5.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "01a01fa0f9e6da4b6052717b5b208b47da731ad7c7c6f075bdecaf765455b0fd"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_cyrillic.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "24bec67d785e89591ad04c4c8a5ca2d9ea298aac46963fb94233a1630e6326b2"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_cn.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "46036db31c50445aebd299e89b96d6402676ae14bc99fd4f998b376c5b66c647"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_jp.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "deb44cb94645363355c64f0be37305bbbb37a62299b87ccefbf24f3297ff39e6"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_kr.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "f2cbde923d010f26aaa36d671d62a304135dd6476f9ca2bf0f02873823382f03"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc_tw.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "e22cdd5fbb56d36096f6ae5343a7feee312f75f514f1ecaf5cb4bc513a9b637c"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_euc2004.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "ad3593f38df10c33b7fc07f61ffeb577252da3fe91e7548fe964f62dcbac606d"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_gb18030.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "51c5e9d279fe0ae7e47293c0d51b897a86f1fda30e202cde63cf452db4172e47"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_gbk.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "397f4a8aa4fbf0fd5d0031ef211112bf697b5d72dfca1d4f607df23a0a233d71"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_iso8859_1.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "4829aeba2a12025d165d076066f1073ccc62214340c4cd8c9c5e92937159c214"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_iso8859.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "fb36acf5b51eb5f0be4b8911b52e64afd885e0fd6f77c614b1dbf6514830853f"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_johab.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "5709b82e0bc1f76f25f73d60a58e23cefad6cc730b531d71419d559ef007f257"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_sjis.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "88e4571703995e9fd6f2148001fa1ca9559e89e1f318313aafe63b32317e55fd"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_sjis2004.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "ae577785b6406d4032e292a891f013bdb7bc6f6440733e7fd70b00e9f166a3cd"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_uhc.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "564f9f21eb98bc90d5cd41a3e953b8ce2f666471a3c4e1af273c61b4b37f715e"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/utf8_and_win.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "d5dcf56921fe38e078072a2ce06137118c60d222e3ca65162942edc6f970ee94"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/uuid-ossp.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "ad6a8527e43fd581e256781c8cff8f01dd33ade17da0638cad337cce79d3f8b3"
+  },
+  {
+    "path": "HostPayload/postgresql/lib/worker_spi.dll",
+    "status": "Valid",
+    "publisher": "CN=EnterpriseDB Corporation, O=EnterpriseDB Corporation, L=Wilmington, S=Delaware, C=US",
+    "fileVersion": "16.16",
+    "sha256": "05031f1cfc86db5499bd64e1bd46e481267a4f0169b28a41bb4085e3facf3811"
+  },
+  {
+    "path": "Prerequisites/vc_redist.x64.exe",
+    "status": "Valid",
+    "publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    "fileVersion": "14.52.37029.0",
+    "sha256": "9c02c9ed120f671b900e6b9471d890e3b2414117a7e53f4ae2e855466fa2b7c9"
+  }
+]

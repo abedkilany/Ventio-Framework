@@ -1,0 +1,4272 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-11-20T13:45:45.508148+00:00",
+  "evidenceKind": "Literal stable-ID PASS and Dart/Flutter testDone outcomes parsed from authenticated GitHub job logs and cross-checked against the prepared case inventory; Linux cases independently match digest-verified artifact reports.",
+  "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+  "runId": 44703269459,
+  "runUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459",
+  "counts": {
+    "preparedAutomatedIds": 164,
+    "uniquePassed": 158,
+    "windowsUniquePassed": 72,
+    "linuxUniquePassed": 86,
+    "observedOutcomeEvents": 161,
+    "installedRecoveryUnexecuted": 6,
+    "manualUnexecuted": 6
+  },
+  "windows": {
+    "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "runId": 44703269459,
+    "jobId": 136176535343,
+    "jobConclusion": "success",
+    "jobUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459/job/136176535343",
+    "rawJobLog": "final-windows-job-136176535343.txt",
+    "jobMetadata": "final-windows-job-136176535343-metadata.json",
+    "uniqueCaseCount": 72,
+    "outcomeEventCount": 72,
+    "suiteCounts": {
+      "C": 31,
+      "G": 7,
+      "S": 23,
+      "W": 11
+    },
+    "jsonTestStartCount": 30,
+    "jsonTestDoneCount": 30,
+    "cases": [
+      {
+        "id": "W2-C001",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A12"
+        ],
+        "requirement": "All seven optional scalar custom types merge without mutating package bytes",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2394,
+            "text": "PASS W2-C001 [A12] All seven optional scalar custom types merge without mutating package bytes"
+          }
+        ]
+      },
+      {
+        "id": "W2-C002",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A12"
+        ],
+        "requirement": "Required, executable, reference and table custom fields are refused",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2395,
+            "text": "PASS W2-C002 [A12] Required, executable, reference and table custom fields are refused"
+          }
+        ]
+      },
+      {
+        "id": "W2-C003",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A12"
+        ],
+        "requirement": "Twenty custom fields accepted; twenty-one and duplicate names rejected",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2396,
+            "text": "PASS W2-C003 [A12] Twenty custom fields accepted; twenty-one and duplicate names rejected"
+          }
+        ]
+      },
+      {
+        "id": "W2-C004",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A12"
+        ],
+        "requirement": "ACL weakening and collisions with base fields are rejected by effective merge",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2397,
+            "text": "PASS W2-C004 [A12] ACL weakening and collisions with base fields are rejected by effective merge"
+          }
+        ]
+      },
+      {
+        "id": "W2-C005",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A12",
+          "K09"
+        ],
+        "requirement": "Saved custom fields cannot be removed or structurally converted",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2398,
+            "text": "PASS W2-C005 [A12,K09] Saved custom fields cannot be removed or structurally converted"
+          }
+        ]
+      },
+      {
+        "id": "W2-C006",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A11"
+        ],
+        "requirement": "Presentation merge retains required fields and is deterministic",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2399,
+            "text": "PASS W2-C006 [A11] Presentation merge retains required fields and is deterministic"
+          }
+        ]
+      },
+      {
+        "id": "W2-C007",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A11"
+        ],
+        "requirement": "Duplicate/unknown layout fields, unsupported icons and out-of-range order fail",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2400,
+            "text": "PASS W2-C007 [A11] Duplicate/unknown layout fields, unsupported icons and out-of-range order fail"
+          }
+        ]
+      },
+      {
+        "id": "W2-C008",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A11",
+          "A12"
+        ],
+        "requirement": "Namespace and catalog collisions cannot overwrite labels",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2401,
+            "text": "PASS W2-C008 [A11,A12] Namespace and catalog collisions cannot overwrite labels"
+          }
+        ]
+      },
+      {
+        "id": "W2-C009",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "K09",
+          "A12"
+        ],
+        "requirement": "Explicit newer-release rebase preserves ACLs and custom fields",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2402,
+            "text": "PASS W2-C009 [K09,A12] Explicit newer-release rebase preserves ACLs and custom fields"
+          }
+        ]
+      },
+      {
+        "id": "W2-C010",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A12",
+          "K09"
+        ],
+        "requirement": "Validated overlays deep-copy caller-owned JSON",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2403,
+            "text": "PASS W2-C010 [A12,K09] Validated overlays deep-copy caller-owned JSON"
+          }
+        ]
+      },
+      {
+        "id": "W2-C011",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01"
+        ],
+        "requirement": "CSV handles BOM, CRLF, escaped quotes, empty and multiline cells",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2404,
+            "text": "PASS W2-C011 [J01] CSV handles BOM, CRLF, escaped quotes, empty and multiline cells"
+          }
+        ]
+      },
+      {
+        "id": "W2-C012",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01"
+        ],
+        "requirement": "CSV rejects malformed quotes, NUL, duplicate and empty headers",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2405,
+            "text": "PASS W2-C012 [J01] CSV rejects malformed quotes, NUL, duplicate and empty headers"
+          }
+        ]
+      },
+      {
+        "id": "W2-C013",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01"
+        ],
+        "requirement": "CSV exact row/column/cell limits and UTF-8 byte bound are enforced",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2406,
+            "text": "PASS W2-C013 [J01] CSV exact row/column/cell limits and UTF-8 byte bound are enforced"
+          }
+        ]
+      },
+      {
+        "id": "W2-C014",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01",
+          "J03"
+        ],
+        "requirement": "Mixed invalid rows preserve original logical source-row numbers",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2407,
+            "text": "PASS W2-C014 [J01,J03] Mixed invalid rows preserve original logical source-row numbers"
+          }
+        ]
+      },
+      {
+        "id": "W2-C015",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01",
+          "D08"
+        ],
+        "requirement": "CSV cannot map record identity, duplicate targets, unknown or unwritable fields",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2408,
+            "text": "PASS W2-C015 [J01,D08] CSV cannot map record identity, duplicate targets, unknown or unwritable fields"
+          }
+        ]
+      },
+      {
+        "id": "W2-C016",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01"
+        ],
+        "requirement": "Typed imports reject exponent/hex, non-boolean and excess decimal scale",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2409,
+            "text": "PASS W2-C016 [J01] Typed imports reject exponent/hex, non-boolean and excess decimal scale"
+          }
+        ]
+      },
+      {
+        "id": "W2-C017",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "K08",
+          "J01"
+        ],
+        "requirement": "Export escapes formula strings but preserves numeric negatives and JSON",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2410,
+            "text": "PASS W2-C017 [K08,J01] Export escapes formula strings but preserves numeric negatives and JSON"
+          }
+        ]
+      },
+      {
+        "id": "W2-C018",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "B09"
+        ],
+        "requirement": "Saved-view filters, sorting and columns round-trip immutably",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2411,
+            "text": "PASS W2-C018 [B09] Saved-view filters, sorting and columns round-trip immutably"
+          }
+        ]
+      },
+      {
+        "id": "W2-C019",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "B09",
+          "J04"
+        ],
+        "requirement": "Saved views reject nested filters, duplicate columns and executable properties",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2412,
+            "text": "PASS W2-C019 [B09,J04] Saved views reject nested filters, duplicate columns and executable properties"
+          }
+        ]
+      },
+      {
+        "id": "W2-C020",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "C09"
+        ],
+        "requirement": "Preferences enforce theme, density and unique bounded module order",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2413,
+            "text": "PASS W2-C020 [C09] Preferences enforce theme, density and unique bounded module order"
+          }
+        ]
+      },
+      {
+        "id": "W2-C021",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "C12",
+          "F05"
+        ],
+        "requirement": "Dashboard accepts twelve declarative cards and rejects thirteen or executable cards",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2414,
+            "text": "PASS W2-C021 [C12,F05] Dashboard accepts twelve declarative cards and rejects thirteen or executable cards"
+          }
+        ]
+      },
+      {
+        "id": "W2-C022",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "M01"
+        ],
+        "requirement": "Organization change has bounded identity, explicit CAS and fixed parent rules",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2415,
+            "text": "PASS W2-C022 [M01] Organization change has bounded identity, explicit CAS and fixed parent rules"
+          }
+        ]
+      },
+      {
+        "id": "W2-C023",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "M02"
+        ],
+        "requirement": "Operational bounds accept maxima and reject zero, excess and wrong types",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2416,
+            "text": "PASS W2-C023 [M02] Operational bounds accept maxima and reject zero, excess and wrong types"
+          }
+        ]
+      },
+      {
+        "id": "W2-C024",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "M05"
+        ],
+        "requirement": "Backup policy bounds include retention, retries and UTC schedule",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2417,
+            "text": "PASS W2-C024 [M05] Backup policy bounds include retention, retries and UTC schedule"
+          }
+        ]
+      },
+      {
+        "id": "W2-C025",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "M09",
+          "M05"
+        ],
+        "requirement": "Restore needs exact backup identity and pinned plan; arbitrary paths denied",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2418,
+            "text": "PASS W2-C025 [M09,M05] Restore needs exact backup identity and pinned plan; arbitrary paths denied"
+          }
+        ]
+      },
+      {
+        "id": "W2-C026",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "B02",
+          "J04"
+        ],
+        "requirement": "Unknown contract versions, kinds and executable integration keys are refused",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2419,
+            "text": "PASS W2-C026 [B02,J04] Unknown contract versions, kinds and executable integration keys are refused"
+          }
+        ]
+      },
+      {
+        "id": "W2-C027",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "B02",
+          "K10"
+        ],
+        "requirement": "Existing v1 record envelope round-trips and rejects unsupported command version",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2420,
+            "text": "PASS W2-C027 [B02,K10] Existing v1 record envelope round-trips and rejects unsupported command version"
+          }
+        ]
+      },
+      {
+        "id": "W2-C028",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "A12",
+          "B02",
+          "J04"
+        ],
+        "requirement": "Definitions enforce encoded byte ceiling and reject unknown overlay keys",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2421,
+            "text": "PASS W2-C028 [A12,B02,J04] Definitions enforce encoded byte ceiling and reject unknown overlay keys"
+          }
+        ]
+      },
+      {
+        "id": "W2-C029",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01",
+          "K10"
+        ],
+        "requirement": "CSV date enum reference and child JSON preserve types with exact defaults and calculations",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2422,
+            "text": "PASS W2-C029 [J01,K10] CSV date enum reference and child JSON preserve types with exact defaults and calculations"
+          }
+        ]
+      },
+      {
+        "id": "W2-C030",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01"
+        ],
+        "requirement": "CSV rejects invalid calendar enum reference and malformed forbidden or imprecise child rows",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2423,
+            "text": "PASS W2-C030 [J01] CSV rejects invalid calendar enum reference and malformed forbidden or imprecise child rows"
+          }
+        ]
+      },
+      {
+        "id": "W2-C031",
+        "status": "PASSED",
+        "suite": "C",
+        "capabilities": [
+          "J01",
+          "D08",
+          "K10"
+        ],
+        "requirement": "CSV cannot map a calculated output or read-only field even with writable-field labels",
+        "sourcePath": "packages/ventio_core/test/wave2_contracts_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2424,
+            "text": "PASS W2-C031 [J01,D08,K10] CSV cannot map a calculated output or read-only field even with writable-field labels"
+          }
+        ]
+      },
+      {
+        "id": "W2-G001",
+        "status": "PASSED",
+        "suite": "G",
+        "capabilities": [
+          "C08",
+          "F05",
+          "B09"
+        ],
+        "requirement": "workspace exposes only current approved installed modules and native navigation",
+        "sourcePath": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2648,
+            "testStartLine": 2647,
+            "testName": "W2-G001 [C08,F05,B09] workspace exposes only current approved installed modules and native navigation",
+            "session": 2,
+            "event": {
+              "testID": 4,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 306922
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-G002",
+        "status": "PASSED",
+        "suite": "G",
+        "capabilities": [
+          "C08",
+          "D09"
+        ],
+        "requirement": "locally installed metadata grants no navigation without current package authority",
+        "sourcePath": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2655,
+            "testStartLine": 2649,
+            "testName": "W2-G002 [C08,D09] locally installed metadata grants no navigation without current package authority",
+            "session": 2,
+            "event": {
+              "testID": 5,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 333132
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-G003",
+        "status": "PASSED",
+        "suite": "G",
+        "capabilities": [
+          "C08",
+          "F05"
+        ],
+        "requirement": "a local package digest mismatch contributes no authorized workspace links",
+        "sourcePath": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2657,
+            "testStartLine": 2656,
+            "testName": "W2-G003 [C08,F05] a local package digest mismatch contributes no authorized workspace links",
+            "session": 2,
+            "event": {
+              "testID": 6,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 348239
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-G004",
+        "status": "PASSED",
+        "suite": "G",
+        "capabilities": [
+          "C08",
+          "C09",
+          "C12"
+        ],
+        "requirement": "narrow large-text workspace navigation has no overflow or uncaught rendering error",
+        "sourcePath": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2659,
+            "testStartLine": 2658,
+            "testName": "W2-G004 [C08,C09,C12] narrow large-text workspace navigation has no overflow or uncaught rendering error",
+            "session": 2,
+            "event": {
+              "testID": 7,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 362131
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-G005",
+        "status": "PASSED",
+        "suite": "G",
+        "capabilities": [
+          "A11",
+          "A12",
+          "K09"
+        ],
+        "requirement": "repeated Host customization labels refresh in the same app session",
+        "sourcePath": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2663,
+            "testStartLine": 2660,
+            "testName": "W2-G005 [A11,A12,K09] repeated Host customization labels refresh in the same app session",
+            "session": 2,
+            "event": {
+              "testID": 8,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 401092
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-G006",
+        "status": "PASSED",
+        "suite": "G",
+        "capabilities": [
+          "C12",
+          "F05"
+        ],
+        "requirement": "a saved dashboard card opens a real current-authorized Host report",
+        "sourcePath": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2666,
+            "testStartLine": 2664,
+            "testName": "W2-G006 [C12,F05] a saved dashboard card opens a real current-authorized Host report",
+            "session": 2,
+            "event": {
+              "testID": 9,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 424333
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-G007",
+        "status": "PASSED",
+        "suite": "G",
+        "capabilities": [
+          "H04",
+          "D08"
+        ],
+        "requirement": "native document activity renders real command identity without protected values",
+        "sourcePath": "packages/ventio_native_client/integration_test/wave2_workspace_acceptance_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2668,
+            "testStartLine": 2667,
+            "testName": "W2-G007 [H04,D08] native document activity renders real command identity without protected values",
+            "session": 2,
+            "event": {
+              "testID": 10,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 427741
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S001",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "C09",
+          "D09"
+        ],
+        "requirement": "unbound profiles cannot open the workspace",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2437,
+            "testStartLine": 2436,
+            "testName": "W2-S001 [C09,D09] unbound profiles cannot open the workspace",
+            "session": 1,
+            "event": {
+              "testID": 4,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13457
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S002",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "K09",
+          "C09"
+        ],
+        "requirement": "offline draft body and stable request survive reopening",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2439,
+            "testStartLine": 2438,
+            "testName": "W2-S002 [K09,C09] offline draft body and stable request survive reopening",
+            "session": 1,
+            "event": {
+              "testID": 5,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13542
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S003",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "K09",
+          "C09"
+        ],
+        "requirement": "a newer Host definition marks conflict without replacing local intent",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2441,
+            "testStartLine": 2440,
+            "testName": "W2-S003 [K09,C09] a newer Host definition marks conflict without replacing local intent",
+            "session": 1,
+            "event": {
+              "testID": 6,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13630
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S004",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "K09"
+        ],
+        "requirement": "unchanged base revision does not overwrite a dirty local edit",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2443,
+            "testStartLine": 2442,
+            "testName": "W2-S004 [K09] unchanged base revision does not overwrite a dirty local edit",
+            "session": 1,
+            "event": {
+              "testID": 7,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13713
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S005",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "K09"
+        ],
+        "requirement": "replayed matching publication can acknowledge a lost response",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2445,
+            "testStartLine": 2444,
+            "testName": "W2-S005 [K09] replayed matching publication can acknowledge a lost response",
+            "session": 1,
+            "event": {
+              "testID": 8,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13774
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S006",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "K09"
+        ],
+        "requirement": "stale acknowledgement cannot mark an intervening edit synced",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2447,
+            "testStartLine": 2446,
+            "testName": "W2-S006 [K09] stale acknowledgement cannot mark an intervening edit synced",
+            "session": 1,
+            "event": {
+              "testID": 9,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13840
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S007",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "K09"
+        ],
+        "requirement": "explicit rebase preserves chosen content and creates new CAS intent",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2449,
+            "testStartLine": 2448,
+            "testName": "W2-S007 [K09] explicit rebase preserves chosen content and creates new CAS intent",
+            "session": 1,
+            "event": {
+              "testID": 10,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13902
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S008",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "B09",
+          "C08",
+          "K09"
+        ],
+        "requirement": "authoritative retirement removes synced metadata and preserves drafts/conflicts",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2451,
+            "testStartLine": 2450,
+            "testName": "W2-S008 [B09,C08,K09] authoritative retirement removes synced metadata and preserves drafts/conflicts",
+            "session": 1,
+            "event": {
+              "testID": 11,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 13980
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S009",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "B09",
+          "C08",
+          "C09"
+        ],
+        "requirement": "owner isolation covers endpoint tenant company branch and actor",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2453,
+            "testStartLine": 2452,
+            "testName": "W2-S009 [B09,C08,C09] owner isolation covers endpoint tenant company branch and actor",
+            "session": 1,
+            "event": {
+              "testID": 12,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14097
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S010",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "C08",
+          "F05"
+        ],
+        "requirement": "cached package stays owner-isolated metadata and retains its original digest inputs",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2455,
+            "testStartLine": 2454,
+            "testName": "W2-S010 [C08,F05] cached package stays owner-isolated metadata and retains its original digest inputs",
+            "session": 1,
+            "event": {
+              "testID": 13,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14197
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S011",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "J03",
+          "K09"
+        ],
+        "requirement": "import command IDs and sparse source rows persist before dispatch",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2457,
+            "testStartLine": 2456,
+            "testName": "W2-S011 [J03,K09] import command IDs and sparse source rows persist before dispatch",
+            "session": 1,
+            "event": {
+              "testID": 14,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14275
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S012",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "J03"
+        ],
+        "requirement": "invalid later batch rolls back all staged jobs atomically",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2459,
+            "testStartLine": 2458,
+            "testName": "W2-S012 [J03] invalid later batch rolls back all staged jobs atomically",
+            "session": 1,
+            "event": {
+              "testID": 15,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14330
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S013",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "J03"
+        ],
+        "requirement": "missing source-row mapping and oversized batch leave no retry intent",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2461,
+            "testStartLine": 2460,
+            "testName": "W2-S013 [J03] missing source-row mapping and oversized batch leave no retry intent",
+            "session": 1,
+            "event": {
+              "testID": 16,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14398
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S014",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "J03",
+          "C09"
+        ],
+        "requirement": "another owner cannot acknowledge pending import intent",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2463,
+            "testStartLine": 2462,
+            "testName": "W2-S014 [J03,C09] another owner cannot acknowledge pending import intent",
+            "session": 1,
+            "event": {
+              "testID": 17,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14485
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S015",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "operation retry IDs persist and the twenty-pending bound fails closed",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2465,
+            "testStartLine": 2464,
+            "testName": "W2-S015 [M05,M09] operation retry IDs persist and the twenty-pending bound fails closed",
+            "session": 1,
+            "event": {
+              "testID": 18,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14644
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S016",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "discarding a local retry cannot discard another owner operation",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2467,
+            "testStartLine": 2466,
+            "testName": "W2-S016 [M05,M09] discarding a local retry cannot discard another owner operation",
+            "session": 1,
+            "event": {
+              "testID": 19,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14724
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S017",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "K09",
+          "J03",
+          "C09"
+        ],
+        "requirement": "workspace v1 to v3 preserves pending commands and dirty CAS drafts",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2469,
+            "testStartLine": 2468,
+            "testName": "W2-S017 [K09,J03,C09] workspace v1 to v3 preserves pending commands and dirty CAS drafts",
+            "session": 1,
+            "event": {
+              "testID": 20,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14840
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S018",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "J03",
+          "C09"
+        ],
+        "requirement": "workspace v2 to v3 preserves import correlation and commands exactly",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2471,
+            "testStartLine": 2470,
+            "testName": "W2-S018 [J03,C09] workspace v2 to v3 preserves import correlation and commands exactly",
+            "session": 1,
+            "event": {
+              "testID": 21,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 14958
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S019",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "C09",
+          "K09"
+        ],
+        "requirement": "real workspace connection uses WAL FULL and foreign-key enforcement",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2473,
+            "testStartLine": 2472,
+            "testName": "W2-S019 [C09,K09] real workspace connection uses WAL FULL and foreign-key enforcement",
+            "session": 1,
+            "event": {
+              "testID": 22,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 15026
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S020",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "B09",
+          "C09",
+          "C12"
+        ],
+        "requirement": "invalid authoritative receive is atomic and cannot erase valid local definitions",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2475,
+            "testStartLine": 2474,
+            "testName": "W2-S020 [B09,C09,C12] invalid authoritative receive is atomic and cannot erase valid local definitions",
+            "session": 1,
+            "event": {
+              "testID": 23,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 15082
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S021",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "C08",
+          "F05",
+          "B09"
+        ],
+        "requirement": "imported package identity survives reopen without draft catalog normalization",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2477,
+            "testStartLine": 2476,
+            "testName": "W2-S021 [C08,F05,B09] imported package identity survives reopen without draft catalog normalization",
+            "session": 1,
+            "event": {
+              "testID": 24,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 15229
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S022",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "C08",
+          "F05",
+          "B09"
+        ],
+        "requirement": "same-version catalog substitution is rejected and preserves installed identity",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2479,
+            "testStartLine": 2478,
+            "testName": "W2-S022 [C08,F05,B09] same-version catalog substitution is rejected and preserves installed identity",
+            "session": 1,
+            "event": {
+              "testID": 25,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 15351
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-S023",
+        "status": "PASSED",
+        "suite": "S",
+        "capabilities": [
+          "C08",
+          "F05",
+          "B09"
+        ],
+        "requirement": "additive v12 upgrade preserves metadata and projected tampering fails closed",
+        "sourcePath": "packages/ventio_native_client/test/wave2_workspace_store_test.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 2481,
+            "testStartLine": 2480,
+            "testName": "W2-S023 [C08,F05,B09] additive v12 upgrade preserves metadata and projected tampering fails closed",
+            "session": 1,
+            "event": {
+              "testID": 26,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 15543
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-W001",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05"
+        ],
+        "requirement": "Real nested backup inventory contains sorted per-file lengths and SHA-256",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2486,
+            "text": "PASS W2-W001 [M05] Real nested backup inventory contains sorted per-file lengths and SHA-256"
+          }
+        ]
+      },
+      {
+        "id": "W2-W002",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Same-size one-byte corruption is detected",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2487,
+            "text": "PASS W2-W002 [M05,M09] Same-size one-byte corruption is detected"
+          }
+        ]
+      },
+      {
+        "id": "W2-W003",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Missing files cannot pass inventory verification",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2488,
+            "text": "PASS W2-W003 [M05,M09] Missing files cannot pass inventory verification"
+          }
+        ]
+      },
+      {
+        "id": "W2-W004",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Unexpected files cannot pass inventory verification",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2489,
+            "text": "PASS W2-W004 [M05,M09] Unexpected files cannot pass inventory verification"
+          }
+        ]
+      },
+      {
+        "id": "W2-W005",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Manifest path traversal absolute paths duplicate names invalid hashes and negative lengths fail",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2490,
+            "text": "PASS W2-W005 [M05,M09] Manifest path traversal absolute paths duplicate names invalid hashes and negative lengths fail"
+          }
+        ]
+      },
+      {
+        "id": "W2-W006",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Junction ancestors are rejected and their target remains intact",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2491,
+            "text": "PASS W2-W006 [M05,M09] Junction ancestors are rejected and their target remains intact"
+          }
+        ]
+      },
+      {
+        "id": "W2-W007",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Staged backup copies must match original content before acceptance",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2492,
+            "text": "PASS W2-W007 [M05,M09] Staged backup copies must match original content before acceptance"
+          }
+        ]
+      },
+      {
+        "id": "W2-W008",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Protected operation JSON is replaced atomically with no temporary residue",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2493,
+            "text": "PASS W2-W008 [M05,M09] Protected operation JSON is replaced atomically with no temporary residue"
+          }
+        ]
+      },
+      {
+        "id": "W2-W009",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Protected operation JSON enforces byte bounds before decoding",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2494,
+            "text": "PASS W2-W009 [M05,M09] Protected operation JSON enforces byte bounds before decoding"
+          }
+        ]
+      },
+      {
+        "id": "W2-W010",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "An untrusted read ACL on a fixture file is rejected",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2495,
+            "text": "PASS W2-W010 [M05,M09] An untrusted read ACL on a fixture file is rejected"
+          }
+        ]
+      },
+      {
+        "id": "W2-W011",
+        "status": "PASSED",
+        "suite": "W",
+        "capabilities": [
+          "M09"
+        ],
+        "requirement": "The real restore entry point refuses missing confirmation before touching services",
+        "sourcePath": "tests/wave2/windows_integrity_tests.ps1",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 2496,
+            "text": "PASS W2-W011 [M09] The real restore entry point refuses missing confirmation before touching services"
+          }
+        ]
+      }
+    ]
+  },
+  "linux": {
+    "sourceCommit": "81661f7f2f10844d0132a5f3b91ab14580ec9a52",
+    "runId": 44703269459,
+    "jobId": 136176534954,
+    "jobConclusion": "success",
+    "jobUrl": "https://github.com/abedkilany/Ventio-Framework/actions/runs/44703269459/job/136176534954",
+    "rawJobLog": "final-linux-job-136176534954.txt",
+    "jobMetadata": "final-linux-job-136176534954-metadata.json",
+    "uniqueCaseCount": 86,
+    "outcomeEventCount": 89,
+    "suiteCounts": {
+      "D": 11,
+      "E": 6,
+      "H": 29,
+      "J": 27,
+      "O": 8,
+      "R": 2,
+      "U": 3
+    },
+    "jsonTestStartCount": 6,
+    "jsonTestDoneCount": 6,
+    "cases": [
+      {
+        "id": "W2-D001",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "B02",
+          "M01",
+          "M02",
+          "L01"
+        ],
+        "requirement": "All forty-one migration identities match canonical repository sources",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 330,
+            "text": "PASS W2-D001 [B02,M01,M02,L01] All forty-one migration identities match canonical repository sources"
+          }
+        ]
+      },
+      {
+        "id": "W2-D002",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "B02"
+        ],
+        "requirement": "Applying the same migration directory is idempotent",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 331,
+            "text": "PASS W2-D002 [B02] Applying the same migration directory is idempotent"
+          }
+        ]
+      },
+      {
+        "id": "W2-D003",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "M01",
+          "A12",
+          "L01",
+          "M05",
+          "M09"
+        ],
+        "requirement": "Every new private Wave 2 table has owner RLS FORCE RLS and no public grants",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 332,
+            "text": "PASS W2-D003 [M01,A12,L01,M05,M09] Every new private Wave 2 table has owner RLS FORCE RLS and no public grants"
+          }
+        ]
+      },
+      {
+        "id": "W2-D004",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "D08",
+          "M01",
+          "L01"
+        ],
+        "requirement": "Operational roles cannot directly read or mutate private Wave 2 storage",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 333,
+            "text": "PASS W2-D004 [D08,M01,L01] Operational roles cannot directly read or mutate private Wave 2 storage"
+          }
+        ]
+      },
+      {
+        "id": "W2-D005",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "L01",
+          "M05",
+          "M09"
+        ],
+        "requirement": "Runtime cannot claim finish or manufacture trusted local-operation outcomes",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 334,
+            "text": "PASS W2-D005 [L01,M05,M09] Runtime cannot claim finish or manufacture trusted local-operation outcomes"
+          }
+        ]
+      },
+      {
+        "id": "W2-D006",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "D08",
+          "D09",
+          "H04"
+        ],
+        "requirement": "Forged tenant and actor GUCs do not create an RLS proof",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 335,
+            "text": "PASS W2-D006 [D08,D09,H04] Forged tenant and actor GUCs do not create an RLS proof"
+          }
+        ]
+      },
+      {
+        "id": "W2-D007",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "B09",
+          "C09",
+          "D08"
+        ],
+        "requirement": "SQL-level saved definitions derive tenant from real digest and remain actor isolated",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 336,
+            "text": "PASS W2-D007 [B09,C09,D08] SQL-level saved definitions derive tenant from real digest and remain actor isolated"
+          }
+        ]
+      },
+      {
+        "id": "W2-D008",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "M01",
+          "M02",
+          "A12"
+        ],
+        "requirement": "Platform administration permission cannot be manufactured through a business role",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 337,
+            "text": "PASS W2-D008 [M01,M02,A12] Platform administration permission cannot be manufactured through a business role"
+          }
+        ]
+      },
+      {
+        "id": "W2-D009",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "B02"
+        ],
+        "requirement": "A later failed migration rolls back earlier new DDL and ledger entries",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 338,
+            "text": "PASS W2-D009 [B02] A later failed migration rolls back earlier new DDL and ledger entries"
+          }
+        ]
+      },
+      {
+        "id": "W2-D010",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "B02",
+          "D09"
+        ],
+        "requirement": "Modified applied checksum is rejected before additional migrations execute",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 339,
+            "text": "PASS W2-D010 [B02,D09] Modified applied checksum is rejected before additional migrations execute"
+          }
+        ]
+      },
+      {
+        "id": "W2-D011",
+        "status": "PASSED",
+        "suite": "D",
+        "capabilities": [
+          "M09",
+          "J03",
+          "L01",
+          "D09"
+        ],
+        "requirement": "Logical restore retains Wave 2 data and receipts but cannot resurrect revoked authority",
+        "sourcePath": "packages/ventio_host_api/test/wave2_database_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 340,
+            "text": "PASS W2-D011 [M09,J03,L01,D09] Logical restore retains Wave 2 data and receipts but cannot resurrect revoked authority"
+          }
+        ]
+      },
+      {
+        "id": "W2-E001",
+        "status": "PASSED",
+        "suite": "E",
+        "capabilities": [
+          "K09",
+          "C09",
+          "J03"
+        ],
+        "requirement": "offline queued intent survives reopen and reconnect gets a real Host receipt",
+        "sourcePath": "packages/ventio_native_client/test/wave2_offline_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 577,
+            "testStartLine": 576,
+            "testName": "W2-E001 [K09,C09,J03] offline queued intent survives reopen and reconnect gets a real Host receipt",
+            "session": 1,
+            "event": {
+              "testID": 4,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 26498
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-E002",
+        "status": "PASSED",
+        "suite": "E",
+        "capabilities": [
+          "J03",
+          "K09",
+          "L01"
+        ],
+        "requirement": "real lost response after commit is recovered without duplicate effects",
+        "sourcePath": "packages/ventio_native_client/test/wave2_offline_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 579,
+            "testStartLine": 578,
+            "testName": "W2-E002 [J03,K09,L01] real lost response after commit is recovered without duplicate effects",
+            "session": 1,
+            "event": {
+              "testID": 5,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 26811
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-E003",
+        "status": "PASSED",
+        "suite": "E",
+        "capabilities": [
+          "K09",
+          "J03",
+          "D08"
+        ],
+        "requirement": "two identities conflict and explicitly reconcile while old receipts remain immutable",
+        "sourcePath": "packages/ventio_native_client/test/wave2_offline_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 581,
+            "testStartLine": 580,
+            "testName": "W2-E003 [K09,J03,D08] two identities conflict and explicitly reconcile while old receipts remain immutable",
+            "session": 1,
+            "event": {
+              "testID": 6,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 27203
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-E004",
+        "status": "PASSED",
+        "suite": "E",
+        "capabilities": [
+          "K09",
+          "D09"
+        ],
+        "requirement": "reconciliation cannot redirect a terminal draft to another owner scope record or device",
+        "sourcePath": "packages/ventio_native_client/test/wave2_offline_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 583,
+            "testStartLine": 582,
+            "testName": "W2-E004 [K09,D09] reconciliation cannot redirect a terminal draft to another owner scope record or device",
+            "session": 1,
+            "event": {
+              "testID": 7,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 27491
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-E005",
+        "status": "PASSED",
+        "suite": "E",
+        "capabilities": [
+          "A12",
+          "K09"
+        ],
+        "requirement": "effective-schema queue receipts never project into the immutable base-package cache",
+        "sourcePath": "packages/ventio_native_client/test/wave2_offline_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 585,
+            "testStartLine": 584,
+            "testName": "W2-E005 [A12,K09] effective-schema queue receipts never project into the immutable base-package cache",
+            "session": 1,
+            "event": {
+              "testID": 8,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 27617
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-E006",
+        "status": "PASSED",
+        "suite": "E",
+        "capabilities": [
+          "D08",
+          "D09",
+          "K09"
+        ],
+        "requirement": "revocation prevents queued offline work from becoming Host-confirmed",
+        "sourcePath": "packages/ventio_native_client/test/wave2_offline_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "jsonTestDone",
+            "line": 587,
+            "testStartLine": 586,
+            "testName": "W2-E006 [D08,D09,K09] revocation prevents queued offline work from becoming Host-confirmed",
+            "session": 1,
+            "event": {
+              "testID": 9,
+              "result": "success",
+              "skipped": false,
+              "hidden": false,
+              "type": "testDone",
+              "time": 31944
+            }
+          }
+        ]
+      },
+      {
+        "id": "W2-H001",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "D09",
+          "J04"
+        ],
+        "requirement": "Platform routes reject missing and invalid bearer credentials",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 272,
+            "text": "PASS W2-H001 [D09,J04] Platform routes reject missing and invalid bearer credentials"
+          }
+        ]
+      },
+      {
+        "id": "W2-H002",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "D09",
+          "B02"
+        ],
+        "requirement": "Real session discovery resolves current authoritative actor and scope",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 273,
+            "text": "PASS W2-H002 [D09,B02] Real session discovery resolves current authoritative actor and scope"
+          }
+        ]
+      },
+      {
+        "id": "W2-H003",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "J04",
+          "B02"
+        ],
+        "requirement": "Platform methods content type versions and unknown properties fail strictly",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 274,
+            "text": "PASS W2-H003 [J04,B02] Platform methods content type versions and unknown properties fail strictly"
+          }
+        ]
+      },
+      {
+        "id": "W2-H004",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "J04"
+        ],
+        "requirement": "Malformed UTF-8 oversized bodies and excessive nesting fail before gateway execution",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 275,
+            "text": "PASS W2-H004 [J04] Malformed UTF-8 oversized bodies and excessive nesting fail before gateway execution"
+          }
+        ]
+      },
+      {
+        "id": "W2-H005",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "M02",
+          "D09"
+        ],
+        "requirement": "A stale authenticated snapshot cannot retain revoked configuration authority",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 276,
+            "text": "PASS W2-H005 [M02,D09] A stale authenticated snapshot cannot retain revoked configuration authority"
+          }
+        ]
+      },
+      {
+        "id": "W2-H006",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "M02",
+          "D09"
+        ],
+        "requirement": "Later user grants cannot widen a credential ceiling",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 277,
+            "text": "PASS W2-H006 [M02,D09] Later user grants cannot widen a credential ceiling"
+          }
+        ]
+      },
+      {
+        "id": "W2-H007",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "C09",
+          "K09"
+        ],
+        "requirement": "Definition publication retries are idempotent and request reuse with different content conflicts",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 278,
+            "text": "PASS W2-H007 [C09,K09] Definition publication retries are idempotent and request reuse with different content conflicts"
+          }
+        ]
+      },
+      {
+        "id": "W2-H008",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "B09",
+          "C09",
+          "K09"
+        ],
+        "requirement": "Concurrent same-revision saves yield exactly one winner",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 279,
+            "text": "PASS W2-H008 [B09,C09,K09] Concurrent same-revision saves yield exactly one winner"
+          }
+        ]
+      },
+      {
+        "id": "W2-H009",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "B09",
+          "C08",
+          "C09"
+        ],
+        "requirement": "User-owned definitions stay separate for actors and tenants",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 280,
+            "text": "PASS W2-H009 [B09,C08,C09] User-owned definitions stay separate for actors and tenants"
+          }
+        ]
+      },
+      {
+        "id": "W2-H010",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "C09",
+          "M02"
+        ],
+        "requirement": "Company branch pairs are checked exactly and shared settings remain scoped",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 281,
+            "text": "PASS W2-H010 [C09,M02] Company branch pairs are checked exactly and shared settings remain scoped"
+          }
+        ]
+      },
+      {
+        "id": "W2-H011",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "B09",
+          "C09"
+        ],
+        "requirement": "Hundred-definition owner bound refuses the next save without dropping content",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 282,
+            "text": "PASS W2-H011 [B09,C09] Hundred-definition owner bound refuses the next save without dropping content"
+          }
+        ]
+      },
+      {
+        "id": "W2-H012",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "M02"
+        ],
+        "requirement": "Configuration persists through HTTP reassembly and denied writes have no effect",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 283,
+            "text": "PASS W2-H012 [M02] Configuration persists through HTTP reassembly and denied writes have no effect"
+          }
+        ]
+      },
+      {
+        "id": "W2-H013",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "A11",
+          "A12"
+        ],
+        "requirement": "SQL and Core effective overlays agree while approved package bytes stay immutable",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 284,
+            "text": "PASS W2-H013 [A11,A12] SQL and Core effective overlays agree while approved package bytes stay immutable"
+          }
+        ]
+      },
+      {
+        "id": "W2-H014",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "A12",
+          "K09"
+        ],
+        "requirement": "Wrong base digest and destructive field conversion fail without advancing revision",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 285,
+            "text": "PASS W2-H014 [A12,K09] Wrong base digest and destructive field conversion fail without advancing revision"
+          }
+        ]
+      },
+      {
+        "id": "W2-H015",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "A12",
+          "D08"
+        ],
+        "requirement": "Authoritative record writes use effective custom fields and preserve old records",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 286,
+            "text": "PASS W2-H015 [A12,D08] Authoritative record writes use effective custom fields and preserve old records"
+          }
+        ]
+      },
+      {
+        "id": "W2-H016",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "D08",
+          "J01"
+        ],
+        "requirement": "Import preview requires current create and field-write grants",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 287,
+            "text": "PASS W2-H016 [D08,J01] Import preview requires current create and field-write grants"
+          }
+        ]
+      },
+      {
+        "id": "W2-H017",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "J01",
+          "J03"
+        ],
+        "requirement": "Preview preserves sparse source rows and detects readable existing IDs",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 288,
+            "text": "PASS W2-H017 [J01,J03] Preview preserves sparse source rows and detects readable existing IDs"
+          }
+        ]
+      },
+      {
+        "id": "W2-H018",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "M02",
+          "J01"
+        ],
+        "requirement": "Configured import row bound is consumed by the real gateway",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 289,
+            "text": "PASS W2-H018 [M02,J01] Configured import row bound is consumed by the real gateway"
+          }
+        ]
+      },
+      {
+        "id": "W2-H019",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "K08",
+          "D08"
+        ],
+        "requirement": "Export projection matches query and safely escapes formula strings",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 290,
+            "text": "PASS W2-H019 [K08,D08] Export projection matches query and safely escapes formula strings"
+          }
+        ]
+      },
+      {
+        "id": "W2-H020",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "K08",
+          "B09",
+          "D08"
+        ],
+        "requirement": "Hidden fields cannot be used to filter or sort visible exports",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 291,
+            "text": "PASS W2-H020 [K08,B09,D08] Hidden fields cannot be used to filter or sort visible exports"
+          }
+        ]
+      },
+      {
+        "id": "W2-H021",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "K08",
+          "B09"
+        ],
+        "requirement": "Query cursors bind pagination to filter sort limit release and scope",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 292,
+            "text": "PASS W2-H021 [K08,B09] Query cursors bind pagination to filter sort limit release and scope"
+          }
+        ]
+      },
+      {
+        "id": "W2-H022",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "H04"
+        ],
+        "requirement": "History is ordered metadata-only activity and command replay creates no duplicate event",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 293,
+            "text": "PASS W2-H022 [H04] History is ordered metadata-only activity and command replay creates no duplicate event"
+          }
+        ]
+      },
+      {
+        "id": "W2-H023",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "H04"
+        ],
+        "requirement": "History cursor and deleted-ID lookup stay record and tenant bound",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 294,
+            "text": "PASS W2-H023 [H04] History cursor and deleted-ID lookup stay record and tenant bound"
+          }
+        ]
+      },
+      {
+        "id": "W2-H024",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "M01"
+        ],
+        "requirement": "Organization CAS retries do not duplicate entities or confer grants",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 295,
+            "text": "PASS W2-H024 [M01] Organization CAS retries do not duplicate entities or confer grants"
+          }
+        ]
+      },
+      {
+        "id": "W2-H025",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "M01",
+          "D09"
+        ],
+        "requirement": "Current scope cannot be archived and unauthorized hierarchy changes are denied",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 296,
+            "text": "PASS W2-H025 [M01,D09] Current scope cannot be archived and unauthorized hierarchy changes are denied"
+          }
+        ]
+      },
+      {
+        "id": "W2-H026",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "C12",
+          "F05"
+        ],
+        "requirement": "Dashboard report query uses approved metadata and rejects unknown filters/report IDs",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 297,
+            "text": "PASS W2-H026 [C12,F05] Dashboard report query uses approved metadata and rejects unknown filters/report IDs"
+          }
+        ]
+      },
+      {
+        "id": "W2-H027",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "HTTP operation requests do not execute local operations when not provisioned",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 298,
+            "text": "PASS W2-H027 [M05,M09] HTTP operation requests do not execute local operations when not provisioned"
+          }
+        ]
+      },
+      {
+        "id": "W2-H028",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "A12",
+          "K09"
+        ],
+        "requirement": "Rebase agrees with Core and requires every affected scope atomically before approval",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 299,
+            "text": "PASS W2-H028 [A12,K09] Rebase agrees with Core and requires every affected scope atomically before approval"
+          }
+        ]
+      },
+      {
+        "id": "W2-H029",
+        "status": "PASSED",
+        "suite": "H",
+        "capabilities": [
+          "F05",
+          "C08",
+          "D09"
+        ],
+        "requirement": "Release revocation denies metadata queries and dashboard reports despite stored local definitions",
+        "sourcePath": "packages/ventio_host_api/test/wave2_gateway_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 300,
+            "text": "PASS W2-H029 [F05,C08,D09] Release revocation denies metadata queries and dashboard reports despite stored local definitions"
+          }
+        ]
+      },
+      {
+        "id": "W2-J001",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "J03",
+          "L01"
+        ],
+        "requirement": "Jobs accept one and twenty-five commands and remain cancellable before dispatch",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 302,
+            "text": "PASS W2-J001 [J03,L01] Jobs accept one and twenty-five commands and remain cancellable before dispatch"
+          }
+        ]
+      },
+      {
+        "id": "W2-J002",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "J03",
+          "J04"
+        ],
+        "requirement": "Empty twenty-six-command and oversized wire jobs are rejected",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 303,
+            "text": "PASS W2-J002 [J03,J04] Empty twenty-six-command and oversized wire jobs are rejected"
+          }
+        ]
+      },
+      {
+        "id": "W2-J003",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "J03",
+          "L01"
+        ],
+        "requirement": "Duplicate command IDs in one job are refused by SQL",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 304,
+            "text": "PASS W2-J003 [J03,L01] Duplicate command IDs in one job are refused by SQL"
+          }
+        ]
+      },
+      {
+        "id": "W2-J004",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "B02",
+          "J04"
+        ],
+        "requirement": "Direct job envelopes receive strict HTTP command-shape validation",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 305,
+            "text": "PASS W2-J004 [B02,J04] Direct job envelopes receive strict HTTP command-shape validation"
+          }
+        ]
+      },
+      {
+        "id": "W2-J005",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "D08",
+          "D09",
+          "J03"
+        ],
+        "requirement": "Job tenant actor device scope dependencies and delete restrictions are enforced",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 306,
+            "text": "PASS W2-J005 [D08,D09,J03] Job tenant actor device scope dependencies and delete restrictions are enforced"
+          }
+        ]
+      },
+      {
+        "id": "W2-J006",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "J03",
+          "L01"
+        ],
+        "requirement": "Lost submit-response retries preserve identity; changed payload or source labels conflict",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 307,
+            "text": "PASS W2-J006 [J03,L01] Lost submit-response retries preserve identity; changed payload or source labels conflict"
+          }
+        ]
+      },
+      {
+        "id": "W2-J007",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "J03"
+        ],
+        "requirement": "Source-row labels must match commands be unique integers and retain original range",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 308,
+            "text": "PASS W2-J007 [J03] Source-row labels must match commands be unique integers and retain original range"
+          }
+        ]
+      },
+      {
+        "id": "W2-J008",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "D08"
+        ],
+        "requirement": "Public job listing redacts command payloads digests and lease tokens",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 309,
+            "text": "PASS W2-J008 [L01,D08] Public job listing redacts command payloads digests and lease tokens"
+          }
+        ]
+      },
+      {
+        "id": "W2-J009",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01"
+        ],
+        "requirement": "Concurrent real transactions cannot claim the same runnable job twice",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 310,
+            "text": "PASS W2-J009 [L01] Concurrent real transactions cannot claim the same runnable job twice"
+          }
+        ]
+      },
+      {
+        "id": "W2-J010",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03"
+        ],
+        "requirement": "Expired lease is reclaimed and stale completion is fenced",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 311,
+            "text": "PASS W2-J010 [L01,J03] Expired lease is reclaimed and stale completion is fenced"
+          }
+        ]
+      },
+      {
+        "id": "W2-J011",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03"
+        ],
+        "requirement": "Retry transition retains row identity backoff and original source correlation",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 312,
+            "text": "PASS W2-J011 [L01,J03] Retry transition retains row identity backoff and original source correlation"
+          }
+        ]
+      },
+      {
+        "id": "W2-J012",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01"
+        ],
+        "requirement": "Five failed attempts produce bounded terminal rejection without an effect",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 313,
+            "text": "PASS W2-J012 [L01] Five failed attempts produce bounded terminal rejection without an effect"
+          }
+        ]
+      },
+      {
+        "id": "W2-J013",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03"
+        ],
+        "requirement": "Cancellation before claim prevents execution and is idempotent",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 314,
+            "text": "PASS W2-J013 [L01,J03] Cancellation before claim prevents execution and is idempotent"
+          }
+        ]
+      },
+      {
+        "id": "W2-J014",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03"
+        ],
+        "requirement": "In-flight acceptance survives cancellation with original source row",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 315,
+            "text": "PASS W2-J014 [L01,J03] In-flight acceptance survives cancellation with original source row"
+          }
+        ]
+      },
+      {
+        "id": "W2-J015",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03"
+        ],
+        "requirement": "Cancellation during ambiguous retry records unknown outcome without automatic replay",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 316,
+            "text": "PASS W2-J015 [L01,J03] Cancellation during ambiguous retry records unknown outcome without automatic replay"
+          }
+        ]
+      },
+      {
+        "id": "W2-J016",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "D09",
+          "L01"
+        ],
+        "requirement": "Revocation before claim prevents execution under the stored credential",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 317,
+            "text": "PASS W2-J016 [D09,L01] Revocation before claim prevents execution under the stored credential"
+          }
+        ]
+      },
+      {
+        "id": "W2-J017",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "D08",
+          "D09",
+          "L01"
+        ],
+        "requirement": "Authority is rechecked inside effect after claim even with a stale session",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 318,
+            "text": "PASS W2-J017 [D08,D09,L01] Authority is rechecked inside effect after claim even with a stale session"
+          }
+        ]
+      },
+      {
+        "id": "W2-J018",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "M02",
+          "L01"
+        ],
+        "requirement": "Scoped jobsPaused and maintenanceMode prevent claims until cleared",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 319,
+            "text": "PASS W2-J018 [M02,L01] Scoped jobsPaused and maintenanceMode prevent claims until cleared"
+          }
+        ]
+      },
+      {
+        "id": "W2-J019",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03",
+          "M02"
+        ],
+        "requirement": "Terminal archival scrubs executable state and keeps IDs hashes totals labels and outcomes",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 320,
+            "text": "PASS W2-J019 [L01,J03,M02] Terminal archival scrubs executable state and keeps IDs hashes totals labels and outcomes"
+          }
+        ]
+      },
+      {
+        "id": "W2-J020",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "J03",
+          "L01"
+        ],
+        "requirement": "Real timed worker executes rows and retains nonconsecutive CSV source labels",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 321,
+            "text": "PASS W2-J020 [J03,L01] Real timed worker executes rows and retains nonconsecutive CSV source labels"
+          }
+        ]
+      },
+      {
+        "id": "W2-J021",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "J03",
+          "L01"
+        ],
+        "requirement": "Commit-before-finish recovery replays the journal receipt instead of duplicating effect",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 322,
+            "text": "PASS W2-J021 [J03,L01] Commit-before-finish recovery replays the journal receipt instead of duplicating effect"
+          }
+        ]
+      },
+      {
+        "id": "W2-J022",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03"
+        ],
+        "requirement": "Two real workers finish one job without duplicate journal audit or outbox effects",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 323,
+            "text": "PASS W2-J022 [L01,J03] Two real workers finish one job without duplicate journal audit or outbox effects"
+          }
+        ]
+      },
+      {
+        "id": "W2-J023",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "D09"
+        ],
+        "requirement": "Missing independent recovery witness fails closed and records safe worker diagnostics",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 324,
+            "text": "PASS W2-J023 [L01,D09] Missing independent recovery witness fails closed and records safe worker diagnostics"
+          }
+        ]
+      },
+      {
+        "id": "W2-J024",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "D08"
+        ],
+        "requirement": "Job visibility and cancellation respect actor ownership and tenant",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 325,
+            "text": "PASS W2-J024 [L01,D08] Job visibility and cancellation respect actor ownership and tenant"
+          }
+        ]
+      },
+      {
+        "id": "W2-J025",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01"
+        ],
+        "requirement": "Twenty-active-job ceiling is per actor and does not silently discard jobs",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 326,
+            "text": "PASS W2-J025 [L01] Twenty-active-job ceiling is per actor and does not silently discard jobs"
+          }
+        ]
+      },
+      {
+        "id": "W2-J026",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "K10",
+          "L01",
+          "J04"
+        ],
+        "requirement": "Undeclared governed operation cannot acquire an executable handler through a job",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 327,
+            "text": "PASS W2-J026 [K10,L01,J04] Undeclared governed operation cannot acquire an executable handler through a job"
+          }
+        ]
+      },
+      {
+        "id": "W2-J027",
+        "status": "PASSED",
+        "suite": "J",
+        "capabilities": [
+          "L01",
+          "J03"
+        ],
+        "requirement": "An actually terminated worker with a committed claim is recovered by a fresh process exactly once",
+        "sourcePath": "packages/ventio_host_api/test/wave2_jobs_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 328,
+            "text": "PASS W2-J027 [L01,J03] An actually terminated worker with a committed claim is recovered by a fresh process exactly once"
+          }
+        ]
+      },
+      {
+        "id": "W2-O001",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M05"
+        ],
+        "requirement": "SQL prepares no scheduled operation before an explicit approved policy outcome",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 342,
+            "text": "PASS W2-O001 [M05] SQL prepares no scheduled operation before an explicit approved policy outcome"
+          }
+        ]
+      },
+      {
+        "id": "W2-O002",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M05",
+          "M09",
+          "D09"
+        ],
+        "requirement": "Operation identity is idempotent and tenant-bound; unauthorized callers cannot prepare",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 343,
+            "text": "PASS W2-O002 [M05,M09,D09] Operation identity is idempotent and tenant-bound; unauthorized callers cannot prepare"
+          }
+        ]
+      },
+      {
+        "id": "W2-O003",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M05"
+        ],
+        "requirement": "SQL approved-policy transition produces one daily offer with stable request identity",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 344,
+            "text": "PASS W2-O003 [M05] SQL approved-policy transition produces one daily offer with stable request identity"
+          }
+        ]
+      },
+      {
+        "id": "W2-O004",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M05"
+        ],
+        "requirement": "SQL schedule retry requires known retryable failure backoff and bounded attempt count",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 345,
+            "text": "PASS W2-O004 [M05] SQL schedule retry requires known retryable failure backoff and bounded attempt count"
+          }
+        ]
+      },
+      {
+        "id": "W2-O005",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M05",
+          "M02"
+        ],
+        "requirement": "Changing or disabling policy invalidates old approval instead of silently rearming",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 346,
+            "text": "PASS W2-O005 [M05,M02] Changing or disabling policy invalidates old approval instead of silently rearming"
+          }
+        ]
+      },
+      {
+        "id": "W2-O006",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M05",
+          "M09"
+        ],
+        "requirement": "Trusted outcome inputs are fenced by offer identity exact scope and terminal immutability",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 347,
+            "text": "PASS W2-O006 [M05,M09] Trusted outcome inputs are fenced by offer identity exact scope and terminal immutability"
+          }
+        ]
+      },
+      {
+        "id": "W2-O007",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M09"
+        ],
+        "requirement": "SQL restore preparation requires a recent successful exact backup plan",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 348,
+            "text": "PASS W2-O007 [M09] SQL restore preparation requires a recent successful exact backup plan"
+          }
+        ]
+      },
+      {
+        "id": "W2-O008",
+        "status": "PASSED",
+        "suite": "O",
+        "capabilities": [
+          "M05",
+          "D09"
+        ],
+        "requirement": "Expired pending requests and revoked credentials lose executable offers",
+        "sourcePath": "packages/ventio_host_api/test/wave2_operations_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 349,
+            "text": "PASS W2-O008 [M05,D09] Expired pending requests and revoked credentials lose executable offers"
+          }
+        ]
+      },
+      {
+        "id": "W2-R001",
+        "status": "PASSED",
+        "suite": "R",
+        "capabilities": [
+          "B02",
+          "D09",
+          "J04"
+        ],
+        "requirement": "WB-CI-02: a changed manifest returns an actual 503 HOST_UNAVAILABLE without transport substitution or effects",
+        "sourcePath": "packages/ventio_host_api/test/support/wave2_manifest_regression.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 373,
+            "text": "PASS W2-R001 [B02,D09,J04] WB-CI-02: a changed manifest returns an actual 503 HOST_UNAVAILABLE without transport substitution or effects"
+          }
+        ]
+      },
+      {
+        "id": "W2-R002",
+        "status": "PASSED",
+        "suite": "R",
+        "capabilities": [
+          "B02",
+          "D09"
+        ],
+        "requirement": "WB-CI-02: removing the fixture mutation restores admission on the same process",
+        "sourcePath": "packages/ventio_host_api/test/support/wave2_manifest_regression.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 374,
+            "text": "PASS W2-R002 [B02,D09] WB-CI-02: removing the fixture mutation restores admission on the same process"
+          }
+        ]
+      },
+      {
+        "id": "W2-U001",
+        "status": "PASSED",
+        "suite": "U",
+        "capabilities": [
+          "B02",
+          "M01"
+        ],
+        "requirement": "Materialize exact accepted baseline and seed representative legacy records and identity",
+        "sourcePath": "packages/ventio_host_api/test/wave2_upgrade_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 351,
+            "text": "PASS W2-U001 [B02,M01] Materialize exact accepted baseline and seed representative legacy records and identity"
+          },
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 355,
+            "text": "PASS W2-U001 [B02,M01] Materialize exact accepted baseline and seed representative legacy records and identity"
+          }
+        ]
+      },
+      {
+        "id": "W2-U002",
+        "status": "PASSED",
+        "suite": "U",
+        "capabilities": [
+          "B02",
+          "M01",
+          "M02",
+          "A12",
+          "L01"
+        ],
+        "requirement": "Witness-aware 036/040-to-041 transitions preserve data and reapply real security contracts",
+        "sourcePath": "packages/ventio_host_api/test/wave2_upgrade_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 352,
+            "text": "PASS W2-U002 [B02,M01,M02,A12,L01] Witness-aware 036/040-to-041 transitions preserve data and reapply real security contracts"
+          },
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 356,
+            "text": "PASS W2-U002 [B02,M01,M02,A12,L01] Witness-aware 036/040-to-041 transitions preserve data and reapply real security contracts"
+          }
+        ]
+      },
+      {
+        "id": "W2-U003",
+        "status": "PASSED",
+        "suite": "U",
+        "capabilities": [
+          "B02",
+          "M09"
+        ],
+        "requirement": "Replaying the same completed transition does not run its migration callback again",
+        "sourcePath": "packages/ventio_host_api/test/wave2_upgrade_integration.dart",
+        "outcomeEvents": [
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 353,
+            "text": "PASS W2-U003 [B02,M09] Replaying the same completed transition does not run its migration callback again"
+          },
+          {
+            "status": "PASSED",
+            "kind": "literalCaseOutcome",
+            "line": 357,
+            "text": "PASS W2-U003 [B02,M09] Replaying the same completed transition does not run its migration callback again"
+          }
+        ]
+      }
+    ]
+  },
+  "linuxArtifact": {
+    "artifactId": 14614620519,
+    "bytes": 23884,
+    "sha256": "06097bde5f0a77c7f996a5fa7935e969bf5f0180994a46a493dfd7a3ad463194",
+    "transportVerification": "final-linux-transport-verification-44703269459.json",
+    "rawCaseReports": [
+      "final-linux-results-81661f7.json",
+      "final-offline-results-81661f7.json"
+    ],
+    "caseExecutions": [
+      {
+        "id": "W2-H001",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H002",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H003",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H004",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H005",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H006",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H007",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H008",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H009",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H010",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H011",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H012",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H013",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H014",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H015",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H016",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H017",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H018",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H019",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H020",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H021",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H022",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H023",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H024",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H025",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H026",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H027",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H028",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-H029",
+        "suite": "H",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-H-81661f7.txt"
+      },
+      {
+        "id": "W2-J001",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J002",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J003",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J004",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J005",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J006",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J007",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J008",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J009",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J010",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J011",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J012",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J013",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J014",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J015",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J016",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J017",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J018",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J019",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J020",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J021",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J022",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J023",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J024",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J025",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J026",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-J027",
+        "suite": "J",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-J-81661f7.txt"
+      },
+      {
+        "id": "W2-D001",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D002",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D003",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D004",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D005",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D006",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D007",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D008",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D009",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D010",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-D011",
+        "suite": "D",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-D-81661f7.txt"
+      },
+      {
+        "id": "W2-O001",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-O002",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-O003",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-O004",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-O005",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-O006",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-O007",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-O008",
+        "suite": "O",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-O-81661f7.txt"
+      },
+      {
+        "id": "W2-U001",
+        "suite": "U",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-U-81661f7.txt"
+      },
+      {
+        "id": "W2-U002",
+        "suite": "U",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-U-81661f7.txt"
+      },
+      {
+        "id": "W2-U003",
+        "suite": "U",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-U-81661f7.txt"
+      },
+      {
+        "id": "W2-U001",
+        "suite": "U",
+        "variant": "040-to-041",
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-U-040-to-041-81661f7.txt"
+      },
+      {
+        "id": "W2-U002",
+        "suite": "U",
+        "variant": "040-to-041",
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-U-040-to-041-81661f7.txt"
+      },
+      {
+        "id": "W2-U003",
+        "suite": "U",
+        "variant": "040-to-041",
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-U-040-to-041-81661f7.txt"
+      },
+      {
+        "id": "W2-R001",
+        "suite": "R",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-R-81661f7.txt"
+      },
+      {
+        "id": "W2-R002",
+        "suite": "R",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-linux-results-81661f7.json",
+        "suiteLog": "final-linux-R-81661f7.txt"
+      },
+      {
+        "id": "W2-E001",
+        "suite": "E",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-offline-results-81661f7.json",
+        "suiteLog": "final-offline-E-81661f7.txt"
+      },
+      {
+        "id": "W2-E002",
+        "suite": "E",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-offline-results-81661f7.json",
+        "suiteLog": "final-offline-E-81661f7.txt"
+      },
+      {
+        "id": "W2-E003",
+        "suite": "E",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-offline-results-81661f7.json",
+        "suiteLog": "final-offline-E-81661f7.txt"
+      },
+      {
+        "id": "W2-E004",
+        "suite": "E",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-offline-results-81661f7.json",
+        "suiteLog": "final-offline-E-81661f7.txt"
+      },
+      {
+        "id": "W2-E005",
+        "suite": "E",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-offline-results-81661f7.json",
+        "suiteLog": "final-offline-E-81661f7.txt"
+      },
+      {
+        "id": "W2-E006",
+        "suite": "E",
+        "variant": null,
+        "status": "PASSED",
+        "report": "final-offline-results-81661f7.json",
+        "suiteLog": "final-offline-E-81661f7.txt"
+      }
+    ]
+  },
+  "countingBoundary": {
+    "upgradeVariants": "U001-U003 each passed twice: the default baseline and 040-to-041. They remain three stable IDs, represented by six executions.",
+    "scmMaintenance": "The separate 51 assertions and 4 job-rights probes passed at 7a378ba in runtime run44702220504; they are not additional stable Wave2 IDs in this 158 count.",
+    "manual": "The six manual cases are outside the prepared 164 automated IDs."
+  },
+  "unexecutedInstalledRecovery": [
+    {
+      "id": "W2-P001",
+      "status": "BLOCKED_PREREQUISITE",
+      "capabilities": [
+        "D09",
+        "M05",
+        "M09"
+      ],
+      "requirement": "Real disposable installed Host authenticates the approved fixture identity",
+      "reason": "This hosted workflow did not execute installed recovery-lab P acceptance."
+    },
+    {
+      "id": "W2-P002",
+      "status": "BLOCKED_PREREQUISITE",
+      "capabilities": [
+        "M05"
+      ],
+      "requirement": "Supported Host authorization and elevated local approval arm the fixed SYSTEM schedule",
+      "reason": "This hosted workflow did not execute installed recovery-lab P acceptance."
+    },
+    {
+      "id": "W2-P003",
+      "status": "BLOCKED_PREREQUISITE",
+      "capabilities": [
+        "M05"
+      ],
+      "requirement": "Real scheduled backup verifies content and does not repeat a completed daily offer",
+      "reason": "This hosted workflow did not execute installed recovery-lab P acceptance."
+    },
+    {
+      "id": "W2-P004",
+      "status": "BLOCKED_PREREQUISITE",
+      "capabilities": [
+        "M05"
+      ],
+      "requirement": "Actual retention removes only eligible old copies and preserves pins foreign kinds and newest backup",
+      "reason": "This hosted workflow did not execute installed recovery-lab P acceptance."
+    },
+    {
+      "id": "W2-P005",
+      "status": "BLOCKED_PREREQUISITE",
+      "capabilities": [
+        "M05",
+        "M09"
+      ],
+      "requirement": "Real restore planning detects same-size corruption before stopping Host",
+      "reason": "This hosted workflow did not execute installed recovery-lab P acceptance."
+    },
+    {
+      "id": "W2-P006",
+      "status": "BLOCKED_PREREQUISITE",
+      "capabilities": [
+        "M09",
+        "M05",
+        "J03"
+      ],
+      "requirement": "Disposable restoration preserves current cluster external witness and original record/receipt while leaving Host stopped",
+      "reason": "This hosted workflow did not execute installed recovery-lab P acceptance."
+    }
+  ],
+  "manualAcceptance": [
+    {
+      "id": "W2-M001",
+      "status": "UNEXECUTED",
+      "reason": "Hosted CI does not establish actual installed two-device/device-owner acceptance."
+    },
+    {
+      "id": "W2-M002",
+      "status": "UNEXECUTED",
+      "reason": "Hosted CI does not establish actual installed two-device/device-owner acceptance."
+    },
+    {
+      "id": "W2-M003",
+      "status": "UNEXECUTED",
+      "reason": "Hosted CI does not establish actual installed two-device/device-owner acceptance."
+    },
+    {
+      "id": "W2-M004",
+      "status": "UNEXECUTED",
+      "reason": "Hosted CI does not establish actual installed two-device/device-owner acceptance."
+    },
+    {
+      "id": "W2-M005",
+      "status": "UNEXECUTED",
+      "reason": "Hosted CI does not establish actual installed two-device/device-owner acceptance."
+    },
+    {
+      "id": "W2-M006",
+      "status": "UNEXECUTED",
+      "reason": "Hosted CI does not establish actual installed two-device/device-owner acceptance."
+    }
+  ],
+  "limitations": [
+    "No PASS is inferred for TEST-01/TEST-02 installed product behavior, two-device synchronization or P001-P006 from these hosted outcomes.",
+    "The windows-runtime-regressions job was skipped in this all-scope workflow; its independent successful run44702220504 remains the SCM evidence.",
+    "The native Windows desktop tests ran against a disposable hosted fixture; they do not replace physical-device GUI acceptance.",
+    "This task did not download or independently inspect the final Windows artifact; the primary agent is handling artifact14615661415 separately."
+  ]
+}

@@ -1,0 +1,124 @@
+{
+    "sourceCommit":  "15fa9890eaa773590527c2e591374085310f33b6",
+    "runId":  "44952457949",
+    "cases":  [
+                  {
+                      "id":  "ADM01-pinned-guest",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM02-owner-approval",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM03-current-wrong-name",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM04-preserved-host",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM05-physical-test-hosts",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM06-copied-marker",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM07-smbios-not-vmid",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM08-extra-adapter",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM09-nonvirtual-hardware",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM10-missing-evidence",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM11-changed-ssh-pin",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM12-independent-record-digest",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM13-boolean-approval-required",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "ADM14-physical-prerequisite-evidence",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET01-exact-adapter-plan",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET02-only-management-ssh",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET03-dual-stack-denial",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET04-unique-priorities",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET05-no-general-egress",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET06-forbidden-extra-rule",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET07-stateful-mutation",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET08-target-mutation",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET09-export-and-rollback-contract",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET10-command-parameter-scope",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET11-complete-rollback-order",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET12-partial-rollback",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET13-rollback-refuses-concurrent-change",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET14-empty-rollback",
+                      "status":  "PASSED"
+                  },
+                  {
+                      "id":  "NET15-stateful-reflection-removed-once",
+                      "status":  "PASSED"
+                  }
+              ],
+    "effectiveIsolation":  "UNEXECUTED_REQUIRES_OWNER_APPROVED_VNIC",
+    "physicalVmTouched":  false
+}

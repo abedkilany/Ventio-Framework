@@ -50,6 +50,46 @@ void main() {
     },
   );
 
+  test(
+    'Activated renewal replaces enrollment proof, clears offline authorization and requests sign-in',
+    () async {
+      final endpoint = Uri.parse('https://host.example');
+      await vault.save(endpoint, token);
+      await vault.preserveEnrollment(endpoint);
+      await vault.writeOfflineAccount(endpoint, {
+        'verifier': 'protected-test-verifier',
+      });
+      var invalidations = 0;
+      final subscription = vault.authorizationInvalidations.listen(
+        (_) => invalidations++,
+      );
+      await vault.stageCredentialReissue(
+        endpoint,
+        operationId: 'reissue_0123456789abcdef0123456789abcdef',
+        token: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghi',
+        credentialId: 'cred_0123456789abcdef0123456789abcdef',
+        tenantId: 'tenant-a',
+        actorId: 'actor-a',
+        deviceId: 'device-a',
+        companyId: 'company-a',
+        branchId: 'branch-a',
+        permissions: ['extension.package.read'],
+        expiresAtUtc: DateTime.now().toUtc().add(const Duration(minutes: 10)),
+      );
+      await vault.activateStagedCredentialReissue(
+        endpoint,
+        'reissue_0123456789abcdef0123456789abcdef',
+      );
+      expect(
+        await vault.readEnrollment(endpoint),
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghi',
+      );
+      expect(await vault.readOfflineAccount(endpoint), isNull);
+      expect(invalidations, 1);
+      await subscription.cancel();
+    },
+  );
+
   test('Plain HTTP is limited to exact loopback origins', () async {
     await vault.save(Uri.parse('http://127.0.0.1:8080'), token);
     await vault.save(Uri.parse('http://[::1]:8080'), token);

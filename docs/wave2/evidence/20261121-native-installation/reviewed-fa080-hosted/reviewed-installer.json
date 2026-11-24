@@ -1,0 +1,18 @@
+{
+  "candidateRunId": "44912845335",
+  "sourceCommit": "fa080fcd5072b9ccd23057155bfe3c032078c9b5",
+  "verificationCommit": "7450bb7d404a7933c316905cd78d7341fafd0d40",
+  "identity": "Ventio-W2B-0.1.24+25-20261121-fa080fcd5072-gh44912845335-a2",
+  "githubArtifactSha256": "7af6a143eff9b8b8cc57d7f83b962931972bff239876addfc6bd7df814c28a33",
+  "zipSha256": "13fffef998fc40a9ad39f42f26921a63dcbaac36bc1bb07f015d3895419fffd7",
+  "allPackageMembersVerified": 1767,
+  "sourceArchiveRecreatedExactly": true,
+  "installer": {
+    "path": "Ventio-Setup-0.1.24.exe",
+    "bytes": 108304598,
+    "sha256": "bc9f81e9d1171455a499474dfc68d8dd83396fb102f1d2f04282024a320eeaa0"
+  },
+  "installedManifestSha256": "771bc24e63dfa56d4cae7d7b7cce7fa27c658fc00b8828cb73f77e1024a94d7e",
+  "installerExecuted": false,
+  "releaseSigning": "DEFERRED_OWNER_PREREQUISITE"
+}

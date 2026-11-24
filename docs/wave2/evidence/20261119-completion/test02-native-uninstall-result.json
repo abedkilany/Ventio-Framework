@@ -1,0 +1,123 @@
+﻿{
+    "case":  "TEST02-CLIENT-ONLY-UNINSTALL-RETENTION",
+    "sourceCommit":  "c32691c3037361b5709cc5a517c956e417e18e7f",
+    "startedAtUtc":  "2026-11-20T14:37:37.6823770Z",
+    "computer":  "TEST-02",
+    "status":  "PASS_CLIENT_ONLY_RETENTION",
+    "userDataBefore":  [
+                           {
+                               "Name":  "ventio_diagnostics.sqlite3",
+                               "bytes":  4096,
+                               "sha256":  "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+                           },
+                           {
+                               "Name":  "ventio_diagnostics.sqlite3-shm",
+                               "bytes":  32768,
+                               "sha256":  "c19744a1fda0439fa8875472a1b94fdb4ad5743fca7a5de852a32240033da2dc"
+                           },
+                           {
+                               "Name":  "ventio_diagnostics.sqlite3-wal",
+                               "bytes":  37112,
+                               "sha256":  "97f78fbe6757d89ace5800e21c516709c5bede48912615a7625b23267e44273e"
+                           },
+                           {
+                               "Name":  "ventio_extensions.sqlite3",
+                               "bytes":  4096,
+                               "sha256":  "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+                           },
+                           {
+                               "Name":  "ventio_extensions.sqlite3-shm",
+                               "bytes":  32768,
+                               "sha256":  "8ec5f46ea65e7052b9b0923d604fb8e24f2f22080a29cd08655290b182e855fa"
+                           },
+                           {
+                               "Name":  "ventio_extensions.sqlite3-wal",
+                               "bytes":  61832,
+                               "sha256":  "d229eb17887af3204f97df9d643deca0c9d1039f87a8d47095b0c6dba67d1972"
+                           },
+                           {
+                               "Name":  "ventio_native_client.sqlite3",
+                               "bytes":  4096,
+                               "sha256":  "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+                           },
+                           {
+                               "Name":  "ventio_native_client.sqlite3-shm",
+                               "bytes":  32768,
+                               "sha256":  "34218c52bb39f840870077d10170c7a4704966d83789c0fa890854bea10e2234"
+                           },
+                           {
+                               "Name":  "ventio_native_client.sqlite3-wal",
+                               "bytes":  20632,
+                               "sha256":  "36d8406153f5ea8bb371558316afc99305afddf7b4507a8d6b13538af4d614ea"
+                           }
+                       ],
+    "vcBefore":  "v14.51.36247.00",
+    "uninstallerSha256":  "3b5908a56ab585a525f344a4eea9792126b6cbf9108fa6db2d7a8f22c4bdb469",
+    "exitCode":  0,
+    "clientRemoved":  true,
+    "userDataAfter":  [
+                          {
+                              "Name":  "ventio_diagnostics.sqlite3",
+                              "bytes":  4096,
+                              "sha256":  "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+                          },
+                          {
+                              "Name":  "ventio_diagnostics.sqlite3-shm",
+                              "bytes":  32768,
+                              "sha256":  "c19744a1fda0439fa8875472a1b94fdb4ad5743fca7a5de852a32240033da2dc"
+                          },
+                          {
+                              "Name":  "ventio_diagnostics.sqlite3-wal",
+                              "bytes":  37112,
+                              "sha256":  "97f78fbe6757d89ace5800e21c516709c5bede48912615a7625b23267e44273e"
+                          },
+                          {
+                              "Name":  "ventio_extensions.sqlite3",
+                              "bytes":  4096,
+                              "sha256":  "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+                          },
+                          {
+                              "Name":  "ventio_extensions.sqlite3-shm",
+                              "bytes":  32768,
+                              "sha256":  "8ec5f46ea65e7052b9b0923d604fb8e24f2f22080a29cd08655290b182e855fa"
+                          },
+                          {
+                              "Name":  "ventio_extensions.sqlite3-wal",
+                              "bytes":  61832,
+                              "sha256":  "d229eb17887af3204f97df9d643deca0c9d1039f87a8d47095b0c6dba67d1972"
+                          },
+                          {
+                              "Name":  "ventio_native_client.sqlite3",
+                              "bytes":  4096,
+                              "sha256":  "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+                          },
+                          {
+                              "Name":  "ventio_native_client.sqlite3-shm",
+                              "bytes":  32768,
+                              "sha256":  "34218c52bb39f840870077d10170c7a4704966d83789c0fa890854bea10e2234"
+                          },
+                          {
+                              "Name":  "ventio_native_client.sqlite3-wal",
+                              "bytes":  20632,
+                              "sha256":  "36d8406153f5ea8bb371558316afc99305afddf7b4507a8d6b13538af4d614ea"
+                          }
+                      ],
+    "userDataRetainedExactly":  true,
+    "vcAfter":  "v14.51.36247.00",
+    "sharedRuntimeRetained":  true,
+    "policy":  "Restricted",
+    "services":  [
+
+                 ],
+    "protection":  {
+                       "AMServiceEnabled":  true,
+                       "AntivirusEnabled":  true,
+                       "RealTimeProtectionEnabled":  true,
+                       "DefenderSignaturesOutOfDate":  false
+                   },
+    "completedAtUtc":  "2026-11-20T14:37:41.9031429Z",
+    "limitations":  [
+                        "No Host data retain/delete choice was exercised because this target had no Host state",
+                        "The supported old Host upgrade remains blocked on TEST-01"
+                    ]
+}

@@ -1,0 +1,152 @@
+{
+  "sourceCommit": "e335ac826a512305ccb07057f6626bd9338f25f5",
+  "runId": "44697792249",
+  "expectedServiceSid": "S-1-5-80-1072846011-640409271-1860299243-604971422-3770019752",
+  "rows": [
+    {
+      "processRights": "0x1000",
+      "tokenRights": "0x8",
+      "opened": true,
+      "openError": 0,
+      "tokenUser": "S-1-5-80-1072846011-640409271-1860299243-604971422-3770019752",
+      "expectedServiceIdentity": true,
+      "restricted": false,
+      "primaryDuplicate": false,
+      "duplicateError": 5,
+      "securityQueryError": 5
+    },
+    {
+      "processRights": "0x1000",
+      "tokenRights": "0x2",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1000",
+      "tokenRights": "0xA",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1000",
+      "tokenRights": "0x20008",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1000",
+      "tokenRights": "0x2000A",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1000",
+      "tokenRights": "0x2000000",
+      "opened": true,
+      "openError": 0,
+      "tokenUser": "S-1-5-80-1072846011-640409271-1860299243-604971422-3770019752",
+      "expectedServiceIdentity": true,
+      "restricted": false,
+      "primaryDuplicate": false,
+      "duplicateError": 5,
+      "securityQueryError": 5
+    },
+    {
+      "processRights": "0x400",
+      "tokenRights": "0x8",
+      "opened": true,
+      "openError": 0,
+      "tokenUser": "S-1-5-80-1072846011-640409271-1860299243-604971422-3770019752",
+      "expectedServiceIdentity": true,
+      "restricted": false,
+      "primaryDuplicate": false,
+      "duplicateError": 5,
+      "securityQueryError": 5
+    },
+    {
+      "processRights": "0x400",
+      "tokenRights": "0x2",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x400",
+      "tokenRights": "0xA",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x400",
+      "tokenRights": "0x20008",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x400",
+      "tokenRights": "0x2000A",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x400",
+      "tokenRights": "0x2000000",
+      "opened": true,
+      "openError": 0,
+      "tokenUser": "S-1-5-80-1072846011-640409271-1860299243-604971422-3770019752",
+      "expectedServiceIdentity": true,
+      "restricted": false,
+      "primaryDuplicate": false,
+      "duplicateError": 5,
+      "securityQueryError": 5
+    },
+    {
+      "processRights": "0x1400",
+      "tokenRights": "0x8",
+      "opened": true,
+      "openError": 0,
+      "tokenUser": "S-1-5-80-1072846011-640409271-1860299243-604971422-3770019752",
+      "expectedServiceIdentity": true,
+      "restricted": false,
+      "primaryDuplicate": false,
+      "duplicateError": 5,
+      "securityQueryError": 5
+    },
+    {
+      "processRights": "0x1400",
+      "tokenRights": "0x2",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1400",
+      "tokenRights": "0xA",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1400",
+      "tokenRights": "0x20008",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1400",
+      "tokenRights": "0x2000A",
+      "opened": false,
+      "openError": 5
+    },
+    {
+      "processRights": "0x1400",
+      "tokenRights": "0x2000000",
+      "opened": true,
+      "openError": 0,
+      "tokenUser": "S-1-5-80-1072846011-640409271-1860299243-604971422-3770019752",
+      "expectedServiceIdentity": true,
+      "restricted": false,
+      "primaryDuplicate": false,
+      "duplicateError": 5,
+      "securityQueryError": 5
+    }
+  ],
+  "changedDacl": false
+}

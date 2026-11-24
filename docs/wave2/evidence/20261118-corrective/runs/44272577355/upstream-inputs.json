@@ -1,0 +1,26 @@
+[
+  {
+    "name": "dart",
+    "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-x64-release.zip",
+    "sha256": "3b31d9f90b27861f29842d378f39f98ce9e60910042334f950ef5702f174fb81",
+    "bytes": 219893829
+  },
+  {
+    "name": "inno",
+    "url": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe",
+    "sha256": "a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c",
+    "bytes": 10604576
+  },
+  {
+    "name": "pdfium",
+    "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/5200/pdfium-win-x64.tgz",
+    "sha256": "8e900c3e5103ae9a3aa7800653e804575c687d132fcfb4deda7bb2ce04aca8d2",
+    "bytes": 2629624
+  },
+  {
+    "name": "vc-runtime",
+    "url": "https://aka.ms/vs/18/release/14.51.36247/VC_redist.x64.exe",
+    "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c",
+    "bytes": 18731856
+  }
+]
