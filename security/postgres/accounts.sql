@@ -219,11 +219,11 @@ BEGIN
  UPDATE public.ventio_identity_pairings SET revoked_at=clock_timestamp()
   WHERE tenant_id=tenant AND actor_id=actor AND redeemed_at IS NULL AND revoked_at IS NULL;
  INSERT INTO public.ventio_identity_pairings(pairing_id,pairing_digest,tenant_id,actor_id,company_id,branch_id,
-  created_by_actor_id,allowed_permissions,expires_at)
+  created_by_actor_id,allowed_permissions,created_at,expires_at)
  VALUES(p->>'credentialId',p->>'tokenDigest',tenant,actor,company,branch,actor,
   ARRAY['host.status.read','host.diagnostics.read','identity.users.manage','identity.devices.manage',
     'identity.pairing.manage','identity.roles.manage','extension.package.read','extension.package.submit','extension.package.review'],
-  clock_timestamp()+interval '5 minutes');
+  statement_timestamp(),statement_timestamp()+interval '5 minutes');
  INSERT INTO public.ventio_identity_audit(tenant_id,operator_label,action,subject_id,details)
  VALUES(tenant,'local-owner-recovery','OWNER_'||operation,actor,
   jsonb_build_object('windowsAdminTag',p->>'windowsAdminTag','windowsAdminSid',p->>'windowsAdminSid','companyId',company,'branchId',branch));

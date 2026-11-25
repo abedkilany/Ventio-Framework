@@ -15,6 +15,7 @@ BEGIN
 END $protection$;
 \ir administration.sql
 \ir accounts.sql
+\ir account_sessions.sql
 \ir wave2.sql
 \ir wave2_customization_041.sql
 \ir wave2_identity_base.sql

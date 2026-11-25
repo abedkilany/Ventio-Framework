@@ -123,6 +123,26 @@ class PostgresAccounts {
           }).isNotEmpty) {
             throw const AccountException('INVALID_ACCOUNT_REQUEST', 422);
           }
+          if (body['action'] == 'REFRESH_SESSION' ||
+              body['action'] == 'LOGOUT_SESSION') {
+            if (body.length != 1) {
+              throw const AccountException('INVALID_ACCOUNT_REQUEST', 422);
+            }
+
+            final refresh = body['action'] == 'REFRESH_SESSION';
+
+            final result = await change(
+              refresh
+                  ? 'SELECT ventio_security.account_session_refresh(@digest)::text'
+                  : 'SELECT ventio_security.account_session_logout(@digest)::text',
+              {'digest': digest},
+            );
+
+            return Map<String, dynamic>.from(
+              jsonDecode(result as String) as Map,
+            );
+          }
+
           final changeBody = <String, Object?>{...body}
             ..remove('password')
             ..remove('currentPassword');

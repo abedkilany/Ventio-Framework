@@ -314,6 +314,25 @@ Future<void> _verifyUpgrade(
   if (pairing.isEmpty || pairing.single[0] != true) {
     throw const _UpgradeFailure('PAIRING_CONTRACT_INVALID');
   }
+  final sessions = await connection.execute('''
+    SELECT bool_and(
+      has_function_privilege('ventio_identity_api', p.oid, 'EXECUTE')
+      AND NOT has_function_privilege('ventio_runtime', p.oid, 'EXECUTE')
+      AND NOT has_function_privilege('ventio_identity_admin', p.oid, 'EXECUTE')
+      AND p.prosecdef
+    ) AND count(*) = 2
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'ventio_security'
+      AND p.proname IN (
+        'account_session_refresh',
+        'account_session_logout'
+      )
+  ''');
+  if (sessions.isEmpty || sessions.single[0] != true) {
+    throw const _UpgradeFailure('SESSION_CONTRACT_INVALID');
+  }
+
   final reissue = await connection.execute('''
     SELECT jsonb_build_array(
       has_function_privilege('ventio_identity_api','ventio_security.trusted_windows_credential_reissue_prepare(text,text,text,text,text,text,text,text,text,text,text,bytea,text[],text[],text)','EXECUTE'),

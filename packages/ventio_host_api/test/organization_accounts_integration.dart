@@ -187,6 +187,84 @@ Future<void> main() async {
           const Duration(hours: 8),
       'Host session and offline authorization are bounded to eight hours',
     );
+    final sessionLogin = await accounts.handle('login', rootToken, {
+      'tenantId': 'org-a',
+      'username': 'Owner.A',
+      'password': password,
+    });
+    final sessionToken = sessionLogin['token'] as String;
+
+    final refreshed = await accounts.handle('manage', sessionToken, {
+      'action': 'REFRESH_SESSION',
+    });
+
+    check(
+      DateTime.parse(
+        refreshed['expiresAt'] as String,
+      ).isAfter(DateTime.parse(sessionLogin['expiresAt'] as String)),
+      'Session refresh extends an active session',
+    );
+
+    check(
+      refreshed['tenantId'] == sessionLogin['tenantId'] &&
+          refreshed['actorId'] == sessionLogin['actorId'] &&
+          refreshed['deviceId'] == sessionLogin['deviceId'],
+      'Session refresh preserves authenticated identity',
+    );
+
+    check(
+      !DateTime.parse(refreshed['expiresAt'] as String).isAfter(expiry),
+      'Session refresh respects enrollment expiry',
+    );
+
+    await denied(
+      () => accounts.handle('manage', rootToken, {'action': 'REFRESH_SESSION'}),
+      'Enrollment credentials cannot refresh password sessions',
+    );
+
+    final logout = await accounts.handle('manage', sessionToken, {
+      'action': 'LOGOUT_SESSION',
+    });
+
+    check(
+      logout['signedOut'] == true && await snapshot(sessionToken) == null,
+      'Logout invalidates the active session',
+    );
+
+    await denied(
+      () => accounts.handle('manage', sessionToken, {
+        'action': 'REFRESH_SESSION',
+      }),
+      'Revoked sessions cannot be refreshed',
+    );
+
+    final nextLogin = await accounts.handle('login', rootToken, {
+      'tenantId': 'org-a',
+      'username': 'Owner.A',
+      'password': password,
+    });
+
+    check(nextLogin['token'] is String, 'Logout preserves device enrollment');
+
+    final expiredToken = nextLogin['token'] as String;
+
+    await mutation(
+      root,
+      (tx) => tx.execute(
+        pg.Sql.named(
+          "UPDATE ventio_identity_credentials SET issued_at=clock_timestamp()-interval '2 hours', expires_at=clock_timestamp()-interval '1 hour' WHERE token_digest=@digest",
+        ),
+        parameters: {'digest': OpaqueToken.digest(expiredToken)},
+      ),
+    );
+
+    await denied(
+      () => accounts.handle('manage', expiredToken, {
+        'action': 'REFRESH_SESSION',
+      }),
+      'Expired sessions cannot be refreshed',
+    );
+
     final http = await HostApi.bind(
       authenticator: PersistentTokenAuthenticator(
         connect: () =>
@@ -671,6 +749,40 @@ Future<void> main() async {
       await snapshot(userToken) == null,
       'Session revocation is authoritative in the Host database',
     );
+    await denied(
+      () => accounts.handle('manage', userToken, {'action': 'REFRESH_SESSION'}),
+      'Administrative session revocation prevents refresh',
+    );
+    final disableLogin = await accounts
+        .handle('login', claimed['credential'] as String, {
+          'tenantId': 'org-a',
+          'username': 'ordinary',
+          'password': 'Ordinary password phrase 42!',
+        });
+    final disableToken = disableLogin['token'] as String;
+
+    await mutation(
+      root,
+      (tx) => tx.execute(
+        pg.Sql.named(
+          "UPDATE ventio_identity_users SET disabled_at=clock_timestamp() WHERE tenant_id='org-a' AND actor_id=@actor",
+        ),
+        parameters: {'actor': user},
+      ),
+    );
+
+    check(
+      await snapshot(disableToken) == null,
+      'Disabled account loses session authorization',
+    );
+
+    await denied(
+      () => accounts.handle('manage', disableToken, {
+        'action': 'REFRESH_SESSION',
+      }),
+      'Disabled accounts cannot refresh sessions',
+    );
+
     // Seed a legacy organization without granting ownership, then explicitly migrate it.
     final legacy = IdentityAdministration(
       connection: admin,
@@ -786,6 +898,10 @@ Future<void> main() async {
       await snapshot(token) == null,
       'Changing Owner password invalidates its existing sessions',
     );
+    await denied(
+      () => accounts.handle('manage', token, {'action': 'REFRESH_SESSION'}),
+      'Password changes prevent session refresh',
+    );
     final renewed = await accounts.handle('login', rootToken, {
       'tenantId': 'org-a',
       'username': 'Owner.A2',
@@ -796,6 +912,10 @@ Future<void> main() async {
     check(
       await snapshot(token) == null,
       'Device revocation invalidates password sessions through their enrollment parent',
+    );
+    await denied(
+      () => accounts.handle('manage', token, {'action': 'REFRESH_SESSION'}),
+      'Device revocation prevents session refresh',
     );
     check(
       (await root.execute(

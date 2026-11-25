@@ -258,6 +258,8 @@ Future<void> verifyIdentityAdministrationConnection(
             'ventio_security.wave2_finish_job(text,text,text,jsonb,boolean)'::regprocedure,
             'ventio_security.account_login_material(text,text,text)'::regprocedure,
             'ventio_security.account_login_issue(text,text,text,text,text,text,boolean)'::regprocedure,
+            'ventio_security.account_session_refresh(text)'::regprocedure,
+            'ventio_security.account_session_logout(text)'::regprocedure,
             'ventio_security.account_current_hash(text)'::regprocedure,
             'ventio_security.account_change(text,jsonb)'::regprocedure,
             'ventio_security.local_owner_recover(jsonb)'::regprocedure,
