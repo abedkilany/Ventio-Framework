@@ -299,7 +299,12 @@ class HostExtensionPackageClient {
     final raw = response.body['result'];
     if (response.body['contractVersion'] != wave2ContractVersion ||
         raw is! Map) {
-      throw _responseError(response);
+      final error = _responseError(response);
+      throw HostPackageTransportException(
+        "${action.replaceAll("/", "_").toUpperCase()}_${error.code}",
+        statusCode: error.statusCode,
+        retryable: error.retryable,
+      );
     }
     final result = Map<String, dynamic>.from(raw);
     if (response.statusCode != 200) throw _packageError(response, result);

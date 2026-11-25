@@ -33,31 +33,86 @@ class _MemoryHostCredentialBackend implements HostCredentialBackend {
   }
 }
 
-Future<void> _submitMinimalHostSetup(WidgetTester tester) async {
+Finder _setupField(String key) => find.byKey(ValueKey(key));
+
+Future<HostSetupScope> _submitMinimalHostSetup(
+  WidgetTester tester, {
+  void Function(HostSetupScope)? onScope,
+}) async {
   final list = find.byType(ListView);
-  for (
-    var attempt = 0;
-    attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
-    attempt++
-  ) {
-    await tester.drag(list, const Offset(0, -300));
+
+  Future<void> reveal(Finder target) async {
+    for (var i = 0; i < 12 && target.evaluate().isEmpty; i++) {
+      await tester.drag(list, const Offset(0, -250));
+      await tester.pumpAndSettle();
+    }
+    expect(target, findsOneWidget);
+    await tester.ensureVisible(target);
     await tester.pumpAndSettle();
   }
-  final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
-  await tester.enterText(fields.at(0), 'tenant-lan-test');
-  await tester.enterText(fields.at(1), 'company-lan-test');
-  await tester.enterText(fields.at(2), 'branch-lan-test');
+
+  Future<void> enter(String key, String value) async {
+    final field = _setupField(key);
+    await reveal(field);
+    await tester.enterText(field, value);
+  }
+
+  Future<void> tapText(String label) async {
+    final target = find.text(label);
+    await reveal(target);
+    await tester.tap(target);
+    await tester.pumpAndSettle();
+  }
+
+  await enter('native.ui.host_wizard_organization_name', 'tenant-ui');
+  await enter('native.ui.host_wizard_company_name', 'company-ui');
+  await enter('native.ui.host_wizard_branch_name', 'branch-ui');
   tester.testTextInput.hide();
-  for (
-    var attempt = 0;
-    attempt < 8 && find.text('Set up Host').evaluate().isEmpty;
-    attempt++
-  ) {
-    await tester.drag(list, const Offset(0, -300));
-    await tester.pumpAndSettle();
+
+  await tapText('Advanced Identifiers');
+
+  String readId(String key) {
+    final field = tester.widget<TextField>(_setupField(key));
+    expect(field.enabled, isFalse);
+    return field.controller!.text;
   }
-  await tester.tap(find.text('Set up Host'));
-  await tester.pumpAndSettle();
+
+  await reveal(_setupField('native.ui.host_setup_tenant_id'));
+  final tenantId = readId('native.ui.host_setup_tenant_id');
+
+  await reveal(_setupField('native.ui.host_setup_company_id'));
+  final companyId = readId('native.ui.host_setup_company_id');
+
+  await reveal(_setupField('native.ui.host_setup_branch_id'));
+  final branchId = readId('native.ui.host_setup_branch_id');
+
+  final scope = HostSetupScope(
+    tenantId: tenantId,
+    companyId: companyId,
+    branchId: branchId,
+  );
+
+  expect(tenantId, startsWith('org_'));
+  expect(companyId, startsWith('cmp_'));
+  expect(branchId, startsWith('br_'));
+
+  onScope?.call(scope);
+
+  await tapText('Next');
+
+  final ownerFields = find.byType(TextField);
+  expect(ownerFields, findsNWidgets(3));
+
+  await tester.enterText(ownerFields.at(0), 'testowner');
+  await tester.enterText(ownerFields.at(1), 'TestOwner!2026');
+  await tester.enterText(ownerFields.at(2), 'TestOwner!2026');
+
+  tester.testTextInput.hide();
+
+  await tapText('Next');
+  await tapText('Set up Host');
+
+  return scope;
 }
 
 void main() {
@@ -632,11 +687,6 @@ void main() {
     final platform = _FakePlatform();
     final credentials = _MemorySetupStore(
       onSave: () => platform.events.add('save'),
-      identity: _adminIdentity(
-        tenantId: 'tenant-ui',
-        companyId: 'company-ui',
-        branchId: 'branch-ui',
-      ),
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -645,33 +695,21 @@ void main() {
     );
     await tester.pump();
     await tester.pumpAndSettle();
-    final list = find.byType(ListView);
-    for (
-      var attempt = 0;
-      attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
-      attempt++
-    ) {
-      await tester.drag(list, const Offset(0, -300));
-      await tester.pumpAndSettle();
-    }
-    final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
-    await tester.enterText(fields.at(0), 'tenant-ui');
-    await tester.enterText(fields.at(1), 'company-ui');
-    await tester.enterText(fields.at(2), 'branch-ui');
-    tester.testTextInput.hide();
-    for (
-      var attempt = 0;
-      attempt < 8 && find.text('Set up Host').evaluate().isEmpty;
-      attempt++
-    ) {
-      await tester.drag(list, const Offset(0, -300));
-      await tester.pumpAndSettle();
-    }
-    await tester.tap(find.text('Set up Host'));
-    await tester.pumpAndSettle();
+    final scope = await _submitMinimalHostSetup(
+      tester,
+      onScope: (scope) {
+        credentials.identity = _adminIdentity(
+          tenantId: scope.tenantId,
+          companyId: scope.companyId,
+          branchId: scope.branchId,
+        );
+      },
+    );
 
     expect(find.textContaining('Host is ready.'), findsOneWidget);
-    expect(credentials.profile?.tenantId, 'tenant-ui');
+    expect(credentials.profile?.tenantId, scope.tenantId);
+    expect(credentials.profile?.companyId, scope.companyId);
+    expect(credentials.profile?.branchId, scope.branchId);
     expect(
       platform.events.indexOf('save'),
       lessThan(platform.events.indexOf('clear-result')),
@@ -702,37 +740,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final list = find.byType(ListView);
-      for (
-        var attempt = 0;
-        attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
-        attempt++
-      ) {
-        await tester.drag(list, const Offset(0, -300));
-        await tester.pumpAndSettle();
-      }
-      final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
-      await tester.enterText(fields.at(0), 'tenant-ui');
-      await tester.enterText(fields.at(1), 'company-ui');
-      await tester.enterText(fields.at(2), 'branch-ui');
-      tester.testTextInput.hide();
-      for (
-        var attempt = 0;
-        attempt < 8 && find.text('Set up Host').evaluate().isEmpty;
-        attempt++
-      ) {
-        await tester.drag(list, const Offset(0, -300));
-        await tester.pumpAndSettle();
-      }
-      await tester.tap(find.text('Set up Host'));
-      await tester.pumpAndSettle();
+      await _submitMinimalHostSetup(tester);
       for (
         var attempt = 0;
         attempt < 8 &&
             find.textContaining('Diagnostic reference:').evaluate().isEmpty;
         attempt++
       ) {
-        await tester.drag(list, const Offset(0, -300));
+        await tester.drag(find.byType(ListView), const Offset(0, -300));
         await tester.pumpAndSettle();
       }
 
@@ -763,6 +778,8 @@ void main() {
         'HostSetupException',
       );
 
+      await tester.ensureVisible(find.text('Copy sanitized setup report'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Copy sanitized setup report'));
       await tester.pumpAndSettle();
 
@@ -846,30 +863,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final list = find.byType(ListView);
-      for (
-        var attempt = 0;
-        attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
-        attempt++
-      ) {
-        await tester.drag(list, const Offset(0, -300));
-        await tester.pumpAndSettle();
-      }
-      final fields = find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256);
-      await tester.enterText(fields.at(0), 'tenant-ui');
-      await tester.enterText(fields.at(1), 'company-ui');
-      await tester.enterText(fields.at(2), 'branch-ui');
-      tester.testTextInput.hide();
-      for (
-        var attempt = 0;
-        attempt < 8 && find.text('Set up Host').evaluate().isEmpty;
-        attempt++
-      ) {
-        await tester.drag(list, const Offset(0, -300));
-        await tester.pumpAndSettle();
-      }
-      await tester.tap(find.text('Set up Host'));
-      await tester.pumpAndSettle();
+      await _submitMinimalHostSetup(tester);
       for (
         var attempt = 0;
         attempt < 8 &&
@@ -879,7 +873,7 @@ void main() {
                 .isEmpty;
         attempt++
       ) {
-        await tester.drag(list, const Offset(0, -300));
+        await tester.drag(find.byType(ListView), const Offset(0, -300));
         await tester.pumpAndSettle();
       }
 
@@ -887,6 +881,8 @@ void main() {
         find.textContaining('could not be saved on this device'),
         findsOneWidget,
       );
+      await tester.ensureVisible(find.text('Copy sanitized setup report'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Copy sanitized setup report'));
       await tester.pumpAndSettle();
 
@@ -927,28 +923,42 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.maxLength == 256,
+      ),
+      findsNothing,
+    );
 
     platform.pendingReadGate!.complete(pending);
     await tester.pumpAndSettle();
 
-    final list = find.byType(ListView);
     for (
       var attempt = 0;
-      attempt < 8 && find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256).evaluate().isEmpty;
+      attempt < 8 &&
+          find
+              .byWidgetPredicate(
+                (widget) => widget is TextField && widget.maxLength == 256,
+              )
+              .evaluate()
+              .isEmpty;
       attempt++
     ) {
-      await tester.drag(list, const Offset(0, -300));
+      await tester.drag(find.byType(ListView), const Offset(0, -300));
       await tester.pumpAndSettle();
     }
     final fields = tester
-        .widgetList<TextField>(find.byWidgetPredicate((widget) => widget is TextField && widget.maxLength == 256))
+        .widgetList<TextField>(
+          find.byWidgetPredicate(
+            (widget) => widget is TextField && widget.maxLength == 256,
+          ),
+        )
         .toList();
     expect(fields, hasLength(3));
     expect(fields.every((field) => field.enabled == false), isTrue);
-    expect(find.text('saved-tenant'), findsOneWidget);
-    expect(find.text('saved-company'), findsOneWidget);
-    expect(find.text('saved-branch'), findsOneWidget);
+    expect(fields[0].controller!.text, 'saved-tenant');
+    expect(fields[1].controller!.text, 'saved-company');
+    expect(fields[2].controller!.text, 'saved-branch');
   });
 }
 
@@ -1097,7 +1107,7 @@ class _MemorySetupStore implements HostSetupCredentialStore {
     : identity = identity ?? _adminIdentity();
 
   final void Function()? onSave;
-  final HostSessionIdentity identity;
+  HostSessionIdentity identity;
   String? token;
   HostConnectionProfile? profile;
   bool failSave = false;

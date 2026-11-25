@@ -206,8 +206,13 @@ class _VentioClientAppState extends State<VentioClientApp> {
     var showFirstRun = false;
     if (!widget.forceHostSetup) {
       try {
+        final pendingSetup = await widget.extensionStore.getHostSetupDraft();
+
         _accountProfile = await widget.extensionStore.getHostProfile();
-        showFirstRun = _accountProfile == null;
+
+        _showHostSetup = pendingSetup != null;
+
+        showFirstRun = !_showHostSetup && _accountProfile == null;
       } on Object {
         showFirstRun = true;
       }

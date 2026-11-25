@@ -312,13 +312,14 @@ class LocalExtensionStore {
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 13,
+        version: 14,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
           await database.rawQuery('PRAGMA journal_mode = WAL');
           await database.execute('PRAGMA synchronous = FULL');
         },
         onCreate: (database, version) async {
+          await _createHostSetupDraftTable(database);
           await database.execute('''
             CREATE TABLE $_extensionsTable (
               module_id TEXT PRIMARY KEY NOT NULL,
@@ -438,6 +439,9 @@ class LocalExtensionStore {
           ''');
         },
         onUpgrade: (database, oldVersion, newVersion) async {
+          if (oldVersion < 14) {
+            await _createHostSetupDraftTable(database);
+          }
           if (oldVersion < 2) {
             await database.execute('''
               ALTER TABLE $_extensionsTable
@@ -720,6 +724,98 @@ class LocalExtensionStore {
       limit: 1,
     );
     return rows.isEmpty ? null : LocalExtension.fromRow(rows.single);
+  }
+
+  static Future<void> _createHostSetupDraftTable(Database database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS local_host_setup_draft (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        requester_sid TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        company_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        organization_name TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        branch_name TEXT NOT NULL,
+        created_at_utc TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<Map<String, Object?>?> getHostSetupDraft() async {
+    _ensureOpen();
+
+    final rows = await _database.query(
+      'local_host_setup_draft',
+      where: 'singleton = 1',
+      limit: 1,
+    );
+
+    return rows.isEmpty ? null : Map<String, Object?>.unmodifiable(rows.single);
+  }
+
+  Future<void> saveHostSetupDraft({
+    required String requesterSid,
+    required String tenantId,
+    required String companyId,
+    required String branchId,
+    required String organizationName,
+    required String companyName,
+    required String branchName,
+  }) async {
+    _ensureOpen();
+
+    final identifier = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$');
+
+    for (final value in [tenantId, companyId, branchId]) {
+      if (!identifier.hasMatch(value)) {
+        throw ArgumentError('Invalid Host setup identifier.');
+      }
+    }
+
+    for (final value in [organizationName, companyName, branchName]) {
+      if (value.trim().isEmpty || value.trim().length > 120) {
+        throw ArgumentError('Invalid Host setup display name.');
+      }
+    }
+
+    if (requesterSid.trim().isEmpty) {
+      throw ArgumentError('Missing Host setup requester identity.');
+    }
+
+    await _database.insert('local_host_setup_draft', {
+      'singleton': 1,
+      'requester_sid': requesterSid,
+      'tenant_id': tenantId,
+      'company_id': companyId,
+      'branch_id': branchId,
+      'organization_name': organizationName.trim(),
+      'company_name': companyName.trim(),
+      'branch_name': branchName.trim(),
+      'created_at_utc': _now(),
+    }, conflictAlgorithm: ConflictAlgorithm.abort);
+  }
+
+  Future<void> clearHostSetupDraft({
+    required String requesterSid,
+    required String tenantId,
+    required String companyId,
+    required String branchId,
+  }) async {
+    _ensureOpen();
+
+    final deleted = await _database.delete(
+      'local_host_setup_draft',
+      where: '''
+        singleton = 1 AND requester_sid = ?
+        AND tenant_id = ? AND company_id = ? AND branch_id = ?
+      ''',
+      whereArgs: [requesterSid, tenantId, companyId, branchId],
+    );
+
+    if (deleted != 1) {
+      throw StateError('Host setup draft identity mismatch.');
+    }
   }
 
   Future<HostConnectionProfile?> getHostProfile() async {
