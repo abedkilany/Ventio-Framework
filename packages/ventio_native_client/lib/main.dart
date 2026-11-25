@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:ventio_core/ventio_core.dart';
 
 import 'src/app_localization.dart';
+import 'src/ventio_theme.dart';
 import 'src/app_database.dart';
 import 'src/local_diagnostics.dart';
 import 'src/performance_probe.dart';
@@ -311,10 +312,9 @@ class _VentioClientAppState extends State<VentioClientApp> {
           Locale('ar', 'XB'),
         ],
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff1f6f68)),
-          useMaterial3: true,
-        ),
+        theme: VentioTheme.light(),
+        darkTheme: VentioTheme.darkMode(),
+        themeMode: ThemeMode.light,
         builder: (context, child) => VentioLocalizationScope(
           controller: _localizations,
           child: Directionality(
