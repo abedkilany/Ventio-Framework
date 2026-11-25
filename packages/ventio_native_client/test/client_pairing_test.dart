@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -152,6 +153,77 @@ void main() {
       expect(savedProfile?.deviceId, result.profile.deviceId);
     },
   );
+
+  test('late pairing response cannot restore a logged-out session', () async {
+    final enrolled = List<String>.filled(43, 'E').join();
+    final active = List<String>.filled(43, 'A').join();
+    await vault.replaceEnrollment(_endpoint, enrolled);
+    await vault.save(_endpoint, active);
+    await vault.writeOfflineAccount(_endpoint, {'verifier': 'old'});
+    final entered = Completer<void>();
+    final reply = Completer<ClientPairingHttpResponse>();
+    final client = ClientPairingClient(
+      endpoint: _endpoint,
+      credentials: vault,
+      store: store,
+      deviceIdFactory: () => _deviceId,
+      clock: () => _now,
+      exchange:
+          ({
+            required uri,
+            required headers,
+            required body,
+            required timeout,
+            required maxResponseBytes,
+          }) {
+            entered.complete();
+            return reply.future;
+          },
+    );
+    final operation = client.redeemAndSave(code: _pairingCode);
+    final rejected = expectLater(
+      operation,
+      throwsA(
+        isA<ClientPairingException>().having(
+          (e) => e.code,
+          'code',
+          'CLIENT_ENROLLMENT_SAVE_FAILED',
+        ),
+      ),
+    );
+    await entered.future;
+    await vault.runSessionMutation(() async {
+      vault.invalidateSessionGeneration();
+      await vault.markLogoutPending(_endpoint);
+      await vault.clearAccountSession(_endpoint);
+      await vault.clearLogoutPending(_endpoint);
+    });
+    reply.complete(_success());
+    await rejected;
+    expect(await vault.read(_endpoint), isNull);
+    expect(await vault.readEnrollment(_endpoint), enrolled);
+    expect(await vault.readOfflineAccount(_endpoint), isNull);
+    expect(await store.getHostProfile(), isNull);
+  });
+
+  test('failed pairing commit restores exact prior credentials', () async {
+    final enrolled = List<String>.filled(43, 'E').join();
+    final active = List<String>.filled(43, 'A').join();
+    await vault.replaceEnrollment(_endpoint, enrolled);
+    await vault.save(_endpoint, active);
+    await vault.writeOfflineAccount(_endpoint, {'verifier': 'old'});
+    final before = Map<String, String>.of(backend.values);
+    await expectLater(
+      vault.commitPairingEnrollment(
+        endpoint: _endpoint,
+        token: _deviceCredential,
+        expectedGeneration: vault.sessionGeneration,
+        saveProfile: () async => throw StateError('test profile failure'),
+      ),
+      throwsStateError,
+    );
+    expect(backend.values, before);
+  });
 
   test('rejects HTTP even for loopback endpoints', () async {
     expect(

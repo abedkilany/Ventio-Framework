@@ -1494,7 +1494,7 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.account_save_login': 'Save login',
   'native.ui.account_set_username_and_password': 'Set username and password',
   'native.ui.account_sign_in_offline': 'Sign in offline',
-  'native.ui.account_sign_in_through_host': 'Sign in through Host',
+  'native.ui.account_sign_in_through_host': 'Sign in',
   'native.ui.account_use_at_least_15_characters_password_changes_revoke_online_sessions_offline_clients_may_ret':
       'Use at least 15 characters. Password changes revoke online sessions; offline clients may retain access until their eight-hour lease expires.',
   'native.ui.account_use_this_organization_s_account_on_an_enrolled_host_or_client_offline_access_expires_eight':

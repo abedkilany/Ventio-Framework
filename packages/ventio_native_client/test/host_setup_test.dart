@@ -247,6 +247,72 @@ void main() {
   group('Local Host setup credential verification', () {
     setUpAll(sqfliteFfiInit);
 
+    test(
+      'Late bootstrap verification cannot restore revoked credentials',
+      () async {
+        final store = await LocalExtensionStore.open(
+          factory: databaseFactoryFfi,
+          path: ':memory:',
+        );
+        addTearDown(store.close);
+        final vault = HostCredentialVault(_MemoryHostCredentialBackend());
+        final endpoint = Uri.parse(hostSetupEndpoint);
+        final arrived = Completer<void>();
+        final release = Completer<HostSessionIdentity>();
+        final profile = HostConnectionProfile(
+          endpoint: hostSetupEndpoint,
+          tenantId: 'tenant-one',
+          companyId: 'company-one',
+          branchId: 'branch-one',
+          actorId: _actorId,
+        );
+        final credentials = LocalHostSetupCredentialStore(
+          credentials: vault,
+          store: store,
+          sessionLoader: (_) {
+            arrived.complete();
+            return release.future;
+          },
+        );
+        final result = expectLater(
+          credentials.saveCredentialAndProfile(
+            endpoint: endpoint,
+            token: _token,
+            profile: profile,
+          ),
+          throwsA(isA<HostSetupException>()),
+        );
+        await arrived.future.timeout(const Duration(seconds: 5));
+        expect(await vault.read(endpoint), isNull);
+        await vault.delete(endpoint);
+        release.complete(
+          HostSessionIdentity(
+            tenantId: 'tenant-one',
+            actorId: _actorId,
+            deviceId: 'device-one',
+            persistent: true,
+            roleAdministrationAvailable: true,
+            scopes: [
+              HostScopeGrant(
+                companyId: 'company-one',
+                branchId: 'branch-one',
+                permissions: const {
+                  hostStatusReadPermission,
+                  hostDiagnosticsReadPermission,
+                  identityUsersManagePermission,
+                  identityDevicesManagePermission,
+                  identityPairingManagePermission,
+                  identityRolesManagePermission,
+                },
+              ),
+            ],
+          ),
+        );
+        await result;
+        expect(await vault.read(endpoint), isNull);
+        expect(await store.getHostProfile(), isNull);
+      },
+    );
     test('preserves a safe Host authentication error code', () async {
       final store = await LocalExtensionStore.open(
         factory: databaseFactoryFfi,

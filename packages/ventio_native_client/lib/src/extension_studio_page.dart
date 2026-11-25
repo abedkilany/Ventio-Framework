@@ -801,7 +801,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
               IconButton(
                 onPressed: widget.onAccountSettings,
                 icon: const Icon(Icons.manage_accounts_outlined),
-                tooltip: context.ventioText('native.ui.account_my_username_and_password'),
+                tooltip: context.ventioText(
+                  'native.ui.account_my_username_and_password',
+                ),
               ),
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -836,23 +838,26 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       builder: (context) => _HostConnectionDialog(profile: _hostProfile),
     );
     if (values == null) return;
-    Uri? endpoint;
-    String? previousToken;
-    var replacedCredential = false;
-    var profileSaved = false;
     try {
-      endpoint = HostCredentialVault.normalizeEndpoint(
+      final endpoint = HostCredentialVault.normalizeEndpoint(
         Uri.parse(values.endpoint.trim()),
       );
-      previousToken = await vault.read(endpoint);
-      if (values.token.isNotEmpty) {
-        await vault.save(endpoint, values.token.trim());
-        replacedCredential = true;
-      } else if (previousToken == null) {
+      final generation = vault.sessionGeneration;
+      final oldEndpoint = _hostProfile?.endpoint;
+      final previousToken = await vault.read(endpoint);
+      final suppliedToken = values.token.trim();
+      if (oldEndpoint != null &&
+          (HostCredentialVault.normalizeEndpoint(Uri.parse(oldEndpoint)) !=
+                  endpoint ||
+              (suppliedToken.isNotEmpty && suppliedToken != previousToken))) {
+        throw const HostPackageTransportException('CLIENT_PAIRING_REQUIRED');
+      }
+      final token = suppliedToken.isNotEmpty ? suppliedToken : previousToken;
+      if (token == null) {
         throw const HostPackageTransportException('HOST_CREDENTIAL_MISSING');
       }
       final client = _hostPackageClient(endpoint: endpoint, vault: vault);
-      final identity = await client.session();
+      final identity = await client.session(tokenOverride: token);
       if (!identity.persistent) {
         throw const HostPackageTransportException(
           'PERSISTENT_HOST_IDENTITY_REQUIRED',
@@ -871,12 +876,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           initialBranchId: _hostProfile?.branchId,
         ),
       );
-      if (selected == null) {
-        if (replacedCredential) {
-          await _restoreCredential(vault, endpoint, previousToken);
-        }
-        return;
-      }
+      if (selected == null || !mounted) return;
       final profile = HostConnectionProfile(
         endpoint: endpoint.toString(),
         tenantId: identity.tenantId,
@@ -885,35 +885,32 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         actorId: identity.actorId,
         deviceId: identity.deviceId,
       );
-      await widget.store.saveHostProfile(profile);
-      profileSaved = true;
-      final oldEndpoint = _hostProfile?.endpoint;
-      if (oldEndpoint != null && oldEndpoint != endpoint.toString()) {
-        await vault.delete(Uri.parse(oldEndpoint));
+      if (suppliedToken.isNotEmpty && suppliedToken != previousToken) {
+        // Legacy first-time configuration: never promote an arbitrary bearer
+        // to a device enrollment credential. Existing devices must re-pair.
+        await vault.commitPairingEnrollment(
+          endpoint: endpoint,
+          token: token,
+          expectedGeneration: generation,
+          installEnrollment: false,
+          saveProfile: () => widget.store.saveHostProfile(profile),
+        );
+      } else {
+        await vault.runSessionMutation(() async {
+          if (vault.sessionGeneration != generation ||
+              await vault.isLogoutPending(endpoint) ||
+              await vault.read(endpoint) != token ||
+              (oldEndpoint != null && oldEndpoint != endpoint.toString())) {
+            throw const HostPackageTransportException('SESSION_UNAVAILABLE');
+          }
+          await widget.store.saveHostProfile(profile);
+        });
       }
+      if (!mounted) return;
       await _load();
-      _message('Authenticated Host scope saved for this device.');
+      if (mounted) _message('Authenticated Host scope saved for this device.');
     } catch (error) {
-      if (!profileSaved && replacedCredential && endpoint != null) {
-        try {
-          await _restoreCredential(vault, endpoint, previousToken);
-        } catch (_) {
-          /* Keep the primary Host error visible. */
-        }
-      }
       if (mounted) _message(error.toString());
-    }
-  }
-
-  Future<void> _restoreCredential(
-    HostCredentialVault vault,
-    Uri endpoint,
-    String? previousToken,
-  ) async {
-    if (previousToken == null) {
-      await vault.delete(endpoint);
-    } else {
-      await vault.save(endpoint, previousToken);
     }
   }
 
@@ -1180,7 +1177,9 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
             IconButton(
               onPressed: widget.onSignOut,
               icon: const Icon(Icons.logout),
-              tooltip: context.ventioText('native.ui.account_lock_organization'),
+              tooltip: context.ventioText(
+                'native.ui.account_lock_organization',
+              ),
             ),
           IconButton(
             onPressed:

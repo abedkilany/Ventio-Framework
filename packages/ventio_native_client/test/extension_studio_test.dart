@@ -62,46 +62,47 @@ class _FakeHostPackageClient extends HostExtensionPackageClient {
   String? expectedDigest;
 
   @override
-  Future<HostSessionIdentity> session() async => HostSessionIdentity(
-    tenantId: 'tenant-1',
-    actorId: 'user-1',
-    deviceId: 'device-1',
-    persistent: true,
-    roleAdministrationAvailable: roleAdministrationAvailable,
-    scopes: [
-      HostScopeGrant(
-        companyId: 'company-1',
-        branchId: 'branch-1',
-        permissions:
-            const {'extension.package.read', 'extension.package.submit'}
-                .union(
-                  canManageUsers
-                      ? {identityUsersManagePermission}
-                      : const <String>{},
-                )
-                .union(
-                  canManageDevices
-                      ? {manageHostDevicesPermission}
-                      : const <String>{},
-                )
-                .union(
-                  canManagePairings
-                      ? {manageHostPairingPermission}
-                      : const <String>{},
-                )
-                .union(
-                  canReadHostStatus
-                      ? {hostStatusReadPermission}
-                      : const <String>{},
-                )
-                .union(
-                  canManageRoles
-                      ? {identityRolesManagePermission}
-                      : const <String>{},
-                ),
-      ),
-    ],
-  );
+  Future<HostSessionIdentity> session({String? tokenOverride}) async =>
+      HostSessionIdentity(
+        tenantId: 'tenant-1',
+        actorId: 'user-1',
+        deviceId: 'device-1',
+        persistent: true,
+        roleAdministrationAvailable: roleAdministrationAvailable,
+        scopes: [
+          HostScopeGrant(
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            permissions:
+                const {'extension.package.read', 'extension.package.submit'}
+                    .union(
+                      canManageUsers
+                          ? {identityUsersManagePermission}
+                          : const <String>{},
+                    )
+                    .union(
+                      canManageDevices
+                          ? {manageHostDevicesPermission}
+                          : const <String>{},
+                    )
+                    .union(
+                      canManagePairings
+                          ? {manageHostPairingPermission}
+                          : const <String>{},
+                    )
+                    .union(
+                      canReadHostStatus
+                          ? {hostStatusReadPermission}
+                          : const <String>{},
+                    )
+                    .union(
+                      canManageRoles
+                          ? {identityRolesManagePermission}
+                          : const <String>{},
+                    ),
+          ),
+        ],
+      );
 
   @override
   Future<HostApprovedPackagePage> listApproved({

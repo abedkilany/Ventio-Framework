@@ -174,21 +174,32 @@ class LocalHostSetupCredentialStore implements HostSetupCredentialStore {
     HostConnectionProfile profile,
   ) async {
     final endpoint = Uri.parse(profile.endpoint);
+    final generation = credentials.sessionGeneration;
     final savedCredential = await credentials.read(endpoint);
     if (savedCredential == null || !_isOpaqueToken(savedCredential)) {
       throw const HostSetupException('HOST_BOOTSTRAP_CREDENTIAL_UNAVAILABLE');
     }
     try {
-      final identity = await _loadSession(endpoint);
+      final identity = await _loadSession(
+        endpoint,
+        tokenOverride: savedCredential,
+      );
       final verifiedProfile = bindHostProfileToIdentity(
         profile: profile,
         identity: identity,
         requireHostAdministration: true,
       );
-      if (verifiedProfile.deviceId != profile.deviceId) {
-        await store.saveHostProfile(verifiedProfile);
-      }
-      return verifiedProfile;
+      return await credentials.runSessionMutation(() async {
+        if (credentials.sessionGeneration != generation ||
+            await credentials.isLogoutPending(endpoint) ||
+            await credentials.read(endpoint) != savedCredential) {
+          throw const HostSetupException('SESSION_UNAVAILABLE');
+        }
+        if (verifiedProfile.deviceId != profile.deviceId) {
+          await store.saveHostProfile(verifiedProfile);
+        }
+        return verifiedProfile;
+      });
     } on HostSessionIdentityException catch (error) {
       throw HostSetupException(error.code);
     } on HostPackageTransportException catch (error) {
@@ -209,6 +220,7 @@ class LocalHostSetupCredentialStore implements HostSetupCredentialStore {
     required String token,
     required HostConnectionProfile profile,
   }) async {
+    final generation = credentials.sessionGeneration;
     final existingProfile = await store.getHostProfile();
     if (existingProfile != null &&
         (existingProfile.endpoint != profile.endpoint ||
@@ -222,31 +234,21 @@ class LocalHostSetupCredentialStore implements HostSetupCredentialStore {
       throw const HostSetupException('HOST_PROFILE_ALREADY_CONFIGURED');
     }
 
-    final previousCredential = await credentials.read(endpoint);
     try {
-      await credentials.save(endpoint, token);
-    } on Object {
-      throw const HostSetupException('HOST_CREDENTIAL_STORAGE_FAILED');
-    }
-    try {
-      final identity = await _loadSession(endpoint);
+      final identity = await _loadSession(endpoint, tokenOverride: token);
       final verifiedProfile = bindHostProfileToIdentity(
         profile: profile,
         identity: identity,
         requireHostAdministration: true,
       );
-      await store.saveHostProfile(verifiedProfile);
+      await credentials.commitPairingEnrollment(
+        endpoint: endpoint,
+        token: token,
+        expectedGeneration: generation,
+        saveProfile: () => store.saveHostProfile(verifiedProfile),
+      );
       return verifiedProfile;
     } on Object catch (error) {
-      try {
-        if (previousCredential == null) {
-          await credentials.delete(endpoint);
-        } else {
-          await credentials.save(endpoint, previousCredential);
-        }
-      } catch (_) {
-        // Keep storage failures generic and never expose credential contents.
-      }
       if (error is HostSessionIdentityException) {
         throw HostSetupException(error.code);
       }
@@ -261,12 +263,15 @@ class LocalHostSetupCredentialStore implements HostSetupCredentialStore {
     }
   }
 
-  Future<HostSessionIdentity> _loadSession(Uri endpoint) =>
+  Future<HostSessionIdentity> _loadSession(
+    Uri endpoint, {
+    String? tokenOverride,
+  }) =>
       sessionLoader?.call(endpoint) ??
       HostExtensionPackageClient(
         endpoint: endpoint,
         credentials: credentials,
-      ).session();
+      ).session(tokenOverride: tokenOverride);
 
   static bool _isOpaqueToken(String value) =>
       RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value);

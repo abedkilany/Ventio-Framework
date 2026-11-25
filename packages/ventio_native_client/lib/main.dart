@@ -1,3 +1,4 @@
+import 'src/host_extension_packages.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -199,6 +200,10 @@ class _VentioClientAppState extends State<VentioClientApp> {
     _enrollmentChanges = widget.credentialVault?.authorizationInvalidations
         .listen((_) => _signOut());
     _loadStartupState();
+    _revocationTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_retryPendingRevocations()),
+    );
   }
 
   Future<void> _loadStartupState() async {
@@ -217,6 +222,23 @@ class _VentioClientAppState extends State<VentioClientApp> {
         showFirstRun = true;
       }
     }
+    final profile = _accountProfile;
+    final vault = widget.credentialVault;
+
+    if (profile != null && vault != null) {
+      try {
+        final endpoint = Uri.parse(profile.endpoint);
+
+        if (await vault.isLogoutPending(endpoint)) {
+          await AccountSignIn(credentials: vault, profile: profile).logout();
+        }
+
+        _sessionCleanupFailed = false;
+      } catch (_) {
+        _sessionCleanupFailed = true;
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _showFirstRun = showFirstRun;
@@ -242,43 +264,175 @@ class _VentioClientAppState extends State<VentioClientApp> {
   StreamSubscription<void>? _enrollmentChanges;
   DateTime? _signedInUntil;
   Timer? _leaseTimer;
+  Timer? _revocationTimer;
+  bool _revocationBusy = false;
   DateTime? _lastLeaseClock;
+
+  bool _leaseBusy = false;
+  bool _signingOut = false;
+  bool _sessionCleanupFailed = false;
+  Future<void>? _leaseOperation;
+  DateTime? _lastRefreshAttempt;
 
   void _signedIn(DateTime expiry) {
     _leaseTimer?.cancel();
     _lastLeaseClock = DateTime.now().toUtc();
+    _lastRefreshAttempt = null;
     setState(() => _signedInUntil = expiry);
-    _leaseTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+
+    _leaseTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted || _signingOut) return;
+
+      final expiry = _signedInUntil;
       final now = DateTime.now().toUtc();
+
+      if (expiry == null) return;
+
       if (!now.isBefore(expiry) ||
           (_lastLeaseClock != null && now.isBefore(_lastLeaseClock!))) {
-        _signOut();
+        unawaited(_signOut());
         return;
       }
-      _lastLeaseClock = now;
-      final profile = _accountProfile;
-      if (profile != null) {
-        final endpoint = Uri.parse(profile.endpoint);
-        final cache = await widget.credentialVault?.readOfflineAccount(
-          endpoint,
-        );
-        if (cache != null) {
-          cache['lastSeen'] = now.toIso8601String();
-          await widget.credentialVault?.writeOfflineAccount(endpoint, cache);
-        }
-      }
+
+      if (_leaseBusy) return;
+      _leaseOperation = _maintainSession();
     });
   }
 
-  void _signOut() {
+  Future<void> _retryPendingRevocations() async {
+    if (!mounted ||
+        !_startupReady ||
+        _signingOut ||
+        _sessionCleanupFailed ||
+        _revocationBusy) {
+      return;
+    }
+
+    final profile = _accountProfile;
+    final vault = widget.credentialVault;
+    if (profile == null || vault == null) return;
+
+    _revocationBusy = true;
+
+    try {
+      await AccountSignIn(
+        credentials: vault,
+        profile: profile,
+      ).flushPendingSessionRevocations();
+    } catch (_) {
+      // Preserve pending revocations for the next attempt.
+    } finally {
+      _revocationBusy = false;
+    }
+  }
+
+  Future<void> _maintainSession() async {
+    _leaseBusy = true;
+    try {
+      final expiry = _signedInUntil;
+      final now = DateTime.now().toUtc();
+
+      if (expiry == null || _signingOut) return;
+
+      if (!now.isBefore(expiry) ||
+          (_lastLeaseClock != null && now.isBefore(_lastLeaseClock!))) {
+        unawaited(_signOut());
+        return;
+      }
+
+      _lastLeaseClock = now;
+      final profile = _accountProfile;
+      final vault = widget.credentialVault;
+      if (profile == null || vault == null) return;
+
+      final endpoint = Uri.parse(profile.endpoint);
+
+      if (_lastRefreshAttempt == null ||
+          now.difference(_lastRefreshAttempt!) >= const Duration(minutes: 5)) {
+        _lastRefreshAttempt = now;
+
+        try {
+          final renewed = await AccountSignIn(
+            credentials: vault,
+            profile: profile,
+          ).refreshSession();
+
+          if (!mounted || _signingOut) return;
+          setState(() => _signedInUntil = renewed);
+        } on HostPackageTransportException catch (error) {
+          if (error.statusCode != null ||
+              !const {
+                'HOST_UNREACHABLE',
+                'HOST_REQUEST_TIMEOUT',
+              }.contains(error.code)) {
+            unawaited(_signOut());
+            return;
+          }
+        }
+      }
+
+      if (_signingOut || !mounted) return;
+
+      await vault.runSessionMutation(() async {
+        if (!mounted || _signingOut || await vault.isLogoutPending(endpoint)) {
+          return;
+        }
+
+        final cache = await vault.readOfflineAccount(endpoint);
+
+        if (cache == null || _signingOut || !mounted) return;
+
+        cache['lastSeen'] = DateTime.now().toUtc().toIso8601String();
+
+        await vault.writeOfflineAccount(endpoint, cache);
+      });
+    } catch (_) {
+      unawaited(_signOut());
+    } finally {
+      _leaseBusy = false;
+    }
+  }
+
+  Future<void> _signOut() async {
+    if (_signingOut) return;
+
     _leaseTimer?.cancel();
+    if (!mounted) return;
+
+    setState(() {
+      _signingOut = true;
+      _sessionCleanupFailed = false;
+      _signedInUntil = null;
+    });
+
     _navigatorObserver.navigator?.popUntil((route) => route.isFirst);
-    if (mounted) setState(() => _signedInUntil = null);
+
+    final profile = _accountProfile;
+    final vault = widget.credentialVault;
+    var cleanupFailed = false;
+
+    try {
+      if (profile != null && vault != null) {
+        await AccountSignIn(credentials: vault, profile: profile).logout();
+      }
+      await _leaseOperation;
+    } catch (_) {
+      cleanupFailed = true;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _signingOut = false;
+          _sessionCleanupFailed = cleanupFailed;
+          _signedInUntil = null;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _leaseTimer?.cancel();
+    _revocationTimer?.cancel();
     _enrollmentChanges?.cancel();
     accountSessionInvalidated.removeListener(_signOut);
     super.dispose();
@@ -327,7 +481,18 @@ class _VentioClientAppState extends State<VentioClientApp> {
             child: child!,
           ),
         ),
-        home: !_startupReady
+        home: _signingOut
+            ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+            : _sessionCleanupFailed
+            ? Scaffold(
+                body: Center(
+                  child: FilledButton(
+                    onPressed: _signOut,
+                    child: const Text('Retry secure sign out'),
+                  ),
+                ),
+              )
+            : !_startupReady
             ? const Scaffold(body: Center(child: CircularProgressIndicator()))
             : _showHostSetup && widget.credentialVault != null
             ? HostSetupPage(

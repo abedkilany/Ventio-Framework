@@ -122,13 +122,22 @@ class ClientPairingClient {
     }
 
     // Check local persistence before consuming the single-use Host code.
-    final previousProfile = await _readExistingProfile();
-    final previousCredential = await _readPreviousCredential();
-    final previousEnrollment = await credentials.readEnrollment(endpoint);
-    final previousOffline = await credentials.readOfflineAccount(endpoint);
-    final previousCertificate = await credentials.readTrustedCertificate(
-      endpoint,
-    );
+    final snapshot = await credentials.runSessionMutation(() async {
+      final previousProfile = await _readExistingProfile();
+      await _readPreviousCredential();
+      await credentials.readEnrollment(endpoint);
+      await credentials.readOfflineAccount(endpoint);
+      await credentials.readTrustedCertificate(endpoint);
+      final previousEndpoint = previousProfile == null
+          ? null
+          : Uri.parse(previousProfile.endpoint);
+      if (await credentials.isLogoutPending(endpoint) ||
+          (previousEndpoint != null &&
+              await credentials.isLogoutPending(previousEndpoint))) {
+        throw const ClientPairingException('CLIENT_ENROLLMENT_SAVE_FAILED');
+      }
+      return (credentials.sessionGeneration, previousEndpoint);
+    });
     List<int>? trustedCertificateDer;
     if (exchange == null) {
       final expected = expectedCertificateFingerprint == null
@@ -183,59 +192,23 @@ class ClientPairingClient {
       deviceId: enrollment.deviceId,
     );
 
-    // A Host credential is replaced only after the complete Host response has
-    // passed version, shape, role, scope, expiry, and token validation.
+    // Reject stale responses before making any changes to local credentials.
     try {
-      await credentials.replaceEnrollment(endpoint, enrollment.credential);
-      if (trustedCertificateDer != null) {
-        await credentials.saveTrustedCertificate(
-          endpoint,
-          trustedCertificateDer,
-        );
-      }
-      await store.saveHostProfile(profile);
+      await credentials.commitPairingEnrollment(
+        endpoint: endpoint,
+        token: enrollment.credential,
+        expectedGeneration: snapshot.$1,
+        previousEndpoint: snapshot.$2,
+        certificateDer: trustedCertificateDer,
+        saveProfile: () async {
+          await store.saveHostProfile(profile);
+        },
+      );
     } catch (_) {
-      try {
-        if (previousCredential == null) {
-          await credentials.delete(endpoint);
-        } else {
-          await credentials.replaceEnrollment(
-            endpoint,
-            previousEnrollment ?? previousCredential,
-          );
-          await credentials.save(endpoint, previousCredential);
-          if (previousOffline != null) {
-            await credentials.writeOfflineAccount(endpoint, previousOffline);
-          }
-        }
-        if (trustedCertificateDer != null) {
-          if (previousCertificate == null) {
-            await credentials.deleteTrustedCertificate(endpoint);
-          } else {
-            await credentials.saveTrustedCertificate(
-              endpoint,
-              previousCertificate.der,
-            );
-          }
-        }
-      } catch (_) {
-        // Do not expose platform-storage exceptions or credential material.
-      }
       throw ClientPairingException(
         'CLIENT_ENROLLMENT_SAVE_FAILED',
         correlationId: response.correlationId,
       );
-    }
-
-    final oldEndpoint = previousProfile?.endpoint;
-    if (oldEndpoint != null && oldEndpoint != endpoint.toString()) {
-      try {
-        final parsedOldEndpoint = Uri.parse(oldEndpoint);
-        await credentials.delete(parsedOldEndpoint);
-        await credentials.deleteTrustedCertificate(parsedOldEndpoint);
-      } catch (_) {
-        // Profile and new credential are committed; stale-key cleanup is best effort.
-      }
     }
     return ClientPairingResult(
       profile: profile,

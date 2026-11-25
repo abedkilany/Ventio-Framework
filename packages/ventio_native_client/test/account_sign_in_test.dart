@@ -104,6 +104,38 @@ void main() {
       );
     },
   );
+  test('Unified sign-in falls back only when Host is unreachable', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+    await server.close(force: true);
+    final vault = HostCredentialVault(_ProtectedBackend());
+    final now = DateTime.utc(2026, 11, 24, 10);
+    final expiry = now.add(const Duration(hours: 8));
+    await vault.replaceEnrollment(endpoint, 'a' * 43);
+    await vault.writeOfflineAccount(endpoint, {
+      'tenantId': 'org-a',
+      'actorId': 'actor',
+      'deviceId': 'device',
+      'username': 'owner',
+      'verifier': verifier,
+      'expiresAt': expiry.toIso8601String(),
+      'lastSeen': now.toIso8601String(),
+      'failures': 0,
+    });
+    final signIn = AccountSignIn(
+      credentials: vault,
+      profile: HostConnectionProfile(
+        endpoint: endpoint.toString(),
+        tenantId: 'org-a',
+        companyId: 'company',
+        branchId: 'branch',
+        actorId: 'actor',
+        deviceId: 'device',
+      ),
+      clock: () => now,
+    );
+    expect(await signIn.signIn('owner', password), expiry);
+  });
   test(
     'Reachable Host denial clears offline authorization and retains enrolled device proof',
     () async {
@@ -139,7 +171,7 @@ void main() {
           AccountSignIn(
             credentials: vault,
             profile: profile,
-          ).online('owner', password),
+          ).signIn('owner', password),
           throwsA(isA<HostPackageTransportException>()),
         );
         expect(await vault.readOfflineAccount(endpoint), isNull);

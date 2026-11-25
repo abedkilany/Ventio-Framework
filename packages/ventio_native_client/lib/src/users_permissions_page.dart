@@ -42,12 +42,6 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
           'branchId': widget.client.branchId,
           ...values,
         });
-        if (user.actorId == widget.client.verifiedIdentity.actorId) {
-          await widget.client.credentials.clearOfflineAccount(
-            widget.client.endpoint,
-          );
-          accountSessionInvalidated.value++;
-        }
       } else {
         await _accountClient.account('manage', {
           'action': action == 'organization'
@@ -56,6 +50,13 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
           'actorId': user.actorId,
           if (action == 'organization') 'enabled': !user.organizationWide,
         });
+      }
+      if (user.actorId == widget.client.verifiedIdentity.actorId) {
+        await invalidateLocalAccountSession(
+          widget.client.credentials,
+          widget.client.endpoint,
+        );
+        return;
       }
       if (mounted) {
         await _load();
@@ -323,7 +324,9 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
             IconButton(
               onPressed: _selectBranch,
               icon: const Icon(Icons.account_tree_outlined),
-              tooltip: context.ventioText('native.ui.account_choose_branch_for_user_permissions'),
+              tooltip: context.ventioText(
+                'native.ui.account_choose_branch_for_user_permissions',
+              ),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -388,7 +391,9 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
           IconButton(
             onPressed: _selectBranch,
             icon: const Icon(Icons.account_tree_outlined),
-            tooltip: context.ventioText('native.ui.account_choose_branch_for_user_permissions'),
+            tooltip: context.ventioText(
+              'native.ui.account_choose_branch_for_user_permissions',
+            ),
           ),
         IconButton(
           tooltip: context.ventioText('native.ui.refresh_users'),
@@ -643,7 +648,9 @@ class _UsersPermissionsPageState extends State<UsersPermissionsPage> {
           if (_owner && !user.isOwner)
             const PopupMenuItem(
               value: 'revokeSessions',
-              child: VentioText('native.ui.account_revoke_active_sign_in_sessions'),
+              child: VentioText(
+                'native.ui.account_revoke_active_sign_in_sessions',
+              ),
             ),
           if (!user.isOwner && user.state == HostManagedUserState.active)
             PopupMenuItem(
@@ -758,7 +765,9 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
           ),
           TextField(
             controller: username,
-            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_username')),
+            decoration: InputDecoration(
+              labelText: context.ventioText('native.ui.account_username'),
+            ),
           ),
           if (widget.self)
             TextField(
@@ -767,7 +776,9 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
               enableSuggestions: false,
               autocorrect: false,
               decoration: InputDecoration(
-                labelText: context.ventioText('native.ui.account_current_password_if_already_configured'),
+                labelText: context.ventioText(
+                  'native.ui.account_current_password_if_already_configured',
+                ),
               ),
             ),
           TextField(
@@ -775,14 +786,20 @@ class _AccountLoginDialogState extends State<_AccountLoginDialog> {
             obscureText: true,
             enableSuggestions: false,
             autocorrect: false,
-            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_new_password')),
+            decoration: InputDecoration(
+              labelText: context.ventioText('native.ui.account_new_password'),
+            ),
           ),
           TextField(
             controller: confirm,
             obscureText: true,
             enableSuggestions: false,
             autocorrect: false,
-            decoration: InputDecoration(labelText: context.ventioText('native.ui.account_confirm_password')),
+            decoration: InputDecoration(
+              labelText: context.ventioText(
+                'native.ui.account_confirm_password',
+              ),
+            ),
           ),
           if (error != null) Text(error!),
         ],

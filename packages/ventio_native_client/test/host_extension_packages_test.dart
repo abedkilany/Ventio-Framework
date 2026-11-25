@@ -80,6 +80,55 @@ ExtensionBundle _bundle() => ExtensionBundle.fromJson({
 void main() {
   const token = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 
+  test(
+    'Session verification uses explicit credential without changing vault',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final endpoint = Uri.parse('http://127.0.0.1:${server.port}');
+      final credentials = HostCredentialVault(_MemoryCredentialBackend());
+      await credentials.save(endpoint, token);
+      final candidate = 'z' * 43;
+      final received = Completer<String?>();
+      server.listen((request) async {
+        received.complete(
+          request.headers.value(HttpHeaders.authorizationHeader),
+        );
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'apiVersion': hostApiVersion,
+            'identity': {
+              'tenantId': 'tenant-one',
+              'actorId': 'actor-one',
+              'deviceId': 'device-one',
+              'persistent': true,
+              'roleAdministrationAvailable': false,
+              'scopes': [
+                {
+                  'companyId': 'company-one',
+                  'branchId': 'branch-one',
+                  'permissions': ['extension.package.read'],
+                },
+              ],
+            },
+          }),
+        );
+        await request.response.close();
+      });
+      final client = HostExtensionPackageClient(
+        endpoint: endpoint,
+        credentials: credentials,
+      );
+      expect(
+        (await client.session(tokenOverride: candidate)).actorId,
+        'actor-one',
+      );
+      expect(await received.future, 'Bearer $candidate');
+      expect(await credentials.read(endpoint), token);
+    },
+  );
+
   test('Lists, verifies, and reviews a durable Host candidate', () async {
     final bundle = _bundle();
     final hash = sha256

@@ -311,8 +311,17 @@ class HostExtensionPackageClient {
     return result;
   }
 
-  Future<HostSessionIdentity> session() async {
-    final response = await _request('GET', '/api/v1/session');
+  Future<HostSessionIdentity> session({String? tokenOverride}) async {
+    if (tokenOverride != null &&
+        !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(tokenOverride)) {
+      throw const HostPackageTransportException('HOST_CREDENTIAL_INVALID');
+    }
+    final response = await _request(
+      'GET',
+      '/api/v1/session',
+      null,
+      tokenOverride,
+    );
     if (response.statusCode != HttpStatus.ok) {
       throw _responseError(response);
     }
@@ -1072,10 +1081,16 @@ class HostExtensionPackageClient {
     String action,
     Map<String, Object?> body, {
     bool enrollment = false,
+    String? tokenOverride,
   }) async {
-    final token = enrollment
-        ? await credentials.readEnrollment(endpoint)
-        : null;
+    if (tokenOverride != null &&
+        !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(tokenOverride)) {
+      throw ArgumentError('Invalid account credential');
+    }
+
+    final token =
+        tokenOverride ??
+        (enrollment ? await credentials.readEnrollment(endpoint) : null);
     final response = await _request(
       'POST',
       '/api/v1/accounts/$action',
@@ -1088,6 +1103,48 @@ class HostExtensionPackageClient {
       throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
     }
     return Map<String, dynamic>.from(result);
+  }
+
+  Future<Map<String, dynamic>> refreshAccountSession(String token) async {
+    if (!RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(token)) {
+      throw ArgumentError('Invalid session credential');
+    }
+
+    final response = await _request('POST', '/api/v1/accounts/manage', {
+      'action': 'REFRESH_SESSION',
+    }, token);
+
+    if (response.statusCode != HttpStatus.ok) {
+      throw _responseError(response);
+    }
+
+    final account = response.body['account'];
+
+    if (account is! Map) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
+
+    return Map<String, dynamic>.from(account);
+  }
+
+  Future<void> revokeAccountSession(String token) async {
+    if (!RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(token)) {
+      throw ArgumentError('Invalid session credential');
+    }
+
+    final response = await _request('POST', '/api/v1/accounts/manage', {
+      'action': 'LOGOUT_SESSION',
+    }, token);
+
+    if (response.statusCode != HttpStatus.ok) {
+      throw _responseError(response);
+    }
+
+    final account = response.body['account'];
+
+    if (account is! Map || account['signedOut'] != true) {
+      throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+    }
   }
 
   Future<_HostResponse> _request(
@@ -1106,6 +1163,7 @@ class HostExtensionPackageClient {
       fallbackFactory: _clientFactory,
     );
     client.connectionTimeout = timeout;
+    int? receivedStatus;
     try {
       final uri = endpoint.replace(path: path);
       final request = await client
@@ -1122,6 +1180,7 @@ class HostExtensionPackageClient {
         request.write(canonicalJson(body));
       }
       final response = await request.close().timeout(_remaining(watch));
+      receivedStatus = response.statusCode;
       if (response.headers.contentType?.mimeType.toLowerCase() !=
           'application/json') {
         throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
@@ -1152,13 +1211,15 @@ class HostExtensionPackageClient {
     } on HostPackageTransportException {
       rethrow;
     } on TimeoutException {
-      throw const HostPackageTransportException(
+      throw HostPackageTransportException(
         'HOST_REQUEST_TIMEOUT',
+        statusCode: receivedStatus,
         retryable: true,
       );
     } on SocketException {
-      throw const HostPackageTransportException(
+      throw HostPackageTransportException(
         'HOST_UNREACHABLE',
+        statusCode: receivedStatus,
         retryable: true,
       );
     } on TlsException {
@@ -1175,10 +1236,7 @@ class HostExtensionPackageClient {
   Duration _remaining(Stopwatch watch) {
     final remaining = timeout - watch.elapsed;
     if (remaining <= Duration.zero) {
-      throw const HostPackageTransportException(
-        'HOST_REQUEST_TIMEOUT',
-        retryable: true,
-      );
+      throw TimeoutException('Host request deadline elapsed');
     }
     return remaining;
   }
