@@ -1508,5 +1508,11 @@ const ventioNativeEnglishMessages = <String, String>{
       'Use at least 15 characters. Password changes revoke online sessions; offline clients may retain access until their eight-hour lease expires.',
   'native.ui.account_use_this_organization_s_account_on_an_enrolled_host_or_client_offline_access_expires_eight':
       'Use this organization’s account on an enrolled Host or Client. Offline access is limited to the last verified session expiry. Changes and revocations are checked on reconnect.',
+  'native.ui.account_lease_hours': '{hours} hours',
+  'native.ui.account_lease_title': 'Organization offline access duration',
+  'native.ui.account_lease_hint':
+      'Choose 1 to 8 hours. New sign-ins and online refreshes use this limit. Disconnected devices retain their previously issued expiry.',
+  'native.ui.account_lease_saved': 'Offline access duration saved.',
+  'native.ui.account_lease_failed': 'Unable to save offline access duration.',
   'native.ui.account_username': 'Username',
 };

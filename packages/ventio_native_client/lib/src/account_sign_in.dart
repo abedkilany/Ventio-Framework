@@ -42,6 +42,55 @@ class _AccountLoginSettingsPageState extends State<AccountLoginSettingsPage> {
       confirm = TextEditingController();
   bool busy = false;
   String? error;
+  int? leaseHours;
+  bool policyBusy = false;
+  @override
+  void initState() {
+    super.initState();
+    unawaited(loadPolicy());
+  }
+
+  Future<void> loadPolicy() async {
+    try {
+      final result = await widget.signIn.client.account('manage', {
+        'action': 'GET_SESSION_POLICY',
+      });
+      final hours = result['offlineLeaseHours'];
+      if (mounted && hours is int && hours >= 1 && hours <= 8) {
+        setState(() => leaseHours = hours);
+      }
+    } catch (_) {
+      // Ordinary users and older Hosts do not expose Owner policy controls.
+    }
+  }
+
+  Future<void> savePolicy(int hours) async {
+    setState(() => policyBusy = true);
+    try {
+      final result = await widget.signIn.client.account('manage', {
+        'action': 'SET_SESSION_POLICY',
+        'offlineLeaseHours': hours,
+      });
+      if (result['offlineLeaseHours'] != hours) {
+        throw const HostPackageTransportException('HOST_INVALID_RESPONSE');
+      }
+      if (mounted) {
+        setState(() => leaseHours = hours);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: VentioText('native.ui.account_lease_saved')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: VentioText('native.ui.account_lease_failed')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => policyBusy = false);
+    }
+  }
+
   @override
   void dispose() {
     username.dispose();
@@ -144,9 +193,35 @@ class _AccountLoginSettingsPageState extends State<AccountLoginSettingsPage> {
                 ),
               ),
             ),
+            if (leaseHours != null) ...[
+              const Divider(),
+              const VentioText('native.ui.account_lease_title'),
+              const VentioText('native.ui.account_lease_hint'),
+              DropdownButton<int>(
+                value: leaseHours,
+                items: [
+                  for (var hours = 1; hours <= 8; hours++)
+                    DropdownMenuItem(
+                      value: hours,
+                      child: VentioText(
+                        'native.ui.account_lease_hours',
+                        params: {'hours': '$hours'},
+                      ),
+                    ),
+                ],
+                onChanged: busy || policyBusy
+                    ? null
+                    : (hours) {
+                        if (hours != null) {
+                          unawaited(savePolicy(hours));
+                        }
+                      },
+              ),
+              if (policyBusy) const LinearProgressIndicator(),
+            ],
             if (error != null) Text(error!),
             FilledButton(
-              onPressed: busy ? null : save,
+              onPressed: busy || policyBusy ? null : save,
               child: const VentioText(
                 'native.ui.account_change_login_and_lock_ventio',
               ),
@@ -688,25 +763,43 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
             TextButton(
               onPressed: busy
                   ? null
-                  : () => showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const VentioText(
-                          'native.ui.account_forgot_password',
-                        ),
-                        content: const VentioText(
-                          'native.ui.account_forgot_password_help',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const VentioText(
-                              'native.ui.account_close_help',
-                            ),
+                  : () async {
+                      final recover = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const VentioText(
+                            'native.ui.account_forgot_password',
                           ),
-                        ],
-                      ),
-                    ),
+                          content: const VentioText(
+                            'native.ui.account_forgot_password_help',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const VentioText(
+                                'native.ui.account_close_help',
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const VentioText(
+                                'native.ui.account_local_host_owner_setup_and_recovery',
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (recover != true || !mounted) return;
+                      try {
+                        await launchOwnerRecovery();
+                      } catch (_) {
+                        if (mounted) {
+                          setState(
+                            () => error = 'LOCAL_OWNER_SETUP_UNAVAILABLE',
+                          );
+                        }
+                      }
+                    },
               child: const VentioText('native.ui.account_forgot_password'),
             ),
             const Divider(),

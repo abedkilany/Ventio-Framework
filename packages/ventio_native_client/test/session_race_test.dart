@@ -43,6 +43,7 @@ void main() {
   late String? hold;
   late List<String> revoked;
   late List<String> loginProofs;
+  late DateTime hostExpiry;
   AccountSignIn make(HostCredentialVault v) =>
       AccountSignIn(credentials: v, profile: profile, clock: () => now);
   Map<String, dynamic> cache() => {
@@ -62,6 +63,7 @@ void main() {
     hold = null;
     revoked = [];
     loginProofs = [];
+    hostExpiry = expiry;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     endpoint = Uri.parse('http://127.0.0.1:${server.port}');
     server.listen((request) async {
@@ -86,7 +88,7 @@ void main() {
                   'tenantId': 'org-a',
                   'actorId': 'actor',
                   'deviceId': 'device',
-                  'expiresAt': expiry.toIso8601String(),
+                  'expiresAt': hostExpiry.toIso8601String(),
                   'identity': <String, dynamic>{},
                   if (login) 'token': issued,
                 },
@@ -132,6 +134,31 @@ void main() {
         (await reopened.readOfflineAccount(endpoint))?['rememberMe'],
         isTrue,
       );
+    },
+  );
+  test(
+    'Shorter Host policy bounds remembered and password offline access',
+    () async {
+      await signIn.online('owner', password, rememberMe: true);
+      hostExpiry = now.add(const Duration(hours: 2));
+      expect(await signIn.refreshSession(), hostExpiry);
+      await server.close(force: true);
+      final reopened = HostCredentialVault(backend);
+      expect(await make(reopened).restoreRememberedSession(), hostExpiry);
+      expect(
+        await make(reopened).offline('owner', password, rememberMe: true),
+        hostExpiry,
+      );
+      final expired = AccountSignIn(
+        credentials: reopened,
+        profile: profile,
+        clock: () => hostExpiry.add(const Duration(seconds: 1)),
+      );
+      await expectLater(
+        expired.offline('owner', password),
+        throwsA(isA<HostPackageTransportException>()),
+      );
+      expect(await expired.restoreRememberedSession(), isNull);
     },
   );
   test('Unremembered session does not restore', () async {

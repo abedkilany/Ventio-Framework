@@ -187,6 +187,66 @@ Future<void> main() async {
           const Duration(hours: 8),
       'Host session and offline authorization are bounded to eight hours',
     );
+    check(
+      (await accounts.handle('manage', token, {
+            'action': 'GET_SESSION_POLICY',
+          }))['offlineLeaseHours'] ==
+          8,
+      'Default organization offline lease is eight hours',
+    );
+    for (final invalid in [0, 9, 1.5, '2']) {
+      await denied(
+        () => accounts.handle('manage', token, {
+          'action': 'SET_SESSION_POLICY',
+          'offlineLeaseHours': invalid,
+        }),
+        'Invalid offline lease rejected: $invalid',
+      );
+    }
+    await denied(
+      () => accounts.handle('manage', rootToken, {
+        'action': 'SET_SESSION_POLICY',
+        'offlineLeaseHours': 2,
+      }),
+      'Enrollment proof cannot change organization session policy',
+    );
+    check(
+      (await accounts.handle('manage', token, {
+            'action': 'SET_SESSION_POLICY',
+            'offlineLeaseHours': 2,
+          }))['offlineLeaseHours'] ==
+          2,
+      'Owner sets a shorter organization offline lease',
+    );
+    final shortLogin = await accounts.handle('login', rootToken, {
+      'tenantId': 'org-a',
+      'username': 'Owner.A',
+      'password': password,
+    });
+    check(
+      DateTime.parse(
+            shortLogin['expiresAt'] as String,
+          ).difference(DateTime.now().toUtc()) <=
+          const Duration(hours: 2),
+      'New login respects configured offline lease',
+    );
+    final shortened = await accounts.handle('manage', token, {
+      'action': 'REFRESH_SESSION',
+    });
+    check(
+      DateTime.parse(
+            shortened['expiresAt'] as String,
+          ).difference(DateTime.now().toUtc()) <=
+          const Duration(hours: 2),
+      'Refresh respects shortened offline lease',
+    );
+    await accounts.handle('manage', shortLogin['token'] as String, {
+      'action': 'LOGOUT_SESSION',
+    });
+    await accounts.handle('manage', token, {
+      'action': 'SET_SESSION_POLICY',
+      'offlineLeaseHours': 8,
+    });
     final sessionLogin = await accounts.handle('login', rootToken, {
       'tenantId': 'org-a',
       'username': 'Owner.A',
@@ -463,6 +523,19 @@ Future<void> main() async {
       'password': 'Ordinary password phrase 42!',
     });
     var userToken = userLogin['token'] as String;
+    await denied(
+      () => accounts.handle('manage', userToken, {
+        'action': 'SET_SESSION_POLICY',
+        'offlineLeaseHours': 1,
+      }),
+      'Ordinary account cannot change organization offline lease',
+    );
+    await denied(
+      () => accounts.handle('manage', userToken, {
+        'action': 'GET_SESSION_POLICY',
+      }),
+      'Ordinary account cannot read Owner session policy controls',
+    );
     check(
       !((await snapshot(userToken))!['permissions'] as List).contains('*'),
       'Ordinary accounts never inherit Owner authority',

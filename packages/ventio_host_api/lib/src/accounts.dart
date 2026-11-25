@@ -120,6 +120,7 @@ class PostgresAccounts {
             'companyId',
             'branchId',
             'enabled',
+            'offlineLeaseHours',
           }).isNotEmpty) {
             throw const AccountException('INVALID_ACCOUNT_REQUEST', 422);
           }
@@ -141,6 +142,18 @@ class PostgresAccounts {
             return Map<String, dynamic>.from(
               jsonDecode(result as String) as Map,
             );
+          }
+
+          if (body['action'] == 'GET_SESSION_POLICY' ||
+              body['action'] == 'SET_SESSION_POLICY') {
+            final setting = body['action'] == 'SET_SESSION_POLICY';
+            final hours = body['offlineLeaseHours'];
+            if (body.length != (setting ? 2 : 1) ||
+                (setting && (hours is! int || hours < 1 || hours > 8))) {
+              throw const AccountException('INVALID_ACCOUNT_REQUEST', 422);
+            }
+          } else if (body.containsKey('offlineLeaseHours')) {
+            throw const AccountException('INVALID_ACCOUNT_REQUEST', 422);
           }
 
           final changeBody = <String, Object?>{...body}

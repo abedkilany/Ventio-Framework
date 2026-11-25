@@ -1,3 +1,33 @@
+-- Owner-controlled policy, installed by the protected security contract.
+CREATE TABLE IF NOT EXISTS ventio_security.account_session_policy (
+ tenant_id text PRIMARY KEY,
+ offline_lease_hours integer NOT NULL CHECK (offline_lease_hours BETWEEN 1 AND 8)
+);
+ALTER TABLE ventio_security.account_session_policy ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ventio_security.account_session_policy FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS owner_access ON ventio_security.account_session_policy;
+CREATE POLICY owner_access ON ventio_security.account_session_policy
+ TO ventio_owner USING(true) WITH CHECK(true);
+REVOKE ALL ON ventio_security.account_session_policy FROM PUBLIC,ventio_runtime,ventio_identity_admin,ventio_identity_api;
+DROP TRIGGER IF EXISTS ventio_recovery_lock ON ventio_security.account_session_policy;
+CREATE TRIGGER ventio_recovery_lock BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE
+ ON ventio_security.account_session_policy FOR EACH STATEMENT
+ EXECUTE FUNCTION ventio_security.lock_recovery_mutation();
+DROP TRIGGER IF EXISTS ventio_recovery_mark ON ventio_security.account_session_policy;
+CREATE TRIGGER ventio_recovery_mark AFTER INSERT OR UPDATE OR DELETE
+ ON ventio_security.account_session_policy FOR EACH ROW
+ EXECUTE FUNCTION ventio_security.mark_recovery_mutation();
+DROP TRIGGER IF EXISTS ventio_recovery_truncate_mark ON ventio_security.account_session_policy;
+CREATE TRIGGER ventio_recovery_truncate_mark AFTER TRUNCATE
+ ON ventio_security.account_session_policy FOR EACH STATEMENT
+ EXECUTE FUNCTION ventio_security.mark_recovery_mutation();
+CREATE OR REPLACE FUNCTION ventio_security.account_lease_hours(p_tenant text)
+RETURNS integer LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,ventio_security,pg_temp AS $fn$
+ SELECT coalesce((SELECT offline_lease_hours FROM ventio_security.account_session_policy WHERE tenant_id=p_tenant),8)
+$fn$;
+REVOKE ALL ON FUNCTION ventio_security.account_lease_hours(text) FROM PUBLIC,ventio_runtime,ventio_identity_admin,ventio_identity_api;
+
 -- Organization accounts extend the existing credential and recovery authority.
 -- This file is applied by both fresh bootstrap and the protected upgrade bridge.
 CREATE OR REPLACE FUNCTION ventio_security.account_credential_valid(p_digest text)
@@ -64,7 +94,7 @@ BEGIN
   RETURN NULL;
  END IF;
  UPDATE public.ventio_identity_users SET login_failures=0,login_locked_until=NULL WHERE tenant_id=c.tenant_id AND actor_id=c.actor_id;
- expiry:=least(c.expires_at,clock_timestamp()+interval '8 hours');
+ expiry:=least(c.expires_at,clock_timestamp()+make_interval(hours=>ventio_security.account_lease_hours(c.tenant_id)));
  INSERT INTO public.ventio_identity_credentials
   (tenant_id,actor_id,device_id,credential_id,token_digest,expires_at,allowed_scopes,login_parent_id,login_password_version)
  VALUES(c.tenant_id,c.actor_id,c.device_id,p_id,p_token_digest,expiry,(SELECT jsonb_agg(scope||jsonb_build_object('permissions',jsonb_build_array('*'))) FROM jsonb_array_elements(c.allowed_scopes) scope),c.credential_id,u.password_version);
@@ -117,6 +147,24 @@ BEGIN
  SELECT * INTO target FROM public.ventio_identity_users
   WHERE tenant_id=tenant AND actor_id=coalesce(p->>'actorId',actor) FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Account management denied' USING ERRCODE='42501'; END IF;
+ IF operation IN ('GET_SESSION_POLICY','SET_SESSION_POLICY') THEN
+  IF owner_account IS DISTINCT FROM true OR NOT ventio_security.account_credential_valid(p_digest)
+   OR NOT EXISTS(SELECT FROM public.ventio_identity_credentials WHERE token_digest=p_digest AND login_parent_id IS NOT NULL) THEN
+   RAISE EXCEPTION 'Session policy denied' USING ERRCODE='42501'; END IF;
+  IF operation='SET_SESSION_POLICY' THEN
+   IF jsonb_typeof(p->'offlineLeaseHours') IS DISTINCT FROM 'number'
+    OR coalesce(p->>'offlineLeaseHours','') !~ '^[1-8]$' THEN
+    RAISE EXCEPTION 'Invalid offline lease' USING ERRCODE='22023'; END IF;
+   INSERT INTO ventio_security.account_session_policy(tenant_id,offline_lease_hours)
+    VALUES(tenant,(p->>'offlineLeaseHours')::integer)
+    ON CONFLICT(tenant_id) DO UPDATE SET offline_lease_hours=excluded.offline_lease_hours;
+   INSERT INTO public.ventio_identity_audit(tenant_id,operator_label,action,subject_id,details)
+    VALUES(tenant,'account:'||left(actor,240),operation,actor,
+     jsonb_build_object('offlineLeaseHours',(p->>'offlineLeaseHours')::integer));
+   RETURN jsonb_build_object('offlineLeaseHours',(p->>'offlineLeaseHours')::integer);
+  END IF;
+  RETURN jsonb_build_object('offlineLeaseHours',ventio_security.account_lease_hours(tenant));
+ END IF;
  IF operation='SELF' THEN
   RETURN jsonb_build_object('actorId',actor,'username',(SELECT username FROM public.ventio_identity_users WHERE tenant_id=tenant AND actor_id=actor),
     'isOwner',owner_account,'needsPassword',current_hash IS NULL);

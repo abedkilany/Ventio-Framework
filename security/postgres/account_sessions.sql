@@ -33,7 +33,7 @@ BEGIN
     RAISE EXCEPTION 'Session refresh denied' USING ERRCODE='42501';
   END IF;
 
-  expiry:=least(parent_expiry,clock_timestamp()+interval '8 hours');
+  expiry:=least(parent_expiry,clock_timestamp()+make_interval(hours=>ventio_security.account_lease_hours(c.tenant_id)));
 
   UPDATE public.ventio_identity_credentials
   SET expires_at=expiry
