@@ -121,6 +121,63 @@ void main() {
     expect(await v.isLogoutPending(endpoint), isFalse);
   }
 
+  test(
+    'Remembered session restores after vault restart without password',
+    () async {
+      await signIn.online('owner', password, rememberMe: true);
+      final reopened = HostCredentialVault(backend);
+      expect(await make(reopened).restoreRememberedSession(), expiry);
+      expect(await reopened.read(endpoint), issued);
+      expect(
+        (await reopened.readOfflineAccount(endpoint))?['rememberMe'],
+        isTrue,
+      );
+    },
+  );
+  test('Unremembered session does not restore', () async {
+    await signIn.online('owner', password);
+    expect(
+      await make(HostCredentialVault(backend)).restoreRememberedSession(),
+      isNull,
+    );
+  });
+  test('Remembered session respects offline expiry and logout', () async {
+    await signIn.online('owner', password, rememberMe: true);
+    await server.close(force: true);
+    expect(
+      await make(HostCredentialVault(backend)).restoreRememberedSession(),
+      expiry,
+    );
+    final expired = AccountSignIn(
+      credentials: vault,
+      profile: profile,
+      clock: () => expiry.add(const Duration(seconds: 1)),
+    );
+    expect(await expired.restoreRememberedSession(), isNull);
+    await signIn.logout();
+    expect(
+      await make(HostCredentialVault(backend)).restoreRememberedSession(),
+      isNull,
+    );
+  });
+  test(
+    'Remembered session rejects pending logout and clock rollback',
+    () async {
+      await signIn.online('owner', password, rememberMe: true);
+      final rollback = AccountSignIn(
+        credentials: vault,
+        profile: profile,
+        clock: () => now.subtract(const Duration(seconds: 1)),
+      );
+      expect(await rollback.restoreRememberedSession(), isNull);
+      await vault.markLogoutPending(endpoint);
+      expect(
+        await make(HostCredentialVault(backend)).restoreRememberedSession(),
+        isNull,
+      );
+    },
+  );
+
   for (final target in ['token', 'offline']) {
     test('Login $target write failure clears partial session', () async {
       backend.failWrite = (key, value) => target == 'token'

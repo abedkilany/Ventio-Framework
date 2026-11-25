@@ -234,6 +234,19 @@ class _VentioClientAppState extends State<VentioClientApp> {
         }
 
         _sessionCleanupFailed = false;
+        if (!_showHostSetup && !widget.forceHostSetup) {
+          final generation = vault.sessionGeneration;
+          final restored = await AccountSignIn(
+            credentials: vault,
+            profile: profile,
+          ).restoreRememberedSession();
+          if (restored != null &&
+              mounted &&
+              !_signingOut &&
+              vault.sessionGeneration == generation) {
+            _signedIn(restored);
+          }
+        }
       } catch (_) {
         _sessionCleanupFailed = true;
       }

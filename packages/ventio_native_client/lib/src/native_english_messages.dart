@@ -1486,6 +1486,15 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.account_organization_owner_account_choose_a_username_and_a_password_of_at_least_15_characters':
       'Organization Owner account — choose a username and a password of at least 15 characters.',
   'native.ui.account_organization_sign_in': 'Organization sign in',
+  'native.ui.account_remember_me': 'Remember me',
+  'native.ui.account_remember_me_hint':
+      'Keep this session on this device until it expires. Do not use on shared devices.',
+  'native.ui.account_show_password': 'Show password',
+  'native.ui.account_hide_password': 'Hide password',
+  'native.ui.account_forgot_password': 'Forgot password?',
+  'native.ui.account_forgot_password_help':
+      'Employees: ask your organization administrator to reset your password. Owners: use Local Host Owner setup and recovery on the Windows Host computer. Password recovery requires access to the Host.',
+  'native.ui.account_close_help': 'Close',
   'native.ui.account_owner_password': 'Owner password',
   'native.ui.account_owner_username': 'Owner username',
   'native.ui.account_password': 'Password',
@@ -1498,6 +1507,6 @@ const ventioNativeEnglishMessages = <String, String>{
   'native.ui.account_use_at_least_15_characters_password_changes_revoke_online_sessions_offline_clients_may_ret':
       'Use at least 15 characters. Password changes revoke online sessions; offline clients may retain access until their eight-hour lease expires.',
   'native.ui.account_use_this_organization_s_account_on_an_enrolled_host_or_client_offline_access_expires_eight':
-      'Use this organization’s account on an enrolled Host or Client. Offline access expires eight hours after online sign-in. Changes and revocations are checked on reconnect.',
+      'Use this organization’s account on an enrolled Host or Client. Offline access is limited to the last verified session expiry. Changes and revocations are checked on reconnect.',
   'native.ui.account_username': 'Username',
 };

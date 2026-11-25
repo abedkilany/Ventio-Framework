@@ -172,12 +172,17 @@ class AccountSignIn {
       HostExtensionPackageClient(endpoint: endpoint, credentials: credentials);
 
   /// Prefer the Host; only transport unavailability permits offline fallback.
-  Future<DateTime> signIn(String username, String password) async {
+  Future<DateTime> signIn(
+    String username,
+    String password, {
+    bool rememberMe = false,
+  }) async {
     int? attemptedGeneration;
     try {
       return await online(
         username,
         password,
+        rememberMe: rememberMe,
         onAttempt: (generation) => attemptedGeneration = generation,
       );
     } on HostPackageTransportException catch (error) {
@@ -193,6 +198,7 @@ class AccountSignIn {
         username,
         password,
         expectedGeneration: attemptedGeneration,
+        rememberMe: rememberMe,
       );
     }
   }
@@ -201,6 +207,7 @@ class AccountSignIn {
     String username,
     String password, {
     void Function(int)? onAttempt,
+    bool rememberMe = false,
   }) async {
     if (await credentials.isLogoutPending(endpoint)) {
       throw const HostPackageTransportException('SESSION_CLEANUP_PENDING');
@@ -276,6 +283,7 @@ class AccountSignIn {
             'lastSeen': now.toIso8601String(),
             'identity': account['identity'],
             'failures': 0,
+            'rememberMe': rememberMe,
           });
           await credentials.clearLogoutPending(endpoint);
         } catch (_) {
@@ -301,6 +309,71 @@ class AccountSignIn {
       }
       rethrow;
     }
+  }
+
+  /// Restores only an explicitly remembered, device-bound, unexpired session.
+  /// Host rejection and TLS failures never authorize offline restoration.
+  Future<DateTime?> restoreRememberedSession() async {
+    Future<DateTime?> validate(int generation, {bool touch = false}) =>
+        credentials.runSessionMutation(() async {
+          if (credentials.sessionGeneration != generation ||
+              await credentials.isLogoutPending(endpoint)) {
+            return null;
+          }
+          final cache = await credentials.readOfflineAccount(endpoint);
+          final token = await credentials.read(endpoint);
+          final enrollment = await credentials.readEnrollment(endpoint);
+          final now = clock().toUtc();
+          if (cache == null ||
+              cache['rememberMe'] != true ||
+              cache['tenantId'] != profile.tenantId ||
+              cache['actorId'] != profile.actorId ||
+              cache['deviceId'] != profile.deviceId ||
+              cache['identity'] is! Map ||
+              cache['verifier'] is! String ||
+              cache['failures'] != 0 ||
+              token == null ||
+              enrollment == null ||
+              token == enrollment ||
+              !RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(token)) {
+            return null;
+          }
+          final expiry = DateTime.tryParse(cache['expiresAt'] as String? ?? '');
+          final last = DateTime.tryParse(cache['lastSeen'] as String? ?? '');
+          if (expiry == null ||
+              last == null ||
+              now.isBefore(last) ||
+              !expiry.isAfter(now) ||
+              expiry.difference(last) > const Duration(hours: 8, minutes: 1)) {
+            return null;
+          }
+          if (touch) {
+            await credentials.writeOfflineAccount(endpoint, {
+              ...cache,
+              'lastSeen': now.toIso8601String(),
+            });
+          }
+          return expiry;
+        });
+    final generation = credentials.sessionGeneration;
+    if (await validate(generation) == null) return null;
+    try {
+      await refreshSession();
+    } on HostPackageTransportException catch (error) {
+      if (error.statusCode != null ||
+          !const {
+            'HOST_UNREACHABLE',
+            'HOST_REQUEST_TIMEOUT',
+          }.contains(error.code)) {
+        await credentials.runSessionMutation(() async {
+          if (credentials.sessionGeneration == generation) {
+            await credentials.clearOfflineAccount(endpoint);
+          }
+        });
+        return null;
+      }
+    }
+    return validate(generation, touch: true);
   }
 
   Future<void> logout() async {
@@ -405,6 +478,7 @@ class AccountSignIn {
     String username,
     String password, {
     int? expectedGeneration,
+    bool rememberMe = false,
   }) => credentials.runSessionMutation(() async {
     if (expectedGeneration != null &&
         credentials.sessionGeneration != expectedGeneration) {
@@ -438,6 +512,7 @@ class AccountSignIn {
       throw const HostPackageTransportException('SIGN_IN_DENIED');
     }
     cache['failures'] = 0;
+    cache['rememberMe'] = rememberMe;
     await credentials.writeOfflineAccount(endpoint, cache);
     return expiry;
   });
@@ -460,6 +535,8 @@ class AccountSignInPage extends StatefulWidget {
 class _AccountSignInPageState extends State<AccountSignInPage> {
   final username = TextEditingController(), password = TextEditingController();
   bool busy = false;
+  bool rememberMe = false;
+  bool showPassword = false;
   String? error;
   @override
   void dispose() {
@@ -477,6 +554,7 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
       final expiry = await widget.signIn.signIn(
         username.text.trim(),
         password.text,
+        rememberMe: rememberMe,
       );
       if (mounted) widget.onSignedIn(expiry);
     } on HostPackageTransportException catch (e) {
@@ -542,6 +620,12 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
           shrinkWrap: true,
           padding: const EdgeInsets.all(24),
           children: [
+            Icon(
+              Icons.lock_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
             VentioText(
               'native.ui.account_organization',
               params: {'tenant': widget.signIn.profile.tenantId},
@@ -557,16 +641,40 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
               ),
               autofillHints: const [AutofillHints.username],
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: password,
               enabled: !busy,
-              obscureText: true,
+              obscureText: !showPassword,
               enableSuggestions: false,
               autocorrect: false,
               decoration: InputDecoration(
                 labelText: context.ventioText('native.ui.account_password'),
+                suffixIcon: IconButton(
+                  tooltip: context.ventioText(
+                    showPassword
+                        ? 'native.ui.account_hide_password'
+                        : 'native.ui.account_show_password',
+                  ),
+                  onPressed: busy
+                      ? null
+                      : () => setState(() => showPassword = !showPassword),
+                  icon: Icon(
+                    showPassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                ),
               ),
               onSubmitted: (_) => busy ? null : submit(),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: rememberMe,
+              onChanged: busy
+                  ? null
+                  : (value) => setState(() => rememberMe = value ?? false),
+              title: const VentioText('native.ui.account_remember_me'),
+              subtitle: const VentioText('native.ui.account_remember_me_hint'),
+              controlAffinity: ListTileControlAffinity.leading,
             ),
             if (error != null)
               Text(
@@ -577,6 +685,31 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
               onPressed: busy ? null : () => submit(),
               child: const VentioText('native.ui.account_sign_in_through_host'),
             ),
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () => showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const VentioText(
+                          'native.ui.account_forgot_password',
+                        ),
+                        content: const VentioText(
+                          'native.ui.account_forgot_password_help',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const VentioText(
+                              'native.ui.account_close_help',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              child: const VentioText('native.ui.account_forgot_password'),
+            ),
+            const Divider(),
             TextButton(
               onPressed: busy ? null : initialize,
               child: const VentioText(
