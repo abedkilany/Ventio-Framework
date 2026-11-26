@@ -10,10 +10,12 @@ class SynchronizationPage extends StatefulWidget {
   const SynchronizationPage({
     required this.queue,
     this.onRetryPending,
+    this.embedded = false,
     super.key,
   });
 
   final LocalCommandQueue queue;
+  final bool embedded;
   final Future<void> Function()? onRetryPending;
 
   @override
@@ -86,23 +88,40 @@ class _SynchronizationPageState extends State<SynchronizationPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const VentioText('native.ui.synchronization'),
-      actions: [
-        IconButton(
-          tooltip: _text('refresh_sync_status'),
-          onPressed: _loading || _syncing ? null : _refresh,
-          icon: const Icon(Icons.refresh),
-        ),
-        const SizedBox(width: 8),
-      ],
-    ),
+    appBar: widget.embedded
+        ? null
+        : AppBar(
+            title: const VentioText('native.ui.synchronization'),
+            actions: [
+              IconButton(
+                tooltip: _text('refresh_sync_status'),
+                onPressed: _loading || _syncing ? null : _refresh,
+                icon: const Icon(Icons.refresh),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1000),
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            if (widget.embedded)
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Review local operations and Host confirmations.',
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: _text('refresh_sync_status'),
+                    onPressed: _loading || _syncing ? null : _refresh,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
             _statusSummary(),
             const SizedBox(height: 10),
             if (_loading)
@@ -172,8 +191,14 @@ class _SynchronizationPageState extends State<SynchronizationPage> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                if (widget.onRetryPending != null)
-                  FilledButton.tonalIcon(
+              ],
+            ),
+            if (widget.onRetryPending != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.tonalIcon(
                     onPressed: _loading || _syncing ? null : _retry,
                     icon: _syncing
                         ? const SizedBox.square(
@@ -183,8 +208,8 @@ class _SynchronizationPageState extends State<SynchronizationPage> {
                         : const Icon(Icons.sync),
                     label: Text(_text('retry_pending_sync')),
                   ),
-              ],
-            ),
+                ),
+              ),
             const SizedBox(height: 8),
             Text(
               widget.onRetryPending == null
@@ -192,26 +217,28 @@ class _SynchronizationPageState extends State<SynchronizationPage> {
                   : _text('sync_host_retry_explanation'),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _countChip('sync_pending_count', pending),
-                _countChip('sync_retry_count', retryLater),
-                _countChip('sync_confirmed_count', accepted),
-                _countChip('sync_rejected_count', rejected),
-                _countChip('sync_conflict_count', conflicts),
-              ],
-            ),
+            if (!_loading && _errorKey == null)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _countChip('sync_pending_count', pending),
+                  _countChip('sync_retry_count', retryLater),
+                  _countChip('sync_confirmed_count', accepted),
+                  _countChip('sync_rejected_count', rejected),
+                  _countChip('sync_conflict_count', conflicts),
+                ],
+              ),
             const SizedBox(height: 10),
-            Text(
-              latestAttempt == null
-                  ? _text('sync_no_host_attempt')
-                  : _text(
-                      'sync_latest_attempt',
-                      params: {'timestamp': _utcTimestamp(latestAttempt)},
-                    ),
-            ),
+            if (!_loading && _errorKey == null)
+              Text(
+                latestAttempt == null
+                    ? _text('sync_no_host_attempt')
+                    : _text(
+                        'sync_latest_attempt',
+                        params: {'timestamp': _utcTimestamp(latestAttempt)},
+                      ),
+              ),
           ],
         ),
       ),

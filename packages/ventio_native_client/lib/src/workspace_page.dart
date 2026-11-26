@@ -17,6 +17,8 @@ import 'document_activity_page.dart';
 import 'host_operations_page.dart';
 import 'extension_studio_page.dart' show DynamicRecordFormPage;
 import 'local_command_queue.dart';
+import 'unified_workspace_shell.dart';
+import 'ventio_theme.dart';
 
 /// Native workspace. Only definitions/preferences are available offline here;
 /// business records and reports always come from an authorized Host request.
@@ -26,12 +28,18 @@ class WorkspacePage extends StatefulWidget {
     required this.profile,
     required this.extensions,
     required this.queue,
+    this.initialTab = 0,
+    this.embedded = false,
+    this.visibleTabs = const [0, 1, 2, 3, 4],
     super.key,
   });
   final HostExtensionPackageClient client;
   final HostConnectionProfile profile;
   final LocalExtensionStore extensions;
   final LocalCommandQueue queue;
+  final int initialTab;
+  final bool embedded;
+  final List<int> visibleTabs;
   @override
   State<WorkspacePage> createState() => _WorkspacePageState();
 }
@@ -57,7 +65,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
   };
   String? _error;
   bool _busy = true;
-  int _tab = 0;
+  late int _tab = widget.visibleTabs.contains(widget.initialTab)
+      ? widget.initialTab
+      : widget.visibleTabs.first;
 
   String t(String key, String fallback) =>
       context.extensionMetadataText('native.wave2.$key', fallback);
@@ -1226,142 +1236,196 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Widget _modules() => ListView(
+    padding: const EdgeInsets.all(24),
     children: [
-      if (_bundles.isEmpty)
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            t(
-              'no_modules',
-              'No authorized, installed Host-approved modules are available.',
+      if (_busy && _bundles.isEmpty)
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(),
+          ),
+        )
+      else if (_bundles.isEmpty)
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.apps_outlined,
+                  size: 32,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'No applications available',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _identity == null
+                      ? 'Connect to your organization to verify application access.'
+                      : 'Applications appear here when installed and authorized for your account.',
+                ),
+                if (_identity == null)
+                  TextButton.icon(
+                    onPressed: _busy ? null : _refresh,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Try again'),
+                  ),
+              ],
             ),
           ),
         ),
-      for (final bundle in _orderedBundles.map(_displayBundle))
-        ExpansionTile(
-          // Authorization refresh temporarily removes approved modules. Keep
-          // expansion state for this exact profile/release without caching any
-          // authorization decision or retaining links while authority is absent.
-          key: PageStorageKey<String>(
-            canonicalJson({
-              'profile': {
-                ..._scope,
-                'endpoint': widget.profile.endpoint,
-                'tenantId': widget.profile.tenantId,
-                'actorId': widget.profile.actorId,
-                'deviceId': widget.profile.deviceId,
-              },
-              'moduleId': bundle.moduleId,
-              'version': bundle.version,
-            }),
-          ),
-          title: Text(bundle.manifest.displayName),
-          trailing: IconButton(
-            icon: const Icon(Icons.vertical_align_top),
-            tooltip: t('move_first', 'Move first'),
-            onPressed: () => _preference('moduleOrder', [
-              bundle.moduleId,
-              ..._orderedBundles
-                  .where((item) => item.moduleId != bundle.moduleId)
-                  .map((item) => item.moduleId),
-            ]),
-          ),
+      if (_bundles.isNotEmpty)
+        VentioWorkspaceGrid(
+          minCardWidth: 480,
           children: [
-            for (final definition
-                in (bundle.docTypes.toList()
-                  ..sort((a, b) => a.pageOrder.compareTo(b.pageOrder))))
-              if (_permissions.contains(definition.permissions['read']))
-                ListTile(
-                  title: Text(definition.pageTitle),
-                  onTap: () => _openView({
-                    'contractVersion': 1,
-                    'title': definition.label,
-                    'moduleId': bundle.moduleId,
-                    'moduleVersion': bundle.version,
-                    'docType': definition.name,
-                    'search': '',
-                    'filters': <String, dynamic>{},
-                    'sortField': null,
-                    'descending': false,
-                    'columns': definition.listColumns,
-                  }),
-                  trailing: Wrap(
-                    children: [
-                      IconButton(
-                        tooltip: t('save_view', 'Save a view'),
-                        icon: const Icon(Icons.bookmark_add_outlined),
-                        onPressed:
-                            _permissions.contains(wave2WorkspacePermission)
-                            ? () async {
-                                try {
-                                  await _newView(bundle, definition);
-                                } catch (e) {
-                                  _failed(e);
-                                }
-                              }
-                            : null,
+            for (final bundle in _orderedBundles.map(_displayBundle))
+              Card(
+                key: ValueKey(bundle.moduleId),
+                margin: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                child: ExpansionTile(
+                  // Authorization refresh temporarily removes approved modules. Keep
+                  // expansion state for this exact profile/release without caching any
+                  // authorization decision or retaining links while authority is absent.
+                  key: PageStorageKey<String>(
+                    canonicalJson({
+                      'profile': {
+                        ..._scope,
+                        'endpoint': widget.profile.endpoint,
+                        'tenantId': widget.profile.tenantId,
+                        'actorId': widget.profile.actorId,
+                        'deviceId': widget.profile.deviceId,
+                      },
+                      'moduleId': bundle.moduleId,
+                      'version': bundle.version,
+                    }),
+                  ),
+                  title: Text(bundle.manifest.displayName),
+                  leading: const Icon(Icons.apps_outlined),
+                  subtitle: Text(bundle.version),
+                  shape: const Border(),
+                  collapsedShape: const Border(),
+                  children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.vertical_align_top),
+                        label: Text(t('move_first', 'Move first')),
+                        onPressed: () => _preference('moduleOrder', [
+                          bundle.moduleId,
+                          ..._orderedBundles
+                              .where((item) => item.moduleId != bundle.moduleId)
+                              .map((item) => item.moduleId),
+                        ]),
                       ),
-                      if (_permissions.contains(wave2JobsRunPermission) &&
-                          _permissions.contains(
-                            definition.permissions['create'],
-                          ))
-                        IconButton(
-                          tooltip: t('import', 'Import CSV'),
-                          icon: const Icon(Icons.upload_file),
-                          onPressed: () => _import(bundle, definition),
-                        ),
-                      if (_permissions.contains(
-                        wave2CustomizationManagePermission,
-                      ))
-                        IconButton(
-                          tooltip: t('customize', 'Customize'),
-                          icon: const Icon(Icons.tune),
-                          onPressed: () async {
-                            try {
-                              final base = _bundles[bundle.moduleId]!;
-                              await _customize(
-                                base,
-                                base.docTypes.singleWhere(
-                                  (item) => item.name == definition.name,
+                    ),
+                    for (final definition
+                        in (bundle.docTypes.toList()
+                          ..sort((a, b) => a.pageOrder.compareTo(b.pageOrder))))
+                      if (_permissions.contains(definition.permissions['read']))
+                        ListTile(
+                          title: Text(definition.pageTitle),
+                          onTap: () => _openView({
+                            'contractVersion': 1,
+                            'title': definition.label,
+                            'moduleId': bundle.moduleId,
+                            'moduleVersion': bundle.version,
+                            'docType': definition.name,
+                            'search': '',
+                            'filters': <String, dynamic>{},
+                            'sortField': null,
+                            'descending': false,
+                            'columns': definition.listColumns,
+                          }),
+                          trailing: Wrap(
+                            children: [
+                              IconButton(
+                                tooltip: t('save_view', 'Save a view'),
+                                icon: const Icon(Icons.bookmark_add_outlined),
+                                onPressed:
+                                    _permissions.contains(
+                                      wave2WorkspacePermission,
+                                    )
+                                    ? () async {
+                                        try {
+                                          await _newView(bundle, definition);
+                                        } catch (e) {
+                                          _failed(e);
+                                        }
+                                      }
+                                    : null,
+                              ),
+                              if (_permissions.contains(
+                                    wave2JobsRunPermission,
+                                  ) &&
+                                  _permissions.contains(
+                                    definition.permissions['create'],
+                                  ))
+                                IconButton(
+                                  tooltip: t('import', 'Import CSV'),
+                                  icon: const Icon(Icons.upload_file),
+                                  onPressed: () => _import(bundle, definition),
                                 ),
-                              );
-                            } catch (e) {
-                              _failed(e);
-                            }
-                          },
+                              if (_permissions.contains(
+                                wave2CustomizationManagePermission,
+                              ))
+                                IconButton(
+                                  tooltip: t('customize', 'Customize'),
+                                  icon: const Icon(Icons.tune),
+                                  onPressed: () async {
+                                    try {
+                                      final base = _bundles[bundle.moduleId]!;
+                                      await _customize(
+                                        base,
+                                        base.docTypes.singleWhere(
+                                          (item) =>
+                                              item.name == definition.name,
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      _failed(e);
+                                    }
+                                  },
+                                ),
+                            ],
+                          ),
                         ),
-                    ],
-                  ),
+                    for (final report in bundle.reports)
+                      if (_permissions.contains(
+                        bundle.docTypes
+                            .singleWhere((item) => item.name == report.docType)
+                            .permissions['read'],
+                      ))
+                        ListTile(
+                          leading: const Icon(Icons.bar_chart),
+                          title: Text(report.label),
+                          onTap: () => _report({
+                            'title': report.label,
+                            'moduleId': bundle.moduleId,
+                            'moduleVersion': bundle.version,
+                            'docType': report.docType,
+                            'reportId': report.id,
+                            'filters': <String, dynamic>{},
+                          }),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.dashboard_customize),
+                            tooltip: t('add_dashboard', 'Add to dashboard'),
+                            onPressed: () async {
+                              try {
+                                await _addReport(bundle, report);
+                              } catch (e) {
+                                _failed(e);
+                              }
+                            },
+                          ),
+                        ),
+                  ],
                 ),
-            for (final report in bundle.reports)
-              if (_permissions.contains(
-                bundle.docTypes
-                    .singleWhere((item) => item.name == report.docType)
-                    .permissions['read'],
-              ))
-                ListTile(
-                  leading: const Icon(Icons.bar_chart),
-                  title: Text(report.label),
-                  onTap: () => _report({
-                    'title': report.label,
-                    'moduleId': bundle.moduleId,
-                    'moduleVersion': bundle.version,
-                    'docType': report.docType,
-                    'reportId': report.id,
-                    'filters': <String, dynamic>{},
-                  }),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.dashboard_customize),
-                    tooltip: t('add_dashboard', 'Add to dashboard'),
-                    onPressed: () async {
-                      try {
-                        await _addReport(bundle, report);
-                      } catch (e) {
-                        _failed(e);
-                      }
-                    },
-                  ),
-                ),
+              ),
           ],
         ),
     ],
@@ -1373,7 +1437,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
         Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            t('no_views', 'Save a record view from Modules to begin.'),
+            t('no_views', 'Save a record view from Applications to begin.'),
           ),
         ),
       for (final entry in _views)
@@ -1414,7 +1478,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
           child: Text(
             t(
               'no_dashboard',
-              'Add approved reports from Modules to your dashboard.',
+              'Add approved reports from Applications to your dashboard.',
             ),
           ),
         ),
@@ -1753,8 +1817,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
     ];
     final base = Theme.of(context);
     final theme = switch (_preferences['theme']) {
-      'dark' => ThemeData.dark(useMaterial3: true),
-      'light' => ThemeData.light(useMaterial3: true),
+      'dark' => VentioTheme.darkMode(),
+      'light' => VentioTheme.light(),
       _ => base,
     };
     return Theme(
@@ -1764,25 +1828,57 @@ class _WorkspacePageState extends State<WorkspacePage> {
             : VisualDensity.standard,
       ),
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _configuration == null
-                ? t('title', 'Workspace')
-                : requireString(
-                    requireMap(_configuration!['body'], 'configuration'),
-                    'displayName',
+        appBar: widget.embedded
+            ? null
+            : AppBar(
+                title: Text(
+                  _configuration == null
+                      ? t('title', 'Workspace')
+                      : requireString(
+                          requireMap(_configuration!['body'], 'configuration'),
+                          'displayName',
+                        ),
+                ),
+                actions: [
+                  IconButton(
+                    onPressed: _busy ? null : _refresh,
+                    tooltip: t('refresh', 'Refresh authorization and data'),
+                    icon: const Icon(Icons.refresh),
                   ),
-          ),
-          actions: [
-            IconButton(
-              onPressed: _busy ? null : _refresh,
-              tooltip: t('refresh', 'Refresh authorization and data'),
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
+                ],
+              ),
         body: Column(
           children: [
+            if (widget.embedded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _configuration == null
+                            ? (widget.visibleTabs.length == 1
+                                  ? 'Your authorized applications'
+                                  : 'Saved views, reports and preferences')
+                            : requireString(
+                                requireMap(
+                                  _configuration!['body'],
+                                  'configuration',
+                                ),
+                                'displayName',
+                              ),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _busy ? null : _refresh,
+                      tooltip: t('refresh', 'Refresh authorization and data'),
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                ),
+              ),
             if (_busy) const LinearProgressIndicator(),
             if (_configuration != null &&
                 (requireMap(
@@ -1814,50 +1910,35 @@ class _WorkspacePageState extends State<WorkspacePage> {
                   ),
                 ],
               ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) => constraints.maxWidth >= 850
-                    ? Row(
-                        children: [
-                          NavigationRail(
-                            selectedIndex: _tab,
-                            labelType: NavigationRailLabelType.all,
-                            onDestinationSelected: (index) =>
-                                setState(() => _tab = index),
-                            destinations: [
-                              for (
-                                var index = 0;
-                                index < labels.length;
-                                index++
-                              )
-                                NavigationRailDestination(
-                                  icon: Icon(icons[index]),
-                                  label: Text(labels[index]),
-                                ),
-                            ],
+            if (widget.visibleTabs.length > 1)
+              Material(
+                color: Theme.of(context).colorScheme.surface,
+                child: SizedBox(
+                  height: 52,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 6,
+                    ),
+                    children: [
+                      for (final index in widget.visibleTabs)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            avatar: Icon(icons[index], size: 18),
+                            label: Text(labels[index]),
+                            selected: _tab == index,
+                            onSelected: (_) => setState(() => _tab = index),
                           ),
-                          const VerticalDivider(width: 1),
-                          Expanded(child: pages[_tab]),
-                        ],
-                      )
-                    : pages[_tab],
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            Expanded(child: pages[_tab]),
           ],
         ),
-        bottomNavigationBar: MediaQuery.sizeOf(context).width >= 850
-            ? null
-            : NavigationBar(
-                selectedIndex: _tab,
-                onDestinationSelected: (index) => setState(() => _tab = index),
-                destinations: [
-                  for (var index = 0; index < labels.length; index++)
-                    NavigationDestination(
-                      icon: Icon(icons[index]),
-                      label: labels[index],
-                    ),
-                ],
-              ),
       ),
     );
   }

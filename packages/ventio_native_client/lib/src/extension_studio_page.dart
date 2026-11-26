@@ -36,23 +36,8 @@ import 'synchronization_page.dart';
 import 'workspace_page.dart';
 import 'transport_fixture.dart';
 import 'users_permissions_page.dart';
-
-enum _StudioMenuAction {
-  hostSettings,
-  sync,
-  manageUsers,
-  manageRoles,
-  manageDevices,
-  reviewExtensions,
-  hostOverview,
-  hostSetup,
-  pairClient,
-  localDiagnostics,
-  synchronization,
-  installFromHost,
-  installPackage,
-  offlineProof,
-}
+import 'host_setup_windows.dart';
+import 'unified_workspace_shell.dart';
 
 const Map<String, IconData> _generatedPageIcons = {
   'list': Icons.view_list_outlined,
@@ -157,6 +142,8 @@ class ExtensionStudioPage extends StatefulWidget {
     this.credentialVault,
     this.onSignOut,
     this.onAccountSettings,
+    this.accountSettingsBuilder,
+    this.workspacePollInterval,
     this.hostPackageClientFactory,
     this.diagnosticEventSource,
     this.scope = const RecordScope(
@@ -172,6 +159,8 @@ class ExtensionStudioPage extends StatefulWidget {
   final HostCredentialVault? credentialVault;
   final VoidCallback? onSignOut;
   final VoidCallback? onAccountSettings;
+  final WidgetBuilder? accountSettingsBuilder;
+  final Duration? workspacePollInterval;
   final HostExtensionPackageClientFactory? hostPackageClientFactory;
   final DiagnosticEventSource? diagnosticEventSource;
   final RecordScope scope;
@@ -187,14 +176,107 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   HostSessionIdentity? _hostIdentity;
   String? _loadError;
   String? _queueRecoveryWarning;
+  final _workspaceNavigator = GlobalKey<NavigatorState>();
+  Timer? _workspaceTimer;
+  int _identityRequest = 0;
+  bool _identityChecking = false;
+  String _connectionState = 'Checking connection';
+  List<QueueEntry>? _workspaceQueueEntries;
+  bool _queueReading = false;
+  String? _accountLabel;
+  Future<bool>? _hostSetupCapability;
+
+  NavigatorState get _pageNavigator =>
+      _workspaceNavigator.currentState ?? Navigator.of(context);
+
+  Future<void> _refreshWorkspaceQueue() async {
+    if (_queueReading || !mounted) return;
+    _queueReading = true;
+    try {
+      final entries = await widget.queue.list(limit: 1000);
+      final previous = _workspaceQueueEntries;
+      if (mounted &&
+          (previous == null ||
+              previous.length != entries.length ||
+              Iterable<int>.generate(entries.length).any(
+                (index) =>
+                    previous[index].envelope.commandId !=
+                        entries[index].envelope.commandId ||
+                    previous[index].hostStatus != entries[index].hostStatus,
+              ))) {
+        setState(() => _workspaceQueueEntries = entries);
+      }
+    } catch (_) {
+      if (mounted && _workspaceQueueEntries != null) {
+        setState(() => _workspaceQueueEntries = null);
+      }
+    } finally {
+      _queueReading = false;
+    }
+  }
+
+  Future<void> _readAccountLabel(HostConnectionProfile? profile) async {
+    String? label;
+    try {
+      if (profile != null) {
+        final cache = await widget.credentialVault?.readOfflineAccount(
+          Uri.parse(profile.endpoint),
+        );
+        if (cache != null &&
+            cache['tenantId'] == profile.tenantId &&
+            cache['actorId'] == profile.actorId &&
+            cache['deviceId'] == profile.deviceId &&
+            cache['username'] is String) {
+          label = cache['username'] as String;
+        }
+      }
+    } catch (_) {
+      /* optional presentation only */
+    }
+    if (!mounted) return;
+    if (profile != null &&
+        (!_sameHostProfile(_hostProfile, profile) ||
+            _hostProfile?.deviceId != profile.deviceId)) {
+      return;
+    }
+    if (profile == null && _hostProfile != null) return;
+    if (_accountLabel != label) setState(() => _accountLabel = label);
+  }
+
+  Future<void> _openAccountSettings() async {
+    final builder = widget.accountSettingsBuilder;
+    if (builder != null) {
+      await _pageNavigator.push<void>(
+        MaterialPageRoute<void>(builder: builder),
+      );
+    } else {
+      widget.onAccountSettings?.call();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _load();
+    final interval = widget.workspacePollInterval;
+    if (interval != null) {
+      _workspaceTimer = Timer.periodic(interval, (_) {
+        if (!mounted) return;
+        if (!_identityChecking) unawaited(_refreshHostIdentity());
+        unawaited(_refreshWorkspaceQueue());
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _workspaceTimer?.cancel();
+    _identityRequest++;
+    super.dispose();
   }
 
   Future<void> _load() async {
+    _hostSetupCapability = null;
     try {
       final values = await Future.wait<Object?>([
         widget.store.listExtensions(),
@@ -203,7 +285,16 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       if (!mounted) return;
       setState(() {
         _extensions = values[0] as List<LocalExtension>;
-        _hostProfile = values[1] as HostConnectionProfile?;
+        final nextProfile = values[1] as HostConnectionProfile?;
+        if (nextProfile == null ||
+            !_sameHostProfile(_hostProfile, nextProfile) ||
+            _hostProfile?.deviceId != nextProfile.deviceId) {
+          _hostIdentity = null;
+          _accountLabel = null;
+          _connectionState = 'Checking connection';
+          _hostSetupCapability = null;
+        }
+        _hostProfile = nextProfile;
         _loading = false;
         _loadError = null;
         _queueRecoveryWarning = null;
@@ -211,6 +302,10 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       unawaited(_refreshHostIdentity());
       await reconcileQueuedRecords(widget.store, widget.queue);
       await _enqueueOrphanedHostRecords();
+      if (mounted) {
+        unawaited(_refreshWorkspaceQueue());
+        unawaited(_readAccountLabel(_hostProfile));
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -221,13 +316,31 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   }
 
   Future<void> _refreshHostIdentity() async {
+    if (!mounted) return;
+    final request = ++_identityRequest;
     final profile = _hostProfile;
     final vault = widget.credentialVault;
-    if (profile == null || vault == null) {
-      if (mounted) setState(() => _hostIdentity = null);
-      return;
-    }
+    _identityChecking = true;
+    bool current() =>
+        mounted &&
+        request == _identityRequest &&
+        (profile == null
+            ? _hostProfile == null
+            : _sameHostProfile(_hostProfile, profile) &&
+                  _hostProfile?.deviceId == profile.deviceId);
     try {
+      if (profile == null || vault == null) {
+        if (current()) {
+          setState(() {
+            _hostIdentity = null;
+            _connectionState = profile == null
+                ? 'Local device'
+                : 'Not verified';
+            _hostSetupCapability = null;
+          });
+        }
+        return;
+      }
       final identity = await _hostPackageClient(
         endpoint: Uri.parse(profile.endpoint),
         vault: vault,
@@ -236,27 +349,75 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         profile: profile,
         identity: identity,
       );
-      if (!mounted || !_sameHostProfile(_hostProfile, profile)) return;
+      if (!current()) return;
       final persistedProfile = await widget.store.getHostProfile();
+      if (!current()) return;
       if (!_sameHostProfile(persistedProfile, profile) ||
           (persistedProfile?.deviceId != null &&
               persistedProfile!.deviceId != identity.deviceId)) {
-        setState(() => _hostIdentity = null);
+        setState(() {
+          _hostIdentity = null;
+          _connectionState = 'Not verified';
+          _hostSetupCapability = null;
+        });
         return;
       }
       if (persistedProfile!.deviceId == null) {
         await widget.store.saveHostProfile(verifiedProfile);
       }
-      if (!mounted || !_sameHostProfile(_hostProfile, profile)) return;
+      if (!current()) return;
+      if (_connectionState == 'Online · last check' &&
+          _hostProfile?.deviceId == verifiedProfile.deviceId &&
+          _identityFingerprint(_hostIdentity) ==
+              _identityFingerprint(identity)) {
+        unawaited(_readAccountLabel(verifiedProfile));
+        return;
+      }
       setState(() {
         _hostProfile = verifiedProfile;
+        final previouslyAllowed = _canReadHostStatus;
         _hostIdentity = identity;
+        if (previouslyAllowed != _canReadHostStatus) {
+          _hostSetupCapability = null;
+        }
+        _connectionState = 'Online · last check';
       });
-    } catch (_) {
-      if (mounted && _hostProfile?.endpoint == profile.endpoint) {
-        setState(() => _hostIdentity = null);
+      unawaited(_readAccountLabel(verifiedProfile));
+    } catch (error) {
+      if (current()) {
+        setState(() {
+          _hostIdentity = null;
+          _hostSetupCapability = null;
+          _connectionState =
+              error is HostPackageTransportException &&
+                  error.statusCode == null &&
+                  const {
+                    'HOST_UNREACHABLE',
+                    'HOST_REQUEST_TIMEOUT',
+                  }.contains(error.code)
+              ? 'Offline'
+              : 'Not verified';
+        });
       }
+    } finally {
+      if (request == _identityRequest) _identityChecking = false;
     }
+  }
+
+  String _identityFingerprint(HostSessionIdentity? identity) {
+    if (identity == null) return '';
+    final scopes = identity.scopes.map((scope) {
+      final permissions = scope.permissions.toList()..sort();
+      return jsonEncode([scope.companyId, scope.branchId, permissions]);
+    }).toList()..sort();
+    return jsonEncode([
+      identity.tenantId,
+      identity.actorId,
+      identity.deviceId,
+      identity.persistent,
+      identity.roleAdministrationAvailable,
+      scopes,
+    ]);
   }
 
   bool _sameHostProfile(
@@ -352,7 +513,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         vault == null) {
       return;
     }
-    await Navigator.of(context).push<void>(
+    await _pageNavigator.push<void>(
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: 'extension-review'),
         builder: (context) => HostExtensionReviewPage(
@@ -364,32 +525,6 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
           branchId: profile.branchId,
           actorId: identity.actorId,
           isOwner: identity.scopes.any((s) => s.permissions.contains('*')),
-        ),
-      ),
-    );
-    await _refreshHostIdentity();
-  }
-
-  Future<void> _openWorkspace() async {
-    final profile = _hostProfile;
-    final vault = widget.credentialVault;
-    if (profile == null ||
-        vault == null ||
-        profile.actorId == null ||
-        profile.deviceId == null) {
-      return;
-    }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        settings: const RouteSettings(name: 'native-workspace'),
-        builder: (_) => WorkspacePage(
-          profile: profile,
-          extensions: widget.store,
-          queue: widget.queue,
-          client: _hostPackageClient(
-            endpoint: Uri.parse(profile.endpoint),
-            vault: vault,
-          ),
         ),
       ),
     );
@@ -417,12 +552,15 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         // be opened; unknown operations still stay safe within this session.
       }
     }
-    if (!mounted) {
+    if (!mounted ||
+        (!_canManageDevices && !_canManagePairings) ||
+        !_sameHostProfile(_hostProfile, profile) ||
+        _hostIdentity?.deviceId != identity.deviceId) {
       await ownedDiagnosticsStore?.close();
       return;
     }
     try {
-      await Navigator.of(context).push<void>(
+      await _pageNavigator.push<void>(
         MaterialPageRoute<void>(
           settings: const RouteSettings(name: 'pairing-code'),
           builder: (context) => DeviceManagementPage(
@@ -490,7 +628,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         vault == null) {
       return;
     }
-    await Navigator.of(context).push<void>(
+    await _pageNavigator.push<void>(
       MaterialPageRoute<void>(
         builder: (context) => UsersPermissionsPage(
           client: HostUserManagementClient(
@@ -516,7 +654,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         vault == null) {
       return;
     }
-    await Navigator.of(context).push<void>(
+    await _pageNavigator.push<void>(
       MaterialPageRoute<void>(
         builder: (context) => HostOverviewPage(
           client: HostReadinessClient(
@@ -536,7 +674,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     if (!mounted) return;
     final profile = _hostProfile;
     final vault = widget.credentialVault;
-    await Navigator.of(context).push<void>(
+    await _pageNavigator.push<void>(
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: 'host-settings'),
         builder: (context) => HostSettingsPage(
@@ -631,7 +769,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       } else {
         hostClient = null;
       }
-      await Navigator.of(context).push<void>(
+      await _pageNavigator.push<void>(
         MaterialPageRoute<void>(
           builder: (context) =>
               DiagnosticsCenterPage(store: source!, hostClient: hostClient),
@@ -654,7 +792,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     final profile = _hostProfile;
     final vault = widget.credentialVault;
     if (!_canManageRoles || profile == null || vault == null) return;
-    await Navigator.of(context).push<void>(
+    await _pageNavigator.push<void>(
       MaterialPageRoute<void>(
         builder: (context) => RoleAdministrationPage(
           client: _hostPackageClient(
@@ -949,31 +1087,6 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
     _message('Host disconnected. Local work was preserved.');
   }
 
-  Future<void> _syncHost() async {
-    final profile = _hostProfile;
-    final vault = widget.credentialVault;
-    if (profile == null || vault == null) {
-      _message('Configure an authenticated Host connection first.');
-      return;
-    }
-    try {
-      final resolved = await _syncPendingFromHost();
-      if (mounted) _message('Host resolved $resolved queued command(s).');
-    } on HostSyncFailureException catch (failure) {
-      if (mounted) {
-        _message(
-          context.ventioText(
-            'native.ui.sync_failed_message',
-            params: {
-              'code': failure.code,
-              'correlationId': failure.correlationId,
-            },
-          ),
-        );
-      }
-    }
-  }
-
   Future<int> _syncPendingFromHost() async {
     final profile = _hostProfile;
     final vault = widget.credentialVault;
@@ -1011,23 +1124,6 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
         source: widget.diagnosticEventSource,
       );
     }
-  }
-
-  Future<void> _openSynchronization() async {
-    final profile = _hostProfile;
-    final vault = widget.credentialVault;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (context) => SynchronizationPage(
-          queue: widget.queue,
-          onRetryPending: profile != null && vault != null
-              ? () async {
-                  await _syncPendingFromHost();
-                }
-              : null,
-        ),
-      ),
-    );
   }
 
   Future<void> _installApprovedFromHost() async {
@@ -1123,7 +1219,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   }
 
   Future<void> _openExtension(String moduleId) async {
-    await Navigator.of(context).push<void>(
+    await _pageNavigator.push<void>(
       MaterialPageRoute<void>(
         builder: (context) => ExtensionDetailsPage(
           store: widget.store,
@@ -1140,7 +1236,7 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
   }
 
   Future<void> _openMaintenanceProof() async {
-    await Navigator.of(context).push<void>(
+    await _pageNavigator.push<void>(
       MaterialPageRoute<void>(
         builder: (context) => MaintenanceRequestPage(
           queue: widget.queue,
@@ -1166,505 +1262,576 @@ class _ExtensionStudioPageState extends State<ExtensionStudioPage> {
       ) ??
       HostExtensionPackageClient(endpoint: endpoint, credentials: vault);
 
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    return Scaffold(
-      appBar: AppBar(
-        title: const VentioText('native.ui.ventio_extension_builder'),
-        actions: [
-          if (widget.onSignOut != null)
-            IconButton(
-              onPressed: widget.onSignOut,
-              icon: const Icon(Icons.logout),
-              tooltip: context.ventioText(
-                'native.ui.account_lock_organization',
-              ),
-            ),
-          IconButton(
-            onPressed:
-                _hostProfile?.actorId != null &&
-                    _hostProfile?.deviceId != null &&
-                    widget.credentialVault != null
-                ? _openWorkspace
-                : null,
-            tooltip: context.extensionMetadataText(
-              'native.wave2.title',
-              'Workspace',
-            ),
-            icon: const Icon(Icons.space_dashboard_outlined),
-          ),
-          if (width >= 600 &&
-              (_canManageUsers ||
-                  _canManageRoles ||
-                  _canManageDevices ||
-                  _canManagePairings ||
-                  _canReviewExtensions))
-            PopupMenuButton<_StudioMenuAction>(
-              tooltip: context.ventioText('native.ui.host_administration'),
-              icon: const Icon(Icons.admin_panel_settings_outlined),
-              onSelected: (action) {
-                switch (action) {
-                  case _StudioMenuAction.manageUsers:
-                    _openUserManagement();
-                  case _StudioMenuAction.manageRoles:
-                    _openRoleAdministration();
-                  case _StudioMenuAction.manageDevices:
-                    _openDeviceManagement();
-                  case _StudioMenuAction.reviewExtensions:
-                    _openExtensionReview();
-                  default:
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                if (_canManageUsers)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.manageUsers,
-                    child: VentioText('native.ui.users_permissions'),
-                  ),
-                if (_canManageRoles)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.manageRoles,
-                    child: VentioText('native.ui.manage_roles_access'),
-                  ),
-                if (_canManageDevices || _canManagePairings)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.manageDevices,
-                    child: VentioText('native.ui.host_devices'),
-                  ),
-                if (_canReviewExtensions)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.reviewExtensions,
-                    child: VentioText('native.ui.review_extension_candidates'),
-                  ),
-              ],
-            ),
-          if (width < 600)
-            PopupMenuButton<_StudioMenuAction>(
-              tooltip: context.ventioText('native.ui.workspace_actions'),
-              onSelected: (action) {
-                switch (action) {
-                  case _StudioMenuAction.hostSettings:
-                    _openHostSettings();
-                  case _StudioMenuAction.sync:
-                    _syncHost();
-                  case _StudioMenuAction.manageUsers:
-                    _openUserManagement();
-                  case _StudioMenuAction.manageRoles:
-                    _openRoleAdministration();
-                  case _StudioMenuAction.manageDevices:
-                    _openDeviceManagement();
-                  case _StudioMenuAction.reviewExtensions:
-                    _openExtensionReview();
-                  case _StudioMenuAction.hostOverview:
-                    _openHostOverview();
-                  case _StudioMenuAction.hostSetup:
-                    _openHostSetup();
-                  case _StudioMenuAction.pairClient:
-                    _openClientPairing();
-                  case _StudioMenuAction.localDiagnostics:
-                    _openLocalDiagnostics();
-                  case _StudioMenuAction.synchronization:
-                    _openSynchronization();
-                  case _StudioMenuAction.installFromHost:
-                    _installApprovedFromHost();
-                  case _StudioMenuAction.installPackage:
-                    _installBundle();
-                  case _StudioMenuAction.offlineProof:
-                    _openMaintenanceProof();
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: _StudioMenuAction.hostSettings,
-                  child: const VentioText('native.ui.host_settings'),
-                ),
-                PopupMenuItem(
-                  value: _StudioMenuAction.localDiagnostics,
-                  child: Text(_localDiagnosticsLabel(context)),
-                ),
-                if (widget.credentialVault != null)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.pairClient,
-                    child: VentioText('native.ui.enroll_client'),
-                  ),
-                if (widget.credentialVault != null)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.hostSetup,
-                    child: VentioText('native.ui.host_setup_menu'),
-                  ),
-                const PopupMenuItem(
-                  value: _StudioMenuAction.synchronization,
-                  child: VentioText('native.ui.synchronization'),
-                ),
-                if (_canManageUsers)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.manageUsers,
-                    child: VentioText('native.ui.users_permissions'),
-                  ),
-                if (_canManageRoles)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.manageRoles,
-                    child: VentioText('native.ui.manage_roles_access'),
-                  ),
-                if (_canManageDevices || _canManagePairings)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.manageDevices,
-                    child: VentioText('native.ui.host_devices'),
-                  ),
-                if (_canReviewExtensions)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.reviewExtensions,
-                    child: VentioText('native.ui.review_extension_candidates'),
-                  ),
-                if (_canReadHostStatus)
-                  const PopupMenuItem(
-                    value: _StudioMenuAction.hostOverview,
-                    child: VentioText('native.ui.host_overview'),
-                  ),
-                PopupMenuItem(
-                  value: _StudioMenuAction.installFromHost,
-                  enabled: _hostProfile != null,
-                  child: const VentioText('native.ui.install_from_host'),
-                ),
-                PopupMenuItem(
-                  value: _StudioMenuAction.sync,
-                  enabled: _hostProfile != null,
-                  child: const VentioText('native.ui.sync_pending_records'),
-                ),
-                const PopupMenuItem(
-                  value: _StudioMenuAction.installPackage,
-                  child: VentioText('native.ui.install_package'),
-                ),
-                const PopupMenuItem(
-                  value: _StudioMenuAction.offlineProof,
-                  child: VentioText('native.ui.offline_queue_proof'),
-                ),
-              ],
-            )
-          else if (width < 1200) ...[
-            if (widget.credentialVault != null)
-              IconButton(
-                tooltip: context.ventioText('native.ui.enroll_client'),
-                onPressed: _openClientPairing,
-                icon: const Icon(Icons.phonelink_setup_outlined),
-              ),
-            if (widget.credentialVault != null)
-              IconButton(
-                tooltip: context.ventioText('native.ui.host_setup_menu'),
-                onPressed: _openHostSetup,
-                icon: const Icon(Icons.settings_suggest_outlined),
-              ),
-            IconButton(
-              tooltip: _localDiagnosticsLabel(context),
-              onPressed: _openLocalDiagnostics,
-              icon: const Icon(Icons.health_and_safety_outlined),
-            ),
-            if (_canReadHostStatus)
-              IconButton(
-                tooltip: context.ventioText('native.ui.host_overview'),
-                onPressed: _openHostOverview,
-                icon: const Icon(Icons.monitor_heart_outlined),
-              ),
-            IconButton(
-              tooltip: context.ventioText('native.ui.synchronization'),
-              onPressed: _openSynchronization,
-              icon: const Icon(Icons.sync_alt_outlined),
-            ),
-            IconButton(
-              tooltip: context.ventioText('native.ui.sync_pending_records'),
-              onPressed: _hostProfile == null ? null : _syncHost,
-              icon: const Icon(Icons.sync),
-            ),
-            IconButton(
-              tooltip: context.ventioText(
-                'native.ui.install_host_approved_extension',
-              ),
-              onPressed: _hostProfile == null ? null : _installApprovedFromHost,
-              icon: const Icon(Icons.cloud_download_outlined),
-            ),
-            IconButton(
-              tooltip: context.ventioText('native.ui.host_settings'),
-              onPressed: _openHostSettings,
-              icon: const Icon(Icons.settings_outlined),
-            ),
-            IconButton(
-              tooltip: context.ventioText(
-                'native.ui.install_extension_package',
-              ),
-              onPressed: _installBundle,
-              icon: const Icon(Icons.file_download_outlined),
-            ),
-            IconButton(
-              tooltip: context.ventioText('native.ui.offline_queue_proof'),
-              onPressed: _openMaintenanceProof,
-              icon: const Icon(Icons.cloud_off_outlined),
-            ),
-          ] else ...[
-            if (widget.credentialVault != null)
-              TextButton.icon(
-                onPressed: _openClientPairing,
-                icon: const Icon(Icons.phonelink_setup_outlined),
-                label: const VentioText('native.ui.enroll_client'),
-              ),
-            if (widget.credentialVault != null)
-              TextButton.icon(
-                onPressed: _openHostSetup,
-                icon: const Icon(Icons.settings_suggest_outlined),
-                label: const VentioText('native.ui.host_setup_menu'),
-              ),
-            TextButton.icon(
-              onPressed: _openLocalDiagnostics,
-              icon: const Icon(Icons.health_and_safety_outlined),
-              label: Text(_localDiagnosticsLabel(context)),
-            ),
-            if (_canReadHostStatus)
-              TextButton.icon(
-                onPressed: _openHostOverview,
-                icon: const Icon(Icons.monitor_heart_outlined),
-                label: const VentioText('native.ui.host_overview'),
-              ),
-            TextButton.icon(
-              onPressed: _openSynchronization,
-              icon: const Icon(Icons.sync_alt_outlined),
-              label: const VentioText('native.ui.synchronization'),
-            ),
-            TextButton.icon(
-              onPressed: _hostProfile == null ? null : _syncHost,
-              icon: const Icon(Icons.sync),
-              label: const VentioText('native.ui.sync_pending'),
-            ),
-            TextButton.icon(
-              onPressed: _hostProfile == null ? null : _installApprovedFromHost,
-              icon: const Icon(Icons.cloud_download_outlined),
-              label: const VentioText('native.ui.install_from_host'),
-            ),
-            TextButton.icon(
-              onPressed: _openHostSettings,
-              icon: const Icon(Icons.settings_outlined),
-              label: const VentioText('native.ui.host_settings'),
-            ),
-            TextButton.icon(
-              onPressed: _installBundle,
-              icon: const Icon(Icons.file_download_outlined),
-              label: const VentioText('native.ui.install_package'),
-            ),
-            TextButton.icon(
-              onPressed: _openMaintenanceProof,
-              icon: const Icon(Icons.cloud_off_outlined),
-              label: const VentioText('native.ui.offline_queue_proof'),
-            ),
-          ],
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
-          child: RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(24),
+  // Wave 4: presentation only. Existing route callbacks retain all Host checks.
+  Widget _workspaceAction(
+    BuildContext context,
+    String key,
+    IconData icon,
+    VoidCallback? action, {
+    String? description,
+    Key? widgetKey,
+  }) => VentioWorkspaceAction(
+    key: widgetKey,
+    label: context.ventioText('native.ui.$key'),
+    icon: icon,
+    onPressed: action,
+    description: description,
+  );
+
+  bool get _workspaceAvailable =>
+      _hostProfile?.actorId != null &&
+      _hostProfile?.deviceId != null &&
+      widget.credentialVault != null;
+
+  Future<bool> _localHostSetupAvailable() async {
+    if (widget.credentialVault == null) return false;
+    final platform = createHostSetupPlatform();
+    if (!platform.supportsHostSetup) return false;
+    if (_hostProfile == null) return true;
+    // The Host device capability is separate from the user's Host grant.
+    // The existing setup wizard still requires Windows authorization.
+    if (!_canReadHostStatus) return false;
+    try {
+      final service = await platform.serviceState('VentioHost');
+      return service != HostWindowsServiceState.notInstalled &&
+          service != HostWindowsServiceState.unknown;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Widget _workspaceContent(
+    BuildContext context, {
+    required String id,
+    required String title,
+    required String description,
+    required List<Widget> children,
+  }) => RefreshIndicator(
+    onRefresh: _load,
+    child: ListView(
+      key: PageStorageKey('workspace-section-$id'),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(24),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _LocalOnlyNotice(
-                  title: _hostProfile == null
-                      ? 'Device workspace'
-                      : 'Host profile selected · ${_hostProfile!.tenantId}',
-                  body: _hostProfile == null
-                      ? 'Extension definitions and preview records are stored on this device. Connect to an authenticated Host to submit packages for review or install approved packages.'
-                      : 'Selected scope: ${_hostProfile!.companyId} / ${_hostProfile!.branchId}. Host access requires a verified session. Local drafts and records stay provisional; only Host-approved packages can be installed from the registry.',
-                  icon: _hostProfile == null
-                      ? Icons.phonelink_setup_outlined
-                      : Icons.cloud_done_outlined,
-                ),
-                if (widget.credentialVault != null) ...[
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.tonalIcon(
-                      key: const ValueKey('client-pairing-open'),
-                      onPressed: _openClientPairing,
-                      icon: const Icon(Icons.phonelink_setup_outlined),
-                      label: const VentioText('native.ui.enroll_client'),
+                if (id == 'home') ...[
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const SizedBox(height: 6),
                 ],
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.tonalIcon(
-                    onPressed: _openLocalDiagnostics,
-                    icon: const Icon(Icons.health_and_safety_outlined),
-                    label: Text(_localDiagnosticsLabel(context)),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.tonalIcon(
-                    onPressed: _openSynchronization,
-                    icon: const Icon(Icons.sync_alt_outlined),
-                    label: const VentioText('native.ui.synchronization'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (_queueRecoveryWarning != null) ...[
-                  const SizedBox(height: 12),
-                  _StateCard(
-                    icon: Icons.warning_amber_outlined,
-                    title: context.ventioText(
-                      'native.ui.a_saved_record_could_not_enter_the_host_queue',
-                    ),
-                    body: _queueRecoveryWarning!,
-                    action: TextButton.icon(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh),
-                      label: const VentioText('native.ui.retry_queue_recovery'),
-                    ),
-                  ),
-                ],
-                if (_hostProfile != null) ...[
-                  if (_canManageUsers) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FilledButton.tonalIcon(
-                        onPressed: _openUserManagement,
-                        icon: const Icon(Icons.people_alt_outlined),
-                        label: const VentioText('native.ui.users_permissions'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  if (_canManageRoles) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FilledButton.tonalIcon(
-                        onPressed: _openRoleAdministration,
-                        icon: const Icon(Icons.manage_accounts_outlined),
-                        label: const VentioText(
-                          'native.ui.manage_roles_access',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  if (_canManageDevices || _canManagePairings) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FilledButton.tonalIcon(
-                        onPressed: _openDeviceManagement,
-                        icon: const Icon(Icons.devices_other_outlined),
-                        label: const VentioText('native.ui.host_devices'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _disconnectHost,
-                      icon: const Icon(Icons.link_off_outlined),
-                      label: const VentioText('native.ui.disconnect_host'),
-                    ),
-                  ),
-                ],
-                if (_canReadHostStatus)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.tonalIcon(
-                      onPressed: _openHostOverview,
-                      icon: const Icon(Icons.monitor_heart_outlined),
-                      label: const VentioText('native.ui.host_overview'),
-                    ),
-                  ),
-                const SizedBox(height: 24),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 620;
-                    final heading = Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        VentioText(
-                          'native.ui.build_an_extension',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 6),
-                        const VentioText(
-                          'native.ui.define_reusable_records_fields_relationships_and_screens_without_adding',
-                        ),
-                      ],
-                    );
-                    final create = FilledButton.icon(
-                      onPressed: _createExtension,
-                      icon: const Icon(Icons.add),
-                      label: const VentioText('native.ui.new_extension'),
-                    );
-                    if (compact) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [heading, const SizedBox(height: 16), create],
-                      );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(child: heading),
-                        const SizedBox(width: 16),
-                        create,
-                      ],
-                    );
-                  },
                 ),
                 const SizedBox(height: 24),
-                if (_loading)
-                  const Center(child: CircularProgressIndicator())
-                else if (_loadError != null)
-                  _StateCard(
-                    icon: Icons.error_outline,
-                    title: context.ventioText(
-                      'native.ui.extensions_could_not_be_loaded',
-                    ),
-                    body: _loadError!,
-                    action: TextButton.icon(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh),
-                      label: const VentioText('native.ui.try_again'),
-                    ),
-                  )
-                else if (_extensions.isEmpty)
-                  _StateCard(
-                    icon: Icons.extension_outlined,
-                    title: context.ventioText(
-                      'native.ui.start_with_an_extension',
-                    ),
-                    body: context.ventioText(
-                      'native.ui.create_a_local_draft_add_one_or_more_doctypes_then_preview_the_screens_g',
-                    ),
-                    action: FilledButton.icon(
-                      onPressed: _createExtension,
-                      icon: const Icon(Icons.add),
-                      label: const VentioText(
-                        'native.ui.create_your_first_extension',
-                      ),
-                    ),
-                  )
-                else ...[
-                  VentioText(
-                    'native.ui.your_extensions',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  for (final extension in _extensions)
-                    _ExtensionCard(
-                      extension: extension,
-                      onTap: () => _openExtension(extension.moduleId),
-                    ),
-                ],
+                ...children,
               ],
             ),
           ),
         ),
+      ],
+    ),
+  );
+
+  Widget _workspaceHeading(BuildContext context, String title) => Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 10),
+    child: Text(
+      title,
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+    ),
+  );
+
+  Widget _workspaceQueue(BuildContext context) {
+    final profile = _hostProfile;
+    if (profile == null ||
+        profile.actorId == null ||
+        profile.deviceId == null) {
+      return _workspaceAction(
+        context,
+        'synchronization',
+        Icons.sync_alt_outlined,
+        () => VentioWorkspaceShell.selectSection(context, 'synchronization'),
+        description: 'View the durable queue on this device.',
+      );
+    }
+    final entries = _workspaceQueueEntries;
+    var description =
+        'Queue status unavailable. Open synchronization to check.';
+    if (entries != null) {
+      final scoped = entries.where(
+        (entry) =>
+            entry.envelope.tenantId == profile.tenantId &&
+            entry.envelope.companyId == profile.companyId &&
+            entry.envelope.branchId == profile.branchId &&
+            entry.envelope.actorId == profile.actorId &&
+            entry.envelope.deviceId == profile.deviceId,
+      );
+      final pending = scoped.where((entry) => entry.isPending).length;
+      final attention = scoped
+          .where(
+            (entry) =>
+                entry.hostStatus == HostCommandStatus.conflict ||
+                entry.hostStatus == HostCommandStatus.rejected,
+          )
+          .length;
+      final suffix = entries.length == 1000
+          ? ' (latest 1,000 device entries)'
+          : '';
+      description =
+          '$pending pending or retryable · $attention need attention$suffix';
+    }
+    return _workspaceAction(
+      context,
+      'synchronization',
+      Icons.sync_alt_outlined,
+      () => VentioWorkspaceShell.selectSection(context, 'synchronization'),
+      description: description,
+    );
+  }
+
+  List<Widget> _workspaceExtensions(BuildContext context) => [
+    if (_loading)
+      const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      )
+    else if (_loadError != null)
+      _StateCard(
+        icon: Icons.error_outline,
+        title: context.ventioText('native.ui.extensions_could_not_be_loaded'),
+        body: _loadError!,
+        action: TextButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const VentioText('native.ui.try_again'),
+        ),
+      )
+    else if (_extensions.isEmpty)
+      _StateCard(
+        icon: Icons.extension_outlined,
+        title: context.ventioText('native.ui.start_with_an_extension'),
+        body: context.ventioText(
+          'native.ui.create_a_local_draft_add_one_or_more_doctypes_then_preview_the_screens_g',
+        ),
+        action: FilledButton.icon(
+          onPressed: _createExtension,
+          icon: const Icon(Icons.add),
+          label: const VentioText('native.ui.create_your_first_extension'),
+        ),
+      )
+    else
+      for (final extension in _extensions)
+        _ExtensionCard(
+          extension: extension,
+          onTap: () => _openExtension(extension.moduleId),
+        ),
+  ];
+
+  Widget _workspaceHome(BuildContext context) => _workspaceContent(
+    context,
+    id: 'home',
+    title: 'Your workspace',
+    description:
+        'Open your applications, continue local work, or check synchronization.',
+    children: [
+      if (_queueRecoveryWarning != null)
+        _StateCard(
+          icon: Icons.warning_amber_outlined,
+          title: context.ventioText(
+            'native.ui.a_saved_record_could_not_enter_the_host_queue',
+          ),
+          body: _queueRecoveryWarning!,
+          action: TextButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+            label: const VentioText('native.ui.retry_queue_recovery'),
+          ),
+        ),
+      _workspaceHeading(context, 'Quick access'),
+      VentioWorkspaceGrid(
+        children: [
+          VentioWorkspaceAction(
+            label: 'Applications',
+            icon: Icons.apps_outlined,
+            description: 'Open authorized modules and records.',
+            onPressed: _workspaceAvailable
+                ? () => VentioWorkspaceShell.selectSection(
+                    context,
+                    'applications',
+                  )
+                : null,
+          ),
+          if (_workspaceAvailable)
+            VentioWorkspaceAction(
+              label: 'Workspaces',
+              icon: Icons.space_dashboard_outlined,
+              description: 'Saved views, dashboards and jobs.',
+              onPressed: () =>
+                  VentioWorkspaceShell.selectSection(context, 'workspaces'),
+            ),
+          _workspaceQueue(context),
+        ],
       ),
+    ],
+  );
+
+  Widget _workspaceStudio(BuildContext context) => _workspaceContent(
+    context,
+    id: 'studio',
+    title: 'Extension Studio',
+    description:
+        'Create, import and manage local declarative extension packages.',
+    children: [
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          FilledButton.icon(
+            onPressed: _createExtension,
+            icon: const Icon(Icons.add),
+            label: const VentioText('native.ui.new_extension'),
+          ),
+          OutlinedButton.icon(
+            onPressed: _installBundle,
+            icon: const Icon(Icons.file_download_outlined),
+            label: const VentioText('native.ui.install_extension_package'),
+          ),
+          if (_hostProfile != null && widget.credentialVault != null)
+            OutlinedButton.icon(
+              onPressed: _installApprovedFromHost,
+              icon: const Icon(Icons.cloud_download_outlined),
+              label: const VentioText('native.ui.install_from_host'),
+            ),
+        ],
+      ),
+      _workspaceHeading(context, 'On this device'),
+      ..._workspaceExtensions(context),
+    ],
+  );
+
+  Widget _workspaceArea(BuildContext context, {required bool applications}) {
+    final profile = _hostProfile;
+    final vault = widget.credentialVault;
+    if (!_workspaceAvailable || profile == null || vault == null) {
+      return _workspaceContent(
+        context,
+        id: applications ? 'applications' : 'workspaces',
+        title: applications ? 'Applications' : 'Workspaces',
+        description:
+            'Connect an organization account to access authorized modules and workspaces.',
+        children: [],
+      );
+    }
+    return WorkspacePage(
+      key: ValueKey(
+        '${profile.endpoint}|${profile.tenantId}|${profile.companyId}|${profile.branchId}|${profile.actorId}|${profile.deviceId}|$applications',
+      ),
+      profile: profile,
+      extensions: widget.store,
+      queue: widget.queue,
+      client: _hostPackageClient(
+        endpoint: Uri.parse(profile.endpoint),
+        vault: vault,
+      ),
+      initialTab: applications ? 0 : 1,
+      embedded: true,
+      visibleTabs: applications ? const [0] : const [1, 2, 3, 4],
+    );
+  }
+
+  Widget _workspaceSynchronization(BuildContext context) => SynchronizationPage(
+    queue: widget.queue,
+    embedded: true,
+    onRetryPending: _hostProfile != null && widget.credentialVault != null
+        ? () async {
+            await _syncPendingFromHost();
+            await _refreshWorkspaceQueue();
+          }
+        : null,
+  );
+
+  Widget _workspaceAdministration(BuildContext context) => _workspaceContent(
+    context,
+    id: 'administration',
+    title: 'Administration',
+    description: 'Organization operations available to your verified account.',
+    children: [
+      if (_canManageUsers || _canManageRoles)
+        _workspaceHeading(context, 'Identity and access'),
+      if (_canManageUsers)
+        _workspaceAction(
+          context,
+          'users_permissions',
+          Icons.people_alt_outlined,
+          _openUserManagement,
+        ),
+      if (_canManageRoles)
+        _workspaceAction(
+          context,
+          'manage_roles_access',
+          Icons.manage_accounts_outlined,
+          _openRoleAdministration,
+        ),
+      if (_canManageDevices ||
+          _canManagePairings ||
+          _canReviewExtensions ||
+          _canReadHostStatus)
+        _workspaceHeading(context, 'Organization and operations'),
+      if (_canManageDevices || _canManagePairings)
+        _workspaceAction(
+          context,
+          'host_devices',
+          Icons.devices_other_outlined,
+          _openDeviceManagement,
+        ),
+      if (_canReviewExtensions)
+        _workspaceAction(
+          context,
+          'review_extension_candidates',
+          Icons.fact_check_outlined,
+          _openExtensionReview,
+        ),
+      if (_canReadHostStatus)
+        _workspaceAction(
+          context,
+          'host_overview',
+          Icons.monitor_heart_outlined,
+          _openHostOverview,
+        ),
+    ],
+  );
+
+  Widget _workspaceSettings(BuildContext context) => _workspaceContent(
+    context,
+    id: 'settings',
+    title: 'Settings',
+    description: 'Account, device connection and troubleshooting.',
+    children: [
+      if (widget.onAccountSettings != null ||
+          widget.accountSettingsBuilder != null) ...[
+        _workspaceHeading(context, 'Account'),
+        VentioWorkspaceAction(
+          label: 'Account and sign-in',
+          icon: Icons.person_outline,
+          onPressed: _openAccountSettings,
+        ),
+      ],
+      _workspaceHeading(context, 'Device and connection'),
+      _workspaceAction(
+        context,
+        'host_settings',
+        Icons.settings_outlined,
+        _openHostSettings,
+      ),
+      if (widget.credentialVault != null)
+        _workspaceAction(
+          context,
+          'enroll_client',
+          Icons.phonelink_setup_outlined,
+          _openClientPairing,
+          widgetKey: const ValueKey('client-pairing-open'),
+        ),
+      FutureBuilder<bool>(
+        future: _hostSetupCapability ??= _localHostSetupAvailable(),
+        builder: (context, snapshot) =>
+            snapshot.connectionState == ConnectionState.done &&
+                snapshot.data == true
+            ? _workspaceAction(
+                context,
+                'host_setup_menu',
+                Icons.settings_suggest_outlined,
+                _openHostSetup,
+              )
+            : const SizedBox.shrink(),
+      ),
+      if (_hostProfile != null) ...[
+        _workspaceHeading(context, 'Connection management'),
+        _workspaceAction(
+          context,
+          'disconnect_host',
+          Icons.link_off_outlined,
+          _disconnectHost,
+        ),
+      ],
+      _workspaceHeading(context, 'Support'),
+      VentioWorkspaceAction(
+        label: _localDiagnosticsLabel(context),
+        icon: Icons.health_and_safety_outlined,
+        onPressed: _openLocalDiagnostics,
+      ),
+      _workspaceAction(
+        context,
+        'offline_queue_proof',
+        Icons.cloud_off_outlined,
+        () async {
+          await _openMaintenanceProof();
+          await _refreshWorkspaceQueue();
+        },
+      ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final canAdminister =
+        widget.credentialVault != null &&
+        (_canManageUsers ||
+            _canManageRoles ||
+            _canManageDevices ||
+            _canManagePairings ||
+            _canReviewExtensions ||
+            _canReadHostStatus);
+    final connectionLabel = _hostProfile == null
+        ? 'Local device'
+        : _connectionState;
+    return VentioWorkspaceShell(
+      navigatorKey: _workspaceNavigator,
+      accountLabel: _accountLabel,
+      sidebarPreferenceScope: _hostProfile?.actorId == null
+          ? null
+          : jsonEncode([_hostProfile!.tenantId, _hostProfile!.actorId]),
+      authorizationRevision: _identityFingerprint(_hostIdentity),
+      connectionLabel: connectionLabel,
+      connectionIcon: _hostProfile == null
+          ? Icons.devices_outlined
+          : _hostIdentity == null
+          ? Icons.cloud_off_outlined
+          : Icons.cloud_done_outlined,
+      onRefresh: _load,
+      onSignOut: widget.onSignOut,
+      sections: [
+        VentioWorkspaceSection(
+          id: 'home',
+          label: 'Home',
+          icon: Icons.home_outlined,
+          builder: _workspaceHome,
+        ),
+        VentioWorkspaceSection(
+          id: 'applications',
+          label: 'Applications',
+          icon: Icons.apps_outlined,
+          builder: (context) => _workspaceArea(context, applications: true),
+        ),
+        VentioWorkspaceSection(
+          id: 'studio',
+          label: 'Extension Studio',
+          icon: Icons.extension_outlined,
+          parentId: 'applications',
+          builder: _workspaceStudio,
+        ),
+        VentioWorkspaceSection(
+          id: 'workspaces',
+          label: 'Workspaces',
+          icon: Icons.space_dashboard_outlined,
+          builder: (context) => _workspaceArea(context, applications: false),
+        ),
+        VentioWorkspaceSection(
+          id: 'synchronization',
+          label: 'Synchronization',
+          icon: Icons.sync_alt_outlined,
+          parentId: 'workspaces',
+          builder: _workspaceSynchronization,
+        ),
+        if (canAdminister)
+          VentioWorkspaceSection(
+            id: 'administration',
+            label: 'Administration',
+            icon: Icons.admin_panel_settings_outlined,
+            builder: _workspaceAdministration,
+          ),
+        if (canAdminister && _canManageUsers)
+          VentioWorkspaceSection(
+            id: 'users',
+            label: 'Users & permissions',
+            icon: Icons.people_alt_outlined,
+            parentId: 'administration',
+            builder: _workspaceAdministration,
+            onOpen: _openUserManagement,
+          ),
+        if (canAdminister && _canManageRoles)
+          VentioWorkspaceSection(
+            id: 'roles',
+            label: 'Roles & access',
+            icon: Icons.manage_accounts_outlined,
+            parentId: 'administration',
+            builder: _workspaceAdministration,
+            onOpen: _openRoleAdministration,
+          ),
+        if (canAdminister && (_canManageDevices || _canManagePairings))
+          VentioWorkspaceSection(
+            id: 'devices',
+            label: 'Devices & pairing',
+            icon: Icons.devices_other_outlined,
+            parentId: 'administration',
+            builder: _workspaceAdministration,
+            onOpen: _openDeviceManagement,
+          ),
+        if (canAdminister && _canReviewExtensions)
+          VentioWorkspaceSection(
+            id: 'review',
+            label: 'Extension review',
+            icon: Icons.fact_check_outlined,
+            parentId: 'administration',
+            builder: _workspaceAdministration,
+            onOpen: _openExtensionReview,
+          ),
+        if (canAdminister && _canReadHostStatus)
+          VentioWorkspaceSection(
+            id: 'host-overview',
+            label: 'Host overview',
+            icon: Icons.monitor_heart_outlined,
+            parentId: 'administration',
+            builder: _workspaceAdministration,
+            onOpen: _openHostOverview,
+          ),
+        VentioWorkspaceSection(
+          id: 'settings',
+          label: 'Settings',
+          icon: Icons.settings_outlined,
+          builder: _workspaceSettings,
+        ),
+        if (widget.onAccountSettings != null ||
+            widget.accountSettingsBuilder != null)
+          VentioWorkspaceSection(
+            id: 'account',
+            label: 'Account and sign-in',
+            icon: Icons.person_outline,
+            parentId: 'settings',
+            builder: _workspaceSettings,
+            onOpen: _openAccountSettings,
+          ),
+        VentioWorkspaceSection(
+          id: 'connection',
+          label: 'Host settings',
+          icon: Icons.settings_outlined,
+          parentId: 'settings',
+          builder: _workspaceSettings,
+          onOpen: _openHostSettings,
+        ),
+        VentioWorkspaceSection(
+          id: 'diagnostics',
+          label: 'Diagnostics',
+          icon: Icons.health_and_safety_outlined,
+          parentId: 'settings',
+          builder: _workspaceSettings,
+          onOpen: _openLocalDiagnostics,
+        ),
+      ],
     );
   }
 }

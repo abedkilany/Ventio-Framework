@@ -536,16 +536,14 @@ class _VentioClientAppState extends State<VentioClientApp> {
                 store: widget.extensionStore,
                 queue: widget.queue,
                 onSignOut: _signOut,
-                onAccountSettings: _accountProfile == null
+                workspacePollInterval: const Duration(seconds: 30),
+                accountSettingsBuilder:
+                    _accountProfile == null || widget.credentialVault == null
                     ? null
-                    : () => _accountNavigatorKey.currentState!.push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => AccountLoginSettingsPage(
-                            signIn: AccountSignIn(
-                              credentials: widget.credentialVault!,
-                              profile: _accountProfile!,
-                            ),
-                          ),
+                    : (_) => AccountLoginSettingsPage(
+                        signIn: AccountSignIn(
+                          credentials: widget.credentialVault!,
+                          profile: _accountProfile!,
                         ),
                       ),
                 credentialVault: widget.credentialVault,

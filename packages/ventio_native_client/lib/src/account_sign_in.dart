@@ -683,161 +683,256 @@ class _AccountSignInPageState extends State<AccountSignInPage> {
     }
   }
 
+  String _friendlyError(String code) => switch (code) {
+    'SIGN_IN_DENIED' =>
+      'Sign-in was denied. Check your account details or contact an administrator.',
+    'OFFLINE_SIGN_IN_UNAVAILABLE' =>
+      'Offline sign-in is unavailable. Connect to your Host and try again.',
+    'HOST_UNREACHABLE' || 'HOST_REQUEST_TIMEOUT' =>
+      'The Host could not be reached. Check your connection.',
+    'HOST_CREDENTIAL_MISSING' => 'This device needs to be enrolled again.',
+    'LOCAL_OWNER_SETUP_UNAVAILABLE' =>
+      'Local Owner recovery could not be opened.',
+    _ =>
+      'Sign-in or account setup could not be completed. Please try again or contact an administrator.',
+  };
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const VentioText('native.ui.account_organization_sign_in'),
-    ),
-    body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.all(24),
-          children: [
-            Icon(
-              Icons.lock_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            VentioText(
-              'native.ui.account_organization',
-              params: {'tenant': widget.signIn.profile.tenantId},
-            ),
-            const VentioText(
-              'native.ui.account_use_this_organization_s_account_on_an_enrolled_host_or_client_offline_access_expires_eight',
-            ),
-            TextField(
-              controller: username,
-              enabled: !busy,
-              decoration: InputDecoration(
-                labelText: context.ventioText('native.ui.account_username'),
+    body: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Card(
+              elevation: 0,
+              color: Theme.of(context).colorScheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: Theme.of(context).dividerColor),
               ),
-              autofillHints: const [AutofillHints.username],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: password,
-              enabled: !busy,
-              obscureText: !showPassword,
-              enableSuggestions: false,
-              autocorrect: false,
-              decoration: InputDecoration(
-                labelText: context.ventioText('native.ui.account_password'),
-                suffixIcon: IconButton(
-                  tooltip: context.ventioText(
-                    showPassword
-                        ? 'native.ui.account_hide_password'
-                        : 'native.ui.account_show_password',
-                  ),
-                  onPressed: busy
-                      ? null
-                      : () => setState(() => showPassword = !showPassword),
-                  icon: Icon(
-                    showPassword ? Icons.visibility_off : Icons.visibility,
-                  ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Image.asset(
+                        'assets/branding/ventio_symbol.png',
+                        width: 54,
+                        height: 54,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.lock_outline,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Ventio',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 5),
+                    VentioText(
+                      'native.ui.account_organization_sign_in',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use your organization account to continue.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: username,
+                      enabled: !busy,
+                      decoration: InputDecoration(
+                        labelText: context.ventioText(
+                          'native.ui.account_username',
+                        ),
+                        prefixIcon: const Icon(Icons.person_outline),
+                        border: const OutlineInputBorder(),
+                      ),
+                      autofillHints: const [AutofillHints.username],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: password,
+                      enabled: !busy,
+                      obscureText: !showPassword,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      decoration: InputDecoration(
+                        labelText: context.ventioText(
+                          'native.ui.account_password',
+                        ),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          tooltip: context.ventioText(
+                            showPassword
+                                ? 'native.ui.account_hide_password'
+                                : 'native.ui.account_show_password',
+                          ),
+                          onPressed: busy
+                              ? null
+                              : () => setState(
+                                  () => showPassword = !showPassword,
+                                ),
+                          icon: Icon(
+                            showPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                        ),
+                      ),
+                      onSubmitted: (_) => busy ? null : submit(),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: rememberMe,
+                      onChanged: busy
+                          ? null
+                          : (value) =>
+                                setState(() => rememberMe = value ?? false),
+                      title: const VentioText('native.ui.account_remember_me'),
+                      subtitle: const VentioText(
+                        'native.ui.account_remember_me_hint',
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                    if (error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Tooltip(
+                          message: error!,
+                          child: Text(
+                            _friendlyError(error!),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
+                      ),
+                    FilledButton(
+                      onPressed: busy ? null : () => submit(),
+                      child: const VentioText(
+                        'native.ui.account_sign_in_through_host',
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              final recover = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const VentioText(
+                                    'native.ui.account_forgot_password',
+                                  ),
+                                  content: const VentioText(
+                                    'native.ui.account_forgot_password_help',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const VentioText(
+                                        'native.ui.account_close_help',
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const VentioText(
+                                        'native.ui.account_local_host_owner_setup_and_recovery',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (recover != true || !mounted) return;
+                              try {
+                                await launchOwnerRecovery();
+                              } catch (_) {
+                                if (mounted) {
+                                  setState(
+                                    () =>
+                                        error = 'LOCAL_OWNER_SETUP_UNAVAILABLE',
+                                  );
+                                }
+                              }
+                            },
+                      child: const VentioText(
+                        'native.ui.account_forgot_password',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Offline access is limited to your last verified session.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const Divider(),
+                    ExpansionTile(
+                      title: const Text('Device and account setup'),
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: const EdgeInsets.only(bottom: 8),
+                      children: [
+                        TextButton(
+                          onPressed: busy ? null : initialize,
+                          child: const VentioText(
+                            'native.ui.account_finish_first_owner_setup',
+                          ),
+                        ),
+                        OutlinedButton(
+                          onPressed: busy ? null : widget.onEnroll,
+                          child: const VentioText(
+                            'native.ui.account_enroll_another_account_or_organization',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: busy
+                              ? null
+                              : () async {
+                                  try {
+                                    await launchOwnerRecovery();
+                                  } catch (_) {
+                                    if (mounted) {
+                                      setState(
+                                        () => error =
+                                            'LOCAL_OWNER_SETUP_UNAVAILABLE',
+                                      );
+                                    }
+                                  }
+                                },
+                          child: const VentioText(
+                            'native.ui.account_local_host_owner_setup_and_recovery',
+                          ),
+                        ),
+                        const VentioText(
+                          'native.ui.account_existing_installation_without_an_owner_use_ventio_organization_owner_setup_and_recovery_on',
+                        ),
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          'Organization ID: ${widget.signIn.profile.tenantId}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    if (busy) const LinearProgressIndicator(),
+                  ],
                 ),
               ),
-              onSubmitted: (_) => busy ? null : submit(),
             ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: rememberMe,
-              onChanged: busy
-                  ? null
-                  : (value) => setState(() => rememberMe = value ?? false),
-              title: const VentioText('native.ui.account_remember_me'),
-              subtitle: const VentioText('native.ui.account_remember_me_hint'),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            if (error != null)
-              Text(
-                error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            FilledButton(
-              onPressed: busy ? null : () => submit(),
-              child: const VentioText('native.ui.account_sign_in_through_host'),
-            ),
-            TextButton(
-              onPressed: busy
-                  ? null
-                  : () async {
-                      final recover = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const VentioText(
-                            'native.ui.account_forgot_password',
-                          ),
-                          content: const VentioText(
-                            'native.ui.account_forgot_password_help',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const VentioText(
-                                'native.ui.account_close_help',
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const VentioText(
-                                'native.ui.account_local_host_owner_setup_and_recovery',
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (recover != true || !mounted) return;
-                      try {
-                        await launchOwnerRecovery();
-                      } catch (_) {
-                        if (mounted) {
-                          setState(
-                            () => error = 'LOCAL_OWNER_SETUP_UNAVAILABLE',
-                          );
-                        }
-                      }
-                    },
-              child: const VentioText('native.ui.account_forgot_password'),
-            ),
-            const Divider(),
-            TextButton(
-              onPressed: busy ? null : initialize,
-              child: const VentioText(
-                'native.ui.account_finish_first_owner_setup',
-              ),
-            ),
-            OutlinedButton(
-              onPressed: busy ? null : widget.onEnroll,
-              child: const VentioText(
-                'native.ui.account_enroll_another_account_or_organization',
-              ),
-            ),
-            TextButton(
-              onPressed: busy
-                  ? null
-                  : () async {
-                      try {
-                        await launchOwnerRecovery();
-                      } catch (_) {
-                        if (mounted) {
-                          setState(
-                            () => error = 'LOCAL_OWNER_SETUP_UNAVAILABLE',
-                          );
-                        }
-                      }
-                    },
-              child: const VentioText(
-                'native.ui.account_local_host_owner_setup_and_recovery',
-              ),
-            ),
-            const VentioText(
-              'native.ui.account_existing_installation_without_an_owner_use_ventio_organization_owner_setup_and_recovery_on',
-            ),
-            if (busy) const LinearProgressIndicator(),
-          ],
+          ),
         ),
       ),
     ),
